@@ -1,0 +1,1160 @@
+{
+  "schema": "idd-state/v1",
+  "change": "persistent-data-touched-writer",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "persistent-data no se deriva por editar cualquier línea de un archivo que ya escribía (#416)",
+    "acceptance": "Editar una constante de un archivo que ya escribía, sin tocar su escritura, no deriva persistent-data; un script que solo escribe en el directorio de build no la deriva o queda excluido por defecto de forma documentada; el escenario del import a un módulo que escribe sigue derivándola; un test reproduce el caso de #416"
+  },
+  "facts": {
+    "open": [
+      "¿Qué hace que el salto 0 (el fichero ya escribía) cuente: nada (solo líneas añadidas que escriben e imports), una línea añadida dentro de la misma función que la escritura, u otra regla?",
+      "¿Cómo se trata un script de build que escribe en dist/build/out: exclusión por defecto por ruta, detección del destino en la llamada, o nada más allá de la regla anterior?",
+      "¿Se añade una salida con respuesta del usuario (retract --answer --source user) para una persistent-data que viene del contenido del diff?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-impact.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-signals.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/subagent-stop.js and 1 more (matches scripts/hooks/**)",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La exclusión de build y la retirada con respuesta se deciden en el CLI con tests; el skill solo dice que se pregunte al usuario"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "Afina la señal de datos persistentes: la salida de build y lo que el usuario confirma sin datos dejan de añadir obligaciones; una ruta de migración las sigue añadiendo"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "Nada se satisface sin evidencia: la obligación queda withdrawn con la respuesta registrada, como cualquier retirada"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; solo Node estándar"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "El estado sigue en idd/<change>/state.yaml; no lee ni escribe SDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "La retirada con respuesta queda en state.yaml y la derivación la aplica igual en cada check y sesión"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "Sin red: solo lee el diff y el estado locales"
+    },
+    {
+      "kind": "adr",
+      "id": "0007",
+      "impact": "none",
+      "reason": "No toca el linaje de revisión"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "none",
+      "reason": "No toca ningún guard de seguridad de los hooks"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "none",
+      "reason": "No toca los guards"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-14"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-12"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-13"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Salto 0: Mantenerlo + build + salida. Build: Excluir por ruta por defecto (pre/postbuild.*, build.*, scripts/build/**, *.config.* de Vite/Astro/webpack/Rollup; solo persistent-data por contenido). Retract: Sí, solo por contenido (adds/uses/imports), con --answer --source user; lo derivado por ruta sigue sin retirarse.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-24T11:20:17.833Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T11:24:49.643Z",
+      "detail": {
+        "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-24T11:24:49.643Z",
+      "detail": {
+        "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/review-receipt.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-24T11:25:01.272Z",
+      "detail": {
+        "run": "run-14",
+        "tree": "sha256:a44681d366b2096529d5bc499322d2d2e75760ef10f153b3ba7bcc46fe0db723",
+        "plan": "Compatible hacia delante: confirmed_by, answer y answer_source de retracted son opcionales y solo aparecen en una retirada con respuesta del usuario; los estados ya escritos siguen válidos sin ellos (idd-contract.test.js: estados anteriores a cada campo). Rollback: revertir el commit; un change abierto que ya tenga una retirada con respuesta (source diff) no lo valida la versión anterior, así que se cierra antes de revertir o se vuelve a abrir esa señal."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T11:26:35.512Z",
+      "detail": {
+        "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+        "runs": [
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-24T11:26:35.512Z",
+      "detail": {
+        "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+        "check": "ev-5",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/review-receipt.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T11:26:35.512Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none",
+          "adr:0007 none",
+          "adr:0008 none",
+          "scenario:guard-fail-closed none"
+        ],
+        "records": [],
+        "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+        "fitness": [
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-24T11:37:02.276Z",
+      "detail": {
+        "lineage_id": "sha256:cffe9748d8ccc1a96f756687fb01b08c3417aed3b53343dd0a82b5161a486a2c",
+        "candidate_id": "sha256:259779061ea5bb6408d89793bbf68bd2d999b9093835143f0715286981216fae",
+        "candidate_tree": "ab988c62b95ee04538a21c4daed6e0e99c2a2da4",
+        "findings_digest": "sha256:941a9238e106c89f60669071e969b001a4023de21a9b1030844145fa96abe849",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-24T11:36:35.491Z",
+          "result_digest": "sha256:ed08616a08a44caf7adb96d97cc1e4b3131ed4651cfb45e63bb7798b8d5e863b"
+        }
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T11:40:05.923Z",
+      "detail": {
+        "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+        "runs": [
+          "run-26"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-24T11:40:05.923Z",
+      "detail": {
+        "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+        "check": "ev-9",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/review-receipt.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T11:40:05.923Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none",
+          "adr:0007 none",
+          "adr:0008 none",
+          "scenario:guard-fail-closed none"
+        ],
+        "records": [],
+        "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+        "fitness": [
+          "run-27",
+          "run-28",
+          "run-29",
+          "run-30",
+          "run-31",
+          "run-32",
+          "run-33",
+          "run-34",
+          "run-35",
+          "run-36"
+        ]
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-24T11:40:11.389Z",
+      "detail": {
+        "run": "run-37",
+        "tree": "sha256:7d57fcf01aa349d8a3d7646d8f31e5e9c3ba611e34d7a7250a3a93d2da86fc0f",
+        "plan": "Compatible hacia delante: confirmed_by, hits, answer y answer_source de retracted son opcionales y solo aparecen en una retirada con respuesta del usuario; los estados ya escritos siguen válidos sin ellos (idd-contract.test.js: estados anteriores a cada campo). Rollback: revertir el commit; un change abierto que ya tenga una retirada con respuesta (source diff) no lo valida la versión anterior, así que se cierra antes de revertir o se vuelve a abrir esa señal."
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-24T11:42:18.303Z",
+      "detail": {
+        "lineage_id": "sha256:cee4ffd8185da7702acc7ae85a639d782a57a9a5c86188410a49ac705ded18b5",
+        "candidate_id": "sha256:1f0b56b378bb6411ea48b43393ba231ac1301ceed0d4e046cf099dab008dafc6",
+        "candidate_tree": "b2efe8067b8fa533366a6bbfd46723abdef1abba",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-24T11:42:01.578Z",
+          "result_digest": "sha256:98d7353bd38219bcf9f32cfd9aec5233e9e9fc6312fade9cdfbdf8e36388f4ec"
+        }
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-24T13:40:35.935Z"
+    }
+  ],
+  "base": "19e9cac6ebfda1fbc5c0cf27a30b05d7b9311c25",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"a build script derives no persistent data\" scripts/lib/idd-signals.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:adbdfdd822f5609b36f5719e12285487dd5847fea7a44bb1ac15eec7b1f0f17c",
+      "tree": "sha256:8ed46d964cf941deaaf5f5320ab32c90c9c9b419c1eea892c71252ee624bb76d",
+      "recorded_at": "2026-10-24T11:19:48.534Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"a build script derives no persistent data\" scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4c440444c4d880e441a630b6e4d57ebaf9d52b1204c624492078042695f222b3",
+      "tree": "sha256:de7913fa3f9d1e47075b8d6c50d244945246cd7eca090d18f3104a1f48267bc5",
+      "recorded_at": "2026-10-24T11:20:17.833Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e6427e2fbfc5c67fe3ebf6587f8cfe2c3e41e2b4f0af25b6536ea24d7241c8e5",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:24:49.643Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d0a1e0b4bfea8e3f4f8ff762f5f46a3517dbf73a07f0f4f7f6b45766de3578b6",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:24:49.643Z",
+      "tests": 43
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f8de96d50f12e4d0365b3df6d3c8d6b05df157cfb81fcd04d8286aaf600db0e9",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:24:49.643Z",
+      "tests": 12
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2e2d50b13479a653d6fd62a2f19cbb49523571b012be689f66353ac1eea8ccdf",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:24:49.643Z",
+      "tests": 2
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:24:49.643Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7463c2ce986767afd4d06257bfb0919649b2400aa0a37fff7a48400a128aeb4f",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:24:49.643Z",
+      "tests": 16
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:07d8f1df79ca47117a754b30e2df1a9e3d60a9b0615ee67aee6b01bf4e03ce4d",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:24:49.643Z",
+      "tests": 79
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7e74c7d7e0ae8df44e2c50eed9040c80e510b84816f2fe0cf8d82637d194137a",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:24:49.643Z",
+      "tests": 38
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0007",
+      "command": "node --test scripts/review-lineage.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3a87f34d7457a95110988944b763d3fa67c937211b6beba10b806b77a47cd567",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:24:49.643Z",
+      "tests": 32
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3b79116dc79a3ae178e0e8c2ab9b5a1daec43c73a3227dbd19f27fdff69d7351",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:24:49.643Z",
+      "tests": 81
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:00f136ed00a9ea53f79c16a947c195aeb39a35d4a2fe01be4bee3197dfeb49f9",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:24:49.643Z",
+      "tests": 81
+    },
+    {
+      "id": "run-14",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-contract.test.js scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:256f3e3fa4b6349365709234aa48b038106a232dc69cc0bf13c387bec6353be9",
+      "tree": "sha256:a44681d366b2096529d5bc499322d2d2e75760ef10f153b3ba7bcc46fe0db723",
+      "recorded_at": "2026-10-24T11:25:01.272Z",
+      "tests": 79
+    },
+    {
+      "id": "run-15",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e2db02056d9fa13a1afa44a56cad6b860623b21227b638d7c1588c0be723a542",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:26:35.512Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0b30fdfaa81ed340937dee2cc09e17a27dc0e47903faf38a8bf577c22212e6e9",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:26:35.512Z",
+      "tests": 43
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7ed6ab8826eaa20c8bb73976ec964f12c74684b4d6b64dc951e0cd69973e82fa",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:26:35.512Z",
+      "tests": 12
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:78b20ea409c85ac384a19bb6c1b363a9846e2da1944432b24e36728333046167",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:26:35.512Z",
+      "tests": 2
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:26:35.512Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:23e66a5fc752dd319f6a00f8fb0a15b90d1ff85355cbc32eff3840af47df5cfc",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:26:35.512Z",
+      "tests": 16
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:084292a5bad9772c4668d0d16050b0c62476b0700b5c615a412c3452125658d4",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:26:35.512Z",
+      "tests": 79
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cbef8a21cdb5e09f48c55b08fd293b77e5b87443bb8bde2a6af3b6d3a0f20d52",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:26:35.512Z",
+      "tests": 38
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0007",
+      "command": "node --test scripts/review-lineage.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:52409485dee7f1bce990c13bb7b5869950ceaaf7f9d797375bc216bb393daf41",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:26:35.512Z",
+      "tests": 32
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6da921db0480eed0b85e61f13d243eefb6ad58b8b9aa38283ed7daec448e24a3",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:26:35.512Z",
+      "tests": 81
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4535e94f3a300299ebd264143b89542208df9f572cbe342daf5e46e5162478ef",
+      "tree": "sha256:0aa61614d46634dca97a6baa34d14b3a99a1b66a404c46be925e490a84855e31",
+      "recorded_at": "2026-10-24T11:26:35.512Z",
+      "tests": 81
+    },
+    {
+      "id": "run-26",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7e06bcfbbbcf099d457015a553b4f1d58adf46d04f882636fa4642d5437d84e9",
+      "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+      "recorded_at": "2026-10-24T11:40:05.923Z"
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e389803d1f1526e6ba2c093ede981b6101033201ace4978ba4027e221401b296",
+      "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+      "recorded_at": "2026-10-24T11:40:05.923Z",
+      "tests": 44
+    },
+    {
+      "id": "run-28",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9845e891f053a310a5f67ce3908b5bb59198ca9746bdb3bbe0ae2e53e3ab7905",
+      "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+      "recorded_at": "2026-10-24T11:40:05.923Z",
+      "tests": 12
+    },
+    {
+      "id": "run-29",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d6884dbb8d489327ee41be77c1f256ff43892a97025cbd6c0070527ea88e6975",
+      "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+      "recorded_at": "2026-10-24T11:40:05.923Z",
+      "tests": 2
+    },
+    {
+      "id": "run-30",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+      "recorded_at": "2026-10-24T11:40:05.923Z"
+    },
+    {
+      "id": "run-31",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:714c77a9cc6aea624739c19994d474ded000a47f0e051a3935d3bcbe195af138",
+      "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+      "recorded_at": "2026-10-24T11:40:05.923Z",
+      "tests": 16
+    },
+    {
+      "id": "run-32",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4b5fe43316e1623aa39b1b8284916143a8356199be1702005342f71cad0c8afe",
+      "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+      "recorded_at": "2026-10-24T11:40:05.923Z",
+      "tests": 79
+    },
+    {
+      "id": "run-33",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9496227e9152f6ca5c347534a75f1e7acdcf390466810d7897ccce7625c38771",
+      "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+      "recorded_at": "2026-10-24T11:40:05.923Z",
+      "tests": 38
+    },
+    {
+      "id": "run-34",
+      "purpose": "fitness",
+      "ref": "adr:0007",
+      "command": "node --test scripts/review-lineage.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2be3c31d9b054593a398daf558686f9f2537488ca794e663148a75e05001cd33",
+      "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+      "recorded_at": "2026-10-24T11:40:05.923Z",
+      "tests": 32
+    },
+    {
+      "id": "run-35",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:63b3247bdb56c5970e5ba49af09768a097c2cfd64d6566199ea7f4249f3135dd",
+      "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+      "recorded_at": "2026-10-24T11:40:05.923Z",
+      "tests": 81
+    },
+    {
+      "id": "run-36",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:011072f3489f56cb42c2102cc3e08861600fc63719f07df92d1c5f60d574eb3f",
+      "tree": "sha256:5eafe38fd1b2178bff8c925507d92cbbdfdbb0c5637648af9e54428812f1d87b",
+      "recorded_at": "2026-10-24T11:40:05.923Z",
+      "tests": 81
+    },
+    {
+      "id": "run-37",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-contract.test.js scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:afa99ef229f8a3cb1ffda3cda3c86fc4de18fca363a31e60614e7d7a609a0dba",
+      "tree": "sha256:7d57fcf01aa349d8a3d7646d8f31e5e9c3ba611e34d7a7250a3a93d2da86fc0f",
+      "recorded_at": "2026-10-24T11:40:11.389Z",
+      "tests": 79
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:cffe9748d8ccc1a96f756687fb01b08c3417aed3b53343dd0a82b5161a486a2c",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "dc2570842f7b08565c6756bc6a4992d935d04367",
+          "candidate_tree": "ab988c62b95ee04538a21c4daed6e0e99c2a2da4",
+          "paths": [
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/hooks/subagent-stop.js",
+            "scripts/hooks/subagent-stop.test.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-impact.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-record.test.js",
+            "scripts/lib/idd-signals.js",
+            "scripts/lib/idd-signals.test.js",
+            "scripts/lib/review-receipt.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js",
+            "skills/idd/SKILL.md"
+          ],
+          "diff_hash": "sha256:e6479f45c7f63ff25db270efadec8e8c16654904b9432b82dd3306c9ccec2bb8",
+          "paths_digest": "sha256:a6a6684730f0026a176528f58de22381b667646419560b9eb6d1d660522dc3db",
+          "authored_lines": 311,
+          "original_changed_lines": 351
+        },
+        "candidate_id": "sha256:259779061ea5bb6408d89793bbf68bd2d999b9093835143f0715286981216fae",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/subagent-stop.js",
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-impact.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/review-receipt.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "ab988c62b95ee04538a21c4daed6e0e99c2a2da4",
+        "original_changed_lines": 351,
+        "authored_lines": 311
+      },
+      "current_candidate_id": "sha256:259779061ea5bb6408d89793bbf68bd2d999b9093835143f0715286981216fae",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "dc2570842f7b08565c6756bc6a4992d935d04367",
+        "candidate_tree": "ab988c62b95ee04538a21c4daed6e0e99c2a2da4",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/subagent-stop.js",
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-impact.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/review-receipt.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md"
+        ],
+        "diff_hash": "sha256:e6479f45c7f63ff25db270efadec8e8c16654904b9432b82dd3306c9ccec2bb8",
+        "paths_digest": "sha256:a6a6684730f0026a176528f58de22381b667646419560b9eb6d1d660522dc3db",
+        "authored_lines": 311,
+        "original_changed_lines": 351
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "persistent-data-touched-writer:lens-start:1:0",
+          "result_digest": "sha256:6f462c89163362633dc6319efddf17d7f61affc5b56352b601ad5da784a4ce64",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/lib/idd-signals.js:185-189 (userRetracted) and :302 key the user's retraction to the reason string 'persistent data: <file> adds|uses <label>'. That string names only the first hit, and the label is coarse (for example 'writeFile'). A write added after the user answered can be hidden under the same reason, so the obligation stays withdrawn without a new answer.",
+                "acceptance_criteria": "Given persistent-data retracted with the user's answer for the content hit of one diff, when the diff afterwards adds a content hit not covered by that answer (a second write in the same file or in a file that sorts later), then the next `ospec check` or `ospec signals` derives persistent-data again and reopens migration-compat-and-test. When the diff has only the answered hit(s), the signal stays out. A test covers both cases."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "scripts/lib/idd-impact.js:71-75 BUILD_SCRIPTS includes `**/{prebuild,postbuild,build}.*`, which matches any product file named build.<ext> at any depth. persistentHit (idd-signals.js:165,177) skips its content, and the content of anything it imports, for persistence.",
+                "acceptance_criteria": "Either bare build.* outside script/tooling directories (for example scripts/ or tools/) no longer hides content-derived persistent-data, or a project can narrow or override the build-script globs through idd/config.yaml without dropping the other defaults. A test covers src/build.ts adding writeFile."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "persistent-data-touched-writer:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-30e0fb1faaebb544",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/lib/idd-signals.js:185-189 (userRetracted) and :302 key the user's retraction to the reason string 'persistent data: <file> adds|uses <label>'. That string names only the first hit, and the label is coarse (for example 'writeFile'). A write added after the user answered can be hidden under the same reason, so the obligation stays withdrawn without a new answer.",
+          "acceptance_criteria": "Given persistent-data retracted with the user's answer for the content hit of one diff, when the diff afterwards adds a content hit not covered by that answer (a second write in the same file or in a file that sorts later), then the next `ospec check` or `ospec signals` derives persistent-data again and reopens migration-compat-and-test. When the diff has only the answered hit(s), the signal stays out. A test covers both cases.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-710d9354b651952e",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "scripts/lib/idd-impact.js:71-75 BUILD_SCRIPTS includes `**/{prebuild,postbuild,build}.*`, which matches any product file named build.<ext> at any depth. persistentHit (idd-signals.js:165,177) skips its content, and the content of anything it imports, for persistence.",
+          "acceptance_criteria": "Either bare build.* outside script/tooling directories (for example scripts/ or tools/) no longer hides content-derived persistent-data, or a project can narrow or override the build-script globs through idd/config.yaml without dropping the other defaults. A test covers src/build.ts adding writeFile.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:941a9238e106c89f60669071e969b001a4023de21a9b1030844145fa96abe849",
+      "correction_budget": {
+        "limit_lines": 176,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:cee4ffd8185da7702acc7ae85a639d782a57a9a5c86188410a49ac705ded18b5",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:cffe9748d8ccc1a96f756687fb01b08c3417aed3b53343dd0a82b5161a486a2c",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "dc2570842f7b08565c6756bc6a4992d935d04367",
+          "candidate_tree": "b2efe8067b8fa533366a6bbfd46723abdef1abba",
+          "paths": [
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/hooks/subagent-stop.js",
+            "scripts/hooks/subagent-stop.test.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-impact.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-record.test.js",
+            "scripts/lib/idd-signals.js",
+            "scripts/lib/idd-signals.test.js",
+            "scripts/lib/review-receipt.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js",
+            "skills/idd/SKILL.md"
+          ],
+          "diff_hash": "sha256:d4a7f9cb4ec33cbe956f1a240e25903cbb154df005d43c5ddc55d75e4f63b683",
+          "paths_digest": "sha256:a6a6684730f0026a176528f58de22381b667646419560b9eb6d1d660522dc3db",
+          "authored_lines": 386,
+          "original_changed_lines": 440
+        },
+        "candidate_id": "sha256:1f0b56b378bb6411ea48b43393ba231ac1301ceed0d4e046cf099dab008dafc6",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/subagent-stop.js",
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-impact.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/review-receipt.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "b2efe8067b8fa533366a6bbfd46723abdef1abba",
+        "original_changed_lines": 440,
+        "authored_lines": 386
+      },
+      "current_candidate_id": "sha256:1f0b56b378bb6411ea48b43393ba231ac1301ceed0d4e046cf099dab008dafc6",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "dc2570842f7b08565c6756bc6a4992d935d04367",
+        "candidate_tree": "b2efe8067b8fa533366a6bbfd46723abdef1abba",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/subagent-stop.js",
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-impact.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/review-receipt.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md"
+        ],
+        "diff_hash": "sha256:d4a7f9cb4ec33cbe956f1a240e25903cbb154df005d43c5ddc55d75e4f63b683",
+        "paths_digest": "sha256:a6a6684730f0026a176528f58de22381b667646419560b9eb6d1d660522dc3db",
+        "authored_lines": 386,
+        "original_changed_lines": 440
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "persistent-data-touched-writer:lens-start:2:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "persistent-data-touched-writer:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-24T13:40:35.935Z"
+}
