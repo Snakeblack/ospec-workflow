@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.150.6] - 2026-10-24
+
+### Fixed
+- **El CHANGELOG ya no tiene un enlace `[Unreleased]` desfasado** (seguimiento de E1.32). Comparaba `v2.4.5...HEAD` porque ninguna release lo actualizaba. Se quita, por decisión del usuario, y la cabecera queda como texto, igual que las versiones posteriores a 2.4.5. Un test de `scripts/manifest-sync.test.js` impide que vuelva.
+
+Hecho con IDD (`idd/archive/2026-10-24-changelog-unreleased-link/`).
+
+**Verificación directa**: `node scripts/check.js` (4018 tests pasando, 0 fallos y 3 omitidos). El test de reproducción falló antes del cambio y pasa después.
+
 ## [2.150.5] - 2026-10-24
 
 ### Fixed
@@ -4243,7 +4252,6 @@ Esta versión no tiene tag ni GitHub Release. El cambio quedó incluido en [2.4.
 - Interactive workflow gates through `vscode/askQuestions`.
 - Strict TDD mode when the project exposes a compatible test runner.
 
-[Unreleased]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.5...HEAD
 [2.4.5]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.4...v2.4.5
 [2.4.4]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.3...v2.4.4
 [2.4.3]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.2...v2.4.3

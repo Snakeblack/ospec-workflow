@@ -1,0 +1,121 @@
+{
+  "schema": "idd-state/v1",
+  "change": "changelog-unreleased-link",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El enlace [Unreleased] del CHANGELOG deja de comparar v2.4.5...HEAD (seguimiento de E1.32)",
+    "acceptance": "El CHANGELOG no tiene un enlace [Unreleased] que compare desde una versión que no es la última; un test lo comprueba"
+  },
+  "facts": {
+    "open": [
+      "¿Se quita el enlace [Unreleased] o se mantiene apuntando a la última versión con una comprobación y un paso más en cada release?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/manifest-sync.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Quitarlo (Recommended)",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-24T18:12:41.388Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T18:13:56.259Z",
+      "detail": {
+        "tree": "sha256:8a94f87c3658d92b9faa14365f53c9032b15f77aed546be56f44e4ac4f1e17f9",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "8a6a1b91165e0ca2747722622591f8f547a186e9",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=Unreleased scripts/manifest-sync.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:e517f28e1351feff5bfd654ce01cc06550037e66e33905df9031f55222aa6d82",
+      "tree": "sha256:cc3615a51d9b93da5a3327bd6682aa3e8effc8c95a94fded5afc87d792d46d22",
+      "recorded_at": "2026-10-24T18:12:41.251Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=Unreleased scripts/manifest-sync.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0781d45afbc7423b2c9cb969b45bce08ebc0c11b948748aaa92842a657aa347b",
+      "tree": "sha256:36750893c5ad8691ee11753c48c998ae1e5500aadc95fdfaa21960a8d2f89bdf",
+      "recorded_at": "2026-10-24T18:12:41.388Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:90e7820337c7f8979f0176682d697108d4404ff933ba5e38085359ea6d7eec80",
+      "tree": "sha256:8a94f87c3658d92b9faa14365f53c9032b15f77aed546be56f44e4ac4f1e17f9",
+      "recorded_at": "2026-10-24T18:13:56.259Z"
+    }
+  ],
+  "closed_at": "2026-10-24T18:13:56.332Z"
+}
