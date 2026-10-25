@@ -10,6 +10,13 @@ const path = require("node:path");
 
 const { CONFIG_FILE, CONFIG_KEYS, IddConfigError, parseIddConfig } = require("./idd-config.js");
 
+function refused(text, pattern) {
+  assert.throws(
+    () => parseIddConfig(text),
+    (error) => error instanceof IddConfigError && error.code === "config-invalid" && pattern.test(error.message),
+  );
+}
+
 test("the configuration lives under idd/, outside openspec/", () => {
   assert.strictEqual(CONFIG_FILE, "idd/config.yaml");
   assert.deepStrictEqual(CONFIG_KEYS, ["mode", "strict_tdd", "team", "delivery", "checks", "impact", "contracts"]);
@@ -30,7 +37,7 @@ test("checks are named commands kept in their declared order", () => {
 });
 
 test("an absent or empty configuration yields the defaults", () => {
-  const defaults = { mode: null, strictTdd: false, team: null, delivery: { branching: null }, checks: [], impact: {}, contracts: {} };
+  const defaults = { mode: null, strictTdd: false, team: null, delivery: { branching: null, changelog: null, release: null }, checks: [], impact: {}, contracts: {} };
   assert.deepStrictEqual(parseIddConfig(""), defaults);
   assert.deepStrictEqual(parseIddConfig("# only a comment\n\n"), defaults);
 });
@@ -56,7 +63,7 @@ test("mode, strict_tdd and the impact section are read", () => {
     mode: "idd",
     strictTdd: true,
     team: null,
-    delivery: { branching: null },
+    delivery: { branching: null, changelog: null, release: null },
     checks: [],
     impact: {
       stack: ["node", "go"],
@@ -74,11 +81,6 @@ test("an empty impact section is an empty map", () => {
 });
 
 test("unknown keys and invalid values are refused with config-invalid", () => {
-  const refused = (text, pattern) =>
-    assert.throws(
-      () => parseIddConfig(text),
-      (error) => error instanceof IddConfigError && error.code === "config-invalid" && pattern.test(error.message),
-    );
   refused("schema: spec-driven\n", /unknown idd config key: schema/);
   refused("workflow:\n  mode: idd\n", /unknown idd config key: workflow/);
   refused("mode: odd\n", /mode must be idd or sdd/);
@@ -96,11 +98,6 @@ test("the team section declares the profile and decides strict_tdd unless it is 
   assert.strictEqual(parseIddConfig("team:\n  size: solo\n  experience: junior\n").strictTdd, true);
   assert.strictEqual(parseIddConfig("strict_tdd: false\nteam:\n  size: multi-team\n").strictTdd, false);
   assert.strictEqual(parseIddConfig("strict_tdd: true\nteam:\n  size: solo\n").strictTdd, true);
-  const refused = (text, pattern) =>
-    assert.throws(
-      () => parseIddConfig(text),
-      (error) => error instanceof IddConfigError && error.code === "config-invalid" && pattern.test(error.message),
-    );
   refused("team:\n  size: enterprise\n", /team.size must be solo, small, multi-team, got enterprise/);
   refused("team:\n  experience: senior\n", /team.size must be/);
   refused("team:\n  size: solo\n  experience: expert\n", /team.experience must be junior, mixed, senior/);
@@ -109,20 +106,30 @@ test("the team section declares the profile and decides strict_tdd unless it is 
 });
 
 test("[REQ-idd-023] the delivery section declares the branching and refuses any other key or value", () => {
-  assert.deepStrictEqual(parseIddConfig("delivery:\n  branching: serial   # one PR in flight\n").delivery, { branching: "serial" });
-  assert.deepStrictEqual(parseIddConfig("delivery:\n  branching: parallel\n").delivery, { branching: "parallel" });
-  assert.deepStrictEqual(parseIddConfig("delivery:\n").delivery, { branching: null });
-  const refused = (text, pattern) =>
-    assert.throws(
-      () => parseIddConfig(text),
-      (error) => error instanceof IddConfigError && error.code === "config-invalid" && pattern.test(error.message),
-    );
+  const only = (branching) => ({ branching, changelog: null, release: null });
+  assert.deepStrictEqual(parseIddConfig("delivery:\n  branching: serial   # one PR in flight\n").delivery, only("serial"));
+  assert.deepStrictEqual(parseIddConfig("delivery:\n  branching: parallel\n").delivery, only("parallel"));
+  assert.deepStrictEqual(parseIddConfig("delivery:\n").delivery, only(null));
   refused("delivery:\n  branching: rebase\n", /delivery.branching must be serial or parallel, got rebase/);
   // Values are case-sensitive, like every other value of the file.
   refused("delivery:\n  branching: Serial\n", /got Serial/);
   refused("delivery:\n  branching:\n", /delivery.branching must be serial or parallel, got nothing/);
   refused("delivery:\n  merge: squash\n", /unknown delivery key: merge/);
   refused("delivery: serial\n", /delivery must be a section/);
+});
+
+test("[REQ-idd-025] the delivery section declares the changelog and the release cadence", () => {
+  const delivery = (text) => parseIddConfig(`delivery:\n${text}`).delivery;
+  assert.deepStrictEqual(delivery("  changelog: CHANGELOG.md\n  release: per-change\n"), { branching: null, changelog: "CHANGELOG.md", release: "per-change" });
+  assert.deepStrictEqual(delivery('  changelog: "docs/release notes.md"\n  release: batched\n'), { branching: null, changelog: "docs/release notes.md", release: "batched" });
+  assert.deepStrictEqual(delivery("  changelog: none\n  release: none\n"), { branching: null, changelog: "none", release: "none" });
+  // close writes the changelog, so it stays a relative path inside the project.
+  for (const outside of ["/etc/CHANGELOG.md", "../CHANGELOG.md", "docs/../../CHANGELOG.md", "C:/CHANGELOG.md", "docs\\CHANGELOG.md", "./CHANGELOG.md", "docs/"]) {
+    refused(`delivery:\n  changelog: ${outside}\n`, /delivery.changelog must be a relative path inside the project or none, got /);
+  }
+  refused("delivery:\n  changelog: [a.md, b.md]\n", /delivery.changelog must be a relative path inside the project or none, got nothing/);
+  refused("delivery:\n  release: weekly\n", /delivery.release must be per-change, batched, none, got weekly/);
+  refused("delivery:\n  release:\n", /delivery.release must be per-change, batched, none, got nothing/);
 });
 
 test("the contracts section lists documents and tests", () => {

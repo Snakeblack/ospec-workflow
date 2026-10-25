@@ -11,7 +11,9 @@
 // observes (REQ-idd-007). `doctor`
 // diagnoses the installation and the project without writing (REQ-idd-019).
 // `team` resolves the team profile of the active mode, the defaults it
-// decides and the branching, with its reasons (REQ-idd-023).
+// decides and the delivery options, with their reasons (REQ-idd-023). `close`
+// writes the changelog entry and proposes the release they declare
+// (REQ-idd-025).
 //
 // Exit codes: 0 ok, 1 refused by the IDD contract (or doctor found an error),
 // 2 usage error.
@@ -34,6 +36,7 @@ const {
   settleTreeBound,
 } = require("./lib/idd-check.js");
 const { classifyContractPaths } = require("./lib/idd-contracts.js");
+const { addEntry, changelogEntry, proposeRelease } = require("./lib/idd-changelog.js");
 const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvidence } = require("./lib/idd-close.js");
 const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
 const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
@@ -68,7 +71,7 @@ const { readReceipt } = require("./lib/review-receipt.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
 const { applyDerivation, classifyPath, deriveSignals, persistentHits } = require("./lib/idd-signals.js");
-const { TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
+const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange } = require("./lib/idd-store.js");
 const { withFileLock } = require("./lib/ospec-state.js");
 const {
@@ -614,6 +617,7 @@ async function close(root, values) {
   const lockTarget = path.join(root, ...ARCHIVE_ROOT.split("/"), `${values.change}.close`);
   return withFileLock(lockTarget, async () => {
     let state = await readChange(root, values.change);
+    let delivery = null;
     if (!state) {
       const archived = await findArchived(root, values.change);
       if (!archived) throw new IddRecordError("unknown-change", "no such change; open it with record intent first");
@@ -622,6 +626,9 @@ async function close(root, values) {
       requireFreshChecks(root, state);
       const livingDoc = readLivingDoc(root, state);
       const closedAt = new Date().toISOString();
+      // A refused close leaves the changelog as it was, so it is refused first.
+      closeChange(state, { closedAt, livingDoc });
+      delivery = closeDelivery(root, state, { write: true });
       ({ state } = await mutateChange(root, values.change, existing((stored) => ({ ...closeChange(stored, { closedAt, livingDoc }), changed: true }))));
     }
     if (await fsp.stat(changeDir(root, state.change)).then(() => true, () => false)) writeEvidenceSection(root, state);
@@ -634,8 +641,48 @@ async function close(root, values) {
       assumptions: state.assumptions || [],
       reviews: reviewAttestations(state),
       records: readKnowledgeRecords(root, state, archive.destination),
+      ...(delivery ?? closeDelivery(root, state, { write: false })),
     };
   });
+}
+
+// The changelog entry and the release of a closing change (REQ-idd-025), only
+// for what idd/config.yaml declares: the profile recommends, never writes.
+// Closing writes the entry once; closing again reads the file and reports it.
+// An unreadable configuration refuses the first close and is skipped after it.
+function closeDelivery(root, state, { write }) {
+  let team;
+  try {
+    team = readTeam(root, "idd");
+  } catch (error) {
+    if (!write && (error instanceof IddConfigError || error instanceof TeamProfileError)) return {};
+    throw error;
+  }
+  const declared = (option) => (option.source === CONFIG_FILE ? option.value : null);
+  const file = declared(team.changelog);
+  const result = {};
+  let text = null;
+  if (file && file !== CHANGELOG_NONE) {
+    const target = path.join(root, ...file.split("/"));
+    const entry = changelogEntry(state);
+    text = readText(target);
+    let written = false;
+    if (write) {
+      const added = addEntry(text, entry);
+      if (added.written) {
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, added.text);
+      }
+      ({ text, written } = added);
+    }
+    result.changelog = { path: file, section: entry.section, entry: entry.line, written };
+  }
+  if (declared(team.release) === "per-change") {
+    // Without a changelog nothing gives the version or the notes.
+    const proposal = text == null ? (result.changelog ? null : { version: null, bump: null, tag: null, notes: null }) : proposeRelease(text);
+    if (proposal) result.release = proposal;
+  }
+  return result;
 }
 
 // How each trust review evidence of the change was attested (OSP-029); null
@@ -825,7 +872,7 @@ function nextTeamContext(root) {
   }
   if (team.mode !== "idd") return {};
   const { value, ...branching } = team.branching;
-  const delivery = { branching: value, ...branching };
+  const delivery = { branching: value, ...branching, changelog: team.changelog, release: team.release };
   if (!team.profile) return { delivery };
   return {
     team: {
@@ -926,13 +973,20 @@ function describeNext(result) {
   for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
   for (const suggestion of result.suggestions || []) lines.push(`suggestion ${suggestion.id}: ${suggestion.reason}; ${suggestion.how}`);
   if (result.team) lines.push(`team: ${result.team.size}; delivery ${result.team.delivery_strategy}; mentorship ${result.team.mentorship}`);
-  if (result.delivery) lines.push(...describeBranching(result.delivery.branching, result.delivery));
+  if (result.delivery) lines.push(...describeDelivery({ ...result.delivery, value: result.delivery.branching }, result.delivery));
   return lines.join("\n");
 }
 
-// The branching, why it fits and the rules that follow from it.
-function describeBranching(value, { source, reasons, how }) {
-  return [`branching: ${value} (${source}): ${reasons.join("; ")}`, `branching rules: ${how}`];
+// A delivery option, why it fits and the rules that follow from it.
+function describeOption(label, { value, source, reasons, how }) {
+  return [`${label}: ${value} (${source}): ${reasons.join("; ")}`, `${label} rules: ${how}`];
+}
+
+function describeDelivery(branching, { changelog, release }) {
+  const lines = describeOption("branching", branching);
+  if (changelog) lines.push(...describeOption("changelog", changelog));
+  if (release) lines.push(...describeOption("release", release));
+  return lines;
 }
 
 const FITNESS_LABELS = Object.freeze({ adr: "ADR", scenario: "quality scenario" });
@@ -1031,7 +1085,23 @@ function describeClose(result) {
   const reviews = (result.reviews || []).map((entry) => `\ntrust review ${entry.evidence}: ${entry.attestation ?? "not attested"}`).join("");
   const body = `${line}\nassumptions:\n${listed}${reviews}`;
   const records = result.records?.length || 0;
-  return records ? `${body}\n${records} knowledge record(s) to keep in cross-session memory (see --json)` : body;
+  const lines = [body, ...describeCloseDelivery(result)];
+  if (records) lines.push(`${records} knowledge record(s) to keep in cross-session memory (see --json)`);
+  return lines.join("\n");
+}
+
+function describeCloseDelivery({ changelog, release }) {
+  const lines = [];
+  if (changelog) {
+    const how = changelog.written ? "added" : "already holds";
+    lines.push(`changelog: ${changelog.path} ${how} under [Unreleased] ### ${changelog.section}: ${changelog.entry}`);
+  }
+  if (release) {
+    const version = release.tag ? `${release.tag} (${release.bump})` : "a version the user chooses";
+    const notes = release.notes ? "the notes of [Unreleased]" : "notes the user approves";
+    lines.push(`release: propose ${version} with ${notes}; ask whether it breaks compatibility (a major), and cut it only with the user's OK`);
+  }
+  return lines;
 }
 
 async function foundation(root, positionals, values) {
@@ -1071,7 +1141,7 @@ function describeFoundation(result) {
 }
 
 function describeTeam(result) {
-  const branching = describeBranching(result.branching.value, result.branching);
+  const branching = describeDelivery(result.branching, result);
   if (!result.profile) return [`mode: ${result.mode}`, "team: no profile declared; defaults unchanged", ...branching].join("\n");
   const { profile, defaults } = result;
   return [

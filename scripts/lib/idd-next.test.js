@@ -393,3 +393,19 @@ test("[REQ-idd-023] next gives the branching where it decides something and sugg
   assert.ok(!("suggestions" in closing));
   assert.ok(!("suggestions" in nextForChange(unplanned, { delivery: { ...delivery, source: "team profile" } })));
 });
+
+test("[REQ-idd-025] next suggests the changelog and the release until idd/config.yaml declares them, even with a profile", () => {
+  const option = (value, source) => ({ value, source, reasons: ["why"], how: "the rules" });
+  const branching = { branching: "serial", source: "idd/config.yaml", reasons: ["why"], how: "the rules" };
+  let done = planned({ change: "tidy", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  done = recordEvidence(done, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "t" }).state;
+  const profiled = nextForChange(done, { delivery: { ...branching, changelog: option("CHANGELOG.md", "team profile"), release: option("batched", "team profile") } });
+  assert.deepStrictEqual(profiled.next_step, { action: "close" });
+  assert.deepStrictEqual(profiled.suggestions.map((suggestion) => suggestion.id), ["changelog-undeclared", "release-undeclared"]);
+  assert.strictEqual(profiled.suggestions[0].reason, "delivery.changelog is not declared; CHANGELOG.md is recommended");
+  assert.match(profiled.suggestions[0].how, /^propose delivery.changelog: CHANGELOG.md to the user .* only after approval; until then ospec close writes no changelog entry$/);
+  assert.match(profiled.suggestions[1].how, /until then ospec close proposes no release$/);
+  const declared = nextForChange(done, { delivery: { ...branching, changelog: option("none", "idd/config.yaml"), release: option("per-change", "idd/config.yaml") } });
+  assert.strictEqual(declared.delivery.release.value, "per-change");
+  assert.ok(!("suggestions" in declared));
+});

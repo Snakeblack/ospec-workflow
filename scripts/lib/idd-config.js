@@ -9,7 +9,7 @@
 const { CHANGE_ROOT, MODES } = require("./idd-contract.js");
 const { validateContracts } = require("./idd-contracts.js");
 const { validateImpact } = require("./idd-impact.js");
-const { BRANCHING_VALUES, teamDefaults, validateTeam } = require("./team-profile.js");
+const { BRANCHING_VALUES, CHANGELOG_NONE, RELEASE_VALUES, teamDefaults, validateTeam } = require("./team-profile.js");
 
 const CONFIG_FILE = `${CHANGE_ROOT}/config.yaml`;
 const CONFIG_KEYS = Object.freeze(["mode", "strict_tdd", "team", "delivery", "checks", "impact", "contracts"]);
@@ -76,19 +76,39 @@ function parseChecks(lines) {
   });
 }
 
-// How changes reach the default branch (REQ-idd-023): an explicit choice
-// that wins over the team profile.
+const DELIVERY_KEYS = Object.freeze(["branching", "changelog", "release"]);
+
+function describeGot(value) {
+  return typeof value === "string" ? value : "nothing";
+}
+
+// The changelog close writes to: `none`, or a relative path that stays inside
+// the project, since close writes it (REQ-idd-025).
+function validChangelog(value) {
+  if (typeof value !== "string" || value === "") return false;
+  if (value === CHANGELOG_NONE) return true;
+  return !/^[\\/]|^[A-Za-z]:|\\/.test(value) && !value.split("/").some((part) => part === "" || part === "." || part === "..");
+}
+
+// How changes reach the default branch, what they leave in the changelog and
+// when a version is cut (REQ-idd-023): explicit choices that win over the team
+// profile.
 function parseDelivery(lines) {
   const section = parseSection("delivery", lines);
   for (const key of Object.keys(section)) {
-    if (key !== "branching") throw new IddConfigError(`unknown delivery key: ${key}`);
+    if (!DELIVERY_KEYS.includes(key)) throw new IddConfigError(`unknown delivery key: ${key}`);
   }
-  const { branching = null } = section;
+  const { branching = null, changelog = null, release = null } = section;
   if (branching !== null && !BRANCHING_VALUES.includes(branching)) {
-    const got = typeof branching === "string" ? branching : "nothing";
-    throw new IddConfigError(`delivery.branching must be ${BRANCHING_VALUES.join(" or ")}, got ${got}`);
+    throw new IddConfigError(`delivery.branching must be ${BRANCHING_VALUES.join(" or ")}, got ${describeGot(branching)}`);
   }
-  return { branching };
+  if (changelog !== null && !validChangelog(changelog)) {
+    throw new IddConfigError(`delivery.changelog must be a relative path inside the project or ${CHANGELOG_NONE}, got ${describeGot(changelog)}`);
+  }
+  if (release !== null && !RELEASE_VALUES.includes(release)) {
+    throw new IddConfigError(`delivery.release must be ${RELEASE_VALUES.join(", ")}, got ${describeGot(release)}`);
+  }
+  return { branching, changelog, release };
 }
 
 function parseBoolean(key, value) {
@@ -134,7 +154,7 @@ function parseIddConfig(text) {
   }
   // An explicit strict_tdd wins; without it the team profile decides (REQ-idd-023).
   const strictTdd = "strict_tdd" in raw ? parseBoolean("strict_tdd", raw.strict_tdd) : team ? teamDefaults(team).strict_tdd : false;
-  const delivery = raw.delivery ? parseDelivery(raw.delivery.lines) : { branching: null };
+  const delivery = raw.delivery ? parseDelivery(raw.delivery.lines) : { branching: null, changelog: null, release: null };
   const checks = raw.checks ? parseChecks(raw.checks.lines) : [];
   const impact = raw.impact ? validateImpact(parseSection("impact", raw.impact.lines)) : {};
   let contracts = {};
