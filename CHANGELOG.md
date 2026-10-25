@@ -16,11 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `idd-catalog.test.js` falla mientras el JSON esté desfasado: tocar el catálogo en JS exige regenerarlo con `node scripts/lib/idd-catalog.js --write`.
   - El golden `steps` de `internal/testdata/idd-session/` suma tres casos (`s-boundary`, `s-limit` y `s-adr`) que fijan los mismos bytes en los dos motores.
   - Vale en los 7 targets: el binario Go lo usan los seis con hooks de comando, y OpenCode llega a él por el launcher.
+  - `.gitattributes` fija `catalog.json` a LF, como los goldens de `idd-session`: en un checkout de Windows con `core.autocrlf` pasaba a CRLF y el test lo daba por desfasado (`catalog-json-lf`).
 
 ### Changed
 - **Roadmap:** E1.42 queda hecho y sigue E1.43 `close-revalidates-state`. [`docs/harness-go-js-parity.md`](docs/harness-go-js-parity.md) explica cómo regenerar el catálogo.
 
-Hecho con IDD (`idd/archive/2026-10-25-idd-catalog-single-source/`).
+Hecho con IDD (`idd/archive/2026-10-25-idd-catalog-single-source/` y `idd/archive/2026-10-25-catalog-json-lf/`).
 
 **Verificación directa**: `node scripts/check.js` (4060 tests pasando, 0 fallos y 3 omitidos) y la puerta Go (`gofmt -l cmd internal`, `go vet ./...` y `go test ./...`).
 
