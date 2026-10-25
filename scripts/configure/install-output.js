@@ -26,7 +26,7 @@ const PHASE_BUILD = "Generar y validar";
 const PHASE_FILES = "Instalar ficheros";
 const DRY_RUN_ROW = "simulación (--dry-run): no se ha escrito nada en el destino";
 // Summary rows print in this order whatever order the installer sets them in.
-const ROW_ORDER = ["Modo", "Destino", "Plugin", "Publicación", "Ficheros", "Paquetes"];
+const ROW_ORDER = ["Modo", "Destino", "Plugin", "Publicación", "Ficheros", "Paquetes", "Modelos"];
 
 function formatSeconds(milliseconds) {
   return `${(Math.max(0, milliseconds) / 1000).toFixed(1).replace(".", ",")} s`;
@@ -194,6 +194,18 @@ function reportBuildFailure(reporter, result) {
   return false;
 }
 
+// The models of each tier (E4.12): the user's assignment, or what an
+// unassigned tier does on this host.
+function reportModels(reporter, prepared, host) {
+  if (prepared.warning) reporter.err.write(`aviso: ${prepared.warning}\n`);
+  if (host === "antigravity") return;
+  const fallback = host === "claude" ? "alias por defecto" : "heredado";
+  reporter.set("Modelos", ["premium", "default", "cheap"].map((tier) => `${tier} ${prepared.userModels[tier] || fallback}`).join(" · "));
+  if (prepared.unassigned.length) {
+    reporter.next(`Asigna un modelo a ${prepared.unassigned.join(", ")} con --model <tier>=<modelo> o con npm run setup:tui; se guarda en ${prepared.file}.`);
+  }
+}
+
 module.exports = {
   DRY_RUN_ROW,
   PHASE_BUILD,
@@ -207,6 +219,7 @@ module.exports = {
   isInteractive,
   packagesRow,
   reportBuildFailure,
+  reportModels,
   reporterFor,
   splitVerbose,
 };

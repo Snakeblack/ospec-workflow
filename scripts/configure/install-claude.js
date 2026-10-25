@@ -30,7 +30,8 @@ const { copyBinaryToTree } = require("./install-target.js");
 const { ENGRAM_PHASE, runEngramStep } = require("./engram-setup.js");
 const { removeRouterBlock, writeRouterBlock } = require("./instruction-block.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
-const { PHASE_BUILD, createReporter, packagesRow, reportBuildFailure, splitVerbose } = require("./install-output.js");
+const { PHASE_BUILD, createReporter, packagesRow, reportBuildFailure, reportModels, splitVerbose } = require("./install-output.js");
+const { prepareUserModels } = require("../lib/user-models.js");
 const { commandsFromSourceMcp, warnIfUvxMissing } = require("./mcp-prereqs.js");
 
 const PHASE_PLUGIN = "Registrar marketplace y plugin";
@@ -110,9 +111,16 @@ function syncRouter(pluginDir, argv, homedir) {
 }
 
 function main(rawArgv = process.argv.slice(2), deps = {}) {
-  const { verbose, argv } = splitVerbose(rawArgv);
-  const buildOnly = argv.includes("--build-only");
-  const dryRun = argv.includes("--dry-run");
+  const split = splitVerbose(rawArgv);
+  const verbose = split.verbose;
+  const buildOnly = split.argv.includes("--build-only");
+  const dryRun = split.argv.includes("--dry-run");
+  // `--model <tier>=<alias>` replaces a tier's alias (E4.12); a dry run saves nothing.
+  const models = prepareUserModels(split.argv, "claude", {
+    ...(deps.userModelsOptions || (deps.homedir ? { homedir: deps.homedir, env: deps.env || {} } : {})),
+    persist: !dryRun,
+  });
+  const argv = models.argv;
   const cwd = deps.cwd || process.cwd();
   const resolveClaudeBinImpl = deps.resolveClaudeBin || resolveClaudeBin;
   const buildClaudeMarketplaceImpl = deps.buildClaudeMarketplace || buildClaudeMarketplace;
@@ -133,6 +141,10 @@ function main(rawArgv = process.argv.slice(2), deps = {}) {
   return reporter.finish(install());
 
   function install() {
+    if (models.error) {
+      stderr.write(`error: ${models.error}\n`);
+      return 2;
+    }
     const sddArgs = {};
     for (const arg of argv) parseSddFlag(arg, sddArgs);
     if (sddArgs.error) {
@@ -163,12 +175,14 @@ function main(rawArgv = process.argv.slice(2), deps = {}) {
         pluginName: PLUGIN,
         withExtras: argv.includes("--with-extras"),
         withSdd,
+        userModels: models.userModels,
       }, { runConfigure: deps.runConfigure });
     } finally {
       if (dryRunRoot) fs.rmSync(dryRunRoot, { recursive: true, force: true });
     }
 
     if (reportBuildFailure(reporter, build)) return build.exitCode || 1;
+    reportModels(reporter, models, "claude");
     reporter.set("Destino", dryRun ? path.resolve(cwd, marketplaceOut) : build.outDir);
     reporter.set("Paquetes", packagesRow({ withSdd: sddArgs.withSdd, withExtras: argv.includes("--with-extras") }, withSdd));
 

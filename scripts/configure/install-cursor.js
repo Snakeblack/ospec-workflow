@@ -21,11 +21,11 @@ const {
   mutateFs,
 } = require("./install-engine.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
-const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, filesRow, packagesRow, reportAborted, reportBuildFailure, reporterFor, restartHint } = require("./install-output.js");
+const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, filesRow, packagesRow, reportAborted, reportBuildFailure, reportModels, reporterFor, restartHint } = require("./install-output.js");
 const { commandsFromSourceMcp, warnIfUvxMissing } = require("./mcp-prereqs.js");
 
 function usage() {
-  return "uso: install-cursor [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--verbose]\n";
+  return "uso: install-cursor [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--model <tier>=<modelo>] [--verbose]\n";
 }
 
 function parseArgs(argv) {
@@ -357,8 +357,10 @@ function install(argv, deps = {}) {
     validate: args.validate,
     withExtras: Boolean(args.withExtras),
     withSdd,
+    userModels: deps.models?.userModels,
   });
   if (reportBuildFailure(reporter, result)) return result.exitCode || 1;
+  if (deps.models) reportModels(reporter, deps.models, "cursor");
   reporter.set("Destino", cursorRoot);
   reporter.set("Paquetes", packagesRow(args, withSdd));
 

@@ -213,6 +213,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E1.33 follow-up: the SubagentStop receipt of a trust review result (roadmap harness-evolution).
   "scripts/lib/review-receipt.js",
   "scripts/lib/review-receipt.test.js",
+  // E4.12 the user's tier -> model assignment per host (roadmap harness-evolution).
+  "scripts/lib/user-models.js",
+  "scripts/lib/user-models.test.js",
   // E1.4 (d) runner the SDD skills cite, now distributed: its comments no
   // longer spell a Windows drive path, which the Copilot validator rejects.
   "scripts/lib/lifecycle-hooks.js",

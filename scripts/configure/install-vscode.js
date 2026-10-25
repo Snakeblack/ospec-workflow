@@ -17,7 +17,7 @@ const { copyBinaryToTree } = require("./install-target.js");
 const { renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = require("./shared-dir.js");
 const { safeParseJsonc, mutateFs } = require("./install-engine.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
-const { packagesRow, reportBuildFailure, reporterFor } = require("./install-output.js");
+const { packagesRow, reportBuildFailure, reportModels, reporterFor } = require("./install-output.js");
 const { commandsFromSourceMcp, warnIfUvxMissing } = require("./mcp-prereqs.js");
 
 const PHASES = { build: "Generar y validar", register: "Registrar en VS Code" };
@@ -158,7 +158,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
   const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
 
   if (args.error) {
-    stderr.write(`uso: install-vscode [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--verbose]\n${args.error}\n`);
+    stderr.write(`uso: install-vscode [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--model <tier>=<modelo>] [--verbose]\n${args.error}\n`);
     return 2;
   }
 
@@ -185,11 +185,12 @@ function install(argv = process.argv.slice(2), deps = {}) {
   let result;
   try {
     const outDir = dryRunRoot ? path.join(dryRunRoot, "vscode") : pluginDir;
-    result = runConfigureImpl({ sourceDir, target: "vscode", outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd, prepareTree });
+    result = runConfigureImpl({ sourceDir, target: "vscode", outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd, prepareTree, userModels: deps.models?.userModels });
   } finally {
     if (dryRunRoot) fsImpl.rmSync(dryRunRoot, { recursive: true, force: true });
   }
   if (reportBuildFailure(reporter, result)) return result.exitCode;
+  if (deps.models) reportModels(reporter, deps.models, "vscode");
   reporter.set("Destino", absPluginPath);
   reporter.set("Paquetes", packagesRow(args, withSdd));
   // E1.9: VS Code holds dist/vscode open, so the build may have been written in place.

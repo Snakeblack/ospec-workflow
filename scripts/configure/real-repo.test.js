@@ -331,8 +331,8 @@ test("real repo: cursor output passes its own validator with no agent ask/abstra
     assert.doesNotMatch(text, /\bAskUserQuestion\b/, `AskUserQuestion residue in ${name}`);
     assert.doesNotMatch(text, /`(read|edit|search|execute|agent)`/, `abstract tool residue in ${name}`);
     const fm = parse(text).frontmatter;
-    const model = getField(fm, "model");
-    assert.ok(model && String(model.value).trim(), `${name} must have model:`);
+    // E4.12: ospec ships no Cursor model, so every agent inherits.
+    assert.equal(getField(fm, "model"), null, `${name} must inherit the session model`);
   }
   assert.ok(!fs.existsSync(path.join(out, "rules", "agents-protocol.mdc")), "the repository's AGENTS.md is not distributed (E0.2)");
 });

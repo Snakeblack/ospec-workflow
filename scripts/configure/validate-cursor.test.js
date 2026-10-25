@@ -105,14 +105,16 @@ test("validate-cursor reports missing required structure paths", (t) => {
   assert.ok(result.errors.some((e) => e.includes("missing required path: agents")));
 });
 
-test("validate-cursor requires agent frontmatter name/description/model and review readonly", (t) => {
+test("validate-cursor requires agent frontmatter name/description, a non-empty model when present, and review readonly", (t) => {
   const root = tmpRoot(t);
   cleanTree(root);
   write(root, "agents/sdd-apply.md", "---\nname: sdd-apply\n---\n\nbody\n");
+  write(root, "agents/sdd-tasks.md", "---\nname: sdd-tasks\ndescription: d\nmodel: \"\"\n---\n\nbody\n");
   write(root, "agents/review-change.md", "---\nname: review-change\ndescription: d\nmodel: x\n---\n\nbody\n");
   const result = validate(root);
   assert.ok(result.errors.some((e) => e.includes("agents/sdd-apply.md") && e.includes("description")));
-  assert.ok(result.errors.some((e) => e.includes("agents/sdd-apply.md") && e.includes("model")));
+  assert.ok(!result.errors.some((e) => e.includes("agents/sdd-apply.md") && e.includes("model")), "an agent without model inherits");
+  assert.ok(result.errors.some((e) => e.includes("agents/sdd-tasks.md") && e.includes("empty model")));
   assert.ok(result.errors.some((e) => e.includes("agents/review-change.md") && e.includes("readonly")));
 });
 

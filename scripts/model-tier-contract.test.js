@@ -95,9 +95,7 @@ test("REQ-generator-005 all model routing choices in models.yaml are accepted", 
   models.agents["sdd-document"] = "default";
   models.agents["review-trust"] = "premium";
   models.agents._default = "premium";
-  models.tiers.premium.codex.model = "future-premium-model";
   models.tiers.premium.codex.model_reasoning_effort = "high";
-  models.tiers.default.codex.model = "future-default-model";
   models.tiers.default.codex.model_reasoning_effort = "xhigh";
   assert.deepEqual(validateSddModelPolicy(models), { valid: true, errors: [] });
 });
@@ -109,36 +107,48 @@ test("REQ-generator-005 duplicate YAML agent keys are rejected before overwrite"
   );
 });
 
-test("REQ-generator-005 all six temporary targets honor models.yaml tiers and fail-soft omission", t => {
-  const models = parseModels(MODELS_TEXT);
-  const partition = sddAgentsByTier(models.agents);
-  const allAgents = Object.values(partition).flat();
-  const beforeDist = treeDigest(path.join(ROOT, "dist"));
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-tier-contract-"));
-  t.after(() => fs.rmSync(base, { recursive: true, force: true }));
+// E4.12: no target gets a model name the user did not choose. Claude keeps
+// the alias of each tier; the rest inherit until the user assigns a model.
+const USER_MODELS = { premium: "user-premium", default: "user-default", cheap: "user-cheap" };
+function expectedModel(models, tier, target, userModels) {
+  if (userModels) return userModels[tier];
+  const declared = models.tiers[tier][target];
+  return typeof declared === "string" ? declared : undefined;
+}
 
-  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"]) {
-    const out = path.join(base, target);
-    assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true }).exitCode, 0);
-    for (const [tier, agents] of Object.entries(partition)) {
-      for (const agent of agents) {
-        const generated = outputPath(out, target, agent);
-        if (generated === null) continue;
-        assert.equal(fs.existsSync(generated), true, `${target}:${agent}`);
-        const content = fs.readFileSync(generated, "utf8");
-        if (target === "codex" && agent === "sdd-orchestrator") {
-          assert.doesNotMatch(content, target === "codex" ? /^model\s*=/m : /^model:/m, `${target}:${agent}`);
-        } else if (target === "codex") {
-          assert.match(content, new RegExp(`^model = "${models.tiers[tier].codex.model}"$`, "m"), `${target}:${agent}`);
-          assert.match(content, new RegExp(`^model_reasoning_effort = "${models.tiers[tier].codex.model_reasoning_effort}"$`, "m"), `${target}:${agent}`);
-        } else {
-          const declared = models.tiers[tier][target];
-          const expected = declared && typeof declared === "object" && !Array.isArray(declared) ? declared.model : declared;
-          assert.deepEqual(modelField(generated), expected, `${target}:${agent}`);
+for (const userModels of [undefined, USER_MODELS]) {
+  test(`REQ-generator-005 all six temporary targets honor models.yaml tiers ${userModels ? "with the user's models" : "and inherit without them"}`, t => {
+    const models = parseModels(MODELS_TEXT);
+    const partition = sddAgentsByTier(models.agents);
+    const allAgents = Object.values(partition).flat();
+    const beforeDist = treeDigest(path.join(ROOT, "dist"));
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-tier-contract-"));
+    t.after(() => fs.rmSync(base, { recursive: true, force: true }));
+
+    for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"]) {
+      const out = path.join(base, target);
+      assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true, userModels }).exitCode, 0);
+      for (const [tier, agents] of Object.entries(partition)) {
+        for (const agent of agents) {
+          const generated = outputPath(out, target, agent);
+          if (generated === null) continue;
+          assert.equal(fs.existsSync(generated), true, `${target}:${agent}`);
+          const content = fs.readFileSync(generated, "utf8");
+          const expected = expectedModel(models, tier, target, userModels);
+          if (target === "codex" && agent === "sdd-orchestrator") {
+            assert.doesNotMatch(content, /^model\s*=/m, `${target}:${agent}`);
+          } else if (target === "codex" && expected === undefined) {
+            assert.doesNotMatch(content, /^model(_reasoning_effort|_verbosity)?\s*=/m, `${target}:${agent} inherits with no effort of its own`);
+          } else if (target === "codex") {
+            assert.match(content, new RegExp(`^model = "${expected}"$`, "m"), `${target}:${agent}`);
+            assert.match(content, new RegExp(`^model_reasoning_effort = "${models.tiers[tier].codex.model_reasoning_effort}"$`, "m"), `${target}:${agent}`);
+          } else {
+            assert.deepEqual(modelField(generated) ?? undefined, expected, `${target}:${agent}`);
+          }
         }
       }
+      assert.equal(allAgents.length, 17);
     }
-    assert.equal(allAgents.length, 17);
-  }
-  assert.equal(treeDigest(path.join(ROOT, "dist")), beforeDist, "temporary generation must not change dist/**");
-});
+    assert.equal(treeDigest(path.join(ROOT, "dist")), beforeDist, "temporary generation must not change dist/**");
+  });
+}

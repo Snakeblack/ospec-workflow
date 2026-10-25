@@ -10,7 +10,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const { transform } = require("../lib/target-transform.js");
-const { validateModelOverrides, validateSddModelPolicy } = require("../lib/model-resolver.js");
+const { validateSddModelPolicy, validateUserModels } = require("../lib/model-resolver.js");
 const { withTransientFsRetries, TRANSIENT_FS_CODES } = require("./install-engine.js");
 
 const PROFILES = {
@@ -667,7 +667,7 @@ function publishTransaction({ outDir, output, profile, validate, runValidator, o
   }
 }
 
-function runConfigure({ sourceDir, target, outDir, validate = true, withExtras = false, withSdd = false, runValidator = defaultRunValidator, operationObserver = () => {}, retryOptions = {}, modelOverrides, prepareTree }) {
+function runConfigure({ sourceDir, target, outDir, validate = true, withExtras = false, withSdd = false, runValidator = defaultRunValidator, operationObserver = () => {}, retryOptions = {}, userModels, prepareTree }) {
   const profile = PROFILES[target];
   if (!profile) {
     throw new Error(`unknown target: ${target}`);
@@ -680,17 +680,12 @@ function runConfigure({ sourceDir, target, outDir, validate = true, withExtras =
   const policy = validateSddModelPolicy(models);
   if (!policy.valid) return { files: [], summary: [], exitCode: 1, validation: { status: 1, stdout: "", stderr: `invalid SDD model policy: ${JSON.stringify(policy.errors)}\n` } };
 
-  const overridePolicy = validateModelOverrides(modelOverrides, models, target);
-  if (!overridePolicy.valid) return { files: [], summary: [], exitCode: 1, validation: { status: 1, stdout: "", stderr: `invalid model overrides: ${JSON.stringify(overridePolicy.errors)}\n` } };
+  // Only an installer passes the user's assignment for this target: a plain
+  // build (dist/, CI, the published marketplace) never reads user config.
+  const userPolicy = validateUserModels(userModels);
+  if (!userPolicy.valid) return { files: [], summary: [], exitCode: 1, validation: { status: 1, stdout: "", stderr: `invalid user models: ${JSON.stringify(userPolicy.errors)}\n` } };
 
-  const resolvedModels = modelOverrides === undefined
-    ? models
-    : {
-      ...models,
-      modelOverrides: Object.fromEntries(
-        Object.entries(modelOverrides).map(([agent, value]) => [agent, { [target]: structuredClone(value) }]),
-      ),
-    };
+  const resolvedModels = userModels === undefined ? models : { ...models, userModels: { ...userModels } };
 
   const output = transform({ files, profile, models: resolvedModels, withExtras, withSdd });
   const summary = output.files.map((file) => file.path);

@@ -1,21 +1,18 @@
 "use strict";
 
-// Resolve an agent's model per target from the two-table `models` config
-// (agent -> tier, tier -> model-per-target). Pure and fail-soft: any gap
+// Resolve an agent's model per target from the `models` config (agent -> tier
+// in models.yaml) and the user's tier -> model assignment for that target
+// (`userModels`, from scripts/lib/user-models.js). Pure and fail-soft: any gap
 // yields OMIT so the generator simply writes no `model:` key (host inherits).
 //
-// Agent→tier and tier→model policy live only in models.yaml. This module
+// ospec ships no model names (E4.12): a tier entry in models.yaml carries only
+// what does not age, Claude's aliases and Codex's reasoning effort. This module
 // validates structural invariants (complete SDD roster and known tiers) and
 // never re-asserts configurable agent, model, or reasoning-effort choices.
 
 const OMIT = Symbol("model-omit");
 const INHERIT = "inherit";
 const KNOWN_TIERS = ["premium", "default", "cheap"];
-const CONTROL_FIELDS_BY_TARGET = {
-  claude: "effort",
-  codex: "model_reasoning_effort",
-  opencode: "variant",
-};
 const REQUIRED_QUALITY_REVIEW_AGENTS = [
   "review-change",
   "review-correction",
@@ -58,22 +55,6 @@ function resolveModel(agentName, target, models) {
     return OMIT;
   }
 
-  const modelOverrides = models.modelOverrides;
-  if (
-    modelOverrides &&
-    typeof modelOverrides === "object" &&
-    Object.prototype.hasOwnProperty.call(modelOverrides, agentName)
-  ) {
-    const agentOverrides = modelOverrides[agentName];
-    if (
-      agentOverrides &&
-      typeof agentOverrides === "object" &&
-      Object.prototype.hasOwnProperty.call(agentOverrides, target)
-    ) {
-      return agentOverrides[target];
-    }
-  }
-
   const agents = models.agents || {};
   const tier = agents[agentName] || agents._default;
 
@@ -82,104 +63,35 @@ function resolveModel(agentName, target, models) {
   }
 
   const tierEntry = models.tiers && models.tiers[tier];
+  const base = tierEntry && typeof tierEntry === "object" ? tierEntry[target] : undefined;
+  const assigned = models.userModels && typeof models.userModels === "object" ? models.userModels[tier] : undefined;
 
-  if (!tierEntry || typeof tierEntry !== "object") {
+  if (typeof assigned === "string" && assigned.trim()) {
+    // The user's model keeps the tier's settings that are not a model name
+    // (Codex's reasoning effort).
+    return base && typeof base === "object" && !Array.isArray(base) ? { ...base, model: assigned.trim() } : assigned.trim();
+  }
+
+  if (base === undefined || base === null || base === INHERIT) {
     return OMIT;
   }
 
-  const value = tierEntry[target];
-
-  if (value === undefined || value === null || value === INHERIT) {
+  // Settings without a model belong to a model the user has not assigned.
+  if (typeof base === "object" && !Array.isArray(base) && !base.model) {
     return OMIT;
   }
 
-  return value;
+  return base;
 }
 
-function isModelValue(value) {
-  if (typeof value === "string") return value.length > 0;
-  if (Array.isArray(value)) return value.length > 0 && value.every(item => typeof item === "string" && item.length > 0);
-  return Boolean(value && typeof value === "object" && !Array.isArray(value) && typeof value.model === "string" && value.model.length > 0);
-}
-
-function modelKey(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value.model : value;
-}
-
-function canonicalControlsFor(models, target, value) {
-  const key = modelKey(value);
-  if (typeof key !== "string") return {};
-  const declared = models?.installer?.capabilities?.[target]?.[key];
-  if (!declared || typeof declared !== "object" || Array.isArray(declared)) return {};
-  const controls = {};
-  for (const [name, control] of Object.entries(declared)) {
-    if (!control || typeof control !== "object" || Array.isArray(control)) continue;
-    if (!Array.isArray(control.values) || !control.values.every(item => typeof item === "string") || !control.values.includes(control.default)) continue;
-    controls[name] = { values: [...control.values], default: control.default };
-  }
-  return controls;
-}
-
-function validateModelOverrides(modelOverrides, models, target) {
-  if (modelOverrides === undefined) return { valid: true, errors: [] };
+function validateUserModels(userModels) {
+  if (userModels === undefined) return { valid: true, errors: [] };
+  if (!userModels || typeof userModels !== "object" || Array.isArray(userModels)) return { valid: false, errors: [{ code: "invalid-user-models" }] };
   const errors = [];
-  if (!modelOverrides || typeof modelOverrides !== "object" || Array.isArray(modelOverrides)) {
-    return { valid: false, errors: [{ code: "invalid-overrides" }] };
+  for (const [tier, value] of Object.entries(userModels)) {
+    if (!KNOWN_TIERS.includes(tier)) errors.push({ code: "unknown-tier", tier });
+    else if (typeof value !== "string" || !value.trim()) errors.push({ code: "invalid-model", tier });
   }
-  for (const [agent, value] of Object.entries(modelOverrides)) {
-    if (!agent || !isModelValue(value)) errors.push({ code: "invalid-override", agent });
-    if (target && Object.keys(CONTROL_FIELDS_BY_TARGET).includes(target)) {
-      const field = CONTROL_FIELDS_BY_TARGET[target];
-      const model = value && typeof value === "object" && !Array.isArray(value) ? value : {};
-      if (Object.prototype.hasOwnProperty.call(model, field)) {
-        const policy = canonicalControlsFor(models, target, value)[field];
-        if (!policy || !policy.values.includes(model[field])) errors.push({ code: "unsupported-control", agent, target, field, actual: model[field] });
-      }
-    }
-  }
-  return { valid: errors.length === 0, errors };
-}
-
-function validateInstallerPolicy(models) {
-  const errors = [];
-  const agents = models && typeof models === "object" && models.agents && typeof models.agents === "object" ? models.agents : {};
-  const installer = models && typeof models === "object" ? models.installer : null;
-  if (!installer || typeof installer !== "object" || Array.isArray(installer)) {
-    errors.push({ code: "missing-installer-policy" });
-  } else {
-    const groups = installer.phase_groups;
-    if (!groups || typeof groups !== "object" || Array.isArray(groups) || Object.keys(groups).length === 0) {
-      errors.push({ code: "missing-phase-groups" });
-    } else {
-      for (const [group, definition] of Object.entries(groups)) {
-        const members = definition?.agents;
-        if (!Array.isArray(members) || members.length === 0) errors.push({ code: "invalid-phase-group", group });
-        else for (const agent of members) if (typeof agent !== "string" || agents[agent] === undefined) errors.push({ code: "unknown-phase-agent", group, agent });
-      }
-    }
-    const presets = installer.presets;
-    if (!presets || typeof presets !== "object" || Array.isArray(presets) || Object.keys(presets).length === 0) errors.push({ code: "missing-presets" });
-    else for (const [preset, definition] of Object.entries(presets)) {
-      const groups = definition?.groups;
-      if (!Array.isArray(groups) || groups.length === 0 || groups.some(group => !installer.phase_groups?.[group])) errors.push({ code: "invalid-preset-group", preset });
-    }
-    const capabilities = installer.capabilities;
-    if (!capabilities || typeof capabilities !== "object" || Array.isArray(capabilities)) errors.push({ code: "missing-capabilities" });
-    else for (const [target, modelsByKey] of Object.entries(capabilities)) {
-      const field = CONTROL_FIELDS_BY_TARGET[target];
-      if (!field || !modelsByKey || typeof modelsByKey !== "object" || Array.isArray(modelsByKey)) {
-        errors.push({ code: "invalid-capability-target", target });
-        continue;
-      }
-      for (const [key, controls] of Object.entries(modelsByKey)) {
-        const control = controls?.[field];
-        if (!key || !control || !Array.isArray(control.values) || !control.values.every(value => typeof value === "string") || !control.values.includes(control.default)) {
-          errors.push({ code: "invalid-capability", target, model: key, field });
-        }
-      }
-    }
-  }
-
   return { valid: errors.length === 0, errors };
 }
 
@@ -199,10 +111,8 @@ function validateSddModelPolicy(models) {
 
 module.exports = {
   resolveModel,
-  validateModelOverrides,
   validateSddModelPolicy,
-  validateInstallerPolicy,
-  canonicalControlsFor,
+  validateUserModels,
   sddAgentsByTier,
   REQUIRED_SDD_AGENTS,
   REQUIRED_QUALITY_REVIEW_AGENTS,
