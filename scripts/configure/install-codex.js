@@ -19,7 +19,7 @@ const {
   toPosix,
 } = require("./install-engine.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
-const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, packagesRow, reportBuildFailure, reporterFor, restartHint } = require("./install-output.js");
+const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, packagesRow, reportBuildFailure, reportModels, reporterFor, restartHint } = require("./install-output.js");
 const { warnIfUvxMissing } = require("./mcp-prereqs.js");
 const { ensureOspecGitignore } = require("../lib/ospec-gitignore.js");
 
@@ -29,7 +29,7 @@ const PHASE_MCP = "Registrar servidores MCP";
 
 function usage() {
   return (
-    "uso: install-codex [<destRepo>] [--dry-run] [--repair-config] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--no-router] [--source <sourceRepo>] [--verbose]\n" +
+    "uso: install-codex [<destRepo>] [--dry-run] [--repair-config] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--no-router] [--source <sourceRepo>] [--model <tier>=<modelo>] [--verbose]\n" +
     "  --no-router      no escribe el router en AGENTS.md y quita el que escribió una instalación anterior\n" +
     "  --repair-config  solo instalación global: quita la asignación heredada exacta service_tier = \"default\" del nivel superior, con copia de seguridad y vuelta atrás\n" +
     "  --verbose        muestra el detalle (ficheros, salida de los validadores y de la CLI)\n" +
@@ -1255,8 +1255,9 @@ function install(argv, deps = {}) {
     const withSdd = resolveWithSdd(args, () => previousInstallHasSdd(isRepoInstall
       ? { agentDirs: [path.join(codexRoot, "agents")], fs: fsImpl }
       : { manifestRoots: [codexRoot], fs: fsImpl }));
-    const result = runConfigureImpl({ sourceDir, target: "codex", outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd });
+    const result = runConfigureImpl({ sourceDir, target: "codex", outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd, userModels: deps.models?.userModels });
     if (reportBuildFailure(reporter, result)) return result.exitCode;
+    if (deps.models) reportModels(reporter, deps.models, "codex");
     reporter.set("Destino", isRepoInstall ? path.dirname(codexRoot) : codexRoot);
     reporter.set("Paquetes", packagesRow(args, withSdd));
 

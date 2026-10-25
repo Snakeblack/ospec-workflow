@@ -69,6 +69,7 @@ const {
   targetSpec,
 } = require("../lib/engram-detect.js");
 const { createReporter, splitVerbose } = require("./install-output.js");
+const { prepareUserModels } = require("../lib/user-models.js");
 
 const MARKETPLACE_NAME = "engram";
 // E1.9: the step is the last phase of every installer's common output.
@@ -617,7 +618,16 @@ function withEngramStep(target, install, { eligible = () => true, hostBin = () =
   targetSpec(target);
   return function main(argv = process.argv.slice(2), deps = {}) {
     const { verbose, argv: raw } = splitVerbose(argv);
-    const forwarded = raw.filter((arg) => arg !== "--no-engram" && arg !== "--with-engram");
+    // `--model <tier>=<model>` is consumed here too (E4.12): the installer gets
+    // the host's assignment in deps.models, and a dry run saves nothing.
+    // A test that fakes the home also gets a clean environment, so it never
+    // reads the developer's own assignment.
+    const userModelsOptions = deps.userModelsOptions || (deps.homedir ? { homedir: deps.homedir, env: deps.env || {} } : {});
+    const models = prepareUserModels(raw.filter((arg) => arg !== "--no-engram" && arg !== "--with-engram"), target, {
+      ...userModelsOptions,
+      persist: !raw.includes("--dry-run"),
+    });
+    const forwarded = models.argv;
     const stdout = deps.stdout || process.stdout;
     const stderr = deps.stderr || process.stderr;
     let runStep = false;
@@ -629,9 +639,13 @@ function withEngramStep(target, install, { eligible = () => true, hostBin = () =
       }
     }
     const reporter = deps.reporter || createReporter({ target, stdout, stderr, verbose, trailing: runStep ? [ENGRAM_PHASE] : [] });
+    if (models.error) {
+      reporter.err.write(`error: ${models.error}\n`);
+      return reporter.finish(2);
+    }
     let exitCode;
     try {
-      exitCode = install(forwarded, { ...deps, reporter });
+      exitCode = install(forwarded, { ...deps, reporter, models });
     } catch (error) {
       reporter.err.write(`error: ${(verbose && error && error.stack) || (error && error.message) || error}\n`);
       exitCode = 1;

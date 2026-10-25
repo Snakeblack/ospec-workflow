@@ -1,0 +1,465 @@
+{
+  "schema": "idd-state/v1",
+  "change": "user-model-map",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "merge y release luegobpasamos con lo siguiente del roadmap",
+    "kind": "feature",
+    "summary": "E4.12: ospec deja de mantener nombres de modelo. Los tiers cheap/default/premium siguen siendo la única etiqueta de las reglas; Claude usa solo alias (haiku, sonnet, opus); en Codex, Copilot/VS Code, OpenCode y Cursor el usuario asigna sus modelos a cada tier y la asignación se guarda; un tier sin asignar hace que el agente herede el modelo de la sesión",
+    "acceptance": "Una instalación nueva en Codex, OpenCode y Cursor no escribe ningún nombre de modelo que no haya elegido el usuario, en Claude usa solo alias, y un tier sin asignar degrada a heredar sin error (también en Cursor, cuyo model es opcional con inherit por defecto). Un test lo comprueba por host"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Qué asigna el usuario y cuándo: un modelo por tier y host (cheap/default/premium) en el instalador (TUI y modo no interactivo), en el primer uso que lo necesite (E4.13), o en los dos? ¿Se mantiene además la elección por agente que hoy ofrece el TUI, y en Codex el reasoning effort por tier?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿El nombre se guarda tal cual lo escribe el usuario, sin validarlo contra un catálogo? ¿El catálogo de models.yaml desaparece o queda como sugerencia con la fecha en que se comprobó? ¿Entra fable como alias de algún tier en Claude?"
+      },
+      {
+        "category": "persistence",
+        "question": "¿Dónde vive la asignación: configuración global del usuario (p. ej. ~/.config/ospec/models.yaml, para todos sus proyectos) o idd/config.yaml de cada proyecto? ¿Y qué pasa con las instalaciones que ya tienen modelos fijados al reinstalar: se migran como asignación del usuario, pasan a heredar, o se avisa?"
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "internal/installer/view.go",
+          "line": 230
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "README.md",
+          "line": 108
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "README.md",
+          "line": 111
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿Si la asignación guardada está corrupta o nombra un tier o host desconocido, se ignora con un aviso y el agente hereda, o la instalación falla?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/model-routing.md",
+      "internal/installer/client.go",
+      "internal/installer/model.go",
+      "internal/installer/model_test.go",
+      "internal/installer/view.go",
+      "internal/installer/view_test.go",
+      "models.yaml",
+      "openspec/specs/generator/spec.md",
+      "openspec/specs/install/spec.md",
+      "scripts/configure/cli.js",
+      "scripts/configure/cli.test.js",
+      "scripts/configure/install-claude.js",
+      "scripts/configure/install-codex.js",
+      "scripts/configure/install-cursor.js",
+      "scripts/configure/install-global-copilot.js",
+      "scripts/configure/install-global-opencode.js",
+      "scripts/configure/install-vscode.js",
+      "scripts/configure/installer-adapter.js",
+      "scripts/configure/installer-adapter.test.js",
+      "scripts/configure/installer-protocol.test.js",
+      "scripts/configure/user-model-map.test.js",
+      "scripts/configure/validate-cursor.js",
+      "scripts/configure/validate-cursor.test.js",
+      "scripts/lib/model-resolver.js",
+      "scripts/lib/model-resolver.test.js",
+      "scripts/lib/target-transform.js",
+      "scripts/lib/user-models.js",
+      "scripts/lib/user-models.test.js",
+      "scripts/model-tier-contract.test.js",
+      "scripts/sdd-document.test.js"
+    ],
+    "work_units": 3,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/configure/cli.js (matches scripts/configure/cli.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/user-models.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "La generación sigue siendo una transformación pura de la fuente canónica: la asignación del usuario entra como parámetro de runConfigure desde los instaladores, igual que los overrides del TUI, y un build normal no la lee"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas en ningún runtime: el lector de la asignación es propio y la TUI sigue con bubbletea y lipgloss"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Instalar sigue sin red: la asignación se lee y escribe en un fichero local y no hay descubrimiento de modelos (REQ-install-025 retirado)"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Los seis targets con modelo resuelven el tier de cada agente igual; model-tier-contract y user-model-map lo comprueban con y sin asignación, y el golden de cli.test.js no cambia"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Por tier, al instalar: un modelo por tier y host en el TUI y con flag no interactivo; desaparece la elección por agente; en Codex el reasoning effort por tier se queda en ospec; el primer uso queda para E4.13. 2) Texto libre, sin catálogo: el nombre se guarda tal cual, sin validar; el catálogo de models.yaml desaparece; en Claude los tiers usan haiku/sonnet/opus por defecto y el usuario puede cambiar cualquiera a otro alias (fable incluido). 3) Global, corrupta = heredar: ~/.config/ospec/models.yaml (o %APPDATA%\\ospec en Windows); un fichero corrupto o con tier/host desconocido se ignora con aviso visible y el agente hereda. 4) Heredar y avisar: los nombres que escribió ospec no se migran; los agentes pasan a heredar y el instalador avisa de qué tiers puede asignar.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-25T00:12:57.625Z",
+      "detail": {
+        "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-25T00:12:57.625Z",
+      "detail": {
+        "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/install/spec.md"
+        ],
+        "tests": [
+          "internal/installer/client_test.go",
+          "internal/installer/model_test.go",
+          "internal/installer/view_test.go",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/installer-adapter.test.js",
+          "scripts/configure/installer-protocol.test.js",
+          "scripts/configure/real-repo.test.js",
+          "scripts/configure/user-model-map.test.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/model-resolver.test.js",
+          "scripts/lib/user-models.test.js",
+          "scripts/model-tier-contract.test.js",
+          "scripts/sdd-document.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-25T00:12:57.625Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-25T00:13:12.213Z",
+      "detail": {
+        "run": "run-6",
+        "tree": "sha256:6beb774c4131135fbd1ef472b16bf6284462c8f698b8daaca81a0d66daf5e824",
+        "plan": "Sin migración, por decisión del usuario del 2026-10-25: los nombres que escribió ospec en instalaciones anteriores no se trasladan a la asignación; al reinstalar, esos agentes pasan a heredar el modelo de la sesión (Claude conserva sus alias) y el resumen del instalador dice qué tiers asignar con --model o el TUI. El fichero del usuario (~/.config/ospec/models.yaml o %APPDATA%\\ospec\\models.yaml) es nuevo y solo lo escriben --model y el TUI; uno ilegible o con host o tier desconocido se ignora con aviso y nunca se sobrescribe. Vuelta atrás: borrar ese fichero deja todos los agentes heredando, y reinstalar la versión anterior restaura sus modelos fijos."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-25T00:14:23.647Z",
+      "detail": {
+        "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+        "runs": [
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-25T00:14:23.647Z",
+      "detail": {
+        "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+        "check": "ev-5",
+        "documents": [
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/install/spec.md"
+        ],
+        "tests": [
+          "internal/installer/client_test.go",
+          "internal/installer/model_test.go",
+          "internal/installer/view_test.go",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/installer-adapter.test.js",
+          "scripts/configure/installer-protocol.test.js",
+          "scripts/configure/real-repo.test.js",
+          "scripts/configure/user-model-map.test.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/model-resolver.test.js",
+          "scripts/lib/user-models.test.js",
+          "scripts/model-tier-contract.test.js",
+          "scripts/sdd-document.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-25T00:14:23.647Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+        "fitness": [
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-25T00:14:27.848Z"
+    }
+  ],
+  "base": "4af0031251c07dea156de79c462d4ba0b87dbfdd",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ccb0708aef8b1e7477533c32f3aeb1e438b4cf6d9ec75c7725b2e334ff808202",
+      "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+      "recorded_at": "2026-10-25T00:12:57.625Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e47a2f025775e7079e25a2ef26b9e373bd72795bb1297ac713a6e416c012602d",
+      "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+      "recorded_at": "2026-10-25T00:12:57.625Z",
+      "tests": 47
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+      "recorded_at": "2026-10-25T00:12:57.625Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:39cc72a7b125f62c5c051dfa88a3cfa82b11f8ee16f7ada36def6d2fb2dcc796",
+      "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+      "recorded_at": "2026-10-25T00:12:57.625Z",
+      "tests": 18
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:06ff0627fdf6037f99e0ec6d7a7f73cd2102c4122b45b63fc6dc9be5c34513e0",
+      "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+      "recorded_at": "2026-10-25T00:12:57.625Z",
+      "tests": 47
+    },
+    {
+      "id": "run-6",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/user-models.test.js scripts/configure/user-model-map.test.js scripts/configure/installer-adapter.test.js scripts/configure/real-repo.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b346e96e35d1fec82925db9bdf09dc9686bae40d21e8e2e3f88ef8641abd44fd",
+      "tree": "sha256:6beb774c4131135fbd1ef472b16bf6284462c8f698b8daaca81a0d66daf5e824",
+      "recorded_at": "2026-10-25T00:13:12.213Z",
+      "tests": 67
+    },
+    {
+      "id": "run-7",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4ca00071f111a4626d7b31c2f9e29ce42c84d136c671d817ea15ec6279b79a8e",
+      "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+      "recorded_at": "2026-10-25T00:14:23.647Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:201d3a236c49c995634ab233630d9cc2777ffe4050acb50cc8e8580515f7a3c2",
+      "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+      "recorded_at": "2026-10-25T00:14:23.647Z",
+      "tests": 47
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+      "recorded_at": "2026-10-25T00:14:23.647Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d59f68fb114718600f3ef8143e5f20aa9556098fa88d2b46a7bc5474cd58ec26",
+      "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+      "recorded_at": "2026-10-25T00:14:23.647Z",
+      "tests": 18
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:62bc4a0a76b6351995917f14e064f809f7e227284b6463e93e7c159a5418b620",
+      "tree": "sha256:7565149f634a0d0bfc777c5f117c028a64320388d69c50cf7a3173cf3df8761e",
+      "recorded_at": "2026-10-25T00:14:23.647Z",
+      "tests": 47
+    }
+  ],
+  "closed_at": "2026-10-25T00:14:27.848Z"
+}

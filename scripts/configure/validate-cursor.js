@@ -112,12 +112,16 @@ function validateAgents(root, errors, fsImpl = fs) {
       continue;
     }
     const fm = parse(text).frontmatter;
-    for (const key of ["name", "description", "model"]) {
+    for (const key of ["name", "description"]) {
       const field = getField(fm, key);
       if (!field || !String(field.value || "").trim()) {
         addError(errors, `${file} must include ${key}`);
       }
     }
+    // Cursor's model is optional and defaults to inherit (E4.12): an agent
+    // whose tier has no model assigned leaves it out.
+    const modelField = getField(fm, "model");
+    if (modelField && !String(modelField.value || "").trim()) addError(errors, `${file} has an empty model`);
     const nameField = getField(fm, "name");
     const name = nameField ? nameField.value : path.basename(file, ".md");
     if (REQUIRED_READONLY_REVIEW_AGENTS.has(name)) {

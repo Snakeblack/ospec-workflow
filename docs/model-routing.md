@@ -1,71 +1,89 @@
 # Model Routing
 
-Los agentes incluidos deben evitar nombres de modelos locales codificados de forma rígida.
+ospec no elige modelos por ti. Cada agente pertenece a un **tier** (`premium`,
+`default` o `cheap`). Tú decides qué modelo usa cada tier en cada host, y un tier
+sin modelo hereda el de la sesión.
 
-Política recomendada:
+## Qué viene con ospec (`models.yaml`)
 
-- predeterminado: heredar el modelo seleccionado;
-- verificación/diseño: permitir un modelo más potente mediante el perfil local;
-- implementación: modelo de programación;
-- exploración/propuesta: se acepta un modelo más económico;
-- todas las fases: deben poder degradarse al modo de modelo único.
+`models.yaml` contiene solo lo que no caduca:
 
-## Abstracción por tiers (`models.yaml`)
+1. `agents`: a qué tier pertenece cada agente. Es la única decisión por agente, y
+   un agente sin entrada cae en el tier de `_default`.
+2. `tiers`: por tier, los alias de Claude (`opus`, `sonnet`, `haiku`), que el host
+   resuelve a su último modelo, y el `model_reasoning_effort` y el `model_verbosity`
+   de Codex.
 
-El generador multi-target (`scripts/configure/cli.js`) no fija IDs de modelo en cada
-agente. En su lugar usa dos tablas en `models.yaml`, ambas editables a mano:
+No trae nombres de modelo de Codex, OpenCode, Cursor, VS Code ni GitHub Copilot,
+porque caducan y dependen de los proveedores de cada usuario. El validador solo
+exige el roster SDD completo, tiers conocidos y ausencia de agentes `sdd-*`
+inesperados.
 
-1. `agents`: a qué **tier** pertenece cada agente (la única decisión por agente).
-2. `tiers`: cómo se traduce cada tier a un **modelo concreto por target**.
+## Tus modelos por tier
 
-Un agente sin entrada explícita cae en el tier de `_default`. Cualquier hueco
-(config ausente, tier o target faltante, o `inherit`) resuelve a OMIT: el generador
-no escribe la clave `model:` y el host usa el modelo de la sesión.
+Asigna un modelo a cada tier al instalar:
 
-### Tabla `agents` → tier
+```bash
+npm run setup:codex -- --model premium=gpt-6.1-sol --model cheap=gpt-6-luna
+npm run setup:opencode -- --model default=zai-coding-plan/glm-5.3
+npm run setup:tui    # un campo por tier en el instalador guiado
+```
 
-`models.yaml` es la única fuente de verdad del mapeo agente→tier. El validador
-solo exige el roster SDD completo, tiers conocidos (`premium`/`default`/`cheap`)
-y ausencia de agentes `sdd-*` inesperados. Los reviewers y `_default` pueden usar
-cualquier tier conocido. Los modelos concretos y su configuración específica por
-target —incluidos `model`, `model_reasoning_effort` y `model_verbosity` de Codex—
-se leen exclusivamente del YAML y no se vuelven a fijar en el validador.
+- El modelo se escribe tal como lo nombra el host: texto libre de una línea, de
+  hasta 200 caracteres. ospec no lo compara con ningún catálogo.
+- `--model <tier>=` (vacío) quita el modelo de ese tier.
+- Con `--dry-run`, los flags valen solo para esa ejecución y no se guardan.
+- En Claude, `--model` sustituye el alias del tier (por ejemplo,
+  `--model premium=fable`). Sin asignación, Claude usa los alias de `models.yaml`.
+- Antigravity hereda siempre el modelo de la sesión y rechaza `--model`.
 
-### Tabla `tiers` → modelo por target
+La asignación se guarda fuera de cualquier proyecto, porque los agentes se
+instalan por usuario:
 
-| Tier | `claude` (alias) | `vscode` (orden de fallback) | `opencode` (`provider/model`) |
-| --- | --- | --- | --- |
-| `premium` | `opus` | `gpt-6 Sol (copilot)` | `anthropic/claude-opus-4-8` |
-| `default` | `sonnet` | `gpt-6 Terra (copilot)` | `anthropic/claude-sonnet-4-6` |
-| `cheap` | `haiku` | `gpt-6 Luna (copilot)` | `anthropic/claude-haiku-4-6` |
+| Sistema | Fichero |
+| --- | --- |
+| Linux y macOS | `$XDG_CONFIG_HOME/ospec/models.yaml`, o `~/.config/ospec/models.yaml` |
+| Windows | `%APPDATA%\ospec\models.yaml` |
 
-El target `github-copilot` no inyecta `model:` (el origen lo omite y no hay columna `github-copilot`
-en `tiers`): los agentes generados heredan el modelo de la sesión de Copilot.
+```yaml
+codex:
+  premium: "gpt-6.1-sol"
+  cheap: "gpt-6-luna"
+opencode:
+  default: "zai-coding-plan/glm-5.3"
+```
 
-## Formato del modelo por target
+Al terminar, el resumen del instalador muestra el modelo de cada tier y cómo
+asignar los que heredan. Si el fichero no se puede leer o nombra un host o un tier
+desconocido, el instalador avisa, lo ignora (los agentes heredan) y no lo
+sobrescribe: corrígelo o bórralo antes de volver a usar `--model`.
 
-Cada target expresa el modelo de forma distinta; el resolver
-(`scripts/lib/model-resolver.js`) devuelve la forma adecuada y la transform la
-serializa en el frontmatter:
+## Cómo se resuelve el modelo de un agente
 
-- **`claude`**: un **alias** (`opus` | `sonnet` | `haiku`) como escalar. Los alias
-  siguen automáticamente el modelo más reciente, así que no hay IDs que mantener.
-- **`vscode`**: una lista `"Nombre (vendor)"` que actúa como **orden de preferencia**;
-  VS Code usa el primero disponible. Admite vendors como `copilot` y `customendpoint`.
-- **`github-copilot`**: no se escribe `model:` (OMIT); el agente hereda el modelo de la sesión de
-  Copilot, evitando la sintaxis de modelo aún poco especificada de GitHub.
-- **`opencode`**: un slug `provider/model` (p.ej. `anthropic/claude-opus-4-8`) como escalar. Los IDs
-  exactos se verifican contra [models.dev](https://models.dev); edita la columna `opencode` de
-  `models.yaml` cuando models.dev publique versiones nuevas.
+`scripts/lib/model-resolver.js` busca el tier del agente y aplica, por orden:
+
+1. el modelo que asignaste a ese tier en ese host, con el effort del tier en Codex;
+2. el alias del tier en Claude;
+3. nada: el generador no escribe `model` y el agente hereda el modelo de la sesión.
+
+Un build normal (`npm run build:*`, `dist/`, la CI o el marketplace publicado)
+nunca lee tu asignación, así que solo lleva los alias de Claude. Solo los
+instaladores la pasan al generador.
+
+## Formato por host
+
+- **`claude`**: el alias como escalar en el frontmatter (`model: opus`).
+- **`codex`**: `model`, `model_reasoning_effort` y `model_verbosity` en el TOML del
+  agente. Sin modelo asignado no se escribe ninguno de los tres.
+- **`opencode`**: el slug `provider/model` que escribiste, como escalar.
+- **`cursor`**: el modelo como escalar. Sin él, Cursor aplica su `inherit` por
+  defecto.
+- **`vscode`** y **`github-copilot`**: el nombre tal como lo muestra el selector de
+  modelos (`"gpt-6 Sol (copilot)"`).
+- **`antigravity`**: nunca lleva `model`.
 
 ## Perfiles locales heredados
 
-Para el uso directo en VS Code (sin generar) siguen disponibles los perfiles
-opcionales en `profiles/models/`:
-
-- `default`: fallback de un solo modelo;
-- `cheap`: reduce coste en exploración y propuesta;
-- `premium`: aumenta razonamiento en diseño y verificación.
-
-`models.yaml` es la fuente para el generador; `profiles/models/` es la configuración
-para el consumo directo del repositorio en VS Code.
+Para usar el repositorio directamente en VS Code, sin generar, siguen disponibles
+los perfiles opcionales de `profiles/models/` (`default`, `cheap` y `premium`).
+El generador no los lee.

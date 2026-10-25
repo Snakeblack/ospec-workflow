@@ -83,7 +83,7 @@ test("the source fixture is left byte-for-byte unchanged", (t) => {
   assert.deepEqual(after, before);
 });
 
-test("runConfigure applies a model override only to its generated tree", (t) => {
+test("runConfigure applies the user's tier models only to its generated tree", (t) => {
   const out = tmpOut(t);
   const modelsPath = path.join(SOURCE, "models.yaml");
   const before = fs.readFileSync(modelsPath, "utf8");
@@ -94,12 +94,15 @@ test("runConfigure applies a model override only to its generated tree", (t) => 
     outDir: out,
     validate: false,
     withSdd: true,
-    modelOverrides: { "sdd-apply": "temporary-model" },
+    userModels: { default: "temporary-model" },
   });
 
   assert.equal(result.exitCode, 0);
   assert.match(fs.readFileSync(path.join(out, "agents", "sdd-apply.md"), "utf8"), /^model: temporary-model$/m);
   assert.equal(fs.readFileSync(modelsPath, "utf8"), before);
+  const invalid = runConfigure({ sourceDir: SOURCE, target: "claude", outDir: tmpOut(t), validate: false, userModels: { ultra: "x" } });
+  assert.equal(invalid.exitCode, 1);
+  assert.match(invalid.validation.stderr, /invalid user models/);
 });
 
 // ---------------------------------------------------------------------------

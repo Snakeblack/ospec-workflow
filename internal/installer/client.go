@@ -11,7 +11,7 @@ import (
 	"os/exec"
 )
 
-const protocolVersion = 2
+const protocolVersion = 3
 
 // ProcessRunner is the small seam around os/exec. stdin is supplied as a
 // complete payload so callers cannot accidentally introduce shell parsing.
@@ -34,6 +34,10 @@ type Plan struct {
 	Version  int       `json:"version"`
 	Packages []Package `json:"packages"`
 	Targets  []Target  `json:"targets"`
+	// ModelsFile is where the user's tier assignment is saved; Warning says
+	// why an existing one was ignored.
+	ModelsFile string `json:"modelsFile"`
+	Warning    string `json:"warning"`
 }
 
 // Package is an optional install package (SDD mode, extras); the adapter maps
@@ -45,56 +49,28 @@ type Package struct {
 }
 
 type Target struct {
-	ID                 string   `json:"id"`
-	Label              string   `json:"label"`
-	InstallDescription string   `json:"installDescription"`
-	Inherited          bool     `json:"inherited"`
-	Groups             []Group  `json:"groups"`
-	Presets            []Preset `json:"presets"`
-	Agents             []Agent  `json:"agents"`
+	ID                 string `json:"id"`
+	Label              string `json:"label"`
+	InstallDescription string `json:"installDescription"`
+	Inherited          bool   `json:"inherited"`
+	Tiers              []Tier `json:"tiers"`
 }
 
-type Agent struct {
-	ID         string          `json:"id"`
-	Selectable bool            `json:"selectable"`
-	Inherited  bool            `json:"inherited"`
-	Effective  json.RawMessage `json:"effective"`
-	Choices    []Choice        `json:"choices"`
-}
-
-type Group struct {
-	ID     string   `json:"id"`
-	Label  string   `json:"label"`
-	Agents []string `json:"agents"`
-}
-type Preset struct {
-	ID         string               `json:"id"`
-	Label      string               `json:"label"`
-	Selections map[string]Selection `json:"selections"`
-}
-
-type Choice struct {
-	ID       string             `json:"id"`
-	Label    string             `json:"label"`
-	Value    json.RawMessage    `json:"value"`
-	Controls map[string]Control `json:"controls"`
-}
-type Control struct {
-	Values  []string `json:"values"`
-	Default string   `json:"default"`
-}
-type Selection struct {
-	ChoiceID string            `json:"choiceId"`
-	Controls map[string]string `json:"controls,omitempty"`
+// Tier is one model tier of a target: the agents it serves, the user's model
+// (Value, empty when unassigned) and what an empty value means (Fallback, a
+// Claude alias; empty when the agents inherit the session model).
+type Tier struct {
+	ID       string   `json:"id"`
+	Agents   []string `json:"agents"`
+	Value    string   `json:"value"`
+	Fallback string   `json:"fallback"`
 }
 
 type InstallRequest struct {
-	Version    int                  `json:"version,omitempty"`
-	Target     string               `json:"target"`
-	Mode       string               `json:"mode"`
-	PresetID   string               `json:"presetId,omitempty"`
-	Selections map[string]Selection `json:"selections"`
-	Packages   []string             `json:"packages,omitempty"`
+	Version  int               `json:"version,omitempty"`
+	Target   string            `json:"target"`
+	Models   map[string]string `json:"models,omitempty"`
+	Packages []string          `json:"packages,omitempty"`
 }
 
 // Plan requests a read-only adapter plan and validates its protocol version.

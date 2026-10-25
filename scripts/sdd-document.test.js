@@ -258,28 +258,26 @@ test("Target generation transforms sdd-document to opencode target", (t) => {
   assert.ok(fsSync.existsSync(path.join(out, ".opencode/agents/sdd-document.md")), "opencode output must contain .opencode/agents/sdd-document.md");
 });
 
-test("sdd-document generated outputs use cheap models or fail-soft omission", (t) => {
+test("sdd-document generated outputs use the cheap tier: Claude's alias, the user's model, or inherit", (t) => {
   const { runConfigure } = require("./configure/cli.js");
-  const cases = [
-    ["claude", "agents/sdd-document.md", "haiku"],
-    ["vscode", "agents/sdd-document.agent.md", ["gpt-6 Luna (copilot)"]],
-    ["opencode", ".opencode/agents/sdd-document.md", "zai-coding-plan/glm-5.3-flash"],
-  ];
-  for (const [target, relative, expected] of cases) {
+  const generated = (target, relative, userModels) => {
     const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT_DIR, target, outDir: out, validate: false, withSdd: true });
-    const content = fsSync.readFileSync(path.join(out, relative), "utf8");
-    assert.deepEqual(getField(parse(content).frontmatter, "model").value, expected, target);
+    runConfigure({ sourceDir: ROOT_DIR, target, outDir: out, validate: false, withSdd: true, userModels });
+    return fsSync.readFileSync(path.join(out, relative), "utf8");
+  };
+  const model = (content) => getField(parse(content).frontmatter, "model")?.value;
+  assert.equal(model(generated("claude", "agents/sdd-document.md")), "haiku");
+  for (const [target, relative] of [
+    ["vscode", "agents/sdd-document.agent.md"],
+    ["github-copilot", ".github/agents/sdd-document.agent.md"],
+    ["opencode", ".opencode/agents/sdd-document.md"],
+  ]) {
+    assert.equal(model(generated(target, relative)), undefined, `${target} inherits without an assignment`);
+    assert.equal(model(generated(target, relative, { cheap: "my-cheap" })), "my-cheap", target);
   }
-  const githubOut = tmpOut(t);
-  runConfigure({ sourceDir: ROOT_DIR, target: "github-copilot", outDir: githubOut, validate: false, withSdd: true });
-  const github = fsSync.readFileSync(path.join(githubOut, ".github/agents/sdd-document.agent.md"), "utf8");
-  assert.deepEqual(getField(parse(github).frontmatter, "model").value, ["gpt-6 Luna (copilot)"]);
-
-  const codexOut = tmpOut(t);
-  runConfigure({ sourceDir: ROOT_DIR, target: "codex", outDir: codexOut, validate: false, withSdd: true });
-  const codex = fsSync.readFileSync(path.join(codexOut, ".codex/agents/sdd-document.toml"), "utf8");
-  assert.match(codex, /^model = "gpt-6-luna"$/m);
+  assert.doesNotMatch(generated("codex", ".codex/agents/sdd-document.toml"), /^model/m);
+  const codex = generated("codex", ".codex/agents/sdd-document.toml", { cheap: "my-cheap" });
+  assert.match(codex, /^model = "my-cheap"$/m);
   assert.match(codex, /^model_reasoning_effort = "low"$/m);
 });
 

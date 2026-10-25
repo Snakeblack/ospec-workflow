@@ -20,6 +20,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { runConfigure } = require("./cli.js");
+const { prepareUserModels } = require("../lib/user-models.js");
 const { mutateFs } = require("./install-engine.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd, sddKeptNote } = require("./sdd-package.js");
 const { renderRuntimeDir, renderSharedDir, sharedDirValue } = require("./shared-dir.js");
@@ -340,9 +341,18 @@ function main(argv, deps = {}) {
   const runConfigureImpl = deps.runConfigure || runConfigure;
   const exitCodeTarget = deps.exitCodeTarget || process;
 
+  // `--model <tier>=<model>` (E4.12); the target is the first argument.
+  const models = prepareUserModels(argv, argv[0], { ...(deps.userModelsOptions || {}), persist: !argv.includes("--dry-run") });
+  if (models.error) {
+    stderr.write(`error: ${models.error}\n`);
+    exitCodeTarget.exitCode = 2;
+    return;
+  }
+  if (models.warning) stderr.write(`aviso: ${models.warning}\n`);
+
   let args;
   try {
-    args = parseArgs(argv);
+    args = parseArgs(models.argv);
   } catch (error) {
     stderr.write(`${error.message}\n`);
     exitCodeTarget.exitCode = 2;
@@ -352,7 +362,7 @@ function main(argv, deps = {}) {
 
   if (!TARGETS.has(args.target) || !args.dest) {
     stderr.write(
-      "usage: install-target <opencode|github-copilot> <destRepo> [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd]\n" +
+      "usage: install-target <opencode|github-copilot> <destRepo> [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--model <tier>=<model>]\n" +
         "  e.g. npm run install:opencode -- ../my-project\n",
     );
     exitCodeTarget.exitCode = 2;
@@ -374,7 +384,7 @@ function main(argv, deps = {}) {
   const agentsDir = path.join(destDir, args.target === "opencode" ? ".opencode" : ".github", "agents");
   const withSdd = resolveWithSdd(args, () => previousInstallHasSdd({ agentDirs: [agentsDir], fs: fsImpl }));
   stdout.write(sddKeptNote(args, withSdd));
-  const result = runConfigureImpl({ sourceDir, target: args.target, outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd });
+  const result = runConfigureImpl({ sourceDir, target: args.target, outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd, userModels: models.userModels });
 
   if (result.validation?.stdout) stdout.write(result.validation.stdout);
   if (result.validation?.stderr) stderr.write(result.validation.stderr);

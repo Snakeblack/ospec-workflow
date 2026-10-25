@@ -128,13 +128,15 @@ And when an abstract name maps to an array (e.g. `edit: ["Edit", "Write"]`), pro
 
 ### Scenario 6: Model injection from models.yaml
 
-Given a `models.yaml` file with a two-level map (phase × target columns),
+Given a `models.yaml` file that maps each agent to a tier, and the user's model for each tier of the target when an installer passes one (`userModels`, E4.12),
 When a target profile sets `model.format`,
 Then the generator MUST parse `models.yaml` without any YAML library dependency (custom parser),
 And MUST inject the resolved model name into each agent's frontmatter `model:` field.
+And the user's model for the agent's tier MUST take precedence; otherwise only a model name that `models.yaml` declares for the tier and target (Claude's aliases) MUST be used.
 And for the `claude` target with `format: "alias"`, model values MUST be emitted as alias strings.
-And for the `opencode` target with `format: "provider-slug"`, model values MUST be emitted as provider-prefixed slugs (e.g. `anthropic/claude-opus-4-5`).
+And for the `opencode` target with `format: "provider-slug"`, the user's model MUST be emitted as written (a provider-prefixed slug such as `provider/model`).
 And if a model resolves to the `OMIT` sentinel, the `model:` field MUST be omitted entirely from the output frontmatter.
+And a plain build (`dist/`, CI, the published marketplace) MUST NOT read the user's assignment.
 
 ### Scenario 7: Hooks reshaping — nested format (Claude)
 
@@ -289,8 +291,9 @@ A target profile MAY declare `agentFile.format: "toml"`. When declared, step 6 o
 transform pipeline (agent file handling) MUST, instead of stripping frontmatter into
 markdown, convert the agent's frontmatter `name`/`description` into top-level TOML keys,
 fold the markdown body into a `developer_instructions` TOML string, resolve `model` and
-`model_reasoning_effort` from `models.yaml` using the existing model-injection mechanism
-(generator Scenario 6, including the `OMIT` sentinel behavior), and assign `sandbox_mode`
+`model_reasoning_effort` using the existing model-injection mechanism (generator
+Scenario 6, including the `OMIT` sentinel behavior): the model comes from the user's
+assignment, and the tier's reasoning effort from `models.yaml` is emitted only with it, and assign `sandbox_mode`
 from the agent's declared capability marker. The emitted file MUST be written to
 `profile.agentFile.to` and MUST NOT be included in the profile's plugin manifest bundle
 (`profile.manifest`) — agent files emitted in TOML format are shipped outside the bundle.
@@ -435,17 +438,23 @@ native `codex mcp` CLI with valid normalized names.
 which cost tier (`premium`, `default`, or `cheap`). The validator MUST NOT
 hardcode or restore a prior agent→tier partition. It MUST only enforce
 structural invariants: the complete 17-agent SDD roster is present, each SDD
-agent uses a known tier, no unexpected `sdd-*` agents appear, review agents and
-`_default` stay on `default`, duplicate YAML keys are rejected, and Codex tier
-pins remain Sol/medium, Terra/medium, and Luna/low.
+agent and reviewer uses a known tier, no unexpected `sdd-*` agents appear, no
+unknown tier is declared, and duplicate YAML keys are rejected.
 
-The generator MUST apply the tier declared in `models.yaml` consistently for
-every supported generated target that defines a model value for the selected
-tier. Targets without a model column MUST preserve the existing fail-soft
-omission behavior. Codex output MUST contain the exact model and
-reasoning-effort pair pinned for that tier. Contract tests MUST derive the
-agent→tier partition from `models.yaml`, reject incomplete or structurally
-invalid policies, and verify generated model parity against that YAML mapping.
+ospec MUST NOT ship model names that age (E4.12). A tier entry in `models.yaml`
+MAY declare only Claude's aliases (`opus`, `sonnet`, `haiku`), which the host
+resolves to its latest model, and Codex's `model_reasoning_effort` and
+`model_verbosity`. Every other model comes from the user's assignment of a model
+to each tier and host, which the installers save in the user's configuration
+(REQ-install-019) and pass to the generator. The generator MUST apply the
+agent's tier consistently for every model-capable target: the user's model for
+that tier when assigned (with the tier's Codex effort), otherwise Claude's alias,
+otherwise no `model` at all, so the agent inherits the session model without
+error. Contract tests MUST derive the agent→tier partition from `models.yaml`
+and verify generated model parity against it with and without a user
+assignment.
+(Previously: `models.yaml` pinned a model per tier and target, including Codex's
+Sol/Terra/Luna pairs, and the validator enforced those pins.)
 
 #### Scenario: Complete SDD agent roster is accepted from models.yaml
 
@@ -458,43 +467,30 @@ invalid policies, and verify generated model parity against that YAML mapping.
 
 - GIVEN `sdd-propose` is reassigned from one known tier to another in `models.yaml`
 - WHEN model-capable target outputs are generated
-- THEN each output MUST resolve `sdd-propose` from that target's model definition for the newly declared tier
+- THEN each output MUST resolve `sdd-propose` from the newly declared tier
 - AND validation MUST NOT fail solely because the assignment differs from a previous policy
 
-#### Scenario: Default tier resolves to Terra medium on Codex
+#### Scenario: A fresh build writes no model the user did not choose
 
-- GIVEN any SDD agent assigned to `default` in `models.yaml` is generated for Codex
-- WHEN model policy is injected
-- THEN its model MUST be `gpt-6-terra`
-- AND its reasoning effort MUST be `medium`
+- GIVEN no user assignment
+- WHEN Claude, Codex, OpenCode, Cursor, VS Code and GitHub Copilot outputs are generated
+- THEN Claude agents MUST carry only the alias of their tier
+- AND every other agent MUST omit `model` (and, on Codex, its reasoning effort and verbosity)
+- AND Cursor's validator MUST accept those agents
 
-#### Scenario: Cheap tier resolves to Luna low on Codex
+#### Scenario: The user's model of a tier reaches every agent of that tier
 
-- GIVEN any SDD agent assigned to `cheap` in `models.yaml` is generated for Codex
-- WHEN model policy is injected
-- THEN its model MUST be `gpt-6-luna`
-- AND its reasoning effort MUST be `low`
+- GIVEN the user assigned a model to a tier for a target
+- WHEN that target is generated with the assignment
+- THEN every agent of that tier MUST carry that model as written
+- AND on Codex it MUST carry the tier's `model_reasoning_effort` from `models.yaml`
 
 #### Scenario: Structural policy defects fail the contract
 
-- GIVEN a policy is missing a required SDD agent, uses an unknown tier, adds an unexpected `sdd-*` agent, drifts a reviewer off `default`, or breaks a Codex pin
+- GIVEN a policy is missing a required SDD agent, uses an unknown tier, or adds an unexpected `sdd-*` agent
 - WHEN the complete mapping contract runs
 - THEN validation MUST fail with the matching structural error code
 - AND generation parity MUST NOT be reported as passing
-
-#### Scenario: Model-capable targets preserve tier parity
-
-- GIVEN the `models.yaml` mapping and tier definitions
-- WHEN all model-capable target generators process the same agent roster
-- THEN each generated agent MUST use the model belonging to its YAML-declared tier for that target
-- AND contract tests MUST fail if any target resolves an agent from a different tier
-
-#### Scenario: Target without a model column remains fail-soft
-
-- GIVEN a supported target declares no model column for the selected tier
-- WHEN it generates an agent from the required roster
-- THEN it MUST preserve the baseline omission behavior rather than inventing a model
-- AND the tier-parity contract MUST NOT treat that omission as a mismatch
 
 ### Requirement: Rules May Emit Cursor MDC Files {#REQ-generator-006}
 
@@ -579,8 +575,10 @@ registry. The cursor profile MUST declare a Cursor-native `toolMap`: `read→Rea
 `execute→Shell`, `agent→Task`, and degradation markers for `vscode/askQuestions` and
 `AskUserQuestion` per REQ-generator-003 describing a structured numbered chat
 question_gate, STOP-and-wait, and `state.yaml` approval persistence. Cursor output
-MUST inject `model:` from the `models.yaml` `cursor:` column for every SDD agent that
-resolves a model. The cursor validator MUST fail on leftover `vscode/` ask-tool
+MUST inject `model:` for every SDD agent that resolves a model (the user's model for
+its tier, E4.12) and omit it otherwise: Cursor's `model` is optional and defaults to
+`inherit`, so the cursor validator MUST accept an agent without `model` and reject an
+empty one. The cursor validator MUST fail on leftover `vscode/` ask-tool
 residue, bare `AskUserQuestion`, or unmapped abstract tool names in emitted **agent**
 bodies and agent frontmatter. Command files MAY retain `${input:…}` and `agent:`
 frontmatter in this change; `validate-cursor` MUST NOT fail solely because commands

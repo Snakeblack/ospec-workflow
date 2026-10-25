@@ -108,7 +108,7 @@ Desde un checkout del repositorio, usa Node.js 22+ y Go 1.23+:
 npm run setup:tui
 ```
 
-Elige un target, edita los modelos si ese target lo permite, revisa el resumen y activa **Install**. Usa las flechas para moverte, Enter para seleccionar, Escape para volver atrás, y `q` o Ctrl-C para cancelar. Volver atrás conserva las selecciones por target; cancelar antes de Install no escribe ficheros. Las elecciones son por ejecución y no modifican `models.yaml`; los destinos y el comportamiento del instalador siguen siendo los valores por defecto. La disponibilidad de modelos y la autenticación del host quedan fuera de este flujo, y los binarios independientes quedan fuera del MVP.
+Elige un target, escribe el modelo de cada tier (`premium`, `default`, `cheap`) tal como lo nombra el host, revisa el resumen y activa **Install**. Usa las flechas para moverte entre tiers, Enter para continuar, Escape para volver atrás y Ctrl-C para cancelar; en la pantalla de modelos cualquier tecla imprimible forma parte del nombre. Volver atrás conserva lo escrito; cancelar antes de Install no escribe ficheros. Install guarda los modelos en tu configuración de usuario (`~/.config/ospec/models.yaml`, o `%APPDATA%\ospec\models.yaml` en Windows), igual que el `--model <tier>=<modelo>` de un instalador; un tier vacío hereda el modelo de la sesión (Claude usa sus alias). La disponibilidad de modelos y la autenticación del host quedan fuera de este flujo, y los binarios independientes quedan fuera del MVP.
 
 ---
 
@@ -232,7 +232,7 @@ Cada `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS 
 | `scripts/hooks/` | Runtime de los hooks (Node.js) y sus tests. |
 | `scripts/lib/` | Librerías compartidas: estado de IDD y de OpenSpec, artifact-store y el núcleo del generador (`frontmatter`, `model-resolver`, `target-transform`, perfiles). |
 | `scripts/configure/` | CLI del generador multi-target (`cli.js`), validadores por perfil y fixtures golden. |
-| `models.yaml` | Tablas tier→modelo por target para el generador. |
+| `models.yaml` | Política agente→tier, alias de Claude y effort de Codex por tier; ningún otro nombre de modelo. |
 | `profiles/models/` | Perfiles opcionales de routing de modelos (uso directo en VS Code). |
 | `docs/` | Documentación detallada de arquitectura y uso. |
 | `.mcp.json` | Fuente MCP canónica. Codex no la empaqueta: `setup:codex` traduce sus entradas al CLI nativo y evita duplicados. |
@@ -351,7 +351,7 @@ Los hooks ejecutan código nativo (Node.js o ejecutables Go optimizados). `.ospe
 
 ## Routing de modelos
 
-Los agentes no fijan nombres de modelos concretos. Por defecto heredan el modelo seleccionado y pueden usar perfiles locales:
+ospec no trae nombres de modelo, salvo los alias de Claude. Cada agente pertenece a un tier, tú asignas un modelo a cada tier por host con `--model <tier>=<modelo>` o con `npm run setup:tui`, y un tier sin modelo hereda el de la sesión. Para usar el repositorio directamente en VS Code siguen los perfiles locales:
 
 - `default`: fallback de un solo modelo;
 - `cheap`: reduce coste en exploración y propuesta;

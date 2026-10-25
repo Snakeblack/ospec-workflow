@@ -112,6 +112,7 @@ function buildClaudeMarketplace(options, deps = {}) {
     validate: options.validate,
     withExtras: Boolean(options.withExtras),
     withSdd: Boolean(options.withSdd),
+    userModels: options.userModels,
   });
 
   const sourceManifest = JSON.parse(
