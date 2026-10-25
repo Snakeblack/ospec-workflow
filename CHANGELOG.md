@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.152.0] - 2026-10-25
+
+### Added
+- **El harness recomienda cómo llevar ramas y PRs, y explica por qué** (E3.8). El perfil de equipo solo decidía si una PR grande se trocea (`delivery_strategy`). Ahora `idd/config.yaml` admite `delivery.branching`:
+  - `serial`: una sola PR en vuelo. La rama siguiente se crea cuando la anterior está fusionada, y con su release si el proyecto saca una por change.
+  - `parallel`: varias ramas a la vez. Cada una integra la rama por defecto antes de su merge y edita la versión y el changelog al final.
+  - Si se declara, `delivery.branching` gana al perfil: `solo` recomienda `serial`, y `small` y `multi-team`, `parallel`. Sin ninguno de los dos se recomienda `serial`, que no puede generar conflictos. Otra clave o valor se rechaza con `config-invalid`.
+  - `ospec team` muestra el valor con su origen, sus motivos y sus reglas. `ospec next` lo devuelve en `delivery` al empezar (`declare-plan`) y al cerrar el cambio. Si nada lo declara, añade la sugerencia `branching-undeclared` sin bloquear: el agente propone el valor y lo escribe solo con tu aprobación.
+  - Es solo guía: el CLI no lee git ni las PRs. SDD no lee `delivery` (ADR 0011).
+  - REQ-idd-013 y REQ-idd-023 lo especifican, con dos escenarios nuevos.
+
+### Changed
+- **`branch-pr` ya no pide rebasar ramas ya subidas.** Pedía «rebase feature branches regularly», pero rebasar una rama subida exige force-push, y los hooks lo deniegan. Ahora una rama solo se rebasa si no se ha subido; una vez subida, se integra la rama por defecto con `git merge`. La sección también remite al branching del CLI (§6a.2 de la spec de skills).
+- **Orden de entrega de este repositorio** ([`AGENTS.md`](AGENTS.md)). Casi todas las PRs tocan el CHANGELOG, los cuatro manifiestos y el roadmap, así que hay una sola PR en vuelo (`delivery.branching: serial`):
+  - estado limpio antes de crear la rama;
+  - commits por unidad, con el de release al final;
+  - merge commit con `--delete-branch`;
+  - release justo después del merge;
+  - la rama `release` no se toca.
+- **Roadmap:** E3.8 queda hecho, y entra E3.9 `delivery-release-changelog` (changelog y releases en el flujo IDD) por delante del bloque A.
+
+Hecho con IDD (`idd/archive/2026-10-25-delivery-branching/` e `idd/archive/2026-10-25-delivery-order/`).
+
+**Verificación directa**: `node scripts/check.js` (4048 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.151.1] - 2026-10-25
 
 ### Changed
