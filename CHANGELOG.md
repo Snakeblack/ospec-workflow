@@ -7,8 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.153.1] - 2026-10-25
+
 ### Fixed
-- E1.42: los hooks Go leen el catálogo IDD (señales, obligaciones, evidencias, gates, orden de trabajo y how) de un JSON que emite el CLI y embeben, en vez de listas propias; Stop y PreCompact ya no descartan un cambio con untested-product, boundary-tests o review-limit (idd-catalog-single-source)
+- **Los hooks Go dan el mismo paso que `ospec next`** (E1.42, B1 de la auditoría del 2026-10-25). El catálogo IDD de `internal/iddsession` estaba escrito a mano y no conocía la señal `untested-product`, la obligación `boundary-tests` ni el gate `review-limit`. Stop y PreCompact descartaban entonces el cambio entero y escribían «sin cambio activo», mientras el respaldo JS daba el paso correcto. Para `adr-impact-declaration` daban además un `how` genérico.
+  - `scripts/lib/idd-catalog.js` emite el catálogo del CLI (señales, obligaciones, evidencias, gates, orden de trabajo, `how` y estados) a `internal/iddsession/catalog.json`, y Go lo embebe, como ya hacía con `internal/rules/rules.json`. Go deja de mantener listas propias.
+  - Cada `how` va como plantilla con `{change}`, que Go sustituye por el id.
+  - `idd-catalog.test.js` falla mientras el JSON esté desfasado: tocar el catálogo en JS exige regenerarlo con `node scripts/lib/idd-catalog.js --write`.
+  - El golden `steps` de `internal/testdata/idd-session/` suma tres casos (`s-boundary`, `s-limit` y `s-adr`) que fijan los mismos bytes en los dos motores.
+  - Vale en los 7 targets: el binario Go lo usan los seis con hooks de comando, y OpenCode llega a él por el launcher.
+
+### Changed
+- **Roadmap:** E1.42 queda hecho y sigue E1.43 `close-revalidates-state`. [`docs/harness-go-js-parity.md`](docs/harness-go-js-parity.md) explica cómo regenerar el catálogo.
+
+Hecho con IDD (`idd/archive/2026-10-25-idd-catalog-single-source/`).
+
+**Verificación directa**: `node scripts/check.js` (4060 tests pasando, 0 fallos y 3 omitidos) y la puerta Go (`gofmt -l cmd internal`, `go vet ./...` y `go test ./...`).
 
 ## [2.153.0] - 2026-10-25
 
