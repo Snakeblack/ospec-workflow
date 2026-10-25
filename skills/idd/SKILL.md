@@ -186,13 +186,16 @@ security paths of each service), as for checks.
 
 ## Delivery
 
-`ospec close` archives the change under `idd/archive/` and leaves the working
-tree as it is. Branches, commits and pull requests are the user's decision;
+`ospec close` archives the change under `idd/archive/`, adds its entry to the
+changelog `delivery.changelog` declares, and leaves the rest of the tree as it
+is. Branches, commits, pull requests and releases are the user's decision;
 propose the `team.delivery_strategy` of `next`, and the `delivery` it returns
-when the work starts and at close: its `branching`, why it fits (`reasons`)
-and the rules to follow (`how`). With the `branching-undeclared` suggestion,
-propose that value and its reasons once, and write `delivery.branching` to
-`idd/config.yaml` only after approval, keeping the rest. When they ask, use
+when the work starts and at close: its `branching`, `changelog` and `release`,
+why each fits (`reasons`) and the rules to follow (`how`). With a
+`*-undeclared` suggestion, propose that value and its reasons once, and write
+it under `delivery` in `idd/config.yaml` only after approval, keeping the
+rest. Propose the `release` of `close` after the merge, ask whether it breaks
+compatibility (a major), and cut it only with the user's OK. When they ask, use
 `work-unit-commits` to split commits, `branch-pr` to open the PR, and
 `chained-pr` when the diff exceeds the review budget. Pitch your replies at
 `team.mentorship`: `mentor` explains why, `expert` stays terse.

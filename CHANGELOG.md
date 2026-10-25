@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Opción de changelog y de cadencia de release en la sección delivery de idd/config.yaml, con recomendación por perfil; el flujo IDD deja la entrada del cambio en el changelog y propone la release con su versión, su tag y sus notas (delivery-release-changelog)
+
 ## [2.152.0] - 2026-10-25
 
 ### Added
