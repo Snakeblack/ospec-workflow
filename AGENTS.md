@@ -1,3 +1,16 @@
+## Delivery Order (Branches, Commits, PRs and Merges)
+
+This repository delivers one change at a time: at most one open pull request (`delivery.branching: serial` in [idd/config.yaml](idd/config.yaml), whose rules `ospec team` prints). Nearly every PR touches the same release files (`CHANGELOG.md`, the four version manifests listed below and `docs/roadmaps/harness-evolution.md`), and `scripts/manifest-sync.test.js` requires each changelog version to have its tag before the next one, so two PRs in flight always collide. The agent **MUST** follow this order:
+
+1. **Before creating a branch:** run `git switch main`, `git pull --ff-only` and `git fetch --tags --prune`. Check that `git status` is clean, that `gh pr list --state open` is empty and that `ospec status` shows no other open IDD change. If a PR or a change is still in flight, finish it (CI, merge, release) or ask the user; never start a second one.
+2. **One branch per change**, created from that up-to-date `main` and named `<type>/<change-id>` (`feat/`, `fix/`, `docs/`, `refactor/`, `perf/`, `ci/` or `chore/`). Never commit on `main`.
+3. **Commits by work unit** (the `work-unit-commits` skill): Conventional Commits in Spanish, each unit with its tests and docs, and the IDD archive with the unit it closes. The release commit (`chore(release): actualizar versión a X.Y.Z y changelog`) goes last, and it is the only commit that touches the version manifests and `CHANGELOG.md`.
+4. **Integrating `main`:** before the first push the branch may be rebased onto `origin/main`. Once pushed, its history is shared: integrate with `git merge origin/main` and never rewrite it, because the hooks deny `git push --force` and `--force-with-lease`. With serial delivery `main` only moves when the previous PR merges, so this is rare.
+5. **Pull request:** run `node scripts/check.js` locally before pushing (plus the Go gate of [CONTRIBUTING.md](CONTRIBUTING.md) when `cmd/` or `internal/` changed), open the PR with the `branch-pr` skill and add one `type:*` label. A chain of PRs (the `chained-pr` skill) counts as one delivery: its PRs may be open together, and only the last one carries the release commit.
+6. **Merge** only with the user's explicit approval for that PR and green CI, as a merge commit: `gh pr merge <number> --merge --delete-branch`. Then run `git switch main`, `git pull --ff-only` and `git branch -d <branch>`.
+7. **Release right after the merge**, before the next branch exists: step 6 of the Post-Archive Flow tags the merge commit. Check that Publish Marketplace finishes green.
+8. **Never delete or push to the `release` branch:** Publish Marketplace owns it.
+
 ## Post-Archive Flow (Release and Publication)
 
 Immediately after a change is closed (the `sdd-archive` phase in SDD mode, or the completion of a direct change such as a roadmap item), the agent **MUST** propose and initiate the release and publication workflow in this repository. The steps to follow are:

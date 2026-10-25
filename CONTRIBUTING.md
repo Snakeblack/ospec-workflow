@@ -65,6 +65,9 @@ third-party runtime dependencies.
   keeps them equal) per [SemVer](https://semver.org/): patch for non-behavioral fixes, minor for
   backward-compatible capability, major for breaking the trust surface or phase
   contracts. Record the change in `CHANGELOG.md`.
+- **One change in flight.** Branch, commits, PR, merge and release follow the
+  delivery order in [AGENTS.md](AGENTS.md): one open PR at a time, released
+  right after its merge, since every PR touches the version files.
 
 ## Reporting issues
 
