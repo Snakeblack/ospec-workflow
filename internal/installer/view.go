@@ -15,7 +15,7 @@ var (
 	stepStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#946000", Dark: "#E8B86D"})
 )
 
-const modelHelp = "↑/↓ fase · ←/→ modelo · Escribir buscar · Enter control/revisar · Esc atrás · Ctrl+C salir"
+const modelHelp = "↑/↓ tier · Escribir modelo · Retroceso borrar · Ctrl+U vaciar · Enter revisar · Esc atrás · Ctrl+C salir"
 
 func wrappedHelpLines(hint string, width int) []string {
 	lines := []string{}
@@ -37,12 +37,8 @@ func (m Model) View() string {
 	switch m.screen {
 	case targetsScreen:
 		return m.targetsView()
-	case presetsScreen:
-		return m.presetsView()
 	case modelsScreen:
 		return m.modelsView()
-	case controlsScreen:
-		return m.controlsView()
 	case reviewScreen:
 		return m.reviewView()
 	case installingScreen:
@@ -115,21 +111,12 @@ func (m Model) option(label, detail string, selected bool) string {
 func (m Model) window(total, focus int) (int, int) {
 	rows := max(1, m.height-12)
 	if m.screen == modelsScreen {
-		// Reserve wrapped help, the selected model and an optional search query.
+		// Reserve the wrapped help, the file note and an optional warning.
 		width := max(1, min(m.width, 88)-4)
 		if m.width < 40 {
 			width = max(1, m.width-2)
 		}
-		footer := wrappedHelpLines(modelHelp, width)
-		reserved := 8 + len(footer)
-		if target, ok := m.target(); ok && m.agentIndex < len(target.Agents) {
-			agent := target.Agents[m.agentIndex]
-			reserved += len(strings.Split(ansi.Wrap(m.agentLabel(target, agent), max(1, width-2), ""), "\n"))
-			if m.queries[target.ID][agent.ID] != "" {
-				reserved++
-			}
-		}
-		rows = max(1, m.height-reserved)
+		rows = max(1, m.height-10-len(wrappedHelpLines(modelHelp, width)))
 	}
 	if m.height <= 0 {
 		rows = 12
@@ -153,72 +140,35 @@ func (m Model) targetsView() string {
 	}
 	return m.frame("Elige un destino", "Donde empieza tu flujo de trabajo.", lines, "↑/↓ mover · Enter continuar · Esc atrás · q salir", 1)
 }
-func (m Model) presetsView() string {
-	target, _ := m.target()
-	lines := []string{}
-	total := len(target.Presets) + 1
-	start, end := m.window(total, m.choiceIndex)
-	for i := start; i < end; i++ {
-		label := "Personalizar por fase"
-		if i < len(target.Presets) {
-			label = target.Presets[i].Label
-		}
-		lines = append(lines, m.option(label, "", i == m.choiceIndex))
-	}
-	if end-start < total {
-		lines = append(lines, windowNote(start, end, total))
-	}
-	return m.frame("Configuración para "+target.Label, "Un punto de partida. Tú eliges el detalle.", lines, "↑/↓ mover · Enter continuar · Esc atrás", 2)
-}
 func (m Model) modelsView() string {
 	target, ok := m.target()
 	if !ok {
 		return m.targetsView()
 	}
 	lines := []string{}
-	start, end := m.window(len(target.Agents), m.agentIndex)
+	start, end := m.window(len(target.Tiers), m.tierIndex)
 	for i := start; i < end; i++ {
-		agent := target.Agents[i]
-		lines = append(lines, m.option(agent.ID, m.agentLabel(target, agent), i == m.agentIndex))
-	}
-	if end-start < len(target.Agents) {
-		lines = append(lines, windowNote(start, end, len(target.Agents)))
-	}
-	if m.agentIndex < len(target.Agents) {
-		agent := target.Agents[m.agentIndex]
-		width := max(1, min(m.width, 88)-6)
-		if m.width < 40 {
-			width = max(1, m.width-4)
+		tier := target.Tiers[i]
+		value := m.values[target.ID][tier.ID]
+		if i == m.tierIndex {
+			value += "▏"
 		}
-		for _, line := range strings.Split(ansi.Wrap(m.agentLabel(target, agent), width, ""), "\n") {
-			lines = append(lines, "  "+focusStyle.Render(line))
+		if strings.TrimSpace(value) == "" || value == "▏" {
+			value += mutedStyle.Render(emptyLabel(tier))
 		}
-		if query := m.queries[target.ID][agent.ID]; query != "" {
-			lines = append(lines, mutedStyle.Render("  buscar: "+query))
-		}
+		lines = append(lines, m.option(fmt.Sprintf("%-8s", tier.ID), value, i == m.tierIndex))
+		lines = append(lines, "    "+mutedStyle.Render(agentsNote(tier)))
 	}
-	return m.frame("Fases para "+target.Label, "Un modelo para cada momento.", lines, modelHelp, 2)
-}
-func (m Model) controlsView() string {
-	target, _ := m.target()
-	agent := target.Agents[m.agentIndex]
-	control := m.controlFor(target, agent)
-	selected := m.selections[target.ID][agent.ID].Controls[m.activeControl]
-	focus := 0
-	for i, value := range control.Values {
-		if value == selected {
-			focus = i
-		}
+	if end-start < len(target.Tiers) {
+		lines = append(lines, windowNote(start, end, len(target.Tiers)))
 	}
-	start, end := m.window(len(control.Values), focus)
-	lines := []string{}
-	for _, value := range control.Values[start:end] {
-		lines = append(lines, m.option(value, "", value == selected))
+	if m.plan.Warning != "" {
+		lines = append(lines, "", stepStyle.Render("aviso: "+m.plan.Warning))
 	}
-	if end-start < len(control.Values) {
-		lines = append(lines, windowNote(start, end, len(control.Values)))
+	if m.plan.ModelsFile != "" {
+		lines = append(lines, "", mutedStyle.Render("Se guarda en "+m.plan.ModelsFile))
 	}
-	return m.frame("Control compatible", agent.ID+" · "+m.activeControl, lines, "↑/↓ mover · Enter volver · Esc atrás", 2)
+	return m.frame("Modelos para "+target.Label, "Escribe el modelo de cada tier, tal como lo nombra "+target.Label+".", lines, modelHelp, 2)
 }
 func (m Model) reviewView() string {
 	target, ok := m.target()
@@ -226,15 +176,20 @@ func (m Model) reviewView() string {
 		return m.targetsView()
 	}
 	lines := []string{}
-	if target.Inherited {
+	if target.Inherited || len(target.Tiers) == 0 {
 		lines = append(lines, mutedStyle.Render("Heredado del host"))
 	}
-	for _, agent := range target.Agents {
-		width := max(1, min(m.width, 88)-6)
-		if m.width < 40 {
-			width = max(1, m.width-4)
+	width := max(1, min(m.width, 88)-6)
+	if m.width < 40 {
+		width = max(1, m.width-4)
+	}
+	models := m.Models()
+	for _, tier := range target.Tiers {
+		value := models[tier.ID]
+		if value == "" {
+			value = strings.TrimSpace(emptyLabel(tier))
 		}
-		for _, line := range strings.Split(ansi.Wrap(agent.ID+"  "+m.agentLabel(target, agent), width, ""), "\n") {
+		for _, line := range strings.Split(ansi.Wrap(fmt.Sprintf("%-8s %s · %s", tier.ID, value, agentsNote(tier)), width, ""), "\n") {
 			lines = append(lines, "  "+line)
 		}
 	}
@@ -254,23 +209,21 @@ func (m Model) reviewView() string {
 		hint = fmt.Sprintf("1-%d paquetes · ", len(m.plan.Packages)) + hint
 	}
 	lines = append(lines, "", m.option("Volver", "", m.reviewBackFocused)+"    "+m.option("Instalar", "", !m.reviewBackFocused))
-	return m.frame("Revisar instalación", target.Label+" · "+m.mode, lines, hint, 3)
+	return m.frame("Revisar instalación", target.Label, lines, hint, 3)
 }
-func (m Model) agentLabel(target Target, agent Agent) string {
-	if agent.Inherited || !agent.Selectable {
-		return "Heredado"
+
+// emptyLabel says what an unassigned tier does: Claude's alias, or inherit.
+func emptyLabel(tier Tier) string {
+	if tier.Fallback != "" {
+		return " " + tier.Fallback + " (alias por defecto)"
 	}
-	selection := m.selections[target.ID][agent.ID]
-	for _, choice := range agent.Choices {
-		if choice.ID == selection.ChoiceID {
-			parts := []string{choice.Label}
-			for name, value := range selection.Controls {
-				parts = append(parts, fmt.Sprintf("%s=%s", name, value))
-			}
-			return strings.Join(parts, " · ")
-		}
+	return " hereda el modelo de la sesión"
+}
+func agentsNote(tier Tier) string {
+	if len(tier.Agents) == 1 {
+		return "1 agente"
 	}
-	return "Sin opción"
+	return fmt.Sprintf("%d agentes", len(tier.Agents))
 }
 func help(text string) string  { return mutedStyle.Render(text) }
 func (m Model) String() string { return fmt.Sprintf("installer screen %d", m.screen) }

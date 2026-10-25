@@ -2,58 +2,53 @@ package installer
 
 import (
 	"fmt"
-	"github.com/charmbracelet/lipgloss"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
-func TestReviewShowsModeAndInheritance(t *testing.T) {
-	m := NewModel(Plan{Version: 2, Targets: []Target{{ID: "antigravity", Label: "Antigravity", Inherited: true, Agents: []Agent{{ID: "a", Inherited: true}}}}})
+func TestReviewShowsInheritance(t *testing.T) {
+	m := NewModel(Plan{Version: 3, Targets: []Target{{ID: "antigravity", Label: "Antigravity", Inherited: true}}})
 	m.handleKey("enter")
 	m.handleKey("enter")
-	view := m.View()
-	if !strings.Contains(view, "inherited") || !strings.Contains(view, "Heredado") {
+	if view := m.View(); !strings.Contains(view, "Heredado del host") {
 		t.Fatalf("review=%s", view)
 	}
 }
 
-func TestControlsViewUsesVerticalNavigationForTheActiveEffort(t *testing.T) {
-	control := Control{Values: []string{"low", "high"}, Default: "high"}
-	plan := Plan{Version: 2, Targets: []Target{{
-		ID:      "codex",
-		Agents:  []Agent{{ID: "apply", Selectable: true, Choices: []Choice{{ID: "model", Label: "Model", Controls: map[string]Control{"model_reasoning_effort": control}}}}},
-		Presets: []Preset{{ID: "recommended", Selections: map[string]Selection{"apply": {ChoiceID: "model", Controls: map[string]string{}}}}},
-	}}}
+func TestModelsViewSaysWhatAnEmptyTierDoes(t *testing.T) {
+	plan := Plan{Version: 3, ModelsFile: "/home/u/.config/ospec/models.yaml", Warning: "se ignora el fichero", Targets: []Target{
+		{ID: "codex", Label: "Codex", Tiers: tiers(map[string]string{"cheap": "gpt-luna"}, nil)},
+		{ID: "claude", Label: "Claude", Tiers: tiers(nil, map[string]string{"premium": "opus", "default": "sonnet", "cheap": "haiku"})},
+	}}
 	m := NewModel(plan)
-	for _, key := range []string{"enter", "enter", "down", "enter", "enter"} {
-		m.handleKey(key)
+	m.handleKey("enter")
+	m.handleKey("enter")
+	view := m.View()
+	for _, want := range []string{"hereda el modelo de la sesión", "gpt-luna", "1 agente", "Se guarda en /home/u/.config/ospec/models.yaml", "aviso: se ignora el fichero"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("missing %q:\n%s", want, view)
+		}
 	}
-	if m.screen != controlsScreen {
-		t.Fatalf("screen = %v, want controls", m.screen)
-	}
-	if view := m.View(); !strings.Contains(view, "› high") {
-		t.Fatalf("initial control lacks active indicator:\n%s", view)
-	}
+	m.back()
 	m.handleKey("down")
-	if view := m.View(); !strings.Contains(view, "› low") || strings.Contains(view, "› high") {
-		t.Fatalf("keyboard selection lacks active indicator:\n%s", view)
+	m.handleKey("enter")
+	if view := m.View(); !strings.Contains(view, "opus (alias por defecto)") {
+		t.Fatalf("claude fallback missing:\n%s", view)
 	}
-	m.handleKey("up")
-	if view := m.View(); !strings.Contains(view, "› high") || strings.Contains(view, "› low") {
-		t.Fatalf("up navigation lacks active indicator:\n%s", view)
-	}
-	m.handleKey("j")
-	if view := m.View(); !strings.Contains(view, "› low") || strings.Contains(view, "› high") {
-		t.Fatalf("vim down navigation lacks active indicator:\n%s", view)
-	}
-	m.handleKey("k")
-	if view := m.View(); !strings.Contains(view, "› high") || strings.Contains(view, "› low") {
-		t.Fatalf("vim vertical navigation lacks active indicator:\n%s", view)
-	}
-	for _, key := range []string{"left", "right", "h", "l"} {
+}
+
+func TestReviewListsTheEffectiveModelOfEachTier(t *testing.T) {
+	plan := Plan{Version: 3, Targets: []Target{{ID: "claude", Label: "Claude", Tiers: tiers(map[string]string{"premium": "fable"}, map[string]string{"premium": "opus", "default": "sonnet", "cheap": "haiku"})}}}
+	m := NewModel(plan)
+	for _, key := range []string{"enter", "enter", "enter"} {
 		m.handleKey(key)
-		if view := m.View(); !strings.Contains(view, "› high") || strings.Contains(view, "› low") {
-			t.Fatalf("%s navigation must not contradict the vertical list:\n%s", key, view)
+	}
+	view := m.View()
+	for _, want := range []string{"premium  fable", "default  sonnet (alias por defecto)", "cheap    haiku (alias por defecto)"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("missing %q:\n%s", want, view)
 		}
 	}
 }
@@ -63,7 +58,7 @@ func TestNarrowViewsRetainFocusAndFitTerminal(t *testing.T) {
 	for i := range targets {
 		targets[i] = Target{ID: fmt.Sprint(i), Label: fmt.Sprintf("Destino %02d", i), InstallDescription: strings.Repeat("Descripción extensa ", 8)}
 	}
-	m := NewModel(Plan{Version: 2, Targets: targets})
+	m := NewModel(Plan{Version: 3, Targets: targets})
 	m.screen, m.targetIndex, m.width, m.height = targetsScreen, 19, 36, 16
 	view := m.View()
 	if !strings.Contains(view, "› Destino 19") {
@@ -79,18 +74,18 @@ func TestNarrowViewsRetainFocusAndFitTerminal(t *testing.T) {
 	}
 }
 
-func TestNarrowModelsKeepSelectionDetailsAndHelpVisible(t *testing.T) {
-	agents := make([]Agent, 20)
-	for i := range agents {
-		agents[i] = Agent{ID: fmt.Sprintf("sdd-long-phase-%02d", i), Selectable: true, Choices: []Choice{{ID: "m", Label: "Modelo elegido"}}}
-	}
-	m := NewModel(Plan{Version: 2, Targets: []Target{{ID: "test", Agents: agents}}})
-	m.screen, m.agentIndex, m.width, m.height = modelsScreen, 19, 24, 16
-	m.queries["test"][agents[19].ID] = "elegido"
+func TestNarrowModelsKeepFocusAndHelpVisible(t *testing.T) {
+	m := NewModel(Plan{Version: 3, Targets: []Target{{ID: "codex", Label: "Codex", Tiers: tiers(nil, nil)}}})
+	m.screen, m.tierIndex, m.width, m.height = modelsScreen, 2, 30, 20
 	view := m.View()
-	for _, want := range []string{"› sdd-long-phase-19", "Modelo elegido", "buscar: elegido", "Ctrl+C salir"} {
+	for _, want := range []string{"› cheap", "Ctrl+C salir"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("missing %q:\n%s", want, view)
+		}
+	}
+	for _, line := range strings.Split(view, "\n") {
+		if lipgloss.Width(line) > m.width {
+			t.Fatalf("line exceeds %d columns: %s", m.width, line)
 		}
 	}
 	if len(strings.Split(strings.TrimSuffix(view, "\n"), "\n")) > m.height {
@@ -99,7 +94,7 @@ func TestNarrowModelsKeepSelectionDetailsAndHelpVisible(t *testing.T) {
 }
 
 func TestReviewListsOptionalPackagesWithTheirKeys(t *testing.T) {
-	plan := Plan{Version: 2, Packages: []Package{{ID: "sdd", Label: "Modo SDD", Description: "Fases SDD"}}, Targets: []Target{{ID: "antigravity", Label: "Antigravity", Inherited: true, Agents: []Agent{{ID: "a", Inherited: true}}}}}
+	plan := Plan{Version: 3, Packages: []Package{{ID: "sdd", Label: "Modo SDD", Description: "Fases SDD"}}, Targets: []Target{{ID: "antigravity", Label: "Antigravity", Inherited: true}}}
 	m := NewModel(plan)
 	m.handleKey("enter")
 	m.handleKey("enter")

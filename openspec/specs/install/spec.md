@@ -836,13 +836,13 @@ When filesystem mutations fail or exhaust retries across any installer phase (in
 ### Requirement: Guided Single-Target Installer TUI {#REQ-install-019}
 
 The system MUST provide a Go TUI that receives seven supported targets from its
-adapter, schedules exactly one target per run, and uses preset-first hierarchical
-configuration for selectable targets. A selectable target MUST flow through preset,
-grouped phase customization, compatible model/reasoning selection, and review;
-choosing a preset MAY skip customization and proceed to review. Antigravity MUST show
-inheritance and no target-specific selector. Back from any non-initial step MUST retain
-valid selections.
-(Previously: the TUI used a flat per-agent model step and only non-editable targets bypassed it.)
+adapter and schedules exactly one target per run. An assignable target (Claude,
+Codex, OpenCode, Cursor, VS Code, GitHub Copilot) MUST flow through one model entry
+per tier (`premium`, `default`, `cheap`) and review; Antigravity MUST show
+inheritance and go straight to review. Back from any non-initial step MUST retain
+what the user typed.
+(Previously: the TUI flowed through presets, grouped per-agent model choices and
+reasoning controls, E4.12.)
 
 #### Scenario: Select one target
 
@@ -850,83 +850,87 @@ valid selections.
 - WHEN the user selects one adapter-supplied target and continues
 - THEN subsequent steps MUST use that target only
 
-#### Scenario: Select a preset
+#### Scenario: Type a model per tier
 
-- GIVEN the selected target exposes presets
-- WHEN the user selects one preset
-- THEN all phase assignments MUST resolve from that preset
-- AND the TUI MUST advance to review without requiring linear agent traversal
-
-#### Scenario: Customize grouped phases
-
-- GIVEN the user selects Custom for a selectable target
-- WHEN the phase-group screen is displayed
-- THEN phases MUST be grouped for navigation
-- AND entering a phase MUST open only that phase's model and compatible-control choices
+- GIVEN the user selected an assignable target
+- WHEN the model screen is displayed
+- THEN it MUST list the three tiers with the agents each one serves and the user's current model
+- AND typing MUST edit only the focused tier, with every printable character (including `q`, `j` and `k`) part of the name
 
 #### Scenario: Antigravity remains inherited
 
 - GIVEN the user selects Antigravity
 - WHEN target configuration is displayed
 - THEN the TUI MUST show inherited host behavior
-- AND MUST NOT offer a model, preset, or reasoning selector
+- AND MUST NOT offer a model entry
 
-#### Scenario: Back retains selections
+#### Scenario: Back retains typed models
 
-- GIVEN the user selected a target, preset or phase choices, and available models
+- GIVEN the user typed models for one or more tiers
 - WHEN the user goes Back and continues without changes
-- THEN the same selections MUST be displayed
+- THEN the same models MUST be displayed
 
 ---
 
-### Requirement: Capability-Evidenced Per-Agent Model Choices {#REQ-install-020}
+### Requirement: User Tier Model Assignment {#REQ-install-020}
 
-The adapter plan MUST declare each agent's selectability, finite supported models, and
-compatible reasoning controls. The TUI MUST offer only declared choices, reject
-free-form or unsupported identifiers, and display inherited behavior otherwise.
-GitHub Copilot MUST expose the same selectable configuration surface and choice
-semantics as VS Code. Antigravity MUST display inheritance and omit multi-model
-selection; a missing configuration column alone MUST NOT prove model support.
-(Previously: GitHub Copilot was treated as inherited while VS Code was selectable.)
+ospec MUST NOT choose a model name for the user outside Claude's aliases (E4.12).
+The user assigns a model to each tier and host, either with an installer's
+`--model <tier>=<model>` flag (an empty model clears that tier) or in the TUI. The
+assignment MUST be saved in the user's configuration, outside any project
+(`$XDG_CONFIG_HOME/ospec/models.yaml` or `~/.config/ospec/models.yaml`, and
+`%APPDATA%\ospec\models.yaml` on Windows), keeping the other hosts' entries. A model
+is free text as the host spells it, one line of at most 200 characters, never
+validated against a catalog. A tier without a model MUST degrade without error: Claude
+falls back to its alias in `models.yaml`, and every other host omits `model` so its
+agents inherit the session model. A file that cannot be read or parsed, or that names
+an unknown host or tier, MUST be ignored with a visible warning, and MUST NOT be
+overwritten. A `--dry-run` MUST apply the flags to that run only. Antigravity always
+inherits and MUST refuse `--model`. An installation with model names that ospec wrote
+earlier is not migrated: its agents inherit, and the installer summary MUST list the
+models of each tier and say how to assign the tiers left to inherit.
+(Previously: the plan declared finite per-agent model choices from the `models.yaml`
+catalog, applied per run without saving them.)
 
-#### Scenario: Select a supported model
+#### Scenario: A flag saves the model of a tier
 
-- GIVEN the target has adapter-declared model choices
-- WHEN the user selects one model for an agent
-- THEN only that agent's plan entry MUST record the selected model
-- AND the summary MUST show its effective model and compatible control
+- GIVEN a user runs an installer with `--model premium=<model>`
+- WHEN the installation runs
+- THEN the user's configuration MUST hold that model for that host and tier
+- AND the generated agents of that tier MUST carry it
 
-#### Scenario: GitHub Copilot matches VS Code configurability
+#### Scenario: An unassigned tier inherits
 
-- GIVEN VS Code and GitHub Copilot expose the same canonical model catalog
-- WHEN the user configures either target in the TUI
-- THEN both targets MUST expose equivalent preset/phase/model navigation
-- AND each request MUST retain its target-specific value representation
+- GIVEN no model is assigned to a tier on a host other than Claude
+- WHEN that host is installed
+- THEN its agents of that tier MUST omit `model`
+- AND the summary MUST say how to assign that tier
 
-#### Scenario: Bypass inherited models
+#### Scenario: A broken assignment is ignored, never overwritten
 
-- GIVEN the user selects Antigravity
-- WHEN the TUI reaches model selection
-- THEN it MUST show inheritance and offer no model-choice control
+- GIVEN the user's configuration cannot be parsed
+- WHEN an installer runs
+- THEN it MUST warn that the file is ignored and install with inheriting agents
+- AND a `--model` flag MUST fail without rewriting the file
 
-#### Scenario: Unsupported selection is rejected
+#### Scenario: Antigravity takes no assignment
 
-- GIVEN a request contains an agent, model, preset, or control absent from a fresh plan
-- WHEN the adapter validates the request
-- THEN it MUST reject the request before installation
+- GIVEN a user passes `--model` to the Antigravity installer
+- WHEN it starts
+- THEN it MUST refuse before any installation
 
 ---
 
 ### Requirement: Review Before Explicit Installation {#REQ-install-021}
 
-The TUI MUST summarize the selected target, preset or custom mode, every agent's
-selected or inherited behavior, and each selected compatible reasoning control before
-installation. The summary MUST also list the optional packages of the plan (SDD mode
-and extras, REQ-install-036 and REQ-install-032), numbered, each toggled by its digit;
-none is selected at first, which keeps each installer's default. It MUST invoke no target installer or destination write before explicit
-Install. Cancel, exit, and Back from summary MUST preserve or discard the plan without
-installation.
-(Previously: the summary listed selected or inherited models but had no preset or reasoning-control state.)
+The TUI MUST summarize the selected target and each tier's effective model (the
+user's model, Claude's alias, or inheritance) before installation. The summary MUST
+also list the optional packages of the plan (SDD mode and extras, REQ-install-036 and
+REQ-install-032), numbered, each toggled by its digit; none is selected at first,
+which keeps each installer's default. It MUST invoke no target installer or destination
+write before explicit Install. Cancel, exit, and Back from summary MUST preserve or
+discard the plan without installation.
+(Previously: the summary listed per-agent models, preset or custom mode, and reasoning controls.)
 
 #### Scenario: Summary waits for Install
 
@@ -936,59 +940,54 @@ installation.
 
 #### Scenario: Edit from summary
 
-- GIVEN the summary shows an effective model or reasoning control
-- WHEN the user chooses Back, changes an allowed value, and returns
-- THEN the revised summary MUST retain all other selections
+- GIVEN the summary shows a tier's effective model
+- WHEN the user chooses Back, changes that tier, and returns
+- THEN the revised summary MUST retain the other tiers
 
 ---
 
 ### Requirement: Adapter Plan and Delegated Installation {#REQ-install-022}
 
-The Node adapter MUST expose a machine-readable, read-only plan from canonical target,
-preset, phase, catalog, and capability configuration without changing `models.yaml`.
-It MAY merge bounded Codex/OpenCode discovery according to REQ-install-025. On Install
-it MUST revalidate the target, preset, phase selections, opaque choice IDs, and
-target-compatible controls against a fresh plan, pass the resulting values as an
-in-memory override, and delegate only the selected target to its compatible existing
-`main(argv, deps)` installer seam. The plan MUST list the optional packages (`sdd`,
-`extras`) with a label and a description; a request MAY name them in `packages`, each
-at most once, and the adapter MUST pass them to the installer as `--with-sdd` and
-`--with-extras` and reject an unknown or repeated one before any installer runs. It MUST preserve installer outcomes and diagnostics
-and MUST NOT duplicate validation, transaction, rollback, manifest, or destination-write
-behavior.
-(Previously: the plan contained target/model choices only and did not define hierarchical or discovery state.)
+The Node adapter MUST expose a machine-readable, read-only plan (protocol version 3):
+the targets, for each assignable target its tiers with the agents each one serves, the
+user's current model and what an empty tier means (Claude's alias or inheritance), the
+path of the user's assignment and any warning about it. It MUST NOT change
+`models.yaml` or the assignment while planning. On Install it MUST revalidate the
+target, tiers and model text against a fresh plan, turn each model into a
+`--model <tier>=<model>` flag, and delegate only the selected target to its existing
+`main(argv, deps)` installer seam, which saves the assignment. The plan MUST list the
+optional packages (`sdd`, `extras`) with a label and a description; a request MAY name
+them in `packages`, each at most once, and the adapter MUST pass them to the installer
+as `--with-sdd` and `--with-extras` and reject an unknown or repeated one before any
+installer runs. It MUST preserve installer outcomes and diagnostics and MUST NOT
+duplicate validation, transaction, rollback, manifest, or destination-write behavior.
+(Previously: protocol version 2 carried presets, opaque per-agent choice IDs and
+controls, passed as an in-memory override.)
 
 #### Scenario: Planning is read-only
 
 - GIVEN a caller requests an adapter plan
-- WHEN it returns targets, presets, model capabilities, and inherited states
-- THEN `models.yaml`, destination paths, and discovery configuration MUST remain unmodified
+- WHEN it returns targets, tiers, the user's models and inherited states
+- THEN `models.yaml`, the user's assignment and destination paths MUST remain unmodified
 
 #### Scenario: Confirmed plan delegates once
 
 - GIVEN a displayed plan remains valid at confirmation
 - WHEN the user chooses Install
-- THEN exactly the selected installer MUST run once
+- THEN exactly the selected installer MUST run once, with one `--model` flag per tier of the request
 - AND its outcome and diagnostics MUST reach the TUI
 
-#### Scenario: Invalid plan is refused
+#### Scenario: Invalid request is refused
 
-- GIVEN confirmation contains a target, preset, model, or control absent from a fresh plan
+- GIVEN a request with an unknown target or tier, a model that is not one line of at most 200 characters, a model for Antigravity, or another protocol version
 - WHEN the adapter revalidates it
 - THEN it MUST reject before installer invocation or destination write
-
-#### Scenario: Discovery failure does not invalidate installation
-
-- GIVEN Codex/OpenCode discovery fails while the static catalog is valid
-- WHEN a user confirms a static-catalog selection
-- THEN revalidation MUST succeed from the static plan
-- AND the selected installer MUST be delegated normally
 
 ---
 
 ### Requirement: Installer TUI Contract Coverage {#REQ-install-023}
 
-Automated tests MUST cover navigation retention, capability-gated models, the no-write confirmation boundary, and selected-target delegation.
+Automated tests MUST cover navigation retention, per-tier model entry, the no-write confirmation boundary, and selected-target delegation.
 
 #### Scenario: Contract tests pass
 
@@ -998,79 +997,35 @@ Automated tests MUST cover navigation retention, capability-gated models, the no
 
 ---
 
-### Requirement: Searchable Model Choices and Compatible Reasoning Controls {#REQ-install-024}
+### Requirement: Free-Text Tier Models Replace Finite Choices {#REQ-install-024}
 
-For every selectable target, the installer plan MUST expose finite model choices and
-only the reasoning controls declared compatible with the selected model and target.
-The TUI MUST provide case-insensitive search over visible choices, preserve the query
-and selected value when returning with Back, and MUST NOT present unsupported controls.
-Claude choices MAY expose `effort`, Codex choices MAY expose
-`model_reasoning_effort`, and OpenCode choices MAY expose `variant`; other fields MUST
-remain target-defined rather than inferred by the TUI.
+The installer MUST NOT offer a finite catalog of models, search over it, or
+per-model reasoning controls (E4.12): the user types each tier's model as the host
+names it. Codex's reasoning effort and verbosity stay per tier in `models.yaml` and
+apply only with a model the user assigned.
+(Previously: the plan exposed finite searchable model choices and compatible
+`effort`, `model_reasoning_effort` or `variant` controls.)
 
-#### Scenario: Search narrows choices without changing the selected value
+#### Scenario: No catalog reaches the plan
 
-- GIVEN a selectable target has multiple model choices and a current selection
-- WHEN the user enters a case-insensitive search query
-- THEN only matching choices MUST be shown
-- AND clearing the query MUST restore the complete finite choice set
-
-#### Scenario: Compatible control is shown after model selection
-
-- GIVEN a selected model declares a finite set of supported reasoning values
-- WHEN the user opens its reasoning control
-- THEN the TUI MUST show only those values and record the selected value in the review
-
-#### Scenario: Unsupported control is unavailable
-
-- GIVEN a selected model has no declared `effort`, `model_reasoning_effort`, or `variant`
-- WHEN the user configures that phase
-- THEN the TUI MUST skip or disable the reasoning step
-- AND the installation request MUST contain no unsupported control
-
-#### Scenario: Back retains search and reasoning state
-
-- GIVEN the user searched for a model and selected a model/control pair
-- WHEN the user goes Back to the phase list and re-enters the choice
-- THEN the query, selected model, and selected control MUST remain valid and visible
+- GIVEN the adapter builds a plan
+- WHEN it describes an assignable target
+- THEN it MUST list tiers and the user's free-text models, with no model choices or controls
 
 ---
 
-### Requirement: Bounded Codex and OpenCode Discovery with Static Fallback {#REQ-install-025}
+### Requirement: Installer Model Discovery Is Retired {#REQ-install-025}
 
-The adapter MAY discover models for `codex` and `opencode` only when their supported
-local CLI is available. Discovery MUST be bounded by a finite timeout, parse and
-deduplicate only valid capability-bearing entries, and merge them with the static
-`models.yaml` catalog without replacing it. If a CLI is unavailable, times out,
-returns malformed data, or returns no usable entries, the adapter MUST return a valid
-plan from the static catalog. Discovery MUST NOT run for any other target.
+The adapter MUST NOT run a host CLI to discover models for any target: a free-text
+model per tier needs no catalog to merge with (E4.12).
+(Previously: the adapter MAY discover Codex and OpenCode models with a static
+fallback; it was never implemented.)
 
-#### Scenario: Usable discovery augments the static catalog
+#### Scenario: Planning invokes no host CLI
 
-- GIVEN the Codex or OpenCode CLI is available and returns valid model entries
-- WHEN the adapter builds a plan
-- THEN the plan MUST contain the valid discovered entries and all applicable static entries
-- AND duplicate choices MUST occur only once
-
-#### Scenario: Discovery timeout falls back safely
-
-- GIVEN the discovery command exceeds its configured timeout
-- WHEN the adapter builds a plan
-- THEN the plan MUST complete with static catalog choices
-- AND the TUI MUST remain usable without a discovery error
-
-#### Scenario: Discovery is not attempted for IDE targets
-
-- GIVEN the adapter builds a plan for `claude`, `vscode`, `github-copilot`, `cursor`, or `antigravity`
+- GIVEN the adapter builds a plan for any target
 - WHEN plan generation runs
 - THEN no discovery command MUST be invoked
-
-#### Scenario: Capability-incompatible discovered entry is excluded
-
-- GIVEN OpenCode discovery returns an entry without the required model capability
-- WHEN the adapter normalizes discovered entries
-- THEN that entry MUST be excluded from selectable choices
-- AND the static fallback entries MUST remain available
 
 ### Requirement: Quality Review Attribution Build Propagation {#REQ-install-026}
 
