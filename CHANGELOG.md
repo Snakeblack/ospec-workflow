@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- E1.42: los hooks Go leen el catálogo IDD (señales, obligaciones, evidencias, gates, orden de trabajo y how) de un JSON que emite el CLI y embeben, en vez de listas propias; Stop y PreCompact ya no descartan un cambio con untested-product, boundary-tests o review-limit (idd-catalog-single-source)
+
 ## [2.153.0] - 2026-10-25
 
 ### Added
