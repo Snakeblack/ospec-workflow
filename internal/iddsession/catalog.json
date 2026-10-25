@@ -1,0 +1,129 @@
+{
+  "change_placeholder": "{change}",
+  "signals": [
+    {
+      "id": "always",
+      "obligation": "checks-pass"
+    },
+    {
+      "id": "strict-tdd",
+      "obligation": "tdd-red-green"
+    },
+    {
+      "id": "bug-fix",
+      "obligation": "repro-test"
+    },
+    {
+      "id": "untested-product",
+      "obligation": "boundary-tests"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "obligation": "living-doc"
+    },
+    {
+      "id": "public-contract",
+      "obligation": "contract-spec-and-test"
+    },
+    {
+      "id": "persistent-data",
+      "obligation": "migration-compat-and-test"
+    },
+    {
+      "id": "security-boundary",
+      "obligation": "trust-review"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "obligation": "adr-impact-declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "evidence": "check-run",
+      "how": "ospec check --change {change}; a run that reports tests 0 is not evidence"
+    },
+    {
+      "id": "tdd-red-green",
+      "evidence": "tdd-red-green",
+      "how": "ospec run --change {change} --obligation tdd-red-green --command \"<test>\" [--unit <name>]: failing before the code, passing after it"
+    },
+    {
+      "id": "repro-test",
+      "evidence": "repro-run-pair",
+      "how": "ospec run --change {change} --obligation repro-test --command \"<test>\": once failing before the fix, again passing after it"
+    },
+    {
+      "id": "boundary-tests",
+      "evidence": "tested-check",
+      "how": "ospec check --change {change} after the diff adds a test for the product code; the output must report tests greater than 0"
+    },
+    {
+      "id": "living-doc",
+      "evidence": "living-doc-current",
+      "how": "write the Plan and Decisions of idd/{change}/change.md, then ospec close --change {change}"
+    },
+    {
+      "id": "contract-spec-and-test",
+      "evidence": "contract-spec-and-test",
+      "how": "in one diff, touch a contract document and its test (contracts.documents and contracts.tests of idd/config.yaml), then ospec check --change {change}"
+    },
+    {
+      "id": "migration-compat-and-test",
+      "evidence": "migration-test",
+      "how": "ospec run --change {change} --obligation migration-compat-and-test --command \"<migration test>\" --plan \"<compatibility or rollback>\""
+    },
+    {
+      "id": "trust-review",
+      "evidence": "frozen-review",
+      "how": "ospec review start --change {change}, dispatch review-trust on the returned paths, then ospec review record --change {change} --result '<findings json>'"
+    },
+    {
+      "id": "adr-impact-declaration",
+      "evidence": "adr-impact-declaration",
+      "how": "ospec record impact --change {change} (--adr <id> | --quality <id>) --impact <none|conforms|amends|supersedes|contradicts> --reason \"<why>\" [--record <new ADR>], then ospec check --change {change}"
+    }
+  ],
+  "work_order": [
+    "repro-test",
+    "tdd-red-green",
+    "boundary-tests",
+    "contract-spec-and-test",
+    "migration-compat-and-test",
+    "adr-impact-declaration",
+    "trust-review",
+    "checks-pass",
+    "living-doc"
+  ],
+  "gates": [
+    "ambiguous-intent",
+    "open-facts",
+    "adr-amend-or-contradict",
+    "irreversible-operation",
+    "review-limit"
+  ],
+  "checks_required": [
+    "checks-pass",
+    "contract-spec-and-test"
+  ],
+  "signal_sources": [
+    "declaration",
+    "diff"
+  ],
+  "intent_kinds": [
+    "bug",
+    "feature",
+    "refactor",
+    "docs"
+  ],
+  "obligation_statuses": [
+    "pending",
+    "satisfied",
+    "withdrawn"
+  ],
+  "gate_statuses": [
+    "open",
+    "resolved"
+  ]
+}
