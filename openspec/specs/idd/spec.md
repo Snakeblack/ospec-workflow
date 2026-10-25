@@ -643,7 +643,8 @@ absent every key takes its default. Its top-level keys MUST be only `mode`
 (`idd` or `sdd`, the project mode of REQ-idd-001; absent means none),
 `strict_tdd` (`true` or `false`; absent, the team profile decides it and,
 without a profile, `false`), `team` (the team profile of REQ-idd-023),
-`delivery` (the `branching` of REQ-idd-023; absent, the profile decides it), `checks` (the checks
+`delivery` (the `branching` of REQ-idd-023 and the `changelog` and `release`
+of REQ-idd-025; absent, the profile decides or recommends them), `checks` (the checks
 `ospec check` runs, as `name: command` in declared order, REQ-idd-014; absent
 means none), `impact` (the impact section of REQ-idd-012) and `contracts`
 (where contract documents and their tests live, REQ-idd-015). An unknown or repeated key, a value outside its
@@ -989,8 +990,8 @@ that satisfies `checks-pass` was not recorded on the current tree, because the
 last `ospec check` settled every tree-bound obligation on that tree. It MUST
 then, under a lock held outside the change directory, settle `living-doc`
 (REQ-idd-004), refuse with `close-refused` naming every pending obligation and
-open gate, and record `status: closed` with `closed_at` atomically; that state
-is the resume marker. It MUST then rewrite the evidence section of `change.md`,
+open gate, write the changelog entry of REQ-idd-025 and record
+`status: closed` with `closed_at` atomically; that state is the resume marker. It MUST then rewrite the evidence section of `change.md`,
 when it exists, and move `idd/<change-id>/` to
 `idd/archive/<YYYY-MM-DD>-<change-id>/`, dated by `closed_at`. The move MUST
 keep the inventory digest of the archive transaction (O6A) equal on both
@@ -999,7 +1000,8 @@ inventories and only then replace the destination and remove the origin. Run
 again after an interruption, close MUST finish the move: a destination with the
 origin's inventory removes the origin, a destination with other content MUST
 be refused with `archive-conflict`, and an already archived change MUST report
-`already_complete`. A refused close MUST leave the change open where it was.
+`already_complete`. A refused close MUST leave the change open where it was and the changelog
+untouched.
 The result MUST name the destination, its file count and its inventory digest.
 `openspec/` is never touched (REQ-idd-002).
 
@@ -1422,11 +1424,11 @@ top-level `team:` of `openspec/config.yaml`. The profile MUST hold `size`
 `config-invalid` in `idd/config.yaml` and `team-invalid` in
 `openspec/config.yaml`. The defaults MUST follow from the profile alone:
 
-| `size` | Delivery strategy | Branching | Quality review (SDD 4R) | Traceability | Strict TDD | SDD `tdd_mode` |
-| --- | --- | --- | --- | --- | --- | --- |
-| `solo` | `single-pr` | `serial` | off | `advisory` | `false` | `standard` |
-| `small` | `ask-on-risk` | `parallel` | on | `advisory` | `true` | `focused` |
-| `multi-team` | `auto-chain` | `parallel` | on | `required` | `true` | `strict` |
+| `size` | Delivery strategy | Branching | Changelog | Release | Quality review (SDD 4R) | Traceability | Strict TDD | SDD `tdd_mode` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `solo` | `single-pr` | `serial` | `CHANGELOG.md` | `per-change` | off | `advisory` | `false` | `standard` |
+| `small` | `ask-on-risk` | `parallel` | `CHANGELOG.md` | `batched` | on | `advisory` | `true` | `focused` |
+| `multi-team` | `auto-chain` | `parallel` | `CHANGELOG.md` | `batched` | on | `required` | `true` | `strict` |
 
 Every delivery strategy keeps the 400-line review budget. `experience`
 decides mentorship (`junior` → `mentor`, `mixed` → `balanced`, `senior` →
@@ -1447,10 +1449,15 @@ the branching MUST be `serial` with source `recommended`. SDD MUST NOT read
 `team profile` or `recommended`), its `reasons` (why it fits, the source first)
 and `how` (the rules the agent follows: none rewrites pushed history, and
 every value deletes the branch after its merge). It MUST be guidance only: no
-git or pull request state is read.
+git or pull request state is read. The `changelog` and `release` of
+REQ-idd-025 resolve the same way, with the same `source`, `reasons` and `how`:
+`delivery.changelog` and `delivery.release` win over the profile, and without
+either `CHANGELOG.md` and `per-change` are recommended. Only a declared value
+makes `ospec close` act; the profile and the recommendation only advise.
 
 `ospec team [--mode <idd|sdd>] [--json]` MUST be read-only and MUST return
-the mode, the profile, its `source`, its `defaults` and the `branching`. Without `--mode` the
+the mode, the profile, its `source`, its `defaults`, the `branching`, the
+`changelog` and the `release`. Without `--mode` the
 mode is the active one: IDD when `idd/config.yaml` exists and its `mode` is
 not `sdd`, else SDD; `--mode` reads that mode's declaration whatever mode is
 active, and another value is a usage error. IDD MUST read only
@@ -1462,9 +1469,12 @@ the mentorship) for an IDD change when `idd/config.yaml` declares a profile,
 and MUST NOT let an unreadable configuration change its next step. For an IDD
 change whose next step is `declare-plan` or `close`, where the branching
 decides something, `ospec next` MUST return `delivery` (the `branching`, its
-`source`, `reasons` and `how`), and with source `recommended` also the
-suggestion `branching-undeclared`, which is never a step: the agent proposes
-the value to the user and writes `delivery.branching` only after approval.
+`source`, `reasons` and `how`, plus the resolved `changelog` and `release`),
+and with source `recommended` also the suggestion `branching-undeclared`, which
+is never a step: the agent proposes the value to the user and writes
+`delivery.branching` only after approval. While `delivery.changelog` or
+`delivery.release` is not declared, with a profile or without one, it MUST add
+the suggestion `changelog-undeclared` or `release-undeclared` in the same way.
 
 #### Scenario: The branching is suggested, never imposed
 
@@ -1543,3 +1553,58 @@ records (ADR 0006).
 - WHEN it closes
 - THEN `records` MUST hold the `amends` impact and the new ADR, and nothing
   for the `none` or `conforms` impacts
+
+### Requirement: Changelog Entry And Release At Close {#REQ-idd-025}
+
+`delivery.changelog` in `idd/config.yaml` MUST be `none` or a relative path
+with `/` separators and no empty, `.` or `..` segment, and `delivery.release`
+MUST be `per-change`, `batched` or `none`; another value MUST be refused with
+`config-invalid`. When `delivery.changelog` declares a path, `ospec close`
+MUST, after every refusal of REQ-idd-017 and before it records
+`status: closed`, add the change's entry to that file in the Keep a Changelog
+format:
+under `## [Unreleased]`, in the section its kind gives (`feature` → `Added`,
+`bug` → `Fixed`, `refactor` and `docs` → `Changed`), as the line `- <summary>
+(<change-id>)` with the summary on one line. A missing section MUST be added
+in the order `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`,
+`Security`; a missing `## [Unreleased]` MUST go before the latest version, and
+a missing file MUST be created with the Keep a Changelog header. The file's
+line endings MUST be kept, and a line the file already holds MUST NOT be added
+again. An unreadable `idd/config.yaml` MUST refuse that close before anything
+is written. The result MUST return `changelog`: its `path`, `section`,
+`entry` and whether this close `written` it; closing an archived change again
+MUST return it with `written: false` and write nothing.
+
+When `delivery.release` declares `per-change`, the result MUST also return
+`release`, the proposal the changelog gives: `version`, the latest version
+under `## [Unreleased]` raised by a minor when `[Unreleased]` holds an `Added`
+section and by a patch otherwise; `bump`; `tag` (`v<version>`); and `notes`,
+the contents of `[Unreleased]`. A major MUST never be proposed, and without a
+plain `MAJOR.MINOR.PATCH` previous version, `version` and `tag` MUST be null.
+Without a declared changelog every field MUST be null, and with an empty
+`[Unreleased]` there is no `release`. With `batched` or `none`, close MUST NOT
+propose one. The CLI MUST NOT change versions, tags or releases: the agent
+proposes the release to the user and cuts it only with an explicit OK. Without
+`delivery.changelog` or `delivery.release` declared, close MUST behave as
+before this requirement. SDD MUST NOT read them (ADR 0011).
+
+#### Scenario: A closed change leaves its entry and proposes the release
+
+- GIVEN `delivery: { changelog: CHANGELOG.md, release: per-change }` and a
+  `CHANGELOG.md` whose latest version is `1.4.2` under an empty
+  `## [Unreleased]`
+- WHEN a `docs` change with the summary `Fix a typo.` closes
+- THEN `CHANGELOG.md` MUST hold `- Fix a typo. (<change-id>)` under
+  `## [Unreleased]` and `### Changed`
+- AND `release` MUST propose `1.4.3`, the tag `v1.4.3` and that section as
+  notes
+- AND closing again MUST NOT add the line twice
+
+#### Scenario: Nothing is written until the changelog is declared
+
+- GIVEN an `idd/config.yaml` with a team profile and no `delivery.changelog`
+- WHEN a change closes
+- THEN no changelog MUST be written and the result MUST hold neither
+  `changelog` nor `release`
+- AND `ospec next` MUST have suggested `changelog-undeclared` at
+  `declare-plan` and at `close`

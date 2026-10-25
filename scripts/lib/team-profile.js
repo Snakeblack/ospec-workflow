@@ -2,8 +2,8 @@
 
 // Team profile and the defaults it decides (openspec/specs/idd/spec.md,
 // REQ-idd-023). The profile states two facts about the team, its size and its
-// experience; delivery, branching, review, Strict TDD and mentorship follow
-// from them.
+// experience; delivery, branching, changelog, release, review, Strict TDD and
+// mentorship follow from them.
 // It replaces the SDD scale preset, which is still read as a fallback. Each
 // mode keeps the profile in its own configuration (ADR 0011): `resolveTeam`
 // reads the active mode's declaration, as precommit-strict.js does. Pure: the
@@ -15,9 +15,9 @@ const TEAM_KEYS = Object.freeze(["size", "experience"]);
 const SCALE_TO_SIZE = Object.freeze({ solo: "solo", team: "small", enterprise: "multi-team" });
 
 const BY_SIZE = Object.freeze({
-  solo: { delivery_strategy: "single-pr", branching: "serial", quality_review: false, traceability: "advisory", strict_tdd: false, tdd_mode: "standard" },
-  small: { delivery_strategy: "ask-on-risk", branching: "parallel", quality_review: true, traceability: "advisory", strict_tdd: true, tdd_mode: "focused" },
-  "multi-team": { delivery_strategy: "auto-chain", branching: "parallel", quality_review: true, traceability: "required", strict_tdd: true, tdd_mode: "strict" },
+  solo: { delivery_strategy: "single-pr", branching: "serial", changelog: "CHANGELOG.md", release: "per-change", quality_review: false, traceability: "advisory", strict_tdd: false, tdd_mode: "standard" },
+  small: { delivery_strategy: "ask-on-risk", branching: "parallel", changelog: "CHANGELOG.md", release: "batched", quality_review: true, traceability: "advisory", strict_tdd: true, tdd_mode: "focused" },
+  "multi-team": { delivery_strategy: "auto-chain", branching: "parallel", changelog: "CHANGELOG.md", release: "batched", quality_review: true, traceability: "required", strict_tdd: true, tdd_mode: "strict" },
 });
 const MENTORSHIP = Object.freeze({ junior: "mentor", mixed: "balanced", senior: "expert" });
 const REVIEW_BUDGET_LINES = 400;
@@ -41,6 +41,41 @@ const BRANCHING = Object.freeze({
   },
 });
 const BRANCHING_VALUES = Object.freeze(Object.keys(BRANCHING));
+
+// What a closed change leaves in the changelog and when a version is cut
+// (E3.9). ospec close acts on them only once idd/config.yaml declares them.
+const CHANGELOG_NONE = "none";
+function changelogGuidance(file) {
+  if (file === CHANGELOG_NONE) return { reasons: ["the project keeps no changelog"], how: "no changelog entry is written" };
+  return {
+    reasons: ["the changelog tells users what each version changed, in the Keep a Changelog format"],
+    how: `ospec close adds the change's entry under ## [Unreleased] of ${file}; edit it before the release when it needs more detail`,
+  };
+}
+const RELEASE = Object.freeze({
+  "per-change": {
+    reasons: ["each merged change gets its own version, so [Unreleased] never piles up and a version maps to one pull request"],
+    how: "after the merge, propose the release ospec close returned (version, tag and notes) and ask whether it breaks compatibility, which makes it a major; with the user's OK update the version files, move [Unreleased] under the version and tag it",
+  },
+  batched: {
+    reasons: ["several people merge at once, and one release groups their changes instead of a version per pull request"],
+    how: "entries accumulate under [Unreleased]; propose a release only when the user asks, a minor when it holds an Added entry and else a patch, and cut it only with the user's OK",
+  },
+  none: { reasons: ["the project publishes no versions"], how: "no release is proposed" },
+});
+const RELEASE_VALUES = Object.freeze(Object.keys(RELEASE));
+
+// The value without a profile or a declaration, and why it is recommended.
+const RECOMMENDED = Object.freeze({
+  branching: { value: "serial", why: "serial cannot conflict" },
+  changelog: { value: "CHANGELOG.md", why: "CHANGELOG.md is where Keep a Changelog keeps it" },
+  release: { value: "per-change", why: "a release per change keeps each version to one change" },
+});
+const GUIDANCE = Object.freeze({
+  branching: (value) => BRANCHING[value],
+  changelog: changelogGuidance,
+  release: (value) => RELEASE[value],
+});
 
 class TeamProfileError extends Error {
   constructor(message) {
@@ -70,6 +105,8 @@ function teamDefaults({ size, experience = null }) {
   return {
     delivery_strategy: bySize.delivery_strategy,
     branching: bySize.branching,
+    changelog: bySize.changelog,
+    release: bySize.release,
     review: { quality_review: bySize.quality_review, traceability: bySize.traceability, budget_lines: REVIEW_BUDGET_LINES },
     strict_tdd: junior || bySize.strict_tdd,
     tdd_mode: junior ? "strict" : bySize.tdd_mode,
@@ -108,20 +145,21 @@ function legacyScale(scale) {
   return { size: SCALE_TO_SIZE[scale], experience: null };
 }
 
-// The branching of a project: an explicit `delivery.branching` wins over the
-// profile, and without either `serial` is recommended, since it cannot
-// conflict. Each answer carries its reasons and its rules.
-function resolveBranching(declared, profile) {
-  let value = "serial";
+// One delivery key of a project (branching, changelog or release): an explicit
+// `delivery.<key>` wins over the profile, and without either the recommended
+// value applies. Each answer carries its reasons and its rules.
+function resolveDelivery(key, declared, profile) {
+  let { value } = RECOMMENDED[key];
   let source = "recommended";
-  let why = "no team profile or delivery.branching is declared, and serial cannot conflict";
-  if (declared) [value, source, why] = [declared, "idd/config.yaml", "delivery.branching is declared in idd/config.yaml"];
-  else if (profile) [value, source, why] = [BY_SIZE[profile.size].branching, "team profile", `team.size ${profile.size} recommends it`];
-  return { value, source, reasons: [why, ...BRANCHING[value].reasons], how: BRANCHING[value].how };
+  let why = `no team profile or delivery.${key} is declared, and ${RECOMMENDED[key].why}`;
+  if (declared) [value, source, why] = [declared, "idd/config.yaml", `delivery.${key} is declared in idd/config.yaml`];
+  else if (profile) [value, source, why] = [BY_SIZE[profile.size][key], "team profile", `team.size ${profile.size} recommends it`];
+  const { reasons, how } = GUIDANCE[key](value);
+  return { value, source, reasons: [why, ...reasons], how };
 }
 
 /**
- * @param {{ idd?: { mode: string|null, team: object|null, delivery?: { branching: string|null } }|null, openspecText?: string|null, mode?: "idd"|"sdd"|null }} sources
+ * @param {{ idd?: { mode: string|null, team: object|null, delivery?: { branching: string|null, changelog: string|null, release: string|null } }|null, openspecText?: string|null, mode?: "idd"|"sdd"|null }} sources
  * `idd` is the parsed idd/config.yaml; null means that file is absent, as a
  * null text does. `mode` reads one mode's declaration whatever mode is active.
  */
@@ -136,13 +174,23 @@ function resolveTeam({ idd = null, openspecText = null, mode: requested = null }
     if (declared.team) [profile, source] = [validateTeam(declared.team), "openspec/config.yaml"];
     else if (declared.scale) [profile, source] = [legacyScale(declared.scale), "openspec/config.yaml scale"];
   }
-  // Only IDD reads delivery.branching: SDD keeps its own configuration.
-  const declared = mode === "idd" ? (idd?.delivery?.branching ?? null) : null;
-  return { mode, profile, source, defaults: profile ? teamDefaults(profile) : null, branching: resolveBranching(declared, profile) };
+  // Only IDD reads delivery: SDD keeps its own configuration.
+  const declared = (key) => (mode === "idd" ? (idd?.delivery?.[key] ?? null) : null);
+  return {
+    mode,
+    profile,
+    source,
+    defaults: profile ? teamDefaults(profile) : null,
+    branching: resolveDelivery("branching", declared("branching"), profile),
+    changelog: resolveDelivery("changelog", declared("changelog"), profile),
+    release: resolveDelivery("release", declared("release"), profile),
+  };
 }
 
 module.exports = {
   BRANCHING_VALUES,
+  CHANGELOG_NONE,
+  RELEASE_VALUES,
   REVIEW_BUDGET_LINES,
   SCALE_TO_SIZE,
   TEAM_EXPERIENCE,

@@ -122,6 +122,21 @@ function branchingSuggestion(delivery) {
   };
 }
 
+// Close writes the changelog and proposes the release only once they are
+// declared, so a value the profile recommends is still a suggestion
+// (REQ-idd-025).
+const CLOSE_ACTS_ON = Object.freeze({ changelog: "writes no changelog entry", release: "proposes no release" });
+
+function closeOptionSuggestions(delivery) {
+  return Object.entries(CLOSE_ACTS_ON)
+    .filter(([key]) => delivery[key] && delivery[key].source !== "idd/config.yaml")
+    .map(([key, until]) => ({
+      id: `${key}-undeclared`,
+      reason: `delivery.${key} is not declared; ${delivery[key].value} is recommended`,
+      how: `propose delivery.${key}: ${delivery[key].value} to the user with its reasons, and write it to ${CHANGE_ROOT}/config.yaml only after approval; until then ospec close ${until}`,
+    }));
+}
+
 function nextForChange(state, { checks, candidateCommand, contractPatterns, knowledge, team, delivery } = {}) {
   const pending = state.obligations
     .filter((obligation) => obligation.status === "pending")
@@ -174,6 +189,7 @@ function nextForChange(state, { checks, candidateCommand, contractPatterns, know
   if (delivery && DELIVERY_STEPS.includes(nextStep.action)) {
     result.delivery = delivery;
     if (delivery.source === "recommended") suggestions.push(branchingSuggestion(delivery));
+    suggestions.push(...closeOptionSuggestions(delivery));
   }
   if (suggestions.length > 0) result.suggestions = suggestions;
   // The delivery and mentorship the team profile decides (E3.4, REQ-idd-023).

@@ -222,6 +222,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E1.4 (c) ospec close with its transactional archive (roadmap harness-evolution).
   "scripts/lib/idd-close.js",
   "scripts/lib/idd-close.test.js",
+  // E3.9 the changelog entry and the release proposal of ospec close.
+  "scripts/lib/idd-changelog.js",
+  "scripts/lib/idd-changelog.test.js",
   // E1.7 (a) ospec doctor and the read-only Engram detection it shares with
   // the installers (roadmap harness-evolution).
   "scripts/lib/ospec-doctor.js",

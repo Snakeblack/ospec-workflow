@@ -1043,6 +1043,63 @@ test("close returns the decisions of the archived change as knowledge records", 
   assert.match(ospec(root, "close", "--change", "fix-readme").stdout, /1 knowledge record\(s\) to keep in cross-session memory/);
 });
 
+// E3.9 changelog and release at close (REQ-idd-025).
+const DECLARED_DELIVERY = "checks:\n  test: node verify.js\ndelivery:\n  changelog: CHANGELOG.md\n  release: per-change\n";
+
+function closeDocsChange(root) {
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  return ospec(root, "close", "--change", "fix-readme", "--json");
+}
+
+test("[REQ-idd-025] close writes the entry under [Unreleased] once and proposes the release of a per-change project", (t) => {
+  const { root } = project(t, { checks: DECLARED_DELIVERY });
+  const changelog = path.join(root, "CHANGELOG.md");
+  writeFile(root, "CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\n## [1.4.2] - 2026-10-01\n\n### Added\n- Pages (pages)\n");
+  const closed = closeDocsChange(root);
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  assert.deepStrictEqual(closed.json.changelog, { path: "CHANGELOG.md", section: "Changed", entry: "- Fix a typo. (fix-readme)", written: true });
+  const text = fs.readFileSync(changelog, "utf8");
+  assert.strictEqual(text, "# Changelog\n\n## [Unreleased]\n\n### Changed\n- Fix a typo. (fix-readme)\n\n## [1.4.2] - 2026-10-01\n\n### Added\n- Pages (pages)\n");
+  assert.deepStrictEqual(closed.json.release, { version: "1.4.3", bump: "patch", tag: "v1.4.3", notes: "### Changed\n- Fix a typo. (fix-readme)" });
+
+  // Closing again reports the same entry and release without writing it twice.
+  const again = ospec(root, "close", "--change", "fix-readme");
+  assert.strictEqual(again.code, 0, again.stderr);
+  assert.match(again.stdout, /\nchangelog: CHANGELOG.md already holds under \[Unreleased\] ### Changed: - Fix a typo\. \(fix-readme\)\n/);
+  assert.match(again.stdout, /\nrelease: propose v1\.4\.3 \(patch\) with the notes of \[Unreleased\]; .* only with the user's OK/);
+  assert.strictEqual(fs.readFileSync(changelog, "utf8"), text);
+});
+
+test("[REQ-idd-025] close creates a missing changelog, and without a previous version the user chooses it", (t) => {
+  const { root } = project(t, { checks: DECLARED_DELIVERY.replace("CHANGELOG.md", "docs/CHANGELOG.md") });
+  const closed = closeDocsChange(root);
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  const text = fs.readFileSync(path.join(root, "docs", "CHANGELOG.md"), "utf8");
+  assert.match(text, /^# Changelog\n[\s\S]*Keep a Changelog[\s\S]*\n\n## \[Unreleased\]\n\n### Changed\n- Fix a typo\. \(fix-readme\)\n$/);
+  assert.deepStrictEqual(closed.json.release, { version: null, bump: "patch", tag: null, notes: "### Changed\n- Fix a typo. (fix-readme)" });
+});
+
+test("[REQ-idd-025] an undeclared changelog, a refused close or an unreadable configuration write nothing", (t) => {
+  const plain = project(t).root;
+  const closed = closeDocsChange(plain);
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  assert.ok(!("changelog" in closed.json) && !("release" in closed.json));
+  assert.ok(!fs.existsSync(path.join(plain, "CHANGELOG.md")));
+
+  const { root } = project(t, { checks: DECLARED_DELIVERY });
+  ospec(root, ...OPEN_DOCS);
+  assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").json.error.code, "close-refused");
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  writeFile(root, "idd/config.yaml", DECLARED_DELIVERY.replace("per-change", "weekly"));
+  const unreadable = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(unreadable.json.error.code, "config-invalid");
+  assert.strictEqual(stateOf(root, "fix-readme").status, "open");
+  assert.ok(!fs.existsSync(path.join(root, "CHANGELOG.md")), "a refused close writes no changelog");
+});
+
 test("close is refused with a pending obligation or a tree changed after the last check", (t) => {
   const { root } = project(t);
   ospec(root, ...OPEN_DOCS);
@@ -1727,8 +1784,9 @@ test("[REQ-idd-023] two projects with different teams get different defaults wit
 
 test("[REQ-idd-023] team follows the active mode and refuses an invalid profile", (t) => {
   const root = tempRoot(t);
-  const { branching, ...none } = ospec(root, "team", "--json").json;
+  const { branching, changelog, release, ...none } = ospec(root, "team", "--json").json;
   assert.deepStrictEqual(none, { ok: true, command: "team", mode: "sdd", profile: null, source: null, defaults: null });
+  assert.deepStrictEqual([changelog.value, release.value], ["CHANGELOG.md", "per-change"]);
   assert.deepStrictEqual([branching.value, branching.source], ["serial", "recommended"]);
   assert.match(ospec(root, "team").stdout, /no profile declared; defaults unchanged\nbranching: serial \(recommended\): /);
   fs.mkdirSync(path.join(root, "openspec"));
@@ -1760,7 +1818,7 @@ test("[REQ-idd-023] next suggests the branching when the work starts, and an exp
   const start = ospec(root, "next", "--change", "fix-it", "--json").json;
   assert.strictEqual(start.next_step.action, "declare-plan");
   assert.deepStrictEqual([start.delivery.branching, start.delivery.source], ["serial", "recommended"]);
-  assert.deepStrictEqual(start.suggestions.map((suggestion) => suggestion.id), ["branching-undeclared"]);
+  assert.deepStrictEqual(start.suggestions.map((suggestion) => suggestion.id), ["branching-undeclared", "changelog-undeclared", "release-undeclared"]);
   const text = ospec(root, "next", "--change", "fix-it").stdout;
   assert.match(text, /suggestion branching-undeclared: delivery.branching is not declared; serial is recommended/);
   assert.match(text, /\nbranching rules: before a new branch, merge the open pull request/);
@@ -1772,7 +1830,8 @@ test("[REQ-idd-023] next suggests the branching when the work starts, and an exp
 
   fs.writeFileSync(config, "team:\n  size: solo\ndelivery:\n  branching: parallel\nchecks:\n  test: node -e 0\n");
   const declared = ospec(root, "next", "--change", "fix-it", "--json").json;
-  assert.deepStrictEqual([declared.delivery.branching, declared.delivery.source, declared.suggestions], ["parallel", "idd/config.yaml", undefined]);
+  assert.deepStrictEqual([declared.delivery.branching, declared.delivery.source], ["parallel", "idd/config.yaml"]);
+  assert.deepStrictEqual(declared.suggestions.map((suggestion) => suggestion.id), ["changelog-undeclared", "release-undeclared"]);
   assert.strictEqual(ospec(root, "team", "--json").json.branching.value, "parallel");
   ospec(root, "signals", "--change", "fix-it", "--path", "src/a.js");
   assert.ok(!("delivery" in ospec(root, "next", "--change", "fix-it", "--json").json), "building, the branching decides nothing");

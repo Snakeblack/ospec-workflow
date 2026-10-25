@@ -1,0 +1,617 @@
+{
+  "schema": "idd-state/v1",
+  "change": "delivery-release-changelog",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "el harness tampoco hace que se cree un changelog para las versiones y releases no?, no estaria mal incorporar eso tambien",
+    "kind": "feature",
+    "summary": "Opción de changelog y de cadencia de release en la sección delivery de idd/config.yaml, con recomendación por perfil; el flujo IDD deja la entrada del cambio en el changelog y propone la release con su versión, su tag y sus notas",
+    "acceptance": "Con la opción declarada, un cambio cerrado deja su entrada en el changelog del proyecto y la release se propone con su versión, su tag y sus notas, y solo se hace con el OK del usuario; ospec team da cada opción con su origen y sus motivos; un valor inválido se rechaza con config-invalid; sin declarar nada, close no escribe nada y next solo sugiere sin bloquear"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Qué claves y valores admite delivery para el changelog y la release, qué recomienda cada perfil y qué declara este repo?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿Qué tipos de cambio dejan entrada y en qué sección de Keep a Changelog va cada uno?"
+      },
+      {
+        "category": "persistence",
+        "question": "¿Quién escribe la entrada en el changelog y cuándo: ospec close al cerrar, el agente con lo que devuelve close, o el agente antes de cerrar?"
+      },
+      {
+        "category": "copy",
+        "question": "¿Qué propone la release: cómo se calcula la versión, qué tag y de dónde salen las notas?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 129
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 130
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Si el changelog declarado no existe o no tiene la sección [Unreleased], ¿close la crea, avisa o rechaza?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "AGENTS.md",
+      "docs/roadmaps/harness-evolution.md",
+      "idd/config.yaml",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-changelog.js",
+      "scripts/lib/idd-changelog.test.js",
+      "scripts/lib/idd-config.js",
+      "scripts/lib/idd-config.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/team-profile.js",
+      "scripts/lib/team-profile.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/lib/idd-config.js and 1 more (matches scripts/lib/idd-config.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La entrada, su sección, la versión propuesta y la resolución de changelog y release se calculan en el CLI (idd-changelog.js y team-profile.js) con tests; la skill idd remite a close y no reimplementa la regla"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "No añade obligación ni gate: sin declarar, changelog y release son sugerencias que no cambian next_step"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "close sigue negándose con lo pendiente y la evidencia vieja antes de escribir el changelog; la entrada no es evidencia de nada"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo biblioteca estándar de Node: ninguna dependencia nueva"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "delivery vive solo en idd/config.yaml y SDD no lo lee; un test lo comprueba con mode: sdd"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "Repetir close tras una interrupción no duplica la entrada y devuelve el mismo changelog y la misma release, derivados del fichero"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "close escribe un fichero local y no consulta git, gh ni la red; versiones y tags quedan para el agente con el OK del usuario"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "scripts/lib/idd-changelog.test.js cubre la entrada, la sección y la release; team-profile.test.js e idd-config.test.js, la resolución y la validación; skills/idd/SKILL.md cita la release de close y no describe el cálculo",
+      "recorded_at": "2026-10-25T20:31:43.947Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "idd-changelog.js es puro y closeDelivery solo lee idd/config.yaml y lee y escribe el changelog local; ningún require de red ni llamada a git o gh en el diff",
+      "recorded_at": "2026-10-25T20:31:44.010Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Opción: changelog + release (Recomendado) — delivery.changelog: <ruta>|none y delivery.release: per-change|batched|none; solo → CHANGELOG.md + per-change, small y multi-team → CHANGELOG.md + batched; el perfil solo recomienda y close no escribe hasta que se declare; este repo declara CHANGELOG.md + per-change. Escritura: close la escribe (Recomendado) — bajo ## [Unreleased], una vez, crea el fichero o la sección si faltan. Entrada: Todos, con id (Recomendado) — feature → Added, bug → Fixed, refactor y docs → Changed; línea '- <summary> (<change id>)'. Release: Versión, tag y notas (Recomendado) — última versión subida por tipos (feature → minor, si no patch; major nunca automático; sin versión previa null), tag v<versión>, notas de [Unreleased]; con batched no propone; solo con OK del usuario.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-25T20:31:43.547Z",
+      "detail": {
+        "run": "run-9",
+        "tree": "sha256:d08cce6c8c1bb53e11d8ffc10e3cac720135503fc70fdcc00a58f3e9d5c6e9cd",
+        "plan": "Aditivo y opcional: una configuración sin delivery.changelog ni delivery.release se lee igual (las dos a null) y close no escribe nada, como fijan los tests de idd-config, team-profile y ospec. Una que las declara necesita esta versión de ospec; un CLI anterior la rechaza con config-invalid en vez de ignorarla. En el changelog del proyecto close solo inserta la línea del cambio (y la sección, el [Unreleased] o la cabecera que falten), conserva el resto y sus finales de línea y no repite una línea que ya está. Rollback: quitar las dos claves de delivery; la línea escrita se edita o se borra a mano."
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-25T20:32:50.464Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:0f305be8bbb52dc0eabc7ae5dd635540655949a849e1c4dc134213cfe15c642c",
+        "fitness": [
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-25T20:34:17.995Z",
+      "detail": {
+        "tree": "sha256:4d66ffde0a36ab653de9acb90788c0801b60572a82eda9c858887f50f1fa3cc1",
+        "runs": [
+          "run-18"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-25T20:34:17.995Z",
+      "detail": {
+        "tree": "sha256:4d66ffde0a36ab653de9acb90788c0801b60572a82eda9c858887f50f1fa3cc1",
+        "check": "ev-3",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-changelog.test.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-25T20:34:17.995Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:4d66ffde0a36ab653de9acb90788c0801b60572a82eda9c858887f50f1fa3cc1",
+        "fitness": [
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-25T20:34:27.444Z",
+      "detail": {
+        "run": "run-26",
+        "tree": "sha256:c31ce20bd8f8548b174e5669e547e51ee52eaa184784347bbd7c8675930d978c",
+        "plan": "Aditivo y opcional: una configuración sin delivery.changelog ni delivery.release se lee igual (las dos a null) y close no escribe nada, como fijan los tests de idd-config, team-profile y ospec. Una que las declara necesita esta versión de ospec; un CLI anterior la rechaza con config-invalid en vez de ignorarla. En el changelog del proyecto close solo inserta la línea del cambio (y la sección, el [Unreleased] o la cabecera que falten), conserva el resto y sus finales de línea y no repite una línea que ya está. Rollback: quitar las dos claves de delivery; la línea escrita se edita o se borra a mano."
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-25T20:34:36.755Z"
+    }
+  ],
+  "base": "b9092dd62df4ee97a138824be0667f3e8e486fa0",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:912d9497a6f3bdb249ad2e79378268c2b71ce245748c392d30c2f6c1f5b117e7",
+      "tree": "sha256:cc9612dc2e4e65376f113a539c8c9a1a9bd84ed1300f1cbf337ee18fc4096daf",
+      "recorded_at": "2026-10-25T20:31:06.561Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:92a6bf3e6d383778bd6092906d1d44be55c7e34bff07d6ab99ce59e2e2655a43",
+      "tree": "sha256:cc9612dc2e4e65376f113a539c8c9a1a9bd84ed1300f1cbf337ee18fc4096daf",
+      "recorded_at": "2026-10-25T20:31:06.561Z",
+      "tests": 44
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:71af14297fac055dae95cc5fdb859fe9561a79182b8edb2cee18e1d424170e21",
+      "tree": "sha256:cc9612dc2e4e65376f113a539c8c9a1a9bd84ed1300f1cbf337ee18fc4096daf",
+      "recorded_at": "2026-10-25T20:31:06.561Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f925d921a8b4bd86ccaf833576e48e1334b78caa446955741586b25a20787671",
+      "tree": "sha256:cc9612dc2e4e65376f113a539c8c9a1a9bd84ed1300f1cbf337ee18fc4096daf",
+      "recorded_at": "2026-10-25T20:31:06.561Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:cc9612dc2e4e65376f113a539c8c9a1a9bd84ed1300f1cbf337ee18fc4096daf",
+      "recorded_at": "2026-10-25T20:31:06.561Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8f49ca79d665020156e070d318a2f122fb69e7e2d0aa9342192ac63f0ff56b27",
+      "tree": "sha256:cc9612dc2e4e65376f113a539c8c9a1a9bd84ed1300f1cbf337ee18fc4096daf",
+      "recorded_at": "2026-10-25T20:31:06.561Z",
+      "tests": 18
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b26b30bb192f1a8d00eb1d035b646223981462b9b54a9ae572ee42193ad973e0",
+      "tree": "sha256:cc9612dc2e4e65376f113a539c8c9a1a9bd84ed1300f1cbf337ee18fc4096daf",
+      "recorded_at": "2026-10-25T20:31:06.561Z",
+      "tests": 79
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e6bf7031e923343d8678873f172426e2db3d46674707f1727ef89ce93f905a4b",
+      "tree": "sha256:cc9612dc2e4e65376f113a539c8c9a1a9bd84ed1300f1cbf337ee18fc4096daf",
+      "recorded_at": "2026-10-25T20:31:06.561Z",
+      "tests": 40
+    },
+    {
+      "id": "run-9",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-config.test.js scripts/lib/team-profile.test.js scripts/lib/idd-changelog.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2850f28ffc0aa15f4700114d7428054bbdeb3efea9036ca9cf8742275011f75b",
+      "tree": "sha256:d08cce6c8c1bb53e11d8ffc10e3cac720135503fc70fdcc00a58f3e9d5c6e9cd",
+      "recorded_at": "2026-10-25T20:31:43.547Z",
+      "tests": 25
+    },
+    {
+      "id": "run-10",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:b01760f13a635c4fb3d1e60b22754530740560d86ada9961f05862781896655c",
+      "tree": "sha256:0f305be8bbb52dc0eabc7ae5dd635540655949a849e1c4dc134213cfe15c642c",
+      "recorded_at": "2026-10-25T20:32:50.464Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8d77523df8e046efcceff36a61b9fdd85c87d112dcea9773ada2e9bd20d6f0cb",
+      "tree": "sha256:0f305be8bbb52dc0eabc7ae5dd635540655949a849e1c4dc134213cfe15c642c",
+      "recorded_at": "2026-10-25T20:32:50.464Z",
+      "tests": 44
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:929865a56508379f3caf29c3fa30825543a46f87bcbe67543b8dcd928938d4e6",
+      "tree": "sha256:0f305be8bbb52dc0eabc7ae5dd635540655949a849e1c4dc134213cfe15c642c",
+      "recorded_at": "2026-10-25T20:32:50.464Z",
+      "tests": 12
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:37e9e48b938b5b1c8e95aeb3eb8c43af399332903045497d18650cc51756bbb9",
+      "tree": "sha256:0f305be8bbb52dc0eabc7ae5dd635540655949a849e1c4dc134213cfe15c642c",
+      "recorded_at": "2026-10-25T20:32:50.464Z",
+      "tests": 2
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:0f305be8bbb52dc0eabc7ae5dd635540655949a849e1c4dc134213cfe15c642c",
+      "recorded_at": "2026-10-25T20:32:50.464Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dabc9da76ad78194fe9b538c33ced9027271c234aec29b774b248862b7ece6ee",
+      "tree": "sha256:0f305be8bbb52dc0eabc7ae5dd635540655949a849e1c4dc134213cfe15c642c",
+      "recorded_at": "2026-10-25T20:32:50.464Z",
+      "tests": 18
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c5039f15bf92b04b69e2976b35d608b8f3efd9bd6d677c294f6ceb9386874832",
+      "tree": "sha256:0f305be8bbb52dc0eabc7ae5dd635540655949a849e1c4dc134213cfe15c642c",
+      "recorded_at": "2026-10-25T20:32:50.464Z",
+      "tests": 79
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:43f3f1459d3eb4a619f672973b49b9093483408fb1c0f2ee77e92f150f3f28ee",
+      "tree": "sha256:0f305be8bbb52dc0eabc7ae5dd635540655949a849e1c4dc134213cfe15c642c",
+      "recorded_at": "2026-10-25T20:32:50.464Z",
+      "tests": 40
+    },
+    {
+      "id": "run-18",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:174cf1b266fca48da4a82e3d1c0b7dbe934934f11b68cb090aa1c9788842a7f9",
+      "tree": "sha256:4d66ffde0a36ab653de9acb90788c0801b60572a82eda9c858887f50f1fa3cc1",
+      "recorded_at": "2026-10-25T20:34:17.995Z"
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2d71cacaf0f2c6ca82a886a44cfc5fca0a0fb9ce316a2168d8a29a53d1edd179",
+      "tree": "sha256:4d66ffde0a36ab653de9acb90788c0801b60572a82eda9c858887f50f1fa3cc1",
+      "recorded_at": "2026-10-25T20:34:17.995Z",
+      "tests": 44
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2fa1b89319d00432e766cc3ea58d71e2a8f2aaf0cced59e03ccde7f134b33e7a",
+      "tree": "sha256:4d66ffde0a36ab653de9acb90788c0801b60572a82eda9c858887f50f1fa3cc1",
+      "recorded_at": "2026-10-25T20:34:17.995Z",
+      "tests": 12
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ac46d81aaeb6e170248993c077eb79ff8c204402cd78b0e695e026809731ab01",
+      "tree": "sha256:4d66ffde0a36ab653de9acb90788c0801b60572a82eda9c858887f50f1fa3cc1",
+      "recorded_at": "2026-10-25T20:34:17.995Z",
+      "tests": 2
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4d66ffde0a36ab653de9acb90788c0801b60572a82eda9c858887f50f1fa3cc1",
+      "recorded_at": "2026-10-25T20:34:17.995Z"
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b27a1099c805b0091fd0fdd16133f64d3fb6be4019dbf2604907c8cabc107c70",
+      "tree": "sha256:4d66ffde0a36ab653de9acb90788c0801b60572a82eda9c858887f50f1fa3cc1",
+      "recorded_at": "2026-10-25T20:34:17.995Z",
+      "tests": 18
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:be9dbe865196e1250155f5795991100239ef8bf8ab850ac61742c31b5b8b5fb9",
+      "tree": "sha256:4d66ffde0a36ab653de9acb90788c0801b60572a82eda9c858887f50f1fa3cc1",
+      "recorded_at": "2026-10-25T20:34:17.995Z",
+      "tests": 79
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cb870bc3955f634f94173c101739e7575c2d212169174f4989e28729d91a9670",
+      "tree": "sha256:4d66ffde0a36ab653de9acb90788c0801b60572a82eda9c858887f50f1fa3cc1",
+      "recorded_at": "2026-10-25T20:34:17.995Z",
+      "tests": 40
+    },
+    {
+      "id": "run-26",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-config.test.js scripts/lib/team-profile.test.js scripts/lib/idd-changelog.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c5a5bc11a5c5f611335b2dea0c8ceabf0c0501d30ea1ec0b9a34f0a31b4215dd",
+      "tree": "sha256:c31ce20bd8f8548b174e5669e547e51ee52eaa184784347bbd7c8675930d978c",
+      "recorded_at": "2026-10-25T20:34:27.444Z",
+      "tests": 25
+    }
+  ],
+  "closed_at": "2026-10-25T20:34:36.755Z"
+}
