@@ -9,6 +9,7 @@
 package iddsession
 
 import (
+	_ "embed"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -28,69 +29,82 @@ const (
 
 var changeIDPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-// workOrder is WORK_ORDER of idd-next.js: the order pending obligations are worked.
-var workOrder = []string{
-	"repro-test",
-	"tdd-red-green",
-	"contract-spec-and-test",
-	"migration-compat-and-test",
-	"adr-impact-declaration",
-	"trust-review",
-	"checks-pass",
-	"living-doc",
+// catalogJSON is the IDD catalog the CLI emits (scripts/lib/idd-catalog.js,
+// E1.42): Go keeps no list of its own, and idd-catalog.test.js fails while
+// the file is stale.
+//
+//go:embed catalog.json
+var catalogJSON []byte
+
+type catalogFile struct {
+	ChangePlaceholder string `json:"change_placeholder"`
+	Signals           []struct {
+		ID         string `json:"id"`
+		Obligation string `json:"obligation"`
+	} `json:"signals"`
+	Obligations []struct {
+		ID       string `json:"id"`
+		Evidence string `json:"evidence"`
+		How      string `json:"how"`
+	} `json:"obligations"`
+	WorkOrder          []string `json:"work_order"`
+	Gates              []string `json:"gates"`
+	ChecksRequired     []string `json:"checks_required"`
+	SignalSources      []string `json:"signal_sources"`
+	IntentKinds        []string `json:"intent_kinds"`
+	ObligationStatuses []string `json:"obligation_statuses"`
+	GateStatuses       []string `json:"gate_statuses"`
 }
 
-// gateOrder is GATES of idd-contract.js.
-var gateOrder = []string{"ambiguous-intent", "open-facts", "adr-amend-or-contradict", "irreversible-operation"}
-
-// evidenceKinds is the obligation → evidence kind catalog of idd-contract.js.
-var evidenceKinds = map[string]string{
-	"checks-pass":               "check-run",
-	"tdd-red-green":             "tdd-red-green",
-	"repro-test":                "repro-run-pair",
-	"living-doc":                "living-doc-current",
-	"contract-spec-and-test":    "contract-spec-and-test",
-	"migration-compat-and-test": "migration-test",
-	"trust-review":              "frozen-review",
-	"adr-impact-declaration":    "adr-impact-declaration",
-}
-
-// how is HOW of idd-next.js: the command that records each obligation's evidence.
-var how = map[string]func(change string) string{
-	"checks-pass": func(c string) string {
-		return "ospec check --change " + c + "; a run that reports tests 0 is not evidence"
-	},
-	"repro-test": func(c string) string {
-		return "ospec run --change " + c + ` --obligation repro-test --command "<test>": once failing before the fix, again passing after it`
-	},
-	"tdd-red-green": func(c string) string {
-		return "ospec run --change " + c + ` --obligation tdd-red-green --command "<test>" [--unit <name>]: failing before the code, passing after it`
-	},
-	"contract-spec-and-test": func(c string) string {
-		return "in one diff, touch a contract document and its test (contracts.documents and contracts.tests of idd/config.yaml), then ospec check --change " + c
-	},
-	"living-doc": func(c string) string {
-		return "write the Plan and Decisions of idd/" + c + "/change.md, then ospec close --change " + c
-	},
-	"trust-review": func(c string) string {
-		return "ospec review start --change " + c + ", dispatch review-trust on the returned paths, then ospec review record --change " + c + " --result '<findings json>'"
-	},
-	"migration-compat-and-test": func(c string) string {
-		return "ospec run --change " + c + ` --obligation migration-compat-and-test --command "<migration test>" --plan "<compatibility or rollback>"`
-	},
-}
-
-// signalIDs, intentKinds and the status sets are the catalog of idd-contract.js.
 var (
-	signalIDs = map[string]bool{
-		"always": true, "strict-tdd": true, "bug-fix": true, "multi-unit-or-decision": true,
-		"public-contract": true, "persistent-data": true, "security-boundary": true, "adr-or-quality-attribute": true,
-	}
-	signalSources      = map[string]bool{"declaration": true, "diff": true}
-	intentKinds        = map[string]bool{"bug": true, "feature": true, "refactor": true, "docs": true}
-	obligationStatuses = map[string]bool{"pending": true, "satisfied": true, "withdrawn": true}
-	gateStatuses       = map[string]bool{"open": true, "resolved": true}
+	changePlaceholder string
+	// workOrder is WORK_ORDER of idd-next.js: the order pending obligations are worked.
+	workOrder []string
+	// gateOrder is GATES of idd-contract.js.
+	gateOrder []string
+	// evidenceKinds is the obligation → evidence kind catalog of idd-contract.js.
+	evidenceKinds = map[string]string{}
+	// how is HOW of idd-next.js, with changePlaceholder for the change id.
+	how = map[string]string{}
+	// checksRequired is CHECKS_REQUIRED of idd-next.js.
+	checksRequired map[string]bool
+	// signalIDs, intentKinds and the status sets are the catalog of idd-contract.js.
+	signalIDs          = map[string]bool{}
+	signalSources      map[string]bool
+	intentKinds        map[string]bool
+	obligationStatuses map[string]bool
+	gateStatuses       map[string]bool
 )
+
+func setOf(ids []string) map[string]bool {
+	set := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		set[id] = true
+	}
+	return set
+}
+
+func init() {
+	var catalog catalogFile
+	if err := json.Unmarshal(catalogJSON, &catalog); err != nil {
+		panic("iddsession: failed to parse embedded catalog.json: " + err.Error())
+	}
+	changePlaceholder = catalog.ChangePlaceholder
+	workOrder = catalog.WorkOrder
+	gateOrder = catalog.Gates
+	for _, signal := range catalog.Signals {
+		signalIDs[signal.ID] = true
+	}
+	for _, obligation := range catalog.Obligations {
+		evidenceKinds[obligation.ID] = obligation.Evidence
+		how[obligation.ID] = obligation.How
+	}
+	checksRequired = setOf(catalog.ChecksRequired)
+	signalSources = setOf(catalog.SignalSources)
+	intentKinds = setOf(catalog.IntentKinds)
+	obligationStatuses = setOf(catalog.ObligationStatuses)
+	gateStatuses = setOf(catalog.GateStatuses)
+}
 
 type idStatus struct {
 	ID     string `json:"id"`
@@ -355,14 +369,10 @@ func DescribeStep(s *State, hasChecks bool) string {
 	}
 	if pending := s.PendingObligations(); len(pending) > 0 {
 		first := pending[0]
-		if !hasChecks && (first == "checks-pass" || first == "contract-spec-and-test") {
+		if !hasChecks && checksRequired[first] {
 			return "Configure the project checks before `checks-pass`: `ospec next --change " + change + "` proposes the command, which needs the user's approval."
 		}
-		step, ok := how[first]
-		if !ok {
-			return "Satisfy `" + first + "` with " + evidenceKinds[first] + " evidence: run `ospec next --change " + change + "`."
-		}
-		return "Satisfy `" + first + "` with " + evidenceKinds[first] + " evidence: " + step(change) + "."
+		return "Satisfy `" + first + "` with " + evidenceKinds[first] + " evidence: " + strings.ReplaceAll(how[first], changePlaceholder, change) + "."
 	}
 	return "Close it: `ospec close --change " + change + "`."
 }

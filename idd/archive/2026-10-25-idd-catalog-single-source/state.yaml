@@ -1,0 +1,531 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-catalog-single-source",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "E1.42: los hooks Go leen el catálogo IDD (señales, obligaciones, evidencias, gates, orden de trabajo y how) de un JSON que emite el CLI y embeben, en vez de listas propias; Stop y PreCompact ya no descartan un cambio con untested-product, boundary-tests o review-limit",
+    "acceptance": "Un cambio con untested-product y review-limit abierto, otro con boundary-tests pendiente y otro con adr-impact-declaration pendiente dan en Stop y PreCompact el mismo paso en Go y en JS, fijado por el golden de internal/testdata/idd-session; añadir una señal, obligación o gate en JS sin regenerar internal/iddsession/catalog.json rompe un test; Go deja de mantener sus propias listas del catálogo"
+  },
+  "facts": {
+    "basis": "El paso lo fija la spec de hooks §4.7: el que da ospec next (nextForChange), y lo que no esté en el catálogo de idd-state/v1 se sigue descartando. El mecanismo lo fijan E1.42 del roadmap y la opción (b) de B1 en la auditoría del 2026-10-25: un JSON único que emite el CLI y Go embebe, como internal/rules/rules.json, con un test que falla si no está al día."
+  },
+  "plan": {
+    "paths": [
+      "docs/harness-go-js-parity.md",
+      "docs/roadmaps/harness-evolution.md",
+      "internal/iddsession/catalog.json",
+      "internal/iddsession/iddsession.go",
+      "internal/iddsession/iddsession_test.go",
+      "internal/testdata/idd-session/steps/expected/session/latest.md",
+      "internal/testdata/idd-session/steps/expected/session/s-adr/session-summary.md",
+      "internal/testdata/idd-session/steps/expected/session/s-boundary/session-summary.md",
+      "internal/testdata/idd-session/steps/expected/session/s-limit/session-summary.md",
+      "internal/testdata/idd-session/steps/workspace/idd/s-adr/state.yaml",
+      "internal/testdata/idd-session/steps/workspace/idd/s-boundary/state.yaml",
+      "internal/testdata/idd-session/steps/workspace/idd/s-limit/state.yaml",
+      "scripts/hooks/idd-session.test.js",
+      "scripts/lib/idd-catalog.js",
+      "scripts/lib/idd-catalog.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/k1-scope-guard.test.js"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/idd-session.test.js (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared quality scenario deterministic-resume",
+      "source": "declaration"
+    }
+  ],
+  "retracted": [
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/idd-catalog.js adds writeFile",
+      "source": "diff",
+      "retract_reason": "idd-catalog.js solo escribe internal/iddsession/catalog.json, un fichero generado del repositorio que Go embebe al compilar; no hay datos del usuario ni formato persistente que migrar",
+      "confirmed_by": "persistent data: scripts/lib/idd-catalog.js adds writeFile",
+      "hits": [
+        "scripts/lib/idd-catalog.js adds writeFile: fs.writeFileSync(path.join(__dirname, \"..\", \"..\", CATALOG_FILE), renderCatalog());",
+        "scripts/lib/idd-catalog.js uses writeFile: fs.writeFileSync(path.join(__dirname, \"..\", \"..\", CATALOG_FILE), renderCatalog());"
+      ],
+      "answer": "No hay datos (Recommended): retirar persistent-data; el fichero que escribe es código generado, el binario y el JSON se compilan juntos y no hay nada que migrar",
+      "answer_source": "user"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "El siguiente paso sigue calculándose en el CLI; Go deja de reimplementar sus listas y lee el catálogo que emite scripts/lib/idd-catalog.js"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia qué señales se derivan ni la ceremonia que exigen; solo cómo las conoce Go"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "No cambia close ni la evidencia que pide; los hooks de sesión solo leen el estado"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "none",
+      "reason": "Stop y PreCompact no son guards: no deniegan nada; las reglas DENY/ASK no cambian"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas: Go embebe catalog.json con embed de la biblioteca estándar, y el binario y el respaldo JS dan los mismos bytes en el golden de idd-session"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "Los hooks siguen leyendo idd/ aparte de openspec/changes; no cambia la separación de modos"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "Es la garantía que protege: tras una compactación, Stop y PreCompact en Go dan el mismo paso que ospec next, también con untested-product, boundary-tests, review-limit y adr-impact-declaration"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "none",
+      "reason": "No toca los hooks de seguridad ni su forma de fallar"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "El módulo nuevo scripts/lib/idd-catalog.js tiene sus tests en scripts/lib/idd-catalog.test.js (catálogo al día y how como plantilla del id); ninguna skill cambia ni describe la regla en prosa",
+      "recorded_at": "2026-10-25T21:19:38.958Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "withdrawn",
+      "evidence": [],
+      "withdrawn_reason": "idd-catalog.js solo escribe internal/iddsession/catalog.json, un fichero generado del repositorio que Go embebe al compilar; no hay datos del usuario ni formato persistente que migrar"
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-25T21:18:15.462Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-25T21:21:03.096Z",
+      "detail": {
+        "tree": "sha256:b010f191cb1709852a8c853b5163ae615dc2720b2a2cd85694f766dae483cc96",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-25T21:21:03.096Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0008 none",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed none"
+        ],
+        "records": [],
+        "tree": "sha256:b010f191cb1709852a8c853b5163ae615dc2720b2a2cd85694f766dae483cc96",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-25T21:24:22.416Z",
+      "detail": {
+        "lineage_id": "sha256:13976853252e38facb35c56882371192d0f7e6c9206b4ebd8dbbb0d22cea8428",
+        "candidate_id": "sha256:fb0443054bc30c01e5d15d6f0b7da9f078f6217ef4393b79f78d74075ef9c54d",
+        "candidate_tree": "145cd5275b07afda2e4d98ab891aab6894c58151",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-25T21:24:10.329Z",
+          "result_digest": "sha256:028846aa7e521e7351234d8edf186122def55a741eccafb6da39f1eef08b2961"
+        }
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-25T21:24:29.911Z"
+    }
+  ],
+  "base": "8255208a8870e023cb8f3dde5abb0bb4e2de7a31",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "go test ./internal/hooks/ -run TestIddSessionGoldenCases",
+      "exit_code": 1,
+      "output_sha256": "sha256:580142e093491a7ee575aec56a8aaa1adacc34e594ccb2284695978f256fcd41",
+      "tree": "sha256:b6c42b7387bdf199feb1a30850993aa04a709bb5e4bdf75df226e6e7fd96416a",
+      "recorded_at": "2026-10-25T21:16:43.981Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "go test ./internal/hooks/ -run TestIddSessionGoldenCases",
+      "exit_code": 0,
+      "output_sha256": "sha256:be721b8c47e48f49709234968fcdcfab0b9e5451f41025f7f795d3bc9d3810ae",
+      "tree": "sha256:ee3f4ae3e9ff4108f89ce92b8a8dbcd74832255027603ed05ae56f18560870b8",
+      "recorded_at": "2026-10-25T21:18:15.462Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:91bb5016691592ab002bca5aca66c9d78f26c6797f75a1afc2906ff6c9e81d30",
+      "tree": "sha256:b010f191cb1709852a8c853b5163ae615dc2720b2a2cd85694f766dae483cc96",
+      "recorded_at": "2026-10-25T21:21:03.096Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d10ea0e8f363c7311a145c5957b9d528d61b9c3babfd74996d63432a8b3f89be",
+      "tree": "sha256:b010f191cb1709852a8c853b5163ae615dc2720b2a2cd85694f766dae483cc96",
+      "recorded_at": "2026-10-25T21:21:03.096Z",
+      "tests": 44
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d2c47f3b6fa173065072e6cce1ec989c0d0e5c78278dd6a06e45bc38b4f514ae",
+      "tree": "sha256:b010f191cb1709852a8c853b5163ae615dc2720b2a2cd85694f766dae483cc96",
+      "recorded_at": "2026-10-25T21:21:03.096Z",
+      "tests": 12
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:375cdc06c526ed280b22cac01371778d12547c17add479842193bda719af27f1",
+      "tree": "sha256:b010f191cb1709852a8c853b5163ae615dc2720b2a2cd85694f766dae483cc96",
+      "recorded_at": "2026-10-25T21:21:03.096Z",
+      "tests": 81
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:b010f191cb1709852a8c853b5163ae615dc2720b2a2cd85694f766dae483cc96",
+      "recorded_at": "2026-10-25T21:21:03.096Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3aa9b44f7629be8ebc374d49ae0799c617f7517f0d314ef26d46935633e2434b",
+      "tree": "sha256:b010f191cb1709852a8c853b5163ae615dc2720b2a2cd85694f766dae483cc96",
+      "recorded_at": "2026-10-25T21:21:03.096Z",
+      "tests": 18
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b0528da6697f7e162a88dfb8b01f2cc276b03c2d59c54e79c6628dd59316c8a6",
+      "tree": "sha256:b010f191cb1709852a8c853b5163ae615dc2720b2a2cd85694f766dae483cc96",
+      "recorded_at": "2026-10-25T21:21:03.096Z",
+      "tests": 79
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7efc0f446338f2e50cc5ffd36c7317784fa961ab76a5a67f130a038d70efe9d2",
+      "tree": "sha256:b010f191cb1709852a8c853b5163ae615dc2720b2a2cd85694f766dae483cc96",
+      "recorded_at": "2026-10-25T21:21:03.096Z",
+      "tests": 40
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c561a3c24cbb97e03bd9e5e7828c9a83b3634220e7af3546e53701491fb48fb3",
+      "tree": "sha256:b010f191cb1709852a8c853b5163ae615dc2720b2a2cd85694f766dae483cc96",
+      "recorded_at": "2026-10-25T21:21:03.096Z",
+      "tests": 81
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:13976853252e38facb35c56882371192d0f7e6c9206b4ebd8dbbb0d22cea8428",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "1b6d0dbfaf4a230bd08c0439c0f439fbd046c531",
+          "candidate_tree": "145cd5275b07afda2e4d98ab891aab6894c58151",
+          "paths": [
+            "docs/harness-go-js-parity.md",
+            "docs/roadmaps/harness-evolution.md",
+            "internal/iddsession/catalog.json",
+            "internal/iddsession/iddsession.go",
+            "internal/testdata/idd-session/steps/expected/session/latest.md",
+            "internal/testdata/idd-session/steps/expected/session/s-adr/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-boundary/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-limit/session-summary.md",
+            "internal/testdata/idd-session/steps/workspace/idd/s-adr/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-boundary/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-limit/state.yaml",
+            "scripts/hooks/idd-session.test.js",
+            "scripts/lib/idd-catalog.js",
+            "scripts/lib/idd-catalog.test.js",
+            "scripts/lib/idd-next.js",
+            "scripts/lib/k1-scope-guard.test.js"
+          ],
+          "diff_hash": "sha256:462b6d37c89394a8732a8f05bc292a7fd2d7a8f0936fb367b7b03eb33351dd9a",
+          "paths_digest": "sha256:0bc12509f2983d1bfc0374e589ae7c967659a3d1efda7d40e314bdb1d9809112",
+          "authored_lines": 546,
+          "original_changed_lines": 615
+        },
+        "candidate_id": "sha256:fb0443054bc30c01e5d15d6f0b7da9f078f6217ef4393b79f78d74075ef9c54d",
+        "paths": [
+          "docs/harness-go-js-parity.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/iddsession/catalog.json",
+          "internal/iddsession/iddsession.go",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-adr/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-boundary/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-limit/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-adr/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-boundary/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-limit/state.yaml",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-catalog.js",
+          "scripts/lib/idd-catalog.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/k1-scope-guard.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "145cd5275b07afda2e4d98ab891aab6894c58151",
+        "original_changed_lines": 615,
+        "authored_lines": 546
+      },
+      "current_candidate_id": "sha256:fb0443054bc30c01e5d15d6f0b7da9f078f6217ef4393b79f78d74075ef9c54d",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "1b6d0dbfaf4a230bd08c0439c0f439fbd046c531",
+        "candidate_tree": "145cd5275b07afda2e4d98ab891aab6894c58151",
+        "paths": [
+          "docs/harness-go-js-parity.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/iddsession/catalog.json",
+          "internal/iddsession/iddsession.go",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-adr/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-boundary/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-limit/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-adr/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-boundary/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-limit/state.yaml",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-catalog.js",
+          "scripts/lib/idd-catalog.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/k1-scope-guard.test.js"
+        ],
+        "diff_hash": "sha256:462b6d37c89394a8732a8f05bc292a7fd2d7a8f0936fb367b7b03eb33351dd9a",
+        "paths_digest": "sha256:0bc12509f2983d1bfc0374e589ae7c967659a3d1efda7d40e314bdb1d9809112",
+        "authored_lines": 546,
+        "original_changed_lines": 615
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "idd-catalog-single-source:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "idd-catalog-single-source:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-25T21:24:29.911Z"
+}

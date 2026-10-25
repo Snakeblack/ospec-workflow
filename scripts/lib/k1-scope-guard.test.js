@@ -225,6 +225,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E3.9 the changelog entry and the release proposal of ospec close.
   "scripts/lib/idd-changelog.js",
   "scripts/lib/idd-changelog.test.js",
+  "scripts/lib/idd-catalog.js",
+  "scripts/lib/idd-catalog.test.js",
   // E1.7 (a) ospec doctor and the read-only Engram detection it shares with
   // the installers (roadmap harness-evolution).
   "scripts/lib/ospec-doctor.js",

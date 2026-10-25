@@ -1,0 +1,84 @@
+{
+  "schema": "idd-state/v1",
+  "change": "s-limit",
+  "mode": "idd",
+  "status": "open",
+  "intent": {
+    "kind": "bug",
+    "summary": "Fix the auth check.",
+    "acceptance": "It works."
+  },
+  "facts": {
+    "basis": "The request fixes every behavior."
+  },
+  "plan": {
+    "paths": [
+      "src/auth.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "untested-product",
+      "reason": "product code without a test: touches src/auth.js",
+      "source": "diff"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "declared security-boundary",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "boundary-tests",
+      "signal": "untested-product",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "gates": [
+    {
+      "id": "review-limit",
+      "status": "open",
+      "reason": "3 of 3 trust reviews used: ospec check opens the review-limit gate, and only the person's answer authorizes one more"
+    }
+  ],
+  "evidence": [],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "review-1",
+      "status": "exhausted"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "review-2",
+      "status": "exhausted"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "review-3",
+      "status": "exhausted"
+    }
+  ]
+}

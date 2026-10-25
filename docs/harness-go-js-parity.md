@@ -58,7 +58,11 @@ Lo mismo aplica a `internal/skillreg/skillreg.go` (espeja `skill-registry.js`),
    single-repo, `TERMINAL_STATUSES`, el render del *session summary*, el estado de
    `baseline`, el esquema de la cache v2 de skills, o las reglas DENY/ASK —
    **debes espejar el cambio en el paquete `internal/*` correspondiente y portar el
-   test**. Si no, el hook diverge según haya binario o no.
+   test**. Si no, el hook diverge según haya binario o no. El catálogo IDD
+   (señales, obligaciones, gates, orden de trabajo y `how`) no se espeja a mano:
+   regenera `internal/iddsession/catalog.json` con
+   `node scripts/lib/idd-catalog.js --write`; `idd-catalog.test.js` falla mientras
+   esté desfasado (E1.42).
 2. **Si tocas código FEDERADO-only** — `isCorruptCache`, `loadAtlas`, `resolveMembers`,
    `describeWorkspace`, `federation-marker.js`, `federation-explore.js`,
    `federation-baseline-orchestrator.js`, `workspace-atlas.js` — **no hay nada que
@@ -75,6 +79,7 @@ Lo mismo aplica a `internal/skillreg/skillreg.go` (espeja `skill-registry.js`),
 | `artifact-store.js` (**federado**) | — *(no portado)* | **brecha, §3** |
 | `skill-registry.js` | `skillreg/skillreg.go` | discovery + fingerprint + cache v2 |
 | `pre-tool-use.js` reglas | `rules/rules.go` | DENY/ASK |
+| `scripts/hooks/lib/idd-session.js` | `iddsession/iddsession.go` | cambios IDD abiertos y su siguiente paso; el catálogo lo embebe de `catalog.json`, que emite `scripts/lib/idd-catalog.js` |
 | `scripts/hooks/lib/secret-scan.js` | `hooks/secretscan.go` | agent-shield: clasificación de archivos sensibles + escaneo de credenciales |
 | `scripts/hooks/lib/secret-redact.js` | `hooks/secretredact.go` | censura de secretos en la salida de las herramientas (E1.27) |
 | `agent-identity.js` | `agentidentity/agentidentity.go` | resolución canónica de agentes, prefijos de host y conjunto cerrado |

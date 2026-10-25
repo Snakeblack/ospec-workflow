@@ -57,6 +57,10 @@ const HOW = Object.freeze({
     `ospec record impact --change ${change} (--adr <id> | --quality <id>) --impact <none|conforms|amends|supersedes|contradicts> --reason "<why>" [--record <new ADR>], then ospec check --change ${change}`,
 });
 
+// Obligations whose evidence runs the declared checks: without one, the next
+// step is to configure them.
+const CHECKS_REQUIRED = Object.freeze(["checks-pass", "contract-spec-and-test"]);
+
 // Signals that mark an architecture boundary: a change that crosses one and
 // declares no ADR may be making an architecture decision (E3.1).
 const BOUNDARY_SIGNALS = Object.freeze(["public-contract", "persistent-data", "security-boundary"]);
@@ -158,7 +162,7 @@ function nextForChange(state, { checks, candidateCommand, contractPatterns, know
   } else if (pending.length > 0) {
     nextStep = { action: "satisfy-obligation", obligation: pending[0].id, evidence: pending[0].evidence };
     if (HOW[pending[0].id]) nextStep.how = HOW[pending[0].id](state.change, { contractPatterns });
-    if (checks?.length === 0 && ["checks-pass", "contract-spec-and-test"].includes(pending[0].id)) {
+    if (checks?.length === 0 && CHECKS_REQUIRED.includes(pending[0].id)) {
       nextStep = configureChecksStep(candidateCommand);
     }
   } else {
@@ -241,7 +245,9 @@ function statusOf(states) {
 }
 
 module.exports = {
+  CHECKS_REQUIRED,
   GATE_QUESTIONS,
+  HOW,
   WORK_ORDER,
   nextForChange,
   planDeclared,

@@ -1,0 +1,50 @@
+{
+  "schema": "idd-state/v1",
+  "change": "s-boundary",
+  "mode": "idd",
+  "status": "open",
+  "intent": {
+    "kind": "feature",
+    "summary": "Add a mode.",
+    "acceptance": "It works."
+  },
+  "facts": {
+    "basis": "The request fixes every behavior."
+  },
+  "plan": {
+    "paths": [
+      "src/a.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "untested-product",
+      "reason": "product code without a test: touches src/a.js",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "boundary-tests",
+      "signal": "untested-product",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "gates": [],
+  "evidence": []
+}
