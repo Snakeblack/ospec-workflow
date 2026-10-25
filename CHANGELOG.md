@@ -7,8 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.153.0] - 2026-10-25
+
 ### Added
-- Opción de changelog y de cadencia de release en la sección delivery de idd/config.yaml, con recomendación por perfil; el flujo IDD deja la entrada del cambio en el changelog y propone la release con su versión, su tag y sus notas (delivery-release-changelog)
+- **El flujo IDD deja la entrada del cambio en el changelog y propone la release** (E3.9). Hasta ahora nada del flujo creaba el changelog ni proponía una versión. `idd/config.yaml` admite dos claves nuevas en `delivery`:
+  - `changelog`: la ruta del changelog, relativa y dentro del proyecto, o `none`. Una ruta absoluta o con `..` se rechaza con `config-invalid`.
+  - `release`: `per-change` (una release tras cada cambio), `batched` (las entradas se acumulan y la release se propone cuando la pides) o `none`.
+  - El perfil las recomienda con sus motivos: `solo` da `CHANGELOG.md` y `per-change`, y `small` y `multi-team`, `CHANGELOG.md` y `batched`. Sin perfil se recomiendan `CHANGELOG.md` y `per-change`.
+  - A diferencia del branching, el perfil no basta: `close` escribe un fichero del proyecto, así que solo actúa con las claves declaradas. Mientras falten, `ospec next` sugiere `changelog-undeclared` y `release-undeclared` sin bloquear, y `close` no escribe nada.
+  - Declarado el changelog, `ospec close` escribe la entrada bajo `## [Unreleased]`, en la sección de su tipo (`feature` → `Added`, `bug` → `Fixed`, `refactor` y `docs` → `Changed`), como `- <resumen> (<change-id>)`. Lo hace una sola vez, conserva los finales de línea y crea el fichero, la cabecera o la sección si faltan. Valida antes de escribir: un `close` rechazado deja el changelog como estaba.
+  - Con `per-change`, `close` devuelve la release propuesta: la última versión subida un minor si hay `Added` y si no un patch, nunca un major; el tag `v<versión>`; y las notas de `[Unreleased]`. El CLI no toca versiones ni tags: el agente la propone y la hace solo con tu OK.
+  - `ospec team` muestra las tres claves de `delivery` con su origen, sus motivos y sus reglas. SDD no las lee (ADR 0011).
+  - REQ-idd-025 lo especifica, y REQ-idd-013, REQ-idd-017 y REQ-idd-023 se actualizan.
+
+### Changed
+- **Este repositorio declara `changelog: CHANGELOG.md` y `release: per-change`.** Esta entrada empezó como la línea que escribió `ospec close`. [`AGENTS.md`](AGENTS.md) lo recoge: la línea va con el archivo IDD, y el commit de release la mueve bajo la versión y la amplía.
+- **Roadmap:** E3.9 queda hecho y sigue el bloque A.
+
+Hecho con IDD (`idd/archive/2026-10-25-delivery-release-changelog/`).
+
+**Verificación directa**: `node scripts/check.js` (4058 tests pasando, 0 fallos y 3 omitidos).
 
 ## [2.152.0] - 2026-10-25
 
