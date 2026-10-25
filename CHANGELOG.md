@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.151.1] - 2026-10-25
+
+### Changed
+- **Auditoría del harness frente a gentle-ai y orden nuevo del roadmap** ([`docs/analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md`](docs/analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md)). Compara solo el harness: flujo, estado, verificación, review, coste de contexto, memoria, conocimiento y guards. Lo hace con ospec 2.151.0 frente a gentle-ai 4.2.0 y `main`, leyendo el código y las transcripciones del banco.
+  - **Media sin ponderar de 13 dimensiones:** 4,8 gentle-ai y 5,8 ospec. Los defectos se escapan menos en ospec gracias a `open-facts` y a la evidencia que ejecuta el CLI, porque en el banco no corrió ninguna review. gentle-ai gasta menos porque casi nada de lo que exige se comprueba por código: ODD son 87 KB de prosa que se cargan siempre.
+  - **El banco de Claude contaba dos veces los tokens de IDD.** Con `--resume`, `result.modelUsage` acumula la sesión anterior. El ratio real frente a gentle-ai es de 1,85× y no de 2,34× (1,55× en dólares). En agy, 2,63×.
+  - **Nueve defectos verificados en ospec (B1–B9).** Por ejemplo: el catálogo Go de IDD está desfasado y descarta el estado; `close` no revalida un `state.yaml` editado a mano; `boundary-tests` se cumple con tests que ya existían; y la invocación del CLI falla en zsh en las 18 ejecuciones de `idd-7`.
+- **Roadmap: 17 ítems nuevos y un orden en cuatro bloques**, un change por sesión ([`docs/roadmaps/harness-evolution.md`](docs/roadmaps/harness-evolution.md)):
+  - **A, corrección:** E1.42–E1.47 y E4.10.
+  - **B, economía:** E4.15, E4.16 y E4.3.
+  - **E4.17:** escenarios nuevos congelados sin correr. Es una excepción a «banco después», por decisión del usuario.
+  - **C, ventaja en defectos:** E1.48–E1.52 y E3.7.
+  - **D, banco:** E4.14 con el doble conteo, la corrida de E4.6, E4.4, E4.13 y E4.11.
+  - **Todo funciona en los 7 targets.** La garantía vive en el CLI, que todos invocan igual. Los hooks solo refuerzan, con una degradación visible donde falta el evento, y ningún ítem se cierra sin los siete builds validados.
+  - **Fila nueva en la tabla de objetivos:** tokens por ejecución frente a gentle-ai, con objetivo ≤ 1×.
+
+Hecho con IDD (`idd/archive/2026-10-25-roadmap-audit-gentle-ai/`).
+
+**Verificación directa**: `node scripts/check.js` (4044 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.151.0] - 2026-10-25
 
 ### Changed
