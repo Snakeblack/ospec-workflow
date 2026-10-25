@@ -17,7 +17,7 @@ Fuente de mapeo de tools: `scripts/lib/target-profiles/*.js` (`toolMap`).
 | Sub-agentes en paralelo | ✅ | ❌ (secuencial) | ❌ | ❌ | ❌ | parcial (Task async) |
 | Background tasks | ✅ (`run_in_background`) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Lifecycle hooks del plugin | ✅ (los 5) | ❌ | ❌ | parcial (`SessionStart`, `PreToolUse`) | ✅ (bridge) | parcial (camelCase map; sin `SubagentStop`) |
-| Fallback de modelos por tier | vía `models.yaml` | ✅ (orden declarado) | ❌ | ✅ | ✅ | vía `models.yaml` `cursor:` |
+| Modelo por tier ([E4.12](model-routing.md)) | alias de `models.yaml` o el del usuario | el del usuario; sin él, hereda | el del usuario; sin él, hereda | el del usuario; sin él, hereda | el del usuario con el effort del tier; sin él, hereda | el del usuario; sin él, hereda (`inherit`) |
 
 Regla de generación: los prompts de un target NO deben instruir tools o
 capacidades que su host no tiene — instruir una tool inexistente hace que el

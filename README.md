@@ -108,7 +108,7 @@ From a repository checkout, use Node.js 22+ and Go 1.23+:
 npm run setup:tui
 ```
 
-Choose a target, edit models when that target supports it, review the summary, then activate **Install**. Use arrow keys to move, Enter to select, Escape to go back, and `q` or Ctrl-C to cancel. Back retains selections per target; canceling before Install does not write files. Choices are per-run and do not modify `models.yaml`; destinations and installer behavior remain the existing defaults. Model availability and host authentication are outside this flow, and standalone binaries are outside the MVP.
+Choose a target, type the model of each tier (`premium`, `default`, `cheap`) as the host names it, review the summary, then activate **Install**. Use arrow keys to move between tiers, Enter to continue, Escape to go back, and Ctrl-C to cancel; on the model screen every printable key is part of the name. Back retains what you typed; canceling before Install does not write files. Install saves the models in your user configuration (`~/.config/ospec/models.yaml`, or `%APPDATA%\ospec\models.yaml` on Windows), the same as an installer's `--model <tier>=<model>`; an empty tier inherits the session model (Claude falls back to its aliases). Model availability and host authentication are outside this flow, and standalone binaries are outside the MVP.
 
 ---
 
@@ -232,7 +232,7 @@ Every `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS
 | `scripts/hooks/` | Hooks runtime (Node.js) and its tests. |
 | `scripts/lib/` | Shared libraries: IDD and OpenSpec state, artifact-store and the generator core (`frontmatter`, `model-resolver`, `target-transform`, profiles). |
 | `scripts/configure/` | Multi-target generator CLI (`cli.js`), per-profile validators and golden fixtures. |
-| `models.yaml` | Tier→model tables per target for the generator. |
+| `models.yaml` | Agent→tier policy, Claude's aliases and Codex's effort per tier; no other model names. |
 | `profiles/models/` | Optional model-routing profiles (direct use in VS Code). |
 | `docs/` | Detailed architecture and usage documentation. |
 | `.mcp.json` | Canonical MCP source. Codex does not bundle it: `setup:codex` translates its entries to the native CLI and avoids duplicates. |
@@ -351,7 +351,7 @@ Hooks run native code (Node.js or optimized Go executables). `.ospec/cache` and 
 
 ## Model routing
 
-Agents do not hardcode concrete model names. By default they inherit the selected model and can use local profiles:
+ospec ships no model names besides Claude's aliases. Each agent belongs to a tier, you assign a model to each tier per host with `--model <tier>=<model>` or `npm run setup:tui`, and a tier without one inherits the session model. Local profiles remain for direct use in VS Code:
 
 - `default`: single-model fallback;
 - `cheap`: reduces cost during exploration and proposal;
