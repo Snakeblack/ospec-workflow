@@ -1,0 +1,80 @@
+{
+  "schema": "idd-state/v1",
+  "change": "delivery-order",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Instrucción del repo para ordenar ramas, commits, PRs, merges y releases y evitar conflictos",
+    "acceptance": "AGENTS.md tiene una sección de orden de entrega que todo agente lee antes de crear una rama: estado al empezar, una rama por change desde main actualizado, commits por unidad, ficheros compartidos (CHANGELOG, 4 manifiestos, roadmap) solo en el commit de release sobre main reciente, integración sin force-push, merge commit, release inmediata tras el merge y borrado de la rama; CLAUDE.md y CONTRIBUTING.md apuntan a ella"
+  },
+  "facts": {
+    "open": [
+      "¿Una sola PR abierta a la vez (serie estricta) o se permiten ramas en paralelo si solo una lleva el bump de versión?",
+      "¿La instrucción exige borrar la rama local y remota tras cada merge, y se limpian ahora las ramas ya fusionadas (197 remotas, 55 locales)?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "AGENTS.md",
+      "CLAUDE.md",
+      "CONTRIBUTING.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Paralelismo: Serie estricta (Recomendado). Ramas: Borrar tras merge + limpiar (Recomendado)",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-25T15:24:04.352Z",
+      "detail": {
+        "tree": "sha256:abdb71f3f033b1fbef958759dd96314aba7aeb1ab2cf67032a8917ebf6b31008",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "9a7e76bf6ce886f7b04b3056b8823611020f2bab",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b08bd47486ec7e43d10ed44adabe111b058285662e11a09e24e16ac62c400b1d",
+      "tree": "sha256:abdb71f3f033b1fbef958759dd96314aba7aeb1ab2cf67032a8917ebf6b31008",
+      "recorded_at": "2026-10-25T15:24:04.352Z"
+    }
+  ],
+  "closed_at": "2026-10-25T15:24:20.627Z"
+}

@@ -9,11 +9,11 @@
 const { CHANGE_ROOT, MODES } = require("./idd-contract.js");
 const { validateContracts } = require("./idd-contracts.js");
 const { validateImpact } = require("./idd-impact.js");
-const { teamDefaults, validateTeam } = require("./team-profile.js");
+const { BRANCHING_VALUES, teamDefaults, validateTeam } = require("./team-profile.js");
 
 const CONFIG_FILE = `${CHANGE_ROOT}/config.yaml`;
-const CONFIG_KEYS = Object.freeze(["mode", "strict_tdd", "team", "checks", "impact", "contracts"]);
-const SECTION_KEYS = new Set(["team", "checks", "impact", "contracts"]);
+const CONFIG_KEYS = Object.freeze(["mode", "strict_tdd", "team", "delivery", "checks", "impact", "contracts"]);
+const SECTION_KEYS = new Set(["team", "delivery", "checks", "impact", "contracts"]);
 
 class IddConfigError extends Error {
   constructor(message) {
@@ -76,6 +76,21 @@ function parseChecks(lines) {
   });
 }
 
+// How changes reach the default branch (REQ-idd-023): an explicit choice
+// that wins over the team profile.
+function parseDelivery(lines) {
+  const section = parseSection("delivery", lines);
+  for (const key of Object.keys(section)) {
+    if (key !== "branching") throw new IddConfigError(`unknown delivery key: ${key}`);
+  }
+  const { branching = null } = section;
+  if (branching !== null && !BRANCHING_VALUES.includes(branching)) {
+    const got = typeof branching === "string" ? branching : "nothing";
+    throw new IddConfigError(`delivery.branching must be ${BRANCHING_VALUES.join(" or ")}, got ${got}`);
+  }
+  return { branching };
+}
+
 function parseBoolean(key, value) {
   if (value !== "true" && value !== "false") throw new IddConfigError(`${key} must be true or false`);
   return value === "true";
@@ -119,6 +134,7 @@ function parseIddConfig(text) {
   }
   // An explicit strict_tdd wins; without it the team profile decides (REQ-idd-023).
   const strictTdd = "strict_tdd" in raw ? parseBoolean("strict_tdd", raw.strict_tdd) : team ? teamDefaults(team).strict_tdd : false;
+  const delivery = raw.delivery ? parseDelivery(raw.delivery.lines) : { branching: null };
   const checks = raw.checks ? parseChecks(raw.checks.lines) : [];
   const impact = raw.impact ? validateImpact(parseSection("impact", raw.impact.lines)) : {};
   let contracts = {};
@@ -130,7 +146,7 @@ function parseIddConfig(text) {
       throw new IddConfigError(error.message);
     }
   }
-  return { mode, strictTdd, team, checks, impact, contracts };
+  return { mode, strictTdd, team, delivery, checks, impact, contracts };
 }
 
 module.exports = {

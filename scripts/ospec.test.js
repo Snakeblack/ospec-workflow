@@ -1727,9 +1727,10 @@ test("[REQ-idd-023] two projects with different teams get different defaults wit
 
 test("[REQ-idd-023] team follows the active mode and refuses an invalid profile", (t) => {
   const root = tempRoot(t);
-  const none = ospec(root, "team", "--json");
-  assert.deepStrictEqual(none.json, { ok: true, command: "team", mode: "sdd", profile: null, source: null, defaults: null });
-  assert.match(ospec(root, "team").stdout, /no profile declared; defaults unchanged/);
+  const { branching, ...none } = ospec(root, "team", "--json").json;
+  assert.deepStrictEqual(none, { ok: true, command: "team", mode: "sdd", profile: null, source: null, defaults: null });
+  assert.deepStrictEqual([branching.value, branching.source], ["serial", "recommended"]);
+  assert.match(ospec(root, "team").stdout, /no profile declared; defaults unchanged\nbranching: serial \(recommended\): /);
   fs.mkdirSync(path.join(root, "openspec"));
   fs.writeFileSync(path.join(root, "openspec", "config.yaml"), "schema: spec-driven\nscale: team\n");
   assert.deepStrictEqual(ospec(root, "team", "--json").json.profile, { size: "small", experience: null });
@@ -1748,4 +1749,31 @@ test("[REQ-idd-023] team follows the active mode and refuses an invalid profile"
   fs.writeFileSync(path.join(root, "idd", "config.yaml"), "mode: sdd\n");
   fs.writeFileSync(path.join(root, "openspec", "config.yaml"), "team:\n  size: everyone\n");
   assert.strictEqual(ospec(root, "team", "--json").json.error.code, "team-invalid");
+});
+
+test("[REQ-idd-023] next suggests the branching when the work starts, and an explicit one wins over the profile", (t) => {
+  const root = tempRoot(t);
+  const config = path.join(root, "idd", "config.yaml");
+  fs.mkdirSync(path.join(root, "idd"));
+  fs.writeFileSync(config, "checks:\n  test: node -e 0\n");
+  ospec(root, "record", "intent", "--change", "fix-it", "--kind", "bug", "--summary", "s", "--acceptance", "a", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  const start = ospec(root, "next", "--change", "fix-it", "--json").json;
+  assert.strictEqual(start.next_step.action, "declare-plan");
+  assert.deepStrictEqual([start.delivery.branching, start.delivery.source], ["serial", "recommended"]);
+  assert.deepStrictEqual(start.suggestions.map((suggestion) => suggestion.id), ["branching-undeclared"]);
+  const text = ospec(root, "next", "--change", "fix-it").stdout;
+  assert.match(text, /suggestion branching-undeclared: delivery.branching is not declared; serial is recommended/);
+  assert.match(text, /\nbranching rules: before a new branch, merge the open pull request/);
+
+  // An unreadable configuration leaves delivery out and keeps the next step.
+  fs.writeFileSync(config, "checks:\n  test: node -e 0\ndelivery:\n  branching: rebase\n");
+  const unreadable = ospec(root, "next", "--change", "fix-it", "--json").json;
+  assert.deepStrictEqual([unreadable.next_step.action, "delivery" in unreadable], ["declare-plan", false]);
+
+  fs.writeFileSync(config, "team:\n  size: solo\ndelivery:\n  branching: parallel\nchecks:\n  test: node -e 0\n");
+  const declared = ospec(root, "next", "--change", "fix-it", "--json").json;
+  assert.deepStrictEqual([declared.delivery.branching, declared.delivery.source, declared.suggestions], ["parallel", "idd/config.yaml", undefined]);
+  assert.strictEqual(ospec(root, "team", "--json").json.branching.value, "parallel");
+  ospec(root, "signals", "--change", "fix-it", "--path", "src/a.js");
+  assert.ok(!("delivery" in ospec(root, "next", "--change", "fix-it", "--json").json), "building, the branching decides nothing");
 });

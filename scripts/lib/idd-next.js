@@ -108,7 +108,21 @@ function pendingDecision(state, gate) {
   return decision;
 }
 
-function nextForChange(state, { checks, candidateCommand, contractPatterns, knowledge, team } = {}) {
+// The steps where the branching decides something: the work starts on a
+// branch, and the change is delivered once it closes.
+const DELIVERY_STEPS = Object.freeze(["declare-plan", "close"]);
+
+// A project that declares neither a profile nor delivery.branching gets the
+// recommended value as a suggestion, never as a step (REQ-idd-023).
+function branchingSuggestion(delivery) {
+  return {
+    id: "branching-undeclared",
+    reason: `delivery.branching is not declared; ${delivery.branching} is recommended`,
+    how: `propose delivery.branching: ${delivery.branching} to the user with its reasons, and write it to ${CHANGE_ROOT}/config.yaml only after approval`,
+  };
+}
+
+function nextForChange(state, { checks, candidateCommand, contractPatterns, knowledge, team, delivery } = {}) {
   const pending = state.obligations
     .filter((obligation) => obligation.status === "pending")
     .sort(byWorkOrder)
@@ -154,8 +168,14 @@ function nextForChange(state, { checks, candidateCommand, contractPatterns, know
     // The fitness functions of the change's references (E3.3, REQ-idd-022).
     if (knowledge.fitness) result.fitness = knowledge.fitness;
   }
-  const suggestion = adrSuggestion(state);
-  if (suggestion) result.suggestions = [suggestion];
+  const suggestions = [adrSuggestion(state)].filter(Boolean);
+  // How the change reaches the default branch, with its reasons and rules,
+  // where it decides something (REQ-idd-023).
+  if (delivery && DELIVERY_STEPS.includes(nextStep.action)) {
+    result.delivery = delivery;
+    if (delivery.source === "recommended") suggestions.push(branchingSuggestion(delivery));
+  }
+  if (suggestions.length > 0) result.suggestions = suggestions;
   // The delivery and mentorship the team profile decides (E3.4, REQ-idd-023).
   if (team) result.team = team;
   return result;

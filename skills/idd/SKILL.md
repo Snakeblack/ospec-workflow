@@ -188,7 +188,11 @@ security paths of each service), as for checks.
 
 `ospec close` archives the change under `idd/archive/` and leaves the working
 tree as it is. Branches, commits and pull requests are the user's decision;
-propose the `team.delivery_strategy` of `next`. When they ask, use
+propose the `team.delivery_strategy` of `next`, and the `delivery` it returns
+when the work starts and at close: its `branching`, why it fits (`reasons`)
+and the rules to follow (`how`). With the `branching-undeclared` suggestion,
+propose that value and its reasons once, and write `delivery.branching` to
+`idd/config.yaml` only after approval, keeping the rest. When they ask, use
 `work-unit-commits` to split commits, `branch-pr` to open the PR, and
 `chained-pr` when the diff exceeds the review budget. Pitch your replies at
 `team.mentorship`: `mentor` explains why, `expert` stays terse.

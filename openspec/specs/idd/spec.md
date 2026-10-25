@@ -642,7 +642,8 @@ changes, and IDD MUST NOT read its configuration from `openspec/`, whose
 absent every key takes its default. Its top-level keys MUST be only `mode`
 (`idd` or `sdd`, the project mode of REQ-idd-001; absent means none),
 `strict_tdd` (`true` or `false`; absent, the team profile decides it and,
-without a profile, `false`), `team` (the team profile of REQ-idd-023), `checks` (the checks
+without a profile, `false`), `team` (the team profile of REQ-idd-023),
+`delivery` (the `branching` of REQ-idd-023; absent, the profile decides it), `checks` (the checks
 `ospec check` runs, as `name: command` in declared order, REQ-idd-014; absent
 means none), `impact` (the impact section of REQ-idd-012) and `contracts`
 (where contract documents and their tests live, REQ-idd-015). An unknown or repeated key, a value outside its
@@ -1421,11 +1422,11 @@ top-level `team:` of `openspec/config.yaml`. The profile MUST hold `size`
 `config-invalid` in `idd/config.yaml` and `team-invalid` in
 `openspec/config.yaml`. The defaults MUST follow from the profile alone:
 
-| `size` | Delivery strategy | Quality review (SDD 4R) | Traceability | Strict TDD | SDD `tdd_mode` |
-| --- | --- | --- | --- | --- | --- |
-| `solo` | `single-pr` | off | `advisory` | `false` | `standard` |
-| `small` | `ask-on-risk` | on | `advisory` | `true` | `focused` |
-| `multi-team` | `auto-chain` | on | `required` | `true` | `strict` |
+| `size` | Delivery strategy | Branching | Quality review (SDD 4R) | Traceability | Strict TDD | SDD `tdd_mode` |
+| --- | --- | --- | --- | --- | --- | --- |
+| `solo` | `single-pr` | `serial` | off | `advisory` | `false` | `standard` |
+| `small` | `ask-on-risk` | `parallel` | on | `advisory` | `true` | `focused` |
+| `multi-team` | `auto-chain` | `parallel` | on | `required` | `true` | `strict` |
 
 Every delivery strategy keeps the 400-line review budget. `experience`
 decides mentorship (`junior` → `mentor`, `mixed` → `balanced`, `senior` →
@@ -1436,8 +1437,20 @@ win over the profile: `strict_tdd` in `idd/config.yaml`, and in SDD the blocks
 `sdd-init` materialized and the user later edited. Without a profile every
 default MUST stay as it was before this requirement.
 
+The branching says how a change reaches the default branch: `serial` keeps one
+pull request in flight, and `parallel` lets several branches integrate the
+default branch before each merge. `delivery.branching` in `idd/config.yaml`
+(`serial` or `parallel`; another key under `delivery` or another value MUST be
+refused with `config-invalid`) MUST win over the profile, and without either
+the branching MUST be `serial` with source `recommended`. SDD MUST NOT read
+`delivery`. The resolved branching MUST carry its `source` (`idd/config.yaml`,
+`team profile` or `recommended`), its `reasons` (why it fits, the source first)
+and `how` (the rules the agent follows: none rewrites pushed history, and
+every value deletes the branch after its merge). It MUST be guidance only: no
+git or pull request state is read.
+
 `ospec team [--mode <idd|sdd>] [--json]` MUST be read-only and MUST return
-the mode, the profile, its `source` and its `defaults`. Without `--mode` the
+the mode, the profile, its `source`, its `defaults` and the `branching`. Without `--mode` the
 mode is the active one: IDD when `idd/config.yaml` exists and its `mode` is
 not `sdd`, else SDD; `--mode` reads that mode's declaration whatever mode is
 active, and another value is a usage error. IDD MUST read only
@@ -1446,7 +1459,29 @@ first, else a legacy `scale:` (`solo` → `solo`, `team` → `small`,
 `enterprise` → `multi-team`, with no experience), else no profile. `ospec
 next` MUST return `team` (the profile, its source, the delivery strategy and
 the mentorship) for an IDD change when `idd/config.yaml` declares a profile,
-and MUST NOT let an unreadable configuration change its next step.
+and MUST NOT let an unreadable configuration change its next step. For an IDD
+change whose next step is `declare-plan` or `close`, where the branching
+decides something, `ospec next` MUST return `delivery` (the `branching`, its
+`source`, `reasons` and `how`), and with source `recommended` also the
+suggestion `branching-undeclared`, which is never a step: the agent proposes
+the value to the user and writes `delivery.branching` only after approval.
+
+#### Scenario: The branching is suggested, never imposed
+
+- GIVEN an `idd/config.yaml` with checks and without `team` or `delivery`
+- WHEN `ospec next` reaches `declare-plan` for a change
+- THEN `delivery` MUST be `serial` with source `recommended`, its reasons and
+  its rules
+- AND the suggestion `branching-undeclared` MUST be present while the next
+  step stays `declare-plan`
+- AND while the change is built `ospec next` MUST NOT return `delivery`
+
+#### Scenario: An explicit branching wins over the profile
+
+- GIVEN `team: { size: solo }` and `delivery: { branching: parallel }`
+- WHEN `ospec team` runs
+- THEN the branching MUST be `parallel` with source `idd/config.yaml`
+- AND `delivery: { branching: rebase }` MUST be refused with `config-invalid`
 
 #### Scenario: Two teams get different defaults without a question
 

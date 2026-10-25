@@ -1,0 +1,402 @@
+{
+  "schema": "idd-state/v1",
+  "change": "delivery-branching",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "creo que yo añadiria al harness una opción de como se quiere controlar el tema de branches, prs, recomendar una y como siempre dar agumentos del por que",
+    "kind": "feature",
+    "summary": "Opción delivery.branching (serial | parallel) en idd/config.yaml: el perfil de equipo recomienda un valor con sus motivos y ospec next y ospec team la exponen con sus reglas",
+    "acceptance": "ospec team y ospec next --change <id> devuelven branching con value, source (idd/config.yaml, perfil o recomendación) y reasons; un valor fuera de serial|parallel se rechaza con config-invalid; sin declarar, next añade una sugerencia no bloqueante con el valor recomendado; la skill IDD y branch-pr describen las reglas de cada valor; este repo declara serial y AGENTS.md recoge lo propio del repo"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "\"¿Qué valores admite delivery.branching?\""
+      },
+      {
+        "category": "uniqueness",
+        "question": "\"Con serial, ¿cómo se controla que no haya otra PR en vuelo: solo guía o aviso del CLI?\""
+      },
+      {
+        "category": "persistence",
+        "question": "\"Si el proyecto no declara delivery.branching, ¿ospec next bloquea o solo sugiere el valor recomendado?\""
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 1066
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 121
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 130
+        }
+      },
+      {
+        "category": "errors",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 648
+        }
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "AGENTS.md",
+      "docs/roadmaps/harness-evolution.md",
+      "idd/config.yaml",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-config.js",
+      "scripts/lib/idd-config.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/team-profile.js",
+      "scripts/lib/team-profile.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/branch-pr/SKILL.md",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/lib/idd-config.js and 1 more (matches scripts/lib/idd-config.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La resolución del branching (declarado, perfil o recomendado) y sus motivos se calculan en team-profile.js con tests; las skills idd y branch-pr citan ospec team y ospec next y no reimplementan la regla"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "No añade obligación ni gate: sin declarar, el branching es una sugerencia que no cambia next_step"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "El cierre y su evidencia no cambian; delivery solo informa en declare-plan y close"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo biblioteca estándar: ninguna dependencia nueva"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "delivery vive solo en idd/config.yaml y SDD no lo lee; un test lo comprueba con mode: sdd"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "next sigue siendo puro: delivery sale de la configuración y del paso, sin estado nuevo en state.yaml"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "El branching es solo guía: el CLI no consulta git, gh ni la red"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "scripts/lib/team-profile.test.js prueba resolveBranching (declarado, perfil, recomendado y SDD); skills/branch-pr/SKILL.md y skills/idd/SKILL.md remiten a ospec team y al delivery de ospec next",
+      "recorded_at": "2026-10-25T15:32:27.081Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "git diff sin llamadas de red: team-profile.js, idd-config.js, idd-next.js y ospec.js no usan child_process, http ni fetch nuevos; el branching es texto de configuración",
+      "recorded_at": "2026-10-25T15:32:27.147Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Valores: serial y parallel (Recomendado). Sin declarar: Sugiere sin bloquear (Recomendado). Control: Solo guía (Recomendado). Changelog: Change siguiente (Recomendado)",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-25T15:34:00.137Z",
+      "detail": {
+        "tree": "sha256:6a466a4cac60903ee71bae8d266e734a1924e06866ac47917e3ce7dfa7288921",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-25T15:34:00.137Z",
+      "detail": {
+        "tree": "sha256:6a466a4cac60903ee71bae8d266e734a1924e06866ac47917e3ce7dfa7288921",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/skills/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-25T15:34:00.137Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 none",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:6a466a4cac60903ee71bae8d266e734a1924e06866ac47917e3ce7dfa7288921",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-25T15:34:43.270Z",
+      "detail": {
+        "run": "run-9",
+        "tree": "sha256:a176b6e478c45356f18043d1783e15209a1168460ae30716fce1609141795517",
+        "plan": "Aditivo y opcional: una configuración sin delivery se lee igual que antes (delivery.branching null y los mismos defaults, que fijan los tests de idd-config y team-profile). Una que declara delivery necesita esta versión de ospec; un CLI anterior la rechaza con config-invalid en vez de malinterpretarla, y su pre-commit la trata como inválida y no estricta. Rollback: quitar la sección delivery de idd/config.yaml."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-25T15:34:51.677Z"
+    }
+  ],
+  "base": "9a7e76bf6ce886f7b04b3056b8823611020f2bab",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:641ea9a9b07fdb7d49c28a76f72d27e1324e0b8dd91c0dc35adc58c5f8cd83d4",
+      "tree": "sha256:6a466a4cac60903ee71bae8d266e734a1924e06866ac47917e3ce7dfa7288921",
+      "recorded_at": "2026-10-25T15:34:00.137Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:95c9971beab77b65005a43c12a4f4510a744d450cc8c24fbdb3338c121c02737",
+      "tree": "sha256:6a466a4cac60903ee71bae8d266e734a1924e06866ac47917e3ce7dfa7288921",
+      "recorded_at": "2026-10-25T15:34:00.137Z",
+      "tests": 44
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6db4cda6ed01f800fb0b2b354b5352fa051b06fe6469960947422219a616357b",
+      "tree": "sha256:6a466a4cac60903ee71bae8d266e734a1924e06866ac47917e3ce7dfa7288921",
+      "recorded_at": "2026-10-25T15:34:00.137Z",
+      "tests": 12
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:02d0aa5961c18df88951f7a00b0d3abb6478cb25867227d880a03327489f1e46",
+      "tree": "sha256:6a466a4cac60903ee71bae8d266e734a1924e06866ac47917e3ce7dfa7288921",
+      "recorded_at": "2026-10-25T15:34:00.137Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:6a466a4cac60903ee71bae8d266e734a1924e06866ac47917e3ce7dfa7288921",
+      "recorded_at": "2026-10-25T15:34:00.137Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:950af56b689ac3b6f0ca0ca2edef64d2b0b8a62587651ea41f5c115c0adec28f",
+      "tree": "sha256:6a466a4cac60903ee71bae8d266e734a1924e06866ac47917e3ce7dfa7288921",
+      "recorded_at": "2026-10-25T15:34:00.137Z",
+      "tests": 18
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a95f736a1040882384e2e377996afec71cb15fc658a52bff20b3fdb602a3aadc",
+      "tree": "sha256:6a466a4cac60903ee71bae8d266e734a1924e06866ac47917e3ce7dfa7288921",
+      "recorded_at": "2026-10-25T15:34:00.137Z",
+      "tests": 79
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1347318286904561943c5bbe72d1e7e3ebbceded9332eddb33cc4a43817b0d25",
+      "tree": "sha256:6a466a4cac60903ee71bae8d266e734a1924e06866ac47917e3ce7dfa7288921",
+      "recorded_at": "2026-10-25T15:34:00.137Z",
+      "tests": 39
+    },
+    {
+      "id": "run-9",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-config.test.js scripts/lib/team-profile.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5114a84238a9d1106df1fc4bc54bb708ca3e60fce14583ebc4e89cbef4de200d",
+      "tree": "sha256:a176b6e478c45356f18043d1783e15209a1168460ae30716fce1609141795517",
+      "recorded_at": "2026-10-25T15:34:43.270Z",
+      "tests": 19
+    }
+  ],
+  "closed_at": "2026-10-25T15:34:51.677Z"
+}

@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.151.1, 2026-10-25.
+> **Versión de referencia:** v2.152.0, 2026-10-25.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -186,6 +186,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E3.5** | `knowledge-memory-loop` (`ospec close` devuelve los registros de conocimiento del cambio con procedencia y tema estable; IDD, SDD y foundation los guardan en la memoria si existe, y un cambio recupera antes de sus open facts las decisiones previas y las contrasta con el disco) | feature |
 | `done` | **E3.6** | `quality-scenario-fitness` (el mapa de conocimiento de ospec pasa a v2: cuatro escenarios de calidad declaran la comprobación que `ospec check` ejecuta y `offline-operation` queda como checklist) | feature |
 | `pending` | **E3.7** | `fact-ledger` (las respuestas de `open-facts` quedan como hechos del proyecto que un cambio posterior cita en vez de volver a preguntar) | feature |
+| `done` | **E3.8** | `delivery-branching` (`delivery.branching`, `serial` o `parallel`, en `idd/config.yaml`: gana al perfil, sin ninguno se recomienda `serial`, y `ospec team` y `ospec next` dan el valor con sus motivos y sus reglas; sin declarar se sugiere sin bloquear, en v2.152.0) | feature |
+| `pending` | **E3.9** | `delivery-release-changelog` (el flujo IDD deja la entrada del changelog del cambio y propone la release con su versión y sus notas, con recomendación por perfil) | feature |
 | `done` | **E4.1** | `bench-scenarios` (checkpoint `continue` con `idd-2` en v2.111.0) | medición |
 | `done` | **E4.2** | `head-to-head-gentle-ai` (brazo `gentle-ai` en el banco y comparación `idd-3` frente a `gentle-ai-1`, checkpoint `continue`, en v2.133.0) | medición |
 | `done` | **E4.7** | `bench-claims-correction` (OSP-025: la comparación con gentle-ai se publica con el desglose por tipo de check, su significación y sus factores de confusión, en v2.134.1) | docs |
@@ -207,6 +209,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
 **▶ SIGUIENTE:** el orden que sale de la [auditoría del harness frente a gentle-ai del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Mantiene la decisión del usuario del 2026-10-23 (primero los defectos del harness, el banco después) y la del 2026-10-25: un change por sesión, y todo funciona en los 7 targets. Hasta la v2.151.0, la cola anterior dejó hechos E1.29, E1.31, E1.32 y E1.34–E1.41 y E4.12.
+
+Antes del bloque A va **E3.9** `delivery-release-changelog`, que el usuario pidió el 2026-10-25 como el change siguiente a E3.8 `delivery-branching`.
 
 1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E4.10 `greenfield-foundation-hint`.
 2. **B. Economía**, antes que C porque C añade una ejecución de la suite: E4.15 `cli-chaining` → E4.16 `cli-terse-output` → E4.3 `context-budget-ratchet`, que fija los techos por target después de B.
@@ -1085,6 +1089,28 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
   - un hecho retirado deja de ofrecerse;
   - el escenario de dos sesiones de E4.17 lo mide.
 
+### E3.8 — `delivery-branching`
+
+- **Origen:** petición del usuario del 2026-10-25: que el harness ofrezca cómo controlar ramas y PRs, recomiende una opción y explique por qué.
+- **Problema:** el perfil de equipo solo decide si una PR grande se trocea (`delivery_strategy`). Nada dice cuántas PRs puede haber en vuelo ni cómo se integra la rama por defecto. En este repositorio, 38 de las últimas 40 PRs tocaron el CHANGELOG, los cuatro manifiestos y el roadmap, y la skill `branch-pr` pedía rebasar ramas que los hooks no dejan reescribir.
+- **Alcance:**
+  - `delivery.branching` (`serial` o `parallel`) en `idd/config.yaml`. Gana al perfil (`solo` → `serial`; `small` y `multi-team` → `parallel`), y sin ninguno se recomienda `serial`.
+  - `ospec team` y `ospec next` (al empezar y al cerrar el cambio) devuelven el valor, su origen, sus motivos y sus reglas. Sin declarar, `next` lo sugiere sin bloquear.
+  - Solo es guía: el CLI no lee el estado de git ni de las PRs.
+- **Targets:** los 7 (CLI y skills).
+- **Hecho cuando:** dos perfiles distintos reciben valores distintos con sus motivos, un valor desconocido se rechaza con `config-invalid` y este repositorio declara `serial`.
+
+### E3.9 — `delivery-release-changelog`
+
+- **Origen:** petición del usuario del 2026-10-25, como el change siguiente a E3.8.
+- **Problema:** el flujo IDD no crea ni actualiza el changelog ni propone una release. La skill `gh-release-notes` es un extra opcional (`--with-extras`), está hecha a medida de este repositorio (notas en español sobre su propio `CHANGELOG.md`) y nada del flujo la invoca.
+- **Alcance**, que se cierra con el usuario al abrirlo:
+  - una opción en `delivery` para el changelog (ruta o ninguno) y la cadencia de release, con recomendación por perfil y sus motivos;
+  - `ospec close` devuelve la entrada del changelog derivada del cambio (el tipo da la sección y el resumen la línea);
+  - la release (versión, tag y notas) la propone el agente y solo la hace con el OK del usuario.
+- **Targets:** los 7.
+- **Hecho cuando:** un cambio cerrado deja su entrada en el changelog del proyecto y la release se propone con su versión y sus notas.
+
 ## Etapa 4 — Demostrar que es mejor
 
 ### E4.1 — `bench-scenarios`
@@ -1428,6 +1454,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-25: `delivery-branching` y `delivery-order` (IDD), publicados en v2.152.0. E3.8 hecho. `idd/config.yaml` admite `delivery.branching` (`serial` o `parallel`), que gana al perfil de equipo; sin ninguno se recomienda `serial`. `ospec team` da el valor con su origen, sus motivos y sus reglas, y `ospec next` lo da al empezar y al cerrar el cambio, con la sugerencia `branching-undeclared` mientras nada lo declara. Es solo guía y SDD no lo lee. La skill `branch-pr` deja de pedir rebasar ramas ya subidas, porque los hooks deniegan el force-push. Este repositorio declara `serial`, y AGENTS.md fija su orden de entrega: una PR en vuelo y la release justo después del merge. Entra E3.9 `delivery-release-changelog` por delante del bloque A.
 - 2026-10-25: `user-model-map` (IDD), publicado en v2.151.0. E4.12 hecho. ospec deja de mantener nombres de modelo. `models.yaml` conserva la política agente → tier, los alias de Claude y el effort de Codex por tier, y pierde el catálogo y la política del TUI. El usuario asigna un modelo a cada tier por host con `--model <tier>=<modelo>` en cualquier instalador o en el TUI, que pasa al protocolo v3 con un campo de texto por tier. La asignación se guarda en `~/.config/ospec/models.yaml` (`%APPDATA%\ospec` en Windows). Un tier sin modelo hereda el de la sesión, también en Cursor, cuyo validador ya no exige `model`. Un fichero ilegible se ignora con aviso y nunca se sobrescribe, y las instalaciones anteriores no se migran: pasan a heredar y el resumen dice qué asignar. Un build normal nunca lee la asignación del usuario. REQ-install-024 pasa a exigir texto libre y REQ-install-025 (descubrimiento de modelos, nunca implementado) queda retirado.
 - 2026-10-25: `rules-engine-unicode-parity` (IDD, seguimiento de E1.39), publicado en v2.150.9. E1.41 hecho. Go compila las 19 reglas con `regexp2.ECMAScript` y las evalúa sobre una vista en la que cada carácter no ASCII que no sea espacio de JS pasa a U+FFFD: `ECMAScript` sola dejaba `\b` Unicode y el plegado de `İ` y la K Kelvin a ASCII. Los patrones no distinguen entre sí dos caracteres no ASCII, y un test lo exige, así que los dos motores deciden lo mismo con cualquier entrada. La regla de disco reconoce nombres con letras no ASCII (`/user:CORP\Zoë`, `Zoë=1`, `$vär=`) con la clase negada `[^\x00-\x7f\s]`, y los deniega en los dos motores. Un corpus compartido de 37 órdenes lo comprueban las dos suites, y una comparación aleatoria de 40 000 órdenes dio 0 diferencias.
 - 2026-10-25: `diff-signal-retract-dead-end` (IDD, #418, seguimiento de E1.38), publicado en v2.150.8. E1.40 hecho. `ospec record retract --reason` retira una señal `source: diff` que el diff contra la base ya no deriva, como una declarada, y su obligación queda `withdrawn`; mientras el diff la deriva se sigue rechazando con `signal-confirmed-by-diff`. Se eligió la retirada explícita frente a que `ospec check` la desactivara sola, que habría sacado una obligación de `pending` sin razón registrada (REQ-idd-006). El contrato del estado acepta esas retiradas con `source: diff`, y la spec gana el escenario.

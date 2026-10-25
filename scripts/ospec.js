@@ -10,8 +10,8 @@
 // takes obligation evidence: the CLI records it only from executions it
 // observes (REQ-idd-007). `doctor`
 // diagnoses the installation and the project without writing (REQ-idd-019).
-// `team` resolves the team profile of the active mode and the defaults it
-// decides (REQ-idd-023).
+// `team` resolves the team profile of the active mode, the defaults it
+// decides and the branching, with its reasons (REQ-idd-023).
 //
 // Exit codes: 0 ok, 1 refused by the IDD contract (or doctor found an error),
 // 2 usage error.
@@ -812,22 +812,29 @@ function readTeam(root, mode = null) {
   });
 }
 
-// The team block of ospec next: only an IDD profile, and a configuration that
-// does not parse leaves it out, since the next step never depends on it.
-function nextTeam(root) {
+// The team and delivery blocks of ospec next: team only for an IDD profile,
+// delivery for every IDD project. A configuration that does not parse leaves
+// both out, since the next step never depends on them.
+function nextTeamContext(root) {
   let team;
   try {
     team = readTeam(root);
   } catch (error) {
-    if (error instanceof IddConfigError || error instanceof TeamProfileError) return null;
+    if (error instanceof IddConfigError || error instanceof TeamProfileError) return {};
     throw error;
   }
-  if (team.mode !== "idd" || !team.profile) return null;
+  if (team.mode !== "idd") return {};
+  const { value, ...branching } = team.branching;
+  const delivery = { branching: value, ...branching };
+  if (!team.profile) return { delivery };
   return {
-    ...team.profile,
-    source: team.source,
-    delivery_strategy: team.defaults.delivery_strategy,
-    mentorship: team.defaults.mentorship,
+    team: {
+      ...team.profile,
+      source: team.source,
+      delivery_strategy: team.defaults.delivery_strategy,
+      mentorship: team.defaults.mentorship,
+    },
+    delivery,
   };
 }
 
@@ -844,12 +851,12 @@ async function run(command, positionals, values) {
       const next = nextForProject(states, { change: values.change });
       if (!next.change) return next;
       const knowledge = changeKnowledge(root, states.find((state) => state.change === next.change));
-      const team = nextTeam(root);
+      const context = { change: values.change, knowledge, ...nextTeamContext(root) };
       // Intent gates and change selection do not depend on configuration.
       if (next.next_step.action !== "satisfy-obligation" || !["checks-pass", "contract-spec-and-test"].includes(next.next_step.obligation)) {
-        return knowledge || team ? nextForProject(states, { change: values.change, knowledge, team }) : next;
+        return nextForProject(states, context);
       }
-      return nextForProject(states, { change: values.change, ...readProjectContext(root), knowledge, team });
+      return nextForProject(states, { ...context, ...readProjectContext(root) });
     } catch (error) {
       if (/^unknown change/.test(error.message)) throw new IddRecordError("unknown-change", error.message);
       throw error;
@@ -919,7 +926,13 @@ function describeNext(result) {
   for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
   for (const suggestion of result.suggestions || []) lines.push(`suggestion ${suggestion.id}: ${suggestion.reason}; ${suggestion.how}`);
   if (result.team) lines.push(`team: ${result.team.size}; delivery ${result.team.delivery_strategy}; mentorship ${result.team.mentorship}`);
+  if (result.delivery) lines.push(...describeBranching(result.delivery.branching, result.delivery));
   return lines.join("\n");
+}
+
+// The branching, why it fits and the rules that follow from it.
+function describeBranching(value, { source, reasons, how }) {
+  return [`branching: ${value} (${source}): ${reasons.join("; ")}`, `branching rules: ${how}`];
 }
 
 const FITNESS_LABELS = Object.freeze({ adr: "ADR", scenario: "quality scenario" });
@@ -1058,12 +1071,14 @@ function describeFoundation(result) {
 }
 
 function describeTeam(result) {
-  if (!result.profile) return `mode: ${result.mode}\nteam: no profile declared; defaults unchanged`;
+  const branching = describeBranching(result.branching.value, result.branching);
+  if (!result.profile) return [`mode: ${result.mode}`, "team: no profile declared; defaults unchanged", ...branching].join("\n");
   const { profile, defaults } = result;
   return [
     `mode: ${result.mode}`,
     `team: size ${profile.size}, experience ${profile.experience ?? "unset"} (${result.source})`,
     `delivery: ${defaults.delivery_strategy} (review budget ${defaults.review.budget_lines} lines)`,
+    ...branching,
     `review: quality review ${defaults.review.quality_review ? "on" : "off"}, traceability ${defaults.review.traceability}`,
     `strict tdd: ${defaults.strict_tdd} (sdd tdd_mode ${defaults.tdd_mode})`,
     `mentorship: ${defaults.mentorship}`,
