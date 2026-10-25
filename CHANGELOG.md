@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.151.0] - 2026-10-25
+
+### Changed
+- **ospec deja de elegir modelos por ti: cada tier usa el modelo que asignas** (E4.12). `models.yaml` fijaba un nombre de modelo por tier y host que caducaba, y había commits solo para actualizarlos. Ahora conserva la política agente → tier, los alias de Claude (`opus`, `sonnet`, `haiku`) y el effort de Codex por tier. El catálogo de modelos y la política del instalador desaparecen.
+  - Asigna un modelo a cada tier por host con `--model <tier>=<modelo>` en cualquier instalador (por ejemplo, `npm run setup:codex -- --model premium=<modelo>`) o en `npm run setup:tui`. El modelo es texto libre, tal como lo nombra el host, y `--model <tier>=` lo quita.
+  - La asignación se guarda en `~/.config/ospec/models.yaml` (`$XDG_CONFIG_HOME` si existe, `%APPDATA%\ospec\models.yaml` en Windows) y sirve para todos tus proyectos. En Claude, `--model` sustituye el alias del tier (`fable` incluido).
+  - Un tier sin modelo hereda el de la sesión: el agente no lleva `model` (en Codex, tampoco effort ni verbosity). Cursor también hereda; su validador ya no exige `model`, que en Cursor es opcional.
+  - **Al reinstalar, tus agentes de Codex, OpenCode, Cursor, VS Code y GitHub Copilot pasan a heredar el modelo de la sesión** hasta que asignes uno: los nombres que fijaba ospec no se migran. El resumen del instalador muestra la fila «Modelos» y dice qué tiers asignar.
+  - Si el fichero no se puede leer o nombra un host o un tier desconocido, el instalador avisa, lo ignora y no lo sobrescribe. `--dry-run` no guarda nada. Antigravity hereda siempre y rechaza `--model`.
+  - Un build normal (`npm run build:*`, `dist/`, la CI y el marketplace publicado) nunca lee tu asignación.
+- **El TUI del instalador pide un modelo por tier.** El protocolo con el adaptador pasa a la versión 3: tras elegir el destino, un campo de texto por tier (`premium`, `default`, `cheap`) muestra los agentes que sirve, tu modelo actual y lo que hace un tier vacío. Install lo guarda como `--model`. Desaparecen los presets, la búsqueda en el catálogo y los controles por modelo.
+
+Hecho con IDD (`idd/archive/2026-10-25-user-model-map/`).
+
+**Verificación directa**: `node scripts/check.js` (4044 tests pasando, 0 fallos y 3 omitidos), `go vet ./...` y `go test ./...`. `scripts/configure/user-model-map.test.js` comprueba por host que una generación nueva no escribe ningún modelo que no hayas elegido (Claude, solo alias) y que el validador de Cursor acepta los agentes que heredan.
+
 ## [2.150.9] - 2026-10-25
 
 ### Fixed
