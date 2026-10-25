@@ -94,6 +94,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | ADRs de arquitectura (agnósticos de tecnología) | 0: los ADRs actuales son decisiones de desarrollo | Sin cambios | 11 ADR de arquitectura sin avisos de lint, 10 con fitness ejecutable; 62 impactos declarados por los cambios, 0 enmiendas | 0 | Desde foundation y desde los cambios que tocan arquitectura | E2–E3 ✅ |
 | Skills instaladas por defecto | 82; 46 (+6 opcionales) desde v2.91.0 | 31, con SDD (`--with-sdd`) y 6 extras opcionales | 33 (entran `foundation` y `cncf-landscape`) | ~15 | 46 (+6 opcionales); las de fase SDD, en el paquete opcional | E0.3 ✅, E1.6 ✅ |
 | Escenarios comparados | 0; línea base del modo SDD medida en los 6 (`sdd-baseline-3`, v2.107.1: 0 escapados, 65,7 M tokens) | 6 contra el modo SDD (`idd-2`: 0 escapados, 3,06 M tokens, el 4,7 %); falta gentle-ai | Sin cambios; contra gentle-ai, 6 en v2.133.0 (`idd-3` frente a `gentle-ai-1`: empate en aceptación y regresión, 26/26 frente a 24/26 hechos ocultos sin significación con una repetición, y 2,69 M frente a 6,16 M tokens, el 43,7 %; [revisión OSP-025](../analysis/2026-10-12-bench-gentle-ai.md#7-revisión-del-2026-10-13-osp-025)) | 6 (`gentle-ai-1`, v4.1.1: 2 escapados, 6,16 M tokens) | 6, contra el modo SDD y contra gentle-ai, publicados por release | E4.1 ✅, E4.2 ✅ |
+| Tokens por ejecución del banco frente a gentle-ai | Sin medir | Sin medir | Sin medir. En E4.2 (v2.133.0): 0,44× con una repetición | 1× (referencia) | ≤ 1× en Claude y en agy sin escapar más defectos. En v2.151.0: 1,85× en Claude, con el doble conteo corregido ([auditoría del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md#2-corrección-del-banco-doble-conteo-de-los-tokens-de-idd-en-claude)), y 2,63× en agy | E4.15, E4.16, E4.14 |
 
 **Checkpoint de cierre de la Etapa 1 (2026-10-08): `continue`.** Todas las filas de la Etapa 1 cumplen su objetivo; método, cifras y salvedades en el [informe](../analysis/2026-10-08-checkpoint-etapa-1.md).
 
@@ -161,6 +162,17 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.39** | `disk-rule-residual-forms` (seguimiento de E1.35: `runas /user:DOMINIO\usuario`, `/user:a@b` y `/user:%USERDOMAIN%\a`, y la comilla doble de `cmd /c ""…"` se deniegan; dos casos cuadráticos que venían de E1.35 pasan a lineales, en v2.150.7) | bugfix |
 | `done` | **E1.40** | `diff-signal-retract-dead-end` (#418, seguimiento de E1.38: una señal `diff` que el diff ya no deriva se retira con su razón, como una declarada; la que el diff deriva se sigue rechazando, en v2.150.8) | bugfix |
 | `done` | **E1.41** | `rules-engine-unicode-parity` (seguimiento de E1.39: Go adopta la semántica ASCII de JS en las 19 reglas, la regla de disco deniega nombres con letras no ASCII en los dos motores y un corpus compartido fija las decisiones, en v2.150.9) | bugfix |
+| `pending` | **E1.42** | `idd-catalog-single-source` (B1 de la auditoría del 2026-10-25: un catálogo IDD único para JS y Go; hoy Go descarta el estado con `untested-product`, `boundary-tests` o `review-limit`) | bugfix |
+| `pending` | **E1.43** | `close-revalidates-state` (B2: `close` revalida las reglas del CLI y se deniega editar el estado a mano) | bugfix |
+| `pending` | **E1.44** | `ceremony-only-rises` (B3, B6, B7 y B9: tests en el diff, citas acotadas, `checks` frente a la base y `--kind` contrastado con el diff) | bugfix |
+| `pending` | **E1.45** | `cli-one-word-invocation` (B5: shim `ospec` en los 7 targets y comando literal en cada `next_step`) | bugfix |
+| `pending` | **E1.46** | `state-durability` (fsync, temporal único, dueño del lock y cuarentena de un estado ilegible) | bugfix |
+| `pending` | **E1.47** | `memory-loop-visible` (B8: `close` muestra los temas de memoria y `record intent` devuelve la consulta) | bugfix |
+| `pending` | **E1.48** | `base-counterproof` (el test del verde debe fallar contra el producto de la base) | feature |
+| `pending` | **E1.49** | `gate-turn-fence` (#399, #343: un gate resuelto sin fin de turno queda `user-unverified`) | feature |
+| `pending` | **E1.50** | `content-security-signal` (sinks CWE en las líneas añadidas derivan `security-boundary`) | feature |
+| `pending` | **E1.51** | `open-change-nudge` (Stop pide continuar una vez si queda un cambio sin `close` y SessionStart inyecta su paso) | feature |
+| `pending` | **E1.52** | `review-frozen-tree` (revisor sobre el árbol congelado, `relayed` no basta donde hay recibos y fuera el linaje sin uso) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -173,12 +185,16 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E3.4** | `team-context-defaults` (perfil de equipo `size` y `experience` en la configuración de cada modo; `ospec team` deriva entrega, review, Strict TDD y mentoría, y sustituye a la escala) | feature |
 | `done` | **E3.5** | `knowledge-memory-loop` (`ospec close` devuelve los registros de conocimiento del cambio con procedencia y tema estable; IDD, SDD y foundation los guardan en la memoria si existe, y un cambio recupera antes de sus open facts las decisiones previas y las contrasta con el disco) | feature |
 | `done` | **E3.6** | `quality-scenario-fitness` (el mapa de conocimiento de ospec pasa a v2: cuatro escenarios de calidad declaran la comprobación que `ospec check` ejecuta y `offline-operation` queda como checklist) | feature |
+| `pending` | **E3.7** | `fact-ledger` (las respuestas de `open-facts` quedan como hechos del proyecto que un cambio posterior cita en vez de volver a preguntar) | feature |
 | `done` | **E4.1** | `bench-scenarios` (checkpoint `continue` con `idd-2` en v2.111.0) | medición |
 | `done` | **E4.2** | `head-to-head-gentle-ai` (brazo `gentle-ai` en el banco y comparación `idd-3` frente a `gentle-ai-1`, checkpoint `continue`, en v2.133.0) | medición |
 | `done` | **E4.7** | `bench-claims-correction` (OSP-025: la comparación con gentle-ai se publica con el desglose por tipo de check, su significación y sus factores de confusión, en v2.134.1) | docs |
 | `done` | **E4.8** | `non-git-workspace` (IDD solo dentro de un proyecto git: fuera, el router manda trabajo directo y una petición de proyecto monta antes su repositorio; `record intent` y `next` se detienen con `not-a-git-repo` o `git-not-found` y el siguiente paso; un repositorio sin commits llega a `close`, en v2.135.0) | feature |
 | `done` | **E4.9** | `bench-arm-symmetry` (commit en los seis briefs, Engram aparte en bytes, router cargado e informes por tipo de check; `idd-4` frente a `gentle-ai-2` en agy, checkpoint `revise` por tokens, en v2.137.0) | medición |
-| `pending` | **E4.14** | `bench-validation-readiness` (OSP-035 / #398 y puntos 1 y 2 de #400: brazo Claude sin web y con transcripts escaneados, reintento del juez en agy y plantilla fuera del argv; previo a la corrida de validación de E4.6) | medición |
+| `pending` | **E4.14** | `bench-validation-readiness` (OSP-035 / #398 y puntos 1 y 2 de #400: brazo Claude sin web y con transcripts escaneados, reintento del juez en agy y plantilla fuera del argv; desde la auditoría del 2026-10-25, también el doble conteo de tokens de Claude con `--resume` y el umbral de llamadas de protocolo; previo a la corrida de validación de E4.6) | medición |
+| `pending` | **E4.15** | `cli-chaining` (el CLI encadena lo que ya sabe: `record intent --path`, `check --close`, un run verde cuenta como check y `next` solo al reanudar) | feature |
+| `pending` | **E4.16** | `cli-terse-output` (plantilla de categorías por perfil, living-doc escrito por el CLI y salidas mínimas) | feature |
+| `pending` | **E4.17** | `bench-knowledge-scenarios` (tres escenarios congelados sin correr: memoria entre dos sesiones, ADR con `Check:` y sink de seguridad) | medición |
 | `pending` | **E4.6** | `open-facts-robustness` (las mejoras de IDD que salen de E4.5: que el gate `open-facts`, los tests y las señales no dependan de lo bueno que sea el modelo; validado también en un escenario reservado) | feature |
 | `pending` | **E4.10** | `greenfield-foundation-hint` (`ospec next` sugiere `foundation`, sin bloquear, en un proyecto sin código ni documentación de producto o arquitectura) | feature |
 | `pending` | **E4.3** | `context-budget-ratchet` (absorbe el techo de router más protocolo IDD del checkpoint de la Etapa 3; OSP-009 / #338 y OSP-028 / #405) | medición |
@@ -190,7 +206,24 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E5.9** | `installer-tui-and-skill-profiles` (propuesta de #348: TUI coherente y perfiles de skills instalables; fuera de la cola actual) | feature |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** primero los defectos del harness, y el banco después (decisión del usuario del 2026-10-23), en este orden (E1.34 `commit-attribution-ci` queda hecho en v2.148.1, E1.29 `approval-provenance-limit` con la parte OSP-028 de E4.3 en v2.149.0, E1.31 `doctor-hook-probe` con OSP-032 en v2.150.0, el 2026-10-23, E1.36 `persistent-data-precision` en v2.150.1, E1.35 `disk-rule-command-precision` en v2.150.2, E1.37 `review-receipt-race` en v2.150.3, E1.38 `persistent-data-touched-writer` en v2.150.4, E1.32 `docs-dx-corrections` en v2.150.5 y E1.39 `disk-rule-residual-forms` en v2.150.7, el 2026-10-24, y E1.40 `diff-signal-retract-dead-end` (#418) en v2.150.8 y E1.41 `rules-engine-unicode-parity` en v2.150.9 y E4.12 `user-model-map` en v2.151.0, el 2026-10-25): E1.28 `supply-chain-hardening`, en cuanto E1.30 cumpla su plazo de 0 flakes → E4.10 `greenfield-foundation-hint` → E4.3 `context-budget-ratchet`. Después, E4.14 `bench-validation-readiness` y la corrida de validación de E4.6; luego el experimento de delegación de E4.4, y E4.13 `worker-delegation` solo si E4.4 da evidencia (decisión del usuario del 2026-10-22). E4.11 `workspace-root-resolution` va al final de la cola.
+**▶ SIGUIENTE:** el orden que sale de la [auditoría del harness frente a gentle-ai del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Mantiene la decisión del usuario del 2026-10-23 (primero los defectos del harness, el banco después) y la del 2026-10-25: un change por sesión, y todo funciona en los 7 targets. Hasta la v2.151.0, la cola anterior dejó hechos E1.29, E1.31, E1.32 y E1.34–E1.41 y E4.12.
+
+1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E4.10 `greenfield-foundation-hint`.
+2. **B. Economía**, antes que C porque C añade una ejecución de la suite: E4.15 `cli-chaining` → E4.16 `cli-terse-output` → E4.3 `context-budget-ratchet`, que fija los techos por target después de B.
+3. **E4.17** `bench-knowledge-scenarios`: escribe y congela escenarios sin correrlos. Es una excepción acotada a «banco después», decidida por el usuario el 2026-10-25 para que C no se ajuste sobre ellos.
+4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.50 `content-security-signal` → E1.51 `open-change-nudge` → E1.52 `review-frozen-tree` → E3.7 `fact-ledger`.
+5. **D. Banco, todo junto.** E4.14 `bench-validation-readiness` (con el doble conteo) → corrida de validación de E4.6 en Claude y agy → E4.4, recalculando antes su premisa → E4.13 `worker-delegation`, solo si E4.4 da evidencia (decisión del usuario del 2026-10-22) → E4.11 `workspace-root-resolution`, al final de la cola.
+
+E1.28 `supply-chain-hardening` depende de una fecha, no de su posición: entra en la primera sesión a partir del 2026-10-29 si E1.30 cumple el plazo de 0 flakes.
+
+**Regla multi-target de los ítems de la auditoría del 2026-10-25** (principio 6). Los 7 targets invocan el CLI de la misma forma (`node "<ruta>/scripts/ospec.js"`), así que la garantía vive en el CLI y vale en todos sin adaptación.
+
+- Un hook del host solo la refuerza, y cada ítem declara por target si bloquea, avisa o degrada.
+- Una garantía que dependa de un evento que el host no tiene degrada a una marca visible (por ejemplo, `user-unverified`), nunca a un fallo silencioso.
+- Un ítem no se cierra sin validar los siete builds y sin un test por target de lo que cambie en su adaptador.
+- El banco solo cubre Claude y agy. Los otros cinco targets se cubren con tests de contrato y con los validadores `validate-<target>.js`.
+
+La matriz de eventos por target de la v2.151.0 está en la [auditoría](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md#7-multi-target-lo-que-cada-host-permite). Los huecos que marca son: OpenCode, sin evento de fin de turno cableado; Cursor, sin hook previo a la edición de un fichero ni de subagente; y VS Code, Copilot y Antigravity, sin `PostToolUse`.
 
 **Estado de E4.6** `open-facts-robustness` (la repetición de `idd-4` en Claude con Haiku queda medida en v2.144.0 y #342 en v2.146.0; la persona que daba indicaciones técnicas fuera de sus hechos, #389, queda corregida en v2.146.1; desde v2.146.2 el record guarda qué dijo cada cita de `open-facts` (Fase B de #390); la repetición en agy, #388, queda medida en v2.147.0; con sus datos, desde v2.148.0 una feature abre `open-facts` con al menos una pregunta (#390) y el CLI explica sus categorías y dónde vive el contrato (#400); falta la corrida de validación). E4.8 `non-git-workspace` queda hecho en v2.135.0: IDD solo trabaja dentro de un proyecto, un work tree git cuyo toplevel no es `$HOME` ni `/`. Fuera de uno, un arreglo del sistema o un script suelto se hacen directos, y una petición de proyecto monta antes su repositorio con `git init -b main`, aquí o en una carpeta nueva. `record intent` y `next` se detienen con el siguiente paso, y un repositorio recién creado, sin commits, lleva un cambio hasta `close`. E4.7 `bench-claims-correction` queda hecho en v2.134.1: la comparación de arneses y el informe de E4.2 publican el desglose por tipo de check. Aceptación y regresión empatan, y la diferencia de escapados está en dos checks de hechos ocultos de una sola repetición (p≈0,49), con cuatro factores de confusión; de E4.2 solo se sostiene el ahorro de tokens. E4.5 `greenfield-head-to-head` queda hecho en v2.134.0 con su [informe](../analysis/2026-10-13-bench-greenfield.md). En `todo-spa`, un proyecto desde cero en el Antigravity CLI con Gemini 3.8 Flash y tres repeticiones, ningún brazo pregunta: IDD declara `--no-open-facts` con una base que solo cita el README, y los dos escapan los mismos seis hechos. IDD escapa 6,67 defectos de media frente a 6,33 de gentle-ai (un check en una repetición) y gasta 0,845 veces sus tokens, así que el checkpoint `bench-margins-7` da `revise`. La calidad da `continue`: 33,3 % de mutation score frente a 0 %, porque gentle-ai no entrega tests. E4.2 `head-to-head-gentle-ai` queda hecho en v2.133.0 con su [informe](../analysis/2026-10-12-bench-gentle-ai.md). En los seis escenarios, con el mismo host y modelo y una repetición, IDD escapa 0 defectos frente a 2 de gentle-ai 4.1.1 y gasta el 43,7 % de sus tokens ($1,71 frente a $3,43). El checkpoint `bench-margins-6` da `continue`, sin regresiones. El mutation score medio favorece a gentle-ai (85,7 % frente a 78,5 %), pero lo deciden dos entregas con 3 a 5 mutantes. El [checkpoint de cierre de la Etapa 3](../analysis/2026-10-11-checkpoint-etapa-3.md) da `continue` y cubre también la Etapa 2: todas las filas cumplen, con dos salvedades (router más protocolo IDD a 0,7–1,0 KB de los 16 KB, que pasa a E4.3, y ninguna enmienda de ADR en un cambio real), y E3.6 `quality-scenario-fitness` queda hecho en v2.131.3: un cambio que declara `target-parity` ve su comprobación como run `fitness` en `ospec check`, y `offline-operation` aparece como checklist. E3.5 `knowledge-memory-loop` queda hecho y cierra la Etapa 3: el propio cambio cita dos decisiones previas encontradas en memoria (la frontera de ADR 0006 y la separación de modos de ADR 0011) y las contrasta con el disco, y `ospec close` devuelve los registros que la memoria guarda sin que la CLI la lea. E3.4 `team-context-defaults` queda hecho: dos proyectos con perfiles de equipo distintos obtienen de `ospec team` y `ospec next` defaults distintos de entrega, review, Strict TDD y mentoría sin preguntar, y el init guard de SDD ya no pregunta la escala. E3.3 `fitness-functions-in-check` queda hecho: una violación de la frontera de memoria declarada en ADR 0006 impide cerrar el cambio, y el motivo cita el ADR. E3.2 `knowledge-by-reference` queda hecho: `ospec next` entrega las referencias de los componentes tocados con su vigencia. E3.1 `change-decisions-and-adr-impact` queda hecho: un cambio en una librería interna no activa la señal de ADR ni recibe sugerencia, y uno que introduce mensajería asíncrona entre módulos declara `amends` sobre el ADR de integración y se detiene en `adr-amend-or-contradict`; el archivo SDD ya no promueve decisiones a `docs/adr/`. E2.6 `dogfood-ospec-foundation` cierra la Etapa 2: `docs/architecture/decisions/` contiene 11 ADR de arquitectura de ospec, cada uno pasa el lint de E2.4 sin avisos, y los 277 registros de `docs/adr/` quedan indexados como decisiones de change archivadas. E2.5 `brownfield-architecture-recovery` queda hecho: en un repositorio de ejemplo, el mapa de componentes y un ADR `inferred` validan contra el código con evidencia `ruta:línea`, y una evidencia que no resuelve rechaza el registro. E2.4 `decision-records-model` queda hecho: el contrato `ospec-decision-record/v1` distingue con fixtures un ADR válido, un ADR tecnológico (aviso) y una decisión de desarrollo clasificada como ADR. E2.3 `foundation-discovery-rounds` queda hecho: la skill `foundation` cumple los seis escenarios de aceptación y `cncf-landscape` viaja en la instalación por defecto. E2.2 `decision-gap-engine` queda hecho: `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.1 `knowledge-map-contract` queda hecho: un proyecto guarda el mapa en `docs/architecture/knowledge-map.yaml`. La auditoría del 2026-10-09 (v2.118.0) corrigió defectos de coordinación de IDD (gates antes del trabajo, apertura del gate ADR, Strict TDD en refactors), añadió el criterio de tests por riesgo y adelantó parte de E2.3. E1.20 (OSP-020) quedó cerrado con IDD y se publicó en v2.117.14. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
 
@@ -273,6 +306,14 @@ E1.6 ─ E4.2 ─ E4.5 ─ E4.7 ─ E4.9 ─ E4.6 ─ E4.10 ─ E4.3
 E1.2 ─ E4.8 (independiente del banco; va después de E4.7 por decisión del usuario) ─ E4.11
 E4.1 ─ E4.4 (experimento independiente de E4.2; sin router) ─┐
 E4.12 (independiente; arregla también los agentes actuales) ──┴─ E4.13
+
+Auditoría del 2026-10-25 (un change por sesión, en este orden):
+A: E1.42 ─ E1.43 ─ E1.44 ─ E1.45 ─ E1.46 ─ E1.47 ─ E4.10
+B: E4.15 ─ E4.16 ─ E4.3
+   E4.17 (escenarios congelados, sin correr)
+C: E1.48 ─ E1.49 ─ E1.50 ─ E1.51 ─ E1.52 ─ E3.7
+D: E4.14 ─ E4.6 (corrida de validación) ─ E4.4 ─ E4.13 ─ E4.11
+E1.28 entra en la primera sesión a partir del 2026-10-29, si E1.30 cumple su plazo.
 ```
 
 E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado con escrituras atómicas propias hasta que `record` exista.
@@ -715,6 +756,188 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Alcance:** compilar en Go con `regexp2.ECMAScript` (o una opción equivalente) para que las clases sean ASCII como en JS, o pasar JS a Unicode en las reglas donde importe, y probar la decisión con entradas no ASCII en los dos motores.
 - **Hecho cuando:** un mismo corpus con letras no ASCII da la misma decisión en JS y en Go para las 19 reglas, y la fila de la regla de disco deja de nombrar ese límite.
 
+### Ítems de la auditoría del 2026-10-25 frente a gentle-ai
+
+Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Los de E1.42 a E1.47 corrigen defectos verificados (B1–B9) y van primero. Los de E1.48 a E1.52 buscan ventaja en defectos donde ni ospec ni gentle-ai llegan hoy. Todos siguen la regla multi-target de [Estado y orden](#orden-recomendado-de-trabajo).
+
+### E1.42 — `idd-catalog-single-source` (B1)
+
+- **Problema:** el catálogo IDD que mantiene Go a mano (`internal/iddsession/iddsession.go`) no conoce la señal `untested-product`, la obligación `boundary-tests` ni el gate `review-limit`, que JS añadió en `56593a73`. `validPlan` descarta entonces el estado entero. Stop y PreCompact escriben «sin cambio activo» en cuanto un cambio deriva cualquiera de los tres, mientras que el fallback JS da el paso correcto.
+- **Garantía que protege:** reanudar desde disco (escenario `deterministic-resume`) con la misma decisión en los dos motores.
+- **Alcance:**
+  - Un catálogo JSON único que emite `idd-contract.js` y que Go embebe, como ya pasa con `internal/rules/rules.json`. Recoge señales, obligaciones, tipos de evidencia, gates, orden de trabajo y `how`.
+  - Un test falla si el JSON no está al día.
+  - Go deja de mantener sus propias listas.
+- **Targets:** los 7. El binario Go lo usan los seis targets con hooks de comando, y OpenCode llega a él por el launcher.
+- **Hecho cuando:**
+  - un cambio con `untested-product` y `review-limit` abierto da el mismo paso en Go y en JS, y el golden de `iddsession` lo fija;
+  - añadir una señal en JS sin regenerar el JSON rompe un test.
+
+### E1.43 — `close-revalidates-state` (B2)
+
+- **Problema:** `canClose` (`scripts/lib/idd-contract.js`) solo mira `pending` y `open`. Un `state.yaml` editado a mano con `checks-pass: withdrawn` se archiva, aunque el CLI rechaza ese mismo withdraw (`canWithdraw`). Ningún hook impide escribir el estado.
+- **Garantía que protege:** el cierre por evidencia (principio 3) y que el estado sea del CLI.
+- **Alcance:**
+  - `close` revalida con las mismas reglas que los comandos: ningún `withdrawn` que una señal activa siga derivando, y cada `satisfied` respaldado por su evidencia. Esa evidencia es un run con exit 0 sobre el árbol del último check, un par rojo→verde o una review.
+  - PreToolUse deniega Write y Edit sobre `idd/*/state.yaml`, `idd/archive/**` y los recibos.
+  - Sin criptografía: la clave la leería el mismo usuario que corre el modelo.
+- **Targets:**
+  - La revalidación vale en los 7.
+  - El deny va en Claude, Codex, VS Code, Copilot, OpenCode y Antigravity.
+  - Cursor no tiene hook antes de editar un fichero y se queda solo con la revalidación, declarado en `validate-cursor.js`.
+- **Hecho cuando:**
+  - el estado editado de la auditoría no cierra y el rechazo nombra la obligación;
+  - en los seis targets con hook previo, un Write sobre `state.yaml` se deniega;
+  - un cambio legítimo cierra igual que hoy.
+
+### E1.44 — `ceremony-only-rises` (B3, B6, B7 y B9)
+
+- **Problema:** el modelo puede bajar la ceremonia sin que nada lo contraste.
+  - `boundary-tests` se cumple con los tests que ya existían (`scripts/lib/idd-check.js`).
+  - Una cita de `open-facts` vale con cualquier línea con letras (`scripts/lib/idd-facts.js`).
+  - Cambiar `checks:` por `true` satisface `checks-pass`.
+  - `--kind refactor` o `docs` no se contrasta con el diff.
+- **Garantía que protege:** que las obligaciones salgan del impacto real (principio 2). El modelo solo puede subir la ceremonia, nunca bajarla.
+- **Alcance:**
+  - `boundary-tests` exige un test tocado en el diff.
+  - Una cita debe caer en un fichero del plan, en documentación o en la petición, nunca en un manifiesto.
+  - Si `checks` difiere del commit base, se abre un gate `checks-changed` que se resuelve con la respuesta del usuario.
+  - `check` rechaza un `kind docs` cuyo diff toca producto y un `refactor` que borra líneas de un contrato, con el `how` para volver a registrar la intención.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando:**
+  - los cuatro casos reproducidos en la auditoría se rechazan con su motivo;
+  - los tests de los cambios legítimos siguen en verde.
+
+### E1.45 — `cli-one-word-invocation` (B5)
+
+- **Problema:** los siete targets dicen que `ospec` es `node "<ruta>/scripts/ospec.js"`.
+  - El modelo lo guarda en una variable, y en zsh `$O` no parte la palabra: exit 127 en las 18 ejecuciones de `idd-7`.
+  - `next_step` no lleva comando para `resolve-gate`, `close` ni `choose-change`.
+  - Solo unos 5 de 138 rechazos dicen cómo salir (`how`), y un error de uso vuelca el USAGE entero.
+  - Resultado: el agente lee el código del CLI, con una mediana de 17 lecturas por ejecución en agy.
+- **Garantía que protege:** que el protocolo se pueda seguir sin leer el código del CLI (principio 4). Mueve la fila de tokens por ejecución.
+- **Alcance:**
+  - Un shim `bin/ospec` (POSIX) y `bin/ospec.cmd` (Windows) junto al runtime de cada target. La skill nombra su ruta absoluta como una sola palabra.
+  - `next_step.command` literal en todas las acciones, con el comando real del último rojo en lugar de `"<test>"`.
+  - Un error de uso imprime solo la línea del subcomando.
+  - Un test recorre los rechazos y exige `how` o una marca `by-design`.
+- **Targets:** los 7. El shim se prueba en bash, zsh, fish, PowerShell y cmd, también con una ruta con espacios.
+- **Hecho cuando:**
+  - en los siete builds la skill nombra una ruta de una sola palabra que existe y se ejecuta en los cinco shells;
+  - cada `next_step` tiene `command`;
+  - el test de rechazos pasa sin baseline.
+
+### E1.46 — `state-durability`
+
+- **Problema:**
+  - `atomic-write.js` escribe en un temporal de nombre fijo y no hace fsync; Go usa CreateTemp, también sin fsync.
+  - El lock se reclama por mtime a los 5 s, sin token de dueño, y al soltarlo se borra aunque ya sea de otro.
+  - Un estado ilegible deja el cambio bloqueado (`state-unreadable`) sin ninguna salida.
+- **Garantía que protege:** estado en disco y reanudación (escenario `deterministic-resume`).
+- **Alcance:**
+  - Temporal único y fsync del fichero y del directorio.
+  - Token de dueño (pid y nonce) que se comprueba antes de soltar el lock, y heartbeat del mtime mientras dura la operación. En JS y en Go.
+  - `ospec doctor` aparta un estado ilegible como `*.corrupt`, con lista blanca.
+- **Targets:** los 7.
+- **Hecho cuando:**
+  - un test con dos procesos concurrentes no pierde ninguna escritura;
+  - un lock reclamado no lo borra su dueño anterior;
+  - un estado corrupto se aparta con `doctor` y el cambio se puede reanudar.
+
+### E1.47 — `memory-loop-visible` (B8)
+
+- **Problema:**
+  - `ospec close` en texto solo dice «N knowledge record(s) … (see --json)» (`scripts/ospec.js`), y los agentes no usan `--json`: en `idd-7`, 0 de 13 `mem_save` llevan un tema `knowledge/*`.
+  - La búsqueda previa a los hechos abiertos aparece en 3 de 18 ejecuciones.
+  - El protocolo genérico de Engram («guarda tras cualquier decisión») compite con el de ospec.
+- **Garantía que protege:** memoria con procedencia y sin autoridad (ADR 0006).
+- **Alcance:**
+  - La salida en texto de `close` lista `topic | title` de cada registro.
+  - `record intent` devuelve `memory_query` como pista que no bloquea: las palabras de la petición más los componentes y ADR que el CLI ya calcula.
+  - `references/memory-loop.md` dice que, durante un cambio IDD, los registros de `close` sustituyen al guardado genérico.
+  - El CLI sigue sin leer la memoria.
+- **Targets:** los 7. Engram se configura en los siete; sin herramientas de memoria, nada cambia.
+- **Hecho cuando:**
+  - un `close` en texto muestra los temas, y un test lo fija;
+  - `record intent` devuelve la consulta;
+  - sin memoria, el flujo no cambia.
+
+### E1.48 — `base-counterproof`
+
+- **Problema:** el rojo acepta cualquier fallo, incluido `test -f marker`, y nada demuestra que el test detecte el cambio. gentle-ai pide un check diferencial contra la base, pero solo en prosa, y con Gemini lo hizo 0 de 18 veces.
+- **Garantía que protege:** un test que falla cuando el comportamiento está mal («Tests by risk» de la skill `idd`).
+- **Alcance:**
+  - Al registrar el verde de `repro-test` o `tdd-red-green`, y al satisfacer `boundary-tests`, el CLI monta un worktree temporal con el producto de la base y los tests del candidato.
+  - Ejecuta el mismo comando y exige que falle. Un fallo de import cuenta como rojo válido.
+  - Corre con timeout y fuera del lock. Sin mutation testing.
+- **Targets:** los 7 (CLI). Se prueba en Windows con rutas largas y en un repositorio sin commits, donde la contraprueba se omite con un aviso.
+- **Hecho cuando:**
+  - el `repro-test` falso y la feature sin test de la auditoría no cierran;
+  - un test real cierra con un run extra registrado como `counterproof`;
+  - E4.14 mide el coste extra.
+
+### E1.49 — `gate-turn-fence` (#399, #343)
+
+- **Problema:** con Gemini, el agente resolvió `open-facts` con `--source user` en el mismo turno en que se abrió, con respuestas que nadie había dado, y eso produjo la regresión `bugfix/page-below-one`. El CLI no puede saber quién contesta (E1.29).
+- **Garantía que protege:** aprobaciones solo desde respuestas explícitas (principio 8).
+- **Alcance:**
+  - El gate guarda en qué turno se abrió, y el hook de fin de turno de cada host incrementa un contador local en `.ospec/`.
+  - `--resolve --source user` sin un fin de turno posterior a la apertura se registra como `user-unverified`, y `close` lo muestra. No bloquea.
+  - Si el banco muestra respuestas inventadas después de un fin de turno, el siguiente paso es exigir un fragmento literal del prompt del usuario.
+- **Targets:**
+  - Fin de turno en Claude, Codex y VS Code (`Stop`), Copilot (`agentStop`), Cursor (`stop`) y Antigravity (`Stop`).
+  - OpenCode no tiene hoy ese evento cableado. Se verifica `session.idle` en su plugin; si no sirve, en OpenCode toda respuesta queda `user-unverified`, declarado en `validate-opencode.js`.
+- **Hecho cuando:**
+  - en cada target, un gate resuelto en el mismo turno queda `user-unverified` y uno resuelto después de un fin de turno queda `user`;
+  - E4.6 lo mide en agy.
+
+### E1.50 — `content-security-signal`
+
+- **Problema:** `security-boundary` solo sale de las rutas (`scripts/lib/idd-impact.js`). Un `eval`, una consulta SQL concatenada o un `exec` con entrada externa fuera de `auth/` no deriva ninguna review.
+- **Garantía que protege:** review independiente de confianza en las fronteras de seguridad.
+- **Alcance:**
+  - Unas 20 expresiones de sinks (CWE) sobre las líneas añadidas fuera de tests, como fuente `diff` de `security-boundary`. Se pueden retirar con una razón, como las demás señales.
+  - `--security` en `signals` para declararla a mano.
+  - Sin clasificador con LLM.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando:**
+  - un corpus de sinks por stack deriva la señal, y ni los comentarios ni los tests la derivan;
+  - queda publicada su tasa de falsos positivos sobre los diffs de `idd/archive/` de este repositorio.
+
+### E1.51 — `open-change-nudge`
+
+- **Problema:**
+  - El Stop de ospec devuelve siempre `continue` (`internal/hooks/stop.go`).
+  - SessionStart no aporta nada de IDD, porque exige `openspec/config.yaml` (`internal/store/store.go`).
+  - Un cambio puede quedarse sin `close`, y la sesión siguiente no lo ve.
+- **Garantía que protege:** que un cambio solo esté hecho tras `close`, y la reanudación desde disco.
+- **Alcance:**
+  - Stop pide continuar una sola vez por cambio y huella del árbol, solo si quedan obligaciones pendientes, el árbol cambió en la sesión y no hay ningún gate abierto (un gate abierto es una parada legítima). Respeta `stop_hook_active`.
+  - SessionStart inyecta el paso de cada cambio IDD abierto.
+- **Targets:**
+  - Pedir continuar: bloqueo en Claude, Codex y VS Code; `followup_message` en Cursor. En Copilot, Antigravity y OpenCode se verifica si su evento de fin de turno puede pedirlo; si no, queda como aviso.
+  - Inyección al inicio: en los seis targets con evento de sesión; en Cursor, en el primer `beforeSubmitPrompt`.
+- **Hecho cuando:**
+  - la matriz por target (bloquea, sigue o avisa) queda fijada en los validadores y probada;
+  - nunca hay dos peticiones de continuar para el mismo árbol.
+
+### E1.52 — `review-frozen-tree`
+
+- **Problema:**
+  - El revisor de confianza lee el árbol vivo aunque la petición esté congelada.
+  - Una review sin recibo se acepta como `relayed` con un aviso (`scripts/lib/idd-review.js`): en la auditoría, un JSON inventado con el `request_digest` copiado quedó `approved`.
+  - Queda código de linaje sin uso en `scripts/lib/review-lineage.js`: `startK7ReviewLineage` y `createSuccessor` solo los usan fixtures, y `migrateReviewLineage` y `beginSliceCorrection` no los usa nada.
+- **Garantía que protege:** review independiente con hallazgos congelados.
+- **Alcance:**
+  - `review start` materializa el árbol candidato en un directorio temporal, y la petición nombra esa ruta.
+  - En los hosts con recibo de subagente, `relayed` no satisface `trust-review` salvo con respuesta del usuario.
+  - Se borra el código de linaje sin uso.
+- **Targets:** recibos en Claude, Codex, VS Code y Copilot. Cursor, OpenCode y Antigravity siguen con `relayed` y aviso, declarado en sus validadores.
+- **Hecho cuando:**
+  - el JSON inventado de la auditoría no satisface `trust-review` en los cuatro targets con recibo;
+  - el revisor cita líneas del árbol congelado;
+  - los tests de linaje siguen en verde sin el código borrado.
+
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
 **Resultado de la etapa:** al crear un proyecto, ospec hace las preguntas que haría un arquitecto con experiencia en proyectos serios. Captura la información funcional, el contexto del equipo, los atributos de calidad y las restricciones, y produce **ADRs de arquitectura agnósticos de tecnología**, separados de la selección tecnológica. Las preguntas no salen de un cuestionario fijo: salen de los huecos de conocimiento que más condicionan las decisiones pendientes. La foundation sirve igual a IDD y al modo SDD.
@@ -847,6 +1070,21 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 - **Cuándo:** en paralelo con la Etapa 4; no bloquea E4.2.
 - **Hecho:** `docs/architecture/knowledge-map.yaml` está en `ospec-knowledge-map/v2`. `deterministic-resume` ejecuta `idd-next.test.js` e `idd-store.test.js`, `target-parity` el test de los fixtures golden (`scripts/configure/cli.test.js`), `guard-fail-closed` los tests de ADR 0008 y `contract-compatibility` los de ADR 0009; `offline-operation` queda como checklist porque ningún test prueba la parte sin red, y la frontera de memoria ya la ejecuta ADR 0006. `architecture-decisions.test.js` fija que el mapa es v2, que cada escenario declara `fitness` y que cada check nombra ficheros que existen. Como `ospec check` lee el fitness desde la base del cambio, el criterio se demostró en un clon con el mapa v2 como base: un cambio que declara `target-parity` y `offline-operation` obtiene el run `fitness` `scenario:target-parity` con exit 0, y `offline-operation` aparece en `fitness.manual` de `next` y `check`. Hecho con IDD (`idd/archive/2026-10-12-quality-scenario-fitness/`).
 
+### E3.7 — `fact-ledger`
+
+- **Origen:** [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). gentle-ai no pregunta nunca. IDD pregunta, pero olvida lo que le contestan.
+- **Problema:** la respuesta del usuario se queda en el `state.yaml` archivado de un cambio. El siguiente cambio que toca lo mismo vuelve a preguntar o decide por su cuenta, porque la memoria es opcional y no tiene autoridad.
+- **Fila que mueve:** «Preguntas antes de empezar un cambio» y «Conocimiento capturado». El disco sigue mandando.
+- **Alcance:**
+  - `ospec close` añade las respuestas de `open-facts` a `idd/facts.yaml`, ligadas a los componentes del mapa y con su cambio de origen.
+  - Un cambio posterior puede citar `--cite <categoría>=fact:<id>` en lugar de preguntar, y `next` le ofrece los hechos de los componentes que toca.
+  - Un hecho se retira con una razón.
+- **Targets:** los 7 (CLI y disco).
+- **Hecho cuando:**
+  - en dos cambios seguidos sobre el mismo componente, el segundo cierra citando el hecho sin preguntar;
+  - un hecho retirado deja de ofrecerse;
+  - el escenario de dos sesiones de E4.17 lo mide.
+
 ## Etapa 4 — Demostrar que es mejor
 
 ### E4.1 — `bench-scenarios`
@@ -963,7 +1201,12 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
   2. `--disallowedTools WebSearch,WebFetch` en `turnArgs`, común a los dos brazos y antes de `--mcp-config`, con test y prueba de humo.
   3. Si el escaneo encuentra algo, los records afectados pasan a `not-comparable` y el brazo Claude se aísla como agy (config por record sin `projects/` y `workspace-escape` sobre el stream-json) antes de repetir. Si sale limpio, ese aislamiento no se hace por si acaso.
   4. Reintentar una o dos veces el juez de agy antes de fallar, y montar la vista de la plantilla bajo un nombre que no sea una raíz prohibida o no exponerla en el argv.
-- **Hecho cuando:** el escaneo sale con exit 0 sobre los diez records y su salida está publicada; ninguna corrida nueva de Claude puede usar la web; un fallo transitorio del juez de agy se reintenta; nombrar la ruta de la plantilla sin leerla no anula una ejecución.
+- **Adición por la auditoría del 2026-10-25 ([§2](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md#2-corrección-del-banco-doble-conteo-de-los-tokens-de-idd-en-claude)):**
+  5. **Doble conteo de tokens en Claude.** `transcript.js` suma `result.modelUsage`, que con `--resume` arrastra lo de la sesión anterior.
+     - Restar lo acumulado, como ya hace `hosts/agy.js`, con un test que reanude una sesión.
+     - Recalcular desde las transcripciones los records de Claude publicados y anotar sus informes.
+     - Publicar el ratio también en USD y en llamadas por ejecución, y añadir a `margins.json` un umbral de llamadas de protocolo por escenario con objetivo absoluto.
+- **Hecho cuando:** el escaneo sale con exit 0 sobre los diez records y su salida está publicada; ninguna corrida nueva de Claude puede usar la web; un fallo transitorio del juez de agy se reintenta; nombrar la ruta de la plantilla sin leerla no anula una ejecución; los records de Claude recalculados coinciden con la suma de `result.usage` por sesión.
 
 ### E4.6 — `open-facts-robustness`
 
@@ -1043,6 +1286,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
   - **Medición:** escapados, regresiones y calidad del par, y el coste en dólares además de los tokens, porque con modelos distintos los tokens no son comparables. También las paradas del worker que el hilo principal tuvo que contestar.
   - **Márgenes, declarados antes de correr:** el worker no escapa más ni baja la calidad, y cuesta menos en dólares. El margen de coste necesita un campo nuevo en `margins.json`.
 - **`models.yaml` ya no es la configuración de modelos por target (E4.12, v2.151.0):** cada usuario asigna sus modelos a los tiers.
+- **Premisa por recalcular ([auditoría del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md#2-corrección-del-banco-doble-conteo-de-los-tokens-de-idd-en-claude)):** los 1,4 M de 1,66 M del turno de construcción y el 2,34× salen del conteo acumulado de Claude. Se recalculan con E4.14 antes de declarar los márgenes del experimento.
 
 ### E4.12 — `user-model-map`
 
@@ -1071,6 +1315,56 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 - **Hechos abiertos:** qué entra en el traspaso al worker; cuándo se ofrece (si nunca en `docs` o en el suelo `direct`); si la elección se recuerda en `idd/config.yaml`; qué hace un host sin reanudación; cómo se presenta la justificación.
 - **Depende de** E4.4, que debe mostrar que delegar mantiene los escapados y la calidad y baja el coste, y de E4.12.
 - **Hecho cuando:** en Claude y en un segundo host, un cambio con worker cierra con las mismas evidencias que en el hilo principal; el usuario ve las opciones y la recomendación antes de construir; y sin tiers asignados el flujo no cambia.
+
+### E4.15 — `cli-chaining`
+
+- **Origen:** [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md#6-de-dónde-salen-los-tokens-de-más-claude-cifras-corregidas).
+- **Problema:** IDD hace 25,3 llamadas al modelo por ejecución, frente a 11,9 de gentle-ai, y el 57 % del exceso de tokens son comandos `ospec`. Muchos repiten lo que el CLI ya sabe:
+  - `signals` justo después de `intent`;
+  - `next` en cada vuelta;
+  - `check` antes de `close`;
+  - `check` después de un `run` verde con el mismo comando sobre el mismo árbol.
+- **Fila que mueve:** tokens por ejecución del banco frente a gentle-ai.
+- **Alcance:**
+  - `record intent --path` declara el plan en la misma orden.
+  - Cada comando que escribe imprime su `next`, así que `next` solo hace falta al reanudar, y la skill deja de pedirlo en cada vuelta.
+  - `check --close` cierra en la misma llamada cuando el veredicto es `ready`.
+  - Un `run` verde con el comando de un check, sobre el árbol actual, cuenta como ese check.
+  - Sin verbos nuevos y sin cerrar nunca sin checks.
+- **Targets:** los 7 (el CLI y la skill son comunes).
+- **Hecho cuando:**
+  - un bugfix cierra con 4 llamadas al CLI (intent, run en rojo, run en verde y close) y una feature con una pregunta, con 6;
+  - los tests de cada atajo fijan que la evidencia es la misma que por el camino largo.
+
+### E4.16 — `cli-terse-output`
+
+- **Problema:**
+  - La mitad de los `record intent` del banco se rechazan la primera vez (15 `facts-undeclared` en 38).
+  - El agente lee `state.yaml` y `change.md` para editar el living-doc.
+  - Las salidas de `ospec` se vuelven a leer en cada llamada siguiente.
+- **Fila que mueve:** tokens por ejecución del banco frente a gentle-ai.
+- **Alcance:**
+  - El `next` de un cambio nuevo imprime la plantilla de categorías según el perfil del proyecto: una CLI o una librería no reciben `url-state` ni `accessibility`. Es el hecho abierto de E4.6 sobre si las categorías dependen del stack.
+  - El CLI escribe el Plan del living-doc desde `signals --path` y las Decisiones desde `--decision "<texto>"`.
+  - Cada comando que escribe imprime una línea de estado y otra de `next`. `--json` omite los campos vacíos.
+- **Targets:** los 7.
+- **Hecho cuando:**
+  - los rechazos de `record intent` reproducidos de `idd-7` reciben la plantilla antes de fallar;
+  - un cambio con decisión cierra sin editar `change.md` a mano;
+  - los techos de bytes de las salidas quedan fijados en tests.
+
+### E4.17 — `bench-knowledge-scenarios`
+
+- **Problema:** ningún escenario mide el conocimiento del proyecto, la memoria entre sesiones (el norte de ospec) ni un sink de seguridad. Sin escenarios nuevos y congelados, los ítems E1.48–E1.52 y E3.7 se ajustarían sobre escenarios que ya conocen.
+- **Garantía que protege:** la validez del banco sin sobreajuste (OSP-025).
+- **Alcance:** escribir y congelar con su digest, sin ejecutarlos, tres escenarios:
+  - **Dos sesiones.** La primera cierra una decisión; la segunda recibe una petición que la roza. Brazos con memoria sembrada, vacía y contradictoria.
+  - **Brownfield con `docs/architecture/`.** Un ADR con `Check:` ejecutable y una petición que invita a violarlo.
+  - **Seguridad.** Un cambio con un sink fuera de `auth/`.
+
+  Es una excepción acotada a «banco después», por decisión del usuario del 2026-10-25: se escriben antes del bloque C y se corren en el bloque D.
+- **Targets:** Claude y agy, los hosts del banco.
+- **Hecho cuando:** los tres escenarios están congelados, con su digest registrado en un cambio que no toca IDD, y ninguna corrida los ha ejecutado.
 
 ## Etapa 5 — Plataforma por demanda
 

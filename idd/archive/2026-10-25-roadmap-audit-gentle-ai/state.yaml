@@ -1,0 +1,98 @@
+{
+  "schema": "idd-state/v1",
+  "change": "roadmap-audit-gentle-ai",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Publicar la auditoría del harness frente a gentle-ai del 2026-10-25 e incorporar al roadmap sus ítems y el nuevo orden, con la matriz de targets",
+    "acceptance": "docs/analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md existe; harness-evolution.md tiene una fila pending y una sección por ítem nuevo, cada uno con su comportamiento en los 7 targets, y un ▶ SIGUIENTE con el orden nuevo; node scripts/check.js pasa"
+  },
+  "facts": {
+    "open": [
+      "Los escenarios nuevos del banco (memoria entre dos sesiones, ADR con Check: ejecutable y sink de seguridad) ¿se escriben y congelan sin correrlos antes del bloque C, como excepción a 'banco después' para que la medición no quede sobreajustada (OSP-025), o se mantiene 'banco después' estricto y se escriben tras ajustar IDD, con evidencia más débil?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md",
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Congelar antes de C (Recomendado)",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-25T14:27:33.084Z",
+      "detail": {
+        "tree": "sha256:a027193aed4722c18bf66162b93d873bf1cc5d5d67154af413111b01b3798440",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "198c40cf505ddaa633d6e140115f9a78fc147241",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:e931bfedcddec62350cb150d799bddf2471c674525384f8c4da9b83782ae8e6e",
+      "tree": "sha256:a027193aed4722c18bf66162b93d873bf1cc5d5d67154af413111b01b3798440",
+      "recorded_at": "2026-10-25T13:22:31.838Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:b0edd4ea5a7f2216eb6e77da3a52548062196c88c280749bc7026933b7dbddca",
+      "tree": "sha256:a027193aed4722c18bf66162b93d873bf1cc5d5d67154af413111b01b3798440",
+      "recorded_at": "2026-10-25T13:50:10.812Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dff85e200a6a43cabbee7277f90e5a81b671f408e9719aff7060223194cee49c",
+      "tree": "sha256:a027193aed4722c18bf66162b93d873bf1cc5d5d67154af413111b01b3798440",
+      "recorded_at": "2026-10-25T14:27:33.084Z"
+    }
+  ],
+  "closed_at": "2026-10-25T14:29:51.077Z"
+}
