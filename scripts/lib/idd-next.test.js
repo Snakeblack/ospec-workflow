@@ -370,3 +370,26 @@ test("[REQ-idd-023] next carries the team profile it is given without changing t
   assert.deepStrictEqual(result.team, team);
   assert.deepStrictEqual(result.next_step, plain.next_step);
 });
+
+test("[REQ-idd-023] next gives the branching where it decides something and suggests it while undeclared", () => {
+  const delivery = { branching: "serial", source: "recommended", reasons: ["why", "and why"], how: "the rules" };
+  const intent = { change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS };
+  const unplanned = recordSignal(recordIntent(null, intent).state, { id: "bug-fix", reason: "bug", source: "declaration" }).state;
+  const start = nextForChange(unplanned, { delivery });
+  assert.strictEqual(start.next_step.action, "declare-plan");
+  assert.deepStrictEqual(start.delivery, delivery);
+  assert.deepStrictEqual(start.suggestions.map((suggestion) => suggestion.id), ["branching-undeclared"]);
+  assert.match(start.suggestions[0].how, /^propose delivery.branching: serial to the user with its reasons, and write it to idd\/config.yaml only after approval$/);
+  // While the change is built the branching decides nothing.
+  const building = nextForChange(recordPlan(unplanned, { paths: ["src/a.js"] }).state, { delivery });
+  assert.strictEqual(building.next_step.action, "satisfy-obligation");
+  assert.ok(!("delivery" in building) && !("suggestions" in building));
+  // At close it is back; declared, or decided by the profile, it suggests nothing.
+  let done = planned({ change: "tidy", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  done = recordEvidence(done, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "t" }).state;
+  const closing = nextForChange(done, { delivery: { ...delivery, source: "idd/config.yaml" } });
+  assert.deepStrictEqual(closing.next_step, { action: "close" });
+  assert.strictEqual(closing.delivery.source, "idd/config.yaml");
+  assert.ok(!("suggestions" in closing));
+  assert.ok(!("suggestions" in nextForChange(unplanned, { delivery: { ...delivery, source: "team profile" } })));
+});

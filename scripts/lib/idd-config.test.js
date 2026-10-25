@@ -12,7 +12,7 @@ const { CONFIG_FILE, CONFIG_KEYS, IddConfigError, parseIddConfig } = require("./
 
 test("the configuration lives under idd/, outside openspec/", () => {
   assert.strictEqual(CONFIG_FILE, "idd/config.yaml");
-  assert.deepStrictEqual(CONFIG_KEYS, ["mode", "strict_tdd", "team", "checks", "impact", "contracts"]);
+  assert.deepStrictEqual(CONFIG_KEYS, ["mode", "strict_tdd", "team", "delivery", "checks", "impact", "contracts"]);
 });
 
 test("checks are named commands kept in their declared order", () => {
@@ -30,7 +30,7 @@ test("checks are named commands kept in their declared order", () => {
 });
 
 test("an absent or empty configuration yields the defaults", () => {
-  const defaults = { mode: null, strictTdd: false, team: null, checks: [], impact: {}, contracts: {} };
+  const defaults = { mode: null, strictTdd: false, team: null, delivery: { branching: null }, checks: [], impact: {}, contracts: {} };
   assert.deepStrictEqual(parseIddConfig(""), defaults);
   assert.deepStrictEqual(parseIddConfig("# only a comment\n\n"), defaults);
 });
@@ -56,6 +56,7 @@ test("mode, strict_tdd and the impact section are read", () => {
     mode: "idd",
     strictTdd: true,
     team: null,
+    delivery: { branching: null },
     checks: [],
     impact: {
       stack: ["node", "go"],
@@ -105,6 +106,23 @@ test("the team section declares the profile and decides strict_tdd unless it is 
   refused("team:\n  size: solo\n  experience: expert\n", /team.experience must be junior, mixed, senior/);
   refused("team:\n  size: solo\n  scale: team\n", /unknown team key: scale/);
   refused("team: solo\n", /team must be a section/);
+});
+
+test("[REQ-idd-023] the delivery section declares the branching and refuses any other key or value", () => {
+  assert.deepStrictEqual(parseIddConfig("delivery:\n  branching: serial   # one PR in flight\n").delivery, { branching: "serial" });
+  assert.deepStrictEqual(parseIddConfig("delivery:\n  branching: parallel\n").delivery, { branching: "parallel" });
+  assert.deepStrictEqual(parseIddConfig("delivery:\n").delivery, { branching: null });
+  const refused = (text, pattern) =>
+    assert.throws(
+      () => parseIddConfig(text),
+      (error) => error instanceof IddConfigError && error.code === "config-invalid" && pattern.test(error.message),
+    );
+  refused("delivery:\n  branching: rebase\n", /delivery.branching must be serial or parallel, got rebase/);
+  // Values are case-sensitive, like every other value of the file.
+  refused("delivery:\n  branching: Serial\n", /got Serial/);
+  refused("delivery:\n  branching:\n", /delivery.branching must be serial or parallel, got nothing/);
+  refused("delivery:\n  merge: squash\n", /unknown delivery key: merge/);
+  refused("delivery: serial\n", /delivery must be a section/);
 });
 
 test("the contracts section lists documents and tests", () => {

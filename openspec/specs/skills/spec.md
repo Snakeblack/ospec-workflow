@@ -412,9 +412,10 @@ The `skills/branch-pr/SKILL.md` MUST include a section titled `## Multi-Develope
 
 | Strategy | Required guidance |
 |----------|------------------|
+| Branching policy | The `branching` of `ospec team` or `ospec next` (REQ-idd-023): `serial` keeps one PR in flight, `parallel` lets each branch integrate the default branch before its merge |
 | Branch hygiene | One feature branch per task; descriptive names following `<type>/<description>`; delete merged branches |
 | Default branch protection | NEVER edit files or commit while on the default branch (e.g., `main`) |
-| Sync coordination | Pull the latest default branch before branching; rebase or merge default into feature branches regularly to minimize drift |
+| Sync coordination | Pull the latest default branch before branching; rebase only a branch never pushed, and once pushed merge the default branch into it, since the hooks deny force-pushing |
 | Parallel work | Each developer works on a dedicated branch; changes are integrated via PR only, never by direct push |
 | Commit conventions | Use Conventional Commits with Spanish imperative; each commit MUST be atomic and buildable |
 
@@ -424,7 +425,7 @@ The section SHOULD be 10–20 lines so it remains within the skill body budget (
 
 - GIVEN `skills/branch-pr/SKILL.md` contains the `## Multi-Developer Collaboration` section
 - WHEN the section is read
-- THEN all five strategies in the table above MUST be represented
+- THEN all six strategies in the table above MUST be represented
 
 #### Scenario: Compact rules include default-branch protection
 

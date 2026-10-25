@@ -7,6 +7,11 @@ team:
   size: solo
   experience: senior
 
+# How changes reach main (REQ-idd-023): one pull request in flight, since every
+# PR touches the version files; AGENTS.md holds the delivery order.
+delivery:
+  branching: serial
+
 # The checks `ospec check` runs, in order (REQ-idd-014).
 checks:
   test: node scripts/check.js

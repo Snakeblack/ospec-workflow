@@ -186,6 +186,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E3.5** | `knowledge-memory-loop` (`ospec close` devuelve los registros de conocimiento del cambio con procedencia y tema estable; IDD, SDD y foundation los guardan en la memoria si existe, y un cambio recupera antes de sus open facts las decisiones previas y las contrasta con el disco) | feature |
 | `done` | **E3.6** | `quality-scenario-fitness` (el mapa de conocimiento de ospec pasa a v2: cuatro escenarios de calidad declaran la comprobación que `ospec check` ejecuta y `offline-operation` queda como checklist) | feature |
 | `pending` | **E3.7** | `fact-ledger` (las respuestas de `open-facts` quedan como hechos del proyecto que un cambio posterior cita en vez de volver a preguntar) | feature |
+| `pending` | **E3.8** | `delivery-branching` (`delivery.branching`, `serial` o `parallel`, en `idd/config.yaml`: gana al perfil, sin ninguno se recomienda `serial`, y `ospec team` y `ospec next` dan el valor con sus motivos y sus reglas; sin declarar se sugiere sin bloquear) | feature |
+| `pending` | **E3.9** | `delivery-release-changelog` (el flujo IDD deja la entrada del changelog del cambio y propone la release con su versión y sus notas, con recomendación por perfil) | feature |
 | `done` | **E4.1** | `bench-scenarios` (checkpoint `continue` con `idd-2` en v2.111.0) | medición |
 | `done` | **E4.2** | `head-to-head-gentle-ai` (brazo `gentle-ai` en el banco y comparación `idd-3` frente a `gentle-ai-1`, checkpoint `continue`, en v2.133.0) | medición |
 | `done` | **E4.7** | `bench-claims-correction` (OSP-025: la comparación con gentle-ai se publica con el desglose por tipo de check, su significación y sus factores de confusión, en v2.134.1) | docs |
@@ -207,6 +209,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
 **▶ SIGUIENTE:** el orden que sale de la [auditoría del harness frente a gentle-ai del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Mantiene la decisión del usuario del 2026-10-23 (primero los defectos del harness, el banco después) y la del 2026-10-25: un change por sesión, y todo funciona en los 7 targets. Hasta la v2.151.0, la cola anterior dejó hechos E1.29, E1.31, E1.32 y E1.34–E1.41 y E4.12.
+
+Antes del bloque A va **E3.9** `delivery-release-changelog`, que el usuario pidió el 2026-10-25 como el change siguiente a E3.8 `delivery-branching`.
 
 1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E4.10 `greenfield-foundation-hint`.
 2. **B. Economía**, antes que C porque C añade una ejecución de la suite: E4.15 `cli-chaining` → E4.16 `cli-terse-output` → E4.3 `context-budget-ratchet`, que fija los techos por target después de B.
@@ -1084,6 +1088,28 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
   - en dos cambios seguidos sobre el mismo componente, el segundo cierra citando el hecho sin preguntar;
   - un hecho retirado deja de ofrecerse;
   - el escenario de dos sesiones de E4.17 lo mide.
+
+### E3.8 — `delivery-branching`
+
+- **Origen:** petición del usuario del 2026-10-25: que el harness ofrezca cómo controlar ramas y PRs, recomiende una opción y explique por qué.
+- **Problema:** el perfil de equipo solo decide si una PR grande se trocea (`delivery_strategy`). Nada dice cuántas PRs puede haber en vuelo ni cómo se integra la rama por defecto. En este repositorio, 38 de las últimas 40 PRs tocaron el CHANGELOG, los cuatro manifiestos y el roadmap, y la skill `branch-pr` pedía rebasar ramas que los hooks no dejan reescribir.
+- **Alcance:**
+  - `delivery.branching` (`serial` o `parallel`) en `idd/config.yaml`. Gana al perfil (`solo` → `serial`; `small` y `multi-team` → `parallel`), y sin ninguno se recomienda `serial`.
+  - `ospec team` y `ospec next` (al empezar y al cerrar el cambio) devuelven el valor, su origen, sus motivos y sus reglas. Sin declarar, `next` lo sugiere sin bloquear.
+  - Solo es guía: el CLI no lee el estado de git ni de las PRs.
+- **Targets:** los 7 (CLI y skills).
+- **Hecho cuando:** dos perfiles distintos reciben valores distintos con sus motivos, un valor desconocido se rechaza con `config-invalid` y este repositorio declara `serial`.
+
+### E3.9 — `delivery-release-changelog`
+
+- **Origen:** petición del usuario del 2026-10-25, como el change siguiente a E3.8.
+- **Problema:** el flujo IDD no crea ni actualiza el changelog ni propone una release. La skill `gh-release-notes` es un extra opcional (`--with-extras`), está hecha a medida de este repositorio (notas en español sobre su propio `CHANGELOG.md`) y nada del flujo la invoca.
+- **Alcance**, que se cierra con el usuario al abrirlo:
+  - una opción en `delivery` para el changelog (ruta o ninguno) y la cadencia de release, con recomendación por perfil y sus motivos;
+  - `ospec close` devuelve la entrada del changelog derivada del cambio (el tipo da la sección y el resumen la línea);
+  - la release (versión, tag y notas) la propone el agente y solo la hace con el OK del usuario.
+- **Targets:** los 7.
+- **Hecho cuando:** un cambio cerrado deja su entrada en el changelog del proyecto y la release se propone con su versión y sus notas.
 
 ## Etapa 4 — Demostrar que es mejor
 

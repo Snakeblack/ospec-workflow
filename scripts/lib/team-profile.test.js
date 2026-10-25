@@ -8,9 +8,10 @@ const assert = require("node:assert");
 const { parseIddConfig } = require("./idd-config.js");
 const { TeamProfileError, readOpenspecTeam, resolveTeam, teamDefaults, validateTeam } = require("./team-profile.js");
 
-test("each size decides delivery, review and Strict TDD", () => {
+test("each size decides delivery, branching, review and Strict TDD", () => {
   assert.deepStrictEqual(teamDefaults({ size: "solo" }), {
     delivery_strategy: "single-pr",
+    branching: "serial",
     review: { quality_review: false, traceability: "advisory", budget_lines: 400 },
     strict_tdd: false,
     tdd_mode: "standard",
@@ -18,6 +19,7 @@ test("each size decides delivery, review and Strict TDD", () => {
   });
   assert.deepStrictEqual(teamDefaults({ size: "small" }), {
     delivery_strategy: "ask-on-risk",
+    branching: "parallel",
     review: { quality_review: true, traceability: "advisory", budget_lines: 400 },
     strict_tdd: true,
     tdd_mode: "focused",
@@ -25,6 +27,7 @@ test("each size decides delivery, review and Strict TDD", () => {
   });
   assert.deepStrictEqual(teamDefaults({ size: "multi-team" }), {
     delivery_strategy: "auto-chain",
+    branching: "parallel",
     review: { quality_review: true, traceability: "required", budget_lines: 400 },
     strict_tdd: true,
     tdd_mode: "strict",
@@ -86,12 +89,9 @@ test("two projects with different teams get different defaults without a questio
 test("each mode reads only its own declaration (ADR 0011)", () => {
   const openspecText = "team:\n  size: small\n";
   // IDD never reads openspec/, even when it holds a profile.
-  assert.deepStrictEqual(resolveTeam({ idd: parseIddConfig("checks:\n  test: npm test\n"), openspecText }), {
-    mode: "idd",
-    profile: null,
-    source: null,
-    defaults: null,
-  });
+  const { branching, ...iddTeam } = resolveTeam({ idd: parseIddConfig("checks:\n  test: npm test\n"), openspecText });
+  assert.deepStrictEqual(iddTeam, { mode: "idd", profile: null, source: null, defaults: null });
+  assert.strictEqual(branching.source, "recommended");
   // SDD (mode: sdd, or no idd/config.yaml) never reads the IDD team section.
   const sdd = resolveTeam({ idd: parseIddConfig("mode: sdd\nteam:\n  size: solo\n"), openspecText });
   assert.deepStrictEqual([sdd.mode, sdd.source, sdd.profile], ["sdd", "openspec/config.yaml", { size: "small", experience: null }]);
@@ -112,5 +112,28 @@ test("SDD falls back to the legacy scale, and no profile keeps today's behavior"
   assert.strictEqual(resolveTeam({ openspecText: "team:\n  size: solo\nscale: enterprise\n" }).profile.size, "solo");
   assert.throws(() => legacy("huge"), (error) => error.code === "team-invalid" && /scale must be solo, team, enterprise/.test(error.message));
   assert.throws(() => resolveTeam({ openspecText: "team:\n  size: big\n" }), (error) => error.code === "team-invalid");
-  assert.deepStrictEqual(resolveTeam({}), { mode: "sdd", profile: null, source: null, defaults: null });
+  const { branching, ...none } = resolveTeam({});
+  assert.deepStrictEqual(none, { mode: "sdd", profile: null, source: null, defaults: null });
+  assert.deepStrictEqual([branching.value, branching.source], ["serial", "recommended"]);
+});
+
+test("[REQ-idd-023] delivery.branching wins over the profile, and without either serial is recommended", () => {
+  const explicit = resolveTeam({ idd: parseIddConfig("team:\n  size: solo\ndelivery:\n  branching: parallel\n") }).branching;
+  assert.deepStrictEqual([explicit.value, explicit.source], ["parallel", "idd/config.yaml"]);
+  assert.match(explicit.reasons[0], /delivery.branching is declared in idd\/config.yaml/);
+  const profiled = resolveTeam({ idd: parseIddConfig("team:\n  size: multi-team\n") }).branching;
+  assert.deepStrictEqual([profiled.value, profiled.source], ["parallel", "team profile"]);
+  assert.match(profiled.reasons[0], /team.size multi-team recommends it/);
+  const none = resolveTeam({ idd: parseIddConfig("checks:\n  test: npm test\n") }).branching;
+  assert.deepStrictEqual([none.value, none.source], ["serial", "recommended"]);
+  assert.match(none.how, /^before a new branch, merge the open pull request/);
+  // Every answer says why it fits and what to do, and no rule rewrites pushed history.
+  for (const branching of [explicit, profiled, none]) {
+    assert.ok(branching.reasons.length > 1, "a source reason and the reasons of the value");
+    assert.match(branching.how, /never by rewriting pushed history/);
+    assert.match(branching.how, /delete the branch after its merge/);
+  }
+  // SDD keeps its own configuration (ADR 0011): the IDD delivery section is not read.
+  const sdd = resolveTeam({ idd: parseIddConfig("mode: sdd\ndelivery:\n  branching: parallel\n"), openspecText: "team:\n  size: solo\n" });
+  assert.deepStrictEqual([sdd.branching.value, sdd.branching.source], ["serial", "team profile"]);
 });

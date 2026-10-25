@@ -48,11 +48,14 @@ Use this skill when:
 
 ## Multi-Developer Collaboration
 
-Working in teams requires extra branch discipline to avoid conflicts:
+The project's branching decides how many PRs may be in flight. Read it from
+`ospec team` (or the `delivery` of `ospec next`): `branching`, its `reasons`
+and its rules in `how`. Without a declaration the recommendation is `serial`.
 
-- **Branch hygiene**: one branch per task, named `<type>/<description>`; delete branches after merge.
+- **Branching policy**: `serial` keeps one PR in flight, so the open PR is merged (and released, when the project cuts a release per change) before a new branch; `parallel` allows several branches, each integrating the default branch before its merge and editing version and changelog last.
+- **Branch hygiene**: one branch per task, named `<type>/<description>`; delete it after the merge.
 - **Default-branch protection**: NEVER edit files or commit directly on `main`; all work goes through feature branches and PRs.
-- **Sync coordination**: `git pull --rebase main` before branching; rebase feature branches regularly to stay current.
+- **Sync coordination**: pull the default branch before branching. Rebase only a branch that was never pushed; once pushed, integrate the default branch with `git merge`, since the hooks deny force-pushing.
 - **Parallel work**: each developer works on a dedicated branch; integrate only via PR review, never direct push.
 - **Commit conventions**: use Conventional Commits with Spanish imperative verbs; keep commits atomic and buildable.
 
