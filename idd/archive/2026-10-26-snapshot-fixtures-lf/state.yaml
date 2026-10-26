@@ -1,0 +1,110 @@
+{
+  "schema": "idd-state/v1",
+  "change": "snapshot-fixtures-lf",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "schemas/progress-snapshot/ se fija a LF en .gitattributes: en un checkout de Windows con core.autocrlf, fixtures/valid.json pasaba a CRLF y progress-snapshot.test.js, que lo compara byte a byte con lo que emite ospec snapshot, fallaba",
+    "acceptance": "En un clon con core.autocrlf=true, node --test scripts/lib/progress-snapshot.test.js pasa, y el job Validate (windows-latest 1/2) de la PR #434 queda en verde"
+  },
+  "facts": {
+    "basis": "La orden emite LF y el test compara byte a byte, como schemas/kernel/** y los goldens que .gitattributes ya fija con text eol=lf por la misma razón (catalog-json-lf); los fixtures del esquema no tienen otra lectura"
+  },
+  "plan": {
+    "paths": [
+      ".gitattributes"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-26T11:40:06.775Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-26T11:41:08.247Z",
+      "detail": {
+        "tree": "sha256:d6ced8b508d5f4bac1d3951bb405306cee1c03e150b97f53e1b92cc81f33d32d",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "ef179c3b46b7abe5b9fad1cde6cff5606c835b4b",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "sh /tmp/claude-1000/-home-sn4ke-dev-repositorios-activos-ospec-workflow/dd186021-cc58-4a9d-b88e-5203aede149b/scratchpad/repro-crlf.sh",
+      "exit_code": 1,
+      "output_sha256": "sha256:48c8adc8f0e4ee889055a044d74f4080323aaf95e8df890801a9d83be9b75e12",
+      "tree": "sha256:3f964e455a7aad74d65ed4befa2a004deb5d9d42093abcd5e24ec4029ceaa88b",
+      "recorded_at": "2026-10-26T11:40:00.329Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "sh /tmp/claude-1000/-home-sn4ke-dev-repositorios-activos-ospec-workflow/dd186021-cc58-4a9d-b88e-5203aede149b/scratchpad/repro-crlf.sh",
+      "exit_code": 0,
+      "output_sha256": "sha256:28301a3301dd7f5c6f5e4d927511ef78ad103afd3c9d21d56841964c714957a2",
+      "tree": "sha256:5bda825fc0c55b2809fb7dd72802753ae9454a0851199ee9ca69bb89317d0334",
+      "recorded_at": "2026-10-26T11:40:06.775Z",
+      "tests": 10
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7e5d9e816fc1e67299e4eaa8a8fe850944c5885d04b369b5caabd613a80fcf96",
+      "tree": "sha256:d6ced8b508d5f4bac1d3951bb405306cee1c03e150b97f53e1b92cc81f33d32d",
+      "recorded_at": "2026-10-26T11:41:08.247Z"
+    }
+  ],
+  "closed_at": "2026-10-26T11:41:14.503Z"
+}

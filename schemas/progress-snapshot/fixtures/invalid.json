@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "phases": [
+    { "id": "p1a", "title": "Platform", "status": "finished" },
+    { "id": "p1a", "title": "  ", "status": "done", "owner": "someone" }
+  ]
+}

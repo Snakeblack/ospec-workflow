@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "phases": [
+    {
+      "id": "p1a",
+      "title": "Platform",
+      "status": "done"
+    },
+    {
+      "id": "p1b.1",
+      "title": "Access revocation",
+      "status": "in-progress"
+    },
+    {
+      "id": "m1",
+      "title": "Documentation",
+      "status": "pending"
+    }
+  ]
+}

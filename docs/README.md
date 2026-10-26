@@ -25,6 +25,8 @@ Los gates se resuelven solo con una respuesta explícita del usuario, pero su pr
 
 El perfil de equipo (`team:` con `size` y `experience`) decide la estrategia de entrega, el umbral de review, Strict TDD y la mentoría sin volver a preguntar. Cada modo lo declara en su configuración: `idd/config.yaml` u `openspec/config.yaml`. `ospec team` muestra el perfil y sus defaults (REQ-idd-023).
 
+`ospec snapshot` exporta bajo demanda el avance del proyecto como snapshot de avance v1, con el esquema [`schemas/progress-snapshot/v1.schema.json`](../schemas/progress-snapshot/v1.schema.json): las fases de `docs/roadmap.md` (u otro fichero con `--roadmap <ruta>`), en orden, cada una con su estado. Una fase es cada fila de una tabla cuya primera celda empieza por `<ID>. <título>`, como `P1b.1. Revocación de acceso`. Un cambio IDD o SDD pertenece a la fase si su id es el de la fase sin puntos o empieza por él seguido de guion (`p1b1-revocacion`). La fase está `in-progress` si tiene un cambio activo, `done` si solo tiene archivados y `pending` si no tiene ninguno. El snapshot sale por stdout o se escribe con `--out <fichero>`. Un roadmap ausente o inválido sale con código 1, un mensaje con el fichero y la línea, y sin escribir nada. Ningún paso de IDD ni de SDD, ningún hook y ningún check lo ejecutan: publicarlo, por ejemplo desde el CI del proyecto, es cosa de cada proyecto (REQ-idd-026).
+
 | Documento | Para qué sirve |
 | --- | --- |
 | [README.es.md](../README.es.md#idd-obligaciones-según-el-impacto-evidencia-de-ejecuciones-reales) | Señales, obligaciones, gates e inicio rápido. |
