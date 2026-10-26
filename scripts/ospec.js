@@ -13,7 +13,8 @@
 // `team` resolves the team profile of the active mode, the defaults it
 // decides and the delivery options, with their reasons (REQ-idd-023). `close`
 // writes the changelog entry and proposes the release they declare
-// (REQ-idd-025).
+// (REQ-idd-025). `snapshot` exports the progress snapshot of the project on
+// demand; no IDD or SDD step runs it (REQ-idd-026).
 //
 // Exit codes: 0 ok, 1 refused by the IDD contract (or doctor found an error),
 // 2 usage error.
@@ -70,10 +71,12 @@ const {
 } = require("./lib/idd-review.js");
 const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
 const { readReceipt } = require("./lib/review-receipt.js");
+const { DEFAULT_ROADMAP, SnapshotError, buildSnapshot } = require("./lib/progress-snapshot.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
 const { addedTests, applyDerivation, classifyPath, deriveSignals, persistentHits, requireDeclaredCeremony } = require("./lib/idd-signals.js");
 const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
+const { writeFileAtomic } = require("./lib/atomic-write.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange, serializeState } = require("./lib/idd-store.js");
 const { withFileLock } = require("./lib/ospec-state.js");
 const {
@@ -125,6 +128,7 @@ const USAGE = `Usage:
   ospec close --change <id>
   ospec doctor [--target <host>] [--json]
   ospec team [--mode <idd|sdd>] [--json]
+  ospec snapshot [--roadmap <path>] [--out <file>] [--json]
   ospec foundation next [--profile <id>] [--map <path>] [--json]
   ospec foundation record --slot <id> --state <confirmed|assumed|n/a|deferred>
                           [--source-kind <user|document|repository>] [--source-ref <text>]
@@ -136,6 +140,8 @@ Options:
   --json        machine-readable output
   --diff        signals: also read the git diff against --base
   --base <ref>  diff base (default: the commit the change started from, else HEAD)
+  --roadmap     snapshot: the roadmap to read (default: ${DEFAULT_ROADMAP})
+  --out <file>  snapshot: write the snapshot to this file instead of stdout
 `;
 
 const OPTIONS = {
@@ -185,6 +191,8 @@ const OPTIONS = {
   "source-ref": { type: "string" },
   "review-trigger": { type: "string" },
   owner: { type: "string" },
+  roadmap: { type: "string" },
+  out: { type: "string" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
 };
@@ -983,6 +991,7 @@ async function run(command, positionals, values) {
   if (command === "doctor") return runDoctor({ root, target: values.target ?? null });
   if (command === "foundation") return foundation(root, positionals, values);
   if (command === "team") return readTeam(root, values.mode ?? null);
+  if (command === "snapshot") return snapshot(root, values);
   if (command === "record") {
     const [type] = positionals;
     // A change opens only inside a project (E4.8); the other records act on
@@ -1170,6 +1179,15 @@ function describeCloseDelivery({ changelog, release }) {
   return lines;
 }
 
+// The progress snapshot, on stdout or written whole to --out; an invalid one
+// is refused before anything is written (REQ-idd-026).
+async function snapshot(root, values) {
+  const { roadmap, snapshot: document, text } = buildSnapshot({ root, roadmap: values.roadmap ?? DEFAULT_ROADMAP });
+  if (values.out === undefined) return { text };
+  await writeFileAtomic(path.resolve(root, values.out), text);
+  return { roadmap, out: values.out, phases: document.phases.length, bytes: Buffer.byteLength(text) };
+}
+
 async function foundation(root, positionals, values) {
   const action = positionals[0];
   const map = values.map ?? null;
@@ -1231,6 +1249,7 @@ function describe(command, result) {
   if (command === "signals") return describeSignals(result);
   if (command === "check") return describeCheck(result);
   if (command === "run") return describeRunResult(result);
+  if (command === "snapshot") return `snapshot: ${result.phases} phases from ${result.roadmap} written to ${result.out} (${result.bytes} bytes)`;
   if (command === "status") {
     if (result.changes.length === 0) return "No IDD changes.";
     return result.changes
@@ -1258,7 +1277,9 @@ async function main(argv = process.argv.slice(2)) {
     }
     command = positionals[0];
     const result = await run(command, positionals.slice(1), values);
-    if (wantsJson) process.stdout.write(`${JSON.stringify({ ok: true, command, ...result }, null, 2)}\n`);
+    // The snapshot is JSON already: stdout holds it alone, with or without --json.
+    if (command === "snapshot" && "text" in result) process.stdout.write(result.text);
+    else if (wantsJson) process.stdout.write(`${JSON.stringify({ ok: true, command, ...result }, null, 2)}\n`);
     else process.stdout.write(`${describe(command, result)}\n`);
     return command === "doctor" ? result.exit_code : 0;
   } catch (error) {
@@ -1271,7 +1292,8 @@ async function main(argv = process.argv.slice(2)) {
       error instanceof TeamProfileError ||
       error instanceof IddImpactError ||
       error instanceof IddWorkspaceError ||
-      error instanceof DecisionGapError;
+      error instanceof DecisionGapError ||
+      error instanceof SnapshotError;
     if (!known) throw error;
     const code = usage ? "usage" : error.code;
     if (wantsJson) {

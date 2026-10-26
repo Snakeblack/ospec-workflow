@@ -17,8 +17,9 @@ Each change MUST run in exactly one mode, `idd` or `sdd`. The mode MUST resolve
 from the change's own `mode`, else from `mode` in `idd/config.yaml`
 (REQ-idd-013), else from the default, which is `idd` since E1.6 made IDD the
 default entry. A change MUST keep the mode it started with until it is
-closed or archived. IDD tooling MUST NOT read or write `openspec/changes/`, and
-SDD tooling MUST NOT treat `idd/` as holding SDD changes. No SDD requirement
+closed or archived. IDD tooling MUST NOT read or write `openspec/changes/`,
+except `ospec snapshot`, which lists only the directory names of both trees
+(REQ-idd-026), and SDD tooling MUST NOT treat `idd/` as holding SDD changes. No SDD requirement
 changes because IDD exists.
 
 #### Scenario: Change mode wins over project mode
@@ -1764,3 +1765,72 @@ before this requirement. SDD MUST NOT read them (ADR 0011).
   `changelog` nor `release`
 - AND `ospec next` MUST have suggested `changelog-undeclared` at
   `declare-plan` and at `close`
+
+### Requirement: On-Demand Progress Snapshot {#REQ-idd-026}
+
+`ospec snapshot` MUST export the progress of the project as a progress
+snapshot v1, `{ "schemaVersion": 1, "phases": [...] }`, each phase holding
+only `id`, `title` and `status` (`pending`, `in-progress` or `done`), with
+`schemas/progress-snapshot/v1.schema.json` as its schema. It MUST run only
+when invoked: no IDD or SDD step, hook, check, gate or doctor check runs it,
+and it writes nothing but the snapshot. It needs no git work tree.
+
+The phases MUST come from the roadmap, `docs/roadmap.md` unless
+`--roadmap <path>` names another, in the order the file lists them. Each body
+row of a Markdown table outside code fences whose first cell, once clean,
+reads `<ID>. <title>` is a phase: its id is `<ID>` in lower case and its title
+the rest of the cell. A clean cell loses its inline Markdown (emphasis,
+strikethrough and code spans keep their content, links and images their text,
+backslash escapes their character), collapses its whitespace, is trimmed and
+is NFC. A table without such a row is not a phase table. A phase table row
+that does not read so, a phase id over 64 characters, a title over 200
+characters or with a control character, and two phases with the same link
+key MUST be refused with `roadmap-invalid`, naming the file and the line. A
+roadmap without phases MUST be refused with `roadmap-unrecognized`, and a
+missing one with `roadmap-missing`. A title is never cut.
+
+A phase's link key is its id without dots. A change belongs to the phase
+whose link key equals the change id or prefixes it followed by `-`; when
+several do, the longest key wins. Changes MUST be read by directory name
+only, never by their state: active ones under `idd/` and `openspec/changes/`,
+archived ones named `<YYYY-MM-DD>-<id>` under `idd/archive/` and
+`openspec/changes/archive/`. A phase with an active change is `in-progress`,
+else one with an archived change is `done`, else it is `pending`.
+
+The snapshot MUST meet its schema and the rules the schema does not express:
+phase ids are unique, and titles are trimmed, NFC and free of control
+characters (`snapshot-invalid`); it holds at most 100 phases and 64 KiB of
+UTF-8 (`snapshot-limit`). Without `--out`, stdout MUST hold the snapshot
+alone, with `--json` too. With `--out <file>` the snapshot MUST be written
+whole to that file, and stdout reports the roadmap, the phases and the bytes
+written, as JSON with `--json`. A refusal MUST exit 1 and write nothing;
+`--json` only changes how it is reported. A change that a valid snapshot of
+today would not meet is a new `schemaVersion`. The snapshot declares only its
+version: its format is closed and its name is the `$id` of its schema
+(ADR 0009). Publishing it is up to the project.
+
+#### Scenario: Phases take their status from the changes on disk
+
+- GIVEN a `docs/roadmap.md` table whose rows read `P1a. Platform`,
+  `P1b. Operator` and `P1b.1. Access revocation`, and another table whose
+  row reads `M1. Docs`
+- AND the archived changes `idd/archive/2026-01-02-p1a-platform/` and
+  `idd/archive/2026-01-03-p1b-operator/`, and the active change
+  `idd/p1b1-revocation/`
+- WHEN `ospec snapshot` runs
+- THEN stdout MUST hold only the snapshot, with `p1a` and `p1b` `done`,
+  `p1b.1` `in-progress` and `m1` `pending`, in that order
+
+#### Scenario: An unusable roadmap writes nothing
+
+- GIVEN a roadmap whose phase table repeats the id `A1`
+- WHEN `ospec snapshot --out snapshot.json` runs
+- THEN it MUST exit 1 with `roadmap-invalid` naming the line of the repeated
+  row
+- AND `snapshot.json` MUST NOT exist
+
+#### Scenario: Nothing else runs it
+
+- GIVEN a project with IDD or SDD changes
+- WHEN a change is opened, checked or closed
+- THEN no snapshot MUST be built or written

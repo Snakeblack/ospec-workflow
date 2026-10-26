@@ -2217,3 +2217,55 @@ test("[E1.44 B6] a cite through a symlink is judged by the file it reads", (t) =
     assert.match(refused.json.error.message, /package\.json is a manifest/);
   }
 });
+
+// E5.10 ospec snapshot (REQ-idd-026): the progress snapshot, on demand only.
+const SNAPSHOT_ROADMAP = "| Phase | Content |\n| --- | --- |\n| A1. Alpha | x |\n| B2. Beta | y |\n";
+
+test("[REQ-idd-026] snapshot prints the bare snapshot on stdout, with or without --json, outside git too", (t) => {
+  const root = plainRoot(t);
+  writeFile(root, "docs/roadmap.md", SNAPSHOT_ROADMAP);
+  fs.mkdirSync(path.join(root, "idd", "archive", "2026-01-02-a1-start"), { recursive: true });
+  const expected = {
+    schemaVersion: 1,
+    phases: [
+      { id: "a1", title: "Alpha", status: "done" },
+      { id: "b2", title: "Beta", status: "pending" },
+    ],
+  };
+  for (const args of [["snapshot"], ["snapshot", "--json"]]) {
+    const result = ospec(root, ...args);
+    assert.strictEqual(result.code, 0, result.stderr);
+    assert.strictEqual(result.stdout, `${JSON.stringify(expected, null, 2)}\n`);
+  }
+});
+
+test("[REQ-idd-026] snapshot --out writes the file and reports it", (t) => {
+  const root = plainRoot(t);
+  writeFile(root, "plans/phases.md", SNAPSHOT_ROADMAP);
+  const result = ospec(root, "snapshot", "--roadmap", "plans/phases.md", "--out", "out/snapshot.json");
+  assert.strictEqual(result.code, 0, result.stderr);
+  const text = fs.readFileSync(path.join(root, "out", "snapshot.json"), "utf8");
+  assert.strictEqual(JSON.parse(text).phases.length, 2);
+  assert.strictEqual(result.stdout, `snapshot: 2 phases from plans/phases.md written to out/snapshot.json (${Buffer.byteLength(text)} bytes)\n`);
+  const json = ospec(root, "snapshot", "--roadmap", "plans/phases.md", "--out", "out/snapshot.json", "--json").json;
+  assert.deepStrictEqual(json, { ok: true, command: "snapshot", roadmap: "plans/phases.md", out: "out/snapshot.json", phases: 2, bytes: Buffer.byteLength(text) });
+});
+
+test("[REQ-idd-026] snapshot refuses an unusable roadmap with exit 1 and writes nothing", (t) => {
+  const root = plainRoot(t);
+  const missing = ospec(root, "snapshot", "--out", "snapshot.json");
+  assert.strictEqual(missing.code, 1);
+  assert.strictEqual(missing.stderr, "ospec: roadmap not found: docs/roadmap.md (roadmap-missing)\npass --roadmap <path> to read another roadmap\n");
+  writeFile(root, "docs/roadmap.md", "| Phase |\n| --- |\n| A1. Alpha |\n| A1. Again |\n");
+  const repeated = ospec(root, "snapshot", "--out", "snapshot.json", "--json");
+  assert.strictEqual(repeated.code, 1);
+  assert.strictEqual(repeated.json.error.code, "roadmap-invalid");
+  assert.match(repeated.json.error.message, /docs\/roadmap\.md:4/);
+  assert.ok(!fs.existsSync(path.join(root, "snapshot.json")));
+});
+
+test("[REQ-idd-026] no IDD step, hook or check runs snapshot", () => {
+  for (const file of ["skills/idd/SKILL.md", "hooks/hooks.json", "idd/config.yaml"]) {
+    assert.doesNotMatch(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), /ospec(\.js)?["']? snapshot/, file);
+  }
+});
