@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- E1.44 (B3, B6, B7, B9): el modelo solo puede subir la ceremonia; boundary-tests exige un test en el diff, las citas de open-facts quedan acotadas, un cambio de checks frente a la base abre el gate checks-changed y check contrasta --kind con el diff (ceremony-only-rises)
+
 ## [2.153.2] - 2026-10-26
 
 ### Fixed

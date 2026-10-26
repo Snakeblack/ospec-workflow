@@ -1,0 +1,2183 @@
+{
+  "schema": "idd-state/v1",
+  "change": "ceremony-only-rises",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "E1.44 (B3, B6, B7, B9): el modelo solo puede subir la ceremonia; boundary-tests exige un test en el diff, las citas de open-facts quedan acotadas, un cambio de checks frente a la base abre el gate checks-changed y check contrasta --kind con el diff",
+    "acceptance": "Los cuatro casos de la auditoría (feature sin test nuevo, cita a package.json, checks cambiado a true, kind docs que toca producto y refactor que borra líneas de un contrato) se rechazan con su motivo y su how, y los tests de los cambios legítimos siguen en verde"
+  },
+  "facts": {
+    "open": [
+      "B3: ¿qué cuenta como test en el diff para boundary-tests: un fichero de test con al menos una línea añadida (borrar un test no cuenta), o cualquier fichero de test que aparezca en el diff?",
+      "B6: ¿dónde puede caer una cita --cite y cuándo se comprueba el plan, dado que record intent va antes que signals?",
+      "B7: ¿checks-changed se abre también cuando la base no tenía checks (primera configuración), y un cambio de checks posterior a la aprobación abre una entrada nueva del gate?",
+      "B9: ¿qué cuenta como borrar líneas de un contrato en un refactor: líneas quitadas de contracts.documents y de documentación que declara un contrato, o también líneas de código en rutas public_contract?",
+      "B9: ¿cómo sale el modelo tras el rechazo: record intent permite volver a registrar la intención del mismo cambio con un kind que sube la ceremonia, o el how manda abrir un cambio nuevo?",
+      "B9: ¿un kind docs se rechaza solo si el diff toca código de producto, o también si toca tests, manifiestos u otros ficheros?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.es.md",
+      "README.md",
+      "docs/README.md",
+      "docs/en/README.md",
+      "docs/onboarding/tech-lead.md",
+      "docs/roadmaps/harness-evolution.md",
+      "internal/iddsession/catalog.json",
+      "internal/testdata/idd-session/steps/expected/session/latest.md",
+      "internal/testdata/idd-session/steps/expected/session/s-checks-changed/session-summary.md",
+      "internal/testdata/idd-session/steps/workspace/idd/s-checks-changed/state.yaml",
+      "openspec/specs/idd/spec.md",
+      "openwiki/agents-skills/agents-and-skills.md",
+      "openwiki/idd/flujo-idd.md",
+      "openwiki/orchestration/routing.md",
+      "scripts/hooks/idd-session.test.js",
+      "scripts/lib/idd-check.js",
+      "scripts/lib/idd-check.test.js",
+      "scripts/lib/idd-checks-config.js",
+      "scripts/lib/idd-checks-config.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-facts.js",
+      "scripts/lib/idd-facts.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-signals.test.js",
+      "scripts/lib/idd-workspace.js",
+      "scripts/lib/idd-workspace.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md",
+      "skills/idd/references/approvals.md",
+      "skills/idd/references/open-facts.md"
+    ],
+    "work_units": 4,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0001, 0002, 0003, 0004, 0005, 0009 and quality scenario contract-compatibility, deterministic-resume, offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/idd-session.test.js (matches scripts/hooks/**)",
+      "source": "declaration"
+    }
+  ],
+  "retracted": [
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff",
+      "retract_reason": "El cambio no añade ni cambia ninguna escritura persistente: los writeFile de ospec.js y de los módulos que importa son los que ya existían, y readBaseChecks solo lee con git show.",
+      "confirmed_by": "persistent data: scripts/ospec.js uses writeFile",
+      "hits": [
+        "scripts/ospec.js uses writeFile: if (rendered !== text) fs.writeFileSync(file, rendered);",
+        "scripts/ospec.js uses writeFile: fs.writeFileSync(target, added.text);",
+        "scripts/ospec.js imports scripts/lib/idd-store.js, which uses writeFile: await fs.writeFile(file, livingDocTemplate(state), { encoding: \"utf8\", flag: \"wx\" });",
+        "scripts/ospec.js imports scripts/lib/idd-store.js, which uses writeFile: await writeFile(file, serializeState(result.state));",
+        "scripts/ospec.js imports scripts/lib/ospec-state.js, which uses writeFile: await fs.writeFile(temporaryPath, summary, \"utf8\");",
+        "scripts/ospec.js imports scripts/lib/ospec-state.js, which uses writeFile: fs.appendFile(eventPath, `${JSON.stringify(serializedEvent)}\\n`, \"utf8\"),",
+        "scripts/ospec.js imports scripts/lib/ospec-state.js, which uses writeFile: await fs.appendFile(filePath, `${JSON.stringify(record)}\\n`, \"utf8\");",
+        "scripts/ospec.js imports scripts/lib/ospec-state.js, which uses writeFile: await withFileLock(filePath, () => fs.appendFile(filePath, line, \"utf8\"));"
+      ],
+      "answer": "Confirmo, no hay (Recomendado)",
+      "answer_source": "user"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Solo cambia la fuente canónica (CLI, skill y catalog.json regenerado desde idd-contract.js); los siete targets se generan desde ella sin ediciones propias."
+    },
+    {
+      "kind": "adr",
+      "id": "0002",
+      "impact": "conforms",
+      "reason": "El estado sigue en disco y solo lo escribe el CLI: el gate checks-changed guarda los checks que aprueba y check y close leen la configuración de la base con git."
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Los contrastes viven en el CLI (idd-signals, idd-check, idd-record, ospec.js); la skill solo nombra el gate nuevo y la referencia open-facts la regla de las citas."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "La ceremonia sigue saliendo del impacto: lo que declara el modelo (kind, citas, checks) se contrasta con el diff y la base, así que solo puede subirla."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "close sigue ligado a la evidencia y además rechaza kind-mismatch, cite-outside-plan y checks sin aprobar; boundary-tests exige un test en el diff."
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "La memoria sigue sin autoridad: ningún contraste nuevo la lee, y el gate checks-changed y el kind se deciden con el diff, la base y la respuesta del usuario."
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "idd-state/v1 no cambia de versión: los campos nuevos son opcionales (checks del gate, tests de la evidencia) y los estados anteriores siguen validando (has_test, citas a manifiestos, open-facts resuelto)."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas: JS usa su biblioteca estándar y git, y Go solo embebe el catálogo regenerado."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "Todo vive en idd/: el gate, el kind y las citas son estado IDD, y el estado SDD de openspec/ no cambia."
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "Los estados escritos antes de E1.44 siguen validando, con tests para has_test, citas a manifiestos ya guardadas y una entrada open-facts resuelta."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "Go y JS dan el mismo paso con checks-changed abierto (fixture s-checks-changed en los goldens compartidos); el formato del estado solo añade campos opcionales."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Sin red: la configuración de la base se lee con git show local, como el resto del diff."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El cambio vive en el CLI, que los siete targets invocan igual; el catálogo que embebe el binario Go se regenera y la skill es la misma en los siete builds."
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "Ningún guard cambia: el cambio solo suma una fixture de sesión IDD y su recuento en el test de idd-session; los hooks siguen fallando en cerrado."
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "El cambio no toca ningún guard; los hooks de sesión leen el gate nuevo del catálogo y una fixture fija que reanudan igual en Go y JS."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-15"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-12"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-13"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-14"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "withdrawn",
+      "evidence": [],
+      "withdrawn_reason": "El cambio no añade ni cambia ninguna escritura persistente: los writeFile de ospec.js y de los módulos que importa son los que ya existían, y readBaseChecks solo lee con git show."
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "B3: Test con líneas añadidas (un fichero de test del diff con al menos una línea añadida; borrar o vaciar un test no cuenta; el check sigue exigiendo tests > 0 o sin recuento). B6: Manifiesto no; código en plan o diff (record intent rechaza citas a manifiestos y lockfiles; la documentación vale siempre; una cita a otro fichero vale al registrarla y check y close exigen que esté en el plan o en el diff, con el how para declararlo; los estados guardados siguen validando). B7: Sí y sí (se abre también en la primera configuración; el gate guarda los checks que aprueba y cambiarlos después abre una entrada nueva, como review-limit). B9 contrato: Docs de contrato (líneas quitadas de contracts.documents y de documentación que declara un contrato con los patrones de public-contract). B9 salida: Re-registrar subiendo kind (docs → refactor, bug o feature; refactor → bug o feature, con resumen, aceptación y hechos; preguntas nuevas abren otra entrada de open-facts; bajar o pasar entre bug y feature sigue siendo intent-conflict). B9 docs: Solo si toca producto (classifyPath product).",
+      "source": "user"
+    },
+    {
+      "id": "review-limit",
+      "status": "resolved",
+      "reason": "3 of 3 trust reviews used: ospec check opens the review-limit gate, and only the person's answer authorizes one more",
+      "answer": "Arreglar y autorizar la 4.ª (Recomendado)",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-26T08:08:01.870Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-26T08:31:21.017Z",
+      "detail": {
+        "lineage_id": "sha256:013cef54c70ccc4cef5ee9710b385513005b628802d194ffcb1586c293754711",
+        "candidate_id": "sha256:c09e9aaeddb87a64006d33faf3cf387fdb33fcfd2b1192ea50414c7cad824c76",
+        "candidate_tree": "a0721113d3fd1af0b34a57dc9fffd626c3ad23d2",
+        "findings_digest": "sha256:5075511c2b7d7973a0c5ce6ae1733285ff8390e5c07d06e827e7671cc7d57c8a",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-26T08:30:59.665Z",
+          "result_digest": "sha256:da5be548551615cd0a0caf79c31c035bce56603e7c4b860d99cc266e2b065871"
+        }
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "detail": {
+        "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+        "runs": [
+          "run-18"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "detail": {
+        "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+        "check": "ev-3",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms",
+          "adr:0008 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+        "fitness": [
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26",
+          "run-27",
+          "run-28",
+          "run-29",
+          "run-30",
+          "run-31",
+          "run-32"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-26T08:46:45.155Z",
+      "detail": {
+        "lineage_id": "sha256:ad80a75ffcc5ea394881f066bde874085a32b4527771fc4a2c3226144f42407b",
+        "candidate_id": "sha256:75863a84cca15b8d72096c4a1e9bb8f67ee5957adc729565f9963cc45076cb92",
+        "candidate_tree": "f48319cc01dc90a9e79c96550867a6d5ee6b5abb",
+        "findings_digest": "sha256:bda44c8a606258748873a279d8bce5581d764fffb5100a67cb6338f8d1c707a4",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-26T08:46:15.838Z",
+          "result_digest": "sha256:ed712256347697b8644e6cd3603dfdc5716ea0133be51a7f71acbbc6b88528fa"
+        }
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "detail": {
+        "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+        "runs": [
+          "run-33"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "detail": {
+        "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+        "check": "ev-7",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms",
+          "adr:0008 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+        "fitness": [
+          "run-34",
+          "run-35",
+          "run-36",
+          "run-37",
+          "run-38",
+          "run-39",
+          "run-40",
+          "run-41",
+          "run-42",
+          "run-43",
+          "run-44",
+          "run-45",
+          "run-46",
+          "run-47"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-26T08:59:23.156Z",
+      "detail": {
+        "lineage_id": "sha256:19f1966a4631b12068a4b26960eb54134285a327e42b272eaec3d8d70694ba6e",
+        "candidate_id": "sha256:c3670c98057da77a6f06c3065137deee6b233a9351f4bcac0760c355beeb6b74",
+        "candidate_tree": "1b7e630c30d866b42e01f91c5754c8f665b4b37d",
+        "findings_digest": "sha256:d4b6e9fe015600bf7c9cf9a0361d5dfb6798f8505249dab0561a0bd81ac12836",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-26T08:58:53.050Z",
+          "result_digest": "sha256:9967c745a3973f5ee1dc61705f7aa50005268667068dc513bb3ca55dbae9140b"
+        }
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "detail": {
+        "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+        "runs": [
+          "run-48"
+        ]
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "detail": {
+        "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+        "check": "ev-11",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms",
+          "adr:0008 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+        "fitness": [
+          "run-49",
+          "run-50",
+          "run-51",
+          "run-52",
+          "run-53",
+          "run-54",
+          "run-55",
+          "run-56",
+          "run-57",
+          "run-58",
+          "run-59",
+          "run-60",
+          "run-61",
+          "run-62"
+        ]
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-26T10:04:17.477Z",
+      "detail": {
+        "lineage_id": "sha256:65f53457fa074046c09fd0ce1c2428eff7f29b26ba5c8dd5f07fb6513b055b60",
+        "candidate_id": "sha256:d9f78067b397d019100bbdd245fe372929b9b51cdeafccf6dc0f25e75ba9c725",
+        "candidate_tree": "23c6a872108e8198a325c039d3b242ca7d9baea0",
+        "findings_digest": "sha256:a196d5af70ee8813c73b78c7082cfefdffd4c886967c85184541ed28300b6dcb",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-26T10:03:41.902Z",
+          "result_digest": "sha256:3f3c3b4e0ed0d5cafb8ceee5669d7bc52c55dcab9046c564d1093ef93fe514a5"
+        }
+      }
+    },
+    {
+      "id": "ev-15",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-26T10:13:13.853Z"
+    }
+  ],
+  "base": "8a98c8b23789f4354d78eae4bb717b47ec0670d3",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"E1\\.44\" scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:5ff4640698737e0854a8457de237a2605934a302ef8be21dc6bd117b44c10e2a",
+      "tree": "sha256:b46333b4f6f281c4dee24d52e85f85ac45a2dcd080c83e84bbb168057bfadbc5",
+      "recorded_at": "2026-10-26T07:53:59.114Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"E1\\.44\" scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a256abdcb6efc530d4376ccbccd2ebc70992b16ce52fad49b3cfe2647c2477d2",
+      "tree": "sha256:1fa7b800e11d1d7f5f6fd8149c53afd4155f526a5b065029df676bba72f5c872",
+      "recorded_at": "2026-10-26T08:08:01.870Z",
+      "tests": 6
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:411145a7b61e38f3e4409155fa444b87c30ad8ec8c5ca435f73c7d032499f109",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:640b5e8eb0f105a4148b8cf87e7643f9acb6b515d2e0433cb9728e53e214b3a8",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z",
+      "tests": 47
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a434701fc5df3be3b0a040a9fa054855659bd3b6c532e672cc3f8e7388c494bd",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z",
+      "tests": 11
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e221a7cc8e5659ef41caf064c58d858d55bfd5e190cfa72be510f446990d3113",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z",
+      "tests": 47
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:417ffda37aa63c4e708025972169700720ee61b2315d8a5164a0d2eccfcd5bc8",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z",
+      "tests": 16
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:55a5679bbe9f2162c10374099ee59173b2883f24d1211f5f80af72ca9ac195a4",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z",
+      "tests": 2
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cefe801f6c861e5d084f33b5020593fa64a05536939e6b0f28fc0d1d2d306a1c",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z",
+      "tests": 32
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1e43c97418178d14eaddfca516ece05f5dcd0417666eb1d23dcfe01f4a055b4f",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z",
+      "tests": 20
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a9ae50fa8fc031be295ebf1ed14240e0b41e8160a92525e6f01aad02d94a1117",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z",
+      "tests": 79
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9732432c27277b481311ecc569d362930aa29c51f8970e8475f0907eb2b62a5d",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z",
+      "tests": 32
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:088f74eb32ef011995a1c388589902cbd3af409acc9ecc1572a64b9d15f1089f",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z",
+      "tests": 40
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6e04f967196db687649dc14960d88f794cb0d8bacc30de87844c26d337a56edc",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z",
+      "tests": 47
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b47f495f602e9764ea6062dc6195c519be42693c5193a15ec59ff47f06d0274c",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z",
+      "tests": 82
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c2d60adeb1e7301d17d332becc2dd37a02410b235f19f0281fcb63b942be58ca",
+      "tree": "sha256:c09ec35b7e01167b58495f8a14136086828f6a0b8a94d0e8d5b931000ce6a744",
+      "recorded_at": "2026-10-26T08:12:07.925Z",
+      "tests": 82
+    },
+    {
+      "id": "run-18",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:026d8bf538122e9d45a4067ae1e16ceeca490b5e4154888efa8e88078d9f8d53",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z"
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7977872d897d4ac6fb9a48f27fd73b1a370b77e95d19cf45c9149a5b4dd6dd1b",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "tests": 47
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7d5f264d98973505e2e2f720cbfb65c1bce40caf31facb05049d71babb230828",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "tests": 11
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cdcd5035bedb26583153dcff47df7620d216f0a15f431bd96c2b9db430cee4e2",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "tests": 48
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3ba612ed221057564552e84cc9968938858f2a6cd65e519936f5468c1d3441c5",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "tests": 16
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5e3205902df31776f4e247578788a45a2a0b72504b4fc2465ee111e07d1d075d",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "tests": 2
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:815229105c526bcea85ab34ba9e052ecffa9e93012251bb14489df070a1c5890",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "tests": 32
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z"
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:11c627b558608a7b89d5e8bc42ebb2d7e387f479fdba47b325b025e854ff430e",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "tests": 20
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:03b18b2ccf867be678a0b19e8896a2122fc9e03fb8e61d293c4d8a3aa9d784d9",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "tests": 79
+    },
+    {
+      "id": "run-28",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4bd2deba855e95d247951648f95e64ac2133a97197060cf49e1fdc71c750bf92",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "tests": 32
+    },
+    {
+      "id": "run-29",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ac5436657100483c8916de37077ef7d3fd69274921d584714e2961da3e6d9040",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "tests": 40
+    },
+    {
+      "id": "run-30",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:119e9ee13708b02628792d87512fc88a455b4ad5767b1b346c159235e8b7ca94",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "tests": 47
+    },
+    {
+      "id": "run-31",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:70e9d1c4b9bd97b521dc389e145f2c8752d8025f404c71f6124e99efd1306836",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "tests": 82
+    },
+    {
+      "id": "run-32",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a9d1c6da7bd9c48f109c232ef09bb438e34cb6d7ef76773393bc3a084834b399",
+      "tree": "sha256:57e2a887628d971d693d32b7457e96371d7a7519d3fbb67fc01288d4505bddf6",
+      "recorded_at": "2026-10-26T08:39:37.336Z",
+      "tests": 82
+    },
+    {
+      "id": "run-33",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:252186aff344e658a6d7631df9a7a58ada72cf18c400b87ec3f4e9c68c9efca9",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z"
+    },
+    {
+      "id": "run-34",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b67cf08caa34db4bc552782f4e6e7f29ee4e6be483ab448247f14bb7201b7983",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "tests": 47
+    },
+    {
+      "id": "run-35",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5ec0778c95f3ec08ac79e9c302811347deabe2c3ae455dbe9165fb802fe8fd56",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "tests": 11
+    },
+    {
+      "id": "run-36",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cf85b5cefd40250fba8ba2675a80e940660a611349ff0d4e782ac7d23d8c3387",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "tests": 48
+    },
+    {
+      "id": "run-37",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:640e0698282037c8cc8b3e94a2b3dd93e564845f192601ca4e353a451a270d17",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "tests": 16
+    },
+    {
+      "id": "run-38",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0731313ca1c7b1552f71263c9914cc79972fea9c4054bf7d46ced16810d5a897",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "tests": 2
+    },
+    {
+      "id": "run-39",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f163c8152670460615a32caf27d0790006ae7cc3ee0bed32094345e30f40d02d",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "tests": 32
+    },
+    {
+      "id": "run-40",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z"
+    },
+    {
+      "id": "run-41",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:838d2a6fd6cae5e4cc4cbeccbb8bb58c62d8ce2e005517f5cd34f59ffef31d07",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "tests": 20
+    },
+    {
+      "id": "run-42",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:298a8f02e02d3254693fe84089cf61d54a21080ad1bfe7715efba33a2a5bf50a",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "tests": 79
+    },
+    {
+      "id": "run-43",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1ef286abd581936ee8c15392cbd364b7f1d8810c6680a424e6c829c1c2c681f9",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "tests": 32
+    },
+    {
+      "id": "run-44",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fa030bf3380368642a9ad77db06ef20d3fe484ab08df3d344acd20e2e2067379",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "tests": 40
+    },
+    {
+      "id": "run-45",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d2c818cb7f684e5b75ad570051b46645609d400e7738e84e9e378e8213fa09b5",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "tests": 47
+    },
+    {
+      "id": "run-46",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fbd73d1edbf3886be9ec05dbbb271518d57924fcfc2aa5ea697728ac734cb25d",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "tests": 82
+    },
+    {
+      "id": "run-47",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a404a8040def3f8619f680f06a4bc53e6a91cf75ac403a99355e76da96f34f8d",
+      "tree": "sha256:47e5f8683e5340f39c1662cabaa78b0f9761370e52736a9ef17dd770b3af9828",
+      "recorded_at": "2026-10-26T08:49:30.675Z",
+      "tests": 82
+    },
+    {
+      "id": "run-48",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:332788818619bc4c2cd43ca9ea81c40aa49f42569de5c3b5b4193e5da9e84c49",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z"
+    },
+    {
+      "id": "run-49",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:80fec0cf2d220ba3be0213de19f176528f14d3b743b951314879c7d13b03ce46",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "tests": 47
+    },
+    {
+      "id": "run-50",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:923f82328aa828fcbc56a72b518fb8b20af0e34bdabbc0f80b8088c70dd1d908",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "tests": 11
+    },
+    {
+      "id": "run-51",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9f61c573b318bc023c6b2624790054eead7a61928833465cd1765f2df75cc36a",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "tests": 48
+    },
+    {
+      "id": "run-52",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8c08e7bc87bf796c7d96d99b3cad6215d46c823eb1a8787aa79c74b1d96bdfbb",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "tests": 16
+    },
+    {
+      "id": "run-53",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cbea2ba2a96733f0530816c7002f98d4b1d1debb2d0a3c6a6824b772929188f9",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "tests": 2
+    },
+    {
+      "id": "run-54",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:56352b05ff910bb9429629e3906caf14d5fcc7e93a37acccbfe460d174143adc",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "tests": 32
+    },
+    {
+      "id": "run-55",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z"
+    },
+    {
+      "id": "run-56",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c4b39b705b6395b4da441409823ec9eeb145aa85211f2a5570671927a8eccaa7",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "tests": 20
+    },
+    {
+      "id": "run-57",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1f496629a2757c5d3c4b3402c5e9e54017551407453bb93d8ed8146d61eaf2dc",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "tests": 79
+    },
+    {
+      "id": "run-58",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:221ad282df5a70aac538e0696f76c5bc3695604bb7a91e2e58dc09baee3de20a",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "tests": 32
+    },
+    {
+      "id": "run-59",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3016544f0d65ac76ca16ea51f556c065dad89e62137e27b4c96b9edbbae0e5cc",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "tests": 40
+    },
+    {
+      "id": "run-60",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2fdda57fcf1c33867145283d91aa23bfa55c27a9f0c4fdca04b3c8633cf9c2c9",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "tests": 47
+    },
+    {
+      "id": "run-61",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8ba1759183a8bdde3de11624eff68a63892bcce12537458b9b81d34ac33c0f84",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "tests": 82
+    },
+    {
+      "id": "run-62",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2c5c8d63d26e26c2419133fa6c60b1980635615c758edb869b38268e1202367d",
+      "tree": "sha256:ce1f61f8f28e4a0c42a3c8d05376bbbd146c83fc22e21897a2eb19123e0676f6",
+      "recorded_at": "2026-10-26T09:53:32.181Z",
+      "tests": 82
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:013cef54c70ccc4cef5ee9710b385513005b628802d194ffcb1586c293754711",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "40bd690e53162f708bfce872ee4ad99fe6f345f9",
+          "candidate_tree": "a0721113d3fd1af0b34a57dc9fffd626c3ad23d2",
+          "paths": [
+            "README.es.md",
+            "README.md",
+            "docs/README.md",
+            "docs/en/README.md",
+            "docs/onboarding/tech-lead.md",
+            "docs/roadmaps/harness-evolution.md",
+            "internal/iddsession/catalog.json",
+            "internal/testdata/idd-session/steps/expected/session/latest.md",
+            "internal/testdata/idd-session/steps/expected/session/s-checks-changed/session-summary.md",
+            "internal/testdata/idd-session/steps/workspace/idd/s-checks-changed/state.yaml",
+            "openspec/specs/idd/spec.md",
+            "openwiki/agents-skills/agents-and-skills.md",
+            "openwiki/idd/flujo-idd.md",
+            "openwiki/orchestration/routing.md",
+            "scripts/hooks/idd-session.test.js",
+            "scripts/lib/idd-check.js",
+            "scripts/lib/idd-check.test.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-contract.test.js",
+            "scripts/lib/idd-facts.js",
+            "scripts/lib/idd-facts.test.js",
+            "scripts/lib/idd-next.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-record.test.js",
+            "scripts/lib/idd-signals.js",
+            "scripts/lib/idd-signals.test.js",
+            "scripts/lib/idd-workspace.js",
+            "scripts/lib/idd-workspace.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js",
+            "skills/idd/SKILL.md",
+            "skills/idd/references/approvals.md",
+            "skills/idd/references/open-facts.md"
+          ],
+          "diff_hash": "sha256:e9db8f888fe71bba8021e6829168ccb058749066fc10314596ea9d37a50355e5",
+          "paths_digest": "sha256:99b6cc21194b496ec6f895f2c951930549ed735ba3a4b2154a2bd3fe7b39c3af",
+          "authored_lines": 902,
+          "original_changed_lines": 1007
+        },
+        "candidate_id": "sha256:c09e9aaeddb87a64006d33faf3cf387fdb33fcfd2b1192ea50414c7cad824c76",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/onboarding/tech-lead.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/iddsession/catalog.json",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks-changed/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks-changed/state.yaml",
+          "openspec/specs/idd/spec.md",
+          "openwiki/agents-skills/agents-and-skills.md",
+          "openwiki/idd/flujo-idd.md",
+          "openwiki/orchestration/routing.md",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-check.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-facts.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md",
+          "skills/idd/references/open-facts.md"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "a0721113d3fd1af0b34a57dc9fffd626c3ad23d2",
+        "original_changed_lines": 1007,
+        "authored_lines": 902
+      },
+      "current_candidate_id": "sha256:c09e9aaeddb87a64006d33faf3cf387fdb33fcfd2b1192ea50414c7cad824c76",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "40bd690e53162f708bfce872ee4ad99fe6f345f9",
+        "candidate_tree": "a0721113d3fd1af0b34a57dc9fffd626c3ad23d2",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/onboarding/tech-lead.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/iddsession/catalog.json",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks-changed/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks-changed/state.yaml",
+          "openspec/specs/idd/spec.md",
+          "openwiki/agents-skills/agents-and-skills.md",
+          "openwiki/idd/flujo-idd.md",
+          "openwiki/orchestration/routing.md",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-check.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-facts.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md",
+          "skills/idd/references/open-facts.md"
+        ],
+        "diff_hash": "sha256:e9db8f888fe71bba8021e6829168ccb058749066fc10314596ea9d37a50355e5",
+        "paths_digest": "sha256:99b6cc21194b496ec6f895f2c951930549ed735ba3a4b2154a2bd3fe7b39c3af",
+        "authored_lines": 902,
+        "original_changed_lines": 1007
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "ceremony-only-rises:lens-start:1:0",
+          "result_digest": "sha256:e3ea53827ce12c0b3a699774d82e142a5dfc0e727169a4620bc02a0345424b67",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "B3 is bypassable by touching a test before the first check. untestedProduct (scripts/lib/idd-signals.js:221-228, applied at 397-398) derives untested-product only when the diff has no test path, but the new rule (scripts/ospec.js:435-437, scripts/lib/idd-check.js:95-121) counts a test only with a non-blank added line. A feature or bug whose first ospec check already sees a deleted, emptied or empty untracked test path beside product code never gets the signal, so boundary-tests does not exist and the 'adds no line to a test' refusal never runs. ospec.test.js:1990-2013 covers only derive-then-delete. REQ-idd-014 says a deleted or emptied test must not satisfy boundary-tests; here it removes the obligation, so the first audited case (feature without a new test) still reaches ready.",
+                "acceptance_criteria": "For a feature or bug whose diff changes product code and whose test paths are only deleted, emptied or empty files, the first ospec check records untested-product (or otherwise leaves boundary-tests pending) with the reason 'the diff adds no line to a test'. A diff that adds a non-blank test line still satisfies it, and the derive-then-delete test at ospec.test.js:1990 stays green."
+              },
+              {
+                "severity": "WARNING",
+                "summary": "The invariant 'the agent can raise the ceremony, never lower it' (README.md:50, README.es.md:50, openwiki/idd/flujo-idd.md:100, openspec/specs/idd/spec.md:825) holds only for kind, cites and checks. strict_tdd, impact (exclude, defaults) and contracts of idd/config.yaml are read from the working tree (idd-workspace.js:49-63), idd/ is left out of the diff (idd-workspace.js:207-215), settleChecksChange compares only checks with the base (idd-check.js:135-150), and a Write to idd/config.yaml is allowed (pre-tool-use.test.js:65). Trigger: the model adds impact.exclude for auth paths; security-boundary stops deriving, and a derived one can be retracted because diffConfirmation (ospec.js:300-310) reads the same patterns, so trust-review never runs. The code is older, but this change specifies and documents a guarantee it does not deliver.",
+                "acceptance_criteria": "Either the statements name the mechanisms the CLI enforces (kind, cites, checks) instead of an unqualified 'never lower', or a change to strict_tdd, impact or contracts in idd/config.yaml relative to the change's base is refused or put to the user's answer before it can reduce the derived signals or obligations. Whichever is chosen, a test or doc check pins it."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "ceremony-only-rises:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-f5b4fe8a36e6f042",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "B3 is bypassable by touching a test before the first check. untestedProduct (scripts/lib/idd-signals.js:221-228, applied at 397-398) derives untested-product only when the diff has no test path, but the new rule (scripts/ospec.js:435-437, scripts/lib/idd-check.js:95-121) counts a test only with a non-blank added line. A feature or bug whose first ospec check already sees a deleted, emptied or empty untracked test path beside product code never gets the signal, so boundary-tests does not exist and the 'adds no line to a test' refusal never runs. ospec.test.js:1990-2013 covers only derive-then-delete. REQ-idd-014 says a deleted or emptied test must not satisfy boundary-tests; here it removes the obligation, so the first audited case (feature without a new test) still reaches ready.",
+          "acceptance_criteria": "For a feature or bug whose diff changes product code and whose test paths are only deleted, emptied or empty files, the first ospec check records untested-product (or otherwise leaves boundary-tests pending) with the reason 'the diff adds no line to a test'. A diff that adds a non-blank test line still satisfies it, and the derive-then-delete test at ospec.test.js:1990 stays green.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-643573af7f9e48e5",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The invariant 'the agent can raise the ceremony, never lower it' (README.md:50, README.es.md:50, openwiki/idd/flujo-idd.md:100, openspec/specs/idd/spec.md:825) holds only for kind, cites and checks. strict_tdd, impact (exclude, defaults) and contracts of idd/config.yaml are read from the working tree (idd-workspace.js:49-63), idd/ is left out of the diff (idd-workspace.js:207-215), settleChecksChange compares only checks with the base (idd-check.js:135-150), and a Write to idd/config.yaml is allowed (pre-tool-use.test.js:65). Trigger: the model adds impact.exclude for auth paths; security-boundary stops deriving, and a derived one can be retracted because diffConfirmation (ospec.js:300-310) reads the same patterns, so trust-review never runs. The code is older, but this change specifies and documents a guarantee it does not deliver.",
+          "acceptance_criteria": "Either the statements name the mechanisms the CLI enforces (kind, cites, checks) instead of an unqualified 'never lower', or a change to strict_tdd, impact or contracts in idd/config.yaml relative to the change's base is refused or put to the user's answer before it can reduce the derived signals or obligations. Whichever is chosen, a test or doc check pins it.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:5075511c2b7d7973a0c5ce6ae1733285ff8390e5c07d06e827e7671cc7d57c8a",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:ad80a75ffcc5ea394881f066bde874085a32b4527771fc4a2c3226144f42407b",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:013cef54c70ccc4cef5ee9710b385513005b628802d194ffcb1586c293754711",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "40bd690e53162f708bfce872ee4ad99fe6f345f9",
+          "candidate_tree": "f48319cc01dc90a9e79c96550867a6d5ee6b5abb",
+          "paths": [
+            "README.es.md",
+            "README.md",
+            "docs/README.md",
+            "docs/en/README.md",
+            "docs/onboarding/tech-lead.md",
+            "docs/roadmaps/harness-evolution.md",
+            "internal/iddsession/catalog.json",
+            "internal/testdata/idd-session/steps/expected/session/latest.md",
+            "internal/testdata/idd-session/steps/expected/session/s-checks-changed/session-summary.md",
+            "internal/testdata/idd-session/steps/workspace/idd/s-checks-changed/state.yaml",
+            "openspec/specs/idd/spec.md",
+            "openwiki/agents-skills/agents-and-skills.md",
+            "openwiki/idd/flujo-idd.md",
+            "openwiki/orchestration/routing.md",
+            "scripts/hooks/idd-session.test.js",
+            "scripts/lib/idd-check.js",
+            "scripts/lib/idd-check.test.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-contract.test.js",
+            "scripts/lib/idd-facts.js",
+            "scripts/lib/idd-facts.test.js",
+            "scripts/lib/idd-next.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-record.test.js",
+            "scripts/lib/idd-signals.js",
+            "scripts/lib/idd-signals.test.js",
+            "scripts/lib/idd-workspace.js",
+            "scripts/lib/idd-workspace.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js",
+            "skills/idd/SKILL.md",
+            "skills/idd/references/approvals.md",
+            "skills/idd/references/open-facts.md"
+          ],
+          "diff_hash": "sha256:81d23e2c6c6b40c7f1a1d3e1c233152c2b8fb68a371707d80d262018dc4424e4",
+          "paths_digest": "sha256:99b6cc21194b496ec6f895f2c951930549ed735ba3a4b2154a2bd3fe7b39c3af",
+          "authored_lines": 959,
+          "original_changed_lines": 1069
+        },
+        "candidate_id": "sha256:75863a84cca15b8d72096c4a1e9bb8f67ee5957adc729565f9963cc45076cb92",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/onboarding/tech-lead.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/iddsession/catalog.json",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks-changed/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks-changed/state.yaml",
+          "openspec/specs/idd/spec.md",
+          "openwiki/agents-skills/agents-and-skills.md",
+          "openwiki/idd/flujo-idd.md",
+          "openwiki/orchestration/routing.md",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-check.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-facts.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md",
+          "skills/idd/references/open-facts.md"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "f48319cc01dc90a9e79c96550867a6d5ee6b5abb",
+        "original_changed_lines": 1069,
+        "authored_lines": 959
+      },
+      "current_candidate_id": "sha256:75863a84cca15b8d72096c4a1e9bb8f67ee5957adc729565f9963cc45076cb92",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "40bd690e53162f708bfce872ee4ad99fe6f345f9",
+        "candidate_tree": "f48319cc01dc90a9e79c96550867a6d5ee6b5abb",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/onboarding/tech-lead.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/iddsession/catalog.json",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks-changed/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks-changed/state.yaml",
+          "openspec/specs/idd/spec.md",
+          "openwiki/agents-skills/agents-and-skills.md",
+          "openwiki/idd/flujo-idd.md",
+          "openwiki/orchestration/routing.md",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-check.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-facts.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md",
+          "skills/idd/references/open-facts.md"
+        ],
+        "diff_hash": "sha256:81d23e2c6c6b40c7f1a1d3e1c233152c2b8fb68a371707d80d262018dc4424e4",
+        "paths_digest": "sha256:99b6cc21194b496ec6f895f2c951930549ed735ba3a4b2154a2bd3fe7b39c3af",
+        "authored_lines": 959,
+        "original_changed_lines": 1069
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "ceremony-only-rises:lens-start:2:0",
+          "result_digest": "sha256:c459f0e0a169b37dcf20cbbac8b083706afb8d11cd98eb93cc58be07ac3caccb",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "B3 can be satisfied against a diff the caller chooses. scripts/ospec.js:120 and 367 accept `ospec check --change <id> --base <ref>` (any commit, or the empty tree 4b825dc6...). check feeds that diff to addedTests() and settleBoundary (ospec.js:452,503; idd-check.js:95-121). With an older base, test files added by earlier commits count as added, so a feature with no new test records tested-check and satisfies boundary-tests once a normal check has derived untested-product. close does not catch it. requireDerived (ospec.js:612-630) re-derives signals and gates against state.base, and idd-close.js:116-138 compares only trees. The evidence `tests` are never re-read against the change's base. kind-mismatch, cite-outside-plan and checks-changed are re-checked at close, so B3 is the one left open. README.md:50 and REQ-idd-014 say boundary-tests needs a test the diff adds. The same override already lets contract-spec-and-test settle from any diff (pre-existing).",
+                "acceptance_criteria": "For a feature or bug whose diff against the change's recorded base adds product code and no non-blank test line, `ospec check --change <id> --base <older commit or empty tree>` leaves boundary-tests pending with the reason that the diff adds no line to a test, and close refuses that state. Either check ignores or refuses a --base other than the change's base when it settles diff-derived evidence, or close re-reads the tests of the tested-check evidence against state.base. A test pins the --base case and the normal case, where a test with an added non-blank line against the recorded base still satisfies boundary-tests."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "ceremony-only-rises:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-943bd78a78dfa353",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "B3 can be satisfied against a diff the caller chooses. scripts/ospec.js:120 and 367 accept `ospec check --change <id> --base <ref>` (any commit, or the empty tree 4b825dc6...). check feeds that diff to addedTests() and settleBoundary (ospec.js:452,503; idd-check.js:95-121). With an older base, test files added by earlier commits count as added, so a feature with no new test records tested-check and satisfies boundary-tests once a normal check has derived untested-product. close does not catch it. requireDerived (ospec.js:612-630) re-derives signals and gates against state.base, and idd-close.js:116-138 compares only trees. The evidence `tests` are never re-read against the change's base. kind-mismatch, cite-outside-plan and checks-changed are re-checked at close, so B3 is the one left open. README.md:50 and REQ-idd-014 say boundary-tests needs a test the diff adds. The same override already lets contract-spec-and-test settle from any diff (pre-existing).",
+          "acceptance_criteria": "For a feature or bug whose diff against the change's recorded base adds product code and no non-blank test line, `ospec check --change <id> --base <older commit or empty tree>` leaves boundary-tests pending with the reason that the diff adds no line to a test, and close refuses that state. Either check ignores or refuses a --base other than the change's base when it settles diff-derived evidence, or close re-reads the tests of the tested-check evidence against state.base. A test pins the --base case and the normal case, where a test with an added non-blank line against the recorded base still satisfies boundary-tests.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:bda44c8a606258748873a279d8bce5581d764fffb5100a67cb6338f8d1c707a4",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:19f1966a4631b12068a4b26960eb54134285a327e42b272eaec3d8d70694ba6e",
+      "generation": 3,
+      "predecessor_lineage_id": "sha256:ad80a75ffcc5ea394881f066bde874085a32b4527771fc4a2c3226144f42407b",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "40bd690e53162f708bfce872ee4ad99fe6f345f9",
+          "candidate_tree": "1b7e630c30d866b42e01f91c5754c8f665b4b37d",
+          "paths": [
+            "README.es.md",
+            "README.md",
+            "docs/README.md",
+            "docs/en/README.md",
+            "docs/onboarding/tech-lead.md",
+            "docs/roadmaps/harness-evolution.md",
+            "internal/iddsession/catalog.json",
+            "internal/testdata/idd-session/steps/expected/session/latest.md",
+            "internal/testdata/idd-session/steps/expected/session/s-checks-changed/session-summary.md",
+            "internal/testdata/idd-session/steps/workspace/idd/s-checks-changed/state.yaml",
+            "openspec/specs/idd/spec.md",
+            "openwiki/agents-skills/agents-and-skills.md",
+            "openwiki/idd/flujo-idd.md",
+            "openwiki/orchestration/routing.md",
+            "scripts/hooks/idd-session.test.js",
+            "scripts/lib/idd-check.js",
+            "scripts/lib/idd-check.test.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-contract.test.js",
+            "scripts/lib/idd-facts.js",
+            "scripts/lib/idd-facts.test.js",
+            "scripts/lib/idd-next.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-record.test.js",
+            "scripts/lib/idd-signals.js",
+            "scripts/lib/idd-signals.test.js",
+            "scripts/lib/idd-workspace.js",
+            "scripts/lib/idd-workspace.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js",
+            "skills/idd/SKILL.md",
+            "skills/idd/references/approvals.md",
+            "skills/idd/references/open-facts.md"
+          ],
+          "diff_hash": "sha256:4ff8ddd4b61a518a84483a285deb19844ea8755e6c652d1615fdee64d4391e95",
+          "paths_digest": "sha256:99b6cc21194b496ec6f895f2c951930549ed735ba3a4b2154a2bd3fe7b39c3af",
+          "authored_lines": 989,
+          "original_changed_lines": 1099
+        },
+        "candidate_id": "sha256:c3670c98057da77a6f06c3065137deee6b233a9351f4bcac0760c355beeb6b74",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/onboarding/tech-lead.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/iddsession/catalog.json",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks-changed/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks-changed/state.yaml",
+          "openspec/specs/idd/spec.md",
+          "openwiki/agents-skills/agents-and-skills.md",
+          "openwiki/idd/flujo-idd.md",
+          "openwiki/orchestration/routing.md",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-check.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-facts.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md",
+          "skills/idd/references/open-facts.md"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "1b7e630c30d866b42e01f91c5754c8f665b4b37d",
+        "original_changed_lines": 1099,
+        "authored_lines": 989
+      },
+      "current_candidate_id": "sha256:c3670c98057da77a6f06c3065137deee6b233a9351f4bcac0760c355beeb6b74",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "40bd690e53162f708bfce872ee4ad99fe6f345f9",
+        "candidate_tree": "1b7e630c30d866b42e01f91c5754c8f665b4b37d",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/onboarding/tech-lead.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/iddsession/catalog.json",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks-changed/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks-changed/state.yaml",
+          "openspec/specs/idd/spec.md",
+          "openwiki/agents-skills/agents-and-skills.md",
+          "openwiki/idd/flujo-idd.md",
+          "openwiki/orchestration/routing.md",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-check.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-facts.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md",
+          "skills/idd/references/open-facts.md"
+        ],
+        "diff_hash": "sha256:4ff8ddd4b61a518a84483a285deb19844ea8755e6c652d1615fdee64d4391e95",
+        "paths_digest": "sha256:99b6cc21194b496ec6f895f2c951930549ed735ba3a4b2154a2bd3fe7b39c3af",
+        "authored_lines": 989,
+        "original_changed_lines": 1099
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "ceremony-only-rises:lens-start:3:0",
+          "result_digest": "sha256:f2ab9bc2ad96d75fa92692dc5682b17849c94b4d206d0f6ca10329cb5cd8bb35",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/lib/idd-facts.js:105 refuses a manifest cite by classifyPath on the literal string, which keys on the last slash-segment (scripts/lib/idd-signals.js:123-149), but scripts/ospec.js:405-415 reads the file with path.resolve(root, file). A cite like persistence=package.json/:2 (also package.json/.:2, or a repo symlink docs/x.md pointing at package.json) has an empty or dot basename, so it is classified other or docs, never manifest, yet reads package.json. citesOutsidePlan (idd-signals.js:283-288) compares the same literal string and its own how (idd-signals.js:308) tells the model to run ospec signals --path package.json/, which normalizePath records verbatim. This evades the REQ-idd-018 MUST that a manifest or lockfile cite is refused with cite-unresolved (spec.md:1180-1182), the B6 audit case. Tests pin only the plain spelling (idd-facts.test.js:114-126, ospec.test.js:2033). Static trace, not executed.",
+                "acceptance_criteria": "record intent --kind feature with --cite persistence=package.json/:2, package.json/.:2 and a cite through a symlink whose target is package.json or a lockfile is refused with cite-unresolved naming the manifest, so the decision follows the file actually read (path resolved against the root, symlinks followed), not the literal string. A test pins the trailing-slash and the symlink spellings, and a code cite such as src/store.js:1 still resolves."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "kindMismatch (scripts/lib/idd-signals.js:264-270) refuses a docs change only when classifyPath(file) is product. classifyPath (idd-signals.js:142-149) returns product only for the PRODUCT_EXT list at line 58 (js, ts, py, go, java, kt, cs, rb, php, rs, html, css, vue, svelte) and only after isDocumentation (127-129) has claimed any path under a nested docs/ directory or ending in .md. A docs-kind change that edits src/main.c, lib/App.swift, scripts/deploy.sh or src/docs/handler.py therefore derives no kind-mismatch, no untested-product and keeps the lower docs floor (floorOf, line 373), although spec.md:635 says product code is a source file. The change.md decision chose classifyPath product, so this is a coverage gap of the shared classifier that B9 now relies on, not a new bypass.",
+                "acceptance_criteria": "A docs-kind ospec check whose diff touches a source file in a language outside the current list (for example .c, .swift, .sh) or a code file under a nested docs/ directory is refused with kind-mismatch, or REQ-idd-012 states the exact list of extensions recognized as product code. Documentation, tests, manifests and configuration still pass as docs."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "ceremony-only-rises:lens-result:3:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-b0c9c6ebff2df550",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/lib/idd-facts.js:105 refuses a manifest cite by classifyPath on the literal string, which keys on the last slash-segment (scripts/lib/idd-signals.js:123-149), but scripts/ospec.js:405-415 reads the file with path.resolve(root, file). A cite like persistence=package.json/:2 (also package.json/.:2, or a repo symlink docs/x.md pointing at package.json) has an empty or dot basename, so it is classified other or docs, never manifest, yet reads package.json. citesOutsidePlan (idd-signals.js:283-288) compares the same literal string and its own how (idd-signals.js:308) tells the model to run ospec signals --path package.json/, which normalizePath records verbatim. This evades the REQ-idd-018 MUST that a manifest or lockfile cite is refused with cite-unresolved (spec.md:1180-1182), the B6 audit case. Tests pin only the plain spelling (idd-facts.test.js:114-126, ospec.test.js:2033). Static trace, not executed.",
+          "acceptance_criteria": "record intent --kind feature with --cite persistence=package.json/:2, package.json/.:2 and a cite through a symlink whose target is package.json or a lockfile is refused with cite-unresolved naming the manifest, so the decision follows the file actually read (path resolved against the root, symlinks followed), not the literal string. A test pins the trailing-slash and the symlink spellings, and a code cite such as src/store.js:1 still resolves.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-3e241225ff2504bb",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "kindMismatch (scripts/lib/idd-signals.js:264-270) refuses a docs change only when classifyPath(file) is product. classifyPath (idd-signals.js:142-149) returns product only for the PRODUCT_EXT list at line 58 (js, ts, py, go, java, kt, cs, rb, php, rs, html, css, vue, svelte) and only after isDocumentation (127-129) has claimed any path under a nested docs/ directory or ending in .md. A docs-kind change that edits src/main.c, lib/App.swift, scripts/deploy.sh or src/docs/handler.py therefore derives no kind-mismatch, no untested-product and keeps the lower docs floor (floorOf, line 373), although spec.md:635 says product code is a source file. The change.md decision chose classifyPath product, so this is a coverage gap of the shared classifier that B9 now relies on, not a new bypass.",
+          "acceptance_criteria": "A docs-kind ospec check whose diff touches a source file in a language outside the current list (for example .c, .swift, .sh) or a code file under a nested docs/ directory is refused with kind-mismatch, or REQ-idd-012 states the exact list of extensions recognized as product code. Documentation, tests, manifests and configuration still pass as docs.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:d4b6e9fe015600bf7c9cf9a0361d5dfb6798f8505249dab0561a0bd81ac12836",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:65f53457fa074046c09fd0ce1c2428eff7f29b26ba5c8dd5f07fb6513b055b60",
+      "generation": 4,
+      "predecessor_lineage_id": "sha256:19f1966a4631b12068a4b26960eb54134285a327e42b272eaec3d8d70694ba6e",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "40bd690e53162f708bfce872ee4ad99fe6f345f9",
+          "candidate_tree": "23c6a872108e8198a325c039d3b242ca7d9baea0",
+          "paths": [
+            "README.es.md",
+            "README.md",
+            "docs/README.md",
+            "docs/en/README.md",
+            "docs/onboarding/tech-lead.md",
+            "docs/roadmaps/harness-evolution.md",
+            "internal/iddsession/catalog.json",
+            "internal/testdata/idd-session/steps/expected/session/latest.md",
+            "internal/testdata/idd-session/steps/expected/session/s-checks-changed/session-summary.md",
+            "internal/testdata/idd-session/steps/workspace/idd/s-checks-changed/state.yaml",
+            "openspec/specs/idd/spec.md",
+            "openwiki/agents-skills/agents-and-skills.md",
+            "openwiki/idd/flujo-idd.md",
+            "openwiki/orchestration/routing.md",
+            "scripts/hooks/idd-session.test.js",
+            "scripts/lib/idd-check.js",
+            "scripts/lib/idd-check.test.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-contract.test.js",
+            "scripts/lib/idd-facts.js",
+            "scripts/lib/idd-facts.test.js",
+            "scripts/lib/idd-next.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-record.test.js",
+            "scripts/lib/idd-signals.js",
+            "scripts/lib/idd-signals.test.js",
+            "scripts/lib/idd-workspace.js",
+            "scripts/lib/idd-workspace.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js",
+            "skills/idd/SKILL.md",
+            "skills/idd/references/approvals.md",
+            "skills/idd/references/open-facts.md"
+          ],
+          "diff_hash": "sha256:1d59edb3a1e55cbefcebae903bd2d5a2018511e3ddd84fac9a99ace0b9b5a416",
+          "paths_digest": "sha256:99b6cc21194b496ec6f895f2c951930549ed735ba3a4b2154a2bd3fe7b39c3af",
+          "authored_lines": 1067,
+          "original_changed_lines": 1179
+        },
+        "candidate_id": "sha256:d9f78067b397d019100bbdd245fe372929b9b51cdeafccf6dc0f25e75ba9c725",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/onboarding/tech-lead.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/iddsession/catalog.json",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks-changed/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks-changed/state.yaml",
+          "openspec/specs/idd/spec.md",
+          "openwiki/agents-skills/agents-and-skills.md",
+          "openwiki/idd/flujo-idd.md",
+          "openwiki/orchestration/routing.md",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-check.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-facts.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md",
+          "skills/idd/references/open-facts.md"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "23c6a872108e8198a325c039d3b242ca7d9baea0",
+        "original_changed_lines": 1179,
+        "authored_lines": 1067
+      },
+      "current_candidate_id": "sha256:d9f78067b397d019100bbdd245fe372929b9b51cdeafccf6dc0f25e75ba9c725",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "40bd690e53162f708bfce872ee4ad99fe6f345f9",
+        "candidate_tree": "23c6a872108e8198a325c039d3b242ca7d9baea0",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/onboarding/tech-lead.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/iddsession/catalog.json",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks-changed/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks-changed/state.yaml",
+          "openspec/specs/idd/spec.md",
+          "openwiki/agents-skills/agents-and-skills.md",
+          "openwiki/idd/flujo-idd.md",
+          "openwiki/orchestration/routing.md",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-check.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-facts.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md",
+          "skills/idd/references/open-facts.md"
+        ],
+        "diff_hash": "sha256:1d59edb3a1e55cbefcebae903bd2d5a2018511e3ddd84fac9a99ace0b9b5a416",
+        "paths_digest": "sha256:99b6cc21194b496ec6f895f2c951930549ed735ba3a4b2154a2bd3fe7b39c3af",
+        "authored_lines": 1067,
+        "original_changed_lines": 1179
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "ceremony-only-rises:lens-start:4:0",
+          "result_digest": "sha256:487b4488440a4be445c622143ceb11094bc169c963b7c67062e3a8af3123c683",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/lib/idd-workspace.js:368-382 builds addedLines/removedLines from plain `git diff` text keyed by the `a/` and `b/` header prefixes (headerPath 217-219, changedLinesByFile 225-250) and deletes every key not in `paths` (377-381). `diff.mnemonicPrefix` (headers `c/` and `w/`), `diff.srcPrefix`/`diff.dstPrefix`, or a `-diff`/`binary` attribute in .gitattributes (`Binary files differ`, no hunks) leave that map empty for tracked files. Then removedContractLine (idd-signals.js:239-257) never fires: a `refactor` that deletes a contract line passes `check` and `close` without `kind-mismatch`, and addedTests stays empty (B3 over-blocks legitimate work). One `git config` or .gitattributes line, set by the model or by a user-level config, disables the new B9 control. No test sets either.",
+                "acceptance_criteria": "With `git config diff.mnemonicPrefix true`, and separately with a .gitattributes line `docs/** -diff` (or `*.md binary`) covering a tracked contract document, `readGitDiff` returns the same addedLines and removedLines as without the setting. `ospec check` and `ospec close` still refuse a `refactor` that removes a line of that document with `kind-mismatch`, and a line added to a tracked test file still counts for boundary-tests. A regression test sets each setting and asserts it."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "idd-signals.js:223-225 addedTests counts any test-classified path with one non-blank added line, and classifyPath (142-149, isTestPath 131-140) takes every non-doc file under test/ or tests/ as a test. A comment-only edit, an import reorder or a fixture such as test/data.json therefore satisfies boundary-tests and prevents untested-product from being derived. The accepted regression in ospec.test.js:2008 is a test file whose whole content is `// size=50`. The control exists to reject 'feature without a new test' (REQ-idd-014), and its cheapest bypass is one comment line in any test file, by the model or by accident. Advisory: the user's answer defined the test as a non-blank added line, so this narrows that definition instead of contradicting it.",
+                "acceptance_criteria": "A feature or bug whose only addition to a test path is a comment-only line, or a non-source file under test/, leaves boundary-tests pending with the 'adds no line to a test' reason and still derives untested-product. A real added code line in a test file satisfies it, and deleting or blanking a test still does not. Unit tests in idd-signals.test.js and idd-check.test.js cover the comment-only case."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "idd-record.js:154-166 raiseIntent opens a new open-facts entry only for a question text not asked before (`asked.has`, line 164) and keeps answered ones. A feature registered fresh always opens the gate (applyFacts 138-141, with idd-facts.js:190-192 requiring one question). But a docs or refactor change that already answered question Q can be raised to a feature whose single --open-fact is Q, and no gate opens, so the user never sees the feature's plan, although E1.44 says the kind may only rise. Also idd-record.js:168-173: a raise replaces intent.request, which every other path refuses to rewrite (`intent-conflict`). Narrow precondition: an earlier answered question must be replayed verbatim.",
+                "acceptance_criteria": "Raising a resolved docs or refactor change to a feature leaves an open `open-facts` entry for the feature's questions, even when their text was asked and answered before the raise (or the raise is refused), as a freshly registered feature does. A raise keeps intent.request as recorded unless it was null. Unit tests in idd-record.test.js cover both."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "ceremony-only-rises:lens-result:4:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-0499802bffba7293",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/lib/idd-workspace.js:368-382 builds addedLines/removedLines from plain `git diff` text keyed by the `a/` and `b/` header prefixes (headerPath 217-219, changedLinesByFile 225-250) and deletes every key not in `paths` (377-381). `diff.mnemonicPrefix` (headers `c/` and `w/`), `diff.srcPrefix`/`diff.dstPrefix`, or a `-diff`/`binary` attribute in .gitattributes (`Binary files differ`, no hunks) leave that map empty for tracked files. Then removedContractLine (idd-signals.js:239-257) never fires: a `refactor` that deletes a contract line passes `check` and `close` without `kind-mismatch`, and addedTests stays empty (B3 over-blocks legitimate work). One `git config` or .gitattributes line, set by the model or by a user-level config, disables the new B9 control. No test sets either.",
+          "acceptance_criteria": "With `git config diff.mnemonicPrefix true`, and separately with a .gitattributes line `docs/** -diff` (or `*.md binary`) covering a tracked contract document, `readGitDiff` returns the same addedLines and removedLines as without the setting. `ospec check` and `ospec close` still refuse a `refactor` that removes a line of that document with `kind-mismatch`, and a line added to a tracked test file still counts for boundary-tests. A regression test sets each setting and asserts it.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-ae2372c7c573f9bb",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "idd-signals.js:223-225 addedTests counts any test-classified path with one non-blank added line, and classifyPath (142-149, isTestPath 131-140) takes every non-doc file under test/ or tests/ as a test. A comment-only edit, an import reorder or a fixture such as test/data.json therefore satisfies boundary-tests and prevents untested-product from being derived. The accepted regression in ospec.test.js:2008 is a test file whose whole content is `// size=50`. The control exists to reject 'feature without a new test' (REQ-idd-014), and its cheapest bypass is one comment line in any test file, by the model or by accident. Advisory: the user's answer defined the test as a non-blank added line, so this narrows that definition instead of contradicting it.",
+          "acceptance_criteria": "A feature or bug whose only addition to a test path is a comment-only line, or a non-source file under test/, leaves boundary-tests pending with the 'adds no line to a test' reason and still derives untested-product. A real added code line in a test file satisfies it, and deleting or blanking a test still does not. Unit tests in idd-signals.test.js and idd-check.test.js cover the comment-only case.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-728205e23901e42c",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "idd-record.js:154-166 raiseIntent opens a new open-facts entry only for a question text not asked before (`asked.has`, line 164) and keeps answered ones. A feature registered fresh always opens the gate (applyFacts 138-141, with idd-facts.js:190-192 requiring one question). But a docs or refactor change that already answered question Q can be raised to a feature whose single --open-fact is Q, and no gate opens, so the user never sees the feature's plan, although E1.44 says the kind may only rise. Also idd-record.js:168-173: a raise replaces intent.request, which every other path refuses to rewrite (`intent-conflict`). Narrow precondition: an earlier answered question must be replayed verbatim.",
+          "acceptance_criteria": "Raising a resolved docs or refactor change to a feature leaves an open `open-facts` entry for the feature's questions, even when their text was asked and answered before the raise (or the raise is refused), as a freshly registered feature does. A raise keeps intent.request as recorded unless it was null. Unit tests in idd-record.test.js cover both.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:a196d5af70ee8813c73b78c7082cfefdffd4c886967c85184541ed28300b6dcb",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-26T10:13:13.853Z"
+}
