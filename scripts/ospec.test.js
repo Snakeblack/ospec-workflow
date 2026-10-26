@@ -2455,6 +2455,99 @@ test("[REQ-idd-026] snapshot refuses an unusable roadmap with exit 1 and writes 
   assert.ok(!fs.existsSync(path.join(root, "snapshot.json")));
 });
 
+// E5.11 the v2: groups from the roadmap and client texts from the progress file.
+const SNAPSHOT_V2_ROADMAP = [
+  "## S1. Base",
+  "| Change | Content |",
+  "| --- | --- |",
+  "| S1a. Platform | x |",
+  "| S1b. Access | y |",
+  "## Milestones",
+  "| Milestone | Content |",
+  "| --- | --- |",
+  "| M1. Docs | z |",
+  "",
+].join("\n");
+
+function snapshotV2Project(t, progress) {
+  const root = plainRoot(t);
+  writeFile(root, "docs/roadmap.md", SNAPSHOT_V2_ROADMAP);
+  if (progress !== undefined) writeFile(root, "docs/progress.md", progress);
+  fs.mkdirSync(path.join(root, "idd", "archive", "2026-01-02-s1a-platform"), { recursive: true });
+  return root;
+}
+
+const SNAPSHOT_V2_PROGRESS = "## S1. The base\n\nWhat every client needs.\n\n### S1a. The platform\n\n- short: Platform\n\n#### Tasks\n\n- [x] domain: Own domain\n";
+
+test("[REQ-idd-026] snapshot --schema-version 2 prints the v2 with groups and client texts", (t) => {
+  const root = snapshotV2Project(t, SNAPSHOT_V2_PROGRESS);
+  const expected = {
+    schemaVersion: 2,
+    groups: [
+      { id: "s1", title: "The base", summary: "What every client needs." },
+      { id: "milestones", title: "Milestones" },
+    ],
+    phases: [
+      { id: "s1a", title: "The platform", status: "done", group: "s1", shortTitle: "Platform", tasks: [{ id: "domain", title: "Own domain", done: true }] },
+      { id: "s1b", title: "Access", status: "pending", group: "s1" },
+      { id: "m1", title: "Docs", status: "pending", group: "milestones" },
+    ],
+  };
+  for (const args of [["snapshot", "--schema-version", "2"], ["snapshot", "--schema-version", "2", "--json"]]) {
+    const result = ospec(root, ...args);
+    assert.strictEqual(result.code, 0, result.stderr);
+    assert.strictEqual(result.stdout, `${JSON.stringify(expected, null, 2)}\n`);
+  }
+  // Without the option the v1 is unchanged.
+  assert.deepStrictEqual(JSON.parse(ospec(root, "snapshot").stdout), {
+    schemaVersion: 1,
+    phases: [
+      { id: "s1a", title: "Platform", status: "done" },
+      { id: "s1b", title: "Access", status: "pending" },
+      { id: "m1", title: "Docs", status: "pending" },
+    ],
+  });
+});
+
+test("[REQ-idd-026] snapshot v2 --out reports its version and the progress file it read", (t) => {
+  const root = snapshotV2Project(t, SNAPSHOT_V2_PROGRESS);
+  const result = ospec(root, "snapshot", "--schema-version", "2", "--out", "snapshot.json");
+  assert.strictEqual(result.code, 0, result.stderr);
+  const bytes = Buffer.byteLength(fs.readFileSync(path.join(root, "snapshot.json"), "utf8"));
+  assert.strictEqual(result.stdout, `snapshot v2: 3 phases from docs/roadmap.md and docs/progress.md written to snapshot.json (${bytes} bytes)\n`);
+  writeFile(root, "plans/client.md", "## S1.\n");
+  const json = ospec(root, "snapshot", "--schema-version", "2", "--progress", "plans/client.md", "--out", "snapshot.json", "--json").json;
+  assert.deepStrictEqual(json, {
+    ok: true,
+    command: "snapshot",
+    schema_version: 2,
+    roadmap: "docs/roadmap.md",
+    out: "snapshot.json",
+    phases: 3,
+    bytes: Buffer.byteLength(fs.readFileSync(path.join(root, "snapshot.json"), "utf8")),
+    progress: "plans/client.md",
+  });
+  const bare = snapshotV2Project(t);
+  assert.strictEqual(ospec(bare, "snapshot", "--schema-version", "2", "--out", "s.json").stdout.startsWith("snapshot v2: 3 phases from docs/roadmap.md written to s.json"), true);
+});
+
+test("[REQ-idd-026] snapshot refuses a bad version, --progress without the v2 and a progress file out of its syntax, writing nothing", (t) => {
+  const root = snapshotV2Project(t, SNAPSHOT_V2_PROGRESS.replace("- [x] domain", "- [ ] domain"));
+  for (const args of [["--schema-version", "3"], ["--progress", "docs/progress.md"]]) {
+    const result = ospec(root, "snapshot", ...args, "--out", "snapshot.json");
+    assert.strictEqual(result.code, 2, result.stderr);
+    assert.match(result.stderr, /\(usage\)/);
+  }
+  const unchecked = ospec(root, "snapshot", "--schema-version", "2", "--out", "snapshot.json", "--json");
+  assert.strictEqual(unchecked.code, 1);
+  assert.strictEqual(unchecked.json.error.code, "progress-invalid");
+  assert.strictEqual(unchecked.json.error.message, "docs/progress.md:11: phase s1a is done, so task domain must be checked: '- [x]'");
+  const missing = ospec(root, "snapshot", "--schema-version", "2", "--progress", "nope.md", "--out", "snapshot.json");
+  assert.strictEqual(missing.code, 1);
+  assert.match(missing.stderr, /^ospec: progress file not found: nope\.md \(progress-missing\)\n/);
+  assert.ok(!fs.existsSync(path.join(root, "snapshot.json")));
+});
+
 test("[REQ-idd-026] no IDD step, hook or check runs snapshot", () => {
   for (const file of ["skills/idd/SKILL.md", "hooks/hooks.json", "idd/config.yaml"]) {
     assert.doesNotMatch(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), /ospec(\.js)?["']? snapshot/, file);

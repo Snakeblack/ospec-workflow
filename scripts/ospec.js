@@ -75,6 +75,7 @@ const {
 const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
 const { readReceipt } = require("./lib/review-receipt.js");
 const { DEFAULT_ROADMAP, SnapshotError, buildSnapshot } = require("./lib/progress-snapshot.js");
+const { DEFAULT_PROGRESS, buildSnapshotV2 } = require("./lib/progress-snapshot-v2.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
 const { addedTests, applyDerivation, classifyPath, deriveSignals, persistentHits, requireDeclaredCeremony } = require("./lib/idd-signals.js");
@@ -131,7 +132,7 @@ const USAGE = `Usage:
   ospec close --change <id>
   ospec doctor [--target <host>] [--repair] [--json]
   ospec team [--mode <idd|sdd>] [--json]
-  ospec snapshot [--roadmap <path>] [--out <file>] [--json]
+  ospec snapshot [--schema-version <1|2>] [--roadmap <path>] [--progress <path>] [--out <file>] [--json]
   ospec foundation next [--profile <id>] [--map <path>] [--json]
   ospec foundation record --slot <id> --state <confirmed|assumed|n/a|deferred>
                           [--source-kind <user|document|repository>] [--source-ref <text>]
@@ -143,7 +144,10 @@ Options:
   --json        machine-readable output
   --diff        signals: also read the git diff against --base
   --base <ref>  diff base (default: the commit the change started from, else HEAD)
+  --schema-version <1|2>
+                snapshot: the version to emit (default: 1)
   --roadmap     snapshot: the roadmap to read (default: ${DEFAULT_ROADMAP})
+  --progress    snapshot v2: the progress file to read (default: ${DEFAULT_PROGRESS}, when it exists)
   --out <file>  snapshot: write the snapshot to this file instead of stdout
 `;
 
@@ -218,6 +222,8 @@ const OPTIONS = {
   "review-trigger": { type: "string" },
   owner: { type: "string" },
   roadmap: { type: "string" },
+  "schema-version": { type: "string" },
+  progress: { type: "string" },
   out: { type: "string" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
@@ -1248,13 +1254,20 @@ function describeCloseDelivery({ changelog, release }) {
   return lines;
 }
 
-// The progress snapshot, on stdout or written whole to --out; an invalid one
-// is refused before anything is written (REQ-idd-026).
+// The progress snapshot, v1 unless --schema-version 2, on stdout or written
+// whole to --out; an invalid one is refused before anything is written
+// (REQ-idd-026).
 async function snapshot(root, values) {
-  const { roadmap, snapshot: document, text } = buildSnapshot({ root, roadmap: values.roadmap ?? DEFAULT_ROADMAP });
+  const version = values["schema-version"] ?? "1";
+  if (version !== "1" && version !== "2") throw new UsageError(`snapshot --schema-version takes 1 or 2, got ${JSON.stringify(version)}`);
+  if (version === "1" && values.progress !== undefined) throw new UsageError("snapshot --progress needs --schema-version 2");
+  const roadmapPath = values.roadmap ?? DEFAULT_ROADMAP;
+  const built = version === "1" ? buildSnapshot({ root, roadmap: roadmapPath }) : buildSnapshotV2({ root, roadmap: roadmapPath, progress: values.progress });
+  const { roadmap, snapshot: document, text } = built;
   if (values.out === undefined) return { text };
   await writeFileAtomic(path.resolve(root, values.out), text);
-  return { roadmap, out: values.out, phases: document.phases.length, bytes: Buffer.byteLength(text) };
+  const report = { roadmap, out: values.out, phases: document.phases.length, bytes: Buffer.byteLength(text) };
+  return version === "1" ? report : { schema_version: 2, ...report, progress: built.progress };
 }
 
 async function foundation(root, positionals, values) {
@@ -1318,7 +1331,11 @@ function describe(command, result) {
   if (command === "signals") return describeSignals(result);
   if (command === "check") return describeCheck(result);
   if (command === "run") return describeRunResult(result);
-  if (command === "snapshot") return `snapshot: ${result.phases} phases from ${result.roadmap} written to ${result.out} (${result.bytes} bytes)`;
+  if (command === "snapshot") {
+    const head = result.schema_version === 2 ? "snapshot v2" : "snapshot";
+    const sources = result.progress ? `${result.roadmap} and ${result.progress}` : result.roadmap;
+    return `${head}: ${result.phases} phases from ${sources} written to ${result.out} (${result.bytes} bytes)`;
+  }
   if (command === "status") {
     if (result.changes.length === 0) return "No IDD changes.";
     return result.changes

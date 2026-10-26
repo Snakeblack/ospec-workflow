@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- ospec snapshot --schema-version 2 emite el snapshot de avance v2: las fases del roadmap con su tramo (los encabezados ## con tablas de fases) y, desde un fichero de avance opcional en Markdown (docs/progress.md o --progress), los textos para el cliente de cada tramo y fase, sus tareas, fechas, resultados y versión de prueba, y las peticiones al cliente; el v1 sigue siendo el de por defecto (progress-snapshot-v2)
+
 ## [2.157.1] - 2026-10-26
 
 ### Fixed

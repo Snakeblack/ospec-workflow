@@ -6,7 +6,8 @@
 // hook, check or gate runs it. The status comes from directory names only, so
 // no state of either mode is read (ADR 0011). The document declares only its
 // version: its format is closed (ADR 0009) and its schema is
-// schemas/progress-snapshot/v1.schema.json.
+// schemas/progress-snapshot/v1.schema.json. The v2 builds on this module
+// (progress-snapshot-v2.js).
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -30,6 +31,7 @@ const ARCHIVED_NAME = /^\d{4}-\d{2}-\d{2}-(.+)$/;
 const PHASE_CELL = /^([A-Za-z0-9][A-Za-z0-9.-]*?)\.\s+(.*)$/;
 const DELIMITER_ROW = /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?$/;
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
 
 class SnapshotError extends Error {
@@ -62,24 +64,32 @@ function cells(line) {
   return parts;
 }
 
-// The body rows of every Markdown table outside code fences, grouped by table.
+// The body rows of every Markdown table outside code fences, grouped by table,
+// each table with the `##` heading it sits under: null before the first one
+// and after a `#` heading. Only the v2 reads the heading.
 function tables(lines) {
   const found = [];
   let fence = null;
+  let heading = null;
   for (let index = 0; index < lines.length; index += 1) {
     const marker = FENCE.exec(lines[index])?.[1];
     if (marker && (fence === null || marker.startsWith(fence))) {
       fence = fence === null ? marker[0].repeat(3) : null;
       continue;
     }
-    if (fence !== null || !lines[index].includes("|") || !DELIMITER_ROW.test(lines[index + 1]?.trim() ?? "")) continue;
+    if (fence !== null) continue;
+    if (!lines[index].includes("|") || !DELIMITER_ROW.test(lines[index + 1]?.trim() ?? "")) {
+      const title = HEADING.exec(lines[index]);
+      if (title && title[1].length <= 2) heading = title[1].length === 2 ? { text: title[2] ?? "", line: index + 1 } : null;
+      continue;
+    }
     const rows = [];
     let at = index + 2;
     while (at < lines.length && lines[at].includes("|") && lines[at].trim() !== "") {
       rows.push({ line: at + 1, first: cells(lines[at])[0] ?? "" });
       at += 1;
     }
-    found.push(rows);
+    found.push({ heading, rows });
     index = at - 1;
   }
   return found;
@@ -94,11 +104,12 @@ function invalid(file, line, message) {
 }
 
 // The phases of a roadmap: each row of a table whose every row starts with
-// `<ID>. <title>`. A table with no such row is not a phase table.
-function parseRoadmap(text, file) {
+// `<ID>. <title>`, with the `##` heading of its table. A table with no such
+// row is not a phase table.
+function roadmapPhases(text, file) {
   const phases = [];
   const byKey = new Map();
-  for (const rows of tables(text.split(/\r?\n/))) {
+  for (const { heading, rows } of tables(text.split(/\r?\n/))) {
     const matches = rows.map((row) => PHASE_CELL.exec(plainText(row.first)));
     if (!matches.some(Boolean)) continue;
     const stray = rows.find((row, index) => !matches[index]);
@@ -112,7 +123,7 @@ function parseRoadmap(text, file) {
       if (CONTROL.test(title)) throw invalid(file, row.line, `the title of phase ${id} holds a control character`);
       const clash = byKey.get(linkKey(id));
       if (clash) throw invalid(file, row.line, `phase id ${id} repeats ${clash.id} of line ${clash.line}`);
-      const phase = { id, title, line: row.line };
+      const phase = { id, title, line: row.line, heading };
       byKey.set(linkKey(id), phase);
       phases.push(phase);
     });
@@ -121,6 +132,10 @@ function parseRoadmap(text, file) {
     throw new SnapshotError("roadmap-unrecognized", `${file} has no phase table: no table row whose first cell starts with '<ID>. <title>'`);
   }
   return phases;
+}
+
+function parseRoadmap(text, file) {
+  return roadmapPhases(text, file).map(({ id, title, line }) => ({ id, title, line }));
 }
 
 // The status of each phase. A change belongs to the phase whose link key, the
@@ -204,21 +219,27 @@ function serializeSnapshot(phases) {
   return text;
 }
 
-function buildSnapshot({ root, roadmap = DEFAULT_ROADMAP }) {
-  let text;
+function readRoadmap(root, roadmap) {
   try {
-    text = fs.readFileSync(path.resolve(root, roadmap), "utf8");
+    return fs.readFileSync(path.resolve(root, roadmap), "utf8");
   } catch (error) {
     if (error.code !== "ENOENT" && error.code !== "EISDIR") throw error;
     throw new SnapshotError("roadmap-missing", `roadmap not found: ${roadmap}`, "pass --roadmap <path> to read another roadmap");
   }
+}
+
+function buildSnapshot({ root, roadmap = DEFAULT_ROADMAP }) {
+  const text = readRoadmap(root, roadmap);
   const phases = phaseStatuses(parseRoadmap(text, roadmap), readChanges(root));
   const snapshotText = serializeSnapshot(phases);
   return { roadmap, snapshot: { schemaVersion: SNAPSHOT_VERSION, phases }, text: snapshotText };
 }
 
 module.exports = {
+  CONTROL,
   DEFAULT_ROADMAP,
+  FENCE,
+  HEADING,
   MAX_BYTES,
   MAX_PHASES,
   MAX_TITLE,
@@ -230,5 +251,7 @@ module.exports = {
   phaseStatuses,
   plainText,
   readChanges,
+  readRoadmap,
+  roadmapPhases,
   serializeSnapshot,
 };

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 2,
+  "groups": [
+    { "id": "s1", "title": "The base" },
+    { "id": "s2", "title": "Empty" }
+  ],
+  "phases": [
+    {
+      "id": "s1a",
+      "title": "Platform",
+      "status": "done",
+      "group": "s1",
+      "start": "2026-02-30",
+      "end": "2026-01-01",
+      "tasks": [{ "id": "domain", "title": "Own domain", "done": false }],
+      "previewUrl": "http://user:secret@preview.example.com/",
+      "owner": "someone"
+    }
+  ],
+  "requests": [{ "id": "logo", "phase": "s9", "title": "Send the logo" }]
+}

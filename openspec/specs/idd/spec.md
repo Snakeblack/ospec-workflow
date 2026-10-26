@@ -1921,7 +1921,9 @@ before this requirement. SDD MUST NOT read them (ADR 0011).
 `ospec snapshot` MUST export the progress of the project as a progress
 snapshot v1, `{ "schemaVersion": 1, "phases": [...] }`, each phase holding
 only `id`, `title` and `status` (`pending`, `in-progress` or `done`), with
-`schemas/progress-snapshot/v1.schema.json` as its schema. It MUST run only
+`schemas/progress-snapshot/v1.schema.json` as its schema, unless
+`--schema-version 2` asks for the v2 below; `--schema-version` takes `1`, the
+default, or `2`. It MUST run only
 when invoked: no IDD or SDD step, hook, check, gate or doctor check runs it,
 and it writes nothing but the snapshot. It needs no git work tree.
 
@@ -1959,6 +1961,67 @@ today would not meet is a new `schemaVersion`. The snapshot declares only its
 version: its format is closed and its name is the `$id` of its schema
 (ADR 0009). Publishing it is up to the project.
 
+The progress snapshot v2 (E5.11), with
+`schemas/progress-snapshot/v2.schema.json` as its schema, MUST hold every
+phase of the v1, with the same `id`, `status` and order, plus the groups of
+the roadmap and the client texts of a progress file. A group is a `##`
+heading of the roadmap with a phase table below it, before the next `#` or
+`##` heading, in reading order, and each of its phases names it in `group`. A
+group heading that reads `<ID>. <title>` once clean gives the id `<ID>` in
+lower case and that title; any other gives its clean text as the title and
+an id derived from it: in lower case, without diacritics, each run of
+characters outside `a-z` and `0-9` replaced by `-`, and without a leading or
+trailing `-`. A roadmap without groups gives a v2 without `groups`. Phases
+both inside and outside groups, a derived id that is empty or over 64
+characters, a group title over 200 characters or with a control character,
+and two groups with the same id MUST be refused with `roadmap-invalid`,
+naming the file and the line. The v1 ignores the headings.
+
+The progress file is `docs/progress.md` unless `--progress <path>` names
+another, and `--progress` without `--schema-version 2` is a usage error.
+Without the file the v2 holds only groups and phases; a `--progress` path
+that does not exist MUST be refused with `progress-missing`. The file is
+Markdown written for the client in the language of the project, with fixed
+English keywords. What comes before its first `##` or `###` heading is free
+and ignored. After it:
+
+- `## <ID>. <title>` names a group of the roadmap: its title, when given,
+  replaces the roadmap's, and its paragraph is the group's `summary`.
+- `### <ID>. <title>`, under the `##` of its group or, in a roadmap without
+  groups, under none, names a phase of the roadmap. Its title, when given,
+  replaces the roadmap's; the items `- short: <text>`, `- start: <date>`,
+  `- end: <date>` and `- preview: <url>` give its `shortTitle`, `start`, `end`
+  and `previewUrl`; its paragraph is its `summary`; `#### Tasks` holds its
+  `tasks`, one `- [ ] <id>: <title>` or `- [x] <id>: <title>` item each; and
+  `#### Outcomes` holds its `outcomes`, one `- <text>` item each.
+- `## Requests` holds the `requests`, one `### <id>. <title>` each, with the
+  items `- phase: <phase id>` and `- due: <date>` and a paragraph for its
+  `body`.
+
+Ids name the roadmap's exactly and compare in lower case; a task or request
+id is written by hand and taken in lower case. A text is cleaned as a phase
+title is, and the lines of a paragraph join into one. A date is `YYYY-MM-DD`
+and exists in the calendar, and `start` is not after `end`. A preview is a
+bare `https://` URL with a host and no user or password, without whitespace
+or control characters, at most 2048 characters, emitted as written. A group
+or phase the roadmap lacks, a phase under the heading of another group, a
+request whose phase the roadmap lacks, a done phase with a task left
+unchecked, an id, text, list, date or URL out of its format, an unknown or
+repeated key, section or id, a second paragraph and any other line out of
+this syntax MUST be refused with `progress-invalid`, naming the file and the
+line of the first one. Nothing is ever cut.
+
+The v2 MUST meet its schema and the rules the schema does not express: ids
+are unique among the groups, the phases, the requests and the tasks of a
+phase; every phase names a group when there are groups, the phases of a
+group are consecutive and no group is empty; the phase of a request exists;
+a done phase has every task done; dates exist and `start` is not after
+`end`; texts are trimmed, NFC and free of control characters; and
+`previewUrl` holds no user or password (`snapshot-invalid`). It holds at most
+20 groups, 100 phases and 64 KiB of UTF-8 (`snapshot-limit`). Output,
+`--out` and refusals work as for the v1; the `--out` report of a v2 also
+names its schema version and the progress file it read, if any.
+
 #### Scenario: Phases take their status from the changes on disk
 
 - GIVEN a `docs/roadmap.md` table whose rows read `P1a. Platform`,
@@ -1978,6 +2041,37 @@ version: its format is closed and its name is the `$id` of its schema
 - THEN it MUST exit 1 with `roadmap-invalid` naming the line of the repeated
   row
 - AND `snapshot.json` MUST NOT exist
+
+#### Scenario: The v2 adds groups and client texts
+
+- GIVEN a `docs/roadmap.md` whose `## S1. Base` heading holds a table with
+  the rows `S1a. Platform` and `S1b. Access`, and whose `## Milestones`
+  heading holds a table with the row `M1. Docs`
+- AND the archived change `idd/archive/2026-01-02-s1a-platform/`
+- AND a `docs/progress.md` whose `## S1. The base` holds a paragraph, and
+  whose `### S1a. The platform` below it holds `- short: Platform` and a
+  `#### Tasks` with `- [x] domain: Own domain`
+- WHEN `ospec snapshot --schema-version 2` runs
+- THEN stdout MUST hold only a v2 whose groups are `s1`, titled `The base`
+  with that paragraph as its summary, and `milestones`, titled `Milestones`
+- AND whose phases are `s1a` `done` in `s1`, titled `The platform`, with its
+  short title and its done task, `s1b` `pending` in `s1` and `m1` `pending`
+  in `milestones`, in that order
+
+#### Scenario: A done phase with an unchecked task writes nothing
+
+- GIVEN the roadmap and the archived change of the scenario above
+- AND a `docs/progress.md` whose `### S1a. The platform` lists
+  `- [ ] domain: Own domain` under `#### Tasks`
+- WHEN `ospec snapshot --schema-version 2 --out snapshot.json` runs
+- THEN it MUST exit 1 with `progress-invalid` naming the line of that task
+- AND `snapshot.json` MUST NOT exist
+
+#### Scenario: Without the option the v1 is unchanged
+
+- GIVEN a roadmap with groups and a `docs/progress.md`
+- WHEN `ospec snapshot` runs
+- THEN stdout MUST hold the same v1 as without either of them
 
 #### Scenario: Nothing else runs it
 
