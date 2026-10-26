@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Comando ospec snapshot, bajo demanda, que lee el roadmap y los cambios IDD y SDD de un proyecto y escribe el snapshot de avance v1: un JSON con schemaVersion 1 y la lista ordenada de fases con su id, su título y su estado (progress-snapshot)
+
 ## [2.153.3] - 2026-10-26
 
 ### Fixed
