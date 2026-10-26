@@ -23,9 +23,10 @@ This spec is a hardening item (S3) absorbed into C2 from the C1 advisory set.
 `workspace-explore` MUST write `openspec/workspace.yaml` using the temp+rename
 procedure:
 
-1. Write the complete updated content to a temp file named
-   `openspec/workspace.yaml.tmp`.
-2. Rename (move) the temp file to `openspec/workspace.yaml`.
+1. Write the complete updated content to a temp file of this writer,
+   `openspec/workspace.yaml.<writer>.tmp`, and sync it to disk.
+2. Rename (move) the temp file to `openspec/workspace.yaml`, then sync the
+   directory where the platform supports it (REQ-idd-027).
 3. If the rename fails, the temp file MUST be deleted and an error returned.
    The pre-existing `openspec/workspace.yaml` (if any) MUST remain intact.
 
@@ -40,16 +41,17 @@ partially-written state.
 
 - GIVEN `openspec/workspace.yaml` exists with valid content
 - WHEN `workspace-explore` writes an updated atlas
-- THEN `openspec/workspace.yaml.tmp` is created first with the full new content
+- THEN `openspec/workspace.yaml.<writer>.tmp` is created first with the full new content
 - AND the rename atomically replaces `workspace.yaml` with the temp file
 - AND at no point is `workspace.yaml` observable in a partially-written state
 
 #### Scenario: Crash after temp write, before rename
 
-- GIVEN the process crashes after writing `workspace.yaml.tmp` but before
-  the rename completes
-- WHEN `workspace-explore` is re-run
-- THEN it detects the stale `workspace.yaml.tmp` and discards or overwrites it
+- GIVEN the process crashes after writing its `workspace.yaml.<writer>.tmp`
+  (or the `workspace.yaml.tmp` of an earlier version) but before the rename
+  completes
+- WHEN `workspace-explore` is re-run more than 5 s later
+- THEN it removes the stale temp file and writes through its own
 - AND `workspace.yaml` retains the content from before the crash, OR is
   successfully replaced by the re-run's new temp+rename cycle
 - AND the re-run MUST NOT error due to the presence of the stale `.tmp` file

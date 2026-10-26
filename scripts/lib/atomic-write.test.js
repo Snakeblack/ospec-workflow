@@ -13,6 +13,16 @@ async function createTempDir() {
   return await fs.mkdtemp(path.join(os.tmpdir(), "atomic-write-test-"));
 }
 
+// Each writer names its own temporary file <target>.<writer>.tmp (E1.46).
+function isTempOf(targetPath, file) {
+  return file.startsWith(targetPath + ".") && file.endsWith(".tmp");
+}
+
+async function ageFile(file) {
+  const past = new Date(Date.now() - 60000);
+  await fs.utimes(file, past, past);
+}
+
 test("1.1.1 · Normal write — temp file created then renamed", async () => {
   const tmpDir = await createTempDir();
   try {
@@ -25,21 +35,21 @@ test("1.1.1 · Normal write — temp file created then renamed", async () => {
     assert.strictEqual(actual, content);
 
     // Verify no temp file left behind
-    const tempPath = targetPath + ".tmp";
-    await assert.rejects(fs.stat(tempPath), { code: "ENOENT" });
+    assert.deepStrictEqual(await fs.readdir(tmpDir), ["workspace.yaml"]);
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
 });
 
-test("1.1.2 · Stale .tmp file overwritten unconditionally", async () => {
+test("1.1.2 · Stale .tmp file of a dead writer removed", async () => {
   const tmpDir = await createTempDir();
   try {
     const targetPath = path.join(tmpDir, "workspace.yaml");
     const tempPath = targetPath + ".tmp";
 
-    // Write stale tmp file
+    // Write stale tmp file, older than the lock's stale window
     await fs.writeFile(tempPath, "stale content");
+    await ageFile(tempPath);
 
     const content = "new atomic content";
     await writeFileAtomic(targetPath, content);
@@ -93,7 +103,7 @@ test("1.1.4 · Windows rename fallback — target.bak created, tmp renamed, .bak
     fs.rename = async (oldPath, newPath) => {
       renameCallCount++;
       renameSpy.push({ oldPath, newPath });
-      if (newPath === targetPath && oldPath === targetPath + ".tmp" && renameCallCount === 1) {
+      if (newPath === targetPath && isTempOf(targetPath, oldPath) && renameCallCount === 1) {
         // Throw EEXIST to simulate Windows rename collision
         const err = new Error("EEXIST: file already exists, rename");
         err.code = "EEXIST";
@@ -110,14 +120,13 @@ test("1.1.4 · Windows rename fallback — target.bak created, tmp renamed, .bak
       assert.strictEqual(actual, content);
 
       // Verify the spy showed the fallback calls:
-      // 1. rename(targetPath + '.tmp', targetPath) -> fails EEXIST
+      // 1. rename(temp, targetPath) -> fails EEXIST
       // 2. rename(targetPath, targetPath + '.bak') -> success
-      // 3. rename(targetPath + '.tmp', targetPath) -> success
+      // 3. rename(temp, targetPath) -> success
       assert.ok(renameCallCount >= 3);
       
-      // Verify no .bak left
-      await assert.rejects(fs.stat(targetPath + ".bak"), { code: "ENOENT" });
-      await assert.rejects(fs.stat(targetPath + ".tmp"), { code: "ENOENT" });
+      // Verify no .bak or temp left
+      assert.deepStrictEqual(await fs.readdir(tmpDir), ["workspace.yaml"]);
     } finally {
       fs.rename = originalRename;
     }
@@ -145,13 +154,14 @@ test("1.1.5 · Orphaned .bak recovery when target is absent", async () => {
   }
 });
 
-test("1.1.6 · Crash post-tmp before rename — stale .tmp overwritten in re-run", async () => {
+test("1.1.6 · Crash post-tmp before rename — stale .tmp removed in re-run", async () => {
   const tmpDir = await createTempDir();
   try {
     const targetPath = path.join(tmpDir, "workspace.yaml");
-    const tempPath = targetPath + ".tmp";
+    const tempPath = targetPath + ".4242-crashed.tmp";
 
     await fs.writeFile(tempPath, "half written content");
+    await ageFile(tempPath);
 
     // Re-run
     await writeFileAtomic(targetPath, "full content");
@@ -178,7 +188,7 @@ test("1.1.8 · Double-rename failure (fallback rename AND rollback both fail) su
     fs.rename = async (oldPath, newPath) => {
       call += 1;
       // 1st call: tmp -> target, fail EEXIST (forces the Windows fallback path)
-      if (call === 1 && oldPath === targetPath + ".tmp" && newPath === targetPath) {
+      if (call === 1 && isTempOf(targetPath, oldPath) && newPath === targetPath) {
         const err = new Error("EEXIST: file already exists, rename");
         err.code = "EEXIST";
         throw err;
@@ -188,7 +198,7 @@ test("1.1.8 · Double-rename failure (fallback rename AND rollback both fail) su
         return originalRename(oldPath, newPath);
       }
       // 3rd call: tmp -> target retry — fail again (simulates a still-locked target).
-      if (call === 3 && oldPath === targetPath + ".tmp" && newPath === targetPath) {
+      if (call === 3 && isTempOf(targetPath, oldPath) && newPath === targetPath) {
         const err = new Error("EPERM: operation not permitted, rename");
         err.code = "EPERM";
         throw err;
@@ -328,6 +338,69 @@ test("renameWithFallback · simulated EEXIST then success (directory)", async ()
     assert.strictEqual(await fs.readFile(path.join(dest, "a.txt"), "utf8"), "new");
     await assert.rejects(fs.stat(src), { code: "ENOENT" });
     await assert.rejects(fs.stat(dest + ".bak"), { code: "ENOENT" });
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// E1.46 state-durability: each writer owns its temporary file, the new content
+// reaches the disk before the rename, and a dead writer's leftovers go away.
+test("concurrent writers of one file each use their own temporary file", async () => {
+  const tmpDir = await createTempDir();
+  try {
+    const targetPath = path.join(tmpDir, "state.yaml");
+    const contents = Array.from({ length: 20 }, (_, index) => `writer ${index}\n`.repeat(500));
+
+    await Promise.all(contents.map((content) => writeFileAtomic(targetPath, content)));
+
+    assert.ok(contents.includes(await fs.readFile(targetPath, "utf8")), "the file holds one whole write");
+    assert.deepStrictEqual(await fs.readdir(tmpDir), ["state.yaml"]);
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("a failed fsync of the new content fails the write and keeps the old file", async (t) => {
+  const tmpDir = await createTempDir();
+  t.after(() => fs.rm(tmpDir, { recursive: true, force: true }));
+  const targetPath = path.join(tmpDir, "state.yaml");
+  await fs.writeFile(targetPath, "old content");
+  const originalOpen = fs.open;
+  fs.open = async function openWithFailingSync(file, ...rest) {
+    const handle = await originalOpen.call(this, file, ...rest);
+    if (String(file).endsWith(".tmp")) {
+      handle.sync = async () => {
+        throw Object.assign(new Error("EIO: i/o error, fsync"), { code: "EIO" });
+      };
+    }
+    return handle;
+  };
+  t.after(() => {
+    fs.open = originalOpen;
+  });
+
+  await assert.rejects(writeFileAtomic(targetPath, "new content"), { code: "EIO" });
+
+  fs.open = originalOpen;
+  assert.strictEqual(await fs.readFile(targetPath, "utf8"), "old content");
+  assert.deepStrictEqual(await fs.readdir(tmpDir), ["state.yaml"]);
+});
+
+test("a write removes the temporary files of its target older than 5 s, and only those", async () => {
+  const tmpDir = await createTempDir();
+  try {
+    const targetPath = path.join(tmpDir, "state.yaml");
+    const past = new Date(Date.now() - 60000);
+    const stale = [`${targetPath}.tmp`, `${targetPath}.999-dead.tmp`];
+    const kept = [`${targetPath}.1000-live.tmp`, path.join(tmpDir, "other.yaml.999-dead.tmp")];
+    for (const file of [...stale, ...kept]) await fs.writeFile(file, "half written");
+    for (const file of [...stale, kept[1]]) await fs.utimes(file, past, past);
+
+    await writeFileAtomic(targetPath, "new content");
+
+    assert.strictEqual(await fs.readFile(targetPath, "utf8"), "new content");
+    for (const file of stale) await assert.rejects(fs.stat(file), { code: "ENOENT" }, file);
+    for (const file of kept) await fs.stat(file);
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }

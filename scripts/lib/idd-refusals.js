@@ -60,6 +60,7 @@ const REFUSALS = Object.freeze({
   "invalid-source": "use --source user for an answer the user gave in this session, or user-unverified for a relayed one",
   "kind-mismatch": 'raise the kind with ospec record intent --change <id> --kind <kind> and the same --summary and --acceptance',
   "knowledge-map-unreadable": "fix docs/architecture/knowledge-map.yaml so it is JSON text (valid YAML 1.2)",
+  "lock-lost": "another CLI process took over the lock of idd/<id>/state.yaml while this command ran, so nothing was written: run the command again",
   "map-invalid": "fix the knowledge map as the message says; ospec foundation next --profile <profile> --json returns its template",
   "map-missing": "pass --map <path> to an existing knowledge map, or start one with ospec foundation next --profile <profile> --json",
   "map-unreadable": "fix the knowledge map so it is JSON text (valid YAML 1.2)",

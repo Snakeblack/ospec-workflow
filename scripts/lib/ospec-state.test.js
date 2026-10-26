@@ -1128,6 +1128,62 @@ test("withFileLock does not fall back to unlocked execution after persistent con
   assert.equal(runCalled, false);
 });
 
+// E1.46 state-durability: the lock names its owner, who keeps it fresh while
+// it runs and never removes a lock another process took over.
+test("a lock taken over by another process is left to it, and its former owner learns it before writing", async (t) => {
+  const workspace = await createWorkspace(t);
+  const lockTarget = path.join(workspace, "state.yaml");
+  const lockPath = `${lockTarget}.lock`;
+  let lost;
+
+  await withFileLock(lockTarget, async (assertOwned) => {
+    await assertOwned();
+    await fs.writeFile(lockPath, "4242:another-owner");
+    lost = await assertOwned().then(() => null, (error) => error);
+  });
+
+  assert.equal(lost?.code, "lock-lost");
+  assert.equal(await fs.readFile(lockPath, "utf8"), "4242:another-owner");
+});
+
+test("a lock an earlier version left without a token is still reclaimed once stale", async (t) => {
+  const workspace = await createWorkspace(t);
+  const lockTarget = path.join(workspace, "state.yaml");
+  const lockPath = `${lockTarget}.lock`;
+  await fs.writeFile(lockPath, "");
+  const past = new Date(Date.now() - 60000);
+  await fs.utimes(lockPath, past, past);
+
+  const result = await withFileLock(lockTarget, async (assertOwned) => {
+    await assertOwned();
+    return "ok";
+  }, { retries: 3, delayMs: 0 });
+
+  assert.equal(result, "ok");
+  await assert.rejects(fs.stat(lockPath), { code: "ENOENT" });
+});
+
+test("an owner keeps its lock fresh while it runs, so a waiter never reclaims it", async (t) => {
+  const workspace = await createWorkspace(t);
+  const lockTarget = path.join(workspace, "state.yaml");
+  const options = { staleMs: 150, delayMs: 5, heartbeatMs: 30, retries: 1000 };
+  const events = [];
+
+  const first = withFileLock(lockTarget, async () => {
+    events.push("start-1");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    events.push("end-1");
+  }, options);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const second = withFileLock(lockTarget, async () => {
+    events.push("start-2");
+  }, options);
+  await Promise.all([first, second]);
+
+  assert.deepEqual(events, ["start-1", "end-1", "start-2"]);
+  await assert.rejects(fs.stat(`${lockTarget}.lock`), { code: "ENOENT" });
+});
+
 test("withAppendLock remains exported as an alias of withFileLock for existing callers", () => {
   assert.equal(withAppendLock, withFileLock);
 });

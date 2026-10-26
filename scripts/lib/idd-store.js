@@ -4,8 +4,9 @@
 // REQ-idd-002, REQ-idd-003, REQ-idd-011). state.yaml is written as canonical
 // JSON, which is valid YAML 1.2, so no YAML parser or line-oriented escaping is
 // needed for model-controlled text. Every write runs under the state file's
-// lock, validates the result and replaces the file atomically; a repeated
-// record that changes nothing never touches the file.
+// lock, validates the result and replaces the file atomically and durably; a
+// repeated record that changes nothing never touches the file, and a write
+// whose lock another process took over is refused with lock-lost (E1.46).
 
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -127,7 +128,7 @@ async function ensureLivingDoc(root, state) {
 async function mutateChange(root, changeId, reducer, { writeFile = writeFileAtomic } = {}) {
   const file = statePath(root, changeId);
   await fs.mkdir(path.dirname(file), { recursive: true });
-  return withFileLock(file, async () => {
+  return withFileLock(file, async (assertOwned) => {
     const current = await readChange(root, changeId);
     const result = reducer(current);
     if (result.state.change !== changeId) {
@@ -136,6 +137,9 @@ async function mutateChange(root, changeId, reducer, { writeFile = writeFileAtom
     if (result.changed) {
       const { ok, errors } = validateState(result.state);
       if (!ok) throw new IddStoreError("state-invalid", errors.join("; "));
+      await assertOwned().catch((error) => {
+        throw error.code === "lock-lost" ? new IddStoreError("lock-lost", error.message) : error;
+      });
       await writeFile(file, serializeState(result.state));
     }
     await ensureLivingDoc(root, result.state);

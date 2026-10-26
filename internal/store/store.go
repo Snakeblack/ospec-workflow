@@ -5,15 +5,20 @@ package store
 
 import (
 	"bufio"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/snakeblack/ospec-workflow/internal/ospecdir"
@@ -236,7 +241,7 @@ func (s *Store) RecoverOrphanStateBackups() error {
 			}
 			return fmt.Errorf("store.RecoverOrphanStateBackups: stat backup %s: %w", statePath, err)
 		}
-		if err := WithLock(statePath, func() error { return recoverOrphanStateBackup(statePath) }); err != nil {
+		if err := WithLock(statePath, func(func() error) error { return recoverOrphanStateBackup(statePath) }); err != nil {
 			return fmt.Errorf("store.RecoverOrphanStateBackups: recover %s: %w", statePath, err)
 		}
 	}
@@ -285,7 +290,7 @@ func (s *Store) WriteSessionSummary(changeName, content string) (*WriteResult, e
 	if err := ospecdir.MkdirAll(filepath.Dir(summaryPath), 0755); err != nil {
 		return nil, fmt.Errorf("store.WriteSessionSummary: mkdir: %w", err)
 	}
-	if err := atomicWriteFile(summaryPath, content); err != nil {
+	if err := WriteFileAtomic(summaryPath, content); err != nil {
 		return nil, fmt.Errorf("store.WriteSessionSummary: %w", err)
 	}
 	return &WriteResult{
@@ -303,7 +308,7 @@ func (s *Store) AppendRuntimeEvent(line []byte) error {
 	if err := ospecdir.MkdirAll(filepath.Dir(evPath), 0755); err != nil {
 		return fmt.Errorf("store.AppendRuntimeEvent: mkdir: %w", err)
 	}
-	return withLock(evPath, func() error {
+	return withLock(evPath, func(func() error) error {
 		f, err := os.OpenFile(evPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
 			return fmt.Errorf("store.AppendRuntimeEvent: open: %w", err)
@@ -331,7 +336,7 @@ func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
 	if err := ospecdir.MkdirAll(filepath.Dir(costPath), 0755); err != nil {
 		return fmt.Errorf("store.AppendPhaseCost: mkdir: %w", err)
 	}
-	return withLock(costPath, func() error {
+	return withLock(costPath, func(owned func() error) error {
 		var record map[string]any
 		if err := json.Unmarshal(line, &record); err != nil {
 			return fmt.Errorf("store.AppendPhaseCost: unmarshal: %w", err)
@@ -400,6 +405,9 @@ func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
 		newLine, err := json.Marshal(record)
 		if err != nil {
 			return fmt.Errorf("store.AppendPhaseCost: marshal: %w", err)
+		}
+		if err := owned(); err != nil {
+			return fmt.Errorf("store.AppendPhaseCost: %w", err)
 		}
 
 		f, err := os.OpenFile(costPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
@@ -514,29 +522,85 @@ func appendBaselineListItem(trimmed, currentListKey string, result *BaselineStat
 
 // ── internal helpers ──────────────────────────────────────────────────────────
 
-// atomicWriteFile writes content to dst using a temp-file + rename pattern.
-func atomicWriteFile(dst, content string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return fmt.Errorf("atomicWriteFile: mkdir: %w", err)
+// staleTempAge: a temporary file older than this belongs to a writer that
+// died, since a live one renames it within the lock's stale window.
+const staleTempAge = staleLockAge
+
+// tempSuffixRe matches what follows the target's name in <target>.<writer>.tmp,
+// each writer's own temporary file, and in <target>.tmp, the one versions
+// before E1.46 shared.
+var tempSuffixRe = regexp.MustCompile(`^(?:\.[^.]+)?\.tmp$`)
+
+// WriteFileAtomic writes content to dst atomically and durably: a temporary
+// file of this writer, synced to disk, renamed over dst, then the directory
+// synced. It first drops the temporary files of dst that dead writers left.
+// Mirrors scripts/lib/atomic-write.js#writeFileAtomic (E1.46).
+func WriteFileAtomic(dst, content string) error {
+	dir := filepath.Dir(dst)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("WriteFileAtomic: mkdir: %w", err)
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(dst), ".write-*")
+	removeStaleTemps(dst)
+	tmp, err := os.CreateTemp(dir, filepath.Base(dst)+".*.tmp")
 	if err != nil {
-		return fmt.Errorf("atomicWriteFile: create temp: %w", err)
+		return fmt.Errorf("WriteFileAtomic: create temp: %w", err)
 	}
 	tmpPath := tmp.Name()
 
 	_, writeErr := tmp.WriteString(content)
+	if writeErr == nil {
+		writeErr = tmp.Sync()
+	}
 	closeErr := tmp.Close()
 	if writeErr != nil || closeErr != nil {
 		_ = os.Remove(tmpPath)
 		if writeErr != nil {
-			return fmt.Errorf("atomicWriteFile: write: %w", writeErr)
+			return fmt.Errorf("WriteFileAtomic: write: %w", writeErr)
 		}
-		return fmt.Errorf("atomicWriteFile: close: %w", closeErr)
+		return fmt.Errorf("WriteFileAtomic: close: %w", closeErr)
 	}
 	if err := os.Rename(tmpPath, dst); err != nil {
 		_ = os.Remove(tmpPath)
-		return fmt.Errorf("atomicWriteFile: rename: %w", err)
+		return fmt.Errorf("WriteFileAtomic: rename: %w", err)
+	}
+	if err := syncDir(dir); err != nil {
+		return fmt.Errorf("WriteFileAtomic: sync directory: %w", err)
+	}
+	return nil
+}
+
+// removeStaleTemps is best effort: a leftover that cannot be removed never
+// fails the write.
+func removeStaleTemps(dst string) {
+	dir, base := filepath.Dir(dst), filepath.Base(dst)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasPrefix(name, base) || !tempSuffixRe.MatchString(name[len(base):]) {
+			continue
+		}
+		if info, err := entry.Info(); err == nil && time.Since(info.ModTime()) > staleTempAge {
+			_ = os.Remove(filepath.Join(dir, name))
+		}
+	}
+}
+
+// syncDir makes a rename survive a power cut. Windows cannot open a directory
+// to sync it, and some POSIX filesystems do not support it: both are skipped.
+func syncDir(dir string) error {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	if err := d.Sync(); err != nil && !errors.Is(err, syscall.EINVAL) && !errors.Is(err, errors.ErrUnsupported) {
+		return err
 	}
 	return nil
 }
@@ -545,30 +609,47 @@ func atomicWriteFile(dst, content string) error {
 // so other packages (e.g. internal/hooks, for the C5 result-envelope
 // persistence path) can reuse the same cross-platform lock primitive that
 // AppendRuntimeEvent already relies on, instead of duplicating it. Mirrors
-// scripts/lib/ospec-state.js#withFileLock.
-func WithLock(path string, fn func() error) error {
+// scripts/lib/ospec-state.js#withFileLock: a writer that works between taking
+// the lock and writing calls owned() right before the write, which returns
+// ErrLockLost once another process took the lock over.
+func WithLock(path string, fn func(owned func() error) error) error {
 	return withLock(path, fn)
 }
 
 // withLock serialises fn around an advisory lock file.
 var errLockContended = errors.New("lock contended")
 
+// ErrLockLost: another process took over the lock while fn ran, so the write
+// was not made (E1.46).
+var ErrLockLost = errors.New("another process took over the lock; nothing was written")
+
 // Lock retry/staleness budget — MUST stay coherent with SessionStart's
 // declared hook timeout in hooks/hooks.json (see openspec/specs/hooks/spec.md
 // §9 and openspec/specs/hooks-runtime/spec.md NFR). Mirrored in
 // scripts/lib/ospec-state.js (LOCK_RETRY_ATTEMPTS/LOCK_RETRY_DELAY_MS/
-// LOCK_STALE_MS) — keep both sides numerically identical; TestLockStaleAgeMatchesJSConstant
-// cross-checks this at test time.
+// LOCK_STALE_MS/LOCK_HEARTBEAT_MS) — keep both sides numerically identical;
+// TestLockStaleAgeMatchesJSConstant cross-checks this at test time. The owner
+// refreshes the lock's mtime every lockHeartbeat while it runs, so only a dead
+// or stalled owner's lock grows stale (E1.46).
 const (
 	lockRetryAttempts = 200
 	lockRetryDelay    = 15 * time.Millisecond
 	staleLockAge      = 5 * time.Second
+	lockHeartbeat     = time.Second
 )
 
-func withLock(path string, fn func() error) error {
+type lockTiming struct {
+	stale, heartbeat time.Duration
+}
+
+func withLock(path string, fn func(owned func() error) error) error {
+	return withLockTiming(path, lockTiming{stale: staleLockAge, heartbeat: lockHeartbeat}, fn)
+}
+
+func withLockTiming(path string, timing lockTiming, fn func(owned func() error) error) error {
 	lockPath := path + ".lock"
 	for attempt := 0; ; attempt++ {
-		if err := tryLock(lockPath, fn); err != errLockContended {
+		if err := tryLock(lockPath, timing, fn); err != errLockContended {
 			return err
 		}
 		if attempt >= lockRetryAttempts {
@@ -580,13 +661,15 @@ func withLock(path string, fn func() error) error {
 	}
 }
 
-func tryLock(lockPath string, fn func() error) error {
+// tryLock writes its owner's token (pid and nonce) into the lock file, so an
+// owner whose lock another process reclaimed never removes the new owner's.
+func tryLock(lockPath string, timing lockTiming, fn func(owned func() error) error) error {
 	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
 			// Reclaim stale lock.
 			if info, err2 := os.Stat(lockPath); err2 == nil {
-				if time.Since(info.ModTime()) > staleLockAge {
+				if time.Since(info.ModTime()) > timing.stale {
 					_ = os.Remove(lockPath)
 				}
 			}
@@ -594,11 +677,54 @@ func tryLock(lockPath string, fn func() error) error {
 		}
 		return err
 	}
-	defer func() {
+	token := lockToken()
+	if _, err := f.WriteString(token); err != nil {
 		_ = f.Close()
 		_ = os.Remove(lockPath)
+		return err
+	}
+	stop, stopped := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(stopped)
+		ticker := time.NewTicker(timing.heartbeat)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				if lockOwnedBy(lockPath, token) {
+					now := time.Now()
+					_ = os.Chtimes(lockPath, now, now)
+				}
+			}
+		}
 	}()
-	return fn()
+	defer func() {
+		close(stop)
+		<-stopped
+		_ = f.Close()
+		if lockOwnedBy(lockPath, token) {
+			_ = os.Remove(lockPath)
+		}
+	}()
+	return fn(func() error {
+		if !lockOwnedBy(lockPath, token) {
+			return ErrLockLost
+		}
+		return nil
+	})
+}
+
+func lockToken() string {
+	nonce := make([]byte, 8)
+	_, _ = rand.Read(nonce)
+	return fmt.Sprintf("%d:%s", os.Getpid(), hex.EncodeToString(nonce))
+}
+
+func lockOwnedBy(lockPath, token string) bool {
+	content, err := os.ReadFile(lockPath)
+	return err == nil && string(content) == token
 }
 
 // toPortableRelPath returns the workspace-relative path with forward slashes.

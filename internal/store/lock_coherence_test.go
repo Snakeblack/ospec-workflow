@@ -82,3 +82,27 @@ func TestLockStaleAgeMatchesJSConstant(t *testing.T) {
 		)
 	}
 }
+
+// TestLockHeartbeatMatchesJSConstant: both runtimes refresh a held lock at the
+// same pace, well inside the stale window, so neither reclaims a live owner's
+// lock (E1.46).
+func TestLockHeartbeatMatchesJSConstant(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "scripts", "lib", "ospec-state.js"))
+	if err != nil {
+		t.Fatalf("read ospec-state.js: %v", err)
+	}
+	match := regexp.MustCompile(`LOCK_HEARTBEAT_MS\s*=\s*(\d+)`).FindSubmatch(data)
+	if match == nil {
+		t.Fatal("LOCK_HEARTBEAT_MS constant not found in scripts/lib/ospec-state.js")
+	}
+	jsValue, err := strconv.ParseInt(string(match[1]), 10, 64)
+	if err != nil {
+		t.Fatalf("parse LOCK_HEARTBEAT_MS value: %v", err)
+	}
+	if jsValue != lockHeartbeat.Milliseconds() {
+		t.Fatalf("LOCK_HEARTBEAT_MS (JS=%dms) must equal lockHeartbeat (Go=%dms)", jsValue, lockHeartbeat.Milliseconds())
+	}
+	if 2*lockHeartbeat > staleLockAge {
+		t.Fatalf("lockHeartbeat (%s) must refresh at least twice within staleLockAge (%s)", lockHeartbeat, staleLockAge)
+	}
+}
