@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- E1.43: ospec close revalida el estado con las reglas de los comandos (ninguna obligación withdrawn o ausente que una señal activa derive y la evidencia ligada al árbol del último check) y PreToolUse deniega escribir idd/<cambio>/state.yaml, idd/archive/** y los recibos de review en los seis targets con hook previo a editar; Cursor solo revalida (close-revalidates-state)
+
 ## [2.153.1] - 2026-10-25
 
 ### Fixed
