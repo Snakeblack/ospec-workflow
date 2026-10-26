@@ -1812,9 +1812,22 @@ carry its `title` (the bold label of the bullet, else its first sentence, at
 most 80 characters), its `summary`, its provenance (`source`, the repository
 path it comes from, `change` and the close `date`) and its stable `topic`, so
 saving it again updates the same memory entry. Closing an archived change
-again MUST return the same records. The CLI MUST NOT read, write or require a
-memory, and a change MUST close the same whether or not an agent keeps its
-records (ADR 0006).
+again MUST return the same records. The text output of `close` MUST list each
+record as `- <topic> | <title>` under a line that gives their number and the
+literal `ospec close --change <id> --json` that returns their summary and
+provenance.
+
+Recording a resolved intent, including a repeated one, a raised kind and the
+resolution of `ambiguous-intent`, MUST also return `memory_query`, a hint for
+the agent's memory recall that MUST NOT be stored and MUST NOT block anything:
+the ids of the ADRs (`ADR-<NNNN>`) and components that the paths the change
+already names touch (its plan, its diff and the path cites of a feature), then
+the distinct words of `--request`, or of `--summary` without one, lower-cased,
+of four or more characters and without English or Spanish function words, at
+most 12 terms. The text output MUST show it as `memory query: <terms>`. An
+ambiguous intent, and a query without terms, MUST NOT return it. The CLI MUST
+NOT read, write or require a memory, and a change MUST close the same whether
+or not an agent keeps its records (ADR 0006).
 
 #### Scenario: A decision of the change becomes a record
 
@@ -1824,6 +1837,9 @@ records (ADR 0006).
 - THEN `records` MUST hold one `dc` record with the topic
   `knowledge/dc/<change>/1`, the title `Hourly rotation` and the source
   `idd/archive/<YYYY-MM-DD>-<change>/change.md`
+- AND `ospec close` without `--json` MUST print
+  `- knowledge/dc/<change>/1 | Hourly rotation` and
+  `ospec close --change <change> --json`
 
 #### Scenario: Only impacts that say something are records
 
@@ -1832,6 +1848,18 @@ records (ADR 0006).
 - WHEN it closes
 - THEN `records` MUST hold the `amends` impact and the new ADR, and nothing
   for the `none` or `conforms` impacts
+
+#### Scenario: Recording an intent returns the memory query
+
+- GIVEN a component map that gives the component `orders` the paths
+  `src/orders/**` and the ADR `0002`, and a feature whose cite names
+  `src/orders/place.js:1`
+- WHEN `record intent` opens it with the request `The request fixes every
+  behavior.`
+- THEN `memory_query` MUST be `ADR-0002 orders request fixes behavior`, the
+  text output MUST print it as `memory query: ADR-0002 orders request fixes
+  behavior`, and `state.yaml` MUST NOT hold it
+- AND an ambiguous intent MUST NOT return it
 
 ### Requirement: Changelog Entry And Release At Close {#REQ-idd-025}
 

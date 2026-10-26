@@ -63,16 +63,17 @@ Then resume with `ospec next`.
    would ask about. Look for defaults, invalid or edge input, error versus
    silent handling, normalization (case, rounding, order), who may do it, and
    whether existing behavior, output or a published API may change. Do not
-   decide them yourself. With cross-session memory tools, recall prior
-   decisions first, as `references/memory-loop.md` says.
+   decide them yourself.
 2. Open the change: pick a short kebab-case id from the request and record
    the intent with `ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>"`
    plus the open facts, one `--open-fact "<question>"` each, or
    `--no-open-facts --basis "<what settles every behavior>"` when there are
    none. A `feature` covers seven fact categories instead, as
    `references/open-facts.md` says. Assumptions: `ospec record assumption --text`
-   (close lists them). Open `open-facts`: ask all at once before editing
-   anything.
+   (close lists them). With cross-session memory tools, recall prior
+   decisions with the `memory_query` it returns, as
+   `references/memory-loop.md` says. Open `open-facts`: then ask all at once
+   before editing anything.
 3. If the request is materially ambiguous (no acceptance can be stated), record
    `ospec record intent --change <id> --ambiguous --request "<request>"`, ask
    the user the question `next` returns, and resolve it with the same command
