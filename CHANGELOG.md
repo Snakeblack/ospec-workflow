@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - El roadmap anota en E1.30 el flake de Windows PowerShell 5.1 en codex-hook-shell de la PR #436 y que el plazo de 0 flakes hasta el 2026-10-29 queda fallido: E1.28 no entra ese día y E1.30 sigue abierto (e1-30-flake-pr-436)
 
+### Fixed
+- E1.46: el estado en disco sobrevive a un corte y a la concurrencia. La escritura atómica usa un temporal único y hace fsync del fichero y del directorio (JS y Go); el lock lleva un token de dueño (pid y nonce) que se comprueba antes de soltarlo y un heartbeat del mtime mientras dura la operación (JS y Go); un estado ilegible tiene salida apartándolo como *.corrupt con lista blanca. Residuos de E1.43: el guard de PreToolUse deniega también las MCP de copia, anexado o guardado, y REQ-hooks-029 y los docs dicen que close solo revalida el estado de un cambio abierto y que idd/archive/** y .ospec/review-receipts/** solo los protege el hook previo. (state-durability)
+
 ## [2.155.0] - 2026-10-26
 
 ### Added
