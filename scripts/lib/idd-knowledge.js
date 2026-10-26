@@ -102,6 +102,37 @@ function derivedReferences(references) {
     .map(({ kind, id }) => ({ kind, id }));
 }
 
+const MEMORY_QUERY_TERMS = 12;
+const MEMORY_QUERY_MIN_LENGTH = 4;
+// A word, or an identifier joined by -, _ or . such as memory_query or E1.47.
+const QUERY_WORD = /[\p{L}\p{N}]+(?:[-_.][\p{L}\p{N}]+)*/gu;
+// English and Spanish function words a search would match everywhere.
+const QUERY_STOPWORDS = new Set([
+  "about", "after", "also", "been", "before", "does", "each", "every", "from", "have", "into", "more", "must", "only", "should",
+  "than", "that", "their", "them", "then", "there", "these", "they", "this", "those", "what", "when", "where", "which", "while",
+  "will", "with", "would",
+  "ahora", "algo", "antes", "aunque", "cada", "como", "cuando", "debe", "deben", "desde", "después", "donde", "entre", "esta",
+  "están", "este", "esto", "estos", "estas", "hasta", "mientras", "mismo", "misma", "otra", "otro", "para", "pero", "porque",
+  "puede", "pueden", "según", "sobre", "solo", "también", "tiene", "tienen", "toda", "todas", "todo", "todos",
+]);
+
+/**
+ * The memory query hint of a resolved intent (REQ-idd-024): the ids of the
+ * ADRs and components it touches, then the distinct words of its request (its
+ * summary without one) of four or more characters, lower-cased and without
+ * function words, at most 12 terms. Derived from the repository only: the CLI
+ * reads no memory (ADR 0006).
+ *
+ * @param {{intent: {summary: string, request?: string|null}, adrs?: string[], components?: string[]}} input
+ */
+function memoryQuery({ intent, adrs = [], components = [] }) {
+  const terms = new Set([...adrs.map((id) => `ADR-${id}`), ...components.map((id) => id.toLowerCase())]);
+  for (const [word] of String(intent.request ?? intent.summary ?? "").toLowerCase().matchAll(QUERY_WORD)) {
+    if (word.length >= MEMORY_QUERY_MIN_LENGTH && !QUERY_STOPWORDS.has(word)) terms.add(word);
+  }
+  return [...terms].slice(0, MEMORY_QUERY_TERMS).join(" ");
+}
+
 function plainCell(text) {
   return text
     .replace(/[*_`]/g, "")
@@ -132,6 +163,7 @@ module.exports = {
   COMPONENT_MAP_RELATIVE,
   GLOSSARY_RELATIVE,
   derivedReferences,
+  memoryQuery,
   parseGlossaryTerms,
   resolveReferences,
   touchedComponents,

@@ -1238,7 +1238,30 @@ test("close returns the decisions of the archived change as knowledge records", 
     },
   ]);
   assert.deepStrictEqual(ospec(root, "close", "--change", "fix-readme", "--json").json.records, closed.json.records, "closing again derives the same records");
-  assert.match(ospec(root, "close", "--change", "fix-readme").stdout, /1 knowledge record\(s\) to keep in cross-session memory/);
+  // E1.47 (B8): the text names each record's topic, since agents read text.
+  const human = ospec(root, "close", "--change", "fix-readme").stdout;
+  assert.match(human, /^1 knowledge record\(s\) to keep in cross-session memory under its topic; summary and provenance: ospec close --change fix-readme --json$/m);
+  assert.match(human, /^- knowledge\/dc\/fix-readme\/1 \| Hourly rotation$/m);
+  assert.doesNotMatch(human, /see --json/);
+});
+
+// E1.47 (B8): record intent hands the agent the memory query of the change;
+// the CLI reads no memory (ADR 0006).
+test("[REQ-idd-024] record intent returns the memory query of a resolved intent, in JSON and text", (t) => {
+  const { root } = project(t);
+  const opened = ospec(root, ...OPEN_BUG);
+  assert.strictEqual(opened.code, 0, opened.stderr);
+  assert.strictEqual(opened.json.memory_query, "last page");
+  assert.strictEqual(ospec(root, ...OPEN_BUG).json.memory_query, "last page", "recording it again returns it again");
+  assert.match(ospec(root, ...OPEN_BUG.filter((arg) => arg !== "--json")).stdout, /^memory query: last page$/m);
+  assert.ok(!fs.readFileSync(path.join(root, "idd", "fix-pagination", "state.yaml"), "utf8").includes("memory"), "the query is not stored");
+
+  const ambiguous = ospec(root, "record", "intent", "--change", "vague", "--ambiguous", "--request", "Make billing faster", "--json");
+  assert.strictEqual(ambiguous.code, 0, ambiguous.stderr);
+  assert.ok(!("memory_query" in ambiguous.json), "an ambiguous intent has no query");
+  const resolved = ospec(root, "record", "intent", "--change", "vague", "--kind", "bug", "--summary", "Cache the invoices.", "--acceptance", "Invoices load once.", "--no-open-facts", "--basis", "The user settled it.", "--answer", "Cache the invoices", "--source", "user", "--json");
+  assert.strictEqual(resolved.code, 0, resolved.stderr);
+  assert.strictEqual(resolved.json.memory_query, "make billing faster", "the request comes before the summary");
 });
 
 // E3.9 changelog and release at close (REQ-idd-025).
@@ -1863,6 +1886,28 @@ test("[REQ-idd-021] a broken component map warns and gives no references, and no
   fs.rmSync(path.join(root, "docs/architecture/component-map.yaml"));
   const bare = ospec(root, "next", "--change", "order-events", "--json");
   assert.deepStrictEqual([bare.json.references, bare.json.warnings], [[], []]);
+});
+
+// E1.47 (B8): the ADRs and components the CLI derives from the paths a new
+// change already names lead its memory query.
+test("[REQ-idd-024] the memory query names the ADRs and components of the cited and changed paths first", (t) => {
+  const { root, git } = knowledgeProject(t);
+  writeFile(root, "src/orders/place.js", "module.exports = function place() {};\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "orders");
+  writeFile(root, "src/billing/charge.js", "module.exports = {};\n");
+  const cover = [
+    "--request",
+    "The request fixes every behavior.",
+    "--open-fact",
+    "inputs:Is a page size above 100 refused?",
+    "--cite",
+    "uniqueness=src/orders/place.js:1",
+    ...["persistence=fixes every behavior", "copy=every behavior.", "url-state=The request fixes every", "accessibility=request fixes every behavior", "errors=quest fixes every"].flatMap((quote) => ["--quote", quote]),
+  ];
+  const opened = ospec(root, "record", "intent", "--change", "order-events", "--kind", "feature", "--summary", "Billing consumes order-placed.", "--acceptance", "Orders no longer calls billing.", ...cover, "--json");
+  assert.strictEqual(opened.code, 0, opened.stdout);
+  assert.strictEqual(opened.json.memory_query, "ADR-0002 ADR-0003 ADR-0004 billing orders request fixes behavior");
 });
 
 // ---------------------------------------------------------------------------

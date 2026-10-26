@@ -2,7 +2,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { derivedReferences, parseGlossaryTerms, resolveReferences, touchedComponents } = require("./idd-knowledge.js");
+const { derivedReferences, memoryQuery, parseGlossaryTerms, resolveReferences, touchedComponents } = require("./idd-knowledge.js");
 
 function map(components) {
   return { schema: "ospec-component-map/v2", components, boundaries: [], dependencies: [], divergences: [] };
@@ -112,4 +112,24 @@ test("[REQ-idd-021] glossary terms are headings and first table cells, compared 
     "Change log is prose, not a term.",
   ].join("\n");
   assert.deepEqual([...parseGlossaryTerms(text)].sort(), ["change", "gate", "glossary", "obligation"]);
+});
+
+// E1.47 (B8): the memory query hint of a resolved intent.
+test("[REQ-idd-024] the memory query puts the ADRs and components first, then the request words", () => {
+  const intent = { kind: "feature", summary: "Ignored summary words.", request: "Billing should retry the failed charges, with backoff." };
+  assert.equal(memoryQuery({ intent, adrs: ["0002", "0003"], components: ["billing"] }), "ADR-0002 ADR-0003 billing retry failed charges backoff");
+  assert.equal(memoryQuery({ intent: { kind: "bug", summary: "Fix the last page." } }), "last page", "without a request, the summary gives the words");
+});
+
+test("[REQ-idd-024] the memory query lower-cases, keeps identifiers, drops short and function words and repeats nothing", () => {
+  const intent = { kind: "bug", summary: "Cuando el CLOSE de ospec muestra memory_query y record-intent: para cada E1.47, close otra vez." };
+  assert.equal(memoryQuery({ intent }), "close ospec muestra memory_query record-intent e1.47", "case, identifiers and E1.47 survive; para, cada, cuando, otra and vez do not");
+  assert.equal(memoryQuery({ intent: { kind: "docs", summary: "Ñandú añade órdenes." } }), "ñandú añade órdenes", "letters beyond ASCII count");
+});
+
+test("[REQ-idd-024] the memory query holds at most 12 terms", () => {
+  const words = Array.from({ length: 20 }, (_, index) => `term${index}`).join(" ");
+  const query = memoryQuery({ intent: { kind: "bug", summary: words }, adrs: ["0001"], components: ["billing", "BILLING"] });
+  assert.equal(query.split(" ").length, 12);
+  assert.equal(query.split(" ").slice(0, 3).join(" "), "ADR-0001 billing term0", "a component written twice counts once");
 });

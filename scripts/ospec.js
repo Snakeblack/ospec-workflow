@@ -47,7 +47,7 @@ const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbig
 const { runCommand } = require("./lib/idd-exec.js");
 const { CATEGORY_IDS, countTests, resolveFeatureCoverage } = require("./lib/idd-facts.js");
 const { fitnessPlan } = require("./lib/idd-fitness.js");
-const { resolveReferences } = require("./lib/idd-knowledge.js");
+const { memoryQuery, resolveReferences, touchedComponents } = require("./lib/idd-knowledge.js");
 const { nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
 const { refusalHow } = require("./lib/idd-refusals.js");
 const {
@@ -953,6 +953,26 @@ function changeKnowledge(root, state) {
   return { references: resolved.references, warnings: [...warnings, ...resolved.warnings], ...(view ? { fitness: view } : {}) };
 }
 
+// The memory query hint of a resolved intent (E1.47, REQ-idd-024): the ADRs
+// and components of the paths the change already names (its plan, its diff
+// and the cites of a feature), then the words of its request. A diff that
+// cannot be read leaves the other paths, and a query without terms is left
+// out. The CLI reads no memory (ADR 0006).
+function intentMemoryQuery(root, state) {
+  if (isIntentAmbiguous(state)) return null;
+  const { map, sources } = readKnowledgeSources(root);
+  let diffPaths = [];
+  try {
+    diffPaths = readGitDiff(root, { base: diffBase({}, state) }).paths;
+  } catch (error) {
+    if (!(error instanceof IddWorkspaceError)) throw error;
+  }
+  const cites = (state.facts?.coverage || []).filter((entry) => entry.cite?.kind === "path").map((entry) => entry.cite.path);
+  const paths = [...(state.plan?.paths || []), ...diffPaths, ...cites];
+  const adrs = map ? resolveReferences({ map, paths, sources }).references.filter((ref) => ref.kind === "adr").map((ref) => ref.id) : [];
+  return memoryQuery({ intent: state.intent, adrs, components: touchedComponents(map, paths) });
+}
+
 function readText(file) {
   try {
     return fs.readFileSync(file, "utf8");
@@ -1042,7 +1062,8 @@ async function run(command, positionals, values) {
     const reducer = reducerFor(type, values, root);
     if (!values.change) throw new UsageError(`record ${type} needs --change <id>`);
     const { state, changed } = await mutateChange(root, values.change, reducer);
-    return { record: type, change: state.change, changed, next: nextForChange(state) };
+    const query = type === "intent" ? intentMemoryQuery(root, state) : null;
+    return { record: type, change: state.change, changed, ...(query ? { memory_query: query } : {}), next: nextForChange(state) };
   }
   throw new UsageError(`unknown command: ${command ?? "(none)"}`);
 }
@@ -1203,9 +1224,13 @@ function describeClose(result) {
   const listed = assumptions.length ? assumptions.map((item) => `- ${item}`).join("\n") : "none declared";
   const reviews = (result.reviews || []).map((entry) => `\ntrust review ${entry.evidence}: ${entry.attestation ?? "not attested"}`).join("");
   const body = `${line}\nassumptions:\n${listed}${reviews}`;
-  const records = result.records?.length || 0;
+  const records = result.records || [];
   const lines = [body, ...describeCloseDelivery(result)];
-  if (records) lines.push(`${records} knowledge record(s) to keep in cross-session memory (see --json)`);
+  // Each topic, since agents read the text (E1.47); --json adds the rest.
+  if (records.length) {
+    lines.push(`${records.length} knowledge record(s) to keep in cross-session memory under its topic; summary and provenance: ospec close --change ${result.change} --json`);
+    for (const record of records) lines.push(`- ${record.topic} | ${record.title}`);
+  }
   return lines.join("\n");
 }
 
@@ -1307,7 +1332,8 @@ function describe(command, result) {
   const head = result.changed
     ? `recorded ${result.record} on ${result.change}`
     : `no change: ${result.record} already recorded on ${result.change}`;
-  return `${head}\n${describeNext(result.next)}`;
+  const query = result.memory_query === undefined ? "" : `\nmemory query: ${result.memory_query}`;
+  return `${head}${query}\n${describeNext(result.next)}`;
 }
 
 // The words and the change of a call that failed to parse, to point its
