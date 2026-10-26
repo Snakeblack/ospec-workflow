@@ -1,0 +1,520 @@
+{
+  "schema": "idd-state/v1",
+  "change": "cli-one-word-invocation",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "E1.45 (B5): el CLI se invoca con una sola palabra en los 7 targets (shim bin/ospec y bin/ospec.cmd junto al runtime, que la skill nombra por su ruta absoluta), cada next_step trae su command literal (con el comando real del último rojo en lugar de <test>), un error de uso imprime solo la línea de su subcomando y cada rechazo dice cómo salir (how) o lleva la marca by-design",
+    "acceptance": "En los siete builds la skill nombra una ruta de una sola palabra que existe y se ejecuta en bash, zsh, fish, PowerShell y cmd, también con una ruta con espacios; cada next_step tiene command; un error de uso imprime solo la línea del subcomando; y el test que recorre los rechazos pasa sin baseline"
+  },
+  "facts": {
+    "open": [
+      "¿Todo E1.45 va en un solo cambio (shim, command, uso y rechazos) o se parte?",
+      "En Windows, ¿qué shim nombra la skill de cada target: bin/ospec.cmd, que el instalador renderiza en win32, o siempre bin/ospec?",
+      "¿La skill nombra la ruta del shim sin comillas (una sola palabra, se rompe con espacios) o entre comillas (aguanta espacios, pero PowerShell necesita &)?",
+      "¿next_step.command empieza por la palabra ospec que define la skill o por la ruta absoluta del shim?",
+      "¿Cómo se cita en command el comando del último rojo cuando lleva comillas, $, backticks o barras invertidas?",
+      "¿Qué command llevan las acciones none (cambio cerrado), configure-checks, open-change y choose-change?",
+      "Con un error de uso, ¿qué se imprime si el subcomando es desconocido, y la línea de uso viaja también en --json?",
+      "¿Dónde vive el how de cada rechazo (en cada sitio que lanza, o en una tabla por código con override por sitio) y qué rechazos pueden llevar by-design?",
+      "¿Un shell que falta en la máquina (zsh o fish en el ubuntu de CI) se salta con aviso o se instala en CI?",
+      "¿La skill foundation y las llamadas de SDD (node <pluginInstallRoot>/scripts/ospec.js team) pasan también al shim?",
+      "¿ospec doctor da error si falta el shim o no es ejecutable?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      ".gitattributes",
+      "CHANGELOG.md",
+      "bin/ospec",
+      "bin/ospec.cmd",
+      "docs/plugin-installation.es.md",
+      "docs/plugin-installation.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/generator/spec.md",
+      "openspec/specs/idd/spec.md",
+      "openspec/specs/install/spec.md",
+      "scripts/configure/cli.js",
+      "scripts/configure/cli.test.js",
+      "scripts/configure/install-antigravity.js",
+      "scripts/configure/install-codex.js",
+      "scripts/configure/install-codex.test.js",
+      "scripts/configure/install-cursor.js",
+      "scripts/configure/install-global-copilot.js",
+      "scripts/configure/install-global-copilot.test.js",
+      "scripts/configure/install-global-opencode.js",
+      "scripts/configure/install-global-opencode.test.js",
+      "scripts/configure/install-target.js",
+      "scripts/configure/install-vscode.js",
+      "scripts/configure/ospec-shim.test.js",
+      "scripts/configure/shared-dir.js",
+      "scripts/configure/shared-dir.test.js",
+      "scripts/lib/idd-checks-config.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/lib/idd-refusals.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/ospec-doctor-hosts.js",
+      "scripts/lib/ospec-doctor-hosts.test.js",
+      "scripts/lib/target-profiles/claude.js",
+      "scripts/lib/target-transform.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/foundation/SKILL.md",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 4,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/configure/cli.js and 1 more (matches scripts/configure/cli.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, foundation, generator, idd-engine, skills: ADR 0001, 0003, 0004, 0005, 0006, 0009, 0010, 0011 and quality scenario contract-compatibility, deterministic-resume, offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/shared-dir.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Los shims salen de una fuente (bin/) y el generador los lleva a los 7 targets; el placeholder {{ospec-cli}} sigue resolviéndose por perfil"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "El CLI decide el comando de cada paso y el how de cada rechazo; las skills solo nombran el shim y siguen next_step"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia qué señales ni obligaciones se derivan"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "El cierre sigue ligado a la evidencia observada; command y how solo dicen qué ejecutar"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria ni su frontera; foundation solo gana la definición del shim"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "none",
+      "reason": "Ni state.yaml ni ningún documento con esquema cambia; next gana campos aditivos en su salida"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Los shims son sh y cmd que llaman a node con el script del runtime: ninguna dependencia nueva"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "No toca idd/ ni openspec/; SDD sigue igual"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "none",
+      "reason": "El estado y sus esquemas no cambian; doctor reconoce también el protocolo instalado antes del shim"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "command sale del estado guardado (el último rojo, las referencias sin impacto): next sigue siendo una función pura"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Los shims y el how de los rechazos no añaden red ni memoria"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Los 7 builds llevan bin/ospec y bin/ospec.cmd y cada instalador los copia; un test por target y la matriz de shells lo fijan"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Revisado a mano: next_step.command lo decide idd-next.js con sus tests en scripts/lib/idd-next.test.js, el how de cada rechazo lo decide scripts/lib/idd-refusals.js con scripts/lib/idd-refusals.test.js, y el error de uso ospec.js con scripts/ospec.test.js; las skills idd y foundation solo ganan la definición del shim, sin ninguna regla de cálculo",
+      "recorded_at": "2026-10-26T15:06:23.534Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Revisado a mano: el diff no añade ningún require de node:http, https, net, dns ni tls ni fetch; bin/ospec y bin/ospec.cmd solo ejecutan node con el script local; idd-refusals.js es una tabla pura; next, check y close calculan lo mismo sin red ni memoria",
+      "recorded_at": "2026-10-26T15:06:23.606Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "lasnrecomendadas (las recomendadas: 1 un cambio con cuatro unidades; 2 bin/ospec.cmd en win32 por el instalador, bin/ospec en el resto y siempre en Claude; 3 sin comillas, el instalador entrecomilla solo con espacio; 4 command empieza por ospec; 5 comillas dobles, simples con '\\'' si lleva \", $, backtick o \\; 6 none null, configure-checks ospec next, open-change plantilla de record intent, choose-change lista commands; 7 solo las líneas del subcomando, lista de subcomandos si es desconocido, en --json en error.how; 8 tabla por código con override por sitio y by-design en la tabla, test sin baseline; 9 skip visible del shell que falta; 10 foundation sí, SDD no; 11 doctor error en runtime sin shim o sin ejecutable)",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-26T15:05:50.631Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-26T15:07:31.703Z",
+      "detail": {
+        "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-26T15:07:31.703Z",
+      "detail": {
+        "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/install/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/codex-smoke.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/configure/install-codex.test.js",
+          "scripts/configure/install-cursor.test.js",
+          "scripts/configure/ospec-shim.test.js",
+          "scripts/configure/real-repo.test.js",
+          "scripts/configure/shared-dir.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-refusals.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor-hosts.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-26T15:07:31.703Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0006 none",
+          "adr:0009 none",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:contract-compatibility none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-26T15:07:58.267Z",
+      "detail": {
+        "run": "run-15",
+        "tree": "sha256:ee775b2bd3695cf888b69f21c723415a892c6e89c3b65adc19ad95a3aaf899cb",
+        "plan": "Lo único que se escribe son las skills que el instalador renderiza al instalar; renderRuntimeDir sigue restaurando el marcador en dist (shared-dir.test.js). Una instalación anterior a E1.45 sigue funcionando, porque scripts/ospec.js no se mueve y doctor reconoce su protocolo node \"…/scripts/ospec.js\" en codex-repo (ospec-doctor-hosts.test.js); reinstalar renderiza el shim y copia bin/. Vuelta atrás: reinstalar la versión anterior, que vuelve a renderizar node \"<ruta>/scripts/ospec.js\"."
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-26T15:08:47.408Z"
+    }
+  ],
+  "base": "b33cd84a9118517bc076b9177d989725d610aebe",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/idd-protocol.test.js scripts/configure/shared-dir.test.js scripts/configure/ospec-shim.test.js scripts/lib/ospec-doctor-hosts.test.js scripts/lib/idd-next.test.js scripts/lib/idd-refusals.test.js scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:c5d6f1058d4bbc3bb8582a48d3131cb5a0b884c614eef30c9bbd5d1e4a8636f8",
+      "tree": "sha256:8ccc2e6f0b1b459225c122fa6f7c7c02297c02cf3f566df30e8fa2cbe3a5fc7c",
+      "recorded_at": "2026-10-26T14:53:04.032Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/idd-protocol.test.js scripts/configure/shared-dir.test.js scripts/configure/ospec-shim.test.js scripts/lib/ospec-doctor-hosts.test.js scripts/lib/idd-next.test.js scripts/lib/idd-refusals.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:10551e91a2f3ca65083fc57054cff056a4e82b0309f1873eb3c1da74c8001f18",
+      "tree": "sha256:ee775b2bd3695cf888b69f21c723415a892c6e89c3b65adc19ad95a3aaf899cb",
+      "recorded_at": "2026-10-26T15:05:50.631Z",
+      "tests": 235
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:96f730eee329f856497ad8b2c6f21965657ebcc7b4bf65e44e91db2747f37c49",
+      "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+      "recorded_at": "2026-10-26T15:07:31.703Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5d9d34a42449198e1c71f668b7921bd2fea8cb727240ba206e6f0dca8183ec72",
+      "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+      "recorded_at": "2026-10-26T15:07:31.703Z",
+      "tests": 47
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c98ae9b787ab791bd1344c4c8354f41121320e98608334fb3a2952433eb9fe96",
+      "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+      "recorded_at": "2026-10-26T15:07:31.703Z",
+      "tests": 50
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:79fa531fbf08fa1c903de0a7b0b3ea2294e08919c9db8789225d4e305ac1fa53",
+      "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+      "recorded_at": "2026-10-26T15:07:31.703Z",
+      "tests": 16
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3d7d3806973e320dfd44b2e27ce545e505e4b50b35d994bed691aed27c0f70cd",
+      "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+      "recorded_at": "2026-10-26T15:07:31.703Z",
+      "tests": 2
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2439757ac9a46bd308dcaa7c8b5d641fc44c4a6efdf3289d9639aa558833b106",
+      "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+      "recorded_at": "2026-10-26T15:07:31.703Z",
+      "tests": 32
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+      "recorded_at": "2026-10-26T15:07:31.703Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9ba27584dd92adba1e49683d1f8de394248d09dab49cb141036ddf42c4d3e069",
+      "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+      "recorded_at": "2026-10-26T15:07:31.703Z",
+      "tests": 20
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d8f072b899bce623d49c935fa0c75f0b5901d32ec336d3cd1db553f94a45d586",
+      "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+      "recorded_at": "2026-10-26T15:07:31.703Z",
+      "tests": 79
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6f7a3620c75417be06050f5c9b7f97d7b8f464b7073aea641250a58332836edf",
+      "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+      "recorded_at": "2026-10-26T15:07:31.703Z",
+      "tests": 32
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:697e82b18c9537e5945c4559092d6a4e3a0c1d39d2fd2b51ab68370e7278e80a",
+      "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+      "recorded_at": "2026-10-26T15:07:31.703Z",
+      "tests": 45
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:44b4a72294fe37e9fa2a11eb4badc771e64db8a32d3af373fbc46f4c7bad88c0",
+      "tree": "sha256:3309a336124b364945a261909af6d4fa240ad3538162ddb98bb89bc2114794a9",
+      "recorded_at": "2026-10-26T15:07:31.703Z",
+      "tests": 47
+    },
+    {
+      "id": "run-15",
+      "purpose": "migration-test",
+      "command": "node --test scripts/configure/shared-dir.test.js scripts/lib/ospec-doctor-hosts.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fdba4d43ce2673c16bd68936a98759cba8081867455b19b64114f9961ae29d4c",
+      "tree": "sha256:ee775b2bd3695cf888b69f21c723415a892c6e89c3b65adc19ad95a3aaf899cb",
+      "recorded_at": "2026-10-26T15:07:58.267Z",
+      "tests": 40
+    }
+  ],
+  "closed_at": "2026-10-26T15:08:47.408Z"
+}

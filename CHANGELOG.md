@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- E1.45 (B5): el CLI se invoca con una sola palabra en los 7 targets (shim bin/ospec y bin/ospec.cmd junto al runtime, que la skill nombra por su ruta absoluta), cada next_step trae su command literal (con el comando real del último rojo en lugar de <test>), un error de uso imprime solo la línea de su subcomando y cada rechazo dice cómo salir (how) o lleva la marca by-design (cli-one-word-invocation)
+
 ## [2.154.1] - 2026-10-26
 
 ### Fixed
