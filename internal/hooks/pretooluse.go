@@ -295,9 +295,11 @@ var contentKeys = map[string]bool{
 // left to the revalidation of ospec close.
 const cliOwnedReason = "Bloqueado: este fichero es del CLI de ospec (el estado de un cambio IDD, su archivo o un recibo de review). Avanza con los comandos de ospec (record, run, check, review, close); no lo edites a mano."
 
-var writeToolRe = regexp.MustCompile(`write|edit|patch|create|replace|insert|delete|remove|move|rename`)
+// copy, append, save and upload cover third-party MCP tools (E1.46).
+var writeToolRe = regexp.MustCompile(`write|edit|patch|create|replace|insert|delete|remove|move|rename|copy|append|save|upload`)
 
-// ownedPathKeys: a move names both ends (MCP filesystem move_file).
+// ownedPathKeys: a move or a copy names both ends (MCP filesystem move_file);
+// both count.
 var ownedPathKeys = map[string]bool{
 	"file_path": true, "filePath": true, "path": true, "target_file": true, "notebook_path": true, "source": true, "destination": true,
 }

@@ -54,7 +54,7 @@ func ProjectPhaseCompletion(statePath, phase string, envelope map[string]any, ex
 	}
 
 	result := PhaseCompletionResult{Outcome: "error"}
-	err := store.WithLock(statePath, func() error {
+	err := store.WithLock(statePath, func(owned func() error) error {
 		if err := recoverOrphanBak(statePath); err != nil {
 			result = PhaseCompletionResult{Outcome: "recovery-failed", Error: err.Error()}
 			return nil
@@ -78,7 +78,11 @@ func ProjectPhaseCompletion(statePath, phase string, envelope map[string]any, ex
 			result = PhaseCompletionResult{OK: true, Outcome: outcome}
 			return nil
 		}
-		if err := atomicWriteFile(statePath, applyPhaseCompletionProjection(string(content), next, phase)); err != nil {
+		if err := owned(); err != nil {
+			result = PhaseCompletionResult{Outcome: "lock-lost", Error: err.Error()}
+			return nil
+		}
+		if err := store.WriteFileAtomic(statePath, applyPhaseCompletionProjection(string(content), next, phase)); err != nil {
 			result = PhaseCompletionResult{Outcome: "write-failed", Error: err.Error()}
 			return nil
 		}

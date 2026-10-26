@@ -1,7 +1,15 @@
 "use strict";
 
+const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+
+// A temporary file older than this belongs to a writer that died: a live one
+// renames it within the lock's stale window (LOCK_STALE_MS, ospec-state.js).
+const STALE_TEMP_MS = 5000;
+// Syncing a directory is not supported on these, so the rename stays as
+// durable as the filesystem makes it.
+const DIRECTORY_SYNC_UNSUPPORTED = new Set(["EINVAL", "ENOTSUP", "EOPNOTSUPP"]);
 
 /**
  * Restores an orphaned target.bak to target if target is absent.
@@ -22,29 +30,74 @@ async function recoverOrphanBak(targetPath) {
   }
 }
 
+// <target>.<writer>.tmp is each writer's own temporary file (the native
+// binary's too); <target>.tmp is the one versions before E1.46 shared.
+function tempPattern(targetPath) {
+  const base = path.basename(targetPath).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${base}(?:\\.[^.]+)?\\.tmp$`);
+}
+
+// Best effort: a leftover that cannot be removed never fails the write.
+async function removeStaleTemps(targetPath, now = Date.now()) {
+  const dir = path.dirname(targetPath);
+  const pattern = tempPattern(targetPath);
+  let names;
+  try {
+    names = await fs.readdir(dir);
+  } catch (_) {
+    return;
+  }
+  for (const name of names.filter((entry) => pattern.test(entry))) {
+    const file = path.join(dir, name);
+    try {
+      if (now - (await fs.lstat(file)).mtimeMs > STALE_TEMP_MS) await fs.unlink(file);
+    } catch (_) {}
+  }
+}
+
+async function writeDurably(file, content) {
+  const handle = await fs.open(file, "wx");
+  try {
+    await handle.writeFile(content, "utf8");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+// Makes the rename itself survive a power cut. Windows cannot open a
+// directory to sync it.
+async function syncDirectory(dir) {
+  if (process.platform === "win32") return;
+  let handle;
+  try {
+    handle = await fs.open(dir, "r");
+    await handle.sync();
+  } catch (error) {
+    if (!DIRECTORY_SYNC_UNSUPPORTED.has(error.code)) throw error;
+  } finally {
+    await handle?.close();
+  }
+}
+
 /**
- * Writes content to targetPath atomically using temp + rename.
+ * Writes content to targetPath atomically and durably: the content goes to a
+ * temporary file of this writer, synced to disk, then renamed over the target,
+ * and the directory is synced.
  * @param {string} targetPath
  * @param {string} content
  */
 async function writeFileAtomic(targetPath, content) {
-  const tempPath = targetPath + ".tmp";
+  const tempPath = `${targetPath}.${process.pid}-${crypto.randomBytes(6).toString("hex")}.tmp`;
   const bakPath = targetPath + ".bak";
 
-  // 1. Unconditionally clean up any pre-existing stale temp file
-  try {
-    await fs.unlink(tempPath);
-  } catch (error) {
-    if (error.code !== "ENOENT") {
-      throw error;
-    }
-  }
+  // 1. Ensure the parent directory exists and drop what dead writers left
+  await fs.mkdir(path.dirname(targetPath), { recursive: true });
+  await removeStaleTemps(targetPath);
 
-  // 2. Write new content to the temp file
+  // 2. Write and sync the new content to this writer's temp file
   try {
-    // Ensure parent directory exists (needed if directory structure doesn't exist yet)
-    await fs.mkdir(path.dirname(targetPath), { recursive: true });
-    await fs.writeFile(tempPath, content, "utf8");
+    await writeDurably(tempPath, content);
   } catch (error) {
     // Clean up temp file on failure, ignore if doesn't exist
     try {
@@ -111,6 +164,9 @@ async function writeFileAtomic(targetPath, content) {
       throw error;
     }
   }
+
+  // 4. Sync the directory so the rename itself is durable
+  await syncDirectory(path.dirname(targetPath));
 }
 
 /**
@@ -184,6 +240,7 @@ async function renameWithFallback(sourcePath, targetPath, options = {}) {
 }
 
 module.exports = {
+  STALE_TEMP_MS,
   writeFileAtomic,
   recoverOrphanBak,
   renameWithFallback,

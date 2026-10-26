@@ -659,32 +659,6 @@ func persistResultEnvelopeWithActiveChange(input map[string]any, workspace strin
 	}
 }
 
-// atomicWriteFile writes content to dst using a temp-file + rename pattern,
-// mirroring store's private atomicWriteFile (kept local to avoid exporting an
-// internal store helper solely for this one caller).
-func atomicWriteFile(dst, content string) error {
-	tmp, err := os.CreateTemp(filepath.Dir(dst), ".write-*")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmp.Name()
-
-	_, writeErr := tmp.WriteString(content)
-	closeErr := tmp.Close()
-	if writeErr != nil || closeErr != nil {
-		_ = os.Remove(tmpPath)
-		if writeErr != nil {
-			return writeErr
-		}
-		return closeErr
-	}
-	if err := os.Rename(tmpPath, dst); err != nil {
-		_ = os.Remove(tmpPath)
-		return err
-	}
-	return nil
-}
-
 // getValidInt checks if a value is a float64 (or int/int64) that represents a finite non-negative integer.
 func getValidInt(v any) (int, bool) {
 	if v == nil {

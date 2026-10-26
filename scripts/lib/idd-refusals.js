@@ -11,7 +11,8 @@ const { GATES, IMPACTS, INTENT_KINDS, SIGNALS } = require("./idd-contract.js");
 
 const NEXT = "ospec next --change <id> --json names the next step";
 const ANSWER = '--answer "<the user\'s words>" --source user';
-const RESTORE_STATE = "the CLI owns idd/<id>/state.yaml: restore it with git checkout -- idd/<id>/state.yaml and run the command again";
+const RESTORE_STATE =
+  "the CLI owns idd/<id>/state.yaml: restore it with git checkout -- idd/<id>/state.yaml, or move it aside with ospec doctor --repair and resume the change, then run the command again";
 const CLI_ONLY = "only the CLI records evidence, from runs it observes; no agent input reaches it";
 
 const REFUSALS = Object.freeze({
@@ -60,6 +61,7 @@ const REFUSALS = Object.freeze({
   "invalid-source": "use --source user for an answer the user gave in this session, or user-unverified for a relayed one",
   "kind-mismatch": 'raise the kind with ospec record intent --change <id> --kind <kind> and the same --summary and --acceptance',
   "knowledge-map-unreadable": "fix docs/architecture/knowledge-map.yaml so it is JSON text (valid YAML 1.2)",
+  "lock-lost": "another CLI process took over the lock of idd/<id>/state.yaml while this command ran, so nothing was written: run the command again",
   "map-invalid": "fix the knowledge map as the message says; ospec foundation next --profile <profile> --json returns its template",
   "map-missing": "pass --map <path> to an existing knowledge map, or start one with ospec foundation next --profile <profile> --json",
   "map-unreadable": "fix the knowledge map so it is JSON text (valid YAML 1.2)",

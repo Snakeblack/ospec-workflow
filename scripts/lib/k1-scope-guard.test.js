@@ -153,6 +153,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E1.45 how to get past each refusal of the ospec CLI (roadmap harness-evolution).
   "scripts/lib/idd-refusals.js",
   "scripts/lib/idd-refusals.test.js",
+  // E1.46 each atomic writer names its own temporary file (roadmap harness-evolution).
+  "scripts/lib/federation-explore.test.js",
   // E4.6 feature category coverage (roadmap harness-evolution).
   "scripts/lib/idd-facts.js",
   "scripts/lib/idd-facts.test.js",

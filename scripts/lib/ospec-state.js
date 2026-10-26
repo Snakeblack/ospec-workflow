@@ -364,6 +364,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const LOCK_RETRY_ATTEMPTS = 200;
 const LOCK_RETRY_DELAY_MS = 15;
 const LOCK_STALE_MS = 5000;
+// The owner refreshes the lock's mtime this often while it runs, so only a
+// dead or stalled owner's lock grows stale (E1.46). Mirrored in store.go
+// (lockHeartbeat).
+const LOCK_HEARTBEAT_MS = 1000;
 const LOCK_RM_RETRY_ATTEMPTS = 3;
 
 // Serialize appends across processes with an advisory lock. fs.appendFile is not
@@ -422,10 +426,34 @@ async function removeLockFile(lockPath, { retries = LOCK_RM_RETRY_ATTEMPTS, dela
   }
 }
 
+// The lock file holds its owner's token (pid and nonce), so an owner whose
+// lock another process reclaimed never removes the new owner's lock (E1.46).
+async function lockOwnedBy(lockPath, token) {
+  try {
+    return (await fs.readFile(lockPath, "utf8")) === token;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function refreshLock(lockPath, token) {
+  if (!(await lockOwnedBy(lockPath, token))) return;
+  const now = new Date();
+  await fs.utimes(lockPath, now, now);
+}
+
+function lockLostError(lockPath) {
+  return Object.assign(new Error(`another process took over the lock ${lockPath}; nothing was written`), { code: "lock-lost" });
+}
+
+// run(assertOwned): a writer that works between taking the lock and writing
+// calls assertOwned() right before the write, which throws lock-lost once
+// the lock is no longer its own.
 async function withFileLock(
   targetPath,
   run,
-  { retries = LOCK_RETRY_ATTEMPTS, delayMs = LOCK_RETRY_DELAY_MS, staleMs = LOCK_STALE_MS } = {},
+  { retries = LOCK_RETRY_ATTEMPTS, delayMs = LOCK_RETRY_DELAY_MS, staleMs = LOCK_STALE_MS, heartbeatMs = LOCK_HEARTBEAT_MS } = {},
 ) {
   const lockPath = `${targetPath}.lock`;
   for (let attempt = 0; ; attempt += 1) {
@@ -443,11 +471,29 @@ async function withFileLock(
       await sleep(delayMs);
       continue;
     }
+    const token = `${process.pid}:${crypto.randomBytes(8).toString("hex")}`;
     try {
-      return await run();
-    } finally {
+      await handle.writeFile(token, "utf8");
+    } catch (error) {
       await handle.close();
       await removeLockFile(lockPath);
+      throw error;
+    }
+    let beat = Promise.resolve();
+    const heartbeat = setInterval(() => {
+      beat = beat.then(() => refreshLock(lockPath, token)).catch(() => {});
+    }, heartbeatMs);
+    heartbeat.unref?.();
+    const assertOwned = async () => {
+      if (!(await lockOwnedBy(lockPath, token))) throw lockLostError(lockPath);
+    };
+    try {
+      return await run(assertOwned);
+    } finally {
+      clearInterval(heartbeat);
+      await beat;
+      await handle.close();
+      if (await lockOwnedBy(lockPath, token)) await removeLockFile(lockPath);
     }
   }
 }
@@ -1062,7 +1108,7 @@ async function projectPhaseCompletion({ changePath, phase, envelope, expectedRev
       ? resolvedPath
       : path.join(resolvedPath, "state.yaml");
 
-  return await withFileLock(statePath, async () => {
+  return await withFileLock(statePath, async (assertOwned) => {
     // 1. Recover orphaned .bak file before read
     await recoverOrphanBak(statePath);
 
@@ -1107,6 +1153,7 @@ async function projectPhaseCompletion({ changePath, phase, envelope, expectedRev
 
     // 4. Update YAML text deterministically and commit atomically
     const nextContent = applyStateProjectionToYaml(content, reduction.state, phase);
+    await assertOwned();
     await writeFileAtomic(statePath, nextContent);
 
     return {
@@ -1164,7 +1211,7 @@ async function appendPhaseCost({ workspace, changeName, record }) {
   );
 
   mkdirOspec(path.dirname(filePath));
-  await withFileLock(filePath, async () => {
+  await withFileLock(filePath, async (assertOwned) => {
     let hasPrior = false;
     let rowIndex = 0;
     try {
@@ -1202,6 +1249,7 @@ async function appendPhaseCost({ workspace, changeName, record }) {
       ? JSON.stringify(["o1-row-v3", ...canonicalV2.slice(1), observability.reason, observability.field_presence?.prompt, observability.field_presence?.artifact, observability.field_presence?.tool_output, observability.field_presence?.output, observability.field_presence?.duration_ms, observability.token_count_presence?.input_tokens, observability.token_count_presence?.cached_input_tokens, observability.token_count_presence?.output_tokens, observability.token_count_presence?.reasoning_output_tokens, observability.token_count_presence?.total_tokens, observability.host_binding_status])
       : JSON.stringify(canonicalV2);
     record.row_attestation_sha256 = crypto.createHash("sha256").update(canonical).digest("hex");
+    await assertOwned();
     await fs.appendFile(filePath, `${JSON.stringify(record)}\n`, "utf8");
   });
 

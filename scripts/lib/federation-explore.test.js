@@ -437,6 +437,13 @@ test("explore never enrolls or writes through a symlinked member that escapes th
 
 // --- S3: explore atomic writes (temp+rename) and integration ----------------
 
+// Each writer names its own temporary file <target>.<writer>.tmp (E1.46).
+const tempOf = (name) => new RegExp(`${name.replace(/\./g, "\\.")}\\.[^.]+\\.tmp$`);
+
+async function leftoverTemps(dir) {
+  return (await fs.readdir(dir)).filter((name) => name.endsWith(".tmp"));
+}
+
 test("3.1.1 · workspace.yaml written via temp+rename", async (t) => {
   const root = await makeContainer(t);
   await makeMember(root, "svc-api", {
@@ -446,7 +453,7 @@ test("3.1.1 · workspace.yaml written via temp+rename", async (t) => {
   const originalRename = fs.rename;
   let renamedWorkspaceYaml = false;
   fs.rename = async (oldPath, newPath) => {
-    if (newPath.endsWith("workspace.yaml") && oldPath.endsWith("workspace.yaml.tmp")) {
+    if (newPath.endsWith("workspace.yaml") && tempOf("workspace.yaml").test(oldPath)) {
       renamedWorkspaceYaml = true;
     }
     return originalRename(oldPath, newPath);
@@ -455,8 +462,7 @@ test("3.1.1 · workspace.yaml written via temp+rename", async (t) => {
   try {
     await explore(root);
     assert.ok(renamedWorkspaceYaml, "workspace.yaml must be written via rename");
-    const existsTmp = await exists(path.join(root, "openspec", "workspace.yaml.tmp"));
-    assert.equal(existsTmp, false);
+    assert.deepEqual(await leftoverTemps(path.join(root, "openspec")), []);
   } finally {
     fs.rename = originalRename;
   }
@@ -471,7 +477,7 @@ test("3.1.2 · workspace-map.md written via temp+rename", async (t) => {
   const originalRename = fs.rename;
   let renamedWorkspaceMap = false;
   fs.rename = async (oldPath, newPath) => {
-    if (newPath.endsWith("workspace-map.md") && oldPath.endsWith("workspace-map.md.tmp")) {
+    if (newPath.endsWith("workspace-map.md") && tempOf("workspace-map.md").test(oldPath)) {
       renamedWorkspaceMap = true;
     }
     return originalRename(oldPath, newPath);
@@ -480,8 +486,7 @@ test("3.1.2 · workspace-map.md written via temp+rename", async (t) => {
   try {
     await explore(root);
     assert.ok(renamedWorkspaceMap, "workspace-map.md must be written via rename");
-    const existsTmp = await exists(path.join(root, "openspec", "workspace-map.md.tmp"));
-    assert.equal(existsTmp, false);
+    assert.deepEqual(await leftoverTemps(path.join(root, "openspec")), []);
   } finally {
     fs.rename = originalRename;
   }
@@ -497,14 +502,14 @@ test("3.1.3 · workspace-map.md write fails after workspace.yaml succeeds", asyn
   await fs.mkdir(openspecDir, { recursive: true });
   await fs.writeFile(path.join(openspecDir, "workspace-map.md"), "original map content");
 
-  const originalWriteFile = fs.writeFile;
-  fs.writeFile = async (file, data, ...rest) => {
-    if (String(file).endsWith("workspace-map.md.tmp")) {
+  const originalOpen = fs.open;
+  fs.open = async (file, ...rest) => {
+    if (tempOf("workspace-map.md").test(String(file))) {
       const err = new Error("ENOSPC: no space left on device");
       err.code = "ENOSPC";
       throw err;
     }
-    return originalWriteFile(file, data, ...rest);
+    return originalOpen(file, ...rest);
   };
 
   try {
@@ -513,11 +518,11 @@ test("3.1.3 · workspace-map.md write fails after workspace.yaml succeeds", asyn
     assert.equal(await fs.readFile(path.join(openspecDir, "workspace-map.md"), "utf8"), "original map content");
     assert.ok(result.warnings.some(w => w.includes("workspace-map.md")));
   } finally {
-    fs.writeFile = originalWriteFile;
+    fs.open = originalOpen;
   }
 });
 
-test("3.1.4 · Stale workspace-map.md.tmp detected and overwritten", async (t) => {
+test("3.1.4 · Stale workspace-map.md.tmp of a dead writer removed", async (t) => {
   const root = await makeContainer(t);
   await makeMember(root, "svc-api", {
     files: { "package.json": '{ "name": "svc-api" }\n' },
@@ -527,6 +532,8 @@ test("3.1.4 · Stale workspace-map.md.tmp detected and overwritten", async (t) =
   await fs.mkdir(openspecDir, { recursive: true });
   const tmpPath = path.join(openspecDir, "workspace-map.md.tmp");
   await fs.writeFile(tmpPath, "stale content");
+  const past = new Date(Date.now() - 60000);
+  await fs.utimes(tmpPath, past, past);
 
   const result = await explore(root);
   assert.equal(result.status, "success");

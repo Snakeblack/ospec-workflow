@@ -261,8 +261,9 @@ const READ_TOOLS = new Set(["read", "grep", "glob", "ls", "list", "viewfile", "n
 // revalidation of ospec close.
 const CLI_OWNED_REASON =
   "Bloqueado: este fichero es del CLI de ospec (el estado de un cambio IDD, su archivo o un recibo de review). Avanza con los comandos de ospec (record, run, check, review, close); no lo edites a mano.";
-const WRITE_TOOL_RE = /write|edit|patch|create|replace|insert|delete|remove|move|rename/;
-// A move names both ends (MCP filesystem move_file).
+// copy, append, save and upload cover third-party MCP tools (E1.46).
+const WRITE_TOOL_RE = /write|edit|patch|create|replace|insert|delete|remove|move|rename|copy|append|save|upload/;
+// A move or a copy names both ends (MCP filesystem move_file); both count.
 const OWNED_PATH_KEYS = new Set(["file_path", "filePath", "path", "target_file", "notebook_path", "source", "destination"]);
 // The state, and the .tmp and .bak the atomic write leaves, which reading
 // the change restores as the state.

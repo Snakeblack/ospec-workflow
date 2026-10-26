@@ -477,8 +477,10 @@ scratch does, even a question answered for the lower kind (E1.53). A raise MUST
 keep the recorded `request`, the user's words its quotes come from: another
 `--request` MUST be refused with `intent-conflict`, and only an intent without
 one MAY record it. Every write
-MUST run under the state file's lock and replace the file atomically, so an
-interrupted `record` leaves the last committed state readable. A change id
+MUST run under the state file's lock and replace the file atomically and
+durably (REQ-idd-027), so an interrupted `record` leaves the last committed
+state readable. A write whose lock another process took over MUST be refused
+with `lock-lost` and write nothing. A change id
 MUST be kebab-case before it reaches the filesystem. `next` MUST be a read-only
 function of the stored state and, when check evidence is next, the project's
 check configuration and command suggestion. It MUST return the change, its pending
@@ -1344,7 +1346,8 @@ batch, so they are asked together before the change is built.
 
 `ospec doctor` MUST diagnose the installed hosts and the project without
 writing anything: no file, no lock, no state recovery and no mutating host
-command. It MUST report every check it runs with a `status` of `ok`, `info`,
+command. The one exception is `--repair` (E1.46), which MUST only move an
+unreadable IDD state aside, as the `idd-change` check says. It MUST report every check it runs with a `status` of `ok`, `info`,
 `warn` or `error`, its `scope` (`runtime`, `checkout`, `project` or a host
 target) and, for `warn` and `error`, the `cause` and the `action` that fixes it.
 It MUST exit with 1 when any check is `error` and with 0 otherwise; warnings
@@ -1371,8 +1374,9 @@ The checks MUST cover at least:
   `idd-change` for every change under `idd/` (`warn` with
   `ospec close --change <id>` for a closed change still outside the archive,
   `warn` with `ospec status` for an interrupted write that left only
-  `state.yaml.bak`, `error` for an unreadable state, `info` with
-  `ospec next --change <id>` for an open change), `sdd-change` for every change
+  `state.yaml.bak`, `error` for an unreadable state, with
+  `ospec doctor --repair` and the version-control restore as the action,
+  `info` with `ospec next --change <id>` for an open change), `sdd-change` for every change
   in `openspec/changes/` (`info` with `/sdd-continue <name>`),
   `strict-tdd-hook` (`warn` when the installed pre-commit hook's active mode
   and the other Strict TDD source disagree: IDD follows `strict_tdd`, and
@@ -1437,6 +1441,25 @@ The checks MUST cover at least:
 - WHEN `ospec doctor` runs
 - THEN it MUST report `idd-change` as `warn` with `ospec status` as the action
 - AND the project tree MUST be byte-identical afterwards
+
+#### Scenario: Repair moves an unreadable state aside
+
+- GIVEN `idd/broken/state.yaml` that is not JSON, beside its `change.md`
+- WHEN `ospec doctor` runs
+- THEN `idd-change` MUST be `error` with `ospec doctor --repair` in its action,
+  and the file MUST stay where it is
+- WHEN `ospec doctor --repair` runs
+- THEN the file MUST become `idd/broken/state.yaml.corrupt-<UTC time>`, with a
+  `-<n>` suffix rather than over an earlier copy, `change.md` MUST stay, and
+  `idd-change` MUST be `warn` naming the copy, with `ospec status` as the
+  action when `state.yaml.bak` exists (reading the change restores it) and
+  otherwise `ospec record intent --change broken` or
+  `git checkout -- idd/broken/state.yaml`
+- AND the exit code MUST be 0
+- AND only `idd/<id>/state.yaml` of a change outside `idd/archive/`, a regular
+  file in a real directory, that `idd-change` reports as `error` (not JSON,
+  invalid against the schema, or declaring another change) MUST move: a
+  symlink stays `error`, and nothing else in the project changes
 
 #### Scenario: An outdated installation is a warning
 
@@ -1933,3 +1956,55 @@ version: its format is closed and its name is the `$id` of its schema
 - GIVEN a project with IDD or SDD changes
 - WHEN a change is opened, checked or closed
 - THEN no snapshot MUST be built or written
+
+### Requirement: Durable State On Disk {#REQ-idd-027}
+
+A change's state MUST survive a power cut and two processes writing it at
+once (E1.46, ADR 0002). Every atomic write, in the CLI and the hooks, Node
+(`writeFileAtomic`, `scripts/lib/atomic-write.js`) and the native binary
+(`store.WriteFileAtomic`) alike, MUST write the whole content to a temporary
+file of its own, `<target>.<writer>.tmp`, sync it to disk, rename it over the
+target and then sync the directory. A failed sync of the file MUST fail the
+write and leave the target as it was. The directory sync MUST be skipped on
+Windows, which cannot open a directory, and where the filesystem does not
+support it. Before writing, a writer MUST remove the temporary files of its
+target, `<target>.<writer>.tmp` and the `<target>.tmp` of earlier versions,
+that are older than 5 s, the lock's stale window; a younger one belongs to a
+live writer and stays. Removing them is best effort and never fails the write.
+
+The lock is the file `<target>.lock`, created exclusively. Its owner MUST write
+its token, its pid and a random nonce, into it, MUST refresh its mtime every
+second while it holds it (`LOCK_HEARTBEAT_MS` and `lockHeartbeat`, equal in
+both runtimes), and MUST remove it only while it still holds its token. A
+waiter MAY reclaim a lock older than 5 s, which only a dead or stalled owner
+leaves. A writer that does work between taking the lock and writing (the IDD
+and SDD state, the phase costs) MUST check its token right before the write
+and, when another process holds the lock, write nothing and fail with
+`lock-lost` (`ErrLockLost` in Go).
+
+#### Scenario: Two processes lose no write
+
+- GIVEN two processes that each record 15 assumptions on one change at once
+- WHEN both finish
+- THEN the state MUST hold all 30
+
+#### Scenario: A former owner leaves the new owner's lock
+
+- GIVEN a writer whose lock another process took over while it ran
+- WHEN it is about to write and when it finishes
+- THEN it MUST fail with `lock-lost` without writing
+- AND the new owner's lock MUST stay
+
+#### Scenario: A live owner's lock never goes stale
+
+- GIVEN an owner that holds the lock longer than the stale window
+- WHEN another writer waits for it
+- THEN the waiter MUST run only after the owner finishes
+
+#### Scenario: A dead writer's temporary file goes away
+
+- GIVEN `state.yaml.tmp` and `state.yaml.999-dead.tmp` older than 5 s, a
+  younger `state.yaml.1000-live.tmp` and another file's old temporary file
+- WHEN `state.yaml` is written
+- THEN the two old temporary files of `state.yaml` MUST be gone and the other
+  two MUST stay

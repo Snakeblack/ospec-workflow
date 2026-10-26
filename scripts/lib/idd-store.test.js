@@ -7,6 +7,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert");
+const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
@@ -80,6 +81,9 @@ test("an interrupted write keeps the committed state and the next record succeed
   assert.deepStrictEqual(await readChange(root, "fix-pagination"), committed);
   assert.ok(!fs.existsSync(`${file}.lock`), "the lock is released after a failed write");
 
+  // A crashed writer's temporary file goes away once it is older than 5 s.
+  const past = new Date(Date.now() - 60000);
+  fs.utimesSync(`${file}.tmp`, past, past);
   const { state } = await mutateChange(root, "fix-pagination", addBugFix);
   assert.deepStrictEqual(state.signals.map((s) => s.id), ["always", "bug-fix"]);
   assert.ok(!fs.existsSync(`${file}.tmp`));
@@ -137,6 +141,54 @@ test("unreadable or invalid state is reported, never silently replaced", async (
   await assert.rejects(readChange(root, "broken"), (error) => error.code === "state-unreadable");
   await assert.rejects(mutateChange(root, "broken", openBug), (error) => error.code === "state-unreadable");
   assert.strictEqual(fs.readFileSync(file, "utf8"), "schema: idd-state/v1\nchange: broken\n");
+});
+
+// E1.46 state-durability: a write whose lock another process took over is
+// refused, and two processes recording at once lose nothing.
+test("a write whose lock was taken over is refused with lock-lost and leaves the state as it was", async (t) => {
+  const root = tempRoot(t);
+  await mutateChange(root, "fix-pagination", openBug);
+  const file = statePath(root, "fix-pagination");
+  const before = fs.readFileSync(file, "utf8");
+
+  await assert.rejects(
+    mutateChange(root, "fix-pagination", (state) => {
+      fs.writeFileSync(`${file}.lock`, "4242:another-owner");
+      return addBugFix(state);
+    }),
+    (error) => error.code === "lock-lost",
+  );
+
+  assert.strictEqual(fs.readFileSync(file, "utf8"), before);
+  assert.strictEqual(fs.readFileSync(`${file}.lock`, "utf8"), "4242:another-owner");
+});
+
+test("two processes recording on one change at once lose no write", async (t) => {
+  const root = tempRoot(t);
+  await mutateChange(root, "fix-pagination", openBug);
+  const writer = `
+    const { mutateChange } = require(${JSON.stringify(path.join(__dirname, "idd-store.js"))});
+    const { recordAssumption } = require(${JSON.stringify(path.join(__dirname, "idd-record.js"))});
+    (async () => {
+      for (let index = 0; index < 15; index += 1) {
+        await mutateChange(process.argv[1], "fix-pagination", (state) => recordAssumption(state, { text: process.argv[2] + "-" + index }));
+      }
+    })().catch((error) => { console.error(error); process.exit(1); });
+  `;
+  const run = (name) =>
+    new Promise((resolve) => {
+      const child = spawn(process.execPath, ["-e", writer, root, name], { stdio: ["ignore", "ignore", "pipe"] });
+      let stderr = "";
+      child.stderr.on("data", (chunk) => (stderr += chunk));
+      child.on("close", (code) => resolve({ code, stderr }));
+    });
+
+  const results = await Promise.all([run("first"), run("second")]);
+
+  for (const result of results) assert.strictEqual(result.code, 0, result.stderr);
+  const { assumptions } = await readChange(root, "fix-pagination");
+  const expected = ["first", "second"].flatMap((name) => Array.from({ length: 15 }, (_, index) => `${name}-${index}`));
+  assert.deepStrictEqual([...assumptions].sort(), expected.sort());
 });
 
 test("listChanges returns open and closed changes in id order, skipping the archive", async (t) => {
