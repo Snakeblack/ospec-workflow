@@ -26,6 +26,7 @@ const { parseArgs } = require("node:util");
 
 const {
   RUN_OBLIGATIONS,
+  ceremonyConfig,
   checkVerdict,
   recordRuns,
   settleBoundary,
@@ -84,7 +85,7 @@ const {
   IddWorkspaceError,
   commitTree,
   readArchitecture,
-  readBaseChecks,
+  readBaseConfig,
   readCheckTreeFingerprint,
   readDecisionRecords,
   readFitnessSources,
@@ -461,6 +462,13 @@ function runRecord(purpose, command, result, tree, recordedAt, extra = {}) {
   return record;
 }
 
+// What checks-changed contrasts (B7, E1.53): the checks and the ceremony
+// settings of idd/config.yaml against the ones it declared at `base`.
+function readConfigChange(root, base, context) {
+  const baseConfig = readBaseConfig(root, base);
+  return { baseChecks: baseConfig.checks, checks: context.checks, baseConfig: ceremonyConfig(baseConfig), config: ceremonyConfig(context) };
+}
+
 // Runs every declared check on the working tree, recomputes the signals from
 // the diff and settles checks-pass on the tree the checks finished on.
 async function check(root, values) {
@@ -474,7 +482,7 @@ async function check(root, values) {
   const context = readProjectContext(root);
   const diff = readGitDiff(root, { base: diffBase(values, current) });
   requireDeclaredCeremony(current, { diff, contractPatterns: context.contractPatterns });
-  const baseChecks = readBaseChecks(root, diffBase(values, current));
+  const configChange = readConfigChange(root, diffBase(values, current), context);
   const { map, sources, warnings } = readKnowledgeSources(root);
   // The fitness checks follow the references this check's diff derives.
   const preview = applyDerivation(current, deriveSignals({ intent: current.intent, strictTdd: context.strictTdd, diff, patterns: context.patterns, knowledge: { map, sources }, retracted: current.retracted })).state;
@@ -518,7 +526,7 @@ async function check(root, values) {
       const derived = applyDerivation(stored, derivation);
       added = derived.added;
       const reopened = reopenDerived(derived.state).state;
-      const gated = settleChecksChange(reopened, { baseChecks, checks: context.checks });
+      const gated = settleChecksChange(reopened, configChange);
       const runs = checks.map((result) => runRecord("checks", result.command, result, checkTreeBefore, recordedAt, { name: result.name }));
       const recorded = recordRuns(gated, runs);
       const fitnessRecorded = recordRuns(recorded.state, fitnessRuns.map((result) => runRecord("fitness", result.command, result, checkTreeBefore, recordedAt, { ref: result.ref })));
@@ -636,16 +644,25 @@ function requireDerived(root, state) {
   const context = readProjectContext(root);
   const diff = readGitDiff(root, { base: diffBase({}, state) });
   requireDeclaredCeremony(state, { diff, contractPatterns: context.contractPatterns });
-  // A check against another --base may have counted older tests as added (B3).
-  if (state.obligations.some((entry) => entry.id === "boundary-tests" && entry.status === "satisfied") && addedTests(diff).length === 0) {
-    const error = new IddRecordError("close-refused", "close refused: boundary-tests is satisfied, but the diff against the change's base adds no line to a test");
+  // A check against another --base may have counted older tests as added (B3),
+  // or older contract documents and tests as touched (E1.53).
+  const satisfied = (id) => state.obligations.some((entry) => entry.id === id && entry.status === "satisfied");
+  const contract = classifyContractPaths(diff.paths, context.contractPatterns);
+  const inflated = [
+    satisfied("boundary-tests") && addedTests(diff).length === 0 && "boundary-tests is satisfied, but the diff against the change's base adds no line to a test",
+    satisfied("contract-spec-and-test") &&
+      (contract.documents.length === 0 || contract.tests.length === 0) &&
+      "contract-spec-and-test is satisfied, but the diff against the change's base touches no contract document or no test of the contract",
+  ].find(Boolean);
+  if (inflated) {
+    const error = new IddRecordError("close-refused", `close refused: ${inflated}`);
     error.how = `ospec check --change ${state.change} reads the diff against the change's base`;
     throw error;
   }
   const { map, sources } = readKnowledgeSources(root);
   const derived = applyDerivation(state, deriveSignals({ intent: state.intent, strictTdd: context.strictTdd, diff, patterns: context.patterns, knowledge: { map, sources }, retracted: state.retracted }));
   const known = new Set((state.impacts || []).map((entry) => `${entry.kind}:${entry.id}`));
-  const gated = settleChecksChange(state, { baseChecks: readBaseChecks(root, diffBase({}, state)), checks: context.checks });
+  const gated = settleChecksChange(state, readConfigChange(root, diffBase({}, state), context));
   const lacking = [
     ...derived.added.signals.map((id) => `signal ${id}`),
     ...derived.added.gates.map((id) => `gate ${id}`),

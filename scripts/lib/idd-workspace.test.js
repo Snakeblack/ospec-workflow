@@ -490,3 +490,44 @@ test("[REQ-idd-022] a v1 map has no scenario fitness, and an unreadable base or 
   assert.match(readFitnessSources(root, "0000000000000000000000000000000000000000").warnings[0], /cannot be read/);
   assert.match(readFitnessSources(root, null).warnings[0], /no base commit/);
 });
+
+// E1.53: the diff the CLI reads never depends on how the repository shows a
+// diff: prefixes, -diff or binary attributes and textconv drivers.
+test("[E1.53] the diff reads the changed lines whatever the diff configuration of the repository", (t) => {
+  const settings = {
+    "diff.mnemonicPrefix": (root) => git(root, "config", "diff.mnemonicPrefix", "true"),
+    "diff.noprefix": (root) => git(root, "config", "diff.noprefix", "true"),
+    "diff.srcPrefix and diff.dstPrefix": (root) => {
+      git(root, "config", "diff.srcPrefix", "old/");
+      git(root, "config", "diff.dstPrefix", "new/");
+    },
+    "-diff attribute": (root) => write(root, ".gitattributes", "*.js -diff\n"),
+    "binary attribute": (root) => write(root, ".gitattributes", "*.js binary\n"),
+    "textconv driver": (root) => {
+      write(root, ".gitattributes", "*.js diff=upper\n");
+      git(root, "config", "diff.upper.textconv", "tr a-z A-Z <");
+    },
+  };
+  for (const [name, setup] of Object.entries(settings)) {
+    const root = gitRepo(t);
+    setup(root);
+    write(root, "src/app.js", "module.exports = 1;\n");
+    commitAll(root, "base");
+    write(root, "src/app.js", "module.exports = 2;\n");
+    const diff = readGitDiff(root);
+    assert.deepStrictEqual(diff.paths, ["src/app.js"], name);
+    assert.deepStrictEqual(diff.addedLines["src/app.js"], ["module.exports = 2;"], name);
+    assert.deepStrictEqual(diff.removedLines["src/app.js"], ["module.exports = 1;"], name);
+  }
+});
+
+test("[E1.53] a binary file brings no lines into the diff", (t) => {
+  const root = gitRepo(t);
+  write(root, "assets/logo.png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x0a, 0x01]));
+  commitAll(root, "base");
+  write(root, "assets/logo.png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x0a, 0x02]));
+  const diff = readGitDiff(root);
+  assert.deepStrictEqual(diff.paths, ["assets/logo.png"]);
+  assert.deepStrictEqual(diff.addedLines["assets/logo.png"] ?? [], []);
+  assert.deepStrictEqual(diff.removedLines["assets/logo.png"] ?? [], []);
+});

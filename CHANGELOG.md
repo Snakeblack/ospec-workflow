@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.154.1] - 2026-10-26
+
+### Fixed
+- **La configuración tampoco baja la ceremonia** (E1.53, seguimiento de E1.44). Desde E1.44, `check` solo contrastaba con la base del cambio los `checks` de `idd/config.yaml`. Bastaba un `impact.exclude` sobre las rutas de auth, `strict_tdd: false` o `contracts.defaults: false` para que dejaran de derivarse obligaciones, sin que nadie lo aprobara.
+  - `checks-changed` contrasta también los ajustes de ceremonia: `strict_tdd` con el valor que deja el perfil `team`, e `impact` y `contracts`, cuyas listas cuentan como conjuntos (reordenarlas no pregunta). Cualquier diferencia pide la respuesta del usuario, también la que solo sube la ceremonia, y cada entrada guarda la `config` que aprueba. Una entrada anterior aprueba la de la base, así que los estados guardados siguen valiendo. Siguen seis gates.
+  - `close` rechaza un `contract-spec-and-test` que un `check --base` más antiguo infló, como ya hacía con `boundary-tests`.
+  - `boundary-tests` y `untested-product` solo cuentan código añadido a un test con extensión de código: ni una línea de comentario ni un fixture o un golden.
+  - `classifyPath` reconoce como código C y C++, Objective-C, Swift, Scala, Groovy, Dart, Lua, Elixir, Erlang, Clojure, Haskell, OCaml, F#, VB, Perl, R, Zig, shell, PowerShell y batch. El código bajo un `docs/` anidado es producto, y el `docs/` raíz sigue siendo documentación.
+  - El diff se lee con los prefijos `a/` y `b/`, como texto y sin textconv: `diff.mnemonicPrefix`, `diff.noprefix`, `diff.srcPrefix` y los atributos `-diff`, `binary` o `diff=` ya no ocultan líneas al contraste del kind, a los tests ni a las señales por contenido. Un binario real no aporta ninguna.
+  - Subir el kind a `feature` vuelve a abrir `open-facts` aunque repita una pregunta ya respondida, y no reescribe `intent.request`, de donde salen las citas `--quote`.
+  - REQ-idd-003, 008, 009, 011, 012 y 014 lo especifican, y REQ-idd-014 deja de nombrar el límite que dejó E1.44.
+
+### Changed
+- **Roadmap:** E1.53 queda hecho y sigue E1.45 `cli-one-word-invocation`, el siguiente del bloque A.
+
+Hecho con IDD (`idd/archive/2026-10-26-config-only-rises/`): los tests de reproducción fallaron antes del cambio y pasan después, y un test fija que los estados anteriores siguen valiendo.
+
+**Verificación directa**: `node scripts/check.js` (4123 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.154.0] - 2026-10-26
 
 ### Added

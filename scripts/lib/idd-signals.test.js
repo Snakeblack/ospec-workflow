@@ -14,7 +14,7 @@ const { SIGNALS } = require("./idd-contract.js");
 const { IMPACT_SIGNALS, resolvePatterns } = require("./idd-impact.js");
 const { recordGate, recordIntent, recordSignal } = require("./idd-record.js");
 const { resolveContractPatterns } = require("./idd-contracts.js");
-const { FLOOR_SIGNALS, IRREVERSIBLE_OPERATIONS, applyDerivation, citesOutsidePlan, deriveSignals, kindMismatch } = require("./idd-signals.js");
+const { FLOOR_SIGNALS, IRREVERSIBLE_OPERATIONS, addedTests, applyDerivation, citesOutsidePlan, classifyPath, deriveSignals, kindMismatch } = require("./idd-signals.js");
 
 const FIXTURES_DIR = path.join(__dirname, "..", "fixtures", "idd");
 
@@ -661,4 +661,25 @@ test("untested-product needs a test the diff adds a line to, not a deleted or em
   assert.strictEqual(derive({ paths: ["src/a.js", "test/a.test.js"], addedLines: { ...product, "test/a.test.js": ["assert(1);"] } }), false);
   assert.strictEqual(derive({ paths: ["src/a.js", "test/old.test.js"], addedLines: product }), true, "a deleted test");
   assert.strictEqual(derive({ paths: ["src/a.js", "test/empty.test.js"], addedLines: { ...product, "test/empty.test.js": ["", "  "] } }), true, "an emptied test");
+});
+
+// E1.53: the residues of the E1.44 reviews in the path classes.
+test("[E1.53] classifyPath knows more code extensions, and code under a nested docs/ is product", () => {
+  const product = ["src/main.c", "include/page.h", "src/page.cpp", "App/View.swift", "scripts/deploy.sh", "tools/build.ps1", "lib/page.scala", "lib/main.dart", "src/page.lua", "lib/page.ex", "src/docs/handler.py", "pkg/docs/render.go"];
+  for (const file of product) assert.strictEqual(classifyPath(file), "product", file);
+  for (const file of ["docs/conf.py", "docs/guide.md", "src/docs/guide.md", "README.md"]) assert.strictEqual(classifyPath(file), "docs", file);
+});
+
+test("[E1.53] a comment-only line, or a file without a code extension under a test directory, is not a test the diff adds", () => {
+  const diff = {
+    paths: ["src/b.test.js", "test/a.test.js", "test/fixtures/page.json", "test/helper.js", "tests/golden.txt"],
+    addedLines: {
+      "src/b.test.js": ["/* size=50 */", "# size=50"],
+      "test/a.test.js": ["// size=50", "  "],
+      "test/fixtures/page.json": ['{"size": 50}'],
+      "test/helper.js": ["module.exports = 50; // size"],
+      "tests/golden.txt": ["50"],
+    },
+  };
+  assert.deepStrictEqual(addedTests(diff), ["test/helper.js"]);
 });

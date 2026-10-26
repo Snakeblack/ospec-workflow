@@ -779,7 +779,7 @@ test("check satisfies the contract obligation once the diff touches a contract d
   writeFile(root, "api/openapi.yaml", "openapi: 3.1.0\n");
   assert.match(reason(ospec(root, "check", "--change", "page-size", "--json")), /touches no test of the contract/);
 
-  writeFile(root, "src/api/orders.test.js", "// size=50\n");
+  writeFile(root, "src/api/orders.test.js", "require('node:assert').strictEqual(50, 50);\n");
   const settled = ospec(root, "check", "--change", "page-size", "--json");
   assert.strictEqual(settled.json.verdict, "ready", JSON.stringify(settled.json.missing));
   const evidence = stateOf(root, "page-size").evidence.find((entry) => entry.kind === "contract-spec-and-test");
@@ -793,7 +793,7 @@ test("the project declares where its contract documents live", (t) => {
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "src/api/orders.js", "module.exports = { maxSize: 50 };\n");
   writeFile(root, "specs/orders.md", "size up to 50\n");
-  writeFile(root, "test/orders.js", "// size=50\n");
+  writeFile(root, "test/orders.js", "require('node:assert').strictEqual(50, 50);\n");
   assert.strictEqual(ospec(root, "check", "--change", "page-size", "--json").json.verdict, "ready");
 });
 
@@ -1990,7 +1990,7 @@ function boundaryReason(result) {
 test("[E1.44 B3] boundary-tests needs a test the diff adds, not the suite that already passed", (t) => {
   const { root, git } = project(t);
   writeFile(root, "verify.js", `${VERIFY}\nconsole.log('ℹ tests 3');\n`);
-  writeFile(root, "test/old.test.js", "// an older test\n");
+  writeFile(root, "test/old.test.js", "require('node:assert').ok(true);\n");
   git("add", "-A");
   git("commit", "-q", "--no-verify", "-m", "counted suite");
   openFeature(root, ...PAGE_FEATURE, ...FEATURE_COVER);
@@ -2005,7 +2005,7 @@ test("[E1.44 B3] boundary-tests needs a test the diff adds, not the suite that a
   fs.rmSync(path.join(root, "test", "old.test.js"));
   assert.match(boundaryReason(ospec(root, "check", "--change", "page-size", "--json")) ?? "satisfied", /adds no line to a test/, "a deleted test is not a new one");
 
-  writeFile(root, "test/paginate.test.js", "// size=50\n");
+  writeFile(root, "test/paginate.test.js", "require('node:assert').strictEqual(50, 50);\n");
   const tested = ospec(root, "check", "--change", "page-size", "--json");
   assert.strictEqual(boundaryReason(tested), undefined, JSON.stringify(tested.json.missing));
   const evidence = stateOf(root, "page-size").evidence.find((entry) => entry.kind === "tested-check");
@@ -2040,7 +2040,7 @@ test("[E1.44 B6] a feature cite never lands in a manifest, and a code cite needs
   ospec(root, "record", "gate", "--change", "page-size", "--gate", "open-facts", "--resolve", "--answer", "Yes, above 100 is refused.", "--source", "user");
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "src/paginate.js", "module.exports = 50;\n");
-  writeFile(root, "src/paginate.test.js", "// 50\n");
+  writeFile(root, "src/paginate.test.js", "require('node:assert').strictEqual(50, 50);\n");
 
   const outside = ospec(root, "check", "--change", "page-size", "--json");
   assert.strictEqual(outside.code, 1, outside.stdout);
@@ -2153,7 +2153,7 @@ test("[E1.44 B9] a refactor that removes a line of a contract is refused until i
 test("[E1.44 B3] a test deleted or emptied before the first check does not stand for a new one", (t) => {
   const { root, git } = project(t);
   writeFile(root, "verify.js", `${VERIFY}\nconsole.log('ℹ tests 3');\n`);
-  writeFile(root, "test/old.test.js", "// an older test\n");
+  writeFile(root, "test/old.test.js", "require('node:assert').ok(true);\n");
   git("add", "-A");
   git("commit", "-q", "--no-verify", "-m", "counted suite");
   openFeature(root, ...PAGE_FEATURE, ...FEATURE_COVER);
@@ -2171,7 +2171,7 @@ test("[E1.44 B3] a test deleted or emptied before the first check does not stand
 test("[E1.44 B3] close reads boundary-tests against the change's base, not a --base the check chose", (t) => {
   const { root, git } = project(t);
   writeFile(root, "verify.js", `${VERIFY}\nconsole.log('ℹ tests 3');\n`);
-  writeFile(root, "test/old.test.js", "// an older test\n");
+  writeFile(root, "test/old.test.js", "require('node:assert').ok(true);\n");
   git("add", "-A");
   git("commit", "-q", "--no-verify", "-m", "counted suite");
   openFeature(root, ...PAGE_FEATURE, ...FEATURE_COVER);
@@ -2216,6 +2216,88 @@ test("[E1.44 B6] a cite through a symlink is judged by the file it reads", (t) =
     assert.strictEqual(refused.json.error?.code, "cite-unresolved", `${cite}: ${refused.stdout}`);
     assert.match(refused.json.error.message, /package\.json is a manifest/);
   }
+});
+
+// ---------------------------------------------------------------------------
+// E1.53 config-only-rises: strict_tdd, impact and contracts of idd/config.yaml
+// are contrasted with the change's base as checks is (E1.44 B7), and the
+// residues of the E1.44 reviews.
+// ---------------------------------------------------------------------------
+
+test("[E1.53] a new impact.exclude needs the user's answer before close, and each new set another one", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "README.md", "# Pages\n");
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node verify.js\nimpact:\n  exclude:\n    - src/auth/**\n");
+
+  const changed = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(changed.code, 0, changed.stdout);
+  assert.strictEqual(changed.json.decision?.gate, "checks-changed", JSON.stringify(changed.json));
+  assert.match(changed.json.decision.reason, /impact/);
+  assert.match(changed.json.decision.reason, /src\/auth\/\*\*/);
+  assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").code, 1, "an open gate holds the close");
+
+  ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "checks-changed", "--resolve", "--answer", "Yes, src/auth is generated.", "--source", "user");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node verify.js\nimpact:\n  exclude:\n    - src/**\n");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.decision?.gate, "checks-changed", "another exclude needs another answer");
+
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node verify.js\nimpact:\n  exclude:\n    - src/auth/**\n");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready", "back to the approved set");
+  const closed = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(closed.code, 0, closed.stdout);
+});
+
+test("[E1.53] strict_tdd, the team profile and contracts that differ from the base need the user's answer; a reordered list does not", (t) => {
+  const checks = "checks:\n  test: node verify.js\n";
+  const cases = [
+    { base: "strict_tdd: true\n", now: "strict_tdd: false\n", reason: /strict_tdd/ },
+    { base: "team:\n  size: small\n", now: "team:\n  size: solo\n", reason: /strict_tdd/ },
+    { base: "", now: "contracts:\n  defaults: false\n", reason: /contracts/ },
+    { base: "", now: "strict_tdd: true\n", reason: /strict_tdd/ },
+    { base: "impact:\n  exclude:\n    - a/**\n    - b/**\n", now: "impact:\n  exclude:\n    - b/**\n    - a/**\n", reason: null },
+    { base: "team:\n  size: solo\n", now: "team:\n  size: solo\n  experience: senior\n", reason: null },
+  ];
+  for (const { base, now, reason } of cases) {
+    const label = `${JSON.stringify(base)} -> ${JSON.stringify(now)}`;
+    const { root } = project(t, { checks: `${checks}${base}` });
+    ospec(root, ...OPEN_DOCS);
+    writeFile(root, "README.md", "# Pages\n");
+    writeFile(root, "src/pages.txt", "2");
+    writeFile(root, "idd/config.yaml", `${checks}${now}`);
+    const checked = ospec(root, "check", "--change", "fix-readme", "--json");
+    assert.strictEqual(checked.code, 0, `${label}: ${checked.stdout}`);
+    if (reason) {
+      assert.strictEqual(checked.json.decision?.gate, "checks-changed", `${label}: ${JSON.stringify(checked.json)}`);
+      assert.match(checked.json.decision.reason, reason, label);
+    } else {
+      assert.strictEqual(checked.json.verdict, "ready", `${label}: ${JSON.stringify(checked.json)}`);
+    }
+  }
+});
+
+test("[E1.53] close reads contract-spec-and-test against the change's base, not a --base the check chose", (t) => {
+  const { root, git } = project(t);
+  writeFile(root, "api/openapi.yaml", "openapi: 3.1.0\n");
+  writeFile(root, "src/api/orders.test.js", "require('node:assert').ok(true);\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "contract");
+  openFeature(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.", ...FEATURE_COVER);
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "src/api/orders.js", "module.exports = { maxSize: 50 };\n");
+  writeFile(root, "test/orders-size.test.js", "require('node:assert').strictEqual(50, 50);\n");
+  const reason = (result) => result.json.missing.find((entry) => entry.obligation === "contract-spec-and-test")?.reason;
+  assert.match(reason(ospec(root, "check", "--change", "page-size", "--json")) ?? "satisfied", /touches no contract document/);
+
+  // An older base puts the committed contract document in the diff.
+  const older = ospec(root, "check", "--change", "page-size", "--base", "HEAD~1", "--json");
+  assert.strictEqual(older.json.verdict, "ready", JSON.stringify(older.json.missing));
+  const refused = ospec(root, "close", "--change", "page-size", "--json");
+  assert.strictEqual(refused.json.error?.code, "close-refused", refused.stdout);
+  assert.match(refused.json.error.message, /contract-spec-and-test/);
+  assert.match(refused.json.error.how, /ospec check --change page-size/);
 });
 
 // E5.10 ospec snapshot (REQ-idd-026): the progress snapshot, on demand only.

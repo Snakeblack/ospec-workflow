@@ -161,7 +161,10 @@ function raiseIntent(state, input) {
   const next = structuredClone(state);
   next.intent = resolvedIntent(input);
   next.facts = facts;
-  if (questionsOf(facts).some((question) => !asked.has(question))) next.gates.push({ id: "open-facts", status: "open" });
+  // A feature asks its categories as one recorded from scratch does (E1.53),
+  // even a question answered for the lower kind.
+  const asks = input.kind === "feature" ? questionsOf(facts).length > 0 : questionsOf(facts).some((question) => !asked.has(question));
+  if (asks) next.gates.push({ id: "open-facts", status: "open" });
   return { state: next, changed: true };
 }
 
@@ -170,7 +173,13 @@ function recordIntent(state, input = {}) {
     requireOpen(state);
     if (!isIntentAmbiguous(state)) {
       const { request = state.intent.request, ...rest } = input;
-      if (!input.ambiguous && raisesKind(state.intent.kind, input.kind)) return raiseIntent(state, { ...rest, request });
+      if (!input.ambiguous && raisesKind(state.intent.kind, input.kind)) {
+        // The request holds the user's words that quotes come from (E1.53).
+        if (state.intent.request != null && request !== state.intent.request) {
+          refuse("intent-conflict", `change ${state.change} already has a different request; a raised kind keeps it`);
+        }
+        return raiseIntent(state, { ...rest, request });
+      }
       const candidate = resolvedIntent({ ...rest, request });
       if (input.ambiguous || !sameJson(candidate, state.intent) || !sameFacts(state, input)) {
         refuse("intent-conflict", `change ${state.change} already has a different resolved intent`);
