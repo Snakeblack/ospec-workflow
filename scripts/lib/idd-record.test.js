@@ -759,3 +759,22 @@ test("only ospec check opens checks-changed, and the user's answer resolves it",
   assert.deepStrictEqual(resolved.gates[0], { id: "checks-changed", status: "resolved", reason: "r", checks: [{ name: "test", command: "true" }], answer: "Yes.", source: "user" });
   assertValid(resolved);
 });
+
+// E1.53: a raise to a feature asks its facts like a feature recorded from
+// scratch, and never rewrites the request its quotes come from.
+test("[E1.53] raising to a feature asks its facts again, even a question answered before, and keeps the request", () => {
+  const { citedCoverage } = require("./idd-facts.js");
+  const question = "¿el título admite más de 200 caracteres?";
+  const refactor = { ...BUG_INTENT, kind: "refactor", request: "Fix the code lookup.", noOpenFacts: undefined, basis: undefined, openFacts: [question] };
+  const answered = recordGate(opened(refactor), { id: "open-facts", action: "resolve", answer: "No.", source: "user" }).state;
+  const coverage = citedCoverage().map((entry, index) => (index === 0 ? { category: "inputs", question } : entry));
+  const feature = { ...FEATURE, change: BUG_INTENT.change, request: "Fix the code lookup.", coverage };
+
+  const raised = recordIntent(answered, feature).state;
+  assert.deepStrictEqual(raised.gates.map((gate) => [gate.id, gate.status]), [["open-facts", "resolved"], ["open-facts", "open"]]);
+  assertValid(raised);
+  assertCode(() => recordIntent(answered, { ...feature, request: "Add discount codes." }), "intent-conflict");
+
+  const unrequested = recordGate(opened({ ...refactor, request: undefined }), { id: "open-facts", action: "resolve", answer: "No.", source: "user" }).state;
+  assert.strictEqual(recordIntent(unrequested, feature).state.intent.request, "Fix the code lookup.", "a raise may record a request the intent lacked");
+});

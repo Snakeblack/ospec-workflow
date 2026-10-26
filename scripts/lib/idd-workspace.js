@@ -56,6 +56,7 @@ function readProjectContext(root) {
     checks,
     candidateCommand: checks.length === 0 ? candidateCheckCommand(root) : null,
     impact,
+    contracts,
     stacks,
     patterns: resolvePatterns({ stacks, impact, published }),
     contractPatterns: resolveContractPatterns({ stacks: impact.stack ?? stacks, contracts }),
@@ -249,6 +250,26 @@ function changedLinesByFile(patch) {
   return { added, removed };
 }
 
+// git's own test for a binary file: a NUL byte in its first 8000 bytes. A
+// symlink is never followed.
+const BINARY_PROBE_BYTES = 8000;
+
+function isBinaryFile(root, file) {
+  const full = path.join(root, file);
+  let fd;
+  try {
+    if (!fs.lstatSync(full).isFile()) return false;
+    fd = fs.openSync(full, "r");
+    const probe = Buffer.alloc(BINARY_PROBE_BYTES);
+    return probe.subarray(0, fs.readSync(fd, probe, 0, BINARY_PROBE_BYTES, 0)).includes(0);
+  } catch (error) {
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") return false;
+    throw error;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
 function readUntracked(root, file) {
   const full = path.join(root, file);
   const stat = fs.lstatSync(full);
@@ -367,9 +388,19 @@ function readGitDiff(root, { base = "HEAD" } = {}) {
 
   const tracked = nulList(git(root, ["diff", "--relative", "--no-renames", "--name-only", "-z", base, "--"]));
   const untracked = nulList(git(root, ["ls-files", "--others", "--exclude-standard", "-z"]));
-  const patch = git(root, ["diff", "--relative", "--no-renames", "--no-color", "--no-ext-diff", "--unified=0", base, "--"]);
+  // The repository's diff settings never hide a line (E1.53): fixed prefixes
+  // over diff.mnemonicPrefix, diff.noprefix and diff.srcPrefix, and raw text
+  // over -diff, binary and textconv attributes.
+  const patch = git(root, ["diff", "--relative", "--no-renames", "--no-color", "--no-ext-diff", "--no-textconv", "--text", "--src-prefix=a/", "--dst-prefix=b/", "--unified=0", base, "--"]);
 
   const { added: addedLines, removed: removedLines } = changedLinesByFile(patch);
+  // A binary file read as text has no lines, as an untracked one has none.
+  for (const file of new Set([...Object.keys(addedLines), ...Object.keys(removedLines)])) {
+    if (isBinaryFile(root, file) || [addedLines[file], removedLines[file]].some((lines) => lines?.some((line) => line.includes("\0")))) {
+      delete addedLines[file];
+      delete removedLines[file];
+    }
+  }
   for (const file of untracked.map(normalizePath)) {
     if (!isIddState(file)) addedLines[file] = readUntracked(root, file);
   }
@@ -446,21 +477,23 @@ function readTreeFingerprint(root) {
 }
 
 /**
- * The checks idd/config.yaml declared at the change's `base` (B7): none
- * before the first commit, without the file or when it cannot be parsed.
+ * idd/config.yaml as the change's `base` declared it (B7, E1.53): the empty
+ * configuration before the first commit, without the file or when it cannot
+ * be parsed.
  */
-function readBaseChecks(root, base) {
-  if (!base || base === EMPTY_TREE) return [];
+function readBaseConfig(root, base) {
+  const none = parseIddConfig("");
+  if (!base || base === EMPTY_TREE) return none;
   let text;
   try {
     text = git(root, ["show", `${base}:./${CONFIG_FILE}`]);
   } catch {
-    return [];
+    return none;
   }
   try {
-    return parseIddConfig(text).checks;
+    return parseIddConfig(text);
   } catch {
-    return [];
+    return none;
   }
 }
 
@@ -603,7 +636,7 @@ module.exports = {
   IddWorkspaceError,
   commitTree,
   readArchitecture,
-  readBaseChecks,
+  readBaseConfig,
   readCheckTreeFingerprint,
   readDecisionRecords,
   readFitnessSources,

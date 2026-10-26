@@ -537,6 +537,16 @@ test("checks-changed names the checks it approves (E1.44, B7)", () => {
   }
 });
 
+test("[E1.53] checks-changed may name the ceremony settings it approves", () => {
+  const checks = [{ name: "test", command: "npm test" }];
+  const config = { strict_tdd: false, impact: { exclude: ["src/auth/**"] }, contracts: {} };
+  assert.ok(contract.validateState(validState({ gates: [{ id: "checks-changed", status: "open", reason: "r", checks, config }] })).ok);
+  for (const bad of [null, [], { strict_tdd: "false", impact: {}, contracts: {} }, { strict_tdd: false, impact: [], contracts: {} }, { strict_tdd: false, impact: {} }, { ...config, mode: "idd" }]) {
+    const result = contract.validateState(validState({ gates: [{ id: "checks-changed", status: "open", checks, config: bad }] }));
+    assert.ok(result.errors.some((error) => error.includes("checks-changed must name the settings")), JSON.stringify(bad));
+  }
+});
+
 test("an answered open-facts entry may outlive the facts a raised intent replaced, an open one may not (E1.44)", () => {
   const answered = { id: "open-facts", status: "resolved", answer: "No.", source: "user" };
   assert.ok(contract.validateState(validState({ facts: { basis: "Nothing is open." }, gates: [answered] })).ok);
@@ -545,7 +555,9 @@ test("an answered open-facts entry may outlive the facts a raised intent replace
   assert.ok(!contract.validateState(validState({ gates: [answered] })).ok, "a gate still needs facts");
 });
 
-test("REQ-idd-014 names the configuration it does not contrast with the base yet (E1.44)", () => {
+test("[E1.53] REQ-idd-014 contrasts the checks and the ceremony settings with the base, and names no open limit", () => {
   const section = requirementSection(readSpec(), "REQ-idd-014").replace(/\s+/g, " ");
-  assert.match(section, /Only `checks` is contrasted with the base: `strict_tdd`, `impact` and `contracts` are read from the working tree/);
+  assert.match(section, /in its checks \(name, command or order\) or in its ceremony settings/);
+  assert.match(section, /What the configuration declares therefore cannot lower the derived obligations without the user's answer/);
+  assert.doesNotMatch(section, /read from the working tree/);
 });

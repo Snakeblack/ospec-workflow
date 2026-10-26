@@ -126,24 +126,62 @@ function describeChecks(checks) {
   return checks.length > 0 ? checks.map(({ name, command }) => `${name}: ${command}`).join("; ") : "no checks";
 }
 
+// A list as a set: its order and repeats decide nothing.
+function canonicalSection(section) {
+  return Object.fromEntries(
+    Object.keys(section)
+      .sort()
+      .map((key) => [key, Array.isArray(section[key]) ? [...new Set(section[key])].sort() : section[key]]),
+  );
+}
+
 /**
- * During a check: checks that differ from the change's base need the user's
- * answer (B7). Each set gets its own checks-changed entry with the checks it
- * approves; checks back to the base or to a set already approved drop the
- * entry nobody answered.
+ * The settings of idd/config.yaml besides the checks that decide the derived
+ * obligations (E1.53): strict_tdd as the team profile leaves it, and the
+ * impact and contracts sections.
  */
-function settleChecksChange(state, { baseChecks, checks }) {
+function ceremonyConfig({ strictTdd = false, impact = {}, contracts = {} } = {}) {
+  return { strict_tdd: strictTdd, impact: canonicalSection(impact), contracts: canonicalSection(contracts) };
+}
+
+const NO_CEREMONY = Object.freeze(ceremonyConfig());
+
+function describeSection(section) {
+  const entries = Object.entries(section).map(([key, value]) => `${key} ${Array.isArray(value) ? `[${value.join(", ")}]` : value}`);
+  return entries.length > 0 ? entries.join(", ") : "nothing";
+}
+
+function describeChange({ baseChecks, checks, baseConfig, config }) {
+  const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+  const parts = [];
+  if (!same(checks, baseChecks)) parts.push(`idd/config.yaml declares ${describeChecks(checks)}, and the base declares ${describeChecks(baseChecks)}`);
+  if (config.strict_tdd !== baseConfig.strict_tdd) parts.push(`strict_tdd is ${config.strict_tdd}, and ${baseConfig.strict_tdd} at the base`);
+  for (const key of ["impact", "contracts"]) {
+    if (!same(config[key], baseConfig[key])) parts.push(`${key} declares ${describeSection(config[key])}, and the base declares ${describeSection(baseConfig[key])}`);
+  }
+  return parts.join("; ");
+}
+
+/**
+ * During a check: checks or ceremony settings (ceremonyConfig) that differ
+ * from the change's base need the user's answer (B7, E1.53). Each set gets its
+ * own checks-changed entry with the checks and the settings it approves; an
+ * entry recorded before E1.53 approves the base settings. Back to the base or
+ * to an approved set, the entry nobody answered is dropped.
+ */
+function settleChecksChange(state, { baseChecks, checks, baseConfig = NO_CEREMONY, config = baseConfig }) {
   requireOpen(state);
   const next = structuredClone(state);
   const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
   const open = next.gates.find((gate) => gate.id === CHECKS_GATE && gate.status === "open");
-  const approved = same(checks, baseChecks) || next.gates.some((gate) => gate.id === CHECKS_GATE && gate.status === "resolved" && same(gate.checks, checks));
+  const approves = (gate) => gate.id === CHECKS_GATE && gate.status === "resolved" && same(gate.checks, checks) && same(gate.config ?? baseConfig, config);
+  const approved = (same(checks, baseChecks) && same(config, baseConfig)) || next.gates.some(approves);
   if (approved) {
     if (open) next.gates = next.gates.filter((gate) => gate !== open);
     return next;
   }
-  const reason = `idd/config.yaml declares ${describeChecks(checks)}, and the base declares ${describeChecks(baseChecks)}`;
-  const entry = { id: CHECKS_GATE, status: "open", reason, checks: structuredClone(checks) };
+  const reason = describeChange({ baseChecks, checks, baseConfig, config });
+  const entry = { id: CHECKS_GATE, status: "open", reason, checks: structuredClone(checks), config: structuredClone(config) };
   if (open) Object.assign(open, entry);
   else next.gates.push(entry);
   return next;
@@ -383,6 +421,7 @@ function checkVerdict(state, { checks = [], results = [], treeChanged = false, r
 module.exports = {
   PAIR_OBLIGATIONS,
   RUN_OBLIGATIONS,
+  ceremonyConfig,
   checkVerdict,
   recordRuns,
   settleBoundary,

@@ -55,7 +55,9 @@ const DESTRUCTIVE_STATEMENTS = Object.freeze([
 ]);
 
 const COMMENT_LINE = /^\s*(--|#|\/\/)/;
-const PRODUCT_EXT = /\.(js|jsx|mjs|cjs|ts|tsx|py|go|java|kt|kts|cs|rb|php|rs|html|htm|css|vue|svelte)$/i;
+// Source code of the common languages, scripts included (E1.53).
+const PRODUCT_EXT =
+  /\.(js|jsx|mjs|cjs|ts|tsx|py|go|java|kt|kts|cs|rb|php|rs|html|htm|css|vue|svelte|astro|c|h|cc|cpp|cxx|hh|hpp|hxx|m|mm|swift|scala|groovy|dart|lua|ex|exs|erl|hrl|clj|cljs|hs|ml|fs|fsx|vb|pl|pm|r|zig|sh|bash|zsh|ps1|psm1|bat|cmd)$/i;
 const MANIFESTS = new Set([
   "package.json",
   "package-lock.json",
@@ -124,8 +126,11 @@ function baseName(file) {
   return file.split("/").pop().toLowerCase();
 }
 
+// The top-level docs/ is documentation; under a nested docs/ only what is not
+// code is (E1.53: src/docs/handler.py is product code).
 function isDocumentation(file) {
-  return /^(?:docs\/|.+\/docs\/)/.test(file) || file === "docs" || /\.(md|mdx|rst|adoc)$/i.test(file);
+  if (/^docs(?:\/|$)/.test(file) || /\.(md|mdx|rst|adoc)$/i.test(file)) return true;
+  return /^.+\/docs\//.test(file) && !PRODUCT_EXT.test(file);
 }
 
 function isTestPath(file) {
@@ -218,10 +223,14 @@ function contractHit(addedLines) {
   return null;
 }
 
-// The tests the diff adds a non-blank line to (B3): a deleted or emptied test
-// is not one, so it neither stands for a test nor satisfies boundary-tests.
+// The tests the diff adds code to (B3): a line that is neither blank nor only
+// a comment, in a test with a code extension (E1.53). A deleted or emptied
+// test, a fixture or a golden file is not one, so it neither stands for a test
+// nor satisfies boundary-tests.
 function addedTests(diff) {
-  return (diff.paths || []).filter((file) => classifyPath(file) === "test" && (diff.addedLines?.[file] || []).some((line) => line.trim() !== ""));
+  return (diff.paths || []).filter(
+    (file) => classifyPath(file) === "test" && PRODUCT_EXT.test(file) && (diff.addedLines?.[file] || []).some((line) => codePortion(line).trim() !== ""),
+  );
 }
 
 function untestedProduct(intent, diff) {

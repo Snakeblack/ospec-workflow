@@ -283,6 +283,11 @@ function validateState(state) {
     if (gate.id === "checks-changed" && !(Array.isArray(checks) && checks.every((entry) => isTextList([entry?.name, entry?.command]) && Object.keys(entry).length === 2))) {
       fail("gate checks-changed must list the checks it approves, each with its name and command");
     }
+    // Since E1.53 it also names the ceremony settings it approves; an older
+    // entry without them approved the base settings.
+    if (gate.id === "checks-changed" && gate.config !== undefined && !isCeremonyConfig(gate.config)) {
+      fail("gate checks-changed must name the settings it approves: strict_tdd, impact and contracts");
+    }
   }
 
   return { ok: errors.length === 0, errors };
@@ -451,6 +456,20 @@ function validateCoverage(coverage, { gate, asking }, fail) {
   }
   if (questions > 0 && !gate) fail("open facts need the open-facts gate");
   if (questions === 0 && asking) fail("the open-facts gate needs open facts, not only citations");
+}
+
+function isPlainObject(value) {
+  return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isCeremonyConfig(config) {
+  return (
+    isPlainObject(config) &&
+    Object.keys(config).sort().join() === "contracts,impact,strict_tdd" &&
+    typeof config.strict_tdd === "boolean" &&
+    isPlainObject(config.impact) &&
+    isPlainObject(config.contracts)
+  );
 }
 
 function isTextList(value) {

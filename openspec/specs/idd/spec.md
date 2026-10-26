@@ -82,7 +82,9 @@ feature), `assumptions` (text recorded with `ospec record assumption`), `signals
 `satisfied`, `withdrawn`, the `evidence` ids that satisfy it and, when
 withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
 `resolved`, an optional `reason`, when resolved, `answer` and `source` and, for
-`checks-changed`, the `checks` it approves, each with its `name` and `command`) and
+`checks-changed`, the `checks` it approves, each with its `name` and `command`,
+and the `config` it approves, its `strict_tdd`, `impact` and `contracts`, which
+an entry recorded before E1.53 lacks) and
 `evidence` (each with `id`, `kind`, `obligation` and `recorded_at`, plus the
 `detail` that names the runs behind run evidence), and optionally `base` (the
 commit the change started from, or null outside git), `plan` (the plan
@@ -312,8 +314,9 @@ neither the request nor the code settles are open (REQ-idd-018),
 `adr-amend-or-contradict` when the change amends
 or contradicts an ADR, `irreversible-operation` before a destructive or
 irreversible operation, `review-limit` when the trust reviews of the
-change are used up (REQ-idd-016), and `checks-changed` when the checks of
-`idd/config.yaml` differ from the ones of the change's base (REQ-idd-014). No
+change are used up (REQ-idd-016), and `checks-changed` when the checks or the
+ceremony settings (`strict_tdd`, `impact`, `contracts`) of `idd/config.yaml`
+differ from the ones of the change's base (REQ-idd-014). No
 other question MAY block progress. A gate MUST be
 resolved only by an explicit user answer, recorded with its source: `user`, or
 `user-unverified` for an answer relayed rather than given in the session. Any
@@ -328,9 +331,9 @@ records as resolved. While
 with a reason naming the ADR or scenario (REQ-idd-020); the agent MAY also
 open it with `record gate --open` and a reason naming the ADR before it asks.
 Only `ospec check` MAY open `checks-changed`, and `record gate --open` MUST be
-refused with `gate-managed-by-check`. Each set of checks MUST get its own
-entry, holding the `checks` it approves, so an answer approves only the checks
-it was asked about.
+refused with `gate-managed-by-check`. Each set of checks and settings MUST get
+its own entry, holding the `checks` and the `config` it approves, so an answer
+approves only what it was asked about.
 
 #### Scenario: A gate answer names a known source
 
@@ -371,15 +374,19 @@ since a hand edit can break them (REQ-idd-003):
 - close MUST derive the signals again from the diff as `ospec check` does, and be
   refused naming each signal, gate or architecture reference that derivation
   adds and the state lacks, `checks-changed` included while no resolved entry
-  approves the current checks;
+  approves the current checks and settings;
 - close MUST refuse what `ospec check` refuses before it runs anything
   (REQ-idd-014): a kind the diff contradicts (`kind-mismatch`) and a cite
   outside the plan and the diff (`cite-outside-plan`), each with the command
   that raises the ceremony as its way out;
 - while `boundary-tests` is satisfied and the diff against the change's base
-  adds no non-blank line to a test, close MUST be refused naming
+  adds no code to a test (REQ-idd-012), close MUST be refused naming
   `boundary-tests`, since a check against another `--base` may have counted
   older tests as added;
+- while `contract-spec-and-test` is satisfied and the diff against the change's
+  base touches no contract document or no test of the contract (REQ-idd-015),
+  close MUST be refused naming `contract-spec-and-test`, for the same reason
+  (E1.53);
 - while a satisfied `checks-pass`, `boundary-tests`, `contract-spec-and-test`,
   `migration-compat-and-test`, or `adr-impact-declaration` with fitness runs,
   holds its last evidence on another tree than the one being closed, close MUST
@@ -464,8 +471,12 @@ from `refactor` to `bug` or `feature`. A lower kind, or `bug` and `feature` in
 place of each other, MUST still be refused with `intent-conflict`, and while
 `open-facts` is open the raise MUST be refused with `open-facts-open`. The
 raised intent MUST replace `intent` and `facts`, keep the answered gate
-entries, and open a new `open-facts` entry only for a question not asked
-before. Every write
+entries, and open a new `open-facts` entry for a question not asked before, and
+always for a `feature`, which asks its categories as a feature recorded from
+scratch does, even a question answered for the lower kind (E1.53). A raise MUST
+keep the recorded `request`, the user's words its quotes come from: another
+`--request` MUST be refused with `intent-conflict`, and only an intent without
+one MAY record it. Every write
 MUST run under the state file's lock and replace the file atomically, so an
 interrupted `record` leaves the last committed state readable. A change id
 MUST be kebab-case before it reaches the filesystem. `next` MUST be a read-only
@@ -553,6 +564,9 @@ the changes on disk. A change opened before the first commit records a null
 - THEN the intent MUST hold kind `refactor` and `check` MUST run
 - AND recording kind `docs` again, or a `refactor` with another summary, MUST be
   refused with `intent-conflict`
+- AND raising the `refactor` to a `feature` MUST open `open-facts` even when its
+  question was answered before, and another `--request` MUST be refused with
+  `intent-conflict`
 
 #### Scenario: Interrupted record keeps the committed state
 
@@ -591,8 +605,12 @@ declared decision stay); a call that only reads the diff declares no plan. `publ
 planned paths give `source: declaration` and, with `--diff`, the paths of the
 git diff against a base commit (default: the change's recorded `base`, else
 `HEAD`), staged, unstaged and untracked,
-give `source: diff`. A signal both planned and in the diff MUST keep
-`source: declaration`. Paths under `idd/` MUST NOT count. Every signal MUST
+give `source: diff`. The diff MUST be read with fixed `a/` and `b/` prefixes,
+as text and without textconv, whatever the repository's diff settings
+(`diff.mnemonicPrefix`, `diff.noprefix`, `diff.srcPrefix`, or `-diff`, `binary`
+and `diff=` attributes), and a binary file by its content (a NUL byte in its
+first 8000 bytes) MUST bring no lines (E1.53). A signal both planned and in the
+diff MUST keep `source: declaration`. Paths under `idd/` MUST NOT count. Every signal MUST
 carry a reason naming why it fired, and a path-driven reason MUST name a
 matching path and the pattern it matched. The impact patterns MUST be base
 patterns for any project plus defaults for each stack detected from its
@@ -631,9 +649,18 @@ module, while its path still counts for every path-driven signal. Added lines MU
 states a selector contract (`getElementById`, `querySelector`, `` `#id` ``) or
 an HTTP method plus a path. A comment line, including `//`, `#`, `--`, `/* */`
 and `<!-- -->`, MUST NOT count. For an intent of kind `feature` or `bug`, a
-diff that changes product code and adds no non-blank line to a test MUST derive
-`untested-product`: a deleted or emptied test is not one (E1.44).
-Product code is a source file; documentation, manifests and tests are not.
+diff that changes product code and adds no code to a test MUST derive
+`untested-product`. Code is a line that is neither blank nor only a comment, in
+a test with a source-file extension: a deleted or emptied test, a comment and a
+fixture or golden file are not one (E1.44, E1.53). The CLI cannot judge what a
+test asserts, so a trivial test is the trust review's to find. Product code is
+a source file by its extension, scripts included: besides JS/TS, Python, Go,
+JVM, .NET, Ruby, PHP, Rust and web files, C and C++, Objective-C, Swift, Scala,
+Groovy, Dart, Lua, Elixir, Erlang, Clojure, Haskell, OCaml, F#, Visual Basic,
+Perl, R, Zig, shell, PowerShell and batch files (E1.53). Documentation, manifests
+and tests are not. Documentation is Markdown, MDX, reStructuredText and
+AsciiDoc anywhere and everything under the top-level `docs/`; under a nested
+`docs/`, a source file is product code (E1.53).
 No other derivation MAY open a gate. `--adr`
 and `--quality` declare the architecture references of REQ-idd-020. The
 path-driven signals and `bug-fix` MUST map one to one onto the K1 hard floors
@@ -801,10 +828,10 @@ check recorded such evidence; otherwise it MUST return to `pending`, because
 older evidence proved an older tree. A run whose output reports zero tests
 (a `tests 0` summary, "could not find" test files, or "no tests ran") MUST NOT
 count as passing and MUST NOT satisfy `boundary-tests`. `boundary-tests` MUST
-be satisfied only while the diff adds a non-blank line to a test, by a passing
+be satisfied only while the diff adds code to a test (REQ-idd-012), by a passing
 check on the current tree that reports more than zero tests or no test count;
-the suite that passed before the change, a deleted test and an emptied test
-MUST NOT satisfy it (E1.44). Its `tested-check` evidence MUST name in `tests`
+the suite that passed before the change, a deleted test, an emptied test, a
+comment and a fixture MUST NOT satisfy it (E1.44, E1.53). Its `tested-check` evidence MUST name in `tests`
 the test paths of the diff, and a state recorded before them MUST stay valid
 with `has_test`. `repro-run-pair` and `tdd-red-green`
 evidence MUST name a failing run and a later passing run of the same purpose,
@@ -841,15 +868,21 @@ anything, `check` MUST contrast the declaration with the diff and refuse:
   is neither in the plan nor in the diff (REQ-idd-018); its `how` MUST name the
   `ospec signals --path` that declares it.
 
-When the checks of `idd/config.yaml` differ in name, command or order from the
-ones it declared at the change's base, none at a null base or without the
-file, `check` MUST open `checks-changed` with a reason naming both sets,
-unless a resolved entry already approves the current ones. An open entry
-nobody answered MUST follow the current checks, and MUST be dropped when they
-return to the base or to an approved set. Only `checks` is contrasted with the
-base: `strict_tdd`, `impact` and `contracts` are read from the working tree, so
-a change to them can still lower the derived obligations, a limit E1.53
-`config-only-rises` closes.
+When `idd/config.yaml` differs from the one at the change's base (the empty
+configuration at a null base, without the file or when it cannot be parsed)
+in its checks (name, command or order) or in its ceremony settings, `check`
+MUST open `checks-changed` with a reason naming what differs on each side,
+unless a resolved entry already approves the current checks and settings
+(E1.44, E1.53). The ceremony settings are `strict_tdd` as the team profile
+leaves it (REQ-idd-023), and the `impact` (REQ-idd-012) and `contracts`
+(REQ-idd-015) sections, whose lists count as sets. Any difference asks, also
+one that only raises the ceremony: whether an `impact` change raises or lowers
+it is not decidable, and a setting this diff does not feel would otherwise
+reach the next change's base unapproved. An entry recorded before E1.53
+approves the base settings. An open entry nobody answered MUST follow the
+current checks and settings, and MUST be dropped when they return to the base
+or to an approved set. What the configuration declares therefore cannot lower
+the derived obligations without the user's answer.
 
 With no declared checks, `check` MUST keep `checks-pass` pending, answer
 `missing` with a reason naming `checks:` in `idd/config.yaml` and explicit
@@ -888,6 +921,15 @@ It MUST still exit with 0, record no check runs and never write configuration.
   `needs-decision`
 - AND once the user resolves it, another change of the checks MUST open a new
   entry
+
+#### Scenario: Ceremony settings changed against the base need the user's answer
+
+- GIVEN a change whose base declares `strict_tdd: true`, or no `impact.exclude`
+- WHEN `idd/config.yaml` sets `strict_tdd: false`, or excludes `src/auth/**`,
+  and `ospec check` runs
+- THEN `checks-changed` MUST open naming the setting on both sides, and `close`
+  MUST be refused until the user resolves it
+- AND reordering a list of `impact` or `contracts` MUST open nothing
 
 #### Scenario: A kind the diff contradicts is refused
 

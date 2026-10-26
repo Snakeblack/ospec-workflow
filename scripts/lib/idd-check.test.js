@@ -11,6 +11,7 @@ const path = require("node:path");
 
 const { RUN_PURPOSES, validateState } = require("./idd-contract.js");
 const {
+  ceremonyConfig,
   checkVerdict,
   recordRuns,
   settleBoundary,
@@ -420,7 +421,13 @@ test("checks that differ from the base open one checks-changed entry per set (B7
 
   const opened = settleChecksChange(openBug(), { baseChecks: base, checks: trivial });
   assert.deepStrictEqual(opened.gates, [
-    { id: "checks-changed", status: "open", reason: "idd/config.yaml declares test: true, and the base declares test: npm test", checks: trivial },
+    {
+      id: "checks-changed",
+      status: "open",
+      reason: "idd/config.yaml declares test: true, and the base declares test: npm test",
+      checks: trivial,
+      config: { strict_tdd: false, impact: {}, contracts: {} },
+    },
   ]);
   assert.ok(validateState(opened).ok, validateState(opened).errors.join("; "));
   assert.match(settleChecksChange(openBug(), { baseChecks: [], checks: trivial }).gates[0].reason, /the base declares no checks$/);
@@ -437,4 +444,33 @@ test("checks that differ from the base open one checks-changed entry per set (B7
   const again = settleChecksChange(resolved, { baseChecks: base, checks: lint });
   assert.deepStrictEqual(again.gates.map((gate) => gate.status), ["resolved", "open"]);
   assert.deepStrictEqual(settleChecksChange(again, { baseChecks: base, checks: trivial }).gates.map((gate) => gate.status), ["resolved"], "an approved set drops the open entry");
+});
+
+// E1.53: strict_tdd, impact and contracts are contrasted with the base too.
+test("[E1.53] ceremony settings that differ from the base open checks-changed with the settings the answer approves", () => {
+  const checks = [{ name: "test", command: "npm test" }];
+  const base = ceremonyConfig({ strictTdd: true, impact: { exclude: ["b/**", "a/**"] } });
+  assert.deepStrictEqual(base, { strict_tdd: true, impact: { exclude: ["a/**", "b/**"] }, contracts: {} }, "a list is a set");
+  assert.deepStrictEqual(settleChecksChange(openBug(), { baseChecks: checks, checks, baseConfig: base, config: ceremonyConfig({ strictTdd: true, impact: { exclude: ["a/**", "b/**", "a/**"] } }) }).gates, []);
+
+  const lowered = ceremonyConfig({ strictTdd: false, impact: { exclude: ["a/**", "b/**", "src/auth/**"] }, contracts: { defaults: false } });
+  const opened = settleChecksChange(openBug(), { baseChecks: checks, checks, baseConfig: base, config: lowered });
+  assert.deepStrictEqual(opened.gates.map((gate) => [gate.id, gate.status, gate.checks, gate.config]), [["checks-changed", "open", checks, lowered]]);
+  assert.strictEqual(
+    opened.gates[0].reason,
+    "strict_tdd is false, and true at the base; impact declares exclude [a/**, b/**, src/auth/**], and the base declares exclude [a/**, b/**]; contracts declares defaults false, and the base declares nothing",
+  );
+  assert.ok(validateState(opened).ok, validateState(opened).errors.join("; "));
+
+  const resolved = recordGate(opened, { id: "checks-changed", action: "resolve", answer: "Yes.", source: "user" }).state;
+  assert.strictEqual(settleChecksChange(resolved, { baseChecks: checks, checks, baseConfig: base, config: lowered }).gates.length, 1, "the answer approves these settings");
+  const other = settleChecksChange(resolved, { baseChecks: checks, checks, baseConfig: base, config: ceremonyConfig({ strictTdd: false }) });
+  assert.deepStrictEqual(other.gates.map((gate) => gate.status), ["resolved", "open"], "other settings need another answer");
+
+  // An entry recorded before E1.53 approved its checks with the base settings.
+  const legacy = { ...structuredClone(resolved), gates: [{ ...resolved.gates[0], config: undefined }] };
+  delete legacy.gates[0].config;
+  assert.ok(validateState(legacy).ok);
+  assert.strictEqual(settleChecksChange(legacy, { baseChecks: checks, checks, baseConfig: base, config: base }).gates.length, 1);
+  assert.deepStrictEqual(settleChecksChange(legacy, { baseChecks: checks, checks, baseConfig: base, config: lowered }).gates.map((gate) => gate.status), ["resolved", "open"]);
 });

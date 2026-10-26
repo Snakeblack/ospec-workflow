@@ -76,7 +76,7 @@ El agente se detiene en seis gates. Solo una respuesta explícita del usuario lo
 - `irreversible-operation`: borrado de datos, reescritura de historia publicada u otra operación destructiva.
 - `adr-amend-or-contradict`: el cambio enmienda, sustituye o contradice un ADR.
 - `review-limit`: se agotaron las revisiones de confianza del cambio; la respuesta autoriza una más.
-- `checks-changed`: los `checks:` de `idd/config.yaml` difieren de los de la base del cambio; la respuesta los aprueba.
+- `checks-changed`: los `checks:` o los ajustes de ceremonia (`strict_tdd`, `impact`, `contracts`) de `idd/config.yaml` difieren de los de la base del cambio; la respuesta los aprueba.
 
 ### Dónde vive el estado
 

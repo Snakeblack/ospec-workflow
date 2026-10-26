@@ -78,7 +78,7 @@ Una señal que el diff activa se añade en el momento, con su obligación pendie
 
 ## Los seis gates
 
-El agente se detiene en estos gates. Fuera de ellos, solo la aprobación de los `checks:` del proyecto (ver más abajo) lo detiene, y esa aprobación queda registrada en `checks-changed`.
+El agente se detiene en estos gates. Fuera de ellos, solo la aprobación de los `checks:` del proyecto (ver más abajo) lo detiene, y esa aprobación queda registrada en `checks-changed`, igual que la de un cambio en los ajustes de ceremonia.
 
 | Gate | Se abre cuando |
 | --- | --- |
@@ -87,7 +87,7 @@ El agente se detiene en estos gates. Fuera de ellos, solo la aprobación de los 
 | `adr-amend-or-contradict` | El cambio enmienda, sustituye o contradice un ADR. |
 | `irreversible-operation` | Va a ocurrir una operación destructiva o irreversible, como borrar datos o reescribir historia. |
 | `review-limit` | Se agotan las revisiones de confianza del cambio. |
-| `checks-changed` | Los `checks:` de `idd/config.yaml` difieren de los de la base del cambio, también la primera vez que se declaran. Cada juego de checks necesita su respuesta. |
+| `checks-changed` | Los `checks:` o los ajustes de ceremonia (`strict_tdd` con el que deja el perfil `team`, `impact` y `contracts`) de `idd/config.yaml` difieren de los de la base del cambio, también la primera vez que se declaran y también si solo suben la ceremonia. Cada juego necesita su respuesta. |
 
 Solo una respuesta explícita tuya resuelve un gate:
 
@@ -97,7 +97,7 @@ ospec record gate --change <id> --gate <gate> --resolve --answer "<tus palabras>
 
 `--source` vale `user` cuando respondiste en la sesión y `user-unverified` cuando la respuesta le llegó reenviada al agente; cualquier otro valor se rechaza con `invalid-source`. Es una declaración del agente: el CLI no puede comprobar que respondieras tú, y lo mismo vale para `--answer` y para el `--quote` de una feature, que se compara con un `--request` que también escribe el agente. Afecta a todos los gates, también a `review-limit`.
 
-Lo que declara el agente no puede bajar la ceremonia. `ospec check` y `ospec close` rechazan un cambio `docs` que toca código de producto y un `refactor` que borra una línea de un contrato (`kind-mismatch`) hasta que la intención se vuelve a registrar con un kind mayor. También rechazan una cita de una feature fuera de la documentación cuyo fichero no está ni en el plan ni en el diff (`cite-outside-plan`). El resto de `idd/config.yaml` (`strict_tdd`, `impact`, `contracts`) aún no se contrasta con la base del cambio: lo hará E1.53 `config-only-rises`.
+Lo que declara el agente no puede bajar la ceremonia. `ospec check` y `ospec close` rechazan un cambio `docs` que toca código de producto y un `refactor` que borra una línea de un contrato (`kind-mismatch`) hasta que la intención se vuelve a registrar con un kind mayor. También rechazan una cita de una feature fuera de la documentación cuyo fichero no está ni en el plan ni en el diff (`cite-outside-plan`). La configuración tampoco baja la ceremonia sin tu respuesta: `strict_tdd`, `impact` y `contracts` se contrastan con la base del cambio como los `checks`, en `checks-changed`. `boundary-tests` solo cuenta código añadido a un test con extensión de código: ni un comentario ni un fixture. Y `close` vuelve a leer contra la base del cambio la evidencia de `boundary-tests` y de `contract-spec-and-test`, por si un `check --base` más antiguo la infló.
 
 ### Revisión de confianza
 
