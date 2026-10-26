@@ -23,7 +23,10 @@ category once, with one of:
   least one category is a question; one that only names the category is
   refused.
 - `--cite <category>=<path:line>`: a line that exists and holds a letter or a
-  digit, and that settles the behavior.
+  digit, and that settles the behavior. It never names a manifest or a
+  lockfile. Outside the documentation, it names a file the plan declares
+  (`ospec signals --path`) or the diff touches: `ospec check` refuses it
+  otherwise.
 - `--quote <category>="<fragment>"`: a literal fragment of `--request`, at
   least 12 characters long.
 

@@ -86,25 +86,28 @@ function settleChecks(state, { tree, runIds, recordedAt }) {
 }
 
 /**
- * boundary-tests holds once a passing check on `tree` reports more than zero
- * tests. A recognized count of zero is not evidence (REQ-idd-014).
+ * boundary-tests holds once the diff adds a line to a test (`tests`, the test
+ * paths with an added line) and a passing check on `tree` reports more than
+ * zero tests, or no count. The suite that passed before the change is not
+ * evidence (B3), nor is a deleted test; a recognized count of zero never is
+ * (REQ-idd-014).
  */
-function settleBoundary(state, { tree, runIds, recordedAt, hasTest = false }) {
+function settleBoundary(state, { tree, runIds, recordedAt, tests = [] }) {
   requireOpen(state);
   const next = structuredClone(state);
   const target = next.obligations.find((entry) => entry.id === "boundary-tests");
-  if (!target || target.status === "withdrawn") return { state: next, evidence: null };
-  const proof = (next.runs || []).find(
-    (run) => runIds.includes(run.id) && run.exit_code === 0 && run.tree === tree && (run.tests > 0 || (run.tests == null && hasTest)),
+  if (!target || target.status === "withdrawn") return { state: next, evidence: null, reason: null };
+  const proof = tests.length > 0 && (next.runs || []).find(
+    (run) => runIds.includes(run.id) && run.exit_code === 0 && run.tree === tree && (run.tests > 0 || run.tests == null),
   );
   if (!proof) {
     target.status = "pending";
     target.evidence = [];
-    return { state: next, evidence: null };
+    const reason = tests.length === 0 ? `the diff adds no line to a test: write the test of the product code, then ospec check --change ${state.change}` : null;
+    return { state: next, evidence: null, reason };
   }
   const id = nextEvidenceId(next);
-  const detail = { tree, run: proof.id };
-  if (!(proof.tests > 0)) detail.has_test = true;
+  const detail = { tree, run: proof.id, tests: [...tests] };
   next.evidence.push({
     id,
     kind: "tested-check",
@@ -114,7 +117,36 @@ function settleBoundary(state, { tree, runIds, recordedAt, hasTest = false }) {
   });
   target.status = "satisfied";
   target.evidence = [id];
-  return { state: next, evidence: id };
+  return { state: next, evidence: id, reason: null };
+}
+
+const CHECKS_GATE = "checks-changed";
+
+function describeChecks(checks) {
+  return checks.length > 0 ? checks.map(({ name, command }) => `${name}: ${command}`).join("; ") : "no checks";
+}
+
+/**
+ * During a check: checks that differ from the change's base need the user's
+ * answer (B7). Each set gets its own checks-changed entry with the checks it
+ * approves; checks back to the base or to a set already approved drop the
+ * entry nobody answered.
+ */
+function settleChecksChange(state, { baseChecks, checks }) {
+  requireOpen(state);
+  const next = structuredClone(state);
+  const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+  const open = next.gates.find((gate) => gate.id === CHECKS_GATE && gate.status === "open");
+  const approved = same(checks, baseChecks) || next.gates.some((gate) => gate.id === CHECKS_GATE && gate.status === "resolved" && same(gate.checks, checks));
+  if (approved) {
+    if (open) next.gates = next.gates.filter((gate) => gate !== open);
+    return next;
+  }
+  const reason = `idd/config.yaml declares ${describeChecks(checks)}, and the base declares ${describeChecks(baseChecks)}`;
+  const entry = { id: CHECKS_GATE, status: "open", reason, checks: structuredClone(checks) };
+  if (open) Object.assign(open, entry);
+  else next.gates.push(entry);
+  return next;
 }
 
 function samePairKey(left, right) {
@@ -318,7 +350,7 @@ const DEFAULT_REASONS = Object.freeze({
   [MIGRATION]: `no passing migration test on the current tree: run it with ospec run --obligation ${MIGRATION} --plan <compatibility or rollback>`,
   [CONTRACT]: "needs a contract document and a test in the diff, with every check passing: run ospec check",
   [IMPACT]: "needs the declared impact on every ADR or quality scenario the change touches: ospec record impact, then ospec check",
-  "boundary-tests": "needs a passing check that reports tests greater than 0: ospec check --change <id> after the diff adds a test",
+  "boundary-tests": "needs a test the diff adds and a passing check that reports tests greater than 0: ospec check --change <id> after the diff adds a test",
 });
 
 // living-doc is satisfied by ospec close itself (REQ-idd-004): a current
@@ -355,6 +387,7 @@ module.exports = {
   recordRuns,
   settleBoundary,
   settleChecks,
+  settleChecksChange,
   settleContract,
   settleImpacts,
   settleMigration,

@@ -101,7 +101,8 @@
     "open-facts",
     "adr-amend-or-contradict",
     "irreversible-operation",
-    "review-limit"
+    "review-limit",
+    "checks-changed"
   ],
   "checks_required": [
     "checks-pass",

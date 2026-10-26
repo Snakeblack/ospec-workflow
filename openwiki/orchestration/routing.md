@@ -69,13 +69,14 @@ Un arreglo de una línea solo se queda en `checks-pass` si no es un bug ni toca 
 
 ### Gates
 
-El agente se detiene en cinco gates. Solo una respuesta explícita del usuario los resuelve:
+El agente se detiene en seis gates. Solo una respuesta explícita del usuario los resuelve:
 
 - `ambiguous-intent`: no se puede enunciar la aceptación. Hasta resolverlo no se deriva ninguna señal.
 - `open-facts`: comportamientos que ni la petición ni el código fijan. Se preguntan todos juntos antes de editar.
 - `irreversible-operation`: borrado de datos, reescritura de historia publicada u otra operación destructiva.
 - `adr-amend-or-contradict`: el cambio enmienda, sustituye o contradice un ADR.
 - `review-limit`: se agotaron las revisiones de confianza del cambio; la respuesta autoriza una más.
+- `checks-changed`: los `checks:` de `idd/config.yaml` difieren de los de la base del cambio; la respuesta los aprueba.
 
 ### Dónde vive el estado
 

@@ -110,3 +110,28 @@ test("a recognized runner reporting zero tests is not a passing count", () => {
   assert.strictEqual(countTests(["no tests ran in 0.01s"]), 0);
   assert.strictEqual(countTests(["lint clean"]), null);
 });
+
+test("a cite never names a manifest or a lockfile (B6)", () => {
+  const { classifyPath } = require("./idd-signals.js");
+  const tree = { "package.json": '{\n  "name": "tasks"\n}\n', "pnpm-lock.yaml": "lockfileVersion: 9\n", "src/store.js": "// empty when corrupt\n" };
+  for (const file of ["package.json", "pnpm-lock.yaml"]) {
+    const refused = resolveFeatureCoverage({ cites: [`persistence=${file}:1`], readFile: filesOf(tree), classify: classifyPath });
+    assert.strictEqual(refused.error.code, "cite-unresolved", file);
+    assert.match(refused.error.message, new RegExp(`^${file.replace(".", "\\.")} is a manifest`));
+  }
+  const code = resolveFeatureCoverage({ cites: ["persistence=src/store.js:1"], readFile: filesOf(tree), classify: classifyPath });
+  assert.notStrictEqual(code.error?.code, "cite-unresolved", "a code cite resolves; check verifies its plan");
+  // A stored state keeps validating its cites as it was recorded.
+  assert.strictEqual(factsFromCoverage(citedCoverage().map((entry) => (entry.category === "persistence" ? { category: "persistence", cite: { kind: "path", path: "package.json", line: 2 } } : entry))).error, undefined);
+});
+
+test("a manifest cite is refused however its path is spelled (B6)", () => {
+  const { classifyPath } = require("./idd-signals.js");
+  const tree = { "package.json": '{\n  "name": "tasks"\n}\n' };
+  for (const spelling of ["package.json/", "package.json/.", "./package.json", "docs/../package.json"]) {
+    const refused = resolveFeatureCoverage({ cites: [`persistence=${spelling}:2`], readFile: filesOf(tree), classify: classifyPath });
+    assert.strictEqual(refused.error?.code, "cite-unresolved", spelling);
+  }
+  const canonical = resolveFeatureCoverage({ cites: ["persistence=./README.md:1"], readFile: filesOf({ "README.md": "line one\n" }), classify: classifyPath });
+  assert.notStrictEqual(canonical.error?.code, "cite-unresolved", "a leading ./ still names the file");
+});

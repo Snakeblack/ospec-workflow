@@ -5,6 +5,8 @@
 // the CLI has already resolved, and asks at least one of them (#390). Pure:
 // the caller reads files and the request.
 
+const path = require("node:path");
+
 const FEATURE_CATEGORIES = Object.freeze([
   { id: "inputs", label: "entradas y límites" },
   { id: "uniqueness", label: "unicidad y normalización" },
@@ -28,6 +30,7 @@ const FEATURE_COVERAGE_HOW = [
   '--quote copy="<a literal fragment of --request, at least 12 characters>"',
   `Categories: ${FEATURE_CATEGORIES.map((category) => `${category.id} (${category.label})`).join(", ")}.`,
   "Each category is one --open-fact, one --cite path:line that exists and has a letter or digit, or one --quote of the request; no two categories share a cite or a quote.",
+  "A cite never names a manifest or a lockfile, and one outside the documentation names a file of the plan or the diff.",
   "At least one category is an --open-fact: the user sees the plan before it is built.",
   "A question that only names the category is refused.",
 ].join(" ");
@@ -70,6 +73,15 @@ function safeRelative(file) {
   return normalized;
 }
 
+// One spelling per file for a new cite (B6): `./a`, `a/./b`, `a//b` and a
+// trailing slash name the file the rules judge. Stored states keep theirs.
+function citePath(file) {
+  const relative = safeRelative(file);
+  if (relative === null) return null;
+  const normalized = path.posix.normalize(relative).replace(/\/+$/, "");
+  return normalized === "." ? null : normalized;
+}
+
 function take(found, categoryId, entry) {
   if (!categoryOf(categoryId)) return problem("facts-undeclared", `unknown category ${JSON.stringify(categoryId)}`);
   if (found.has(categoryId)) return problem("facts-undeclared", `category ${categoryId} is declared twice`);
@@ -89,7 +101,9 @@ function parseOpenFact(raw, found) {
   return take(found, categoryId, { category: categoryId, question });
 }
 
-function parseCite(raw, found, readFile) {
+// A manifest or a lockfile names the project, never a behavior (B6). The
+// rules judge, read and store the file the cite reaches (`canonical`).
+function parseCite(raw, found, { readFile, classify, canonical }) {
   const text = String(raw);
   const split = text.indexOf("=");
   if (split === -1) return problem("facts-undeclared", `--cite needs category=path:line, got ${JSON.stringify(text)}`);
@@ -97,9 +111,14 @@ function parseCite(raw, found, readFile) {
   const locator = text.slice(split + 1).trim();
   const match = /^(.+):(\d+)$/.exec(locator);
   if (!match) return problem("facts-undeclared", `--cite ${categoryId || "category"} needs path:line`);
-  const file = safeRelative(match[1]);
+  const spelled = citePath(match[1]);
   const line = Number(match[2]);
-  if (!file || line < 1) return problem("cite-unresolved", `${locator} is not a path inside the project`);
+  if (!spelled || line < 1) return problem("cite-unresolved", `${locator} is not a path inside the project`);
+  const file = canonical(spelled);
+  if (file === null) return problem("cite-unresolved", `${spelled} does not exist inside the project`);
+  if (classify(file) === "manifest") {
+    return problem("cite-unresolved", `${file} is a manifest: cite the documentation or the code that settles ${categoryId || "the category"}, or ask it`);
+  }
   const body = readFile(file);
   if (typeof body !== "string") return problem("cite-unresolved", `${file} does not exist`);
   const count = lineCount(body);
@@ -143,16 +162,18 @@ function reusedCite(entries) {
 
 /**
  * Turns the feature flags into resolved coverage. `readFile(path)` returns the
- * file text, or null when the path is missing.
+ * file text, or null when the path is missing; `classify(path)` is
+ * classifyPath of idd-signals.js; `canonical(path)` is the file the path
+ * reaches inside the project, symlinks resolved, or null.
  */
-function resolveFeatureCoverage({ openFacts = [], cites = [], quotes = [], request, readFile }) {
+function resolveFeatureCoverage({ openFacts = [], cites = [], quotes = [], request, readFile, classify = () => null, canonical = (file) => file }) {
   const found = new Map();
   for (const raw of openFacts) {
     const failed = parseOpenFact(raw, found);
     if (failed) return failed;
   }
   for (const raw of cites) {
-    const failed = parseCite(raw, found, readFile);
+    const failed = parseCite(raw, found, { readFile, classify, canonical });
     if (failed) return failed;
   }
   for (const raw of quotes) {

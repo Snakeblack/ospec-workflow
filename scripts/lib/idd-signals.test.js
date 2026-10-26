@@ -13,7 +13,8 @@ const { HARD_FLOORS } = require("./change-classification.js");
 const { SIGNALS } = require("./idd-contract.js");
 const { IMPACT_SIGNALS, resolvePatterns } = require("./idd-impact.js");
 const { recordGate, recordIntent, recordSignal } = require("./idd-record.js");
-const { FLOOR_SIGNALS, IRREVERSIBLE_OPERATIONS, applyDerivation, deriveSignals } = require("./idd-signals.js");
+const { resolveContractPatterns } = require("./idd-contracts.js");
+const { FLOOR_SIGNALS, IRREVERSIBLE_OPERATIONS, applyDerivation, citesOutsidePlan, deriveSignals, kindMismatch } = require("./idd-signals.js");
 
 const FIXTURES_DIR = path.join(__dirname, "..", "fixtures", "idd");
 
@@ -608,4 +609,56 @@ test("applyDerivation records the declared references with the signal and its ob
   assert.deepStrictEqual(widened.added.signals, []);
   assert.deepStrictEqual(widened.state.impacts.map((entry) => entry.id), ["0002", "target-parity"]);
   assert.strictEqual(applyDerivation(widened.state, derivation).changed, false);
+});
+
+// ---------------------------------------------------------------------------
+// E1.44: the declared kind and the feature cites against the diff (B6, B9)
+// ---------------------------------------------------------------------------
+
+const CONTRACTS = resolveContractPatterns({ contracts: { documents: ["specs/**"] } });
+
+test("a docs change that touches product code contradicts its kind; tests and manifests do not", () => {
+  const docs = { kind: "docs" };
+  const mismatch = kindMismatch(docs, { paths: ["README.md", "src/a.js", "src/b.py"] }, CONTRACTS);
+  assert.deepStrictEqual(mismatch, { reason: "kind docs, but the diff changes product code: src/a.js and 1 more", kinds: ["refactor", "bug", "feature"] });
+  assert.strictEqual(kindMismatch(docs, { paths: ["README.md", "scripts/manifest-sync.test.js", "package.json", "idd/config.yaml"] }, CONTRACTS), null);
+  for (const kind of ["bug", "feature"]) assert.strictEqual(kindMismatch({ kind }, { paths: ["src/a.js"] }, CONTRACTS), null, kind);
+});
+
+test("a refactor that removes a contract line contradicts its kind, a moved or blank line does not", () => {
+  const refactor = { kind: "refactor" };
+  const diff = (removedLines, addedLines = {}) => ({ paths: [...new Set([...Object.keys(removedLines), ...Object.keys(addedLines)])], removedLines, addedLines });
+  assert.deepStrictEqual(kindMismatch(refactor, diff({ "specs/orders.md": ["Orders MUST list 50 per page."] }), CONTRACTS), {
+    reason: 'kind refactor, but the diff removes a line of a contract: specs/orders.md: "Orders MUST list 50 per page."',
+    kinds: ["bug", "feature"],
+  });
+  assert.match(kindMismatch(refactor, diff({ "api/openapi.yaml": ["  /pages: {}"] }), CONTRACTS).reason, /api\/openapi\.yaml/, "the base patterns count too");
+  assert.match(kindMismatch(refactor, diff({ "README.md": ["`GET /orders` lists the orders."] }), CONTRACTS).reason, /README\.md/, "documentation that states a contract");
+  assert.strictEqual(kindMismatch(refactor, diff({ "README.md": ["Run the tests first."] }), CONTRACTS), null, "documentation without a contract");
+  assert.strictEqual(kindMismatch(refactor, diff({ "specs/orders.md": ["   "] }), CONTRACTS), null, "a blank line");
+  assert.strictEqual(kindMismatch(refactor, diff({ "specs/orders.md": ["Orders MUST list 50."] }, { "specs/pages.md": ["  Orders MUST list 50."] }), CONTRACTS), null, "a line moved to another contract");
+  assert.notStrictEqual(kindMismatch(refactor, diff({ "specs/orders.md": ["Orders MUST list 50."] }, { "test/fixture.txt": ["Orders MUST list 50."] }), CONTRACTS), null, "a copy outside the contracts is no move");
+  assert.strictEqual(kindMismatch(refactor, diff({ "src/api/orders.js": ["const size = 20;"] }), CONTRACTS), null, "code is not a contract document");
+});
+
+test("a feature cite outside the documentation names a file of the plan or the diff", () => {
+  const coverage = [
+    { category: "inputs", question: "Is a size above 100 refused?" },
+    { category: "persistence", cite: { kind: "path", path: "src/store.js", line: 1 } },
+    { category: "copy", cite: { kind: "path", path: "README.md", line: 2 } },
+    { category: "errors", cite: { kind: "request", text: "the request fixes it" } },
+  ];
+  const state = { facts: { coverage }, plan: { paths: [] } };
+  assert.deepStrictEqual(citesOutsidePlan(state, { paths: ["src/paginate.js"] }), [{ category: "persistence", path: "src/store.js", line: 1 }]);
+  assert.deepStrictEqual(citesOutsidePlan(state, { paths: ["src/store.js"] }), [], "in the diff");
+  assert.deepStrictEqual(citesOutsidePlan({ ...state, plan: { paths: ["src/store.js"] } }, { paths: [] }), [], "in the plan");
+  assert.deepStrictEqual(citesOutsidePlan({ facts: { open: ["Does case matter?"] } }, { paths: [] }), [], "only a feature cites");
+});
+
+test("untested-product needs a test the diff adds a line to, not a deleted or emptied one (B3)", () => {
+  const derive = (diff) => deriveSignals({ intent: { kind: "feature" }, diff, patterns: patternsFor() }).signals.some((signal) => signal.id === "untested-product");
+  const product = { "src/a.js": ["module.exports = 1;"] };
+  assert.strictEqual(derive({ paths: ["src/a.js", "test/a.test.js"], addedLines: { ...product, "test/a.test.js": ["assert(1);"] } }), false);
+  assert.strictEqual(derive({ paths: ["src/a.js", "test/old.test.js"], addedLines: product }), true, "a deleted test");
+  assert.strictEqual(derive({ paths: ["src/a.js", "test/empty.test.js"], addedLines: { ...product, "test/empty.test.js": ["", "  "] } }), true, "an emptied test");
 });

@@ -9,6 +9,7 @@
 
 const { classifyChange } = require("./change-classification.js");
 const { SIGNALS, isIntentAmbiguous } = require("./idd-contract.js");
+const { classifyContractPaths } = require("./idd-contracts.js");
 const { IMPACT_SIGNALS, isBuildScript, isExcluded, matchImpact, normalizePath } = require("./idd-impact.js");
 const { IddRecordError, recordGate, recordPlan, recordReferences, recordSignal } = require("./idd-record.js");
 const { derivedReferences, resolveReferences } = require("./idd-knowledge.js");
@@ -73,8 +74,16 @@ const MANIFESTS = new Set([
   "build.gradle.kts",
   "settings.gradle",
   "composer.json",
+  "composer.lock",
   "gemfile",
   "gemfile.lock",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "bun.lock",
+  "bun.lockb",
+  "poetry.lock",
+  "pipfile.lock",
+  "uv.lock",
 ]);
 // A call or an access, never a mere mention: a label, an import or this table.
 const PERSISTENCE_PATTERNS = Object.freeze([
@@ -209,13 +218,96 @@ function contractHit(addedLines) {
   return null;
 }
 
+// The tests the diff adds a non-blank line to (B3): a deleted or emptied test
+// is not one, so it neither stands for a test nor satisfies boundary-tests.
+function addedTests(diff) {
+  return (diff.paths || []).filter((file) => classifyPath(file) === "test" && (diff.addedLines?.[file] || []).some((line) => line.trim() !== ""));
+}
+
 function untestedProduct(intent, diff) {
   if (!["feature", "bug"].includes(intent.kind)) return null;
   const paths = diff.paths || [];
   const product = paths.filter((file) => classifyPath(file) === "product");
-  if (product.length === 0 || paths.some((file) => classifyPath(file) === "test")) return null;
+  if (product.length === 0 || addedTests(diff).length > 0) return null;
   const more = product.length > 1 ? ` and ${product.length - 1} more` : "";
   return `product code without a test: touches ${product[0]}${more}`;
+}
+
+// A removed line of a contract document, or of documentation that states a
+// contract as public-contract reads it, unless the same text comes back in
+// one of them (a moved line). The first one, as "<file>: <line>".
+function removedContractLine(diff, contractPatterns) {
+  const removed = diff.removedLines || {};
+  const documents = new Set(classifyContractPaths(diff.paths, contractPatterns).documents);
+  const watched = (file) => documents.has(file) || isDocumentation(file);
+  const kept = new Set(
+    Object.entries(diff.addedLines || {})
+      .filter(([file]) => watched(file))
+      .flatMap(([, lines]) => lines.map((line) => line.trim())),
+  );
+  for (const file of sortedPaths(Object.keys(removed))) {
+    if (!watched(file)) continue;
+    for (const line of removed[file]) {
+      const text = line.trim();
+      if (text === "" || kept.has(text)) continue;
+      if (documents.has(file) || firstContentHit([line], CONTRACT_PATTERNS)) return `${file}: ${JSON.stringify(text.slice(0, 80))}`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Why the diff contradicts the declared kind (B9), with the kinds that may
+ * replace it, or null: a docs change touches product code, a refactor removes
+ * a line of a contract. The kind may only rise.
+ */
+function kindMismatch(intent, diff, contractPatterns) {
+  if (intent?.kind === "docs") {
+    const product = (diff.paths || []).filter((file) => classifyPath(file) === "product");
+    if (product.length === 0) return null;
+    const more = product.length > 1 ? ` and ${product.length - 1} more` : "";
+    return { reason: `kind docs, but the diff changes product code: ${product[0]}${more}`, kinds: ["refactor", "bug", "feature"] };
+  }
+  if (intent?.kind === "refactor") {
+    const line = removedContractLine(diff, contractPatterns);
+    return line ? { reason: `kind refactor, but the diff removes a line of a contract: ${line}`, kinds: ["bug", "feature"] } : null;
+  }
+  return null;
+}
+
+/**
+ * The path cites of a feature outside the documentation whose file is neither
+ * in the plan nor in the diff (B6): a cite settles a behavior of the code the
+ * change works on.
+ */
+function citesOutsidePlan(state, diff) {
+  const known = new Set([...(state.plan?.paths || []), ...(diff.paths || [])]);
+  return (state.facts?.coverage || [])
+    .filter(({ cite }) => cite?.kind === "path" && classifyPath(cite.path) !== "docs" && !known.has(cite.path))
+    .map(({ category, cite }) => ({ category, path: cite.path, line: cite.line }));
+}
+
+/**
+ * What `ospec check` and `ospec close` refuse before anything else (E1.44):
+ * a kind the diff contradicts, then a cite outside the plan. Each refusal
+ * carries the command that raises the ceremony.
+ */
+function requireDeclaredCeremony(state, { diff, contractPatterns }) {
+  const mismatch = kindMismatch(state.intent, diff, contractPatterns);
+  if (mismatch) {
+    const error = new IddRecordError("kind-mismatch", mismatch.reason);
+    error.how =
+      `ospec record intent --change ${state.change} --kind <${mismatch.kinds.join("|")}> --summary "<what>" --acceptance "<observable result>" ` +
+      'with its open facts (--open-fact "<question>", or --no-open-facts --basis "<why>"; a feature covers the seven categories): the kind may only rise';
+    throw error;
+  }
+  const outside = citesOutsidePlan(state, diff);
+  if (outside.length > 0) {
+    const cites = outside.map((cite) => `${cite.category}=${cite.path}:${cite.line}`).join(", ");
+    const error = new IddRecordError("cite-outside-plan", `${cites} cites a file that is neither in the plan nor in the diff`);
+    error.how = `ospec signals --change ${state.change} ${[...new Set(outside.map((cite) => `--path ${cite.path}`))].join(" ")}, when the change works on it`;
+    throw error;
+  }
 }
 
 function impactReason(signal, { pattern, paths }, patterns) {
@@ -396,8 +488,12 @@ module.exports = {
   DESTRUCTIVE_STATEMENTS,
   FLOOR_SIGNALS,
   IRREVERSIBLE_OPERATIONS,
+  addedTests,
   applyDerivation,
+  citesOutsidePlan,
   classifyPath,
   deriveSignals,
+  kindMismatch,
   persistentHits,
+  requireDeclaredCeremony,
 };

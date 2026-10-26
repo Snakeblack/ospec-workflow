@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.153.2, 2026-10-26.
+> **Versión de referencia:** v2.153.3, 2026-10-26.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -164,7 +164,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.41** | `rules-engine-unicode-parity` (seguimiento de E1.39: Go adopta la semántica ASCII de JS en las 19 reglas, la regla de disco deniega nombres con letras no ASCII en los dos motores y un corpus compartido fija las decisiones, en v2.150.9) | bugfix |
 | `done` | **E1.42** | `idd-catalog-single-source` (B1 de la auditoría del 2026-10-25: Go embebe el catálogo IDD que emite el CLI en `internal/iddsession/catalog.json` y deja de descartar el estado con `untested-product`, `boundary-tests` o `review-limit`; el golden de `idd-session` fija el paso en los dos motores y un test falla si el JSON se queda desfasado, en v2.153.1) | bugfix |
 | `done` | **E1.43** | `close-revalidates-state` (B2: `close` rechaza una obligación `withdrawn` o ausente que una señal activa deriva, vuelve a derivar las señales como `check` y exige la evidencia del árbol que se cierra, y `check` repara el estado; PreToolUse deniega escribir `idd/<cambio>/state.yaml`, `idd/archive/` y los recibos de review en el hook JS y el binario Go; la garantía en los 7 targets es la revalidación de `close`, en v2.153.2) | bugfix |
-| `pending` | **E1.44** | `ceremony-only-rises` (B3, B6, B7 y B9: tests en el diff, citas acotadas, `checks` frente a la base y `--kind` contrastado con el diff) | bugfix |
+| `done` | **E1.44** | `ceremony-only-rises` (B3, B6, B7 y B9: `boundary-tests` exige un test que añade el diff; una cita nunca cae en un manifiesto y, fuera de la documentación, nombra un fichero del plan o del diff; el gate `checks-changed` registra la aprobación de los checks que difieren de la base; `check` y `close` rechazan un `docs` que toca producto y un `refactor` que quita una línea de un contrato, y `record intent` solo deja subir el kind, en v2.153.3) | bugfix |
+| `pending` | **E1.53** | `config-only-rises` (seguimiento de E1.44: `strict_tdd`, `impact` y `contracts` de `idd/config.yaml` frente a la base, como `checks`) | bugfix |
 | `pending` | **E1.45** | `cli-one-word-invocation` (B5: shim `ospec` en los 7 targets y comando literal en cada `next_step`) | bugfix |
 | `pending` | **E1.46** | `state-durability` (fsync, temporal único, dueño del lock y cuarentena de un estado ilegible) | bugfix |
 | `pending` | **E1.47** | `memory-loop-visible` (B8: `close` muestra los temas de memoria y `record intent` devuelve la consulta) | bugfix |
@@ -210,9 +211,9 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 
 **▶ SIGUIENTE:** el orden que sale de la [auditoría del harness frente a gentle-ai del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Mantiene la decisión del usuario del 2026-10-23 (primero los defectos del harness, el banco después) y la del 2026-10-25: un change por sesión, y todo funciona en los 7 targets. Hasta la v2.151.0, la cola anterior dejó hechos E1.29, E1.31, E1.32 y E1.34–E1.41 y E4.12.
 
-E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1 y E1.43 `close-revalidates-state` en v2.153.2; sigue E1.44.
+E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1, E1.43 `close-revalidates-state` en v2.153.2 y E1.44 `ceremony-only-rises` en v2.153.3; sigue E1.53, que el usuario puso justo detrás el 2026-10-26.
 
-1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E4.10 `greenfield-foundation-hint`.
+1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.53 `config-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E4.10 `greenfield-foundation-hint`.
 2. **B. Economía**, antes que C porque C añade una ejecución de la suite: E4.15 `cli-chaining` → E4.16 `cli-terse-output` → E4.3 `context-budget-ratchet`, que fija los techos por target después de B.
 3. **E4.17** `bench-knowledge-scenarios`: escribe y congela escenarios sin correrlos. Es una excepción acotada a «banco después», decidida por el usuario el 2026-10-25 para que C no se ajuste sobre ellos.
 4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.50 `content-security-signal` → E1.51 `open-change-nudge` → E1.52 `review-frozen-tree` → E3.7 `fact-ledger`.
@@ -312,7 +313,7 @@ E4.1 ─ E4.4 (experimento independiente de E4.2; sin router) ─┐
 E4.12 (independiente; arregla también los agentes actuales) ──┴─ E4.13
 
 Auditoría del 2026-10-25 (un change por sesión, en este orden):
-A: E1.42 ─ E1.43 ─ E1.44 ─ E1.45 ─ E1.46 ─ E1.47 ─ E4.10
+A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E4.10
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
 C: E1.48 ─ E1.49 ─ E1.50 ─ E1.51 ─ E1.52 ─ E3.7
@@ -762,7 +763,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 
 ### Ítems de la auditoría del 2026-10-25 frente a gentle-ai
 
-Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Los de E1.42 a E1.47 corrigen defectos verificados (B1–B9) y van primero. Los de E1.48 a E1.52 buscan ventaja en defectos donde ni ospec ni gentle-ai llegan hoy. Todos siguen la regla multi-target de [Estado y orden](#orden-recomendado-de-trabajo).
+Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Los de E1.42 a E1.47 corrigen defectos verificados (B1–B9) y van primero, con E1.53 detrás de E1.44. Los de E1.48 a E1.52 buscan ventaja en defectos donde ni ospec ni gentle-ai llegan hoy. Todos siguen la regla multi-target de [Estado y orden](#orden-recomendado-de-trabajo).
 
 ### E1.42 — `idd-catalog-single-source` (B1)
 
@@ -811,6 +812,27 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 - **Hecho cuando:**
   - los cuatro casos reproducidos en la auditoría se rechazan con su motivo;
   - los tests de los cambios legítimos siguen en verde.
+
+### E1.53 — `config-only-rises` (seguimiento de E1.44)
+
+- **Problema:** E1.44 contrasta con la base del cambio solo los `checks` de `idd/config.yaml`. `strict_tdd`, `impact` (`exclude`, `defaults`, las rutas de cada señal) y `contracts` se leen del árbol de trabajo, y `idd/` queda fuera del diff. La trust review de E1.44 lo encontró: añadir `impact.exclude` sobre las rutas de auth deja de derivar `security-boundary`, y `diffConfirmation` lee los mismos patrones, así que la señal derivada se puede retirar y `trust-review` nunca corre. Lo mismo pasa con `strict_tdd: false` o `contracts.defaults: false`.
+- **Garantía que protege:** que lo que declara el modelo no baje la ceremonia (principio 2), también desde la configuración.
+- **Alcance:**
+  - `check` y `close` comparan `strict_tdd`, `impact` y `contracts` con los de la base, como `checks` en `checks-changed`, y una diferencia pide la respuesta del usuario: el mismo gate con los valores que aprueba, o uno propio.
+  - Decidir si un cambio que solo sube la ceremonia (una ruta de impacto nueva, `strict_tdd: true`) también pregunta.
+  - Escribir en REQ-idd-014 que el límite de E1.44 queda cerrado.
+  - Dos residuos de las trust reviews de E1.44, que el usuario dejó aquí el 2026-10-26:
+    - `contract-spec-and-test` se satisface con un `ospec check --base` más antiguo, que pone en el diff documentos y tests de commits anteriores. Es anterior a E1.44, que solo lo cerró para `boundary-tests` (`close` relee los tests contra la base del cambio).
+    - `classifyPath` solo reconoce como producto las extensiones de `PRODUCT_EXT`, y la documentación gana a cualquier ruta bajo un `docs/` anidado. Un cambio `docs` que toca `.c`, `.swift`, `.sh` o `src/docs/handler.py` no se rechaza ni deriva `untested-product`. Ampliar la lista o escribirla en REQ-idd-012.
+  - Tres avisos de la cuarta trust review de E1.44, que el usuario dejó aquí el 2026-10-26:
+    - con `git config diff.mnemonicPrefix` (cabeceras `c/` y `w/`), `diff.srcPrefix` o un `.gitattributes` con `-diff` o `binary`, `readGitDiff` no trae líneas de los ficheros versionados. Quedan ciegos el contraste de B9, los tests de B3 y las señales por contenido (`persistent-data`, `public-contract`); se reprodujo. Forzar `--src-prefix=a/ --dst-prefix=b/` y `--text`, con un test por ajuste;
+    - una sola línea de comentario en un test, o un fixture bajo `test/`, cumple `boundary-tests` y evita `untested-product`;
+    - subir a `feature` repitiendo una pregunta ya respondida no reabre `open-facts`, como sí hace una feature registrada de cero, y la subida puede reescribir `intent.request`.
+- **Targets:** los 7 (CLI). El catálogo de Go se regenera si cambia algún gate.
+- **Hecho cuando:**
+  - un `impact.exclude` nuevo sobre rutas de `security_boundary` no deja cerrar sin la respuesta del usuario;
+  - `strict_tdd: false` frente a una base con `true` tampoco;
+  - un cambio sin diferencias de configuración cierra igual que hoy.
 
 ### E1.45 — `cli-one-word-invocation` (B5)
 

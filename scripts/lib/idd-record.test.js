@@ -709,3 +709,53 @@ test("[REQ-idd-022] fitness evidence needs a manual item, a reference and text",
   assertCode(() => recordAttestation(state, { ...input, kind: "module" }), "invalid-reference");
   assertCode(() => recordAttestation({ ...state, status: "closed" }, input), "change-closed");
 });
+
+// ---------------------------------------------------------------------------
+// E1.44: the kind of a resolved intent may only rise (B9), and only ospec
+// check opens checks-changed (B7)
+// ---------------------------------------------------------------------------
+
+const DOCS_INTENT = Object.freeze({ ...BUG_INTENT, kind: "docs", summary: "Fix a typo.", acceptance: "No typo." });
+
+test("a resolved intent rises to a kind with more ceremony, never down or sideways", () => {
+  const docs = opened(DOCS_INTENT);
+  const refactor = recordIntent(docs, { ...BUG_INTENT, kind: "refactor", summary: "Move the page count.", acceptance: "Two pages, as before." });
+  assert.strictEqual(refactor.changed, true);
+  assert.deepStrictEqual(refactor.state.intent, { kind: "refactor", summary: "Move the page count.", acceptance: "Two pages, as before." });
+  assertValid(refactor.state);
+  assert.strictEqual(recordIntent(refactor.state, { ...BUG_INTENT, kind: "refactor", summary: "Move the page count.", acceptance: "Two pages, as before." }).changed, false);
+
+  assertCode(() => recordIntent(refactor.state, DOCS_INTENT), "intent-conflict");
+  const bug = recordIntent(refactor.state, BUG_INTENT).state;
+  assert.strictEqual(bug.intent.kind, "bug");
+  assertCode(() => recordIntent(bug, { ...BUG_INTENT, kind: "feature" }), "intent-conflict");
+  assertCode(() => recordIntent(docs, { ...BUG_INTENT, kind: "refactor", noOpenFacts: undefined, basis: undefined }), "facts-undeclared");
+});
+
+test("a raised intent asks only the questions not asked before, after the open ones are answered", () => {
+  const asking = opened({ ...DOCS_INTENT, noOpenFacts: undefined, basis: undefined, openFacts: ["Does case matter?"] });
+  const raise = { ...BUG_INTENT, noOpenFacts: undefined, basis: undefined, openFacts: ["Does case matter?"] };
+  assertCode(() => recordIntent(asking, raise), "open-facts-open");
+
+  const answered = recordGate(asking, { id: "open-facts", action: "resolve", answer: "No.", source: "user" }).state;
+  const same = recordIntent(answered, raise).state;
+  assert.deepStrictEqual(same.gates.map((gate) => [gate.id, gate.status]), [["open-facts", "resolved"]], "an answered question is not asked again");
+  assertValid(same);
+
+  const more = recordIntent(answered, { ...raise, openFacts: ["Does case matter?", "Is a blank code an error?"] }).state;
+  assert.deepStrictEqual(more.gates.map((gate) => gate.status), ["resolved", "open"]);
+  assertValid(more);
+
+  const basis = recordIntent(answered, BUG_INTENT).state;
+  assert.deepStrictEqual(basis.facts, { basis: NO_OPEN_FACTS.basis });
+  assertValid(basis);
+});
+
+test("only ospec check opens checks-changed, and the user's answer resolves it", () => {
+  const state = opened();
+  assertCode(() => recordGate(state, { id: "checks-changed", action: "open", reason: "test: true" }), "gate-managed-by-check");
+  const open = { ...structuredClone(state), gates: [{ id: "checks-changed", status: "open", reason: "r", checks: [{ name: "test", command: "true" }] }] };
+  const resolved = recordGate(open, { id: "checks-changed", action: "resolve", answer: "Yes.", source: "user" }).state;
+  assert.deepStrictEqual(resolved.gates[0], { id: "checks-changed", status: "resolved", reason: "r", checks: [{ name: "test", command: "true" }], answer: "Yes.", source: "user" });
+  assertValid(resolved);
+});

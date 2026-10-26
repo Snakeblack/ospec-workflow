@@ -35,7 +35,7 @@ La revisión de confianza solo aparece cuando el cambio cruza una frontera de se
 3. `ospec review correct` pide la validación: `review-correction` comprueba la corrección contra los hallazgos congelados, sin buscar problemas nuevos.
 4. `ospec review validate` registra el resultado.
 
-Un cambio admite como máximo 3 revisiones de confianza. Cuando se agotan, `ospec check` abre la puerta `review-limit` (una de las cinco puertas de IDD): solo la respuesta explícita de la persona autoriza una revisión más. Una nueva revisión exige código cambiado.
+Un cambio admite como máximo 3 revisiones de confianza. Cuando se agotan, `ospec check` abre la puerta `review-limit` (una de las seis puertas de IDD): solo la respuesta explícita de la persona autoriza una revisión más. Una nueva revisión exige código cambiado.
 
 ---
 

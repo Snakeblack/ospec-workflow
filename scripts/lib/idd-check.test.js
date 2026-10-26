@@ -15,6 +15,7 @@ const {
   recordRuns,
   settleBoundary,
   settleChecks,
+  settleChecksChange,
   settleContract,
   settleImpacts,
   settleMigration,
@@ -80,23 +81,35 @@ test("checks-pass is satisfied only when every declared check passed on the curr
   assert.ok(validateState(settled.state).ok, validateState(settled.state).errors.join("; "));
 });
 
-test("zero tests are not evidence and a positive count satisfies boundary-tests", () => {
+test("zero tests are not evidence, and boundary-tests needs a test the diff adds (B3)", () => {
   const { recordSignal } = require("./idd-record.js");
   const state = recordSignal(openBug(), { id: "untested-product", reason: "product code without a test: touches index.html", source: "diff" }).state;
+  const tests = ["test/index.test.js"];
   const empty = recordRuns(state, [checkRun({ tests: 0 })]);
   assert.strictEqual(obligation(settleChecks(empty.state, { tree: TREE_A, runIds: empty.ids, recordedAt: AT }).state, "checks-pass").status, "pending");
-  assert.strictEqual(obligation(settleBoundary(empty.state, { tree: TREE_A, runIds: empty.ids, recordedAt: AT }).state, "boundary-tests").status, "pending");
+  assert.strictEqual(obligation(settleBoundary(empty.state, { tree: TREE_A, runIds: empty.ids, recordedAt: AT, tests }).state, "boundary-tests").status, "pending");
   const ran = recordRuns(state, [checkRun({ tests: 2 })]);
   const checked = settleChecks(ran.state, { tree: TREE_A, runIds: ran.ids, recordedAt: AT }).state;
-  const settled = settleBoundary(checked, { tree: TREE_A, runIds: ran.ids, recordedAt: AT }).state;
-  assert.strictEqual(obligation(settled, "checks-pass").status, "satisfied");
-  assert.strictEqual(obligation(settled, "boundary-tests").status, "satisfied");
+  const suiteOnly = settleBoundary(checked, { tree: TREE_A, runIds: ran.ids, recordedAt: AT });
+  assert.strictEqual(obligation(suiteOnly.state, "boundary-tests").status, "pending", "the suite that already passed is not evidence");
+  assert.match(suiteOnly.reason, /^the diff adds no line to a test: .*ospec check --change fix-pagination$/);
+  const settled = settleBoundary(checked, { tree: TREE_A, runIds: ran.ids, recordedAt: AT, tests });
+  assert.strictEqual(obligation(settled.state, "checks-pass").status, "satisfied");
+  assert.strictEqual(obligation(settled.state, "boundary-tests").status, "satisfied");
+  assert.strictEqual(settled.reason, null);
+  assert.deepStrictEqual(settled.state.evidence.at(-1).detail, { tree: TREE_A, run: "run-1", tests });
   const unknown = recordRuns(state, [checkRun()]);
-  assert.strictEqual(obligation(settleBoundary(unknown.state, { tree: TREE_A, runIds: unknown.ids, recordedAt: AT }).state, "boundary-tests").status, "pending");
-  const byFile = settleBoundary(unknown.state, { tree: TREE_A, runIds: unknown.ids, recordedAt: AT, hasTest: true }).state;
-  assert.strictEqual(obligation(byFile, "boundary-tests").status, "satisfied");
+  const byFile = settleBoundary(unknown.state, { tree: TREE_A, runIds: unknown.ids, recordedAt: AT, tests }).state;
+  assert.strictEqual(obligation(byFile, "boundary-tests").status, "satisfied", "an uncounted run passes with a test in the diff");
   assert.ok(validateState(byFile).ok, validateState(byFile).errors.join("; "));
-  assert.ok(validateState(settled).ok, validateState(settled).errors.join("; "));
+  assert.ok(validateState(settled.state).ok, validateState(settled.state).errors.join("; "));
+
+  // A state recorded before B3 marks an uncounted run with has_test.
+  const legacy = structuredClone(byFile);
+  legacy.evidence.at(-1).detail = { tree: TREE_A, run: "run-1", has_test: true };
+  assert.ok(validateState(legacy).ok, validateState(legacy).errors.join("; "));
+  legacy.evidence.at(-1).detail = { tree: TREE_A, run: "run-1", tests: [] };
+  assert.ok(!validateState(legacy).ok, "an uncounted run needs a test in the diff");
 });
 
 test("a failing check, a changed tree or no declared check leaves checks-pass pending", () => {
@@ -397,4 +410,31 @@ test("[REQ-idd-022] a fitness failure is reported before an undeclared impact, a
 
 test("[REQ-idd-022] fitness runs are a run purpose", () => {
   assert.ok(RUN_PURPOSES.includes("fitness"));
+});
+
+test("checks that differ from the base open one checks-changed entry per set (B7)", () => {
+  const base = [{ name: "test", command: "npm test" }];
+  const trivial = [{ name: "test", command: "true" }];
+  const same = settleChecksChange(openBug(), { baseChecks: base, checks: base });
+  assert.deepStrictEqual(same.gates, [], "the base checks need no answer");
+
+  const opened = settleChecksChange(openBug(), { baseChecks: base, checks: trivial });
+  assert.deepStrictEqual(opened.gates, [
+    { id: "checks-changed", status: "open", reason: "idd/config.yaml declares test: true, and the base declares test: npm test", checks: trivial },
+  ]);
+  assert.ok(validateState(opened).ok, validateState(opened).errors.join("; "));
+  assert.match(settleChecksChange(openBug(), { baseChecks: [], checks: trivial }).gates[0].reason, /the base declares no checks$/);
+
+  // An entry nobody answered follows the checks, and leaves with them.
+  const lint = [...trivial, { name: "lint", command: "npm run lint" }];
+  const followed = settleChecksChange(opened, { baseChecks: base, checks: lint });
+  assert.deepStrictEqual(followed.gates.map((gate) => [gate.status, gate.checks]), [["open", lint]]);
+  assert.deepStrictEqual(settleChecksChange(followed, { baseChecks: base, checks: base }).gates, []);
+
+  // An answer approves the set it was asked about, and only that one.
+  const resolved = recordGate(opened, { id: "checks-changed", action: "resolve", answer: "Yes, true.", source: "user" }).state;
+  assert.strictEqual(settleChecksChange(resolved, { baseChecks: base, checks: trivial }).gates.length, 1);
+  const again = settleChecksChange(resolved, { baseChecks: base, checks: lint });
+  assert.deepStrictEqual(again.gates.map((gate) => gate.status), ["resolved", "open"]);
+  assert.deepStrictEqual(settleChecksChange(again, { baseChecks: base, checks: trivial }).gates.map((gate) => gate.status), ["resolved"], "an approved set drops the open entry");
 });

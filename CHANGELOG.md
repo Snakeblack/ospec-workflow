@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.153.3] - 2026-10-26
+
+### Fixed
+- **Lo que declara el modelo ya no baja la ceremonia** (E1.44, B3, B6, B7 y B9 de la auditoría del 2026-10-25). El modelo podía cerrar una feature sin test nuevo, citar `package.json` como hecho resuelto, cambiar los checks por un comando trivial o declarar `docs` o `refactor` un cambio de producto o de contrato, y nada lo contrastaba.
+  - `boundary-tests` exige un test al que el diff añade una línea no en blanco. La suite que ya pasaba, un test borrado o uno vaciado no cuentan, y `untested-product` usa la misma regla. `close` relee esos tests contra la base del cambio, así que un `check --base` más antiguo no los infla.
+  - Una cita de `open-facts` nunca cae en un manifiesto ni en un lockfile, y se juzga por el fichero real que alcanza: ni `./`, ni una barra final, ni un symlink lo esconden. Fuera de la documentación, `check` y `close` exigen que su fichero esté en el plan o en el diff (`cite-outside-plan`).
+  - Gate nuevo `checks-changed`, con lo que IDD pasa a seis. Cuando los `checks` de `idd/config.yaml` difieren de los de la base del cambio, también en la primera configuración, `check` pide la respuesta del usuario, con una entrada por juego de checks. `close` rechaza los checks que ninguna respuesta aprueba.
+  - `check` y `close` rechazan con `kind-mismatch` un `docs` que toca código de producto y un `refactor` que quita una línea de un documento de contrato o de documentación que declara un contrato. `record intent` deja volver a registrar la intención del mismo cambio solo con un kind mayor.
+  - El diff lee también las líneas quitadas, y una línea `---` o `+++` dentro de un hunk ya no se toma por cabecera.
+  - REQ-idd-003, 008, 009, 011, 012, 014 y 018 lo especifican. Vale en los 7 targets: el catálogo de Go se regenera y la fixture `s-checks-changed` fija la misma reanudación en los dos motores.
+  - Límite escrito en REQ-idd-014: `strict_tdd`, `impact` y `contracts` de `idd/config.yaml` aún no se contrastan con la base.
+
+### Changed
+- **Roadmap:** E1.44 queda hecho y sigue E1.53 `config-only-rises`, que el usuario puso justo detrás. Recoge el resto de `idd/config.yaml` frente a la base y los residuos de las cuatro trust reviews: `check --base` en `contract-spec-and-test`, las extensiones de producto de `classifyPath`, los ajustes de git que vacían el diff, un test de solo comentarios y la subida a feature con preguntas ya respondidas.
+
+Hecho con IDD (`idd/archive/2026-10-26-ceremony-only-rises/`), con cuatro trust reviews aprobadas (la cuarta, autorizada por el usuario).
+
+**Verificación directa**: `node scripts/check.js` (4099 tests pasando, 0 fallos y 3 omitidos) y la puerta Go (`gofmt -l cmd internal`, `go vet ./...` y `go test ./...`).
+
 ## [2.153.2] - 2026-10-26
 
 ### Fixed

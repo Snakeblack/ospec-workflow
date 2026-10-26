@@ -29,6 +29,7 @@ const GATE_QUESTIONS = Object.freeze({
   "adr-amend-or-contradict": "This change amends or contradicts an ADR. Approve the amendment?",
   "irreversible-operation": "This operation is destructive or irreversible. Approve it?",
   "review-limit": "The trust reviews of this change are used up. Authorize one more trust review?",
+  "checks-changed": "The checks in idd/config.yaml differ from the change's base. Approve them as the checks this change must pass?",
 });
 
 const EVIDENCE_BY_OBLIGATION = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation.evidence]));

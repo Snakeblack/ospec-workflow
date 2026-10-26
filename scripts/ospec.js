@@ -29,6 +29,7 @@ const {
   recordRuns,
   settleBoundary,
   settleChecks,
+  settleChecksChange,
   settleContract,
   settleImpacts,
   settleMigration,
@@ -71,7 +72,7 @@ const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
 const { readReceipt } = require("./lib/review-receipt.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
-const { applyDerivation, classifyPath, deriveSignals, persistentHits } = require("./lib/idd-signals.js");
+const { addedTests, applyDerivation, classifyPath, deriveSignals, persistentHits, requireDeclaredCeremony } = require("./lib/idd-signals.js");
 const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange, serializeState } = require("./lib/idd-store.js");
 const { withFileLock } = require("./lib/ospec-state.js");
@@ -80,6 +81,7 @@ const {
   IddWorkspaceError,
   commitTree,
   readArchitecture,
+  readBaseChecks,
   readCheckTreeFingerprint,
   readDecisionRecords,
   readFitnessSources,
@@ -412,6 +414,20 @@ function readCiteFile(root, file) {
   }
 }
 
+// The file a cite reaches, relative to the root with symlinks resolved (B6),
+// or null when it is missing or outside the project.
+function citeTarget(root, file) {
+  let relative;
+  try {
+    relative = path.relative(fs.realpathSync(root), fs.realpathSync(path.resolve(root, file)));
+  } catch (error) {
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
+    throw error;
+  }
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return null;
+  return relative.split(path.sep).join("/");
+}
+
 function featureCoverage(root, values) {
   const resolved = resolveFeatureCoverage({
     openFacts: values["open-fact"] || [],
@@ -419,6 +435,8 @@ function featureCoverage(root, values) {
     quotes: values.quote || [],
     request: values.request,
     readFile: (file) => readCiteFile(root, file),
+    classify: classifyPath,
+    canonical: (file) => citeTarget(root, file),
   });
   if (resolved.error) {
     const error = new IddRecordError(resolved.error.code, resolved.error.message);
@@ -447,6 +465,8 @@ async function check(root, values) {
 
   const context = readProjectContext(root);
   const diff = readGitDiff(root, { base: diffBase(values, current) });
+  requireDeclaredCeremony(current, { diff, contractPatterns: context.contractPatterns });
+  const baseChecks = readBaseChecks(root, diffBase(values, current));
   const { map, sources, warnings } = readKnowledgeSources(root);
   // The fitness checks follow the references this check's diff derives.
   const preview = applyDerivation(current, deriveSignals({ intent: current.intent, strictTdd: context.strictTdd, diff, patterns: context.patterns, knowledge: { map, sources }, retracted: current.retracted })).state;
@@ -490,12 +510,13 @@ async function check(root, values) {
       const derived = applyDerivation(stored, derivation);
       added = derived.added;
       const reopened = reopenDerived(derived.state).state;
+      const gated = settleChecksChange(reopened, { baseChecks, checks: context.checks });
       const runs = checks.map((result) => runRecord("checks", result.command, result, checkTreeBefore, recordedAt, { name: result.name }));
-      const recorded = recordRuns(reopened, runs);
+      const recorded = recordRuns(gated, runs);
       const fitnessRecorded = recordRuns(recorded.state, fitnessRuns.map((result) => runRecord("fitness", result.command, result, checkTreeBefore, recordedAt, { ref: result.ref })));
       const settled = settleChecks(fitnessRecorded.state, { tree: checkTree, runIds: recorded.ids, recordedAt });
-      const hasTest = diff.paths.some((file) => classifyPath(file) === "test");
-      const tested = settleBoundary(settled.state, { tree: checkTree, runIds: recorded.ids, recordedAt, hasTest });
+      const tested = settleBoundary(settled.state, { tree: checkTree, runIds: recorded.ids, recordedAt, tests: addedTests(diff) });
+      if (tested.reason) reasons["boundary-tests"] = tested.reason;
       const bound = settleTreeBound(tested.state, { tree });
       const contract = settleContract(bound, { tree: checkTree, checkEvidence: settled.evidence, ...contractPaths, recordedAt });
       if (contract.reason) reasons["contract-spec-and-test"] = contract.reason;
@@ -602,17 +623,26 @@ function requireFreshEvidence(root, state) {
 
 // close derives the signals again as ospec check does (B2): a signal, gate or
 // reference the diff derives and the state lacks was removed by hand, and
-// check records it again.
+// check records it again. It refuses what check refuses (E1.44).
 function requireDerived(root, state) {
   const context = readProjectContext(root);
   const diff = readGitDiff(root, { base: diffBase({}, state) });
+  requireDeclaredCeremony(state, { diff, contractPatterns: context.contractPatterns });
+  // A check against another --base may have counted older tests as added (B3).
+  if (state.obligations.some((entry) => entry.id === "boundary-tests" && entry.status === "satisfied") && addedTests(diff).length === 0) {
+    const error = new IddRecordError("close-refused", "close refused: boundary-tests is satisfied, but the diff against the change's base adds no line to a test");
+    error.how = `ospec check --change ${state.change} reads the diff against the change's base`;
+    throw error;
+  }
   const { map, sources } = readKnowledgeSources(root);
   const derived = applyDerivation(state, deriveSignals({ intent: state.intent, strictTdd: context.strictTdd, diff, patterns: context.patterns, knowledge: { map, sources }, retracted: state.retracted }));
   const known = new Set((state.impacts || []).map((entry) => `${entry.kind}:${entry.id}`));
+  const gated = settleChecksChange(state, { baseChecks: readBaseChecks(root, diffBase({}, state)), checks: context.checks });
   const lacking = [
     ...derived.added.signals.map((id) => `signal ${id}`),
     ...derived.added.gates.map((id) => `gate ${id}`),
     ...(derived.state.impacts || []).filter((entry) => !known.has(`${entry.kind}:${entry.id}`)).map((entry) => `${entry.kind} ${entry.id}`),
+    ...(JSON.stringify(gated.gates) === JSON.stringify(state.gates) ? [] : ["gate checks-changed"]),
   ];
   if (lacking.length === 0) return;
   const error = new IddRecordError("close-refused", `close refused: the diff derives ${lacking.join(", ")}, which the state lacks`);

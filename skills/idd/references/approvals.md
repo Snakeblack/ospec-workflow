@@ -16,8 +16,9 @@ Any other source is refused with `invalid-source`.
 `--answer`, `--source` and `--quote` are your declarations. The CLI checks a
 quote only against `--request`, which you also write, and it cannot tell
 whether a person answered. This holds for every gate: `ambiguous-intent`,
-`open-facts`, `irreversible-operation`, `adr-amend-or-contradict` and
-`review-limit`, whose resolution grants one more trust review.
+`open-facts`, `irreversible-operation`, `adr-amend-or-contradict`,
+`review-limit`, whose resolution grants one more trust review, and
+`checks-changed`, whose resolution approves only the checks it lists.
 
 So the record is only as true as you make it:
 
