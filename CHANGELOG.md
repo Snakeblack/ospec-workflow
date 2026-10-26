@@ -7,11 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- El roadmap anota en E1.30 el flake de Windows PowerShell 5.1 en codex-hook-shell de la PR #436 y que el plazo de 0 flakes hasta el 2026-10-29 queda fallido: E1.28 no entra ese día y E1.30 sigue abierto (e1-30-flake-pr-436)
+## [2.156.0] - 2026-10-26
+
+### Added
+- **`ospec doctor --repair` aparta un estado IDD ilegible** (E1.46). Sin el flag, `doctor` sigue sin escribir nada y su acción para un estado ilegible nombra `--repair`. Con él, renombra `idd/<id>/state.yaml` a `state.yaml.corrupt-<hora UTC>`, con un sufijo `-<n>` en vez de pisar una copia anterior, solo si es un fichero regular en un directorio real fuera de `idd/archive/` y `doctor` lo da por error (JSON ilegible, esquema inválido o un `change` distinto).
+  - El cambio se reanuda desde su `state.yaml.bak`, que leerlo restaura, o con `ospec record intent` y el mismo id; `change.md` se conserva y `doctor` no toca git.
 
 ### Fixed
-- E1.46: el estado en disco sobrevive a un corte y a la concurrencia. La escritura atómica usa un temporal único y hace fsync del fichero y del directorio (JS y Go); el lock lleva un token de dueño (pid y nonce) que se comprueba antes de soltarlo y un heartbeat del mtime mientras dura la operación (JS y Go); un estado ilegible tiene salida apartándolo como *.corrupt con lista blanca. Residuos de E1.43: el guard de PreToolUse deniega también las MCP de copia, anexado o guardado, y REQ-hooks-029 y los docs dicen que close solo revalida el estado de un cambio abierto y que idd/archive/** y .ospec/review-receipts/** solo los protege el hook previo. (state-durability)
+- **El estado en disco sobrevive a un corte** (E1.46). `writeFileAtomic` (JS) y `store.WriteFileAtomic` (Go) escriben en un temporal propio `<fichero>.<escritor>.tmp`, hacen fsync del fichero, lo renombran y hacen fsync del directorio, salvo en Windows o donde el sistema de ficheros no lo admite. Un fsync fallido deja el fichero como estaba. Antes de escribir borran los temporales de su fichero con más de 5 s, también el `.tmp` fijo de versiones anteriores; uno más joven es de un escritor vivo y se queda.
+- **Dos procesos que escriben a la vez no pierden nada.** El lock guarda el token `pid:nonce` de su dueño, que refresca su mtime cada segundo y solo lo borra si sigue siendo suyo. El estado IDD y SDD y los costes de fase comprueban el token antes de escribir y fallan con `lock-lost` sin escribir; el CLI dice cómo salir. Un lock vacío de una versión anterior se sigue reclamando a los 5 s.
+- **El guard de PreToolUse deniega también copiar, anexar, guardar y subir** el estado de un cambio, su archivo y los recibos de review (residuo de E1.43). Un nombre de herramienta con `copy`, `append`, `save` o `upload` cuenta como escritura, y en una copia cuentan el origen y el destino.
+- **La spec ya no presenta `close` como garantía del archivo y los recibos.** REQ-hooks-029, `docs/harness-runtime.md` y `docs/target-capabilities.md` dicen que `close` solo revalida el estado de un cambio abierto; para `idd/archive/**` y `.ospec/review-receipts/**` el único control es el hook previo.
+- REQ-idd-011, REQ-idd-019, REQ-idd-027 (nuevo) y REQ-hooks-029 lo especifican.
+
+### Changed
+- El roadmap anota en E1.30 el flake de Windows PowerShell 5.1 en codex-hook-shell de la PR #436 y que el plazo de 0 flakes hasta el 2026-10-29 queda fallido: E1.28 no entra ese día y E1.30 sigue abierto (e1-30-flake-pr-436)
+- **Roadmap:** E1.46 queda hecho y sigue E1.47 `memory-loop-visible`, el siguiente del bloque A.
+
+Hecho con IDD (`idd/archive/2026-10-26-state-durability/`): los tests de reproducción fallaron antes del cambio y pasan después, un test de compatibilidad fija que los locks y temporales de una versión anterior se siguen recuperando, y la trust review salió sin hallazgos.
+
+**Verificación directa**: `node scripts/check.js` (4155 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.155.0] - 2026-10-26
 
