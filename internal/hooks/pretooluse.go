@@ -287,6 +287,101 @@ var contentKeys = map[string]bool{
 	"content": true, "contents": true, "new_string": true, "newString": true, "new_str": true, "old_string": true, "oldString": true, "text": true,
 }
 
+// cliOwnedReason, writeToolRe and patchFileRe port writesCliOwnedFile of
+// pre-tool-use.js: the ospec CLI owns the state of an IDD change, its archive
+// and the review receipts (E1.43, ADR 0002), so a tool that writes a file never
+// touches them, whatever the permission mode. A tool writes when its name says
+// so; a patch tool names its files in the patch headers. Shell commands are
+// left to the revalidation of ospec close.
+const cliOwnedReason = "Bloqueado: este fichero es del CLI de ospec (el estado de un cambio IDD, su archivo o un recibo de review). Avanza con los comandos de ospec (record, run, check, review, close); no lo edites a mano."
+
+var writeToolRe = regexp.MustCompile(`write|edit|patch|create|replace|insert|delete|remove|move|rename`)
+
+// ownedPathKeys: a move names both ends (MCP filesystem move_file).
+var ownedPathKeys = map[string]bool{
+	"file_path": true, "filePath": true, "path": true, "target_file": true, "notebook_path": true, "source": true, "destination": true,
+}
+
+// stateFileRe: the state, and the .tmp and .bak the atomic write leaves, which
+// reading the change restores as the state.
+var stateFileRe = regexp.MustCompile(`^state\.yaml(?:\.|$)`)
+var patchFileRe = regexp.MustCompile(`(?m)^[ \t]*\*\*\* (?:(?:Add|Update|Delete) File|Move to): (.+)$`)
+var pathSeparatorsRe = regexp.MustCompile(`[\\/]+`)
+
+func collectStrings(value interface{}) []string {
+	var found []string
+	var walk func(interface{})
+	walk = func(current interface{}) {
+		switch typed := current.(type) {
+		case string:
+			found = append(found, typed)
+		case map[string]interface{}:
+			for _, child := range typed {
+				walk(child)
+			}
+		case []interface{}:
+			for _, child := range typed {
+				walk(child)
+			}
+		}
+	}
+	walk(value)
+	return found
+}
+
+// isCLIOwnedPath: idd/<change>/state.yaml (with its .tmp and .bak),
+// idd/archive/ or .ospec/review-receipts/ and anything under them, wherever
+// the path holds them and in any case.
+func isCLIOwnedPath(filePath string) bool {
+	var segments []string
+	for _, segment := range pathSeparatorsRe.Split(strings.ToLower(filePath), -1) {
+		if segment != "" {
+			segments = append(segments, segment)
+		}
+	}
+	at := func(index int) string {
+		if index < len(segments) {
+			return segments[index]
+		}
+		return ""
+	}
+	for index, segment := range segments {
+		after := len(segments) - index - 1
+		if segment == "idd" && ((at(index+1) == "archive" && after >= 1) || (after == 2 && stateFileRe.MatchString(at(index+2)))) {
+			return true
+		}
+		if segment == ".ospec" && at(index+1) == "review-receipts" && after >= 1 {
+			return true
+		}
+	}
+	return false
+}
+
+func writesCLIOwnedFile(toolName string, stdin []byte) bool {
+	name := toolNamePunctuationRe.ReplaceAllString(strings.ToLower(toolName), "")
+	if readTools[name] || !writeToolRe.MatchString(name) {
+		return false
+	}
+	var raw struct {
+		ToolInput interface{} `json:"tool_input"`
+	}
+	_ = json.Unmarshal(stdin, &raw)
+	files := collectKeyedStrings(raw.ToolInput, ownedPathKeys)
+	if strings.Contains(name, "patch") {
+		for _, text := range collectStrings(raw.ToolInput) {
+			for _, match := range patchFileRe.FindAllStringSubmatch(text, -1) {
+				files = append(files, strings.TrimSpace(match[1]))
+			}
+		}
+	}
+	for _, file := range files {
+		if absolute, err := filepath.Abs(file); err == nil && isCLIOwnedPath(absolute) {
+			return true
+		}
+	}
+	return false
+}
+
 func collectKeyedStrings(value interface{}, keys map[string]bool) []string {
 	var found []string
 	var walk func(interface{})
@@ -485,6 +580,9 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 		if reason := checkCommitAttribution(cmd); reason != "" {
 			return makeDecision("deny", reason), 0
 		}
+	}
+	if writesCLIOwnedFile(input.ToolName, stdin) {
+		return makeDecision("deny", cliOwnedReason), 0
 	}
 
 	if os.Getenv("DISABLE_AGENT_SHIELD") != "true" {

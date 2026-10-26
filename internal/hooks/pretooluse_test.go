@@ -1301,3 +1301,60 @@ func TestPreToolUse_MarkerDenyAcrossHosts(t *testing.T) {
 		t.Errorf("a file without secrets may receive the marker, got deny")
 	}
 }
+
+// E1.43: the ospec CLI owns the state of an IDD change, its archive and the
+// review receipts. Mirrors pre-tool-use.test.js.
+func TestPreToolUse_CLIOwnedWrites(t *testing.T) {
+	t.Setenv("OSPEC_TARGET", "")
+	t.Setenv("OSPEC_CODEX_WRAPPER", "")
+	type call struct {
+		tool  string
+		input map[string]interface{}
+	}
+	denied := []call{
+		{"Write", map[string]interface{}{"file_path": "idd/fix-pagination/state.yaml", "content": "{}"}},
+		{"Edit", map[string]interface{}{"file_path": filepath.Join(t.TempDir(), "idd", "fix-pagination", "state.yaml"), "old_string": "pending", "new_string": "withdrawn"}},
+		{"MultiEdit", map[string]interface{}{"file_path": `IDD\fix-pagination\State.yaml`, "edits": []interface{}{}}},
+		{"NotebookEdit", map[string]interface{}{"notebook_path": "idd/archive/2026-10-25-fix-pagination/change.md"}},
+		{"editFiles", map[string]interface{}{"filePath": "idd/archive/2026-10-25-fix-pagination/state.yaml"}},
+		{"replace_string_in_file", map[string]interface{}{"filePath": "../idd/fix-pagination/state.yaml"}},
+		{"write_to_file", map[string]interface{}{"file_path": "/repo/idd/fix-pagination/state.yaml", "TargetFile": "/repo/idd/fix-pagination/state.yaml"}},
+		{"edit", map[string]interface{}{"filePath": ".ospec/review-receipts/abc.json"}},
+		{"mcp__filesystem__write_file", map[string]interface{}{"path": "idd/archive/2026-10-25-fix-pagination/notes.md"}},
+		{"Write", map[string]interface{}{"file_path": "idd/fix-pagination/state.yaml.bak", "content": "{}"}},
+		{"mcp__filesystem__move_file", map[string]interface{}{"source": "forged.json", "destination": "idd/fix-pagination/state.yaml"}},
+		{"mcp__filesystem__move_file", map[string]interface{}{"source": "idd/archive", "destination": "old-archive"}},
+		{"delete_file", map[string]interface{}{"path": ".ospec/review-receipts"}},
+		{"apply_patch", map[string]interface{}{"input": "*** Begin Patch\n  *** Update File: idd/fix-pagination/state.yaml\n*** End Patch"}},
+		{"apply_patch", map[string]interface{}{"input": "*** Begin Patch\n*** Update File: idd/fix-pagination/state.yaml\n@@\n-a\n+b\n*** End Patch"}},
+		{"apply_patch", map[string]interface{}{"command": "*** Begin Patch\r\n*** Update File: src/a.js\r\n*** Move to: idd/archive/x/a.js\r\n*** End Patch"}},
+	}
+	for _, c := range denied {
+		for _, mode := range []string{"default", "bypassPermissions"} {
+			stdin, _ := json.Marshal(map[string]interface{}{"tool_name": c.tool, "tool_input": c.input, "permission_mode": mode})
+			got, _ := runPreToolUse(t, stdin)
+			if got.PermissionDecision != "deny" || !strings.Contains(got.PermissionDecisionReason, "CLI de ospec") {
+				t.Errorf("%s %v in %s: got %+v, want deny", c.tool, c.input, mode, got)
+			}
+		}
+	}
+	passing := []call{
+		{"Read", map[string]interface{}{"file_path": "idd/fix-pagination/state.yaml"}},
+		{"Grep", map[string]interface{}{"path": "idd/archive", "pattern": "decision"}},
+		{"read_file", map[string]interface{}{"filePath": "idd/archive/2026-10-25-fix-pagination/change.md"}},
+		{"Write", map[string]interface{}{"file_path": "idd/fix-pagination/change.md", "content": "# fix-pagination"}},
+		{"Write", map[string]interface{}{"file_path": "idd/config.yaml", "content": "checks:\n  test: npm test\n"}},
+		{"Edit", map[string]interface{}{"file_path": "docs/idd/archive.md", "old_string": "a", "new_string": "b"}},
+		{"Write", map[string]interface{}{"file_path": "idd/fix-pagination/state.yml", "content": "{}"}},
+		{"mcp__filesystem__move_file", map[string]interface{}{"source": "a.txt", "destination": "b.txt"}},
+		{"Write", map[string]interface{}{"file_path": "notes.txt", "content": "*** Update File: idd/fix-pagination/state.yaml"}},
+		{"Bash", map[string]interface{}{"command": "cat idd/fix-pagination/state.yaml"}},
+		{"apply_patch", map[string]interface{}{"input": "*** Begin Patch\n*** Update File: src/a.js\n*** End Patch"}},
+	}
+	for _, c := range passing {
+		stdin, _ := json.Marshal(map[string]interface{}{"tool_name": c.tool, "tool_input": c.input, "permission_mode": "default"})
+		if got, _ := runPreToolUse(t, stdin); got.PermissionDecision != noDecision {
+			t.Errorf("%s %v: got %+v, want no decision", c.tool, c.input, got)
+		}
+	}
+}

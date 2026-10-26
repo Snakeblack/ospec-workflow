@@ -7,7 +7,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const { hostBinarySuffix } = require("./install-target.js");
-const { validate, validateInstalled } = require("./validate-cursor.js");
+const { CLI_OWNED_STATE_GUARD, validate, validateInstalled } = require("./validate-cursor.js");
 
 function tmpRoot(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "validate-cursor-"));
@@ -149,6 +149,21 @@ test("validate-cursor rejects bad hooks shape, SubagentStop, and missing placeho
   assert.ok(result.errors.some((e) => e.includes("version")));
   assert.ok(result.errors.some((e) => /SubagentStop/i.test(e)));
   assert.ok(result.errors.some((e) => e.includes("__OSPEC_CURSOR_ROOT__")));
+});
+
+// E1.43: Cursor has no hook before a file edit, so it keeps only the
+// revalidation of ospec close; wiring the guard elsewhere makes that stale.
+test("validate-cursor declares that Cursor only revalidates the CLI-owned state, and keeps it true", (t) => {
+  assert.equal(CLI_OWNED_STATE_GUARD, "revalidation-only");
+  const root = tmpRoot(t);
+  cleanTree(root);
+  assert.deepEqual(validate(root).errors, []);
+  const hooks = JSON.parse(fs.readFileSync(path.join(root, "hooks.json"), "utf8"));
+  hooks.hooks.preToolUse = [{ command: "node __OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks-launch.js pre-tool-use" }];
+  write(root, "hooks.json", JSON.stringify(hooks));
+  assert.deepEqual(validate(root).errors, [
+    "hooks.json event preToolUse[0] runs pre-tool-use outside beforeShellExecution and beforeReadFile: update CLI_OWNED_STATE_GUARD (revalidation-only)",
+  ]);
 });
 
 test("validate-cursor fails on agent vscode/AskUserQuestion/abstract residue", (t) => {

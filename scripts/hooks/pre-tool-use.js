@@ -254,6 +254,49 @@ const CONTENT_KEYS = new Set(["content", "contents", "new_string", "newString", 
 // uploads) may move a file without its content passing through PostToolUse.
 const READ_TOOLS = new Set(["read", "grep", "glob", "ls", "list", "viewfile", "notebookread"]);
 
+// The ospec CLI owns the state of an IDD change, its archive and the review
+// receipts (E1.43, ADR 0002): a tool that writes a file never touches them,
+// whatever the permission mode. A tool writes when its name says so; a patch
+// tool names its files in the patch headers. Shell commands are left to the
+// revalidation of ospec close.
+const CLI_OWNED_REASON =
+  "Bloqueado: este fichero es del CLI de ospec (el estado de un cambio IDD, su archivo o un recibo de review). Avanza con los comandos de ospec (record, run, check, review, close); no lo edites a mano.";
+const WRITE_TOOL_RE = /write|edit|patch|create|replace|insert|delete|remove|move|rename/;
+// A move names both ends (MCP filesystem move_file).
+const OWNED_PATH_KEYS = new Set(["file_path", "filePath", "path", "target_file", "notebook_path", "source", "destination"]);
+// The state, and the .tmp and .bak the atomic write leaves, which reading
+// the change restores as the state.
+const STATE_FILE_RE = /^state\.yaml(?:\.|$)/;
+const PATCH_FILE_RE = /^[ \t]*\*\*\* (?:(?:Add|Update|Delete) File|Move to): (.+)$/gm;
+
+function collectStrings(value, found = []) {
+  if (typeof value === "string") found.push(value);
+  else if (value && typeof value === "object") for (const child of Object.values(value)) collectStrings(child, found);
+  return found;
+}
+
+// idd/<change>/state.yaml (with its .tmp and .bak), idd/archive/ or
+// .ospec/review-receipts/ and anything under them, wherever the path holds
+// them and in any case.
+function isCliOwnedPath(filePath) {
+  const segments = filePath.toLowerCase().split(/[\\/]+/).filter(Boolean);
+  return segments.some((segment, index) => {
+    const after = segments.length - index - 1;
+    if (segment === "idd") return (segments[index + 1] === "archive" && after >= 1) || (after === 2 && STATE_FILE_RE.test(segments[index + 2]));
+    return segment === ".ospec" && segments[index + 1] === "review-receipts" && after >= 1;
+  });
+}
+
+function writesCliOwnedFile(input, workspace) {
+  const name = normalizeToolName(input?.tool_name);
+  if (READ_TOOLS.has(name) || !WRITE_TOOL_RE.test(name)) return false;
+  const files = collectKeyedStrings(input?.tool_input, OWNED_PATH_KEYS);
+  if (name.includes("patch")) {
+    for (const text of collectStrings(input?.tool_input)) files.push(...[...text.matchAll(PATCH_FILE_RE)].map((match) => match[1].trim()));
+  }
+  return files.some((file) => isCliOwnedPath(path.resolve(workspace, file)));
+}
+
 function collectKeyedStrings(value, keys, found = []) {
   if (!value || typeof value !== "object") return found;
   for (const [key, child] of Object.entries(value)) {
@@ -501,6 +544,7 @@ function evaluateToolUseCore(input, opts) {
     const reason = denyRule?.reason || checkCommitAttribution(command);
     if (reason) return makeDecision("deny", reason);
   }
+  if (writesCliOwnedFile(input, workspace)) return makeDecision("deny", CLI_OWNED_REASON);
 
   if (process.env.DISABLE_AGENT_SHIELD !== "true") {
     const paths = [
