@@ -16,12 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - El snapshot v1 lleva solo `schemaVersion: 1` y las fases con `id`, `title` y `status`. Se valida contra `schemas/progress-snapshot/v1.schema.json` y las reglas que el esquema no expresa (ids únicos, títulos limpios, 100 fases y 64 KiB) antes de emitirse. Sin `--out` sale solo en stdout; con `--out` se escribe entero.
   - Un roadmap ausente (`roadmap-missing`), sin fases (`roadmap-unrecognized`) o con una fila, un id o un título inválidos (`roadmap-invalid`, con el fichero y la línea) sale con código 1 y sin escribir nada.
   - Solo corre bajo demanda: ningún paso de IDD o SDD, hook, check, gate ni el doctor lo ejecuta, y publicarlo es cosa del proyecto. REQ-idd-026 lo especifica y REQ-idd-001 nombra la excepción de listar los dos árboles. Vale en los 7 targets por el CLI común.
+  - `.gitattributes` fija `schemas/progress-snapshot/` a LF: en un checkout de Windows con `core.autocrlf`, el fixture válido pasaba a CRLF y su test, que lo compara byte a byte con la salida de la orden, fallaba (`snapshot-fixtures-lf`).
 - **ADR 0012:** enmienda el ADR 0009. Un documento que ospec exporta con un formato cerrado declara solo su versión, y su nombre es el `$id` de su esquema.
 
 ### Changed
 - **Roadmap:** entra E5.10 `progress-snapshot`, que el usuario pidió por delante de E1.53, y queda hecho; sigue E1.53 `config-only-rises`.
 
-Hecho con IDD (`idd/archive/2026-10-26-progress-snapshot/`).
+Hecho con IDD (`idd/archive/2026-10-26-progress-snapshot/` y `idd/archive/2026-10-26-snapshot-fixtures-lf/`).
 
 **Verificación directa**: `node scripts/check.js` (4113 tests pasando, 0 fallos y 3 omitidos).
 

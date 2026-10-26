@@ -20,3 +20,6 @@ internal/testdata/idd-session/** text eol=lf
 
 # The IDD catalog the CLI emits with LF (E1.42); idd-catalog.test.js compares it byte for byte.
 internal/iddsession/catalog.json text eol=lf
+
+# The progress snapshot fixtures (E5.10); progress-snapshot.test.js compares valid.json byte for byte with what ospec snapshot emits.
+schemas/progress-snapshot/** text eol=lf
