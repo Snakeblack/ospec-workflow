@@ -7,8 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.157.0] - 2026-10-26
+
+### Added
+- **`record intent` devuelve la consulta de memoria del cambio** (E1.47, B8). Cada intención resuelta, también repetida, con el kind subido o al resolver una ambigua, trae `memory_query`, en JSON y como `memory query: …` en texto: los `ADR-<NNNN>` y componentes de las rutas que el cambio ya nombra (plan, diff y cites de una feature) y después las palabras de `--request`, o de `--summary` sin él, en minúsculas, sin repetir, de 4 o más caracteres y sin palabras vacías en inglés y español, como máximo 12 términos.
+  - Es una pista que no bloquea nada y no se guarda en `state.yaml`; el CLI sigue sin leer la memoria (ADR 0006).
+
 ### Fixed
-- E1.47 (B8): el bucle de memoria se ve en la salida de texto. ospec close en texto lista topic | title de cada registro de conocimiento en vez de solo su número; record intent devuelve memory_query, una pista que no bloquea con las palabras de la petición más los componentes y ADR que el CLI ya calcula; references/memory-loop.md dice que durante un cambio IDD los registros de close sustituyen al guardado genérico. El CLI sigue sin leer la memoria. (memory-loop-visible)
+- **`ospec close` en texto nombra el tema de cada registro de conocimiento** (E1.47, B8). En vez de «N knowledge record(s) … (see --json)», lista `- <topic> | <title>` de cada uno bajo una cabecera con `ospec close --change <id> --json`, que da su resumen y su procedencia. El JSON no cambia.
+- **La memoria se consulta cuando todavía sirve.** La regla 2 de la skill `idd` y `references/memory-loop.md` la consultan tras `record intent`, con su `memory_query` y cualquiera de sus términos, y antes de preguntar los hechos abiertos; una decisión previa confirmada en disco da contexto o la respuesta recomendada, nunca la respuesta. Mientras un cambio IDD está abierto, los records de `close` sustituyen al guardado genérico.
+- REQ-idd-024 y REQ-session-memory-011 lo especifican.
+
+### Changed
+- **Roadmap:** E1.47 queda hecho y sigue E4.10 `greenfield-foundation-hint`, el último del bloque A.
+
+Hecho con IDD (`idd/archive/2026-10-26-memory-loop-visible/`): los tests de reproducción fallaron antes del cambio y pasan después, y un test de compatibilidad fija que `state.yaml` no guarda la consulta y que los estados existentes se leen igual.
+
+**Verificación directa**: `node scripts/check.js` (4160 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.156.0] - 2026-10-26
 
