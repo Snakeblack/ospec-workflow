@@ -23,8 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - El roadmap anota en E1.30 el flake de Windows PowerShell 5.1 en codex-hook-shell de la PR #436 y que el plazo de 0 flakes hasta el 2026-10-29 queda fallido: E1.28 no entra ese día y E1.30 sigue abierto (e1-30-flake-pr-436)
 - **Roadmap:** E1.46 queda hecho y sigue E1.47 `memory-loop-visible`, el siguiente del bloque A.
+- **Roadmap:** E1.54 `lock-reclaim-rename` anota el residuo de E1.46: dos procesos que reclaman a la vez un lock caducado pueden creerse dueños los dos. Se arreglará reclamando por rename atómico y devolviendo con `link` un lock fresco cogido por error; prioridad baja, fuera del orden ▶ (`e1-54-lock-reclaim-note`).
 
-Hecho con IDD (`idd/archive/2026-10-26-state-durability/`): los tests de reproducción fallaron antes del cambio y pasan después, un test de compatibilidad fija que los locks y temporales de una versión anterior se siguen recuperando, y la trust review salió sin hallazgos.
+Hecho con IDD (`idd/archive/2026-10-26-state-durability/` y `idd/archive/2026-10-26-e1-54-lock-reclaim-note/`): los tests de reproducción fallaron antes del cambio y pasan después, un test de compatibilidad fija que los locks y temporales de una versión anterior se siguen recuperando, y la trust review salió sin hallazgos.
 
 **Verificación directa**: `node scripts/check.js` (4155 tests pasando, 0 fallos y 5 omitidos).
 

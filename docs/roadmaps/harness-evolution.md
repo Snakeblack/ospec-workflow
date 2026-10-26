@@ -174,6 +174,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.50** | `content-security-signal` (sinks CWE en las líneas añadidas derivan `security-boundary`) | feature |
 | `pending` | **E1.51** | `open-change-nudge` (Stop pide continuar una vez si queda un cambio sin `close` y SessionStart inyecta su paso) | feature |
 | `pending` | **E1.52** | `review-frozen-tree` (revisor sobre el árbol congelado, `relayed` no basta donde hay recibos y fuera el linaje sin uso) | bugfix |
+| `pending` | **E1.54** | `lock-reclaim-rename` (residuo de E1.46: un lock caducado se reclama por rename atómico, así que dos procesos que lo reclaman a la vez no se creen dueños los dos; prioridad baja, fuera del orden ▶) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -219,6 +220,8 @@ E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delan
 3. **E4.17** `bench-knowledge-scenarios`: escribe y congela escenarios sin correrlos. Es una excepción acotada a «banco después», decidida por el usuario el 2026-10-25 para que C no se ajuste sobre ellos.
 4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.50 `content-security-signal` → E1.51 `open-change-nudge` → E1.52 `review-frozen-tree` → E3.7 `fact-ledger`.
 5. **D. Banco, todo junto.** E4.14 `bench-validation-readiness` (con el doble conteo) → corrida de validación de E4.6 en Claude y agy → E4.4, recalculando antes su premisa → E4.13 `worker-delegation`, solo si E4.4 da evidencia (decisión del usuario del 2026-10-22) → E4.11 `workspace-root-resolution`, al final de la cola.
+
+E1.54 `lock-reclaim-rename`, residuo de E1.46 anotado el 2026-10-26, tiene prioridad baja y queda fuera del orden ▶ hasta que el usuario lo coloque.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -976,6 +979,23 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
   - el revisor cita líneas del árbol congelado;
   - los tests de linaje siguen en verde sin el código borrado.
 
+### E1.54 — `lock-reclaim-rename` (residuo de E1.46)
+
+- **Problema:**
+  - Desde E1.46 el lock guarda el token de su dueño, que lo refresca cada segundo, así que solo caduca el de un dueño muerto o detenido. Pero reclamarlo sigue siendo mirar su mtime y borrarlo (`reclaimStaleLock` en `scripts/lib/ospec-state.js`, `tryLock` en `internal/store/store.go`).
+  - Si dos procesos reclaman a la vez el mismo lock caducado y uno se detiene entre mirarlo y borrarlo, puede borrar el lock que el otro acaba de crear y los dos se creen dueños. El token antes de escribir lo detecta casi siempre (`lock-lost`); queda la ventana en que la comprobación del otro llega antes del borrado y su escritura se solapa con la lectura del primero.
+  - El efecto es perder un registro del estado, no corromperlo: el renombrado es atómico y `ospec check` vuelve a calcular la evidencia.
+- **Garantía que protege:** estado en disco y reanudación (escenario `deterministic-resume`).
+- **Alcance:**
+  - Quien reclama renombra el lock caducado a un nombre propio, comprueba que es el que juzgó caducado (token y mtime) y lo borra.
+  - Si se llevó un lock recién creado, lo devuelve con `link`, que falla si ya existe otro; en ese caso el dueño de ese lock acaba en `lock-lost`.
+  - En JS y en Go, con su biblioteca estándar (ADR 0010).
+  - Descartado: los locks del sistema operativo (`flock`, `LockFileEx`) se liberan solos al morir el proceso, pero Node no tiene `flock` y el `syscall` de Go no trae `LockFileEx` en Windows, así que exigirían dependencias.
+- **Targets:** los 7 (el lock es del CLI y de los hooks).
+- **Hecho cuando:**
+  - un test simula el proceso detenido entre mirar y borrar, y ningún lock fresco se pierde ni se escriben dos estados a la vez;
+  - en un sistema de ficheros sin enlaces duros (FAT, exFAT, algunas unidades de red) el fallo de `link` termina en `lock-lost`, nunca en dos dueños.
+
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
 **Resultado de la etapa:** al crear un proyecto, ospec hace las preguntas que haría un arquitecto con experiencia en proyectos serios. Captura la información funcional, el contexto del equipo, los atributos de calidad y las restricciones, y produce **ADRs de arquitectura agnósticos de tecnología**, separados de la selección tecnológica. Las preguntas no salen de un cuestionario fijo: salen de los huecos de conocimiento que más condicionan las decisiones pendientes. La foundation sirve igual a IDD y al modo SDD.
@@ -1501,6 +1521,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-26: E1.54 (IDD, `e1-54-lock-reclaim-note`, solo documentación). El roadmap anota `lock-reclaim-rename`, el residuo de E1.46: reclamar un lock caducado por rename atómico y devolver con `link` uno fresco cogido por error. Prioridad baja, fuera del orden ▶; se descartan los locks del sistema operativo por ADR 0010.
 - 2026-10-26: `state-durability` (IDD), publicado en v2.156.0. E1.46 hecho. Cada escritura atómica, en el CLI y en los hooks Node y Go, escribe en un temporal propio `<fichero>.<escritor>.tmp`, hace fsync, lo renombra y hace fsync del directorio (salvo en Windows o donde el sistema de ficheros no lo admite); antes borra los temporales de su fichero de más de 5 s, también el `.tmp` fijo de versiones anteriores. El lock guarda el token de su dueño (pid y nonce), que refresca el mtime cada segundo y solo lo borra si sigue siendo suyo; el estado IDD, el SDD y los costes de fase comprueban el token antes de escribir y fallan con `lock-lost` sin escribir. Un test con dos procesos que registran a la vez no pierde ninguna escritura. `ospec doctor` sigue sin escribir; `ospec doctor --repair` aparta un `idd/<id>/state.yaml` ilegible como `state.yaml.corrupt-<hora>`, sin pisar una copia anterior ni tocar el archivo o un symlink, y el cambio se reanuda desde su `.bak` o con `record intent` del mismo id. Residuos de E1.43: el guard deniega también las herramientas cuyo nombre dice `copy`, `append`, `save` o `upload`, con origen y destino; REQ-hooks-029 y los docs dicen que `close` solo revalida el estado de un cambio abierto y que `idd/archive/**` y `.ospec/review-receipts/**` solo los protege el hook previo. Sigue E1.47.
 - 2026-10-26: E1.30 (IDD, `e1-30-flake-pr-436`, solo documentación). El roadmap anota el flake de Windows PowerShell 5.1 en `codex-hook-shell` de la PR #436, dos veces ETIMEDOUT a los 180 s por contención, y el hueco del reintento, que solo cubre el plazo del lanzador. El plazo de 0 flakes hasta el 2026-10-29 queda fallido sin plazo nuevo, por decisión del usuario: E1.30 sigue abierto y E1.28 espera a su criterio de hecho. Sigue E1.46.
 - 2026-10-26: `cli-one-word-invocation` (IDD), publicado en v2.155.0. E1.45 hecho (B5). La skill `idd` y la `foundation` dejan de definir `ospec` como `node "<ruta>"`, que un agente guardaba en una variable y zsh no podía ejecutar: nombran una sola palabra, el shim junto al runtime. `bin/ospec` (sh, LF, con bit de ejecución) y `bin/ospec.cmd` (CRLF) viajan en los 7 builds y en cada instalación; Claude nombra `${CLAUDE_SKILL_DIR}/../../bin/ospec`, y el instalador renderiza `bin/ospec.cmd` en Windows (y en una raíz WSL de Antigravity), `bin/ospec` en el resto, y entrecomilla solo una ruta con espacios. Un test ejecuta la palabra en bash, zsh, fish, PowerShell y cmd desde una ruta con espacios, y salta con su nombre el shell que falta. Cada `next_step` lleva `command`, el comando literal con solo los `<marcadores>` que el CLI no puede saber; tras un rojo repite su comando, citado para bash, zsh y fish. Un error de uso imprime solo las líneas de su subcomando, también en `error.how`, y un rechazo sin `how` propio toma el de su código en `scripts/lib/idd-refusals.js`; un test recorre los 84 códigos del CLI y exige `how` o `byDesign`, sin baseline. `ospec doctor` da `error` sin shim o sin su bit de ejecución. Una instalación en un repositorio renderiza el shim de la plataforma que la hace. Sigue E1.46.

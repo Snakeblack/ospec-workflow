@@ -1,0 +1,68 @@
+{
+  "schema": "idd-state/v1",
+  "change": "e1-54-lock-reclaim-note",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "El roadmap anota E1.54 lock-reclaim-rename, residuo de E1.46: dos procesos que reclaman a la vez un lock caducado pueden creerse dueños los dos; se arregla reclamando por rename atómico y devolviendo con link un lock fresco cogido por error",
+    "acceptance": "docs/roadmaps/harness-evolution.md tiene la fila y la sección de E1.54 pendiente, de prioridad baja y fuera del orden ▶, con la opción del rename y por qué se descarta usar locks del sistema operativo"
+  },
+  "facts": {
+    "basis": "El usuario eligió las recomendadas: ítem propio de prioridad baja, la opción del rename atómico, y anotarlo como un commit más de la PR #438"
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-26T17:54:36.074Z",
+      "detail": {
+        "tree": "sha256:44fd615793b3883d1f6761fac331917ea08f0cf2ec07fb9bb3bdc6ea7fcdcbcc",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "6ca2d54f3617bb4833591bee0740775f83e9085e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eea7e101333c8df1d0b33946a66aad5d12c866796ff01b5f83b19c44dbdcd827",
+      "tree": "sha256:44fd615793b3883d1f6761fac331917ea08f0cf2ec07fb9bb3bdc6ea7fcdcbcc",
+      "recorded_at": "2026-10-26T17:54:36.074Z"
+    }
+  ],
+  "closed_at": "2026-10-26T17:54:39.361Z"
+}
