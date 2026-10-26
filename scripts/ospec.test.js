@@ -41,6 +41,13 @@ function ospec(root, ...args) {
   return ospecWith(process.env, root, ...args);
 }
 
+// A gate step: its action and gate; the literal command it carries (E1.45) is
+// pinned in scripts/lib/idd-next.test.js.
+function assertGateStep(step, gate) {
+  assert.deepStrictEqual({ action: step.action, gate: step.gate }, { action: "resolve-gate", gate });
+  assert.match(step.command, /^ospec record /);
+}
+
 const OPEN_BUG = [
   "record",
   "intent",
@@ -104,6 +111,7 @@ test("record intent opens the change, reports the next step and is idempotent", 
   assert.deepStrictEqual(first.json.next.next_step, {
     action: "declare-plan",
     how: "ospec signals --change fix-pagination --path <file>... [--work-units <n>] [--decision] [--operation <op>]",
+    command: "ospec signals --change fix-pagination --path <file>...",
   });
 
   const file = path.join(root, "idd", "fix-pagination", "state.yaml");
@@ -164,7 +172,7 @@ test("record intent needs the open-facts declaration, and open facts are asked f
 
   const opened = ospec(root, ...base, "--open-fact", "Is an unknown code an error?", "--open-fact", "Does case matter?", "--json");
   assert.strictEqual(opened.code, 0, opened.stderr);
-  assert.deepStrictEqual(opened.json.next.next_step, { action: "resolve-gate", gate: "open-facts" });
+  assertGateStep(opened.json.next.next_step, "open-facts");
   assert.deepStrictEqual(opened.json.next.pending_decision.questions, ["Is an unknown code an error?", "Does case matter?"]);
 
   const text = ospec(root, "next", "--change", "discount-codes");
@@ -183,7 +191,7 @@ test("an ambiguous intent is recorded with its gate and next asks to resolve it"
   const next = ospec(root, "next", "--json");
   assert.strictEqual(next.code, 0);
   assert.strictEqual(next.json.change, "improve-login");
-  assert.deepStrictEqual(next.json.next_step, { action: "resolve-gate", gate: "ambiguous-intent" });
+  assertGateStep(next.json.next_step, "ambiguous-intent");
 
   const blocked = ospec(root, "record", "signal", "--change", "improve-login", "--signal", "bug-fix", "--reason", "r", "--json");
   assert.strictEqual(blocked.code, 1);
@@ -192,7 +200,7 @@ test("an ambiguous intent is recorded with its gate and next asks to resolve it"
 
 test("next and status are stable across runs and readable without --json", (t) => {
   const root = tempRoot(t);
-  assert.deepStrictEqual(ospec(root, "next", "--json").json.next_step, { action: "open-change" });
+  assert.strictEqual(ospec(root, "next", "--json").json.next_step.action, "open-change");
   ospec(root, ...OPEN_BUG);
 
   const runs = [1, 2].map(() => ospec(root, "next", "--json").stdout);
@@ -222,6 +230,57 @@ test("evidence cannot be recorded from the CLI and usage errors exit 2", (t) => 
   const help = spawnSync(process.execPath, [CLI, "--help"], { encoding: "utf8" });
   assert.strictEqual(help.status, 0);
   assert.match(help.stdout, /ospec next/);
+});
+
+// E1.45 (B5): a usage error prints the lines of its subcommand, not the whole
+// usage, and --json carries them as the error's how.
+test("a usage error prints only the usage lines of its subcommand", (t) => {
+  const root = tempRoot(t);
+  const run = ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test");
+  assert.strictEqual(run.code, 2);
+  assert.strictEqual(
+    run.stderr,
+    "ospec: run needs --command <cmd> (usage)\n" +
+      "  ospec run --change <id> --obligation <repro-test|tdd-red-green|migration-compat-and-test> --command <cmd>\n" +
+      "            [--unit <name>] [--plan <compatibility or rollback plan>]\n",
+  );
+
+  const unknown = ospec(root, "frobnicate");
+  assert.strictEqual(unknown.code, 2);
+  assert.strictEqual(
+    unknown.stderr,
+    "ospec: unknown command: frobnicate (usage)\ncommands: status, next, record, signals, check, run, review, close, doctor, team, snapshot, foundation\n",
+  );
+
+  const intent = ospec(root, "record", "intent", "--json");
+  assert.strictEqual(intent.code, 2);
+  assert.strictEqual(intent.json.error.code, "usage");
+  assert.match(intent.json.error.how, /^ {2}ospec record intent --change <id> --kind <bug\|feature\|refactor\|docs>/);
+  assert.match(intent.json.error.how, /at least one is an --open-fact/);
+  assert.doesNotMatch(intent.json.error.how, /ospec record gate|ospec status|Options:/);
+
+  const type = ospec(root, "record", "evidence", "--json");
+  assert.match(type.json.error.how, /ospec record gate/);
+  assert.doesNotMatch(type.json.error.how, /ospec status/);
+
+  const option = ospec(root, "next", "--bogus", "--json");
+  assert.strictEqual(option.code, 2);
+  assert.strictEqual(option.json.error.how, "  ospec next [--change <id>] [--json]");
+});
+
+// E1.45 (B5): a refusal that names no way out of its own takes the one its
+// code has (scripts/lib/idd-refusals.js), in JSON and in text.
+test("a refusal without its own how carries the one of its code", (t) => {
+  const root = tempRoot(t);
+  ospec(root, ...OPEN_BUG);
+  const json = ospec(root, "record", "gate", "--change", "fix-pagination", "--gate", "bogus", "--open", "--json");
+  assert.strictEqual(json.code, 1);
+  assert.strictEqual(json.json.error.code, "unknown-gate");
+  assert.match(json.json.error.how, /ambiguous-intent, open-facts, adr-amend-or-contradict, irreversible-operation, review-limit, checks-changed/);
+
+  const text = ospec(root, "record", "withdraw", "--change", "fix-pagination", "--obligation", "nope", "--reason", "r");
+  assert.strictEqual(text.code, 1);
+  assert.match(text.stderr, /^ospec: change fix-pagination has no obligation nope \(unknown-obligation\)\n.*ospec next --change fix-pagination --json/);
 });
 
 // E1.3 impact-signals: `ospec signals` derives and records signals and gates
@@ -287,11 +346,11 @@ test("an open ADR gate is asked before the plan and the obligations", (t) => {
 
   const opened = ospec(root, "record", "gate", "--change", "fix-pagination", "--gate", "adr-amend-or-contradict", "--open", "--reason", "ADR-0003 fixes page size", "--json");
   assert.strictEqual(opened.code, 0, opened.stderr);
-  assert.deepStrictEqual(opened.json.next.next_step, { action: "resolve-gate", gate: "adr-amend-or-contradict" });
+  assertGateStep(opened.json.next.next_step, "adr-amend-or-contradict");
 
   ospec(root, "signals", "--change", "fix-pagination", "--path", "src/lib/paginate.js");
   const next = ospec(root, "next", "--change", "fix-pagination", "--json");
-  assert.deepStrictEqual(next.json.next_step, { action: "resolve-gate", gate: "adr-amend-or-contradict" });
+  assertGateStep(next.json.next_step, "adr-amend-or-contradict");
   assert.deepStrictEqual(next.json.pending_obligations.map((o) => o.id), ["repro-test", "checks-pass"]);
 
   const resolved = ospec(root, "record", "gate", "--change", "fix-pagination", "--gate", "adr-amend-or-contradict", "--resolve", "--answer", "amend ADR-0003", "--source", "user", "--json");
@@ -935,7 +994,7 @@ test("after the last review the person authorizes one more through the review-li
   const stale = ospec(root, "check", "--change", "rotate-tokens", "--json");
   assert.match(stale.json.missing.find((entry) => entry.obligation === "trust-review").reason, /review-limit/);
   assert.deepStrictEqual(reviewLimit().map((gate) => gate.status), ["open"]);
-  assert.deepStrictEqual(ospec(root, "next", "--change", "rotate-tokens", "--json").json.next_step, { action: "resolve-gate", gate: "review-limit" });
+  assertGateStep(ospec(root, "next", "--change", "rotate-tokens", "--json").json.next_step, "review-limit");
   assert.strictEqual(review(root, "start").json.error.code, "review-limit");
   const manual = ospec(root, "record", "gate", "--change", "rotate-tokens", "--gate", "review-limit", "--open", "--reason", "more", "--json");
   assert.strictEqual(manual.json.error.code, "gate-managed-by-review");
@@ -1328,6 +1387,7 @@ test("next asks to declare the plan after the intent gates and until signals rec
   assert.deepStrictEqual(opened.json.next.next_step, {
     action: "declare-plan",
     how: "ospec signals --change fix-pagination --path <file>... [--work-units <n>] [--decision] [--operation <op>]",
+    command: "ospec signals --change fix-pagination --path <file>...",
   });
   assert.match(ospec(root, "next", "--change", "fix-pagination").stdout, /next: declare the plan: ospec signals --change fix-pagination/);
 
@@ -1352,7 +1412,7 @@ test("next asks to declare the plan after the intent gates and until signals rec
 
   const base = ["record", "intent", "--change", "discount-codes", "--kind", "bug", "--summary", "Discount codes.", "--acceptance", "VERANO10 takes 10%."];
   const facts = ospec(root, ...base, "--open-fact", "Does case matter?", "--json");
-  assert.deepStrictEqual(facts.json.next.next_step, { action: "resolve-gate", gate: "open-facts" });
+  assertGateStep(facts.json.next.next_step, "open-facts");
   const resolved = ospec(root, "record", "gate", "--change", "discount-codes", "--gate", "open-facts", "--resolve", "--answer", "No.", "--source", "user", "--json");
   assert.strictEqual(resolved.json.next.next_step.action, "declare-plan");
 });
@@ -1643,7 +1703,11 @@ test("signals --adr and --quality declare existing references only", (t) => {
   openFeature(root, ...OPEN_EVENTS);
   const unknownAdr = ospec(root, "signals", "--change", "order-events", "--path", "src/orders.js", "--adr", "0099", "--json");
   assert.strictEqual(unknownAdr.code, 1);
-  assert.deepStrictEqual(unknownAdr.json.error, { code: "unknown-reference", message: "ADR 0099 is not under docs/architecture/decisions/" });
+  assert.deepStrictEqual(unknownAdr.json.error, {
+    code: "unknown-reference",
+    message: "ADR 0099 is not under docs/architecture/decisions/",
+    how: "declare an ADR under docs/architecture/decisions/ or a quality scenario of docs/architecture/knowledge-map.yaml",
+  });
   const unknownScenario = ospec(root, "signals", "--change", "order-events", "--quality", "fast-boot", "--json");
   assert.strictEqual(unknownScenario.json.error.code, "unknown-reference");
   const badId = ospec(root, "signals", "--change", "order-events", "--adr", "integration", "--json");
@@ -1670,7 +1734,7 @@ test("an amendment stops at the gate and settles once its new ADR passes the lin
 
   const amended = ospec(root, "record", "impact", "--change", "order-events", "--adr", "0002", "--impact", "amends", "--reason", "billing consumes order-placed asynchronously", "--json");
   assert.strictEqual(amended.code, 0, amended.stderr);
-  assert.deepStrictEqual(amended.json.next.next_step, { action: "resolve-gate", gate: "adr-amend-or-contradict" });
+  assertGateStep(amended.json.next.next_step, "adr-amend-or-contradict");
   assert.strictEqual(amended.json.next.pending_decision.reason, "ADR 0002 amends: billing consumes order-placed asynchronously");
 
   ospec(root, "record", "gate", "--change", "order-events", "--gate", "adr-amend-or-contradict", "--resolve", "--answer", "amend 0002 with events", "--source", "user");

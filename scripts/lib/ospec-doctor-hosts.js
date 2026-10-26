@@ -251,14 +251,29 @@ function installCheck(host, add) {
   }
 }
 
-function runtimeCheck(host, add) {
+// E1.45 (B5): the protocol runs the shim beside the runtime's scripts/, the
+// Windows one on Windows; a POSIX shell runs bin/ospec only with its execute bit.
+function shimProblem(runtimeFile, platform) {
+  const shim = path.join(path.dirname(path.dirname(runtimeFile)), "bin", platform === "win32" ? "ospec.cmd" : "ospec");
+  let stat;
+  try {
+    stat = fs.statSync(shim);
+  } catch {
+    return `${shim} is missing`;
+  }
+  if (platform !== "win32" && process.platform !== "win32" && (stat.mode & 0o111) === 0) return `${shim} is not executable`;
+  return null;
+}
+
+function runtimeCheck(host, add, platform) {
   const file = path.join(host.root, host.spec.runtime);
-  add(fs.existsSync(file)
+  const problem = fs.existsSync(file) ? shimProblem(file, platform) : `${file} is missing`;
+  add(problem === null
     ? { id: "runtime", status: "ok" }
     : {
         id: "runtime",
         status: "error",
-        cause: `${file} is missing, so the IDD protocol cannot run the ospec CLI in ${label(host.target)}`,
+        cause: `${problem}, so the IDD protocol cannot run the ospec CLI in ${label(host.target)}`,
         action: setupAction(host.target, "; it installs the runtime"),
       });
 }
@@ -445,7 +460,7 @@ function hostChecks(target, host, context, add) {
   } else {
     installCheck(host, add);
   }
-  runtimeCheck(host, add);
+  runtimeCheck(host, add, context.platform);
   markersCheck(host, add);
   routerChecks(host, add, context.budgetBytes);
   hooksCheck(host, add);
@@ -458,7 +473,9 @@ function hostChecks(target, host, context, add) {
 // agents into <repo>/.codex. Since E1.14 it also carries the IDD protocol in
 // <repo>/.agents/skills/idd, naming its own runtime relative to the repository
 // root; installs from before then work only through a global Codex install.
-const REPO_PROTOCOL_CLI = /node "([^"]+\/scripts\/ospec\.js)"/;
+// E1.45: the protocol names the shim, `.codex/ospec-workflow/bin/ospec`; an
+// install from before then names node and the script.
+const REPO_PROTOCOL_CLI = /`ospec` below means `"?([^`"]+\/bin\/ospec(?:\.cmd)?)"?`|node "([^"]+\/scripts\/ospec\.js)"/;
 
 function codexRepoCheck(root, hosts, add) {
   const agents = readText(path.join(root, "AGENTS.md")) || "";
@@ -466,7 +483,8 @@ function codexRepoCheck(root, hosts, add) {
   if (!repoInstall) return;
   const protocol = readText(path.join(root, ".agents", "skills", "idd", "SKILL.md"));
   if (protocol !== null) {
-    const cli = REPO_PROTOCOL_CLI.exec(protocol)?.[1];
+    const match = REPO_PROTOCOL_CLI.exec(protocol);
+    const cli = match?.[1] ?? match?.[2];
     add(cli && fs.existsSync(path.resolve(root, cli))
       ? { id: "codex-repo", status: "ok", detail: cli }
       : {

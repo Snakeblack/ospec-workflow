@@ -223,8 +223,10 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
     // Antigravity host sees it (a WSL root is read from Windows).
     const antigravityRootPosix = getHooksRootPosix(antigravityRoot);
     const shared = renderSharedDir(outDir, `${antigravityRootPosix}/skills/_shared`, fsImpl);
-    // E1.6 (a): the IDD protocol names the installed ospec CLI.
-    const runtime = renderRuntimeDir(outDir, antigravityRootPosix, fsImpl);
+    // E1.6 (a): the IDD protocol names the installed ospec CLI; E1.45: the
+    // shim of the host that reads it, Windows for a WSL root.
+    const hostPlatform = /^[A-Za-z]:\//.test(antigravityRootPosix) ? "win32" : deps.platform || process.platform;
+    const runtime = renderRuntimeDir(outDir, antigravityRootPosix, fsImpl, { platform: hostPlatform });
     let syncResult;
     try {
       syncResult = syncTargetTree(

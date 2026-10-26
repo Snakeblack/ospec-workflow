@@ -1297,13 +1297,13 @@ Each installer that ships an orchestrator carrying `__OSPEC_SHARED_DIR__` (REQ-g
 
 ### Requirement: Installers Render The Runtime Directory {#REQ-install-035}
 
-Each installer that ships the IDD protocol carrying `__OSPEC_RUNTIME_DIR__` (REQ-generator-024) MUST replace the marker with the directory that holds the installed runtime `scripts/` (`scripts/configure/shared-dir.js`): the install root as an absolute POSIX path for `setup:copilot`, `setup:opencode`, `setup:cursor` and `setup:antigravity` (a WSL root written as its Windows path), `~/.codex/ospec-workflow` for `setup:codex`, the absolute path of `dist/vscode` for `setup:vscode`, and `.` for `install-target`, which syncs the tree into the repository root. The marker follows the rendering and restore rules of REQ-install-034. An empty value or one that still holds the marker MUST fail the install. `setup:claude` renders nothing. `install:codex -- <destRepo>` installs no runtime and does not install the protocol. The runtime scripts load their data from `../../schemas/`, so every install that copies `scripts/` into a root MUST also copy the build's `schemas/` beside it, owned by the same ownership manifest, and the installed `scripts/ospec.js` MUST start from any working directory.
+Each installer that ships the IDD protocol carrying `__OSPEC_RUNTIME_DIR__` (REQ-generator-024) MUST replace the marker with the directory that holds the installed runtime `scripts/` (`scripts/configure/shared-dir.js`): the install root as an absolute POSIX path for `setup:copilot`, `setup:opencode`, `setup:cursor` and `setup:antigravity` (a WSL root written as its Windows path), `~/.codex/ospec-workflow` for `setup:codex`, the absolute path of `dist/vscode` for `setup:vscode`, and `.` for `install-target`, which syncs the tree into the repository root. The marker follows the rendering and restore rules of REQ-install-034. An empty value or one that still holds the marker MUST fail the install. `setup:claude` renders nothing. `install:codex -- <destRepo>` installs no runtime and does not install the protocol. The runtime scripts load their data from `../../schemas/`, so every install that copies `scripts/` into a root MUST also copy the build's `schemas/` beside it, owned by the same ownership manifest, and the installed `scripts/ospec.js` MUST start from any working directory. The protocol names the CLI as one word, the shim beside the runtime (E1.45): every install that copies `scripts/` MUST also copy the build's `bin/` beside it, owned the same way, with the execute bit of `bin/ospec` kept, and `__OSPEC_RUNTIME_DIR__/bin/ospec` MUST render to `<dir>/bin/ospec.cmd` for a host on Windows (an install on win32, or a WSL root that Antigravity reads from Windows) and to `<dir>/bin/ospec` elsewhere, in double quotes only when the path holds a space. A repository install renders the shim of the platform it runs on.
 
 #### Scenario: A global install names its own runtime
 
 - GIVEN `setup:copilot` runs with `--dest <root>`
 - WHEN the installed `skills/idd/SKILL.md` is read
-- THEN it runs `node "<root>/scripts/ospec.js"` as an absolute POSIX path, that file exists, and the generated protocol in `dist/` still holds the marker
+- THEN it defines `ospec` as `<root>/bin/ospec` (`<root>/bin/ospec.cmd` on Windows) as an absolute POSIX path, that shim exists beside `<root>/scripts/ospec.js`, and the generated protocol in `dist/` still holds the marker
 
 #### Scenario: The installed runtime starts
 
@@ -1315,7 +1315,7 @@ Each installer that ships the IDD protocol carrying `__OSPEC_RUNTIME_DIR__` (REQ
 
 - GIVEN `install-target github-copilot <repo>` runs
 - WHEN `<repo>/skills/idd/SKILL.md` is read
-- THEN it runs `node "./scripts/ospec.js"`, and `<repo>/scripts/ospec.js` exists
+- THEN it defines `ospec` as `./bin/ospec`, and `<repo>/bin/ospec` and `<repo>/scripts/ospec.js` exist
 
 ### Requirement: Installers Install SDD On Request And Keep It {#REQ-install-036}
 
@@ -1401,11 +1401,11 @@ A filesystem mutation that still fails with `EPERM`, `EACCES` or `EBUSY` after i
 
 ### Requirement: Codex Repository Install Carries The IDD Protocol And Its Runtime {#REQ-install-041}
 
-`npm run install:codex -- <destRepo>` MUST let the repository follow IDD without a global install (E1.14). Besides the agents and the router, it MUST write into `<destRepo>/.agents/skills/` the `idd` protocol and the `review-trust` and `review-correction` skills it dispatches (plus `sdd-orchestrator` when the build has SDD), with the `_shared` handlers beside them, and MUST copy the runtime (`scripts/` and `schemas/`) into `<destRepo>/.codex/ospec-workflow/`. The installed skills MUST name `_shared` as `.agents/skills/_shared` and the runtime as `.codex/ospec-workflow`, relative to the repository root where the protocol runs `ospec`, and MUST keep no install marker. The runtime directory belongs to the install: a later install MUST remove the files the build no longer has. Every destination MUST pass the managed-path checks before anything is written, and `--dry-run` MUST write nothing. `ospec doctor` MUST report `codex-repo` as `ok` only when the runtime the repository's `idd` protocol names exists, and as `warn` with the reinstall command otherwise.
+`npm run install:codex -- <destRepo>` MUST let the repository follow IDD without a global install (E1.14). Besides the agents and the router, it MUST write into `<destRepo>/.agents/skills/` the `idd` protocol and the `review-trust` and `review-correction` skills it dispatches (plus `sdd-orchestrator` when the build has SDD), with the `_shared` handlers beside them, and MUST copy the runtime (`scripts/`, `schemas/` and the `bin/` shims, E1.45) into `<destRepo>/.codex/ospec-workflow/`. The installed skills MUST name `_shared` as `.agents/skills/_shared` and the CLI as `.codex/ospec-workflow/bin/ospec` (`ospec.cmd` on Windows), relative to the repository root where the protocol runs `ospec`, and MUST keep no install marker. The runtime directory belongs to the install: a later install MUST remove the files the build no longer has. Every destination MUST pass the managed-path checks before anything is written, and `--dry-run` MUST write nothing. `ospec doctor` MUST report `codex-repo` as `ok` only when the runtime the repository's `idd` protocol names exists, and as `warn` with the reinstall command otherwise.
 
 #### Scenario: A repository-only Codex install runs ospec next
 
 - GIVEN a repository with no global Codex install
-- WHEN `npm run install:codex -- <repo>` runs and the command the `idd` skill names, `node ".codex/ospec-workflow/scripts/ospec.js" next --json`, runs from the repository root
+- WHEN `npm run install:codex -- <repo>` runs and the command the `idd` skill names, `.codex/ospec-workflow/bin/ospec next --json`, runs from the repository root
 - THEN it exits with 0 and returns the `open-change` step
 - AND `ospec doctor` reports `codex-repo` as `ok`

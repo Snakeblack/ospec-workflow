@@ -19,7 +19,7 @@ says.
 
 ## The CLI decides
 
-`ospec` below means `node "{{ospec-cli}}"`, run from the project root. Add
+`ospec` below means `{{ospec-cli}}`, run from the project root. Add
 `--json` to read its answer; every change command takes `--change <id>`. The
 CLI owns `idd/<change>/state.yaml`: never write that file, and never move or
 delete anything under `idd/` by hand.

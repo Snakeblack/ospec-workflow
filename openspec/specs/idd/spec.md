@@ -498,6 +498,35 @@ REQ-idd-020. For an open change, `next` MUST also return the `references` and
 `warnings` of REQ-idd-021 and the `fitness` of REQ-idd-022; `knowledge_refs`
 keeps naming the living document.
 
+Every next step MUST carry `command`, the literal `ospec` command that does it
+(E1.45), so the protocol can be followed without reading the CLI: the agent
+runs it as written and fills in only the `<placeholders>` the CLI cannot know,
+such as the user's answer or the files of the plan. After a failing run of
+`repro-test`, `tdd-red-green` or `migration-compat-and-test`, the command of
+that run MUST replace `"<test>"`, with its `--unit`, quoted as one word for
+bash, zsh and fish: in double quotes, or in single quotes when it holds a
+quote, `$`, a backtick or a backslash. `resolve-gate` names the `record gate`
+that resolves it with the user's answer (`record intent` for
+`ambiguous-intent`), `declare-plan` names `ospec signals`, an obligation whose
+evidence comes from the checks names `ospec check`, `trust-review` names
+`ospec review start`, `adr-impact-declaration` names `record impact` for the
+first declared reference without its impact, and `living-doc` and `close`
+name `ospec close`. `configure-checks` names `ospec next --change <id> --json`,
+to run once the approved checks are written; `open-change` names the
+`record intent` template; `choose-change` carries `commands`, one `ospec next`
+per open change; and `none` carries a null `command`. The text output MUST
+print each one on a `run:` line.
+
+A refusal MUST say how to get past it (E1.45): with `--json` in `error.how`,
+and in text on the line after the error. A refusal whose site names no `how`
+takes the one its code has in `scripts/lib/idd-refusals.js`, with `<id>`
+filled in from `--change`. A code that no agent input reaches is marked
+`byDesign` there instead, with why, and a test MUST find every code the CLI
+throws in that table, with no baseline. A usage error MUST print only the
+usage lines of its subcommand, with their continuation lines, or the list of
+commands for an unknown one, and `--json` MUST carry the same lines in
+`error.how`; `--help` still prints the whole usage.
+
 Before the pending `checks-pass` or `contract-spec-and-test` step, if no checks
 are declared, `next` MUST instead return `next_step.action: configure-checks`,
 `obligation: checks-pass`, `file: idd/config.yaml`, `requires_approval: true`,
@@ -575,6 +604,32 @@ the changes on disk. A change opened before the first commit records a null
   the state
 - THEN reading the change MUST return the committed state
 - AND the next `record` MUST succeed
+
+#### Scenario: Every next step names its literal command
+
+- GIVEN an open change whose `repro-test` run failed with
+  `node --test test/page.test.js`
+- WHEN `next` runs
+- THEN `next_step.command` MUST be
+  `ospec run --change <id> --obligation repro-test --command "node --test test/page.test.js"`
+- AND every other action MUST carry its `command`, `choose-change` its
+  `commands` and `none` a null `command`
+
+#### Scenario: A usage error names only its subcommand
+
+- GIVEN any project
+- WHEN `ospec run --change fix-pagination --obligation repro-test` runs without
+  `--command`
+- THEN it MUST exit with 2 and print the two usage lines of `ospec run`, not
+  the whole usage
+- AND `ospec frobnicate` MUST print the list of commands
+
+#### Scenario: A refusal says how to get past it
+
+- GIVEN an open change
+- WHEN `record gate --gate bogus --open --json` runs
+- THEN it MUST exit with 1 and the code `unknown-gate`, with a `how` that
+  lists the six gates
 
 #### Scenario: Next is deterministic for the reference fixtures
 
@@ -1347,7 +1402,9 @@ The checks MUST cover at least:
   by the `.ospec-workflow-install.json` its global installer writes (Codex
   under `CODEX_HOME` when set): `install` (`error` when the manifest is not
   readable or records no version or `0.0.0`, which only a stub install
-  writes), `runtime` (`error` when the installed `scripts/ospec.js` is missing),
+  writes), `runtime` (`error` when the installed `scripts/ospec.js` is missing,
+  or the shim beside it that the protocol runs, `bin/ospec.cmd` on Windows and
+  elsewhere `bin/ospec`, which is also `error` without its execute bit, E1.45),
   `markers` (`error` naming the file when an installed skill or agent still
   carries `__OSPEC_RUNTIME_DIR__`, `__OSPEC_SHARED_DIR__` or `{{ospec-cli}}`),
   `router` (`warn` when the router file or the Codex `AGENTS.md` block is

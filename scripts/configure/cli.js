@@ -25,8 +25,10 @@ const PROFILES = {
 
 // Source roots that make up a plugin tree. Files are read into the
 // { path, content } shape the transform expects; missing roots are skipped.
+// `bin` holds the ospec shims the IDD protocol names (E1.45).
 const SOURCE_ROOTS = [
   ".claude-plugin/plugin.json",
+  "bin",
   "hooks/hooks.json",
   ".mcp.json",
   "agents",
@@ -198,6 +200,8 @@ function runDirect(_operation, _path, action) {
   return action();
 }
 
+const EXECUTABLE_FILES = Object.freeze(["bin/ospec"]);
+
 function writeTree(outDir, { files }, additionalManagedRoots = [], operationObserver = () => {}, { phase = "stage", mutate = runDirect } = {}) {
   const sorted = [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const desired = new Set(sorted.map((file) => file.path));
@@ -217,6 +221,8 @@ function writeTree(outDir, { files }, additionalManagedRoots = [], operationObse
     mutate("write", abs, () => {
       observe(operationObserver, { phase, operation: "write", path: abs });
       fs.writeFileSync(abs, file.content);
+      // The POSIX shim runs as a command, so it needs its execute bit (E1.45).
+      if (EXECUTABLE_FILES.includes(file.path)) fs.chmodSync(abs, 0o755);
     });
   }
 }

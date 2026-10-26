@@ -16,6 +16,7 @@ const { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER } = require("./shared-dir.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const PROTOCOL = "skills/idd/SKILL.md";
+const FOUNDATION = "skills/foundation/SKILL.md";
 const MEMORY_LOOP = "skills/idd/references/memory-loop.md";
 const REPOSITORY = "skills/idd/references/repository.md";
 const ARCHITECTURE = "skills/idd/references/architecture.md";
@@ -80,9 +81,22 @@ for (const target of Object.keys(ROUTERS)) {
     assert.ok(protocolBytes(protocol) <= MAX_PROTOCOL_BYTES, `${target}: protocol over 12 KB (${protocolBytes(protocol)} B)`);
     assert.doesNotMatch(protocol, /\{\{[a-z-]+\}\}/, `${target}: unresolved placeholder`);
 
-    const cli = target === "claude" ? "${CLAUDE_SKILL_DIR}/../../scripts/ospec.js" : `${RUNTIME_DIR_MARKER}/scripts/ospec.js`;
-    assert.ok(protocol.includes(`node "${cli}"`), `${target}: protocol must run ${cli}`);
+    // E1.45 (B5): one word, the shim beside the runtime, never `node "<path>"`.
+    const cli = target === "claude" ? "${CLAUDE_SKILL_DIR}/../../bin/ospec" : `${RUNTIME_DIR_MARKER}/bin/ospec`;
+    for (const skill of [PROTOCOL, FOUNDATION]) {
+      assert.ok(byPath.get(skill).includes(`\`ospec\` below means \`${cli}\``), `${target}: ${skill} must name ${cli}`);
+      assert.doesNotMatch(byPath.get(skill), /node "/, `${target}: ${skill} must not run node "<path>"`);
+    }
     assert.ok(fs.existsSync(path.join(out, "scripts", "ospec.js")), `${target}: the ospec CLI is not shipped`);
+    for (const shim of ["ospec", "ospec.cmd"]) {
+      assert.ok(fs.existsSync(path.join(out, "bin", shim)), `${target}: bin/${shim} is not shipped`);
+    }
+    if (process.platform !== "win32") {
+      assert.ok(fs.statSync(path.join(out, "bin", "ospec")).mode & 0o111, `${target}: bin/ospec is not executable`);
+    }
+    assert.match(byPath.get("bin/ospec"), /^#!\/bin\/sh\n[\s\S]*exec node "\$\(dirname -- "\$0"\)\/\.\.\/scripts\/ospec\.js" "\$@"\n$/, `${target}: bin/ospec runs the runtime CLI`);
+    assert.match(byPath.get("bin/ospec.cmd"), /node "%~dp0\.\.\\scripts\\ospec\.js" %\*\r\n/, `${target}: bin/ospec.cmd runs the runtime CLI`);
+    assert.doesNotMatch(byPath.get("bin/ospec.cmd").replace(/\r\n/g, ""), /\n/, `${target}: bin/ospec.cmd keeps CRLF line endings`);
 
     for (const skill of ["work-unit-commits", "branch-pr", "chained-pr"]) {
       assert.ok(protocol.includes(`\`${skill}\``), `${target}: protocol must name ${skill}`);
@@ -234,10 +248,10 @@ for (const target of Object.keys(ROUTERS)) {
     assert.match(text, /refused with `invalid-source`/, `${target}: an unknown source is refused`);
   });
 
-  test(`${target}: only the IDD protocol carries the runtime marker`, (t) => {
+  test(`${target}: only the IDD protocol and the foundation skill carry the runtime marker`, (t) => {
     const { byPath } = generate(t, target);
     const carriers = [...byPath].filter(([, content]) => content.includes(RUNTIME_DIR_MARKER)).map(([file]) => file);
-    assert.deepEqual(carriers, target === "claude" ? [] : [PROTOCOL], target);
+    assert.deepEqual(carriers, target === "claude" ? [] : [FOUNDATION, PROTOCOL], target);
     assert.ok(!byPath.get(PROTOCOL).includes(SHARED_DIR_MARKER), `${target}: protocol needs no _shared handler`);
   });
 }

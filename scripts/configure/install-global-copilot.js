@@ -141,6 +141,8 @@ function install(argv = process.argv.slice(2), deps = {}) {
       { src: path.join(outDir, ".github", "hooks"), dest: path.join(globalDir, "hooks"), destRel: "hooks" },
       { src: path.join(outDir, "skills"), dest: path.join(globalDir, "skills"), destRel: "skills" },
       { src: path.join(outDir, "scripts"), dest: path.join(globalDir, "scripts"), destRel: "scripts" },
+      // E1.45: the ospec shims the IDD protocol names, beside scripts/.
+      { src: path.join(outDir, "bin"), dest: path.join(globalDir, "bin"), destRel: "bin" },
       // OSP-030: the runtime scripts require their data from ../../schemas.
       { src: path.join(outDir, "schemas"), dest: path.join(globalDir, "schemas"), destRel: "schemas" },
     ];

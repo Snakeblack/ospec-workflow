@@ -104,6 +104,7 @@ test("next names the evidence kind of the obligation to satisfy", () => {
     obligation: "repro-test",
     evidence: "repro-run-pair",
     how: `ospec run --change ${result.change} --obligation repro-test --command "<test>": once failing before the fix, again passing after it`,
+    command: `ospec run --change ${result.change} --obligation repro-test --command "<test>"`,
   });
   assert.deepStrictEqual(result.pending_obligations, [
     { id: "repro-test", signal: "bug-fix", evidence: "repro-run-pair" },
@@ -114,7 +115,12 @@ test("next names the evidence kind of the obligation to satisfy", () => {
 test("an ambiguous intent blocks on its gate with the original request", () => {
   const ambiguous = loadFixtures().find((f) => f.id === "ambiguous-intent");
   const result = nextForChange(stateFromFixture(ambiguous));
-  assert.deepStrictEqual(result.next_step, { action: "resolve-gate", gate: "ambiguous-intent" });
+  assert.deepStrictEqual(result.next_step, {
+    action: "resolve-gate",
+    gate: "ambiguous-intent",
+    command:
+      'ospec record intent --change ambiguous-intent --request "Improve the login." --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>" (--open-fact "<question>"... | --no-open-facts --basis "<why>") --answer "<the user\'s words>" --source user',
+  });
   assert.strictEqual(result.pending_decision.gate, "ambiguous-intent");
   assert.ok(result.pending_decision.question.length > 0);
   assert.strictEqual(result.pending_decision.reason, "Improve the login.");
@@ -125,7 +131,11 @@ test("open facts are asked before any obligation, as one batch of questions", ()
   const questions = ["Is the threshold checked after the discount?", "Is an unknown code an error?"];
   let state = planned({ change: "discount-codes", kind: "bug", summary: "s", acceptance: "a", openFacts: questions });
   const result = nextForChange(state);
-  assert.deepStrictEqual(result.next_step, { action: "resolve-gate", gate: "open-facts" });
+  assert.deepStrictEqual(result.next_step, {
+    action: "resolve-gate",
+    gate: "open-facts",
+    command: 'ospec record gate --change discount-codes --gate open-facts --resolve --answer "<the user\'s words>" --source user',
+  });
   assert.strictEqual(result.pending_decision.gate, "open-facts");
   assert.ok(result.pending_decision.question.length > 0);
   assert.deepStrictEqual(result.pending_decision.questions, questions);
@@ -139,14 +149,14 @@ test("open facts are asked before any obligation, as one batch of questions", ()
 test("a decision gate comes before the plan and the obligations it decides", () => {
   let state = recordIntent(null, { change: "cache-sums", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
   state = recordGate(state, { id: "adr-amend-or-contradict", action: "open", reason: "ADR-0003 forbids external caches" }).state;
-  assert.deepStrictEqual(nextForChange(state).next_step, { action: "resolve-gate", gate: "adr-amend-or-contradict" });
+  assert.deepStrictEqual(nextForChange(state).next_step.gate, "adr-amend-or-contradict");
 
   state = recordPlan(state, { paths: ["db/migrations/drop.sql"], operations: ["drop-column"] }).state;
   state = recordSignal(state, { id: "persistent-data", reason: "touches db/migrations/drop.sql", source: "declaration" }).state;
   state = recordGate(state, { id: "irreversible-operation", action: "open", reason: "declared drop-column" }).state;
   state = recordGate(state, { id: "adr-amend-or-contradict", action: "resolve", answer: "amend ADR-0003", source: "user" }).state;
   const result = nextForChange(state);
-  assert.deepStrictEqual(result.next_step, { action: "resolve-gate", gate: "irreversible-operation" });
+  assert.deepStrictEqual(result.next_step.gate, "irreversible-operation");
   assert.deepStrictEqual(result.pending_obligations.map((o) => o.id), ["migration-compat-and-test", "checks-pass"]);
   assert.strictEqual(result.pending_decision.gate, "irreversible-operation");
 
@@ -160,17 +170,17 @@ test("an open gate blocks close once obligations are settled, then close is next
   let state = planned({ change: "drop-fax", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
   state = recordGate(state, { id: "irreversible-operation", action: "open", reason: "drops fax_number" }).state;
   state = recordEvidence(state, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "t" }).state;
-  assert.deepStrictEqual(nextForChange(state).next_step, { action: "resolve-gate", gate: "irreversible-operation" });
+  assert.deepStrictEqual(nextForChange(state).next_step.gate, "irreversible-operation");
 
   state = recordGate(state, { id: "irreversible-operation", action: "resolve", answer: "ok", source: "user" }).state;
   const result = nextForChange(state);
-  assert.deepStrictEqual(result.next_step, { action: "close" });
+  assert.deepStrictEqual(result.next_step, { action: "close", command: "ospec close --change drop-fax" });
   assert.strictEqual(result.pending_decision, null);
 });
 
 test("a closed change has no next step", () => {
   const state = { ...recordIntent(null, { change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state, status: "closed" };
-  assert.deepStrictEqual(nextForChange(state).next_step, { action: "none" });
+  assert.deepStrictEqual(nextForChange(state).next_step, { action: "none", command: null });
 });
 
 test("missing checks are a prerequisite for check evidence, preserving reproduction and intent gates", () => {
@@ -197,11 +207,19 @@ test("project next picks the only open change, asks to choose among several, or 
   const b = recordIntent(null, { change: "a-change", kind: "docs", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
   const closed = { ...recordIntent(null, { change: "c-change", kind: "docs", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state, status: "closed" };
 
-  assert.deepStrictEqual(nextForProject([]).next_step, { action: "open-change" });
+  assert.deepStrictEqual(nextForProject([]).next_step, {
+    action: "open-change",
+    command:
+      'ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>" (--open-fact "<question>"... | --no-open-facts --basis "<why>")',
+  });
   assert.strictEqual(nextForProject([a, closed]).change, "b-change");
   assert.deepStrictEqual(nextForProject([a, b, closed]), {
     change: null,
-    next_step: { action: "choose-change", changes: ["a-change", "b-change"] },
+    next_step: {
+      action: "choose-change",
+      changes: ["a-change", "b-change"],
+      commands: ["ospec next --change a-change --json", "ospec next --change b-change --json"],
+    },
   });
   assert.strictEqual(nextForProject([a, b], { change: "a-change" }).change, "a-change");
   assert.throws(() => nextForProject([a], { change: "missing" }), /unknown change: missing/);
@@ -258,6 +276,7 @@ test("next asks to declare the plan after the intent gates and before any obliga
   assert.deepStrictEqual(nextForChange(unplanned).next_step, {
     action: "declare-plan",
     how: "ospec signals --change fix-it --path <file>... [--work-units <n>] [--decision] [--operation <op>]",
+    command: "ospec signals --change fix-it --path <file>...",
   });
   assert.strictEqual(nextForChange(unplanned, { checks: [] }).next_step.action, "declare-plan");
   assert.deepStrictEqual(nextForChange(unplanned).pending_obligations.map((o) => o.id), ["repro-test", "checks-pass"]);
@@ -271,10 +290,10 @@ test("next asks to declare the plan after the intent gates and before any obliga
   assert.strictEqual(nextForChange(withRun).next_step.obligation, "checks-pass");
 
   const facts = recordIntent(null, { change: "facts", kind: "bug", summary: "s", acceptance: "a", openFacts: ["Which?"] }).state;
-  assert.deepStrictEqual(nextForChange(facts).next_step, { action: "resolve-gate", gate: "open-facts" });
+  assert.deepStrictEqual(nextForChange(facts).next_step.gate, "open-facts");
   const ambiguous = recordIntent(null, { change: "vague", ambiguous: true, request: "Improve it" }).state;
   assert.strictEqual(nextForChange(ambiguous).next_step.gate, "ambiguous-intent");
-  assert.deepStrictEqual(nextForChange({ ...unplanned, status: "closed" }).next_step, { action: "none" });
+  assert.deepStrictEqual(nextForChange({ ...unplanned, status: "closed" }).next_step, { action: "none", command: null });
 });
 
 // ---------------------------------------------------------------------------
@@ -291,6 +310,7 @@ test("next says how to declare an impact on the declared references", () => {
     obligation: "adr-impact-declaration",
     evidence: "adr-impact-declaration",
     how: 'ospec record impact --change evented (--adr <id> | --quality <id>) --impact <none|conforms|amends|supersedes|contradicts> --reason "<why>" [--record <new ADR>], then ospec check --change evented',
+    command: 'ospec record impact --change evented --adr 0002 --impact <none|conforms|amends|supersedes|contradicts> --reason "<why>"',
   });
   assert.strictEqual(result.suggestions, undefined);
 });
@@ -388,7 +408,7 @@ test("[REQ-idd-023] next gives the branching where it decides something and sugg
   let done = planned({ change: "tidy", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
   done = recordEvidence(done, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "t" }).state;
   const closing = nextForChange(done, { delivery: { ...delivery, source: "idd/config.yaml" } });
-  assert.deepStrictEqual(closing.next_step, { action: "close" });
+  assert.deepStrictEqual(closing.next_step, { action: "close", command: "ospec close --change tidy" });
   assert.strictEqual(closing.delivery.source, "idd/config.yaml");
   assert.ok(!("suggestions" in closing));
   assert.ok(!("suggestions" in nextForChange(unplanned, { delivery: { ...delivery, source: "team profile" } })));
@@ -400,7 +420,7 @@ test("[REQ-idd-025] next suggests the changelog and the release until idd/config
   let done = planned({ change: "tidy", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
   done = recordEvidence(done, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "t" }).state;
   const profiled = nextForChange(done, { delivery: { ...branching, changelog: option("CHANGELOG.md", "team profile"), release: option("batched", "team profile") } });
-  assert.deepStrictEqual(profiled.next_step, { action: "close" });
+  assert.deepStrictEqual(profiled.next_step, { action: "close", command: "ospec close --change tidy" });
   assert.deepStrictEqual(profiled.suggestions.map((suggestion) => suggestion.id), ["changelog-undeclared", "release-undeclared"]);
   assert.strictEqual(profiled.suggestions[0].reason, "delivery.changelog is not declared; CHANGELOG.md is recommended");
   assert.match(profiled.suggestions[0].how, /^propose delivery.changelog: CHANGELOG.md to the user .* only after approval; until then ospec close writes no changelog entry$/);
@@ -408,4 +428,95 @@ test("[REQ-idd-025] next suggests the changelog and the release until idd/config
   const declared = nextForChange(done, { delivery: { ...branching, changelog: option("none", "idd/config.yaml"), release: option("per-change", "idd/config.yaml") } });
   assert.strictEqual(declared.delivery.release.value, "per-change");
   assert.ok(!("suggestions" in declared));
+});
+
+// ---------------------------------------------------------------------------
+// The literal command of every step (E1.45, B5)
+// ---------------------------------------------------------------------------
+
+// Every step but none carries the command that does it; choose-change, one per
+// open change.
+function assertCommand(step, label) {
+  if (step.action === "none") return assert.strictEqual(step.command, null, label);
+  if (step.action === "choose-change") return assert.ok(step.commands.every((command) => command.startsWith("ospec next --change ")), label);
+  assert.strictEqual(typeof step.command, "string", `${label}: ${step.action} needs a command`);
+  assert.match(step.command, /^ospec [a-z]/, label);
+  return undefined;
+}
+
+test("every next step of every reference fixture carries its literal command", () => {
+  for (const fixture of loadFixtures()) assertCommand(nextForChange(stateFromFixture(fixture)).next_step, fixture.id);
+  const context = { checks: [], candidateCommand: "pnpm test" };
+  const unconfigured = nextForChange(planned({ change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }), context);
+  assert.strictEqual(unconfigured.next_step.action, "configure-checks");
+  assert.strictEqual(unconfigured.next_step.command, "ospec next --change fix-it --json");
+  for (const states of [[], [planned({ change: "a", kind: "docs", summary: "s", acceptance: "a", ...NO_OPEN_FACTS })]]) {
+    assertCommand(nextForProject(states).next_step, `project of ${states.length}`);
+  }
+});
+
+test("each obligation names the command that records its evidence", () => {
+  const cases = [
+    ["checks-pass", "ospec check --change fix-it"],
+    ["boundary-tests", "ospec check --change fix-it"],
+    ["contract-spec-and-test", "ospec check --change fix-it"],
+    ["trust-review", "ospec review start --change fix-it"],
+    ["living-doc", "ospec close --change fix-it"],
+    ["migration-compat-and-test", 'ospec run --change fix-it --obligation migration-compat-and-test --command "<migration test>" --plan "<compatibility or rollback>"'],
+    ["tdd-red-green", 'ospec run --change fix-it --obligation tdd-red-green --command "<test>" --unit <name>'],
+  ];
+  const base = planned({ change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  for (const [obligation, command] of cases) {
+    const state = { ...base, obligations: [{ id: obligation, signal: "always", status: "pending", evidence: [] }] };
+    assert.strictEqual(nextForChange(state).next_step.command, command, obligation);
+  }
+});
+
+// The red run names the command to run again, so the agent need not retype it.
+function withRun(state, run) {
+  const runs = [...(state.runs || []), { id: `run-${(state.runs || []).length + 1}`, output_sha256: "x", tree: "y", recorded_at: "t", ...run }];
+  return { ...state, runs };
+}
+
+test("after a red run, the step repeats its command instead of <test>", () => {
+  let state = planned({ change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  state = recordSignal(state, { id: "bug-fix", reason: "bug", source: "declaration" }).state;
+  assert.match(nextForChange(state).next_step.command, /--command "<test>"$/);
+
+  state = withRun(state, { purpose: "checks", command: "npm test", exit_code: 1 });
+  state = withRun(state, { purpose: "repro-test", command: "node --test test/page.test.js", exit_code: 1 });
+  assert.strictEqual(nextForChange(state).next_step.command, 'ospec run --change fix-it --obligation repro-test --command "node --test test/page.test.js"');
+
+  state = withRun(state, { purpose: "repro-test", command: "npm test -- --grep \"last page\"", exit_code: 1 });
+  assert.strictEqual(nextForChange(state).next_step.command, "ospec run --change fix-it --obligation repro-test --command 'npm test -- --grep \"last page\"'");
+  state = withRun(state, { purpose: "repro-test", command: "echo it's $HOME", exit_code: 1 });
+  assert.strictEqual(nextForChange(state).next_step.command, "ospec run --change fix-it --obligation repro-test --command 'echo it'\\''s $HOME'");
+  // A passing run that did not settle the pair is not the red to repeat.
+  state = withRun(state, { purpose: "repro-test", command: "true", exit_code: 0 });
+  assert.match(nextForChange(state).next_step.command, /--command 'echo it'/);
+});
+
+test("a red unit names its unit, and a red migration test keeps its plan placeholder", () => {
+  const base = planned({ change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  const tdd = withRun({ ...base, obligations: [{ id: "tdd-red-green", signal: "always", status: "pending", evidence: [] }] }, { purpose: "tdd-red-green", command: "go test ./parser", exit_code: 1, unit: "parser" });
+  assert.strictEqual(nextForChange(tdd).next_step.command, 'ospec run --change fix-it --obligation tdd-red-green --command "go test ./parser" --unit parser');
+  const migration = withRun({ ...base, obligations: [{ id: "migration-compat-and-test", signal: "always", status: "pending", evidence: [] }] }, { purpose: "migration-test", command: "npm run migrate:test", exit_code: 1 });
+  assert.strictEqual(
+    nextForChange(migration).next_step.command,
+    'ospec run --change fix-it --obligation migration-compat-and-test --command "npm run migrate:test" --plan "<compatibility or rollback>"',
+  );
+});
+
+test("the impact step names the first declared reference without an impact, then check", () => {
+  let state = planned({ change: "evented", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  state = recordSignal(state, { id: "adr-or-quality-attribute", reason: "declared", source: "declaration" }).state;
+  state = recordReferences(state, [{ kind: "adr", id: "0002" }, { kind: "scenario", id: "module-integration" }]).state;
+  state = recordImpact(state, { kind: "adr", id: "0002", impact: "conforms", reason: "r" }).state;
+  assert.strictEqual(
+    nextForChange(state).next_step.command,
+    'ospec record impact --change evented --quality module-integration --impact <none|conforms|amends|supersedes|contradicts> --reason "<why>"',
+  );
+  state = recordImpact(state, { kind: "scenario", id: "module-integration", impact: "none", reason: "r" }).state;
+  const step = nextForChange(state).next_step;
+  if (step.obligation === "adr-impact-declaration") assert.strictEqual(step.command, "ospec check --change evented");
 });

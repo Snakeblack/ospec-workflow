@@ -966,7 +966,7 @@ The orchestrator reads its `_shared` handlers on demand, and a consumer project 
 
 ### Requirement: IDD Protocol Ships As An On-Demand Skill {#REQ-generator-024}
 
-Every target MUST ship the IDD protocol as the `skills/idd/SKILL.md` skill, at most 12 KB, loaded on demand like any other skill. The protocol works the change through the `ospec` CLI (REQ-idd-011 to REQ-idd-017): it follows `ospec next`, records evidence only through `ospec run`, `ospec check` and `ospec review`, stops for the user only at the gates of REQ-idd-008, asks the open facts of REQ-idd-018 in one batch before building, and names `work-unit-commits`, `branch-pr` and `chained-pr` for delivery, which stays the user's decision. It names the CLI through the `{{ospec-cli}}` placeholder, which the generator replaces in `skills/**` with `profile.idd.ospecCli` when the host substitutes a path itself (`${CLAUDE_SKILL_DIR}/../../scripts/ospec.js` on Claude, whose plugin ships the runtime `scripts/` at its root) and otherwise with `__OSPEC_RUNTIME_DIR__/scripts/ospec.js`, which the installer renders (REQ-install-035). Every target MUST ship `scripts/ospec.js`, and no other generated file MAY carry `__OSPEC_RUNTIME_DIR__`.
+Every target MUST ship the IDD protocol as the `skills/idd/SKILL.md` skill, at most 12 KB, loaded on demand like any other skill. The protocol works the change through the `ospec` CLI (REQ-idd-011 to REQ-idd-017): it follows `ospec next`, records evidence only through `ospec run`, `ospec check` and `ospec review`, stops for the user only at the gates of REQ-idd-008, asks the open facts of REQ-idd-018 in one batch before building, and names `work-unit-commits`, `branch-pr` and `chained-pr` for delivery, which stays the user's decision. It names the CLI as one word through the `{{ospec-cli}}` placeholder (E1.45), never as `node "<path>"`, which an agent that keeps it in a variable cannot run in zsh: the shim beside the runtime. The generator replaces the placeholder in `skills/**` with `profile.idd.ospecCli` when the host substitutes a path itself (`${CLAUDE_SKILL_DIR}/../../bin/ospec` on Claude, whose plugin ships the runtime `scripts/` and `bin/` at its root) and otherwise with `__OSPEC_RUNTIME_DIR__/bin/ospec`, which the installer renders (REQ-install-035). The `foundation` skill, which runs `ospec foundation`, names it the same way. Every target MUST ship `scripts/ospec.js` and the shims from the source's `bin/`: `bin/ospec`, a POSIX `sh` script with LF endings written with its execute bit, and `bin/ospec.cmd`, with CRLF endings for cmd, both running the `scripts/ospec.js` beside them with the same arguments from any working directory, a path with spaces included. No generated file other than those two skills, and the agents that embed them, MAY carry `__OSPEC_RUNTIME_DIR__`.
 
 The router (REQ-generator-022) MUST send code changes that are not SDD requests to the protocol by default, the IDD default of REQ-idd-001, naming it through the `{{idd-entry}}` placeholder, which the generator replaces in `rules/**` with `profile.idd.entry` (the skill `ospec-workflow:idd` on Claude) or, by default, the skill `idd`. Questions and read-only work stay direct, and a change is made directly only when the user explicitly asks for it without IDD; the router never offers that. With `mode: sdd` in `idd/config.yaml`, IDD is off: code changes are made directly and SDD runs only on request, as before E1.6. SDD stays reachable through `/sdd-*` or an explicit request, and SDD changes in flight finish in SDD.
 
@@ -983,13 +983,21 @@ IDD runs only inside a project (E4.8): the router MUST define it as a git work t
 
 - GIVEN a build generated for each of the 7 targets
 - WHEN `skills/idd/SKILL.md` is read
-- THEN it is at most 12 KB, holds no unresolved placeholder, runs `node "${CLAUDE_SKILL_DIR}/../../scripts/ospec.js"` on Claude and `node "__OSPEC_RUNTIME_DIR__/scripts/ospec.js"` elsewhere, and the build ships `scripts/ospec.js`
+- THEN it is at most 12 KB, holds no unresolved placeholder, defines `ospec` as `${CLAUDE_SKILL_DIR}/../../bin/ospec` on Claude and `__OSPEC_RUNTIME_DIR__/bin/ospec` elsewhere, as `skills/foundation/SKILL.md` does, and never as `node "<path>"`
+- AND the build ships `scripts/ospec.js`, `bin/ospec.cmd` and `bin/ospec` with its execute bit
+
+#### Scenario: The shim runs in every shell
+
+- GIVEN a build installed under a path with spaces and its protocol rendered
+- WHEN bash, zsh, fish, PowerShell and cmd run the word the protocol names, those the machine has (zsh and fish also from a variable), with `--help` and with an argument holding a space
+- THEN each one exits with the CLI's code and the argument arrives whole
+- AND a shell the machine lacks is skipped, and the skip names it
 
 #### Scenario: The router enters IDD by default
 
 - GIVEN the same builds
 - WHEN the router is read
-- THEN it sends code changes to the host's IDD entry by default without naming `mode: idd`, turns IDD off with `mode: sdd` in `idd/config.yaml`, allows direct work only when the user explicitly asks for a change without IDD, still names `/sdd-*` for SDD, and only `skills/idd/SKILL.md` carries `__OSPEC_RUNTIME_DIR__` (nothing on Claude)
+- THEN it sends code changes to the host's IDD entry by default without naming `mode: idd`, turns IDD off with `mode: sdd` in `idd/config.yaml`, allows direct work only when the user explicitly asks for a change without IDD, still names `/sdd-*` for SDD, and only `skills/idd/SKILL.md` and `skills/foundation/SKILL.md` carry `__OSPEC_RUNTIME_DIR__` (nothing on Claude)
 
 ### Requirement: SDD Package Ships Only On Request {#REQ-generator-025}
 
