@@ -24,6 +24,7 @@ const {
   STATE_SCHEMA,
   canWithdraw,
   isIntentAmbiguous,
+  signalGaps,
 } = require("./idd-contract.js");
 const { factsFromCoverage } = require("./idd-facts.js");
 const { normalizePath } = require("./idd-impact.js");
@@ -293,6 +294,26 @@ function recordWithdraw(state, { obligation: obligationId, reason } = {}) {
   return { state: next, changed: true };
 }
 
+// Reopens each obligation an active signal derives that a hand edit removed or
+// withdrew (B2), as a returning signal does (REQ-idd-006): `ospec check` runs
+// it, so the change gets out of the state close refuses.
+function reopenDerived(state) {
+  requireOpen(state);
+  const gaps = signalGaps(state);
+  if (gaps.length === 0) return unchanged(state);
+  const next = structuredClone(state);
+  for (const { obligation: id, signal } of gaps) {
+    const target = next.obligations.find((entry) => entry.id === id);
+    if (!target) {
+      next.obligations.push({ id, signal, status: "pending", evidence: [] });
+      continue;
+    }
+    Object.assign(target, { signal, status: "pending", evidence: [] });
+    delete target.withdrawn_reason;
+  }
+  return { state: next, changed: true };
+}
+
 function sortedUnion(left, right) {
   return [...new Set([...left, ...right])].sort();
 }
@@ -533,4 +554,5 @@ module.exports = {
   recordRetract,
   recordSignal,
   recordWithdraw,
+  reopenDerived,
 };

@@ -97,7 +97,7 @@ REQ-idd-022: one per declared reference, with its `kind`, `id`, `evidence` and
 `recorded_at`), `runs` (each
 CLI-observed execution of REQ-idd-014) and `reviews` (the trust review
 lineages of REQ-idd-016, oldest first), plus `closed_at` once the change is
-closed (REQ-idd-017). A state without `base`, `plan`, `retracted`, `impacts`,
+closed (REQ-idd-017), an ISO 8601 UTC timestamp, since it names the archive. A state without `base`, `plan`, `retracted`, `impacts`,
 `attestations`, `runs`, `reviews`, `facts` or `assumptions` MUST stay valid, as the states written before they existed. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
@@ -208,7 +208,9 @@ recomputed from the real diff on every check. A signal the diff triggers MUST ad
 its obligations immediately with `source: diff`. An obligation MUST leave
 `pending` only by being satisfied or by an explicit recorded withdrawal with a
 reason, and a withdrawal MUST be refused while any active signal still derives
-that obligation.
+that obligation. `ospec check` MUST also reopen as `pending` every obligation an
+active signal derives that the state holds `withdrawn` or lacks, which only a
+hand edit leaves (REQ-idd-009).
 
 A declared signal the plan overstated MUST be correctable before the diff
 confirms it: `ospec record retract --signal <id> --reason <text>` MUST remove a
@@ -353,7 +355,30 @@ open it with `record gate --open` and a reason naming the ADR before it asks.
 ### Requirement: Close Requires Settled Obligations {#REQ-idd-009}
 
 `ospec close` MUST succeed only when no obligation is `pending` and no gate is
-`open`. Closing MUST set `status: closed` and archive the change transactionally
+`open`. Close MUST also revalidate the state with the rules the commands keep,
+since a hand edit can break them (REQ-idd-003):
+
+- while an active signal derives an obligation that is `withdrawn` or missing,
+  close MUST be refused naming the obligation and the signal;
+- close MUST derive the signals again from the diff as `ospec check` does, and be
+  refused naming each signal, gate or architecture reference that derivation
+  adds and the state lacks;
+- while a satisfied `checks-pass`, `boundary-tests`, `contract-spec-and-test`,
+  `migration-compat-and-test`, or `adr-impact-declaration` with fitness runs,
+  holds its last evidence on another tree than the one being closed, close MUST
+  be refused with `evidence-stale`;
+- a change already marked `closed` but still under `idd/<id>/` MUST resume its
+  archive only while no obligation is `pending`, no gate is `open` and no
+  obligation an active signal derives is `withdrawn` or missing; otherwise close
+  MUST be refused naming them and move nothing. Resuming MUST NOT check tree
+  freshness or the derivation again, since the close it resumes may have
+  written the changelog, so a hand edit to `closed` escapes those two checks;
+- close MUST mark closed the same state it validated, and be refused with
+  `state-changed`, before the changelog is written, when `state.yaml` changed
+  meanwhile.
+
+Each refusal MUST leave the state and the changelog as they were and name
+`ospec check` as the way out. Closing MUST set `status: closed` and archive the change transactionally
 (REQ-idd-017). The result MUST include `assumptions`, the text recorded with
 `ospec record assumption`, or an empty list when none was recorded. Assumptions
 MUST NOT block close.
@@ -365,6 +390,22 @@ decision.
 - GIVEN an open change with `repro-test` pending
 - WHEN close is requested
 - THEN it MUST be refused naming `repro-test`
+
+#### Scenario: Close refuses a state edited by hand
+
+- GIVEN an open change whose `state.yaml` was edited by hand to mark
+  `checks-pass` `withdrawn` while the signal `always` is active
+- WHEN close is requested
+- THEN it MUST be refused naming `checks-pass` and `always`, with `ospec check`
+  as the way out
+- AND `ospec check` MUST reopen `checks-pass` as `pending`
+
+#### Scenario: Close refuses a signal removed by hand
+
+- GIVEN an open change whose `state.yaml` lost the signal `always` together with
+  `checks-pass`
+- WHEN close is requested
+- THEN it MUST be refused naming the signal `always`, which the diff derives
 
 ### Requirement: Reference Change Fixtures {#REQ-idd-010}
 

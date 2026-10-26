@@ -506,3 +506,24 @@ test("close is refused while an obligation is pending or a gate is open", () => 
   ];
   assert.deepStrictEqual(contract.canClose(settled), { ok: true, blocking: [] });
 });
+
+test("closed_at must be the ISO 8601 UTC close time, since it names the archive", () => {
+  const closed = (closedAt) => validState({ status: "closed", closed_at: closedAt });
+  assert.deepStrictEqual(contract.validateState(closed("2026-10-26T10:00:00.000Z")).errors, []);
+  for (const closedAt of ["../../../x", "2026-10-26", "2026-10-26T10:00:00+02:00"]) {
+    assert.ok(contract.validateState(closed(closedAt)).errors.includes("closed_at is the close time of a closed change, as an ISO 8601 UTC timestamp"), closedAt);
+  }
+});
+
+test("signalGaps names each obligation an active signal derives that the state withdrew or lost (B2)", () => {
+  assert.deepStrictEqual(contract.signalGaps(validState()), []);
+  const edited = validState();
+  edited.obligations = [{ id: "repro-test", signal: "bug-fix", status: "withdrawn", evidence: [], withdrawn_reason: "edited by hand" }];
+  assert.deepStrictEqual(contract.signalGaps(edited), [
+    { obligation: "checks-pass", signal: "always", status: "missing" },
+    { obligation: "repro-test", signal: "bug-fix", status: "withdrawn" },
+  ]);
+  edited.signals = edited.signals.filter((signal) => signal.id === "bug-fix");
+  edited.obligations[0].status = "pending";
+  assert.deepStrictEqual(contract.signalGaps(edited), [], "an obligation no active signal derives is no gap");
+});

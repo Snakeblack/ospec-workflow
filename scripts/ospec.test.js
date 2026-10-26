@@ -432,6 +432,137 @@ test("close refuses old check evidence after the configured check changes", (t) 
   assert.strictEqual(stateOf(root, "fix-readme").status, "open");
 });
 
+// B2 of the 2026-10-25 audit: a state.yaml edited by hand closed although the
+// CLI refuses the same withdrawal; close revalidates it and check reopens it.
+test("close refuses a hand-edited state that withdraws an obligation a signal still derives, and check reopens it", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  const edited = stateOf(root, "fix-readme");
+  Object.assign(edited.obligations.find((entry) => entry.id === "checks-pass"), { status: "withdrawn", withdrawn_reason: "not needed" });
+  writeFile(root, "idd/fix-readme/state.yaml", `${JSON.stringify(edited, null, 2)}\n`);
+
+  const refused = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(refused.code, 1, refused.stdout);
+  assert.strictEqual(refused.json.error.code, "close-refused");
+  assert.match(refused.json.error.message, /checks-pass is withdrawn while signal always derives it/);
+  assert.match(refused.json.error.how, /ospec check --change fix-readme/);
+  assert.strictEqual(stateOf(root, "fix-readme").status, "open");
+
+  const reopened = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.deepStrictEqual(reopened.json.missing.map((entry) => entry.obligation), ["checks-pass"]);
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").code, 0);
+});
+
+test("close derives the signals again and refuses a signal removed by hand with its obligation (B2)", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  const edited = stateOf(root, "fix-readme");
+  edited.signals = edited.signals.filter((signal) => signal.id !== "always");
+  edited.obligations = edited.obligations.filter((entry) => entry.id !== "checks-pass");
+  writeFile(root, "idd/fix-readme/state.yaml", `${JSON.stringify(edited, null, 2)}\n`);
+
+  const refused = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(refused.code, 1, refused.stdout);
+  assert.strictEqual(refused.json.error.code, "close-refused");
+  assert.match(refused.json.error.message, /the diff derives signal always, which the state lacks/);
+  assert.match(refused.json.error.how, /ospec check --change fix-readme/);
+
+  writeFile(root, "src/pages.txt", "2");
+  const checked = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.deepStrictEqual(checked.json.added.signals, ["always"]);
+  assert.strictEqual(checked.json.verdict, "ready");
+  assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").code, 0);
+});
+
+test("close resumes a change ospec closed, and refuses one marked closed by hand or with a forged close time (B2)", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  const file = "idd/fix-readme/state.yaml";
+  const forged = { ...stateOf(root, "fix-readme"), status: "closed", closed_at: "2026-10-26T10:00:00.000Z" };
+  writeFile(root, file, `${JSON.stringify(forged, null, 2)}\n`);
+  const refused = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(refused.code, 1, refused.stdout);
+  assert.strictEqual(refused.json.error.code, "close-refused");
+  assert.match(refused.json.error.message, /fix-readme is marked closed with checks-pass/);
+  assert.ok(fs.existsSync(path.join(root, file)) && !fs.existsSync(path.join(root, "idd", "archive", "2026-10-26-fix-readme")));
+
+  writeFile(root, file, `${JSON.stringify({ ...forged, closed_at: "../../../x" }, null, 2)}\n`);
+  const escaped = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(escaped.code, 1, escaped.stdout);
+  assert.strictEqual(escaped.json.error.code, "state-invalid");
+  assert.match(escaped.json.error.message, /closed_at is the close time of a closed change, as an ISO 8601 UTC timestamp/);
+  assert.ok(fs.existsSync(path.join(root, file)));
+
+  writeFile(root, file, `${JSON.stringify({ ...forged, status: "open", closed_at: undefined }, null, 2)}\n`);
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  const settled = { ...stateOf(root, "fix-readme"), status: "closed", closed_at: "2026-10-26T10:00:00.000Z" };
+  writeFile(root, file, `${JSON.stringify(settled, null, 2)}\n`);
+  const resumed = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(resumed.code, 0, resumed.stdout);
+  assert.strictEqual(resumed.json.archive.destination, "idd/archive/2026-10-26-fix-readme");
+});
+
+// A preload rewrites state.yaml at the first git diff of close, after close
+// read the state it validates and before it marks the change closed.
+const TAMPER_PRELOAD = `
+const cp = require("node:child_process");
+const fs = require("node:fs");
+const run = cp.execFileSync;
+let done = false;
+cp.execFileSync = function (file, args, ...rest) {
+  const output = run.call(this, file, args, ...rest);
+  if (!done && file === "git" && args.includes("diff")) {
+    done = true;
+    fs.writeFileSync(process.env.OSPEC_TEST_STATE, process.env.OSPEC_TEST_TAMPERED);
+  }
+  return output;
+};
+`;
+
+test("close refuses a state.yaml rewritten while it validates, before the changelog (B2)", (t) => {
+  const { root } = project(t, { checks: "checks:\n  test: node verify.js\ndelivery:\n  changelog: CHANGELOG.md\n" });
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  const file = path.join(root, "idd", "fix-readme", "state.yaml");
+  const tampered = stateOf(root, "fix-readme");
+  tampered.assumptions = ["written by hand"];
+  const preload = path.join(root, "..", `${path.basename(root)}-tamper.js`);
+  fs.writeFileSync(preload, TAMPER_PRELOAD);
+  t.after(() => fs.rmSync(preload, { force: true }));
+
+  const env = { ...process.env, NODE_OPTIONS: `--require ${JSON.stringify(preload)}`, OSPEC_TEST_STATE: file, OSPEC_TEST_TAMPERED: `${JSON.stringify(tampered, null, 2)}\n` };
+  const refused = ospecWith(env, root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(refused.code, 1, refused.stdout);
+  assert.strictEqual(refused.json.error.code, "state-changed");
+  assert.strictEqual(stateOf(root, "fix-readme").status, "open");
+  assert.ok(!fs.existsSync(path.join(root, "CHANGELOG.md")), "a refused close leaves the changelog as it was");
+  assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").code, 0);
+});
+
+test("close never archives outside idd/archive from an archived state with a forged close time (B2)", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  const closed = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(closed.code, 0, closed.stdout);
+  assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").json.archive.already_complete, true);
+
+  const archived = path.join(root, ...closed.json.archive.destination.split("/"), "state.yaml");
+  const state = JSON.parse(fs.readFileSync(archived, "utf8"));
+  fs.writeFileSync(archived, `${JSON.stringify({ ...state, closed_at: "../../../x" }, null, 2)}\n`);
+  fs.mkdirSync(path.join(root, "idd", "fix-readme"));
+  const escaped = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(escaped.code, 1, escaped.stdout);
+  assert.strictEqual(escaped.json.error.code, "state-invalid");
+  assert.ok(fs.existsSync(path.join(root, "idd", "fix-readme")), "nothing moved");
+  assert.ok(!fs.existsSync(path.join(root, "..", "x-fix-readme")), "nothing left the repository");
+});
+
 test("check without declared checks reports what is missing", (t) => {
   const { root } = project(t, { checks: null });
   ospec(root, ...OPEN_DOCS);
