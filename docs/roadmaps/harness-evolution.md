@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.153.1, 2026-10-25.
+> **Versión de referencia:** v2.153.2, 2026-10-26.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -163,7 +163,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.40** | `diff-signal-retract-dead-end` (#418, seguimiento de E1.38: una señal `diff` que el diff ya no deriva se retira con su razón, como una declarada; la que el diff deriva se sigue rechazando, en v2.150.8) | bugfix |
 | `done` | **E1.41** | `rules-engine-unicode-parity` (seguimiento de E1.39: Go adopta la semántica ASCII de JS en las 19 reglas, la regla de disco deniega nombres con letras no ASCII en los dos motores y un corpus compartido fija las decisiones, en v2.150.9) | bugfix |
 | `done` | **E1.42** | `idd-catalog-single-source` (B1 de la auditoría del 2026-10-25: Go embebe el catálogo IDD que emite el CLI en `internal/iddsession/catalog.json` y deja de descartar el estado con `untested-product`, `boundary-tests` o `review-limit`; el golden de `idd-session` fija el paso en los dos motores y un test falla si el JSON se queda desfasado, en v2.153.1) | bugfix |
-| `pending` | **E1.43** | `close-revalidates-state` (B2: `close` revalida las reglas del CLI y se deniega editar el estado a mano) | bugfix |
+| `done` | **E1.43** | `close-revalidates-state` (B2: `close` rechaza una obligación `withdrawn` o ausente que una señal activa deriva, vuelve a derivar las señales como `check` y exige la evidencia del árbol que se cierra, y `check` repara el estado; PreToolUse deniega escribir `idd/<cambio>/state.yaml`, `idd/archive/` y los recibos de review en el hook JS y el binario Go; la garantía en los 7 targets es la revalidación de `close`, en v2.153.2) | bugfix |
 | `pending` | **E1.44** | `ceremony-only-rises` (B3, B6, B7 y B9: tests en el diff, citas acotadas, `checks` frente a la base y `--kind` contrastado con el diff) | bugfix |
 | `pending` | **E1.45** | `cli-one-word-invocation` (B5: shim `ospec` en los 7 targets y comando literal en cada `next_step`) | bugfix |
 | `pending` | **E1.46** | `state-durability` (fsync, temporal único, dueño del lock y cuarentena de un estado ilegible) | bugfix |
@@ -210,7 +210,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 
 **▶ SIGUIENTE:** el orden que sale de la [auditoría del harness frente a gentle-ai del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Mantiene la decisión del usuario del 2026-10-23 (primero los defectos del harness, el banco después) y la del 2026-10-25: un change por sesión, y todo funciona en los 7 targets. Hasta la v2.151.0, la cola anterior dejó hechos E1.29, E1.31, E1.32 y E1.34–E1.41 y E4.12.
 
-E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1; sigue E1.43.
+E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1 y E1.43 `close-revalidates-state` en v2.153.2; sigue E1.44.
 
 1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E4.10 `greenfield-foundation-hint`.
 2. **B. Economía**, antes que C porque C añade una ejecución de la suite: E4.15 `cli-chaining` → E4.16 `cli-terse-output` → E4.3 `context-budget-ratchet`, que fija los techos por target después de B.
@@ -842,6 +842,9 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
   - Temporal único y fsync del fichero y del directorio.
   - Token de dueño (pid y nonce) que se comprueba antes de soltar el lock, y heartbeat del mtime mientras dura la operación. En JS y en Go.
   - `ospec doctor` aparta un estado ilegible como `*.corrupt`, con lista blanca.
+  - Residuos de la cuarta trust review de E1.43, que el usuario dejó para aquí el 2026-10-26:
+    - el guard de PreToolUse reconoce una escritura por el verbo del nombre, así que un `copy_file`, `append_file` o `save_file` de una MCP de terceros no se deniega;
+    - REQ-hooks-029, `docs/harness-runtime.md` y `docs/target-capabilities.md` deben decir que `close` solo revalida el estado de un cambio abierto, y que para `idd/archive/**` y `.ospec/review-receipts/**` el único control es el hook previo.
 - **Targets:** los 7.
 - **Hecho cuando:**
   - un test con dos procesos concurrentes no pierde ninguna escritura;

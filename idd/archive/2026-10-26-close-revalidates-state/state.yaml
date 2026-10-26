@@ -1,0 +1,2140 @@
+{
+  "schema": "idd-state/v1",
+  "change": "close-revalidates-state",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "E1.43: ospec close revalida el estado con las reglas de los comandos (ninguna obligación withdrawn o ausente que una señal activa derive y la evidencia ligada al árbol del último check) y PreToolUse deniega escribir idd/<cambio>/state.yaml, idd/archive/** y los recibos de review en los seis targets con hook previo a editar; Cursor solo revalida",
+    "acceptance": "El state.yaml de la auditoría editado a mano con checks-pass: withdrawn no cierra y el rechazo nombra la obligación; en Claude, Codex, VS Code, Copilot, OpenCode y Antigravity un Write o Edit sobre idd/<cambio>/state.yaml se deniega; validate-cursor.js declara que Cursor solo revalida; un cambio legítimo cierra igual que hoy"
+  },
+  "facts": {
+    "open": [
+      "¿Cómo sale un cambio de un estado editado a mano que close rechaza: ospec check lo repara (reabre como pending la obligación que una señal activa deriva), close lo repara él mismo, o no hay salida en el CLI?",
+      "¿close vuelve a derivar las señales del diff como ospec check y rechaza si añadiría una señal o un gate (cubre borrar a mano una señal junto con su obligación), o solo comprueba la coherencia interna del estado?",
+      "¿El deny de PreToolUse cubre solo las herramientas que escriben un fichero por ruta (Write, Edit, apply_patch, MCP), o también los comandos de shell que escriben en esas rutas (>, tee, sed -i, mv, rm)?",
+      "¿Las rutas protegidas (idd/<cambio>/state.yaml, idd/archive/** y .ospec/review-receipts/**) se reconocen en cualquier punto de la ruta sin consultar git, o solo relativas a la raíz del proyecto?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "internal/hooks/pretooluse.go",
+      "internal/hooks/pretooluse_test.go",
+      "internal/testdata/parity/pre-tool-use-state-deny.json",
+      "openspec/specs/hooks/spec.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/configure/validate-cursor.js",
+      "scripts/configure/validate-cursor.test.js",
+      "scripts/hooks/ospec-hooks-launch.test.js",
+      "scripts/hooks/pre-tool-use.js",
+      "scripts/hooks/pre-tool-use.test.js",
+      "scripts/lib/idd-close.js",
+      "scripts/lib/idd-close.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.test.js and 2 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0002, 0005, 0008 and quality scenario guard-fail-closed, target-parity",
+      "source": "declaration"
+    }
+  ],
+  "retracted": [
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/pre-tool-use.js uses writeFile",
+      "source": "diff",
+      "retract_reason": "El cambio no añade ni cambia ninguna escritura persistente: el writeFile de pre-tool-use.js es el registro de tokens que ya existía, y el deny nuevo no escribe nada.",
+      "confirmed_by": "persistent data: scripts/hooks/pre-tool-use.js uses writeFile",
+      "hits": [
+        "scripts/hooks/pre-tool-use.js uses writeFile: fs.appendFileSync(logPath, JSON.stringify({ t: tokens, ts: Date.now() }) + \"\\n\", \"utf8\");",
+        "scripts/ospec.js uses writeFile: if (rendered !== text) fs.writeFileSync(file, rendered);",
+        "scripts/ospec.js uses writeFile: fs.writeFileSync(target, added.text);",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-gitignore.js, which uses writeFile: fsImpl.writeFileSync(gitignorePath, payload, { flag: \"wx\" });",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-gitignore.js, which uses writeFile: fsImpl.writeFileSync(gitignorePath, payload);",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-gitignore.js, which uses writeFile: fsImpl.writeFileSync(ignore, SELF_IGNORE, { flag: \"wx\" });",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-state.js, which uses writeFile: await fs.writeFile(temporaryPath, summary, \"utf8\");",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-state.js, which uses writeFile: fs.appendFile(eventPath, `${JSON.stringify(serializedEvent)}\\n`, \"utf8\"),",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-state.js, which uses writeFile: await fs.appendFile(filePath, `${JSON.stringify(record)}\\n`, \"utf8\");",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-state.js, which uses writeFile: await withFileLock(filePath, () => fs.appendFile(filePath, line, \"utf8\"));",
+        "scripts/lib/idd-close.js imports scripts/lib/archive-transaction.js, which uses writeFile: await fsx.writeFile(p, JSON.stringify(journal, null, 2), \"utf8\");",
+        "scripts/lib/idd-close.js imports scripts/lib/archive-transaction.js, which uses writeFile: await fsx.writeFile(p, JSON.stringify(receipt, null, 2), \"utf8\");",
+        "scripts/ospec.js imports scripts/lib/idd-store.js, which uses writeFile: await fs.writeFile(file, livingDocTemplate(state), { encoding: \"utf8\", flag: \"wx\" });",
+        "scripts/ospec.js imports scripts/lib/idd-store.js, which uses writeFile: await writeFile(file, serializeState(result.state));",
+        "scripts/ospec.js imports scripts/lib/ospec-state.js, which uses writeFile: await fs.writeFile(temporaryPath, summary, \"utf8\");",
+        "scripts/ospec.js imports scripts/lib/ospec-state.js, which uses writeFile: fs.appendFile(eventPath, `${JSON.stringify(serializedEvent)}\\n`, \"utf8\"),",
+        "scripts/ospec.js imports scripts/lib/ospec-state.js, which uses writeFile: await fs.appendFile(filePath, `${JSON.stringify(record)}\\n`, \"utf8\");",
+        "scripts/ospec.js imports scripts/lib/ospec-state.js, which uses writeFile: await withFileLock(filePath, () => fs.appendFile(filePath, line, \"utf8\"));"
+      ],
+      "answer": "Confirmo, no hay (Recomendado)",
+      "answer_source": "user"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Solo cambia la fuente canónica (CLI, hook JS, binario Go, validador de Cursor); los siete targets se regeneran desde ella sin ediciones propias."
+    },
+    {
+      "kind": "adr",
+      "id": "0002",
+      "impact": "conforms",
+      "reason": "Refuerza que solo el CLI escribe el estado: close revalida las reglas de los comandos y PreToolUse deniega escribir idd/<cambio>/state.yaml, el archivo y los recibos; el formato de state.yaml no cambia."
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La revalidación vive en el CLI (idd-contract, idd-close, idd-record, ospec.js) y la skill no describe ninguna regla nueva; el hook solo refuerza."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "El catálogo de señales y obligaciones no cambia: close solo comprueba que el estado conserva lo que sus señales derivan."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "close sigue negándose con una obligación pendiente o un gate abierto, y además cuando el estado ya no refleja lo que sus señales derivan o la evidencia ligada al árbol prueba otro árbol."
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "El deny del estado del CLI va antes de cualquier aviso, no se degrada en bypassPermissions ni lo apaga ningún DISABLE_*; una entrada ilegible sigue el camino de fallo de inspección de siempre."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas: JS y Go usan solo su biblioteca estándar."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "El deny cubre solo idd/ y .ospec/review-receipts/; el estado SDD de openspec/ no cambia."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "El formato de state.yaml no cambia; next lee el mismo estado y check reabre las obligaciones de forma determinista."
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Una escritura sobre el estado del CLI queda bloqueada en los seis targets con hook previo, en el binario Go y en el hook JS con la misma fixture de paridad."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "No añade llamadas de red: close relee el diff local con git, como check."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El cambio vive en la fuente compartida (CLI, hook JS y binario Go) de la que se generan los siete targets; el hueco de Cursor queda declarado en validate-cursor.js."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "signalGaps, staleEvidence, closeChange y reopenDerived tienen tests en idd-contract.test.js, idd-close.test.js e idd-record.test.js, y close y check en ospec.test.js; ninguna skill cambia.",
+      "recorded_at": "2026-10-25T23:22:32.129Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "git diff de scripts/ e internal/ no añade http, fetch, net ni dns; solo un test lanza procesos node locales. close usa readGitDiff local, como check.",
+      "recorded_at": "2026-10-25T23:22:32.197Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-16"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-20"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-17"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-19"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-18"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "withdrawn",
+      "evidence": [],
+      "withdrawn_reason": "El cambio no añade ni cambia ninguna escritura persistente: el writeFile de pre-tool-use.js es el registro de tokens que ya existía, y el deny nuevo no escribe nada."
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) ospec check lo repara (Recomendado). 2) Re-derivar como check (Recomendado). 3) Solo herramientas de fichero (Recomendado). 4) En cualquier punto de la ruta (Recomendado).",
+      "source": "user"
+    },
+    {
+      "id": "review-limit",
+      "status": "resolved",
+      "reason": "3 of 3 trust reviews used: ospec check opens the review-limit gate, and only the person's answer authorizes one more",
+      "answer": "Arreglar y autorizar 1 review más (Recomendado)",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-25T23:13:54.440Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-25T23:21:48.361Z",
+      "detail": {
+        "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-25T23:21:48.361Z",
+      "detail": {
+        "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/pretooluse_test.go",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-25T23:25:46.714Z",
+      "detail": {
+        "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+        "runs": [
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-25T23:25:46.714Z",
+      "detail": {
+        "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+        "check": "ev-4",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/pretooluse_test.go",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-25T23:25:46.714Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+        "fitness": [
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-25T23:34:15.655Z",
+      "detail": {
+        "lineage_id": "sha256:ddae084297d3f9a7032c0db1f9395b1b0a294cab4e73a85a1d3026725fc387d9",
+        "candidate_id": "sha256:aa8617da2762e4bd0dbcc5a5c4bff215b0b81a14f090053dfa6a89024d7703ff",
+        "candidate_tree": "3730282d6b17026269ca3af2f6a46a711748a927",
+        "findings_digest": "sha256:76478a63aff4f0cb98dae5eb4ca3f5f6c1fe5ea763c12c1bc9528f5daa8f9266",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-25T23:33:26.295Z",
+          "result_digest": "sha256:49aa9653acc288605e5f6b4457ed9614f54b5c819fb75122a5eda5e7d40f9823"
+        }
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-25T23:37:12.247Z",
+      "detail": {
+        "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+        "runs": [
+          "run-27"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-25T23:37:12.247Z",
+      "detail": {
+        "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+        "check": "ev-8",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/pretooluse_test.go",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-25T23:37:12.247Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+        "fitness": [
+          "run-28",
+          "run-29",
+          "run-30",
+          "run-31",
+          "run-32",
+          "run-33",
+          "run-34",
+          "run-35",
+          "run-36",
+          "run-37",
+          "run-38"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-25T23:48:37.119Z",
+      "detail": {
+        "lineage_id": "sha256:2faad98bdd9fb5fbf895c2f963be06b31db5cf1f01b973995534182093af7881",
+        "candidate_id": "sha256:121654fec3c2dabbea74aeb52ce67540934be51843a644ca20e9be7dfc7ce4fc",
+        "candidate_tree": "d1633709213091cb29a88bc63d3067e97d5bc543",
+        "findings_digest": "sha256:92e3740805b77b276881611805cfd14ca0d11edeaa60872515f3f4f0f027f4ac",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-25T23:48:10.520Z",
+          "result_digest": "sha256:71eed7518ec0c9e5087719497c0948153ca2c92df9b9a9ebd7d3dd3c94d547f7"
+        }
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-25T23:52:00.639Z",
+      "detail": {
+        "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+        "runs": [
+          "run-39"
+        ]
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-25T23:52:00.639Z",
+      "detail": {
+        "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+        "check": "ev-12",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/pretooluse_test.go",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-25T23:52:00.639Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+        "fitness": [
+          "run-40",
+          "run-41",
+          "run-42",
+          "run-43",
+          "run-44",
+          "run-45",
+          "run-46",
+          "run-47",
+          "run-48",
+          "run-49",
+          "run-50"
+        ]
+      }
+    },
+    {
+      "id": "ev-15",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-26T00:03:15.731Z",
+      "detail": {
+        "lineage_id": "sha256:15b5822fdaa6fd718c179de0af17369ae705b36540ab9e690c1266a78474ca32",
+        "candidate_id": "sha256:6aaf5e414063dde1a39d9b5ef7bcb9651ce78cb8c99f8afe5fd44cf4afce0f21",
+        "candidate_tree": "6f0edfff95f259245eb97f133bcee0884b92411b",
+        "findings_digest": "sha256:42e3a99f40b2b795aa589865fd5f99744fbdf208e34468fbb338a8744a9b99fd",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-26T00:02:45.176Z",
+          "result_digest": "sha256:2692cb1c916ef51d224dd5c1ae24be5fd82b6fd41a969648674e2d0952b529ba"
+        }
+      }
+    },
+    {
+      "id": "ev-16",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-26T00:06:11.338Z",
+      "detail": {
+        "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+        "runs": [
+          "run-51"
+        ]
+      }
+    },
+    {
+      "id": "ev-17",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-26T00:06:11.338Z",
+      "detail": {
+        "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+        "check": "ev-16",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/pretooluse_test.go",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-18",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-26T00:06:11.338Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+        "fitness": [
+          "run-52",
+          "run-53",
+          "run-54",
+          "run-55",
+          "run-56",
+          "run-57",
+          "run-58",
+          "run-59",
+          "run-60",
+          "run-61",
+          "run-62"
+        ]
+      }
+    },
+    {
+      "id": "ev-19",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-26T00:17:14.902Z",
+      "detail": {
+        "lineage_id": "sha256:5f5dd7e59582485c4ce55ab526e87c9a0b98293f59225712494b5c06a48c0b44",
+        "candidate_id": "sha256:889b7f2bd2a63acf5d4e05421fb72b696ce68b531e15e4bca1a78c5297dab1cf",
+        "candidate_tree": "0cfe86a2c8b62c2042876a6a45aa17d5b904b6b5",
+        "findings_digest": "sha256:d1de6129430645142166fb82c6f49e1d30fc13074811910bec1594182e0eff0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-26T00:16:35.218Z",
+          "result_digest": "sha256:2a9320969098fb9f0f5b075a12f5175889325a7436054d710d391480e55efc2b"
+        }
+      }
+    },
+    {
+      "id": "ev-20",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-26T00:18:11.204Z"
+    }
+  ],
+  "base": "367b114b3331bcfb9b06821cefb9b9f5fa804109",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern \"close refuses a hand-edited state\" scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:9326034720755f1454fb912500495d3678b9a10bff355cf1f8c8aa67e941b575",
+      "tree": "sha256:64d7660b3f0f540e56eec19bab606ed0910eef807cfb47b4c1f9295eebf7d463",
+      "recorded_at": "2026-10-25T23:12:36.136Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern \"close refuses a hand-edited state\" scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3f2d95675fdadf52ce18bdac5ba8c4001f93ba08a5a8b339f968feff46ff96e8",
+      "tree": "sha256:ce01f1f75cc3bb037ef2d776f9e2b437d8437b7e22363d16e5e6eadb51338c0d",
+      "recorded_at": "2026-10-25T23:13:54.440Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f954fb60a30db3910fe3f9b10950ddbe9274a7c6b4f633e5a7746a0f3e5296b2",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:21:48.361Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:75f01532a4d1b537c7d7c919491780ce90b126e2b03eb782970b0ff3c2011a0c",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:21:48.361Z",
+      "tests": 47
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:26f7e9d8f556efce2c6d2e1393bcbeb20f9acd53cbeba1a0a04eeb10a47957bf",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:21:48.361Z",
+      "tests": 11
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3c2e8c4cdb061f018cff30a6397ffd82581ec9f3b90c140b5344b40410899e9",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:21:48.361Z",
+      "tests": 44
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:412683ddaa711f3c589381291a2c7d4ea13890a7e0e7da3efa7c1f6c16e805c7",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:21:48.361Z",
+      "tests": 14
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:63b46e4a0e533baeca577c2698f4c9a125d5f6b319872d66adb78a6293bd7174",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:21:48.361Z",
+      "tests": 82
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:21:48.361Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7d337a61d157107da44c53142babc0dcd3a38b717f3ceb583c20ab0381b9fc0f",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:21:48.361Z",
+      "tests": 19
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:28bde3938e33b75006803c6dcc5bf09a696acc0125ffff6ccc030fd9df475359",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:21:48.361Z",
+      "tests": 79
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6c1c98b3cf17a8d3f7bd607b0e2e38eb6b1a1cc851a8dbd0f5c7efd44d59cec9",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:21:48.361Z",
+      "tests": 40
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f4233622d09bccda323aa82798fb5401c8dbb38093b162d67e3336c289f91a8b",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:21:48.361Z",
+      "tests": 82
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fa5ffe3c23a5c0df97e6428ea8ad755d1cc0af8de9c9a3e6c44597890a5d8df2",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:21:48.361Z",
+      "tests": 47
+    },
+    {
+      "id": "run-15",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:41b84527350fbc9f816423f15157348133f0b6b1c61bf50903598bdf48b7abca",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:25:46.714Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:523dbcc0105d68b230b7b576d1306c7db98661c4962b306af0513da7dddcd8ba",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:25:46.714Z",
+      "tests": 47
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ec31c07ac6c55f1c57177814e9ff1c2c44f403a2eb5aa79b454b3c90899004db",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:25:46.714Z",
+      "tests": 11
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ad2d63b9beca3148ed0c6119c53c9997c444193006c4b1abb9629b0170ee32cc",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:25:46.714Z",
+      "tests": 44
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a67c9f4e0938b52e899d05753fd7bcc6b1a0655cb78a0c815f7f4d874117ff8d",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:25:46.714Z",
+      "tests": 14
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:410ef39702e6168741923869ebcf56608760c91610137267619d3143ce6e76b1",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:25:46.714Z",
+      "tests": 82
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:25:46.714Z"
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0e0cb5b788cc42ba35d91c93eb428995ed79b0527e886386c4c7ca361fa7a5b6",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:25:46.714Z",
+      "tests": 19
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d03ab13e5d9954e86397129572eaa532ae6263d10e01475ac69c7cb2b3a3adc9",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:25:46.714Z",
+      "tests": 79
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d0c4f174617e5cea775323658c0cb348f8bccf42f916b9b41276f32a2daab4cc",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:25:46.714Z",
+      "tests": 40
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:29da58e68785464c0a0ba63b7bc763e0b16a39c56d2d8931d6b659d085fe6ced",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:25:46.714Z",
+      "tests": 82
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:20503bfd233906a1a3b37174e55ba1cf45a1c2572c772bd02104e736d7039829",
+      "tree": "sha256:ff0299ddfd9c5dbcc8384e0d3b04e7f96487d03c72bd75e837723988784e2168",
+      "recorded_at": "2026-10-25T23:25:46.714Z",
+      "tests": 47
+    },
+    {
+      "id": "run-27",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6b0cf1cd048ef61fb1ee4652bd8154b8368c0f27042239ef75d905db377a3087",
+      "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+      "recorded_at": "2026-10-25T23:37:12.247Z"
+    },
+    {
+      "id": "run-28",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c77aaaa6908c5c509fb651408ed4cd0e83a62282db653e17e1bae4517b03369c",
+      "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+      "recorded_at": "2026-10-25T23:37:12.247Z",
+      "tests": 47
+    },
+    {
+      "id": "run-29",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:39e41c329e3e0f522eee3fa3a5c0f6d06871a71255d8cac3785e90117bdd2a51",
+      "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+      "recorded_at": "2026-10-25T23:37:12.247Z",
+      "tests": 11
+    },
+    {
+      "id": "run-30",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6635a127f00786b6b129bf603a0aab0cfd292bede0c001d19087c43e3f9aac89",
+      "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+      "recorded_at": "2026-10-25T23:37:12.247Z",
+      "tests": 44
+    },
+    {
+      "id": "run-31",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a78198afbd668011f7d5843bb2ed88886b20e1464481492f430d046506dfb7c0",
+      "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+      "recorded_at": "2026-10-25T23:37:12.247Z",
+      "tests": 15
+    },
+    {
+      "id": "run-32",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:710325ca6f09b726c95ec5f19913ba83aa49b0cb133fce72f5cb299673997dde",
+      "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+      "recorded_at": "2026-10-25T23:37:12.247Z",
+      "tests": 82
+    },
+    {
+      "id": "run-33",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+      "recorded_at": "2026-10-25T23:37:12.247Z"
+    },
+    {
+      "id": "run-34",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9d6ee3365bc5e178f5ef06375c812f755bdd00a514d002cb6e9c497230915a36",
+      "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+      "recorded_at": "2026-10-25T23:37:12.247Z",
+      "tests": 20
+    },
+    {
+      "id": "run-35",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:104674679f6f06f9747e73114906256b53f8ea1744d30713e8b2cff3121cd248",
+      "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+      "recorded_at": "2026-10-25T23:37:12.247Z",
+      "tests": 79
+    },
+    {
+      "id": "run-36",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:146f62566e3091006f56a9324904f23e703c7eb7b05febe30cdfe32efd6f9346",
+      "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+      "recorded_at": "2026-10-25T23:37:12.247Z",
+      "tests": 40
+    },
+    {
+      "id": "run-37",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b7d14c4e96ae1f64d45db179206f9d6cd34044e81c92dac807e6fd9664ae16d4",
+      "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+      "recorded_at": "2026-10-25T23:37:12.247Z",
+      "tests": 82
+    },
+    {
+      "id": "run-38",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0fd2b55c8afc6057ad3acbe18cc657ff726691c39b4862965819b62c9d1e933e",
+      "tree": "sha256:eb823a45e32233cf8e86431a5c15990a6acb72bea4063d0aaaaa95571bbdb03b",
+      "recorded_at": "2026-10-25T23:37:12.247Z",
+      "tests": 47
+    },
+    {
+      "id": "run-39",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9ecf98e4c3079026ba9f94a92988f1efc401e1b53efdd51aea5c2ed0ca84c0ba",
+      "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+      "recorded_at": "2026-10-25T23:52:00.639Z"
+    },
+    {
+      "id": "run-40",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c097b2e1f88633495ceab457f7138165e979224f529fa06d3e6aa5526fd10eef",
+      "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+      "recorded_at": "2026-10-25T23:52:00.639Z",
+      "tests": 47
+    },
+    {
+      "id": "run-41",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d454bf28d4a9389c1c404d78c8b3c5412af3305617bffff0a96a080802a009ba",
+      "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+      "recorded_at": "2026-10-25T23:52:00.639Z",
+      "tests": 11
+    },
+    {
+      "id": "run-42",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ae0a3522a48beb4f1fd6585574032da9ff7bbee8a92f77ad3a8760ce44583087",
+      "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+      "recorded_at": "2026-10-25T23:52:00.639Z",
+      "tests": 44
+    },
+    {
+      "id": "run-43",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:112d4e62a2bae7bee871ff9d91623a718a030b9e8c05aaa1ceb7801b04e8152a",
+      "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+      "recorded_at": "2026-10-25T23:52:00.639Z",
+      "tests": 15
+    },
+    {
+      "id": "run-44",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:43f59f5a8a9528bac46ab302750424ed8746242f396aa26fccad7f1fcc93c7ae",
+      "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+      "recorded_at": "2026-10-25T23:52:00.639Z",
+      "tests": 82
+    },
+    {
+      "id": "run-45",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+      "recorded_at": "2026-10-25T23:52:00.639Z"
+    },
+    {
+      "id": "run-46",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:358c975409023dfb93bcf255d7c69d93d0a0fce2c4dcfaabe3cda6f508184d84",
+      "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+      "recorded_at": "2026-10-25T23:52:00.639Z",
+      "tests": 20
+    },
+    {
+      "id": "run-47",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:98ba725f32fc438140fbf9e298b26bd3940225b739154102bee8c1f2442bdc9f",
+      "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+      "recorded_at": "2026-10-25T23:52:00.639Z",
+      "tests": 79
+    },
+    {
+      "id": "run-48",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:03c2497c117c0f354bee840684118c99b44476ee05a53674e69e2cbc74acfb88",
+      "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+      "recorded_at": "2026-10-25T23:52:00.639Z",
+      "tests": 40
+    },
+    {
+      "id": "run-49",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2e630fefa90185d43dc93636221640cddd7e15cb5c150c20e5989ce8cd393fcb",
+      "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+      "recorded_at": "2026-10-25T23:52:00.639Z",
+      "tests": 82
+    },
+    {
+      "id": "run-50",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1bf2b68324aa23446080ee626ae4199ea35fd023e6a6aee376d3c8fad123e609",
+      "tree": "sha256:432a4c7809da0163175a65272e78916e9cc02d09893d2a7889e59ab345471946",
+      "recorded_at": "2026-10-25T23:52:00.639Z",
+      "tests": 47
+    },
+    {
+      "id": "run-51",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0e9b83b037413b8d9c5350b641240ec5bc63785947fb9bcd5eb7b4a16142b135",
+      "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+      "recorded_at": "2026-10-26T00:06:11.338Z"
+    },
+    {
+      "id": "run-52",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:07fb89812dbeea377cc6f36ac141055a5d073517404edffe385c02b2aa4f0e42",
+      "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+      "recorded_at": "2026-10-26T00:06:11.338Z",
+      "tests": 47
+    },
+    {
+      "id": "run-53",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9ed66eff1d18eea159ef0a49a4bdac45ae9736e306e5432bcf644588fa5c0e97",
+      "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+      "recorded_at": "2026-10-26T00:06:11.338Z",
+      "tests": 11
+    },
+    {
+      "id": "run-54",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a6ac9e950815d36adf8e5d53e96524ccaf7ac327615e05c6a9b2cf905e77aa36",
+      "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+      "recorded_at": "2026-10-26T00:06:11.338Z",
+      "tests": 44
+    },
+    {
+      "id": "run-55",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:97ff88e7a5820569b3307275c3b7adc2173839943407853f7048c2db9e65b4bc",
+      "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+      "recorded_at": "2026-10-26T00:06:11.338Z",
+      "tests": 16
+    },
+    {
+      "id": "run-56",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:08ac7eaf0498a36620621148fe162c6cafa2a6e18676b84949e525015e617d32",
+      "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+      "recorded_at": "2026-10-26T00:06:11.338Z",
+      "tests": 82
+    },
+    {
+      "id": "run-57",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+      "recorded_at": "2026-10-26T00:06:11.338Z"
+    },
+    {
+      "id": "run-58",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a7a999a1df204befd82d70f2bdd66bd2a6b358fb36415a4de874177232022dd2",
+      "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+      "recorded_at": "2026-10-26T00:06:11.338Z",
+      "tests": 20
+    },
+    {
+      "id": "run-59",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f685465ccf5e679ebbef1cd6961b65afa47ee1dee3f72ce879abe5e035a985fb",
+      "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+      "recorded_at": "2026-10-26T00:06:11.338Z",
+      "tests": 79
+    },
+    {
+      "id": "run-60",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:28fc72e1ae376e59748700623e15ec1fb5075f5b08742eaaebb4bb58862dea48",
+      "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+      "recorded_at": "2026-10-26T00:06:11.338Z",
+      "tests": 40
+    },
+    {
+      "id": "run-61",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f5d4be9873028683c83088a3e3874c69256a3b990879069c18a0a968962f79f2",
+      "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+      "recorded_at": "2026-10-26T00:06:11.338Z",
+      "tests": 82
+    },
+    {
+      "id": "run-62",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:16b7e98a02d7671478a7ff4aa1cafdde2b99f7767fe2f71652585097f5cddf76",
+      "tree": "sha256:a7e8533457c31ea996755bfb6e2708ef8afd6d3bef4557182f634ab426725f01",
+      "recorded_at": "2026-10-26T00:06:11.338Z",
+      "tests": 47
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:ddae084297d3f9a7032c0db1f9395b1b0a294cab4e73a85a1d3026725fc387d9",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "d420104d7005f6c256c97b6711973d3ad613c31e",
+          "candidate_tree": "3730282d6b17026269ca3af2f6a46a711748a927",
+          "paths": [
+            "docs/harness-runtime.md",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/testdata/parity/pre-tool-use-state-deny.json",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/configure/validate-cursor.js",
+            "scripts/configure/validate-cursor.test.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/idd-close.js",
+            "scripts/lib/idd-close.test.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-contract.test.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-record.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js"
+          ],
+          "diff_hash": "sha256:dda7621be6d896c0549b66ffd6c387552d8cfa9a2c6bf9e0017dd96d6ac32a27",
+          "paths_digest": "sha256:91d263cbfb57cc598b0c0a7c88630c85f3255daf1b93e31efe8060a1badabfd1",
+          "authored_lines": 567,
+          "original_changed_lines": 587
+        },
+        "candidate_id": "sha256:aa8617da2762e4bd0dbcc5a5c4bff215b0b81a14f090053dfa6a89024d7703ff",
+        "paths": [
+          "docs/harness-runtime.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/configure/validate-cursor.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/idd-close.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "3730282d6b17026269ca3af2f6a46a711748a927",
+        "original_changed_lines": 587,
+        "authored_lines": 567
+      },
+      "current_candidate_id": "sha256:aa8617da2762e4bd0dbcc5a5c4bff215b0b81a14f090053dfa6a89024d7703ff",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "d420104d7005f6c256c97b6711973d3ad613c31e",
+        "candidate_tree": "3730282d6b17026269ca3af2f6a46a711748a927",
+        "paths": [
+          "docs/harness-runtime.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/configure/validate-cursor.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/idd-close.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "diff_hash": "sha256:dda7621be6d896c0549b66ffd6c387552d8cfa9a2c6bf9e0017dd96d6ac32a27",
+        "paths_digest": "sha256:91d263cbfb57cc598b0c0a7c88630c85f3255daf1b93e31efe8060a1badabfd1",
+        "authored_lines": 567,
+        "original_changed_lines": 587
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "close-revalidates-state:lens-start:1:0",
+          "result_digest": "sha256:98a3270aa29819a5e56e80734b60853f11fa414173323e099c2d01086aeebe27",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/ospec.js:649-660: close() runs its revalidation (requireFreshEvidence, closeChange signalGaps/canClose, requireDerived) only when state.status === 'open'. A state.yaml hand-edited to status closed plus any closed_at string passes validateState (idd-contract.js:165) and goes straight to archiveChange. A change with pending obligations, open gates or stale evidence is then archived and reported closed. That violates REQ-idd-009, and docs/harness-runtime.md:135 overclaims. The new PreToolUse deny does not stop a shell edit. closed_at is also unvalidated and feeds archiveName (idd-close.js:139-141): '../../../x' makes the destination leave the repo root, and rename moves idd/<id> there. Pre-existing, but it is the two-field shortcut around the control this change adds.",
+                "acceptance_criteria": "ospec close on an unarchived change whose state is status closed with a pending obligation, an open gate or a signalGaps entry is refused with close-refused and moves nothing. A state the CLI itself closed and left unarchived still resumes and archives. A closed_at that is not an ISO timestamp (e.g. '../../../x') is refused before archiveName/rename, and nothing outside idd/archive is touched. Each case has a test in scripts/ospec.test.js.",
+                "location": "scripts/ospec.js:649"
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "The CLI-owned write guard (pre-tool-use.js:251-292, pretooluse.go:282-373) recognises less than the CLI treats as its state. (1) idd/<c>/state.yaml.bak is not owned, yet readChange calls recoverOrphanBak (idd-store.js:60, atomic-write.js:10-23), which renames it to state.yaml when state.yaml is absent. A Write of a forged .bak for a new change id therefore becomes a state the CLI reads, closes and archives. (2) WRITE_TOOL_RE names move and rename, but DECLARED_PATH_KEYS has no source/destination. An MCP filesystem move_file whose destination is idd/<c>/state.yaml is not denied, so the move/rename verbs protect nothing. Exposure is low: it needs a new change id or a missing state.yaml, or an MCP move tool. Shell is out of scope by design.",
+                "acceptance_criteria": "In both the Node hook and the Go binary, a write tool targeting idd/<change>/state.yaml.bak, and a move/rename tool whose destination key (e.g. destination, new_path, dest) is a CLI-owned path, are denied in default and bypassPermissions. Reads of those paths and writes to idd/<change>/change.md still produce no decision. The JS tests, Go tests and parity fixture cover both cases, and REQ-hooks-029 lists the extra keys and the .bak name.",
+                "location": "scripts/hooks/pre-tool-use.js:275"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "close-revalidates-state:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-a7f1f084e4605bde",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/ospec.js:649-660: close() runs its revalidation (requireFreshEvidence, closeChange signalGaps/canClose, requireDerived) only when state.status === 'open'. A state.yaml hand-edited to status closed plus any closed_at string passes validateState (idd-contract.js:165) and goes straight to archiveChange. A change with pending obligations, open gates or stale evidence is then archived and reported closed. That violates REQ-idd-009, and docs/harness-runtime.md:135 overclaims. The new PreToolUse deny does not stop a shell edit. closed_at is also unvalidated and feeds archiveName (idd-close.js:139-141): '../../../x' makes the destination leave the repo root, and rename moves idd/<id> there. Pre-existing, but it is the two-field shortcut around the control this change adds.",
+          "acceptance_criteria": "ospec close on an unarchived change whose state is status closed with a pending obligation, an open gate or a signalGaps entry is refused with close-refused and moves nothing. A state the CLI itself closed and left unarchived still resumes and archives. A closed_at that is not an ISO timestamp (e.g. '../../../x') is refused before archiveName/rename, and nothing outside idd/archive is touched. Each case has a test in scripts/ospec.test.js.",
+          "location": "scripts/ospec.js:649",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-5cda80d6f1fa7d25",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "The CLI-owned write guard (pre-tool-use.js:251-292, pretooluse.go:282-373) recognises less than the CLI treats as its state. (1) idd/<c>/state.yaml.bak is not owned, yet readChange calls recoverOrphanBak (idd-store.js:60, atomic-write.js:10-23), which renames it to state.yaml when state.yaml is absent. A Write of a forged .bak for a new change id therefore becomes a state the CLI reads, closes and archives. (2) WRITE_TOOL_RE names move and rename, but DECLARED_PATH_KEYS has no source/destination. An MCP filesystem move_file whose destination is idd/<c>/state.yaml is not denied, so the move/rename verbs protect nothing. Exposure is low: it needs a new change id or a missing state.yaml, or an MCP move tool. Shell is out of scope by design.",
+          "acceptance_criteria": "In both the Node hook and the Go binary, a write tool targeting idd/<change>/state.yaml.bak, and a move/rename tool whose destination key (e.g. destination, new_path, dest) is a CLI-owned path, are denied in default and bypassPermissions. Reads of those paths and writes to idd/<change>/change.md still produce no decision. The JS tests, Go tests and parity fixture cover both cases, and REQ-hooks-029 lists the extra keys and the .bak name.",
+          "location": "scripts/hooks/pre-tool-use.js:275",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:76478a63aff4f0cb98dae5eb4ca3f5f6c1fe5ea763c12c1bc9528f5daa8f9266",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:2faad98bdd9fb5fbf895c2f963be06b31db5cf1f01b973995534182093af7881",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:ddae084297d3f9a7032c0db1f9395b1b0a294cab4e73a85a1d3026725fc387d9",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "d420104d7005f6c256c97b6711973d3ad613c31e",
+          "candidate_tree": "d1633709213091cb29a88bc63d3067e97d5bc543",
+          "paths": [
+            "docs/harness-runtime.md",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/testdata/parity/pre-tool-use-state-deny.json",
+            "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/configure/validate-cursor.js",
+            "scripts/configure/validate-cursor.test.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/idd-close.js",
+            "scripts/lib/idd-close.test.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-contract.test.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-record.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js"
+          ],
+          "diff_hash": "sha256:4fc63db264e216d28ad552905cb53016a024b2d30b64e6d6c099bd17ba083335",
+          "paths_digest": "sha256:81b6fd30f99834630560ec9007459855f60f9800949379ce8d341e5478e427e7",
+          "authored_lines": 673,
+          "original_changed_lines": 696
+        },
+        "candidate_id": "sha256:121654fec3c2dabbea74aeb52ce67540934be51843a644ca20e9be7dfc7ce4fc",
+        "paths": [
+          "docs/harness-runtime.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/configure/validate-cursor.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/idd-close.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "d1633709213091cb29a88bc63d3067e97d5bc543",
+        "original_changed_lines": 696,
+        "authored_lines": 673
+      },
+      "current_candidate_id": "sha256:121654fec3c2dabbea74aeb52ce67540934be51843a644ca20e9be7dfc7ce4fc",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "d420104d7005f6c256c97b6711973d3ad613c31e",
+        "candidate_tree": "d1633709213091cb29a88bc63d3067e97d5bc543",
+        "paths": [
+          "docs/harness-runtime.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/configure/validate-cursor.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/idd-close.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "diff_hash": "sha256:4fc63db264e216d28ad552905cb53016a024b2d30b64e6d6c099bd17ba083335",
+        "paths_digest": "sha256:81b6fd30f99834630560ec9007459855f60f9800949379ce8d341e5478e427e7",
+        "authored_lines": 673,
+        "original_changed_lines": 696
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "close-revalidates-state:lens-start:2:0",
+          "result_digest": "sha256:3e2add1fc400c0e555e5da99eb92a457fd24ce64f30c8246afbfd73e16c3e9af",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/ospec.js:649-660 and scripts/lib/idd-close.js:139-153. Hand-editing state.yaml from open to `status: closed` plus a valid `closed_at` sends close down the resume branch. There requireResumable checks only pending obligations, open gates and signal gaps. requireFreshEvidence (tree-bound evidence of another tree) and requireDerived (signals, gates and references the diff derives) never run, so a two-field edit skips the revalidation this change adds. scripts/ospec.test.js:498-505 shows such a hand-written closed state is archived with exit 0. The comment at idd-close.js:139-143 ('a hand edit to status: closed never skips the revalidation') overstates the guarantee. Impact: code changed after the last passing check can be archived as closed with evidence bound to another tree. Counterevidence: change.md records the tradeoff, since an interrupted close can legitimately find the tree changed by the changelog write. The residual is not stated as a limit.",
+                "acceptance_criteria": "A state hand-edited from open to closed (with closed_at) is refused by close, with nothing moved, when a satisfied tree-bound obligation's last evidence names another tree or when the diff derives a signal the state lacks. A close that ospec itself interrupted after the changelog write still resumes. Alternatively, if the residual is accepted, the requireResumable comment and REQ-idd-009 state that resume does not recheck tree freshness or derivation."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "scripts/ospec.js:643-657. requireFreshEvidence, closeChange and requireDerived validate the `state` snapshot read at line 643, under the close lock and not the state lock. mutateChange then re-reads `stored` and re-runs only closeChange, which does not check freshness or derivation. requireDerived runs git and closeDelivery writes the changelog between the snapshot and the write, a window that can last seconds in a large repo. A state.yaml edited in that window (a parallel tool call or background shell) is archived without the freshness and derivation checks. This is conditional on an interleaving writer; the sequential flow is unaffected.",
+                "acceptance_criteria": "A state.yaml replaced between the first readChange and mutateChange in close is refused (or the validated snapshot is shown unchanged under the state lock) before the state is marked closed. A test replaces the state in that window and asserts the refusal. The changelog-untouched-on-refusal rule still holds, for example by comparing the stored state to the validated snapshot rather than re-running git."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "scripts/hooks/pre-tool-use.js:266-297 and internal/hooks/pretooluse.go:301-382. A write-named tool is denied only when a value under file_path, filePath, path, target_file, notebook_path, source or destination, or a patch header matching `*** Add|Update|Delete File: ` or `Move to: `, resolves to an owned file. Not covered: (1) a write tool carrying the path under another key, e.g. an MCP `relative_path` or `filename`, although change.md says MCP writes are covered; (2) a patch header with leading whitespace, if the host patch parser trims lines (Codex's does, unverified here); (3) the directory itself: isCliOwnedPath needs 2+ segments after idd/archive or .ospec/review-receipts and matches only idd/<change>/state.yaml, so a move or delete naming idd/<change> or idd/archive passes, and a forged tree could be moved into place with write-only tools. Impact: the hard deny can be sidestepped without the shell; the close revalidation remains the backstop.",
+                "acceptance_criteria": "In both the Node hook and the Go binary, covered by a shared parity fixture, a write-named tool is denied in each of these cases: a move or delete naming idd/<change>, idd/archive or .ospec/review-receipts; a patch header with leading whitespace; an owned path under a key outside the declared set. The existing passing cases still yield no decision: Read, change.md, idd/config.yaml, docs/idd/archive.md and shell cat."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "openspec/specs/hooks/spec.md:1813, docs/harness-runtime.md:136 and scripts/configure/validate-cursor.js:33-34,241 declare that Cursor runs pre-tool-use only on beforeShellExecution and beforeReadFile, and that the validator fails otherwise. scripts/configure/install-cursor.js:207-211,294 mirrors those commands onto `preToolUse` and `subagentStart` in the installed ~/.cursor/hooks.json. validateInstalledHooks (validate-cursor.js:248-314) never applies PRE_TOOL_USE_EVENTS; only validateHooks on the pre-install tree does. So the declared invariant is false for every real install, and the stale-declaration check cannot see it. The guard does run on Cursor's generic preToolUse, where a Write may reach the new deny, yet no test feeds a Cursor payload to it. Impact: the 'revalidation-only' coverage is mis-stated in one direction or the other and cannot be relied on.",
+                "acceptance_criteria": "The Cursor declaration in the spec, the doc and CLI_OWNED_STATE_GUARD matches what install-cursor.js writes. Either validateInstalled applies the same check and fails on the mirrored events, or the declaration states that Cursor's preToolUse runs the guard. In the second case a test feeds a Cursor preToolUse Write payload for idd/<change>/state.yaml and asserts the deny, or records why it passes."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "close-revalidates-state:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-6c070ee4d3ae5cb5",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/ospec.js:649-660 and scripts/lib/idd-close.js:139-153. Hand-editing state.yaml from open to `status: closed` plus a valid `closed_at` sends close down the resume branch. There requireResumable checks only pending obligations, open gates and signal gaps. requireFreshEvidence (tree-bound evidence of another tree) and requireDerived (signals, gates and references the diff derives) never run, so a two-field edit skips the revalidation this change adds. scripts/ospec.test.js:498-505 shows such a hand-written closed state is archived with exit 0. The comment at idd-close.js:139-143 ('a hand edit to status: closed never skips the revalidation') overstates the guarantee. Impact: code changed after the last passing check can be archived as closed with evidence bound to another tree. Counterevidence: change.md records the tradeoff, since an interrupted close can legitimately find the tree changed by the changelog write. The residual is not stated as a limit.",
+          "acceptance_criteria": "A state hand-edited from open to closed (with closed_at) is refused by close, with nothing moved, when a satisfied tree-bound obligation's last evidence names another tree or when the diff derives a signal the state lacks. A close that ospec itself interrupted after the changelog write still resumes. Alternatively, if the residual is accepted, the requireResumable comment and REQ-idd-009 state that resume does not recheck tree freshness or derivation.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-9825aeb81effab33",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "scripts/ospec.js:643-657. requireFreshEvidence, closeChange and requireDerived validate the `state` snapshot read at line 643, under the close lock and not the state lock. mutateChange then re-reads `stored` and re-runs only closeChange, which does not check freshness or derivation. requireDerived runs git and closeDelivery writes the changelog between the snapshot and the write, a window that can last seconds in a large repo. A state.yaml edited in that window (a parallel tool call or background shell) is archived without the freshness and derivation checks. This is conditional on an interleaving writer; the sequential flow is unaffected.",
+          "acceptance_criteria": "A state.yaml replaced between the first readChange and mutateChange in close is refused (or the validated snapshot is shown unchanged under the state lock) before the state is marked closed. A test replaces the state in that window and asserts the refusal. The changelog-untouched-on-refusal rule still holds, for example by comparing the stored state to the validated snapshot rather than re-running git.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-d0bcc682621897fb",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "scripts/hooks/pre-tool-use.js:266-297 and internal/hooks/pretooluse.go:301-382. A write-named tool is denied only when a value under file_path, filePath, path, target_file, notebook_path, source or destination, or a patch header matching `*** Add|Update|Delete File: ` or `Move to: `, resolves to an owned file. Not covered: (1) a write tool carrying the path under another key, e.g. an MCP `relative_path` or `filename`, although change.md says MCP writes are covered; (2) a patch header with leading whitespace, if the host patch parser trims lines (Codex's does, unverified here); (3) the directory itself: isCliOwnedPath needs 2+ segments after idd/archive or .ospec/review-receipts and matches only idd/<change>/state.yaml, so a move or delete naming idd/<change> or idd/archive passes, and a forged tree could be moved into place with write-only tools. Impact: the hard deny can be sidestepped without the shell; the close revalidation remains the backstop.",
+          "acceptance_criteria": "In both the Node hook and the Go binary, covered by a shared parity fixture, a write-named tool is denied in each of these cases: a move or delete naming idd/<change>, idd/archive or .ospec/review-receipts; a patch header with leading whitespace; an owned path under a key outside the declared set. The existing passing cases still yield no decision: Read, change.md, idd/config.yaml, docs/idd/archive.md and shell cat.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-55919a7549813998",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "openspec/specs/hooks/spec.md:1813, docs/harness-runtime.md:136 and scripts/configure/validate-cursor.js:33-34,241 declare that Cursor runs pre-tool-use only on beforeShellExecution and beforeReadFile, and that the validator fails otherwise. scripts/configure/install-cursor.js:207-211,294 mirrors those commands onto `preToolUse` and `subagentStart` in the installed ~/.cursor/hooks.json. validateInstalledHooks (validate-cursor.js:248-314) never applies PRE_TOOL_USE_EVENTS; only validateHooks on the pre-install tree does. So the declared invariant is false for every real install, and the stale-declaration check cannot see it. The guard does run on Cursor's generic preToolUse, where a Write may reach the new deny, yet no test feeds a Cursor payload to it. Impact: the 'revalidation-only' coverage is mis-stated in one direction or the other and cannot be relied on.",
+          "acceptance_criteria": "The Cursor declaration in the spec, the doc and CLI_OWNED_STATE_GUARD matches what install-cursor.js writes. Either validateInstalled applies the same check and fails on the mirrored events, or the declaration states that Cursor's preToolUse runs the guard. In the second case a test feeds a Cursor preToolUse Write payload for idd/<change>/state.yaml and asserts the deny, or records why it passes.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:92e3740805b77b276881611805cfd14ca0d11edeaa60872515f3f4f0f027f4ac",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:15b5822fdaa6fd718c179de0af17369ae705b36540ab9e690c1266a78474ca32",
+      "generation": 3,
+      "predecessor_lineage_id": "sha256:2faad98bdd9fb5fbf895c2f963be06b31db5cf1f01b973995534182093af7881",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "d420104d7005f6c256c97b6711973d3ad613c31e",
+          "candidate_tree": "6f0edfff95f259245eb97f133bcee0884b92411b",
+          "paths": [
+            "docs/harness-runtime.md",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/testdata/parity/pre-tool-use-state-deny.json",
+            "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/configure/validate-cursor.js",
+            "scripts/configure/validate-cursor.test.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/idd-close.js",
+            "scripts/lib/idd-close.test.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-contract.test.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-record.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js"
+          ],
+          "diff_hash": "sha256:d40dab162b410cf39e964e9bd319295f7132cd1d0695050230af1afd1ac360e4",
+          "paths_digest": "sha256:81b6fd30f99834630560ec9007459855f60f9800949379ce8d341e5478e427e7",
+          "authored_lines": 752,
+          "original_changed_lines": 778
+        },
+        "candidate_id": "sha256:6aaf5e414063dde1a39d9b5ef7bcb9651ce78cb8c99f8afe5fd44cf4afce0f21",
+        "paths": [
+          "docs/harness-runtime.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/configure/validate-cursor.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/idd-close.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "6f0edfff95f259245eb97f133bcee0884b92411b",
+        "original_changed_lines": 778,
+        "authored_lines": 752
+      },
+      "current_candidate_id": "sha256:6aaf5e414063dde1a39d9b5ef7bcb9651ce78cb8c99f8afe5fd44cf4afce0f21",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "d420104d7005f6c256c97b6711973d3ad613c31e",
+        "candidate_tree": "6f0edfff95f259245eb97f133bcee0884b92411b",
+        "paths": [
+          "docs/harness-runtime.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/configure/validate-cursor.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/idd-close.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "diff_hash": "sha256:d40dab162b410cf39e964e9bd319295f7132cd1d0695050230af1afd1ac360e4",
+        "paths_digest": "sha256:81b6fd30f99834630560ec9007459855f60f9800949379ce8d341e5478e427e7",
+        "authored_lines": 752,
+        "original_changed_lines": 778
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "close-revalidates-state:lens-start:3:0",
+          "result_digest": "sha256:da0410b3acfac7154e1c3bfff9c5bb8db3e0b8cc0f101e7e1f00dac48510f470",
+          "result": {
+            "findings": [
+              {
+                "severity": "SUGGESTION",
+                "summary": "scripts/ospec.js:623-648 and scripts/lib/idd-close.js:156-158,179-196. The closed_at ISO check added to validateState does not cover the archive-resume path. With idd/<id>/state.yaml absent, close takes the state from idd/archive/*-<id>/state.yaml through findArchived, which parses it and checks only change and status, never validateState or CLOSE_TIME. archiveChange then builds the destination from closed_at.slice(0,10). Trigger: an archived state.yaml with closed_at \"../../../x\" plus an idd/<id>/ directory without state.yaml; close renames idd/<id> to <repo parent>/x-<id> (idd-close.js:210-212). Impact is low: it needs a crafted or committed archive file and a stateless change directory, and it moves one directory one level above the repo. It is the sink the earlier closed_at correction was meant to seal.",
+                "acceptance_criteria": "With idd/archive/<date>-<id>/state.yaml holding status closed and closed_at \"../../../x\", and idd/<id>/ present without state.yaml, ospec close --change <id> is refused (for example state-invalid) before archiveName/rename, and nothing outside idd/archive is created or moved. A change that was legitimately archived still returns already_complete on a second close. A test in scripts/ospec.test.js covers both cases.",
+                "location": "scripts/ospec.js:633"
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "openspec/specs/hooks/spec.md:1813 and docs/harness-runtime.md:134-137 state that Claude, Codex, VS Code, GitHub Copilot, OpenCode and Antigravity run the state-write deny before a file edit. The only evidence is a launcher test with simulated payloads (scripts/hooks/ospec-hooks-launch.test.js:384-390). docs/target-capabilities.md:19,43 still marks lifecycle hooks and the PreToolUse protections as unavailable for vscode and github-copilot, and :82-86 says generation is not evidence that a host runs a hook. The github-copilot case reuses the VS Code tool shape (create_file/filePath) although that target is Copilot CLI plus coding agent (scripts/lib/target-profiles/github-copilot.js:3); no Copilot CLI payload or output fixture exists in the repo. If a host skips the hook or sends another shape, tool_name is empty, writesCliOwnedFile returns false and the write passes; only the rule-level revalidation of close remains.",
+                "acceptance_criteria": "REQ-hooks-029, docs/harness-runtime.md section 5 and docs/target-capabilities.md agree, per target, on whether the state-write deny is observed live, only mapped by the generated hooks, or unverified, and the unqualified six-target claim is dropped for any target without observed evidence. Alternatively, a per-target contract test feeds the host's documented PreToolUse payload and checks its documented deny output for github-copilot, and for any other target whose shape is not the Claude one.",
+                "location": "openspec/specs/hooks/spec.md:1813"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "close-revalidates-state:lens-result:3:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-c68a996ddb31ee0f",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "scripts/ospec.js:623-648 and scripts/lib/idd-close.js:156-158,179-196. The closed_at ISO check added to validateState does not cover the archive-resume path. With idd/<id>/state.yaml absent, close takes the state from idd/archive/*-<id>/state.yaml through findArchived, which parses it and checks only change and status, never validateState or CLOSE_TIME. archiveChange then builds the destination from closed_at.slice(0,10). Trigger: an archived state.yaml with closed_at \"../../../x\" plus an idd/<id>/ directory without state.yaml; close renames idd/<id> to <repo parent>/x-<id> (idd-close.js:210-212). Impact is low: it needs a crafted or committed archive file and a stateless change directory, and it moves one directory one level above the repo. It is the sink the earlier closed_at correction was meant to seal.",
+          "acceptance_criteria": "With idd/archive/<date>-<id>/state.yaml holding status closed and closed_at \"../../../x\", and idd/<id>/ present without state.yaml, ospec close --change <id> is refused (for example state-invalid) before archiveName/rename, and nothing outside idd/archive is created or moved. A change that was legitimately archived still returns already_complete on a second close. A test in scripts/ospec.test.js covers both cases.",
+          "location": "scripts/ospec.js:633",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-891051911d104e96",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "openspec/specs/hooks/spec.md:1813 and docs/harness-runtime.md:134-137 state that Claude, Codex, VS Code, GitHub Copilot, OpenCode and Antigravity run the state-write deny before a file edit. The only evidence is a launcher test with simulated payloads (scripts/hooks/ospec-hooks-launch.test.js:384-390). docs/target-capabilities.md:19,43 still marks lifecycle hooks and the PreToolUse protections as unavailable for vscode and github-copilot, and :82-86 says generation is not evidence that a host runs a hook. The github-copilot case reuses the VS Code tool shape (create_file/filePath) although that target is Copilot CLI plus coding agent (scripts/lib/target-profiles/github-copilot.js:3); no Copilot CLI payload or output fixture exists in the repo. If a host skips the hook or sends another shape, tool_name is empty, writesCliOwnedFile returns false and the write passes; only the rule-level revalidation of close remains.",
+          "acceptance_criteria": "REQ-hooks-029, docs/harness-runtime.md section 5 and docs/target-capabilities.md agree, per target, on whether the state-write deny is observed live, only mapped by the generated hooks, or unverified, and the unqualified six-target claim is dropped for any target without observed evidence. Alternatively, a per-target contract test feeds the host's documented PreToolUse payload and checks its documented deny output for github-copilot, and for any other target whose shape is not the Claude one.",
+          "location": "openspec/specs/hooks/spec.md:1813",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:42e3a99f40b2b795aa589865fd5f99744fbdf208e34468fbb338a8744a9b99fd",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:5f5dd7e59582485c4ce55ab526e87c9a0b98293f59225712494b5c06a48c0b44",
+      "generation": 4,
+      "predecessor_lineage_id": "sha256:15b5822fdaa6fd718c179de0af17369ae705b36540ab9e690c1266a78474ca32",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "d420104d7005f6c256c97b6711973d3ad613c31e",
+          "candidate_tree": "0cfe86a2c8b62c2042876a6a45aa17d5b904b6b5",
+          "paths": [
+            "docs/harness-runtime.md",
+            "docs/target-capabilities.md",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/testdata/parity/pre-tool-use-state-deny.json",
+            "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/configure/validate-cursor.js",
+            "scripts/configure/validate-cursor.test.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/idd-close.js",
+            "scripts/lib/idd-close.test.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-contract.test.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-record.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js"
+          ],
+          "diff_hash": "sha256:773d003e2771bf872485c0f27ab1022d2afcc53d1785f1bbb5eeeca45e79e486",
+          "paths_digest": "sha256:5807abe135116117138f372444afe2c1ada7c11a0937e795778afa10dcbf5311",
+          "authored_lines": 791,
+          "original_changed_lines": 817
+        },
+        "candidate_id": "sha256:889b7f2bd2a63acf5d4e05421fb72b696ce68b531e15e4bca1a78c5297dab1cf",
+        "paths": [
+          "docs/harness-runtime.md",
+          "docs/target-capabilities.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/configure/validate-cursor.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/idd-close.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "0cfe86a2c8b62c2042876a6a45aa17d5b904b6b5",
+        "original_changed_lines": 817,
+        "authored_lines": 791
+      },
+      "current_candidate_id": "sha256:889b7f2bd2a63acf5d4e05421fb72b696ce68b531e15e4bca1a78c5297dab1cf",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "d420104d7005f6c256c97b6711973d3ad613c31e",
+        "candidate_tree": "0cfe86a2c8b62c2042876a6a45aa17d5b904b6b5",
+        "paths": [
+          "docs/harness-runtime.md",
+          "docs/target-capabilities.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/configure/validate-cursor.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/idd-close.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "diff_hash": "sha256:773d003e2771bf872485c0f27ab1022d2afcc53d1785f1bbb5eeeca45e79e486",
+        "paths_digest": "sha256:5807abe135116117138f372444afe2c1ada7c11a0937e795778afa10dcbf5311",
+        "authored_lines": 791,
+        "original_changed_lines": 817
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "close-revalidates-state:lens-start:4:0",
+          "result_digest": "sha256:57b0dc343c7c7c02d87c57bf441d3aad2b2abf3f15f5927418a42074d4c2f397",
+          "result": {
+            "findings": [
+              {
+                "severity": "SUGGESTION",
+                "summary": "pre-tool-use.js:264 and pretooluse.go:298 treat a tool as a writer only if its normalized name contains write, edit, patch, create, replace, insert, delete, remove, move or rename, while pre-tool-use.js:266 reads source/destination so a file-moving MCP tool is caught. A copy or append tool with the same keys (copy_file, copy_path, append_file, update_file, save_file, put_file) normalizes to a name the regex misses (copyfile), so a call whose destination or path is idd/<change>/state.yaml, state.yaml.bak or .ospec/review-receipts/x.json gets no decision in the Node hook or the Go binary, in any permission mode. Native tools of the seven hosts are covered (pre-tool-use.test.js:35-52); the gap is third-party MCP file servers, which docs/harness-runtime.md:134 and REQ-hooks-029 describe as covered ('una MCP de escritura').",
+                "acceptance_criteria": "In the Node hook and the Go binary, driven by one shared parity fixture, a copy_file, append_file, update_file or save_file call whose destination or path resolves to idd/<change>/state.yaml (or its .bak/.tmp), idd/archive/** or .ospec/review-receipts/** is denied in default and bypassPermissions, while read_file, get_file_contents and list_directory on the same paths, and a copy between unowned paths, still yield no decision. REQ-hooks-029 lists the added verbs, or names 'a tool whose name lacks the write verbs' as an explicit limit next to the other-key limit."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "REQ-hooks-029 (hooks/spec.md:1811, 1813), docs/harness-runtime.md:135 and target-capabilities.md:47 present the revalidation of ospec close as the guarantee behind every guarded file and leave shell writes 'to' it. close revalidates only the state.yaml of an open change: it never validates idd/archive/** content (archiveChange returns already_complete from an inventory with nothing stored to compare, idd-close.js:200-202), never reads .ospec/review-receipts (readReceipt is called only by review record/validate, ospec.js:796), and a state already marked closed skips derivation and tree freshness (ospec.js:667-669; REQ-idd-009, idd/spec.md:370-375). For those files, and in hosts without a pre-edit hook, a shell write has no fallback; review-receipt.js:6-8 already admits a receipt is not proof the reviewer ran.",
+                "acceptance_criteria": "REQ-hooks-029, docs/harness-runtime.md section 5 and the 'Estado del CLI' row of target-capabilities.md state what close revalidates (an open change's state: pending, gates, signal gaps, derivation, tree freshness), that a state already marked closed is rechecked only for pending, open gates and signal gaps, and that for idd/archive/** and .ospec/review-receipts/** the pre-edit hook is the only control (shell writes are not revalidated). None of them calls close the guarantee for those files. Alternatively close verifies them and a test shows the refusal."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "close-revalidates-state:lens-result:4:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-9d3afe066bedc42d",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "pre-tool-use.js:264 and pretooluse.go:298 treat a tool as a writer only if its normalized name contains write, edit, patch, create, replace, insert, delete, remove, move or rename, while pre-tool-use.js:266 reads source/destination so a file-moving MCP tool is caught. A copy or append tool with the same keys (copy_file, copy_path, append_file, update_file, save_file, put_file) normalizes to a name the regex misses (copyfile), so a call whose destination or path is idd/<change>/state.yaml, state.yaml.bak or .ospec/review-receipts/x.json gets no decision in the Node hook or the Go binary, in any permission mode. Native tools of the seven hosts are covered (pre-tool-use.test.js:35-52); the gap is third-party MCP file servers, which docs/harness-runtime.md:134 and REQ-hooks-029 describe as covered ('una MCP de escritura').",
+          "acceptance_criteria": "In the Node hook and the Go binary, driven by one shared parity fixture, a copy_file, append_file, update_file or save_file call whose destination or path resolves to idd/<change>/state.yaml (or its .bak/.tmp), idd/archive/** or .ospec/review-receipts/** is denied in default and bypassPermissions, while read_file, get_file_contents and list_directory on the same paths, and a copy between unowned paths, still yield no decision. REQ-hooks-029 lists the added verbs, or names 'a tool whose name lacks the write verbs' as an explicit limit next to the other-key limit.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-18debfbabf36f8f2",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "REQ-hooks-029 (hooks/spec.md:1811, 1813), docs/harness-runtime.md:135 and target-capabilities.md:47 present the revalidation of ospec close as the guarantee behind every guarded file and leave shell writes 'to' it. close revalidates only the state.yaml of an open change: it never validates idd/archive/** content (archiveChange returns already_complete from an inventory with nothing stored to compare, idd-close.js:200-202), never reads .ospec/review-receipts (readReceipt is called only by review record/validate, ospec.js:796), and a state already marked closed skips derivation and tree freshness (ospec.js:667-669; REQ-idd-009, idd/spec.md:370-375). For those files, and in hosts without a pre-edit hook, a shell write has no fallback; review-receipt.js:6-8 already admits a receipt is not proof the reviewer ran.",
+          "acceptance_criteria": "REQ-hooks-029, docs/harness-runtime.md section 5 and the 'Estado del CLI' row of target-capabilities.md state what close revalidates (an open change's state: pending, gates, signal gaps, derivation, tree freshness), that a state already marked closed is rechecked only for pending, open gates and signal gaps, and that for idd/archive/** and .ospec/review-receipts/** the pre-edit hook is the only control (shell writes are not revalidated). None of them calls close the guarantee for those files. Alternatively close verifies them and a test shows the refusal.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:d1de6129430645142166fb82c6f49e1d30fc13074811910bec1594182e0eff0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-26T00:18:11.204Z"
+}

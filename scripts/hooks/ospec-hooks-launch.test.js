@@ -360,6 +360,54 @@ test("antigravity input reaches the shared PreToolUse contract from the workspac
   assert.equal(missing.options.cwd, undefined, "a workspace that does not exist is not a cwd");
 });
 
+// E1.43: each target with a hook before a file edit denies writing the state
+// the ospec CLI owns, from its own tool payload and in its own output shape.
+// Cursor's generated hooks have none; its installed preToolUse runs the guard
+// too, and denies the write if Cursor sends the edit there (validate-cursor.js).
+test("every target with a hook before an edit denies a write of idd/<change>/state.yaml", (t) => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const { spawnSync } = require("node:child_process");
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-owned-"));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const state = path.join(workspace, "idd", "fix-pagination", "state.yaml");
+  const env = { ...process.env };
+  for (const key of ["OSPEC_TARGET", "OSPEC_CODEX_WRAPPER", "CLAUDE_PLUGIN_ROOT", "CURSOR_AGENT"]) delete env[key];
+  const run = (script, target, input) => spawnSync(process.execPath, [path.join(__dirname, script), "pre-tool-use"], {
+    input: typeof input === "string" ? input : JSON.stringify(input),
+    env: target ? { ...env, OSPEC_TARGET: target } : env,
+    encoding: "utf8",
+    cwd: workspace,
+    timeout: 10000,
+  });
+  const patch = `*** Begin Patch\n*** Update File: ${state}\n@@\n-"pending"\n+"withdrawn"\n*** End Patch`;
+  for (const [target, script, input] of [
+    ["claude", "ospec-hooks-launch.js", { tool_name: "Write", tool_input: { file_path: state, content: "{}" } }],
+    ["codex", "ospec-codex-hook.js", { tool_name: "apply_patch", tool_input: { command: patch } }],
+    ["vscode", "ospec-hooks-launch.js", { tool_name: "replace_string_in_file", tool_input: { filePath: state, oldString: "a", newString: "b" } }],
+    ["github-copilot", "ospec-hooks-launch.js", { tool_name: "create_file", tool_input: { filePath: state, content: "{}" } }],
+    ["opencode", "ospec-hooks-launch.js", { tool_name: "edit", tool_input: { filePath: state, oldString: "a", newString: "b" } }],
+  ]) {
+    const result = run(script, target === "codex" ? null : target, input);
+    assert.equal(result.status, 0, result.stderr);
+    const output = JSON.parse(result.stdout).hookSpecificOutput;
+    assert.equal(output?.permissionDecision, "deny", `${target}: ${result.stdout}`);
+    assert.match(output.permissionDecisionReason, /CLI de ospec/);
+  }
+  const agy = run("ospec-antigravity-hook.js", null, agyToolCall("write_to_file", { TargetFile: state, CodeContent: "{}" }, workspace));
+  assert.equal(agy.status, 0, agy.stderr);
+  assert.equal(JSON.parse(agy.stdout).decision, "deny", agy.stdout);
+  const cursor = run("ospec-hooks-launch.js", "cursor", {
+    hook_event_name: "preToolUse",
+    cursor_version: "1.7.0",
+    conversation_id: "c-1",
+    tool_name: "Write",
+    tool_input: { file_path: state, content: "{}" },
+  });
+  assert.equal(cursor.status, 0, cursor.stderr);
+  assert.equal(JSON.parse(cursor.stdout).permission, "deny", cursor.stdout);
+});
+
 test("normalizeAntigravityHookOutput speaks agy's decision and injectSteps contracts", () => {
   const ask = { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: "secret" } };
   const deny = { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: "blocked" } };

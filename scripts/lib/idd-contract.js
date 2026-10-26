@@ -66,6 +66,8 @@ const RUN_EVIDENCE = Object.freeze({
   "migration-test": "migration-test",
 });
 const SHA256 = /^sha256:[0-9a-f]{64}$/;
+// The close time the CLI records (Date#toISOString); it names the archive.
+const CLOSE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 
 // Signal → obligation, in the spec's table order (REQ-idd-005).
 const SIGNALS = Object.freeze(
@@ -162,8 +164,8 @@ function validateState(state) {
   if ("retracted" in state && !Array.isArray(state.retracted)) fail("retracted must be a list");
   if ("impacts" in state && !Array.isArray(state.impacts)) fail("impacts must be a list");
   if ("attestations" in state && !Array.isArray(state.attestations)) fail("attestations must be a list");
-  if (state.closed_at != null && (state.status !== "closed" || typeof state.closed_at !== "string")) {
-    fail("closed_at is the close time of a closed change");
+  if (state.closed_at != null && (state.status !== "closed" || typeof state.closed_at !== "string" || !CLOSE_TIME.test(state.closed_at))) {
+    fail("closed_at is the close time of a closed change, as an ISO 8601 UTC timestamp");
   }
   if (state.base != null && typeof state.base !== "string") fail("base must be a commit id");
   if ("assumptions" in state) {
@@ -535,6 +537,22 @@ function canWithdraw(state, obligationId) {
   return { ok: true };
 }
 
+// The obligations an active signal derives that the state lost or withdrew.
+// The commands never leave one (addSignal adds or reopens it, canWithdraw
+// refuses the withdrawal), so only a hand edit does (B2): close refuses it and
+// `ospec check` reopens it.
+function signalGaps(state) {
+  const gaps = [];
+  for (const signal of state.signals) {
+    const id = SIGNAL_BY_ID.get(signal.id)?.obligation;
+    const obligation = state.obligations.find((entry) => entry.id === id);
+    if (!obligation || obligation.status === "withdrawn") {
+      gaps.push({ obligation: id, signal: signal.id, status: obligation ? "withdrawn" : "missing" });
+    }
+  }
+  return gaps;
+}
+
 function canClose(state) {
   const blocking = [
     ...state.obligations.filter((o) => o.status === "pending").map((o) => o.id),
@@ -548,6 +566,7 @@ module.exports = {
   CHANGE_ID_PATTERN,
   CHANGE_ROOT,
   CHANGE_STATUSES,
+  CLOSE_TIME,
   DECISIONS_ROOT,
   DEFAULT_MODE,
   EVIDENCE_KINDS,
@@ -578,5 +597,6 @@ module.exports = {
   deriveObligations,
   isIntentAmbiguous,
   resolveMode,
+  signalGaps,
   validateState,
 };

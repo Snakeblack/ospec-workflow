@@ -25,6 +25,16 @@ const ALLOWED_HOOK_EVENTS = new Set([
   "stop",
 ]);
 
+// What Cursor guarantees against a write to the state the ospec CLI owns
+// (E1.43). The generated hooks.json runs the PreToolUse guard only before a
+// shell command or a file read, and neither is a file edit. install-cursor.js
+// mirrors it onto Cursor's generic preToolUse, where the guard denies the write
+// if Cursor sends the edit there; ospec does not rely on that, so the guarantee
+// is the revalidation of ospec close. A generated hooks.json that runs the guard
+// on another event makes this declaration stale.
+const PRE_TOOL_USE_EVENTS = new Set(["beforeShellExecution", "beforeReadFile"]);
+const CLI_OWNED_STATE_GUARD = "revalidation-only";
+
 const REQUIRED_READONLY_REVIEW_AGENTS = new Set([
   "review-change",
   "review-correction",
@@ -230,6 +240,9 @@ function validateHooks(root, errors, fsImpl = fs) {
       if (typeof action.command !== "string" || !action.command.includes("__OSPEC_CURSOR_ROOT__")) {
         addError(errors, `${prefix} command must include __OSPEC_CURSOR_ROOT__`);
       }
+      if (typeof action.command === "string" && /\spre-tool-use\b/.test(action.command) && !PRE_TOOL_USE_EVENTS.has(eventName)) {
+        addError(errors, `${prefix} runs pre-tool-use outside ${[...PRE_TOOL_USE_EVENTS].join(" and ")}: update CLI_OWNED_STATE_GUARD (${CLI_OWNED_STATE_GUARD})`);
+      }
     }
   }
 }
@@ -403,4 +416,4 @@ if (require.main === module) {
   main(process.argv.slice(2));
 }
 
-module.exports = { validate, validateInstalled, main };
+module.exports = { CLI_OWNED_STATE_GUARD, PRE_TOOL_USE_EVENTS, validate, validateInstalled, main };

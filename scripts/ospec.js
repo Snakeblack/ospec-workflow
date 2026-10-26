@@ -37,7 +37,7 @@ const {
 } = require("./lib/idd-check.js");
 const { classifyContractPaths } = require("./lib/idd-contracts.js");
 const { addEntry, changelogEntry, proposeRelease } = require("./lib/idd-changelog.js");
-const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvidence } = require("./lib/idd-close.js");
+const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvidence, requireResumable, staleEvidence } = require("./lib/idd-close.js");
 const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
 const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { runCommand } = require("./lib/idd-exec.js");
@@ -55,6 +55,7 @@ const {
   recordRetract,
   recordSignal,
   recordWithdraw,
+  reopenDerived,
 } = require("./lib/idd-record.js");
 const {
   buildCandidate,
@@ -72,7 +73,7 @@ const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-ga
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
 const { applyDerivation, classifyPath, deriveSignals, persistentHits } = require("./lib/idd-signals.js");
 const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
-const { IddStoreError, changeDir, listChanges, mutateChange, readChange } = require("./lib/idd-store.js");
+const { IddStoreError, changeDir, listChanges, mutateChange, readChange, serializeState } = require("./lib/idd-store.js");
 const { withFileLock } = require("./lib/ospec-state.js");
 const {
   EMPTY_TREE,
@@ -488,8 +489,9 @@ async function check(root, values) {
       });
       const derived = applyDerivation(stored, derivation);
       added = derived.added;
+      const reopened = reopenDerived(derived.state).state;
       const runs = checks.map((result) => runRecord("checks", result.command, result, checkTreeBefore, recordedAt, { name: result.name }));
-      const recorded = recordRuns(derived.state, runs);
+      const recorded = recordRuns(reopened, runs);
       const fitnessRecorded = recordRuns(recorded.state, fitnessRuns.map((result) => runRecord("fitness", result.command, result, checkTreeBefore, recordedAt, { ref: result.ref })));
       const settled = settleChecks(fitnessRecorded.state, { tree: checkTree, runIds: recorded.ids, recordedAt });
       const hasTest = diff.paths.some((file) => classifyPath(file) === "test");
@@ -585,15 +587,37 @@ function writeEvidenceSection(root, state) {
   if (rendered !== text) fs.writeFileSync(file, rendered);
 }
 
-// The evidence that checks-pass holds must come from the tree being closed:
-// the last check also settled every other tree-bound obligation on it.
-function requireFreshChecks(root, state) {
-  const checks = state.obligations.find((entry) => entry.id === "checks-pass");
-  if (checks?.status !== "satisfied") return;
-  const evidence = state.evidence.find((entry) => entry.id === checks.evidence.at(-1));
-  if (evidence?.detail?.tree !== readCheckTreeFingerprint(root)) {
-    throw new IddRecordError("evidence-stale", "the tree changed after the last ospec check: run ospec check before closing");
-  }
+// The tree-bound evidence must come from the tree being closed: the last check
+// settled it on that tree (B2: a hand edit could restore an older one).
+function requireFreshEvidence(root, state) {
+  const read = (fingerprint) => {
+    let value;
+    return () => (value ??= fingerprint(root));
+  };
+  const stale = staleEvidence(state, { tree: read(readTreeFingerprint), checkTree: read(readCheckTreeFingerprint) });
+  if (stale.length === 0) return;
+  const what = stale.includes("checks-pass") ? "the tree changed after the last ospec check" : `${stale.join(", ")} holds evidence of another tree`;
+  throw new IddRecordError("evidence-stale", `${what}: run ospec check before closing`);
+}
+
+// close derives the signals again as ospec check does (B2): a signal, gate or
+// reference the diff derives and the state lacks was removed by hand, and
+// check records it again.
+function requireDerived(root, state) {
+  const context = readProjectContext(root);
+  const diff = readGitDiff(root, { base: diffBase({}, state) });
+  const { map, sources } = readKnowledgeSources(root);
+  const derived = applyDerivation(state, deriveSignals({ intent: state.intent, strictTdd: context.strictTdd, diff, patterns: context.patterns, knowledge: { map, sources }, retracted: state.retracted }));
+  const known = new Set((state.impacts || []).map((entry) => `${entry.kind}:${entry.id}`));
+  const lacking = [
+    ...derived.added.signals.map((id) => `signal ${id}`),
+    ...derived.added.gates.map((id) => `gate ${id}`),
+    ...(derived.state.impacts || []).filter((entry) => !known.has(`${entry.kind}:${entry.id}`)).map((entry) => `${entry.kind} ${entry.id}`),
+  ];
+  if (lacking.length === 0) return;
+  const error = new IddRecordError("close-refused", `close refused: the diff derives ${lacking.join(", ")}, which the state lacks`);
+  error.how = `ospec check --change ${state.change} records it`;
+  throw error;
 }
 
 async function findArchived(root, changeId) {
@@ -623,13 +647,25 @@ async function close(root, values) {
       if (!archived) throw new IddRecordError("unknown-change", "no such change; open it with record intent first");
       state = archived;
     } else if (state.status === "open") {
-      requireFreshChecks(root, state);
+      requireFreshEvidence(root, state);
       const livingDoc = readLivingDoc(root, state);
       const closedAt = new Date().toISOString();
       // A refused close leaves the changelog as it was, so it is refused first.
       closeChange(state, { closedAt, livingDoc });
-      delivery = closeDelivery(root, state, { write: true });
-      ({ state } = await mutateChange(root, values.change, existing((stored) => ({ ...closeChange(stored, { closedAt, livingDoc }), changed: true }))));
+      requireDerived(root, state);
+      const validated = serializeState(state);
+      ({ state } = await mutateChange(root, values.change, existing((stored) => {
+        // The state closed is the one validated above (B2): git runs outside
+        // the state lock, so a write in between refuses before the changelog.
+        if (serializeState(stored) !== validated) {
+          throw new IddRecordError("state-changed", "state.yaml changed while close validated it: run ospec close again");
+        }
+        const closed = closeChange(stored, { closedAt, livingDoc });
+        delivery = closeDelivery(root, stored, { write: true });
+        return { ...closed, changed: true };
+      })));
+    } else {
+      requireResumable(state);
     }
     if (await fsp.stat(changeDir(root, state.change)).then(() => true, () => false)) writeEvidenceSection(root, state);
     const archive = await archiveChange(root, state);

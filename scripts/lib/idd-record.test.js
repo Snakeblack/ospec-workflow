@@ -20,6 +20,7 @@ const {
   recordReferences,
   recordSignal,
   recordWithdraw,
+  reopenDerived,
 } = require("./idd-record.js");
 
 // The open-facts declaration every resolved intent needs (REQ-idd-018).
@@ -358,6 +359,22 @@ test("a withdrawal needs a reason, is recorded once and never undoes satisfied e
   }).state;
   satisfied.signals = [];
   assertCode(() => recordWithdraw(satisfied, { obligation: "checks-pass", reason: "r" }), "obligation-satisfied");
+});
+
+test("reopenDerived reopens each obligation an active signal derives that a hand edit withdrew or removed (B2)", () => {
+  const state = recordSignal(opened(), { id: "bug-fix", reason: "intent kind bug", source: "declaration" }).state;
+  assert.strictEqual(reopenDerived(state).changed, false);
+
+  const edited = structuredClone(state);
+  edited.obligations = [{ id: "repro-test", signal: "bug-fix", status: "withdrawn", evidence: [], withdrawn_reason: "edited by hand" }];
+  const reopened = reopenDerived(edited);
+  assert.strictEqual(reopened.changed, true);
+  assertValid(reopened.state);
+  assert.deepStrictEqual(reopened.state.obligations, [
+    { id: "repro-test", signal: "bug-fix", status: "pending", evidence: [] },
+    { id: "checks-pass", signal: "always", status: "pending", evidence: [] },
+  ]);
+  assertCode(() => reopenDerived({ ...edited, status: "closed" }), "change-closed");
 });
 
 // ---------------------------------------------------------------------------

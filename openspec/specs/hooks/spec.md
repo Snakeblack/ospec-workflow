@@ -1799,3 +1799,23 @@ Every writer of the workspace's `.ospec/` (the Node hooks and the native binary:
 
 - GIVEN a git repository whose `.gitignore` does not mention `.ospec/` WHEN the Stop hook writes `.ospec/session/latest.md` THEN `git status --porcelain --untracked-files=all` MUST stay empty and `.ospec/.gitignore` MUST hold `*`.
 - GIVEN `.ospec/.gitignore` already exists with other content, or as a dangling symlink, WHEN a writer creates a directory under `.ospec/` THEN the file MUST keep its content and the symlink target MUST NOT be created.
+
+### Requirement: PreToolUse Denies Writes To The State The CLI Owns {#REQ-hooks-029}
+
+Only the ospec CLI writes the state of an IDD change (REQ-idd-003), its archive and the review receipts (REQ-hooks-027), and `ospec close` revalidates that state in every target (REQ-idd-009). The PreToolUse guard reinforces it, in the Node hook and the native binary alike. It MUST deny a tool call that writes `idd/<change>/state.yaml` or the `state.yaml.tmp` and `state.yaml.bak` its atomic write leaves (reading a change restores the `.bak` as the state), or that writes, moves or deletes `idd/archive/`, `.ospec/review-receipts/` or anything under them. Each path is resolved against the workspace and recognized wherever it holds those segments, in any case, without asking git.
+
+- A tool writes when its name, without punctuation and in lower case, is not one of the read tools and contains `write`, `edit`, `patch`, `create`, `replace`, `insert`, `delete`, `remove`, `move` or `rename`.
+- Its files are the values of the declared path keys (`file_path`, `filePath`, `path`, `target_file`, `notebook_path`) and of `source` and `destination`, which a move names.
+- A tool whose name contains `patch` also writes every file a `*** Add File:`, `*** Update File:`, `*** Delete File:` or `*** Move to:` line of its input names, even an indented one.
+- The denial MUST come right after the hard command denials, whatever the permission mode and every `DISABLE_*` switch, and MUST name the ospec commands.
+- Reads and shell commands MUST pass: a shell command that writes those files is left to the revalidation of close.
+
+The guard denies the write wherever the host sends the edit to its PreToolUse hook. The launcher tests feed it the payload shape of Claude, Codex, VS Code, GitHub Copilot, OpenCode, Antigravity and Cursor's generic `preToolUse`, and it denies each one. That proves the guard's answer, not that a host runs the hook before its edits. `docs/target-capabilities.md` says per target whether the PreToolUse protections run: today VS Code and GitHub Copilot do not, and no host has yet been observed live denying this write. The guarantee in every target is the revalidation of close (REQ-idd-009).
+
+On Cursor, the generated `hooks.json` runs the guard only before a shell command or a file read, and `install-cursor.js` mirrors it onto the generic `preToolUse`. `CLI_OWNED_STATE_GUARD` in `scripts/configure/validate-cursor.js` declares the revalidation as Cursor's guarantee. That validator MUST fail when a generated Cursor `hooks.json` runs `pre-tool-use` on another event.
+
+The guard reads only those keys and headers. A tool that names its file under another key, and a move of a whole `idd/<change>` directory, pass it. The revalidation of close is what still holds for them.
+
+- GIVEN a `Write` or `Edit` of `idd/fix-pagination/state.yaml` in `default` or `bypassPermissions` THEN the decision MUST be `deny`.
+- GIVEN an `apply_patch` whose input updates `idd/fix-pagination/state.yaml` THEN the decision MUST be `deny`.
+- GIVEN a `Read` of that file, a `Write` of `idd/fix-pagination/change.md` or of `idd/config.yaml`, or `cat idd/fix-pagination/state.yaml` in the shell THEN the guard MUST make no decision.

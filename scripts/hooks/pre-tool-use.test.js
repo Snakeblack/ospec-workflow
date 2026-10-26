@@ -26,6 +26,53 @@ function decisionFor(command, toolName = "runTerminalCommand") {
   })?.hookSpecificOutput ?? NO_DECISION;
 }
 
+// E1.43: the ospec CLI owns the state of an IDD change, its archive and the
+// review receipts; a tool that writes a file never touches them.
+test("a tool that writes a file the ospec CLI owns is denied in every permission mode, and reads pass", () => {
+  const workspace = path.join(os.tmpdir(), "ospec-owned");
+  const decide = (tool_name, tool_input, permission_mode) =>
+    evaluateToolUse({ tool_name, tool_input, permission_mode }, { workspace })?.hookSpecificOutput ?? NO_DECISION;
+  const denied = [
+    ["Write", { file_path: "idd/fix-pagination/state.yaml", content: "{}" }],
+    ["Edit", { file_path: path.join(workspace, "idd", "fix-pagination", "state.yaml"), old_string: "pending", new_string: "withdrawn" }],
+    ["MultiEdit", { file_path: "IDD\\fix-pagination\\State.yaml", edits: [] }],
+    ["NotebookEdit", { notebook_path: "idd/archive/2026-10-25-fix-pagination/change.md" }],
+    ["editFiles", { filePath: "idd/archive/2026-10-25-fix-pagination/state.yaml" }],
+    ["replace_string_in_file", { filePath: "../idd/fix-pagination/state.yaml" }],
+    ["write_to_file", { file_path: "/repo/idd/fix-pagination/state.yaml", TargetFile: "/repo/idd/fix-pagination/state.yaml" }],
+    ["edit", { filePath: ".ospec/review-receipts/abc.json" }],
+    ["mcp__filesystem__write_file", { path: "idd/archive/2026-10-25-fix-pagination/notes.md" }],
+    ["Write", { file_path: "idd/fix-pagination/state.yaml.bak", content: "{}" }],
+    ["mcp__filesystem__move_file", { source: "forged.json", destination: "idd/fix-pagination/state.yaml" }],
+    ["mcp__filesystem__move_file", { source: "idd/archive", destination: "old-archive" }],
+    ["delete_file", { path: ".ospec/review-receipts" }],
+    ["apply_patch", { input: "*** Begin Patch\n  *** Update File: idd/fix-pagination/state.yaml\n*** End Patch" }],
+    ["apply_patch", { input: "*** Begin Patch\n*** Update File: idd/fix-pagination/state.yaml\n@@\n-a\n+b\n*** End Patch" }],
+    ["apply_patch", { command: "*** Begin Patch\r\n*** Update File: src/a.js\r\n*** Move to: idd/archive/x/a.js\r\n*** End Patch" }],
+  ];
+  for (const [tool, input] of denied) {
+    for (const mode of ["default", "bypassPermissions"]) {
+      const output = decide(tool, input, mode);
+      assert.equal(output.permissionDecision, "deny", `${tool} ${JSON.stringify(input)} in ${mode}`);
+      assert.match(output.permissionDecisionReason, /CLI de ospec/);
+    }
+  }
+  const passing = [
+    ["Read", { file_path: "idd/fix-pagination/state.yaml" }],
+    ["Grep", { path: "idd/archive", pattern: "decision" }],
+    ["read_file", { filePath: "idd/archive/2026-10-25-fix-pagination/change.md" }],
+    ["Write", { file_path: "idd/fix-pagination/change.md", content: "# fix-pagination" }],
+    ["Write", { file_path: "idd/config.yaml", content: "checks:\n  test: npm test\n" }],
+    ["Edit", { file_path: "docs/idd/archive.md", old_string: "a", new_string: "b" }],
+    ["Write", { file_path: "idd/fix-pagination/state.yml", content: "{}" }],
+    ["mcp__filesystem__move_file", { source: "a.txt", destination: "b.txt" }],
+    ["Write", { file_path: "notes.txt", content: "*** Update File: idd/fix-pagination/state.yaml" }],
+    ["Bash", { command: "cat idd/fix-pagination/state.yaml" }],
+    ["apply_patch", { input: "*** Begin Patch\n*** Update File: src/a.js\n*** End Patch" }],
+  ];
+  for (const [tool, input] of passing) assert.equal(decide(tool, input, "default").permissionDecision, null, `${tool} ${JSON.stringify(input)}`);
+});
+
 test("shell literal reads use AgentShield and preserve bypass policy", () => {
   const cases = [
     ['cat .env', 'ask'],

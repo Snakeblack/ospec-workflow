@@ -2,7 +2,9 @@
 
 // `ospec close` for IDD changes (openspec/specs/idd/spec.md, REQ-idd-004,
 // REQ-idd-009, REQ-idd-017). Closing settles the living document, refuses
-// while an obligation is pending or a gate is open, records `status: closed`
+// while an obligation is pending, a gate is open or the state breaks a rule the
+// commands keep (an obligation an active signal derives, withdrawn or lost, or
+// tree-bound evidence of another tree), records `status: closed`
 // with `closed_at` (the resume marker) and then moves idd/<id>/ to
 // idd/archive/<date>-<id>/ transactionally: the inventory digest of O6A must
 // match on both sides, a failed rename falls back to copy, compare and remove,
@@ -17,6 +19,7 @@ const { computeInventory, fingerprintInventory } = require("./archive-transactio
 const {
   ARCHIVE_ROOT,
   CHANGE_ROOT,
+  CLOSE_TIME,
   EVIDENCE_MARKERS,
   GATED_IMPACTS,
   LIVING_DOC_FILE,
@@ -24,6 +27,7 @@ const {
   STATE_FILE,
   canClose,
   isIntentAmbiguous,
+  signalGaps,
 } = require("./idd-contract.js");
 const { IddRecordError } = require("./idd-record.js");
 
@@ -31,8 +35,10 @@ const LIVING_DOC = "living-doc";
 // The model writes these sections; they must say something at close.
 const AUTHORED_SECTIONS = Object.freeze(["Plan", "Decisions"]);
 
-function refuse(code, message) {
-  throw new IddRecordError(code, message);
+function refuse(code, message, how) {
+  const error = new IddRecordError(code, message);
+  if (how) error.how = how;
+  throw error;
 }
 
 function sectionsOf(text) {
@@ -86,6 +92,8 @@ function renderEvidence(text, state) {
 function closeChange(state, { closedAt, livingDoc = null }) {
   if (state.status === "closed") refuse("change-closed", `change ${state.change} is closed`);
   if (isIntentAmbiguous(state)) refuse("ambiguous-intent-open", "a change with an ambiguous intent cannot close");
+  const gaps = signalGaps(state).map((gap) => `${gap.obligation} is ${gap.status} while signal ${gap.signal} derives it`);
+  if (gaps.length > 0) refuse("close-refused", `close refused: ${gaps.join(", ")}`, `ospec check --change ${state.change} reopens it`);
   const next = structuredClone(state);
   const doc = next.obligations.find((entry) => entry.id === LIVING_DOC && entry.status === "pending");
   if (doc) {
@@ -100,6 +108,50 @@ function closeChange(state, { closedAt, livingDoc = null }) {
   next.status = "closed";
   next.closed_at = closedAt;
   return { state: next };
+}
+
+// Tree-bound evidence proves only the tree it ran on, and every check settles
+// it again on its own (REQ-idd-014). The migration test names the source tree;
+// the rest name the tree of the check runs.
+const TREE_BOUND = Object.freeze({
+  "checks-pass": "checkTree",
+  "boundary-tests": "checkTree",
+  "contract-spec-and-test": "checkTree",
+  "adr-impact-declaration": "checkTree",
+  "migration-compat-and-test": "tree",
+});
+
+/**
+ * The satisfied tree-bound obligations whose last evidence names another tree
+ * than the one being closed (B2). `trees` reads each fingerprint on demand.
+ */
+function staleEvidence(state, trees) {
+  return state.obligations
+    .filter((entry) => entry.status === "satisfied" && entry.id in TREE_BOUND)
+    .filter((entry) => {
+      const tree = state.evidence.find((item) => item.id === entry.evidence.at(-1))?.detail?.tree;
+      // An impact declaration without fitness runs is bound to no tree.
+      if (entry.id === "adr-impact-declaration" && tree === undefined) return false;
+      return tree !== trees[TREE_BOUND[entry.id]]();
+    })
+    .map((entry) => entry.id);
+}
+
+/**
+ * A closed change left unarchived resumes its archive (REQ-idd-017) only while
+ * it holds the state rules closeChange required (B2). Tree freshness and the
+ * derivation are not checked again: the close it resumes may have written the
+ * changelog already, so a hand edit to `status: closed` escapes those two.
+ */
+function requireResumable(state) {
+  const gaps = signalGaps(state).map((gap) => `${gap.obligation} is ${gap.status} while signal ${gap.signal} derives it`);
+  const { blocking } = canClose(state);
+  if (gaps.length + blocking.length === 0) return;
+  refuse(
+    "close-refused",
+    `close refused: ${state.change} is marked closed with ${[...blocking, ...gaps].join(", ")}`,
+    "only ospec writes state.yaml: restore the state it wrote, or ask the user",
+  );
 }
 
 function archiveName(state) {
@@ -128,6 +180,11 @@ async function inventoryOf(dir) {
 async function archiveChange(root, state) {
   if (state.status !== "closed" || !state.closed_at) {
     throw new IddRecordError("change-open", `change ${state.change} must be closed before it is archived`);
+  }
+  // closed_at names the archive, also when it comes from an archived state
+  // that no validation read: a path in it must never leave idd/archive/.
+  if (!CLOSE_TIME.test(state.closed_at)) {
+    throw new IddRecordError("state-invalid", `change ${state.change} has closed_at ${JSON.stringify(state.closed_at)}, not an ISO 8601 UTC timestamp`);
   }
   const relative = `${ARCHIVE_ROOT}/${archiveName(state)}`;
   const origin = path.join(root, CHANGE_ROOT, state.change);
@@ -256,4 +313,6 @@ module.exports = {
   knowledgeRecords,
   livingDocStatus,
   renderEvidence,
+  requireResumable,
+  staleEvidence,
 };

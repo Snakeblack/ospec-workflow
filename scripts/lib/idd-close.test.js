@@ -12,7 +12,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { EVIDENCE_MARKERS, validateState } = require("./idd-contract.js");
-const { archiveChange, archiveName, closeChange, knowledgeRecords, livingDocStatus, renderEvidence } = require("./idd-close.js");
+const { archiveChange, archiveName, closeChange, knowledgeRecords, livingDocStatus, renderEvidence, requireResumable, staleEvidence } = require("./idd-close.js");
 const { IddRecordError, recordIntent, recordSignal } = require("./idd-record.js");
 const { serializeState } = require("./idd-store.js");
 
@@ -74,6 +74,55 @@ test("close is refused while an obligation is pending or a gate is open", () => 
   assert.throws(() => closeChange(bug, { closedAt: AT }), /repro-test/);
   bug = { ...bug, status: "closed" };
   assertCode(() => closeChange(bug, { closedAt: AT }), "change-closed");
+});
+
+test("close refuses an obligation an active signal derives that the state withdrew or lost, before anything else (B2)", () => {
+  const withdrawn = satisfyChecks(openTypo());
+  Object.assign(withdrawn.obligations[0], { status: "withdrawn", evidence: [], withdrawn_reason: "edited by hand" });
+  assert.throws(
+    () => closeChange(withdrawn, { closedAt: AT }),
+    (error) => error.code === "close-refused" && /checks-pass is withdrawn while signal always derives it/.test(error.message) && error.how === "ospec check --change fix-typo reopens it",
+  );
+  const lost = recordSignal(satisfyChecks(openTypo()), { id: "multi-unit-or-decision", reason: "declared 2 work units", source: "declaration" }).state;
+  lost.obligations = lost.obligations.filter((entry) => entry.id !== "living-doc");
+  assert.throws(() => closeChange(lost, { closedAt: AT, livingDoc: livingDocStatus(DOC) }), /living-doc is missing while signal multi-unit-or-decision derives it/);
+});
+
+test("requireResumable lets a closed change archive only while it holds what close required (B2)", () => {
+  const { state: closed } = closeChange(satisfyChecks(openTypo()), { closedAt: AT });
+  assert.doesNotThrow(() => requireResumable(closed));
+  const forged = { ...openTypo(), status: "closed", closed_at: AT };
+  forged.gates.push({ id: "irreversible-operation", status: "open" });
+  assert.throws(
+    () => requireResumable(forged),
+    (error) => error.code === "close-refused" && /fix-typo is marked closed with checks-pass, gate:irreversible-operation/.test(error.message),
+  );
+  const withdrawn = structuredClone(closed);
+  Object.assign(withdrawn.obligations[0], { status: "withdrawn", evidence: [], withdrawn_reason: "edited by hand" });
+  assert.throws(() => requireResumable(withdrawn), /checks-pass is withdrawn while signal always derives it/);
+});
+
+test("staleEvidence names the satisfied tree-bound obligations whose last evidence proves another tree (B2)", () => {
+  const OTHER = `sha256:${"b".repeat(64)}`;
+  const reads = [];
+  const trees = (values) => ({ tree: () => (reads.push("tree"), values.tree), checkTree: () => (reads.push("checkTree"), values.checkTree) });
+  const state = satisfyChecks(openTypo());
+  assert.deepStrictEqual(staleEvidence(state, trees({ tree: OTHER, checkTree: TREE })), []);
+  assert.deepStrictEqual(staleEvidence(state, trees({ tree: TREE, checkTree: OTHER })), ["checks-pass"]);
+
+  state.obligations.push(
+    { id: "migration-compat-and-test", signal: "persistent-data", status: "satisfied", evidence: ["ev-2"] },
+    { id: "adr-impact-declaration", signal: "adr-or-quality-attribute", status: "satisfied", evidence: ["ev-3"] },
+    { id: "boundary-tests", signal: "untested-product", status: "pending", evidence: [] },
+  );
+  state.evidence.push(
+    { id: "ev-2", kind: "migration-test", obligation: "migration-compat-and-test", recorded_at: AT, detail: { run: "run-1", tree: TREE, plan: "rollback" } },
+    { id: "ev-3", kind: "adr-impact-declaration", obligation: "adr-impact-declaration", recorded_at: AT, detail: { refs: ["adr:0002 conforms"], records: [] } },
+  );
+  assert.deepStrictEqual(staleEvidence(state, trees({ tree: OTHER, checkTree: TREE })), ["migration-compat-and-test"], "the migration test names the source tree");
+  reads.length = 0;
+  assert.deepStrictEqual(staleEvidence(openTypo(), trees({ tree: OTHER, checkTree: OTHER })), []);
+  assert.deepStrictEqual(reads, [], "nothing satisfied reads no tree");
 });
 
 test("the living document must keep its sections with a plan and decisions", () => {
@@ -164,6 +213,15 @@ test("REQ-idd-017 names the refusals, the resume marker and the archive layout",
   for (const name of ["evidence-stale", "close-refused", "archive-conflict", "already_complete", "closed_at", "status: closed", "idd/archive/<YYYY-MM-DD>-<change-id>/"]) {
     assert.ok(section.includes(`\`${name}\``), `REQ-idd-017 must name ${name}`);
   }
+});
+
+test("an archive is never named by a closed_at that is not an ISO timestamp (B2)", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-archive-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, "idd", "fix-typo"), { recursive: true });
+  const forged = { ...openTypo(), status: "closed", closed_at: "../../../x" };
+  await assert.rejects(archiveChange(root, forged), (error) => error.code === "state-invalid");
+  assert.ok(fs.existsSync(path.join(root, "idd", "fix-typo")));
 });
 
 test("only a closed change is archived", async (t) => {
