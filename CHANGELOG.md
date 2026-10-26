@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- El roadmap anota en E1.30 el flake de Windows PowerShell 5.1 en codex-hook-shell de la PR #436 y que el plazo de 0 flakes hasta el 2026-10-29 queda fallido: E1.28 no entra ese día y E1.30 sigue abierto (e1-30-flake-pr-436)
+
 ## [2.155.0] - 2026-10-26
 
 ### Added

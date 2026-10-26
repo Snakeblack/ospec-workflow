@@ -150,7 +150,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.27** | `hook-secret-coverage` (OSP-001 residual / #336: tokens de GitHub/Anthropic/OpenAI project y lectores `od`/`tar`/`scp` en el hook; ampliado con la censura de secretos en `PostToolUse` como `hook-secret-redaction`, en v2.139.0) | feature |
 | `pending` | **E1.28** | `supply-chain-hardening` (OSP-004 / #337: ruleset de `main`, actions fijadas por SHA, Dependabot, Go 1.26; decisión de bypass pendiente) | bugfix |
 | `done` | **E1.29** | `approval-provenance-limit` (OSP-010 / #343: la skill, la spec y la documentación de IDD dicen que `--source`, `--answer` y `--quote` no se verifican; `--source` solo admite `user` o `user-unverified`, en v2.149.0) | docs |
-| `pending` | **E1.30** | `windows-flake-repair` (OSP-022 / #344: PowerShell, lock y Chromium en Windows; cierre con 0 flakes hasta el 2026-10-29) | bugfix |
+| `pending` | **E1.30** | `windows-flake-repair` (OSP-022 / #344: PowerShell, lock y Chromium en Windows; el plazo de 0 flakes hasta el 2026-10-29 no se cumplió, por el flake de PowerShell en la PR #436, y no tiene plazo nuevo) | bugfix |
 | `done` | **E1.31** | `doctor-hook-probe` (OSP-014 / #345: `claude/hook-responds` ejecuta el PreToolUse instalado y lo juzga por su salida, no por el exit; con OSP-032 / #406, `claude/output-redaction` avisa si la censura está activa y Claude Code es anterior a 2.1.121, en v2.150.0) | feature |
 | `done` | **E1.32** | `docs-dx-corrections` (OSP-008/013/021/023 / #346 y #347: README EN/ES, `SECURITY.md`, `cli.js` fuera del checkout y, en v2.150.5, cada versión del CHANGELOG con tag o marca de no publicada, comprobada contra `git tag`) | docs |
 | `done` | **E1.33** | `trust-review-attestation` (OSP-029 / #351: `request_digest` y `reviewed[]` verificados contra el árbol congelado; repara REQ-idd-016, en v2.141.0) | bugfix |
@@ -220,7 +220,7 @@ E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delan
 4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.50 `content-security-signal` → E1.51 `open-change-nudge` → E1.52 `review-frozen-tree` → E3.7 `fact-ledger`.
 5. **D. Banco, todo junto.** E4.14 `bench-validation-readiness` (con el doble conteo) → corrida de validación de E4.6 en Claude y agy → E4.4, recalculando antes su premisa → E4.13 `worker-delegation`, solo si E4.4 da evidencia (decisión del usuario del 2026-10-22) → E4.11 `workspace-root-resolution`, al final de la cola.
 
-E1.28 `supply-chain-hardening` depende de una fecha, no de su posición: entra en la primera sesión a partir del 2026-10-29 si E1.30 cumple el plazo de 0 flakes.
+E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
 **Regla multi-target de los ítems de la auditoría del 2026-10-25** (principio 6). Los 7 targets invocan el CLI de la misma forma (`node "<ruta>/scripts/ospec.js"`), así que la garantía vive en el CLI y vale en todos sin adaptación.
 
@@ -245,7 +245,7 @@ La matriz de eventos por target de la v2.151.0 está en la [auditoría](../analy
 | #341 · OSP-026 | **E4.6** (calidad del par, digest reproducible y encuadre publicado) |
 | #342 · OSP-011 | **E4.6** (repetición con Claude con n ≥ 3, brazos simétricos y corpus reservado) |
 | #343 · OSP-010 | **E1.29** `approval-provenance-limit` (nuevo) |
-| #344 · OSP-022 | **E1.30** `windows-flake-repair` (nuevo; cierre con 0 flakes hasta el 2026-10-29) |
+| #344 · OSP-022 | **E1.30** `windows-flake-repair` (nuevo; el plazo de 0 flakes hasta el 2026-10-29 quedó fallido el 2026-10-26) |
 | #345 · OSP-014 | **E1.31** `doctor-hook-probe` (nuevo; seguimiento de E1.7) |
 | #346 · OSP-008 | **E1.32** `docs-dx-corrections` (nuevo) |
 | #347 · OSP-013/021/023 | **E1.32** `docs-dx-corrections` (nuevo) |
@@ -321,7 +321,7 @@ B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
 C: E1.48 ─ E1.49 ─ E1.50 ─ E1.51 ─ E1.52 ─ E3.7
 D: E4.14 ─ E4.6 (corrida de validación) ─ E4.4 ─ E4.13 ─ E4.11
-E1.28 entra en la primera sesión a partir del 2026-10-29, si E1.30 cumple su plazo.
+E1.28 espera a que E1.30 cumpla su criterio de hecho: su plazo del 2026-10-29 quedó fallido el 2026-10-26.
 ```
 
 E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado con escrituras atómicas propias hasta que `record` exista.
@@ -678,6 +678,12 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - **Flake en `main`:** el 2026-10-23, en la run de v2.148.1, `startBrowser reports the exit code and stderr of a browser that exits on both starts` falló en Windows con 2 arranques esperados y 1 contado (14,5 s). El primer Node no llegó a escribir su contador en los 5 s y el reintento sí salió con código 3. Publish Marketplace subió v2.148.1 tras relanzar el job.
   - **ChildProcess falso:** los tests `crash` y `cold` dejan de arrancar un Node real, como `hang` desde v2.139.4. `crash` sale con código 3 en el siguiente tick, y el segundo arranque de `cold` deja `DevToolsActivePort` en su perfil antes de volver. `browser.test.js` ya no arranca ningún proceso.
   - **Plazo nuevo:** 0 flakes de Windows hasta el 2026-10-29 (decisión del usuario del 2026-10-23).
+- **Flake en la PR [#436](https://github.com/Snakeblack/ospec-workflow/pull/436) (2026-10-26, E1.45):**
+  - **Qué falló:** en `codex-hook-shell.test.js`, el subtest Windows PowerShell (5.1) dio `spawnSync … ETIMEDOUT` a los 180 s en el hook `session-start` de Codex, en `Validate (windows-latest 2/2)` de las runs [40352150021](https://github.com/Snakeblack/ospec-workflow/actions/runs/40352150021) y [40354317872](https://github.com/Snakeblack/ospec-workflow/actions/runs/40354317872). cmd pasó en 3 s.
+  - **Tiempos:** en la segunda run, PowerShell 7 tardó 23 s y necesitó el reintento del plazo del lanzador, y Git Bash 16 s; en la última run verde de `main` (b33cd84a) fueron 35 s para PowerShell 5.1, 1,5 s y 1 s. Al relanzar el job, con el mismo código, pasó: 48 s, 5 s y 2 s. En local el test tarda unos 0,84 s en la rama y en `main`.
+  - **Causa probable:** contención. `--test-shard` reparte los ficheros en round robin sobre la lista ordenada, así que los dos ficheros de test nuevos de E1.45 (`scripts/configure/ospec-shim.test.js` y `scripts/lib/idd-refusals.test.js`) cambian qué tests corren a la vez en el shard 2, y el arranque en frío de `powershell.exe` no llega a tiempo.
+  - **Hueco:** `runHookOnceMore` solo reintenta el plazo de 4 s del lanzador (`[ospec error] Hook … failed: ETIMEDOUT` en la salida), no el `ETIMEDOUT` de `spawnSync` cuando se agota el margen de 180 s del test.
+  - **Plazo:** el de 0 flakes hasta el 2026-10-29 no se cumple. El usuario lo deja como fallido, sin plazo nuevo (2026-10-26): E1.30 sigue abierto y E1.28 no entra el 2026-10-29.
 
 ### E1.31 — `doctor-hook-probe` (OSP-014, #345)
 
@@ -1495,6 +1501,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-26: E1.30 (IDD, `e1-30-flake-pr-436`, solo documentación). El roadmap anota el flake de Windows PowerShell 5.1 en `codex-hook-shell` de la PR #436, dos veces ETIMEDOUT a los 180 s por contención, y el hueco del reintento, que solo cubre el plazo del lanzador. El plazo de 0 flakes hasta el 2026-10-29 queda fallido sin plazo nuevo, por decisión del usuario: E1.30 sigue abierto y E1.28 espera a su criterio de hecho. Sigue E1.46.
 - 2026-10-26: `cli-one-word-invocation` (IDD), publicado en v2.155.0. E1.45 hecho (B5). La skill `idd` y la `foundation` dejan de definir `ospec` como `node "<ruta>"`, que un agente guardaba en una variable y zsh no podía ejecutar: nombran una sola palabra, el shim junto al runtime. `bin/ospec` (sh, LF, con bit de ejecución) y `bin/ospec.cmd` (CRLF) viajan en los 7 builds y en cada instalación; Claude nombra `${CLAUDE_SKILL_DIR}/../../bin/ospec`, y el instalador renderiza `bin/ospec.cmd` en Windows (y en una raíz WSL de Antigravity), `bin/ospec` en el resto, y entrecomilla solo una ruta con espacios. Un test ejecuta la palabra en bash, zsh, fish, PowerShell y cmd desde una ruta con espacios, y salta con su nombre el shell que falta. Cada `next_step` lleva `command`, el comando literal con solo los `<marcadores>` que el CLI no puede saber; tras un rojo repite su comando, citado para bash, zsh y fish. Un error de uso imprime solo las líneas de su subcomando, también en `error.how`, y un rechazo sin `how` propio toma el de su código en `scripts/lib/idd-refusals.js`; un test recorre los 84 códigos del CLI y exige `how` o `byDesign`, sin baseline. `ospec doctor` da `error` sin shim o sin su bit de ejecución. Una instalación en un repositorio renderiza el shim de la plataforma que la hace. Sigue E1.46.
 - 2026-10-26: `config-only-rises` (IDD), publicado en v2.154.1. E1.53 hecho. `checks-changed` contrasta con la base del cambio, además de los `checks`, los ajustes de ceremonia de `idd/config.yaml`: `strict_tdd` con el que deja el perfil `team`, e `impact` y `contracts`, con sus listas como conjuntos. Cualquier diferencia pide la respuesta del usuario, también la que solo sube la ceremonia, y cada entrada guarda la `config` que aprueba; una entrada anterior aprueba la de la base. Se cierran los residuos de E1.44: `close` rechaza un `contract-spec-and-test` que un `check --base` más antiguo infló; `boundary-tests` y `untested-product` solo cuentan código añadido a un test con extensión de código, ni un comentario ni un fixture; `classifyPath` conoce C y C++, Swift, Scala, Dart, Lua, Elixir, shell, PowerShell y otros, y el código bajo un `docs/` anidado es producto; `readGitDiff` fija los prefijos `a/` y `b/` y lee como texto sin textconv, así que `diff.mnemonicPrefix`, `diff.noprefix`, `diff.srcPrefix` y los atributos `-diff`, `binary` o `diff=` ya no ocultan líneas, y un binario real no aporta ninguna; y subir el kind a `feature` vuelve a abrir `open-facts` y no reescribe `intent.request`. Sigue E1.45.
 - 2026-10-26: `progress-snapshot` (IDD), publicado en v2.154.0. E5.10 hecho, por delante de E1.53 a petición del usuario. `ospec snapshot` exporta bajo demanda el snapshot de avance v1 (`schemaVersion: 1` y las fases con su `id`, su `title` y su `status`) desde `docs/roadmap.md` o `--roadmap`: cada fila de tabla con `<ID>. <título>` es una fase, y su estado sale de los nombres de directorio de los cambios IDD y SDD (activo, `in-progress`; archivado, `done`; ninguno, `pending`). Valida el esquema y sus reglas antes de escribir, y un roadmap ausente o inválido sale con código 1 sin escribir nada. Ningún flujo, hook, check ni gate lo ejecuta, y publicarlo es cosa del proyecto. El ADR 0012 enmienda el 0009: un documento exportado con formato cerrado declara solo su versión. Sigue E1.53.
