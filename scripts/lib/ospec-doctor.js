@@ -7,7 +7,8 @@
 // read through the store (which recovers interrupted writes), and the only
 // processes spawned are `git ls-files`, `git check-ignore`, `claude --version`,
 // the read-only Engram probes and the installed PreToolUse hook, run on a
-// harmless Read outside the project.
+// harmless Read outside the project. The one exception is `--repair`, which
+// moves an unreadable IDD state aside so its change can resume (E1.46).
 //
 // The Claude Code checks live here; the other six hosts, in ospec-doctor-hosts.js.
 
@@ -461,7 +462,52 @@ function readConfig(root, add) {
   }
 }
 
-function iddChangeChecks(root, add) {
+// --repair moves an unreadable state aside, only from its whitelist:
+// idd/<id>/state.yaml outside the archive, a regular file in a real
+// directory, renamed to state.yaml.corrupt-<time> and never over an earlier
+// copy. The change resumes from its .bak, which reading it restores, or from a
+// new intent with the same id; change.md stays.
+function quarantineState(root, id, rel, problem) {
+  const dir = path.join(root, "idd", id);
+  const file = path.join(dir, STATE_FILE);
+  const subject = { id: "idd-change", subject: id };
+  let regular = false;
+  try {
+    regular = fs.lstatSync(dir).isDirectory() && fs.lstatSync(file).isFile();
+  } catch {}
+  if (!regular) {
+    return {
+      ...subject,
+      status: "error",
+      cause: `${rel}: ${problem}; it is not a regular file, and --repair moves only a regular state`,
+      action: `Restore ${rel} by hand from version control; only the ospec CLI writes it.`,
+    };
+  }
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+  let aside = `${file}.corrupt-${stamp}`;
+  for (let copy = 2; fs.existsSync(aside); copy += 1) aside = `${file}.corrupt-${stamp}-${copy}`;
+  const relAside = `idd/${id}/${path.basename(aside)}`;
+  try {
+    fs.renameSync(file, aside);
+  } catch (error) {
+    return {
+      ...subject,
+      status: "error",
+      cause: `${rel}: ${problem}; moving it to ${relAside} failed (${error.message})`,
+      action: `Restore ${rel} from version control; only the ospec CLI writes it.`,
+    };
+  }
+  return {
+    ...subject,
+    status: "warn",
+    cause: `${rel}: ${problem}; moved aside to ${relAside}`,
+    action: fs.existsSync(`${file}.bak`)
+      ? `Resume with \`ospec status --change ${id}\`; the CLI restores the last committed state from ${rel}.bak.`
+      : `Resume with \`ospec record intent --change ${id} …\` (change.md stays), or restore the committed state with \`git checkout -- ${rel}\` if git tracks it.`,
+  };
+}
+
+function iddChangeChecks(root, add, { repair = false } = {}) {
   const base = path.join(root, "idd");
   let openChanges = 0;
   for (const id of listDirs(base).filter((name) => name !== "archive")) {
@@ -497,13 +543,15 @@ function iddChangeChecks(root, add) {
       problem = `not readable idd-state (${error.message})`;
     }
     if (problem) {
-      add({
-        id: "idd-change",
-        subject: id,
-        status: "error",
-        cause: `${rel}: ${problem}`,
-        action: `Restore ${rel} from version control; only the ospec CLI writes it.`,
-      });
+      add(repair
+        ? quarantineState(root, id, rel, problem)
+        : {
+            id: "idd-change",
+            subject: id,
+            status: "error",
+            cause: `${rel}: ${problem}`,
+            action: `Move it aside with \`ospec doctor --repair\` and resume the change, or restore ${rel} from version control; only the ospec CLI writes it.`,
+          });
     } else if (state.status === "closed") {
       add({
         id: "idd-change",
@@ -673,6 +721,7 @@ async function runDoctor({
   arch = process.arch,
   spawn = defaultSpawn,
   target = null,
+  repair = false,
   runtimeRoot = path.resolve(__dirname, "..", ".."),
   execPath = process.execPath,
 } = {}) {
@@ -700,7 +749,7 @@ async function runDoctor({
     ...hosts.hostsWithoutSdd(others),
   ];
   sddPackageCheck({ mode, changes, hostsWithoutSdd }, project);
-  const openIddChanges = iddChangeChecks(root, project);
+  const openIddChanges = iddChangeChecks(root, project, { repair });
   if (config && openIddChanges > 0 && !config.checks?.length) {
     project({
       id: "idd-checks",

@@ -492,12 +492,14 @@ And check again:
 
 Start with `ospec doctor` from the project root (`<runtime>/bin/ospec doctor`, or
 `<runtime>/bin/ospec.cmd doctor` on Windows, and `bin/ospec doctor` in the ospec-workflow
-checkout). It writes nothing
-and reports each problem with its cause and the action that fixes it: an outdated or
+checkout). Without `--repair` it writes nothing,
+and it reports each problem with its cause and the action that fixes it: an outdated or
 duplicated installation, missing hooks, a missing or outdated router block, `mode: sdd`
 without the SDD package, an interrupted IDD or SDD change and the command that resumes
 it, disabled hook guards, and Engram. It exits with 1 only when it finds an error;
-`--json` prints the result and `--target <host>` checks only that host. It checks the
+`--json` prints the result and `--target <host>` checks only that host. `--repair` is the one
+mode that writes: it moves an unreadable IDD state aside as `state.yaml.corrupt-<time>`, and
+the change resumes from its `.bak` or with `ospec record intent` and the same id. It checks the
 seven hosts: Claude Code, Codex, Cursor, Antigravity, OpenCode, GitHub Copilot CLI and
 VS Code, including installations that predate the IDD runtime, placeholders an installer
 left unrendered, and VS Code entries that load the source checkout or a stale build.

@@ -163,6 +163,74 @@ test("IDD changes get the command that resumes them", async (t) => {
   assert.equal(result.exit_code, 1);
 });
 
+// E1.46 state-durability: --repair moves an unreadable state aside, without
+// overwriting an earlier one, and the change resumes from its .bak or from a
+// new intent with the same id.
+test("--repair moves an unreadable IDD state aside and the change resumes", async (t) => {
+  const env = setup(t);
+  const dir = path.join(env.root, "idd", "broken");
+  write(path.join(dir, "state.yaml"), "{ not json");
+  write(path.join(dir, "change.md"), "# broken\n");
+  write(path.join(env.root, "idd", "from-bak", "state.yaml"), "{ not json either");
+  write(path.join(env.root, "idd", "from-bak", "state.yaml.bak"), { ...OPEN_STATE, change: "from-bak" });
+
+  const plain = await doctor(env);
+  assert.match(find(plain, "project", "idd-change", "broken").action, /ospec doctor --repair/);
+  assert.ok(fs.existsSync(path.join(dir, "state.yaml")), "without --repair the doctor writes nothing");
+
+  const repaired = await doctor(env, { repair: true });
+  const check = find(repaired, "project", "idd-change", "broken");
+  assert.equal(check.status, "warn");
+  assertActionable(check);
+  assert.match(check.cause, /state\.yaml\.corrupt-/);
+  assert.match(check.action, /ospec record intent --change broken/);
+  assert.match(check.action, /git checkout/);
+  assert.equal(repaired.exit_code, 0);
+  assert.equal(fs.existsSync(path.join(dir, "state.yaml")), false);
+  const [aside] = fs.readdirSync(dir).filter((name) => name.startsWith("state.yaml.corrupt-"));
+  assert.equal(fs.readFileSync(path.join(dir, aside), "utf8"), "{ not json");
+  assert.equal(fs.readFileSync(path.join(dir, "change.md"), "utf8"), "# broken\n");
+
+  const { mutateChange, readChange } = require("./idd-store.js");
+  const { recordIntent } = require("./idd-record.js");
+  const intent = { change: "broken", kind: "bug", summary: "Fix it.", acceptance: "It works.", noOpenFacts: true, basis: "The request settles it." };
+  const { state } = await mutateChange(env.root, "broken", (current) => recordIntent(current, intent));
+  assert.equal(state.status, "open");
+  assert.equal(fs.readFileSync(path.join(dir, "change.md"), "utf8"), "# broken\n");
+  assert.equal((await readChange(env.root, "from-bak")).change, "from-bak");
+
+  write(path.join(dir, "state.yaml"), "{ broken again");
+  await doctor(env, { repair: true });
+  assert.equal(fs.readdirSync(dir).filter((name) => name.startsWith("state.yaml.corrupt-")).length, 2, "an earlier copy is never overwritten");
+});
+
+test("--repair leaves the archive, a symlinked state and a readable state alone", async (t) => {
+  const env = setup(t);
+  write(path.join(env.root, "idd", "archive", "2026-10-01-old", "state.yaml"), "{ not json");
+  write(path.join(env.root, "idd", "add-export", "state.yaml"), OPEN_STATE);
+  const outside = path.join(env.home, "outside.yaml");
+  write(outside, "{ not json");
+  let linked = true;
+  try {
+    fs.mkdirSync(path.join(env.root, "idd", "linked"), { recursive: true });
+    fs.symlinkSync(outside, path.join(env.root, "idd", "linked", "state.yaml"));
+  } catch {
+    linked = false;
+  }
+  const before = treeDigest(env.root);
+
+  const result = await doctor(env, { repair: true });
+
+  assert.equal(treeDigest(env.root), before, "nothing outside the whitelist moves");
+  assert.equal(find(result, "project", "idd-change", "add-export").status, "info");
+  if (linked) {
+    const check = find(result, "project", "idd-change", "linked");
+    assert.equal(check.status, "error");
+    assert.match(check.cause, /not a regular file/);
+    assert.equal(fs.readFileSync(outside, "utf8"), "{ not json");
+  }
+});
+
 test("an invalid idd/config.yaml is an error", async (t) => {
   const env = setup(t);
   write(path.join(env.root, "idd", "config.yaml"), "mode: waterfall\n");

@@ -1346,7 +1346,8 @@ batch, so they are asked together before the change is built.
 
 `ospec doctor` MUST diagnose the installed hosts and the project without
 writing anything: no file, no lock, no state recovery and no mutating host
-command. It MUST report every check it runs with a `status` of `ok`, `info`,
+command. The one exception is `--repair` (E1.46), which MUST only move an
+unreadable IDD state aside, as the `idd-change` check says. It MUST report every check it runs with a `status` of `ok`, `info`,
 `warn` or `error`, its `scope` (`runtime`, `checkout`, `project` or a host
 target) and, for `warn` and `error`, the `cause` and the `action` that fixes it.
 It MUST exit with 1 when any check is `error` and with 0 otherwise; warnings
@@ -1373,8 +1374,9 @@ The checks MUST cover at least:
   `idd-change` for every change under `idd/` (`warn` with
   `ospec close --change <id>` for a closed change still outside the archive,
   `warn` with `ospec status` for an interrupted write that left only
-  `state.yaml.bak`, `error` for an unreadable state, `info` with
-  `ospec next --change <id>` for an open change), `sdd-change` for every change
+  `state.yaml.bak`, `error` for an unreadable state, with
+  `ospec doctor --repair` and the version-control restore as the action,
+  `info` with `ospec next --change <id>` for an open change), `sdd-change` for every change
   in `openspec/changes/` (`info` with `/sdd-continue <name>`),
   `strict-tdd-hook` (`warn` when the installed pre-commit hook's active mode
   and the other Strict TDD source disagree: IDD follows `strict_tdd`, and
@@ -1439,6 +1441,25 @@ The checks MUST cover at least:
 - WHEN `ospec doctor` runs
 - THEN it MUST report `idd-change` as `warn` with `ospec status` as the action
 - AND the project tree MUST be byte-identical afterwards
+
+#### Scenario: Repair moves an unreadable state aside
+
+- GIVEN `idd/broken/state.yaml` that is not JSON, beside its `change.md`
+- WHEN `ospec doctor` runs
+- THEN `idd-change` MUST be `error` with `ospec doctor --repair` in its action,
+  and the file MUST stay where it is
+- WHEN `ospec doctor --repair` runs
+- THEN the file MUST become `idd/broken/state.yaml.corrupt-<UTC time>`, with a
+  `-<n>` suffix rather than over an earlier copy, `change.md` MUST stay, and
+  `idd-change` MUST be `warn` naming the copy, with `ospec status` as the
+  action when `state.yaml.bak` exists (reading the change restores it) and
+  otherwise `ospec record intent --change broken` or
+  `git checkout -- idd/broken/state.yaml`
+- AND the exit code MUST be 0
+- AND only `idd/<id>/state.yaml` of a change outside `idd/archive/`, a regular
+  file in a real directory, that `idd-change` reports as `error` (not JSON,
+  invalid against the schema, or declaring another change) MUST move: a
+  symlink stays `error`, and nothing else in the project changes
 
 #### Scenario: An outdated installation is a warning
 

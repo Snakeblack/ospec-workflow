@@ -11,7 +11,8 @@ const { GATES, IMPACTS, INTENT_KINDS, SIGNALS } = require("./idd-contract.js");
 
 const NEXT = "ospec next --change <id> --json names the next step";
 const ANSWER = '--answer "<the user\'s words>" --source user';
-const RESTORE_STATE = "the CLI owns idd/<id>/state.yaml: restore it with git checkout -- idd/<id>/state.yaml and run the command again";
+const RESTORE_STATE =
+  "the CLI owns idd/<id>/state.yaml: restore it with git checkout -- idd/<id>/state.yaml, or move it aside with ospec doctor --repair and resume the change, then run the command again";
 const CLI_ONLY = "only the CLI records evidence, from runs it observes; no agent input reaches it";
 
 const REFUSALS = Object.freeze({

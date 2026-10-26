@@ -9,7 +9,8 @@
 // quality scenarios the change touches included (REQ-idd-022). `record` never
 // takes obligation evidence: the CLI records it only from executions it
 // observes (REQ-idd-007). `doctor`
-// diagnoses the installation and the project without writing (REQ-idd-019).
+// diagnoses the installation and the project without writing (REQ-idd-019);
+// `--repair` moves an unreadable IDD state aside so its change resumes.
 // `team` resolves the team profile of the active mode, the defaults it
 // decides and the delivery options, with their reasons (REQ-idd-023). `close`
 // writes the changelog entry and proposes the release they declare
@@ -128,7 +129,7 @@ const USAGE = `Usage:
   ospec review start|correct --change <id> [--base <ref>]
   ospec review record|validate --change <id> --result <json>|@<file>
   ospec close --change <id>
-  ospec doctor [--target <host>] [--json]
+  ospec doctor [--target <host>] [--repair] [--json]
   ospec team [--mode <idd|sdd>] [--json]
   ospec snapshot [--roadmap <path>] [--out <file>] [--json]
   ospec foundation next [--profile <id>] [--map <path>] [--json]
@@ -206,6 +207,7 @@ const OPTIONS = {
   result: { type: "string" },
   root: { type: "string" },
   target: { type: "string" },
+  repair: { type: "boolean" },
   mode: { type: "string" },
   profile: { type: "string" },
   map: { type: "string" },
@@ -1028,7 +1030,7 @@ async function run(command, positionals, values) {
   if (command === "run") return runObligation(root, values);
   if (command === "review") return review(root, positionals, values);
   if (command === "close") return close(root, values);
-  if (command === "doctor") return runDoctor({ root, target: values.target ?? null });
+  if (command === "doctor") return runDoctor({ root, target: values.target ?? null, repair: values.repair === true });
   if (command === "foundation") return foundation(root, positionals, values);
   if (command === "team") return readTeam(root, values.mode ?? null);
   if (command === "snapshot") return snapshot(root, values);
