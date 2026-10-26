@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- E1.30: el test del heartbeat del lock deja de fallar en Windows. Tras el merge de v2.157.0 falló en main (run 40403581014, windows-latest 1/2): con 150 ms de caducidad y heartbeat cada 30 ms, una pausa de unos 120 ms del runner bastaba para que otro proceso reclamara el lock. Se da más margen solo al test (caducidad 1000 ms, heartbeat 50 ms, el dueño trabaja 1500 ms) y el test incluye una pausa deliberada del bucle de eventos de 250 ms que reproduce el fallo; producción no cambia. El roadmap anota el flake en E1.30. (lock-heartbeat-test-margin)
+
 ## [2.157.0] - 2026-10-26
 
 ### Added

@@ -1,0 +1,245 @@
+{
+  "schema": "idd-state/v1",
+  "change": "lock-heartbeat-test-margin",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "E1.30: el test del heartbeat del lock deja de fallar en Windows. Tras el merge de v2.157.0 falló en main (run 40403581014, windows-latest 1/2): con 150 ms de caducidad y heartbeat cada 30 ms, una pausa de unos 120 ms del runner bastaba para que otro proceso reclamara el lock. Se da más margen solo al test (caducidad 1000 ms, heartbeat 50 ms, el dueño trabaja 1500 ms) y el test incluye una pausa deliberada del bucle de eventos de 250 ms que reproduce el fallo; producción no cambia. El roadmap anota el flake en E1.30.",
+    "acceptance": "Con los márgenes anteriores el test falla de forma determinista por la pausa y con los nuevos pasa; sin heartbeat el test sigue fallando, así que prueba el refresco; LOCK_STALE_MS y LOCK_HEARTBEAT_MS no cambian; E1.30 anota el flake de main con su run"
+  },
+  "facts": {
+    "open": [
+      "El test gemelo de Go (internal/store/lock_test.go, TestLock... con stale 150 ms y heartbeat 30 ms) tiene el mismo margen corto: ¿se le dan también 1000/50/1500 ms en este cambio, o queda como está y solo se anota?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "internal/store/lock_test.go",
+      "scripts/lib/ospec-state.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component change-state: ADR 0002, 0009, 0011 and quality scenario contract-compatibility, deterministic-resume",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0002",
+      "impact": "conforms",
+      "reason": "El lock que protege el estado en disco no cambia; los tests prueban con más margen que un dueño vivo lo mantiene fresco y que sin heartbeat se reclama."
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "none",
+      "reason": "Ningún contrato versionado ni state.yaml cambia; solo dos tests."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "Toca el lock común de IDD y SDD solo en sus tests; los modos siguen separados en disco."
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "none",
+      "reason": "Ninguna salida ni contrato público cambia."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "Las constantes del lock (5000/1000 ms) no cambian; el test JS fija ahora de forma determinista que una pausa de 250 ms no deja reclamar el lock de un dueño vivo."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "lo recomendado: el test gemelo de Go también pasa a 1000/50/1500 ms en este cambio, con withLockTiming",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-26T21:50:32.196Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-26T21:52:18.709Z",
+      "detail": {
+        "tree": "sha256:8425fa8aefcbdde0a75bf29291adeb0dfd3b008a3136ec989ef7c88d22aab8de",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-26T21:52:18.709Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0009 none",
+          "adr:0011 none",
+          "scenario:contract-compatibility none",
+          "scenario:deterministic-resume conforms"
+        ],
+        "records": [],
+        "tree": "sha256:8425fa8aefcbdde0a75bf29291adeb0dfd3b008a3136ec989ef7c88d22aab8de",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8"
+        ]
+      }
+    }
+  ],
+  "base": "1086b227ecd51860dd5e86e626e7fa586a75b998",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"an owner keeps its lock fresh\" scripts/lib/ospec-state.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:2d5782bd82e9e1b26905b356a55d67014e57d9615b1ab5d4d97a21e7b3e67e14",
+      "tree": "sha256:9f11cf0e26fce3bb1afcc5da55942430d1eea111eeeed2c4d3b629e9a2e6eae8",
+      "recorded_at": "2026-10-26T21:49:57.513Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"an owner keeps its lock fresh\" scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eba5e355c3310d478885a2e760125aaf0c6bbfb840135e6fa839517531360ee4",
+      "tree": "sha256:3506d1b767a84e6f854d2b53f7038cc690a778848524f6414fc3371434ede4df",
+      "recorded_at": "2026-10-26T21:50:32.196Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2bbe61227f985e62487e63b5ab2631816f2bd6222137ae5318b905881d2b674d",
+      "tree": "sha256:8425fa8aefcbdde0a75bf29291adeb0dfd3b008a3136ec989ef7c88d22aab8de",
+      "recorded_at": "2026-10-26T21:52:18.709Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3cbe0250b151d67c7120d736ad8bd83358e66b3ed3b7672f07735a481fad35e3",
+      "tree": "sha256:8425fa8aefcbdde0a75bf29291adeb0dfd3b008a3136ec989ef7c88d22aab8de",
+      "recorded_at": "2026-10-26T21:52:18.709Z",
+      "tests": 13
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1853c8b93b734fb693007baa12e30a35b4ea95f3aba0b0dba09ab0d1c261cd90",
+      "tree": "sha256:8425fa8aefcbdde0a75bf29291adeb0dfd3b008a3136ec989ef7c88d22aab8de",
+      "recorded_at": "2026-10-26T21:52:18.709Z",
+      "tests": 32
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a402ad6e79645178a12f70d522da7c41048b2179a17f009a0068e831fd45c3db",
+      "tree": "sha256:8425fa8aefcbdde0a75bf29291adeb0dfd3b008a3136ec989ef7c88d22aab8de",
+      "recorded_at": "2026-10-26T21:52:18.709Z",
+      "tests": 84
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c79452003ee851847cdb9c7881d12a33d89d4ca8f0f23e7c4b81f6a37536b7a8",
+      "tree": "sha256:8425fa8aefcbdde0a75bf29291adeb0dfd3b008a3136ec989ef7c88d22aab8de",
+      "recorded_at": "2026-10-26T21:52:18.709Z",
+      "tests": 32
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f5201a6ede57e99e5cfb7a64a58cf0f9107c7e4a28168352c60d21b3f46384ab",
+      "tree": "sha256:8425fa8aefcbdde0a75bf29291adeb0dfd3b008a3136ec989ef7c88d22aab8de",
+      "recorded_at": "2026-10-26T21:52:18.709Z",
+      "tests": 47
+    }
+  ],
+  "closed_at": "2026-10-26T21:52:22.345Z"
+}
