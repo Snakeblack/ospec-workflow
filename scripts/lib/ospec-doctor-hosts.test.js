@@ -156,7 +156,8 @@ test("a runtime without its shim, or with a shim that cannot run, is an error", 
     const runtime = find(result, target, "runtime");
     assert.equal(runtime.status, "error", `${target}/runtime`);
     assertActionable(runtime, target);
-    assert.match(runtime.cause, /bin\/ospec is missing/);
+    // The cause names the path with the platform's separator.
+    assert.match(runtime.cause, /bin[\\/]ospec is missing/);
     assert.match(runtime.action, new RegExp(`npm run ${SCRIPTS[target]}`));
     assert.equal(result.exit_code, 1, target);
 
@@ -165,7 +166,7 @@ test("a runtime without its shim, or with a shim that cannot run, is an error", 
     fs.rmSync(path.join(windows.home, ...LAYOUTS[target].root, path.dirname(path.dirname(LAYOUTS[target].runtime)), "bin", "ospec.cmd"));
     const cmd = find(await doctor(windows, { platform: "win32" }), target, "runtime");
     assert.equal(cmd.status, "error", `${target}/runtime on Windows`);
-    assert.match(cmd.cause, /bin\/ospec\.cmd is missing/);
+    assert.match(cmd.cause, /bin[\\/]ospec\.cmd is missing/);
   }
 });
 
@@ -175,7 +176,7 @@ test("a POSIX shim without the execute bit is an error", { skip: process.platfor
   const runtime = find(await doctor(env), "cursor", "runtime");
   assert.equal(runtime.status, "error");
   assertActionable(runtime, "cursor");
-  assert.match(runtime.cause, /bin\/ospec is not executable/);
+  assert.match(runtime.cause, /bin[\\/]ospec is not executable/);
 });
 
 test("a missing runtime, an unrendered marker or missing hooks is an error; a missing router is a warning", async (t) => {

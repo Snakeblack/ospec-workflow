@@ -20,12 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **El protocolo IDD ya no define `ospec` como `node "<ruta>"`.** Guardado en una variable, zsh no lo ejecutaba (exit 127 en las 18 ejecuciones de `idd-7`), y el agente acababa leyendo el código del CLI.
 - **Un error de uso imprime solo las líneas de su subcomando**, o la lista de comandos si el subcomando no existe, en lugar del uso entero. Con `--json` van en `error.how`.
 - **`ospec doctor` da `error` en `runtime`** si falta el shim o no tiene bit de ejecución, y `codex-repo` reconoce tanto el protocolo nuevo como el anterior.
+  - Su test acepta la ruta del shim con cualquiera de los dos separadores: en Windows la causa la nombra con `\` (`doctor-shim-windows-paths`).
 - REQ-idd-011 y 019, REQ-generator-024 y REQ-install-035 y 041 lo especifican.
 
 ### Changed
 - **Roadmap:** E1.45 queda hecho y sigue E1.46 `state-durability`, el siguiente del bloque A.
 
-Hecho con IDD (`idd/archive/2026-10-26-cli-one-word-invocation/`): los tests de reproducción fallaron antes del cambio y pasan después, y un test de compatibilidad fija que una instalación anterior sigue funcionando.
+Hecho con IDD (`idd/archive/2026-10-26-cli-one-word-invocation/` y `idd/archive/2026-10-26-doctor-shim-windows-paths/`): los tests de reproducción fallaron antes del cambio y pasan después, y un test de compatibilidad fija que una instalación anterior sigue funcionando.
 
 **Verificación directa**: `node scripts/check.js` (4144 tests pasando, 0 fallos y 5 omitidos).
 

@@ -1,0 +1,111 @@
+{
+  "schema": "idd-state/v1",
+  "change": "doctor-shim-windows-paths",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El test del doctor sobre el shim (E1.45) espera bin/ospec con barra normal, y en Windows la causa nombra la ruta con el separador del sistema (bin\\ospec): el job Validate (windows-latest 2/2) de la PR #436 fallaba",
+    "acceptance": "ospec-doctor-hosts.test.js acepta la ruta del shim con cualquiera de los dos separadores, y una causa con separadores de Windows pasa el test"
+  },
+  "facts": {
+    "basis": "El doctor nombra cada ruta con el separador del sistema, como el resto de sus mensajes (runtime, markers); solo el test suponía POSIX"
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "scripts/lib/ospec-doctor-hosts.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-26T15:55:27.706Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-26T15:56:30.786Z",
+      "detail": {
+        "tree": "sha256:ef080bb21dfa713c613adc12d71ee6800d52ad66be55026e25344a4665d0edfa",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "412aecab23be89ca035c049c430427d2020a0332",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "sh /tmp/claude-1000/-home-sn4ke-dev-repositorios-activos-ospec-workflow/e9471390-f64b-40c1-9671-b52803a58565/scratchpad/repro-doctor-win.sh",
+      "exit_code": 1,
+      "output_sha256": "sha256:5517408da92c580b14bd41607b9c187cd4075d1b63b8d4c687d03bad38824684",
+      "tree": "sha256:ac83b87c593ca128db07c4aa64d2704be4d30fa23d97f58b4f6b4075146a149d",
+      "recorded_at": "2026-10-26T15:55:17.224Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "sh /tmp/claude-1000/-home-sn4ke-dev-repositorios-activos-ospec-workflow/e9471390-f64b-40c1-9671-b52803a58565/scratchpad/repro-doctor-win.sh",
+      "exit_code": 0,
+      "output_sha256": "sha256:b4bb7a882fb47a427ee44519d913359df7ff688711c23337ce59241c26941f1b",
+      "tree": "sha256:4cb962156139a59e3edf01857745d278edfaabfc2b38988ea8d8c6cbf2edaf7b",
+      "recorded_at": "2026-10-26T15:55:27.706Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e89baa93be6687ed715fc19e644aee4182c763c3145e920b340eefa3b7432efe",
+      "tree": "sha256:ef080bb21dfa713c613adc12d71ee6800d52ad66be55026e25344a4665d0edfa",
+      "recorded_at": "2026-10-26T15:56:30.786Z"
+    }
+  ],
+  "closed_at": "2026-10-26T15:56:33.624Z"
+}
