@@ -209,11 +209,12 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E4.5** | `greenfield-head-to-head` (host `agy` y corpus greenfield en el banco; `idd-agy-3` frente a `gentle-ai-agy-3` con Gemini 3.8 Flash, checkpoint `revise` por 0,33 escapados y calidad `continue`, en v2.134.0) | medición |
 | `pending` | **E5.9** | `installer-tui-and-skill-profiles` (propuesta de #348: TUI coherente y perfiles de skills instalables; fuera de la cola actual) | feature |
 | `done` | **E5.10** | `progress-snapshot` (`ospec snapshot` exporta bajo demanda el snapshot de avance v1 de un proyecto: las fases de su roadmap con el estado que les dan sus cambios IDD y SDD; ningún flujo, hook ni check lo ejecuta; el ADR 0012 enmienda el 0009 para los documentos exportados con formato cerrado, en v2.154.0) | feature |
+| `pending` | **E5.11** | `progress-snapshot-v2` (`ospec snapshot --schema-version 2` exporta el snapshot de avance v2: las fases del roadmap con sus tramos y, desde un fichero de avance opcional en Markdown, los textos para el cliente de cada tramo y fase, sus tareas, fechas, resultados y versión de prueba, y las peticiones al cliente; el v1 sigue siendo el de por defecto) | feature |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
 **▶ SIGUIENTE:** el orden que sale de la [auditoría del harness frente a gentle-ai del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Mantiene la decisión del usuario del 2026-10-23 (primero los defectos del harness, el banco después) y la del 2026-10-25: un change por sesión, y todo funciona en los 7 targets. Hasta la v2.151.0, la cola anterior dejó hechos E1.29, E1.31, E1.32 y E1.34–E1.41 y E4.12.
 
-E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1, E1.43 `close-revalidates-state` en v2.153.2 y E1.44 `ceremony-only-rises` en v2.153.3. E5.10 `progress-snapshot`, que el usuario pidió el 2026-10-26 por delante de E1.53, quedó hecho en v2.154.0, E1.53 `config-only-rises` en v2.154.1, E1.45 `cli-one-word-invocation` en v2.155.0, E1.46 `state-durability` en v2.156.0 y E1.47 `memory-loop-visible` en v2.157.0; sigue E4.10 `greenfield-foundation-hint`, el último del bloque A.
+E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1, E1.43 `close-revalidates-state` en v2.153.2 y E1.44 `ceremony-only-rises` en v2.153.3. E5.10 `progress-snapshot`, que el usuario pidió el 2026-10-26 por delante de E1.53, quedó hecho en v2.154.0, E1.53 `config-only-rises` en v2.154.1, E1.45 `cli-one-word-invocation` en v2.155.0, E1.46 `state-durability` en v2.156.0 y E1.47 `memory-loop-visible` en v2.157.0. Sigue E5.11 `progress-snapshot-v2`, que el usuario aceptó el 2026-10-26 por delante de E4.10, y después E4.10 `greenfield-foundation-hint`, el último del bloque A.
 
 1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.53 `config-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E4.10 `greenfield-foundation-hint`.
 2. **B. Economía**, antes que C porque C añade una ejecución de la suite: E4.15 `cli-chaining` → E4.16 `cli-terse-output` → E4.3 `context-budget-ratchet`, que fija los techos por target después de B.
@@ -317,6 +318,7 @@ E4.1 ─ E4.4 (experimento independiente de E4.2; sin router) ─┐
 E4.12 (independiente; arregla también los agentes actuales) ──┴─ E4.13
 
 E5.10 (petición del usuario del 2026-10-26, por delante de E1.53)
+E5.11 (aceptado por el usuario el 2026-10-26, por delante de E4.10)
 
 Auditoría del 2026-10-25 (un change por sesión, en este orden):
 A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E4.10
@@ -1476,6 +1478,21 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 - **Decisiones del usuario (2026-10-26, gate `open-facts`, todas las recomendadas):** las fases salen de `docs/roadmap.md` o de `--roadmap <ruta>`: cada fila de una tabla Markdown cuya primera celda empieza por `<ID>. <título>`, en el orden del fichero, con el id en minúsculas; una tabla sin filas así se ignora y una que las mezcla es un error. Un cambio es de la fase si su id es el de la fase sin puntos o empieza por él seguido de guion, y gana la clave más larga; dos fases con el mismo id o la misma clave son un error. Un cambio activo da `in-progress`; si no, uno archivado da `done`; si no, `pending`. El estado sale de los nombres de directorio, sin leer ningún `state.yaml`. El título pierde el Markdown en línea, colapsa los espacios, se recorta y va en NFC; más de 200 caracteres o un carácter de control es un error, nunca un recorte. Sin `--out`, stdout lleva solo el snapshot; con `--out <fichero>` se escribe entero. Sin `--check`: la orden valida siempre lo que emite. Todo rechazo sale con código 1 y sin escribir nada.
 - **Decisión del usuario (2026-10-26, gate `adr-amend-or-contradict`):** el snapshot declara solo su versión, porque su formato es cerrado; el ADR 0012 enmienda el 0009 para los documentos exportados con formato cerrado, cuyo nombre es el `$id` de su esquema.
 - **Entregado en v2.154.0:** REQ-idd-026, con la excepción de REQ-idd-001. `scripts/lib/progress-snapshot.js` lee las tablas de fases, enlaza los cambios por nombre de directorio y valida el snapshot antes de emitirlo; `ospec snapshot` lo escribe en stdout o con `--out`. Esquema y fixtures en `schemas/progress-snapshot/`, y ADR 0012.
+
+### E5.11 — `progress-snapshot-v2`
+
+- **Origen:** encargo de otra sesión del 2026-10-26, aceptado por el usuario como siguiente punto, por delante de E4.10.
+- **Problema:** el snapshot v1 solo dice qué fases hay y en qué estado están. Un proyecto que enseña su avance a un cliente necesita también los tramos del recorrido y, por fase, un título y una descripción para el cliente, las fechas, las tareas, lo que podrá hacer cuando termine y dónde probarla, además de lo que el equipo necesita del cliente. Hoy tendría que escribir ese JSON a mano.
+- **Alcance:** `ospec snapshot --schema-version 2` emite el snapshot de avance v2, con el esquema `schemas/progress-snapshot/v2.schema.json`. Las fases, su orden y su estado salen del roadmap como en el v1, y los tramos son sus encabezados `##` con tablas de fases. Los textos para el cliente salen de un fichero de avance opcional en Markdown, `docs/progress.md` u otro con `--progress <ruta>`, escrito en el idioma del proyecto. Sin la opción, el v1 sale igual que hoy. Solo corre bajo demanda, como el v1.
+- **Targets:** los 7, por el CLI común; ningún adaptador cambia.
+- **Hecho cuando:** con `--schema-version 2`, la orden emite un snapshot que cumple el esquema v2 y sus reglas, con todas las fases del roadmap. Un fichero de avance con una fase o un tramo que no está en el roadmap, una fase `done` con una tarea sin marcar, o un texto, lista, fecha o URL fuera del formato termina con código 1, el fichero y la línea, y sin escribir nada.
+- **Decisiones del usuario (2026-10-26, gate `open-facts`, todas las recomendadas):**
+  - Opciones: `--schema-version <1|2>`, con 1 por defecto. `--progress <ruta>` solo vale con el v2. Sin la opción se lee `docs/progress.md` si existe; un `--progress` que no existe es error.
+  - Tramos: un tramo es un `##` del roadmap con tablas de fases, hasta el siguiente `#` o `##`. Un roadmap sin tramos da un v2 sin `groups`, y uno con fases dentro y fuera de tramos es error.
+  - Ids y textos: el id de un tramo es su `<ID>.` en minúsculas o, si no lo lleva, su título en minúsculas, sin tildes y con guiones. El fichero de avance nombra tramos, fases y peticiones con su `<ID>.` exacto. Los ids escritos a mano se pasan a minúsculas, y un id repetido es error. Los textos se limpian como el título del v1, un párrafo de varias líneas se une en una línea, y dos párrafos donde va uno son error.
+  - Sintaxis: palabras clave fijas en inglés (`short`, `start`, `end`, `preview`, `phase`, `due`, `#### Tasks`, `#### Outcomes`, `## Requests`), con el contenido en el idioma del proyecto. Cada fase va bajo el `##` de su tramo.
+  - URL de la versión de prueba: una `https://` desnuda, con host, sin usuario ni contraseña, sin espacios y de 2048 caracteres como máximo, que se emite tal como está escrita.
+  - Errores: `progress-invalid` y `progress-missing`, además de los del v1, siempre con código 1 y sin escribir nada. Solo se informa del primer error.
 
 ## Aparcado (con criterio de reapertura)
 
