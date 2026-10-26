@@ -1,0 +1,477 @@
+{
+  "schema": "idd-state/v1",
+  "change": "memory-loop-visible",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "E1.47 (B8): el bucle de memoria se ve en la salida de texto. ospec close en texto lista topic | title de cada registro de conocimiento en vez de solo su número; record intent devuelve memory_query, una pista que no bloquea con las palabras de la petición más los componentes y ADR que el CLI ya calcula; references/memory-loop.md dice que durante un cambio IDD los registros de close sustituyen al guardado genérico. El CLI sigue sin leer la memoria.",
+    "acceptance": "Un close en texto muestra el topic y el título de cada registro y un test lo fija; record intent devuelve memory_query en JSON y en texto y un test lo fija; memory-loop.md dice cuándo usar la consulta y que los records de close sustituyen al guardado genérico; sin memoria el flujo no cambia y memory-boundary.test.js sigue en verde"
+  },
+  "facts": {
+    "open": [
+      "Orden del recall: hoy la memoria se consulta antes de listar los hechos abiertos, pero esos hechos se declaran en el mismo record intent que devolvería memory_query y después no se pueden cambiar. ¿El recall pasa a ir justo después de record intent y antes de preguntar el gate open-facts (una decisión previa confirmada en disco entra como contexto o recomendación de la pregunta, nunca la resuelve), se queda antes de los hechos con las palabras del agente y memory_query solo como recordatorio, o se añade un comando previo?",
+      "Forma y contenido de memory_query: ¿una cadena lista para buscar o un objeto con términos, componentes y ADR? ¿De dónde salen las palabras (--request si existe, si no --summary; ¿también --acceptance?), cómo se normalizan (minúsculas, sin repetir, 4 o más caracteres, una lista corta de palabras vacías en español e inglés) y con qué tope de términos? Los componentes y ADR salen de las rutas que el CLI ya conoce al abrir (plan, diff y cites de una feature), que suelen estar vacías: ¿basta eso o se buscan también por nombre en la petición?",
+      "¿Cuándo se devuelve memory_query: en cada record intent que deja una intención resuelta (también repetido sin cambios o al subir de kind) y nunca en uno ambiguo? ¿Se muestra también en la salida de texto como una línea propia, ya que los agentes no usan --json?",
+      "Salida de texto de close: ¿una línea topic | title por registro bajo una cabecera con el número y el comando literal que da resumen y procedencia (ospec close --change <id> --json), o también source o summary en cada línea? La línea actual N knowledge record(s) ... (see --json) desaparece sin mantenerse; el JSON de close no cambia.",
+      "Alcance de los records de close sustituyen al guardado genérico en memory-loop.md: ¿mientras un cambio IDD está abierto no se guardan sus decisiones sobre la marcha y solo se guardan los records de close, y fuera de un cambio (traspaso del roadmap, resúmenes de sesión) sigue el protocolo del host? ¿Se toca también la addenda SDD de rules/engram-session-memory.instructions.md o queda fuera?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/idd/spec.md",
+      "openspec/specs/session-memory/spec.md",
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/lib/idd-knowledge.js",
+      "scripts/lib/idd-knowledge.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md",
+      "skills/idd/references/memory-loop.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0003, 0006, 0009",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "memory-loop.md y SKILL.md se editan en la fuente única y llegan igual a los 7 targets; idd-protocol.test.js lo comprueba en cada uno."
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "El CLI calcula memory_query y los temas de close; la skill y memory-loop.md solo dicen usarlos, sin describir la regla de cálculo."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No añade señal, obligación ni gate: memory_query es una pista que no bloquea."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "El veredicto de close no cambia; solo su salida de texto lista los temas de los registros."
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "memory_query sale solo del repositorio (petición, plan, diff, cites y mapa de componentes); el CLI sigue sin leer la memoria y memory-boundary.test.js sigue en verde; un recuerdo confirmado nunca responde un hecho abierto."
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "state.yaml no cambia: memory_query no se guarda y es un campo añadido a la salida de record intent; el JSON de close no cambia."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "Sin dependencias nuevas; el código nuevo es JS del runtime autocontenido."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "Solo toca el modo IDD; la adenda SDD queda fuera por decisión del usuario."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "memory_query se deriva del estado y del disco, igual al repetir record intent, y no se guarda: reanudar no depende de él."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Sin red ni memoria, record intent, next, check y close dan el mismo resultado; memory_query no llama a nada externo."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "La garantía vive en el CLI, que los 7 targets invocan igual, y la referencia se genera igual en los 7."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "memoryQuery (scripts/lib/idd-knowledge.js) tiene tests en scripts/lib/idd-knowledge.test.js, y la salida de record intent y close en scripts/ospec.test.js; memory-loop.md y SKILL.md citan record intent y close sin describir la regla de cálculo.",
+      "recorded_at": "2026-10-26T21:01:41.164Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El cambio no añade llamadas de red: memoryQuery es puro e intentMemoryQuery solo lee git y docs/architecture; sin memoria, record intent, next, check y close dan lo mismo porque memory_query es una pista que no bloquea; memory-boundary.test.js sigue en verde.",
+      "recorded_at": "2026-10-26T21:01:41.235Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "todas las recomendadas",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-26T20:59:41.092Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-26T21:02:59.666Z",
+      "detail": {
+        "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-26T21:02:59.666Z",
+      "detail": {
+        "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/session-memory/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/lib/idd-knowledge.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-26T21:02:59.666Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0006 conforms",
+          "adr:0009 conforms",
+          "adr:0010 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-26T21:03:35.199Z",
+      "detail": {
+        "run": "run-14",
+        "tree": "sha256:83ae0d8fbd80cab67d00c6ffaaaf37c57a9a409695ff8ecab85feb8a17f3e2c0",
+        "plan": "Compatibilidad: state.yaml no cambia de esquema ni de contenido; memory_query solo existe en la salida de record intent y el test comprueba que no se guarda; el JSON de close no cambia y cerrar de nuevo devuelve los mismos records; idd-store.test.js lee igual los estados existentes. Rollback: revertir el commit, sin datos que migrar."
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-26T21:03:48.810Z",
+      "detail": {
+        "run": "run-15",
+        "tree": "sha256:83ae0d8fbd80cab67d00c6ffaaaf37c57a9a409695ff8ecab85feb8a17f3e2c0",
+        "plan": "Compatibilidad: state.yaml no cambia de esquema ni de contenido; memory_query solo existe en la salida de record intent y el test comprueba que no se guarda; el JSON de close no cambia y cerrar de nuevo devuelve los mismos records; idd-store.test.js lee igual los estados existentes. Rollback: revertir el commit, sin datos que migrar."
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-26T21:03:55.256Z"
+    }
+  ],
+  "base": "f766c7f0fc5895949d3153f3f91f58d85b2645e2",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"REQ-idd-024|knowledge records\" scripts/lib/idd-knowledge.test.js scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:f57c16c6863043767d7feca73d24f38501c717cebf438130e40f259477a58f89",
+      "tree": "sha256:e585f492fee24e365daa0a38cc84ab1220c32a8eaffe085db9271c4c220fba80",
+      "recorded_at": "2026-10-26T20:58:53.751Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"REQ-idd-024|knowledge records\" scripts/lib/idd-knowledge.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:814c7f390980f9fceda90c3a57d05705bcea1c70178d6cc4523a9496710aff2a",
+      "tree": "sha256:dd9b3c7e110bae00bd60cecb9441fa67220b7b110734eb2518603e64755f68bb",
+      "recorded_at": "2026-10-26T20:59:41.092Z",
+      "tests": 6
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7dafbf74ed1f6f4abefb37ccd2a8ff9293646dc547feb997044e03c4caf4ba72",
+      "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+      "recorded_at": "2026-10-26T21:02:59.666Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:71a5b496f6e4b1572063ed05f5659703cf53fa2db6ca19385c8438384fe76e13",
+      "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+      "recorded_at": "2026-10-26T21:02:59.666Z",
+      "tests": 47
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1e3b0d9dff7520d2275d38e8a6ded9d67595eee1f9619971e1e4f0bd91a4b60a",
+      "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+      "recorded_at": "2026-10-26T21:02:59.666Z",
+      "tests": 50
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1a387a9805b5a717f20df1021f29a462b7ab19881b8ede592215c869f0b9dff9",
+      "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+      "recorded_at": "2026-10-26T21:02:59.666Z",
+      "tests": 16
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1604eced6ac0cce68c3f58b61fe390d548b85fb3144fdc3a1a3a6d0c4444750d",
+      "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+      "recorded_at": "2026-10-26T21:02:59.666Z",
+      "tests": 2
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5e2cf8479022a9d5c0fb9b04bbc340aab50b26ad659a729f42a693abbcc6af74",
+      "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+      "recorded_at": "2026-10-26T21:02:59.666Z",
+      "tests": 32
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+      "recorded_at": "2026-10-26T21:02:59.666Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:116d109d97412ef4364f1fdcb6a67f527ef30e1f46a51ab8bc7cfab182d07994",
+      "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+      "recorded_at": "2026-10-26T21:02:59.666Z",
+      "tests": 21
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:34c7a8002985337a133cb4294c6b7f60063a40830de70b4ed31ff71135d263a8",
+      "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+      "recorded_at": "2026-10-26T21:02:59.666Z",
+      "tests": 84
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5c33fc6c337364f3748cb0fb7fab32a42710a73490882b041e8514169c2334d8",
+      "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+      "recorded_at": "2026-10-26T21:02:59.666Z",
+      "tests": 47
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:54eea7e9a572889edbfda3c7e6ec78a815b073af6c334b444823db77dd0ef459",
+      "tree": "sha256:0324965cc433bd0f5b03bca4025e71cecf3d6177c0ae755fb905b34367c19f68",
+      "recorded_at": "2026-10-26T21:02:59.666Z",
+      "tests": 47
+    },
+    {
+      "id": "run-14",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"REQ-idd-024|knowledge records\" scripts/ospec.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8afe812362f94a6df1135f574c0611660e0bf04ae032b35ee19c07f4d97b4cdf",
+      "tree": "sha256:83ae0d8fbd80cab67d00c6ffaaaf37c57a9a409695ff8ecab85feb8a17f3e2c0",
+      "recorded_at": "2026-10-26T21:03:35.199Z",
+      "tests": 4
+    },
+    {
+      "id": "run-15",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"REQ-idd-024|knowledge records\" scripts/ospec.test.js && node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:578a78b224b16d78e95c7e628fbd24a636d1431cf7375c1c2989780cafe9a05f",
+      "tree": "sha256:83ae0d8fbd80cab67d00c6ffaaaf37c57a9a409695ff8ecab85feb8a17f3e2c0",
+      "recorded_at": "2026-10-26T21:03:48.810Z",
+      "tests": 13
+    }
+  ],
+  "closed_at": "2026-10-26T21:03:55.256Z"
+}

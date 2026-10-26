@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- E1.47 (B8): el bucle de memoria se ve en la salida de texto. ospec close en texto lista topic | title de cada registro de conocimiento en vez de solo su número; record intent devuelve memory_query, una pista que no bloquea con las palabras de la petición más los componentes y ADR que el CLI ya calcula; references/memory-loop.md dice que durante un cambio IDD los registros de close sustituyen al guardado genérico. El CLI sigue sin leer la memoria. (memory-loop-visible)
+
 ## [2.156.0] - 2026-10-26
 
 ### Added
