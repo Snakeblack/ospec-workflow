@@ -1,0 +1,69 @@
+{
+  "schema": "idd-state/v1",
+  "change": "e1-30-flake-pr-436",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "El roadmap anota en E1.30 el flake de Windows PowerShell 5.1 en codex-hook-shell de la PR #436 y que el plazo de 0 flakes hasta el 2026-10-29 queda fallido: E1.28 no entra ese día y E1.30 sigue abierto",
+    "acceptance": "La sección E1.30 de docs/roadmaps/harness-evolution.md recoge el flake con sus runs, tiempos, causa probable y el hueco del reintento; su fila, la nota de E1.28 y el historial dicen que el plazo no se cumple y que no hay plazo nuevo"
+  },
+  "facts": {
+    "basis": "El usuario decidió anotarlo en el roadmap y dejar el plazo como fallido (opción a); los datos salen de las runs 40352150021 y 40354317872 y de la memoria del 2026-10-26"
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-26T16:32:03.587Z",
+      "detail": {
+        "tree": "sha256:8c675ecfb8a268b00feaba1fd9e36cbadee5438aedb01f20321d9d9cf21f8044",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "a30a6746f12423353a179db3b0d222e7c4de3cfe",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:16ef31af99e89e1a367a4487d0455137de63de2245e5c750ebf30fdae05252b0",
+      "tree": "sha256:8c675ecfb8a268b00feaba1fd9e36cbadee5438aedb01f20321d9d9cf21f8044",
+      "recorded_at": "2026-10-26T16:32:03.587Z"
+    }
+  ],
+  "closed_at": "2026-10-26T16:32:06.747Z"
+}
