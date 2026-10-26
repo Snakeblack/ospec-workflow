@@ -12,7 +12,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const { runConfigure } = require("./cli.js");
-const { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER, renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = require("./shared-dir.js");
+const { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER, ospecCliValue, renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = require("./shared-dir.js");
 const { hostBinarySuffix } = require("./install-target.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
@@ -97,16 +97,35 @@ test("renderSharedDir rewrites the marker under a tree and restore() puts it bac
 
 test("renderRuntimeDir rewrites the runtime marker and restore() puts it back", (t) => {
   const dir = tmpDir(t);
-  write(dir, "skills/idd/SKILL.md", `run node "${RUNTIME_DIR_MARKER}/scripts/ospec.js"\n`);
+  const source = `\`ospec\` below means \`${RUNTIME_DIR_MARKER}/bin/ospec\`; schemas in ${RUNTIME_DIR_MARKER}/schemas\n`;
+  write(dir, "skills/idd/SKILL.md", source);
   write(dir, "agents/orch.md", `read ${SHARED_DIR_MARKER}/gate.md\n`);
-  const rendered = renderRuntimeDir(dir, "/home/me/.copilot");
+  const rendered = renderRuntimeDir(dir, "/home/me/.copilot", fs, { platform: "linux" });
   assert.deepEqual(rendered.files.map((file) => path.relative(dir, file).split(path.sep).join("/")), ["skills/idd/SKILL.md"]);
-  assert.equal(fs.readFileSync(path.join(dir, "skills/idd/SKILL.md"), "utf8"), 'run node "/home/me/.copilot/scripts/ospec.js"\n');
+  assert.equal(fs.readFileSync(path.join(dir, "skills/idd/SKILL.md"), "utf8"), "`ospec` below means `/home/me/.copilot/bin/ospec`; schemas in /home/me/.copilot/schemas\n");
   assert.equal(fs.readFileSync(path.join(dir, "agents/orch.md"), "utf8"), `read ${SHARED_DIR_MARKER}/gate.md\n`);
   rendered.restore();
-  assert.equal(fs.readFileSync(path.join(dir, "skills/idd/SKILL.md"), "utf8"), `run node "${RUNTIME_DIR_MARKER}/scripts/ospec.js"\n`);
+  assert.equal(fs.readFileSync(path.join(dir, "skills/idd/SKILL.md"), "utf8"), source);
   assert.throws(() => renderRuntimeDir(dir, ""), /runtime directory/);
   assert.throws(() => renderRuntimeDir(dir, `${RUNTIME_DIR_MARKER}/x`), /runtime directory/);
+});
+
+// E1.45 (B5): one word, the shim of the installer's platform, quoted only when
+// the path has a space.
+test("ospecCliValue names the platform's shim and quotes a path with a space", () => {
+  assert.equal(ospecCliValue("/home/me/.copilot", { platform: "linux" }), "/home/me/.copilot/bin/ospec");
+  assert.equal(ospecCliValue("/Users/me/.cursor", { platform: "darwin" }), "/Users/me/.cursor/bin/ospec");
+  assert.equal(ospecCliValue("C:/Users/me/.copilot", { platform: "win32" }), "C:/Users/me/.copilot/bin/ospec.cmd");
+  assert.equal(ospecCliValue("C:/Users/John Doe/.copilot", { platform: "win32" }), '"C:/Users/John Doe/.copilot/bin/ospec.cmd"');
+  assert.equal(ospecCliValue(".", { platform: "linux" }), "./bin/ospec");
+  assert.equal(ospecCliValue(".codex/ospec-workflow", { platform: "linux" }), ".codex/ospec-workflow/bin/ospec");
+});
+
+test("renderRuntimeDir names ospec.cmd for a Windows install", (t) => {
+  const dir = tmpDir(t);
+  write(dir, "skills/idd/SKILL.md", `\`ospec\` below means \`${RUNTIME_DIR_MARKER}/bin/ospec\`\n`);
+  renderRuntimeDir(dir, "C:/Users/John Doe/.copilot", fs, { platform: "win32" });
+  assert.equal(fs.readFileSync(path.join(dir, "skills/idd/SKILL.md"), "utf8"), '`ospec` below means `"C:/Users/John Doe/.copilot/bin/ospec.cmd"`\n');
 });
 
 test("renderSharedDir refuses an empty value or one that still holds the marker", (t) => {
@@ -121,7 +140,7 @@ test("renderSharedDir refuses an empty value or one that still holds the marker"
 
 function stageRealSource(t) {
   const sourceDir = path.join(tmpDir(t, "ospec-shared-src-"), "source");
-  for (const rel of ["agents", "commands", "rules", "skills", "hooks", "scripts/hooks", "scripts/lib"]) {
+  for (const rel of ["agents", "bin", "commands", "rules", "skills", "hooks", "scripts/hooks", "scripts/lib"]) {
     fs.cpSync(path.join(ROOT, rel), path.join(sourceDir, rel), { recursive: true });
   }
   for (const name of fs.readdirSync(path.join(ROOT, "scripts"))) {
@@ -138,12 +157,17 @@ function stageRealSource(t) {
 const quiet = () => ({ stdout: { write() {} }, stderr: { chunks: [], write(chunk) { this.chunks.push(chunk); } } });
 const posix = (value) => path.resolve(value).split(path.sep).join("/");
 
-// E1.6 (a): the IDD protocol names the installed ospec CLI, and that file exists.
-function assertRuntime(installedRoot, runtimeDir, cliFile) {
+// E1.6 (a): the IDD protocol names the installed ospec CLI, and that file
+// exists; E1.45 (B5): as one word, the shim of the platform beside it.
+function assertRuntime(installedRoot, runtimeDir, cliFile, platform = process.platform) {
   const protocol = fs.readFileSync(path.join(installedRoot, "skills", "idd", "SKILL.md"), "utf8");
   assert.doesNotMatch(protocol, /__OSPEC_RUNTIME_DIR__/);
-  assert.ok(protocol.includes(`node "${runtimeDir}/scripts/ospec.js"`), `installed protocol must run ${runtimeDir}/scripts/ospec.js`);
+  const word = ospecCliValue(runtimeDir, { platform });
+  assert.ok(protocol.includes(`\`ospec\` below means \`${word}\``), `installed protocol must run ${word}`);
   assert.ok(fs.existsSync(cliFile), `${cliFile} must be installed`);
+  const shim = path.join(path.dirname(path.dirname(cliFile)), "bin", platform === "win32" ? "ospec.cmd" : "ospec");
+  assert.ok(fs.existsSync(shim), `${shim} must be installed`);
+  if (process.platform !== "win32" && platform !== "win32") assert.ok(fs.statSync(shim).mode & 0o111, `${shim} must be executable`);
 }
 
 function assertRendered(installedOrchestrator, generatedOrchestrator, sharedDir) {
@@ -196,7 +220,7 @@ test("setup:vscode renders the marker in the dist tree VS Code loads", (t) => {
   assert.doesNotMatch(orchestrator, /__OSPEC_SHARED_DIR__/);
   assert.ok(orchestrator.includes(`${posix(path.join(sourceDir, "dist", "vscode"))}/skills/_shared/gate-4r-review.md`));
   const pluginDir = path.join(sourceDir, "dist", "vscode");
-  assertRuntime(pluginDir, posix(pluginDir), path.join(pluginDir, "scripts", "ospec.js"));
+  assertRuntime(pluginDir, posix(pluginDir), path.join(pluginDir, "scripts", "ospec.js"), "win32");
 });
 
 // E1.10 (REQ-install-039): dist/vscode is the tree VS Code loads live, so neither a dry run nor

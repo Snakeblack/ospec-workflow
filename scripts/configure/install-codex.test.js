@@ -2304,7 +2304,9 @@ test("a repository install carries the IDD protocol and a relative runtime that 
 
   const skills = path.join(destRepo, ".agents", "skills");
   const protocol = fs.readFileSync(path.join(skills, "idd", "SKILL.md"), "utf8");
-  assert.match(protocol, /`ospec` below means `node "\.codex\/ospec-workflow\/scripts\/ospec\.js"`/);
+  // E1.45: the shim beside the repository's runtime, one word.
+  const shim = `.codex/ospec-workflow/bin/ospec${process.platform === "win32" ? ".cmd" : ""}`;
+  assert.ok(protocol.includes(`\`ospec\` below means \`${shim}\``), "the protocol names the repository's shim");
   assert.doesNotMatch(protocol, /__OSPEC_[A-Z_]+__/);
   for (const skill of ["review-trust", "review-correction"]) {
     assert.ok(fs.existsSync(path.join(skills, skill, "SKILL.md")), `${skill} is installed`);
@@ -2313,12 +2315,15 @@ test("a repository install carries the IDD protocol and a relative runtime that 
   assert.ok(!fs.existsSync(path.join(skills, "stack-go")), "only the IDD protocol and its reviewers are installed");
 
   // The command the skill names, run from the repository root as the skill says.
-  const [, cli] = /node "([^"]+)"/.exec(protocol);
   // A change opens only inside a git work tree (E4.8).
   spawnSync("git", ["-C", destRepo, "init", "-q", "-b", "main"]);
-  const next = spawnSync(process.execPath, [cli, "next", "--json"], { cwd: destRepo, encoding: "utf8", env: { ...process.env, HOME: home, USERPROFILE: home } });
+  const options = { cwd: destRepo, encoding: "utf8", env: { ...process.env, HOME: home, USERPROFILE: home } };
+  const next =
+    process.platform === "win32"
+      ? spawnSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", `"${shim.split("/").join("\\")} next --json"`], { ...options, windowsVerbatimArguments: true })
+      : spawnSync(shim, ["next", "--json"], options);
   assert.equal(next.status, 0, next.stderr);
-  assert.deepEqual(JSON.parse(next.stdout).next_step, { action: "open-change" });
+  assert.equal(JSON.parse(next.stdout).next_step.action, "open-change");
 
   const result = await runDoctor({ root: destRepo, home, env: {}, platform: "linux", arch: "x64", spawn: () => ({ status: 1, stdout: "", stderr: "" }) });
   const check = result.checks.find((entry) => entry.scope === "project" && entry.id === "codex-repo");

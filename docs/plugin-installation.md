@@ -490,8 +490,9 @@ And check again:
 
 ## Troubleshooting
 
-Start with `ospec doctor` from the project root (`node <runtime>/scripts/ospec.js doctor`,
-or `node scripts/ospec.js doctor` in the ospec-workflow checkout). It writes nothing
+Start with `ospec doctor` from the project root (`<runtime>/bin/ospec doctor`, or
+`<runtime>/bin/ospec.cmd doctor` on Windows, and `bin/ospec doctor` in the ospec-workflow
+checkout). It writes nothing
 and reports each problem with its cause and the action that fixes it: an outdated or
 duplicated installation, missing hooks, a missing or outdated router block, `mode: sdd`
 without the SDD package, an interrupted IDD or SDD change and the command that resumes

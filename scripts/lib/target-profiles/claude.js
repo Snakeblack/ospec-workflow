@@ -57,10 +57,11 @@ module.exports = {
       "SDD orchestrator — coordinate phases, delegate to the sdd-* phase agents, enforce review/TDD gates, and persist OpenSpec state. Load only for /sdd-* commands or an explicit spec-driven request.",
   },
   // E1.6 (a): the IDD protocol skill sits two levels below the plugin root,
-  // which ships the runtime scripts/: no install-time marker.
+  // which ships the runtime scripts/ and the bin/ospec shim (E1.45): no
+  // install-time marker.
   idd: {
     entry: "skill `ospec-workflow:idd`",
-    ospecCli: "${CLAUDE_SKILL_DIR}/../../scripts/ospec.js",
+    ospecCli: "${CLAUDE_SKILL_DIR}/../../bin/ospec",
   },
   foundation: { entry: "skill `ospec-workflow:foundation`" },
   // Rewrite ${input:NAME} → ${NAME:-} in .mcp.json env/args/url/headers.

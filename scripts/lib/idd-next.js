@@ -5,7 +5,7 @@
 // same inputs yield the same output, whatever order the state's signals were
 // recorded in.
 
-const { CHANGE_ROOT, DECISIONS_ROOT, GATES, LIVING_DOC_FILE, OBLIGATIONS } = require("./idd-contract.js");
+const { CHANGE_ROOT, DECISIONS_ROOT, GATES, IMPACTS, INTENT_KINDS, LIVING_DOC_FILE, OBLIGATIONS, RUN_EVIDENCE } = require("./idd-contract.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
 
 // Order in which pending obligations are worked: evidence produced while
@@ -58,6 +58,60 @@ const HOW = Object.freeze({
     `ospec record impact --change ${change} (--adr <id> | --quality <id>) --impact <none|conforms|amends|supersedes|contradicts> --reason "<why>" [--record <new ADR>], then ospec check --change ${change}`,
 });
 
+// The literal command of each step (E1.45, B5): the agent runs it as written,
+// filling in only the <placeholders> the CLI cannot know. After a red run, the
+// command of that run replaces "<test>", so the green run repeats it exactly.
+const INTENT_FACTS = '(--open-fact "<question>"... | --no-open-facts --basis "<why>")';
+const INTENT_FIELDS = `--kind <${INTENT_KINDS.join("|")}> --summary "<what>" --acceptance "<observable result>" ${INTENT_FACTS}`;
+const USER_ANSWER = '--answer "<the user\'s words>" --source user';
+
+// One shell word in bash, zsh and fish: double quotes, or single quotes for a
+// value whose quotes, $, backticks or backslashes double quotes would expand.
+function shellArg(value) {
+  return /["$`\\]/.test(value) ? `'${value.replace(/'/g, "'\\''")}'` : `"${value}"`;
+}
+
+// The run purpose of each obligation `ospec run` proves.
+const RUN_PURPOSE = Object.freeze({
+  "repro-test": RUN_EVIDENCE["repro-run-pair"],
+  "tdd-red-green": RUN_EVIDENCE["tdd-red-green"],
+  "migration-compat-and-test": RUN_EVIDENCE["migration-test"],
+});
+
+function runCommand(state, obligation, placeholder, extra = "") {
+  const red = (state.runs || []).filter((run) => run.purpose === RUN_PURPOSE[obligation] && run.exit_code !== 0).at(-1);
+  const unit = obligation === "tdd-red-green" ? ` --unit ${red?.unit ? (/^[\w.-]+$/.test(red.unit) ? red.unit : shellArg(red.unit)) : "<name>"}` : "";
+  return `ospec run --change ${state.change} --obligation ${obligation} --command ${red ? shellArg(red.command) : `"${placeholder}"`}${unit}${extra}`;
+}
+
+// The first declared reference without its impact, or the check that settles
+// the rest of the declaration.
+function impactCommand(state) {
+  const next = (state.impacts || []).find((entry) => entry.impact == null);
+  if (!next) return `ospec check --change ${state.change}`;
+  return `ospec record impact --change ${state.change} --${next.kind === "adr" ? "adr" : "quality"} ${next.id} --impact <${IMPACTS.join("|")}> --reason "<why>"`;
+}
+
+const OBLIGATION_COMMAND = Object.freeze({
+  "repro-test": (state) => runCommand(state, "repro-test", "<test>"),
+  "tdd-red-green": (state) => runCommand(state, "tdd-red-green", "<test>"),
+  "migration-compat-and-test": (state) => runCommand(state, "migration-compat-and-test", "<migration test>", ' --plan "<compatibility or rollback>"'),
+  "adr-impact-declaration": impactCommand,
+  "trust-review": (state) => `ospec review start --change ${state.change}`,
+  "living-doc": (state) => `ospec close --change ${state.change}`,
+});
+
+function obligationCommand(state, obligation) {
+  return OBLIGATION_COMMAND[obligation] ? OBLIGATION_COMMAND[obligation](state) : `ospec check --change ${state.change}`;
+}
+
+function gateCommand(state, gate) {
+  if (gate === "ambiguous-intent") {
+    return `ospec record intent --change ${state.change} --request ${shellArg(state.intent.request)} ${INTENT_FIELDS} ${USER_ANSWER}`;
+  }
+  return `ospec record gate --change ${state.change} --gate ${gate} --resolve ${USER_ANSWER}`;
+}
+
 // Obligations whose evidence runs the declared checks: without one, the next
 // step is to configure them.
 const CHECKS_REQUIRED = Object.freeze(["checks-pass", "contract-spec-and-test"]);
@@ -91,6 +145,7 @@ function declarePlanStep(change) {
   return {
     action: "declare-plan",
     how: `ospec signals --change ${change} --path <file>... [--work-units <n>] [--decision] [--operation <op>]`,
+    command: `ospec signals --change ${change} --path <file>...`,
   };
 }
 
@@ -152,22 +207,24 @@ function nextForChange(state, { checks, candidateCommand, contractPatterns, know
 
   let nextStep;
   if (state.status === "closed") {
-    nextStep = { action: "none" };
+    nextStep = { action: "none", command: null };
   } else if (openGates.length > 0) {
     // Every gate is the user's decision, taken before the work it decides
     // (REQ-idd-008, REQ-idd-018), in gate order: ambiguous-intent first.
-    nextStep = { action: "resolve-gate", gate: openGates[0].id };
+    nextStep = { action: "resolve-gate", gate: openGates[0].id, command: gateCommand(state, openGates[0].id) };
   } else if (!planDeclared(state)) {
     // The plan is declared before anything is edited (E1.11).
     nextStep = declarePlanStep(state.change);
   } else if (pending.length > 0) {
     nextStep = { action: "satisfy-obligation", obligation: pending[0].id, evidence: pending[0].evidence };
     if (HOW[pending[0].id]) nextStep.how = HOW[pending[0].id](state.change, { contractPatterns });
+    nextStep.command = obligationCommand(state, pending[0].id);
     if (checks?.length === 0 && CHECKS_REQUIRED.includes(pending[0].id)) {
-      nextStep = configureChecksStep(candidateCommand);
+      // Once the user approved the checks and they are written, next goes on.
+      nextStep = { ...configureChecksStep(candidateCommand), command: `ospec next --change ${state.change} --json` };
     }
   } else {
-    nextStep = { action: "close" };
+    nextStep = { action: "close", command: `ospec close --change ${state.change}` };
   }
 
   const result = {
@@ -209,11 +266,14 @@ function nextForProject(states, { change, ...context } = {}) {
     return nextForChange(state, context);
   }
   const open = states.filter((state) => state.status === "open");
-  if (open.length === 0) return { change: null, next_step: { action: "open-change" } };
+  if (open.length === 0) {
+    return { change: null, next_step: { action: "open-change", command: `ospec record intent --change <id> ${INTENT_FIELDS}` } };
+  }
   if (open.length === 1) return nextForChange(open[0], context);
+  const changes = open.map((state) => state.change).sort();
   return {
     change: null,
-    next_step: { action: "choose-change", changes: open.map((state) => state.change).sort() },
+    next_step: { action: "choose-change", changes, commands: changes.map((change) => `ospec next --change ${change} --json`) },
   };
 }
 

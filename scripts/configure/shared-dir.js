@@ -32,11 +32,25 @@ function runtimeDirValue(dir, { relative = false } = {}) {
   return (relative ? String(dir) : path.resolve(dir)).split(path.sep).join("/");
 }
 
-function renderRuntimeDir(rootDir, value, fsImpl = fs) {
-  return renderMarker(rootDir, RUNTIME_DIR_MARKER, value, "runtime directory", fsImpl);
+// E1.45 (B5): the protocol names the CLI as one word, the shim beside the
+// runtime: `bin/ospec.cmd` for a Windows install, which PowerShell, cmd and
+// Git Bash all run, and `bin/ospec` elsewhere. Only a path with a space is
+// quoted, since PowerShell runs a quoted path only after `&`.
+const OSPEC_SHIM = "bin/ospec";
+
+function ospecCliValue(dir, { platform = process.platform } = {}) {
+  const shim = `${dir}/${OSPEC_SHIM}${platform === "win32" ? ".cmd" : ""}`;
+  return /\s/.test(shim) ? `"${shim}"` : shim;
 }
 
-function renderMarker(rootDir, marker, value, label, fsImpl) {
+function renderRuntimeDir(rootDir, value, fsImpl = fs, { platform = process.platform } = {}) {
+  const shim = `${RUNTIME_DIR_MARKER}/${OSPEC_SHIM}`;
+  return renderMarker(rootDir, RUNTIME_DIR_MARKER, value, "runtime directory", fsImpl, (content) =>
+    content.split(shim).join(ospecCliValue(value, { platform })).split(RUNTIME_DIR_MARKER).join(value),
+  );
+}
+
+function renderMarker(rootDir, marker, value, label, fsImpl, render = (content) => content.split(marker).join(value)) {
   if (typeof value !== "string" || value === "" || value.includes(marker)) {
     throw new Error(`invalid ${label} for ${marker}: ${JSON.stringify(value)}`);
   }
@@ -44,7 +58,7 @@ function renderMarker(rootDir, marker, value, label, fsImpl) {
   for (const file of markerFiles(rootDir, marker, fsImpl)) {
     const content = fsImpl.readFileSync(file, "utf8");
     originals.push({ file, content });
-    fsImpl.writeFileSync(file, content.split(marker).join(value));
+    fsImpl.writeFileSync(file, render(content));
   }
   return {
     files: originals.map(({ file }) => file),
@@ -71,4 +85,4 @@ function markerFiles(rootDir, marker, fsImpl) {
   return found.sort();
 }
 
-module.exports = { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER, renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue };
+module.exports = { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER, ospecCliValue, renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue };

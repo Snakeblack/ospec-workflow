@@ -150,6 +150,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/idd-next.test.js",
   "scripts/lib/idd-record.js",
   "scripts/lib/idd-record.test.js",
+  // E1.45 how to get past each refusal of the ospec CLI (roadmap harness-evolution).
+  "scripts/lib/idd-refusals.js",
+  "scripts/lib/idd-refusals.test.js",
   // E4.6 feature category coverage (roadmap harness-evolution).
   "scripts/lib/idd-facts.js",
   "scripts/lib/idd-facts.test.js",

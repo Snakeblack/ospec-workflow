@@ -23,3 +23,8 @@ internal/iddsession/catalog.json text eol=lf
 
 # The progress snapshot fixtures (E5.10); progress-snapshot.test.js compares valid.json byte for byte with what ospec snapshot emits.
 schemas/progress-snapshot/** text eol=lf
+
+# The ospec shims (E1.45): sh runs bin/ospec only with LF, and cmd reads
+# bin/ospec.cmd with CRLF.
+bin/ospec text eol=lf
+bin/ospec.cmd text eol=crlf

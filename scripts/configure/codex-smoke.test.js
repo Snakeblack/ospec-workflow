@@ -9,6 +9,7 @@ const test = require("node:test");
 const { runConfigure } = require("./cli.js");
 const { validate: validateCodex } = require("./validate-codex.js");
 const { main: installMain } = require("./install-codex.js");
+const { ospecCliValue } = require("./shared-dir.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 
@@ -114,15 +115,16 @@ test("codex smoke: global install contains every generated skill and preserves u
   // E1.6 (a): the IDD protocol names the Codex runtime directory.
   const sharedDir = path.resolve(installedSkills, "_shared").split(path.sep).join("/");
   const runtimeDir = path.resolve(homeDir, ".codex", "ospec-workflow").split(path.sep).join("/");
+  // E1.45: the IDD protocol and foundation name the shim of the platform.
+  const renderRuntime = (text) => text.split("__OSPEC_RUNTIME_DIR__/bin/ospec").join(ospecCliValue(runtimeDir)).split("__OSPEC_RUNTIME_DIR__").join(runtimeDir);
   const rendered = {
-    [path.join("sdd-orchestrator", "SKILL.md")]: ["__OSPEC_SHARED_DIR__", sharedDir],
-    [path.join("idd", "SKILL.md")]: ["__OSPEC_RUNTIME_DIR__", runtimeDir],
+    [path.join("sdd-orchestrator", "SKILL.md")]: (text) => text.split("__OSPEC_SHARED_DIR__").join(sharedDir),
+    [path.join("idd", "SKILL.md")]: renderRuntime,
+    [path.join("foundation", "SKILL.md")]: renderRuntime,
   };
   for (const relative of generatedSkillFiles) {
     const generatedBytes = fs.readFileSync(path.join(buildOut, "skills", relative));
-    const expected = rendered[relative]
-      ? Buffer.from(generatedBytes.toString("utf8").split(rendered[relative][0]).join(rendered[relative][1]))
-      : generatedBytes;
+    const expected = rendered[relative] ? Buffer.from(rendered[relative](generatedBytes.toString("utf8"))) : generatedBytes;
     assert.ok(
       expected.equals(fs.readFileSync(path.join(installedSkills, relative))),
       `installed skill must match generated payload: ${relative}`,

@@ -48,6 +48,7 @@ const { CATEGORY_IDS, countTests, resolveFeatureCoverage } = require("./lib/idd-
 const { fitnessPlan } = require("./lib/idd-fitness.js");
 const { resolveReferences } = require("./lib/idd-knowledge.js");
 const { nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
+const { refusalHow } = require("./lib/idd-refusals.js");
 const {
   IddRecordError,
   recordAssumption,
@@ -144,6 +145,28 @@ Options:
   --roadmap     snapshot: the roadmap to read (default: ${DEFAULT_ROADMAP})
   --out <file>  snapshot: write the snapshot to this file instead of stdout
 `;
+
+// E1.45 (B5): a usage error prints the entries of its subcommand, each with
+// its continuation lines, not the whole usage; an unknown command, the list
+// of commands.
+const USAGE_ENTRIES = USAGE.split("\nOptions:")[0]
+  .split("\n")
+  .slice(1)
+  .filter((line) => line.trim() !== "")
+  .reduce((entries, line) => {
+    const words = /^ {2}ospec (\S+)(?: ([a-z|]+)(?= |$))?/.exec(line);
+    if (words) entries.push({ command: words[1], sub: words[2] ? words[2].split("|") : [], lines: [line] });
+    else entries.at(-1).lines.push(line);
+    return entries;
+  }, []);
+const COMMANDS = [...new Set(USAGE_ENTRIES.map((entry) => entry.command))];
+
+function usageFor([command, sub] = []) {
+  const entries = USAGE_ENTRIES.filter((entry) => entry.command === command);
+  if (entries.length === 0) return `commands: ${COMMANDS.join(", ")}`;
+  const exact = entries.filter((entry) => entry.sub.includes(sub));
+  return (exact.length > 0 ? exact : entries).flatMap((entry) => entry.lines).join("\n");
+}
 
 const OPTIONS = {
   change: { type: "string" },
@@ -1049,6 +1072,8 @@ function describeNext(result) {
     default:
       lines.push(`next: ${step.action}`);
   }
+  // The literal command of the step (E1.45).
+  for (const command of step.commands || (step.command ? [step.command] : [])) lines.push(`run: ${command}`);
   if (result.pending_obligations?.length) {
     lines.push(`pending: ${result.pending_obligations.map((o) => o.id).join(", ")}`);
   }
@@ -1283,6 +1308,16 @@ function describe(command, result) {
   return `${head}\n${describeNext(result.next)}`;
 }
 
+// The words and the change of a call that failed to parse, to point its
+// refusal at the right usage and change.
+function lenientArgs(argv) {
+  try {
+    return parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false });
+  } catch {
+    return { values: {}, positionals: [] };
+  }
+}
+
 async function main(argv = process.argv.slice(2)) {
   const wantsJson = argv.includes("--json");
   let command;
@@ -1313,11 +1348,14 @@ async function main(argv = process.argv.slice(2)) {
       error instanceof SnapshotError;
     if (!known) throw error;
     const code = usage ? "usage" : error.code;
+    // A refusal says how to get past it: its own how, the usage of its
+    // subcommand, or the one its code has (E1.45).
+    const { values, positionals } = lenientArgs(argv);
+    const how = error.how || (usage ? usageFor(positionals) : refusalHow(code, { change: typeof values.change === "string" ? values.change : undefined }));
     if (wantsJson) {
-      const how = error.how ? { how: error.how } : {};
-      process.stdout.write(`${JSON.stringify({ ok: false, command, error: { code, message: error.message, ...how } }, null, 2)}\n`);
+      process.stdout.write(`${JSON.stringify({ ok: false, command, error: { code, message: error.message, ...(how ? { how } : {}) } }, null, 2)}\n`);
     } else {
-      process.stderr.write(`ospec: ${error.message} (${code})\n${error.how ? `${error.how}\n` : ""}${usage ? USAGE : ""}`);
+      process.stderr.write(`ospec: ${error.message} (${code})\n${how ? `${how}\n` : ""}`);
     }
     return usage ? 2 : 1;
   }

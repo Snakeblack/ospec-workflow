@@ -983,6 +983,8 @@ test("real repo: every target ships the ospec CLI and it runs from the generated
     const out = tmpOut(t);
     const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
     for (const rel of [
+      "bin/ospec",
+      "bin/ospec.cmd",
       "scripts/ospec.js",
       "scripts/lib/idd-store.js",
       "scripts/lib/idd-contract.js",
@@ -999,7 +1001,7 @@ test("real repo: every target ships the ospec CLI and it runs from the generated
     const output = execFileSync(process.execPath, [path.join(out, "scripts", "ospec.js"), "next", "--json", "--root", project], {
       encoding: "utf8",
     });
-    assert.deepStrictEqual(JSON.parse(output).next_step, { action: "open-change" });
+    assert.strictEqual(JSON.parse(output).next_step.action, "open-change");
     for (const rel of [
       "scripts/lib/decision-gap.js",
       "scripts/lib/decision-records.js",

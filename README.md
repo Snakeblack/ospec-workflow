@@ -221,6 +221,7 @@ Every `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS
 | `rules/ospec-router.instructions.md` | The always-on router: IDD by default for code changes, SDD only on request through the host's orchestrator. Installers add it to every target. |
 | `skills/idd/` | The IDD protocol the router loads for a code change. |
 | `scripts/ospec.js` | The `ospec` CLI (`status`, `next`, `record`, `signals`, `check`, `run`, `review`, `close`), shipped with the runtime. |
+| `bin/ospec`, `bin/ospec.cmd` | The shims that run that CLI as one word, in any shell; the IDD protocol names the one of its platform. |
 | `idd/` | IDD configuration (`config.yaml`), changes in flight and `archive/`, in each project. |
 | `.plugin.json` | **Canonical** manifest (VS Code/direct-load). Edit this one first. |
 | `.claude-plugin/plugin.json` | Compatibility copy for Claude distribution; also the source read by the generator (`scripts/configure/cli.js`). It must mirror the canonical one — `scripts/manifest-sync.test.js` verifies this in CI. |

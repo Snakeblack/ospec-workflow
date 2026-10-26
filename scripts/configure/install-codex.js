@@ -9,7 +9,7 @@ const { runConfigure } = require("./cli.js");
 const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { assertSafeDest } = require("./install-target.js");
 const { removeRouterBlock, writeRouterBlock } = require("./instruction-block.js");
-const { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER, renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = require("./shared-dir.js");
+const { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER, ospecCliValue, renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = require("./shared-dir.js");
 const {
   readOwnershipManifest,
   writeOwnershipManifest,
@@ -147,6 +147,13 @@ function copyCodexRuntime(outDir, runtimeDir, deps = {}) {
   if (fsImpl.existsSync(schemasSource)) {
     pruneManagedTree(schemasSource, schemasDestination, fsImpl);
     syncTreeByContent(schemasSource, schemasDestination, fsImpl, result);
+  }
+  // E1.45: the ospec shims the IDD protocol names, beside scripts/.
+  const binSource = path.join(outDir, "bin");
+  const binDestination = path.join(runtimeDir, "bin");
+  if (fsImpl.existsSync(binSource)) {
+    pruneManagedTree(binSource, binDestination, fsImpl);
+    syncTreeByContent(binSource, binDestination, fsImpl, result);
   }
   return result;
 }
@@ -1071,6 +1078,7 @@ function gatherCodexOwnedFiles(outDir, fsImpl = fs) {
 
   walkRel(path.join(outDir, "scripts"), "ospec-workflow/scripts");
   walkRel(path.join(outDir, "schemas"), "ospec-workflow/schemas");
+  walkRel(path.join(outDir, "bin"), "ospec-workflow/bin");
 
   return owned;
 }
@@ -1108,9 +1116,11 @@ const REPO_SKILLS = Object.freeze(["sdd-orchestrator", "idd", "review-trust", "r
 const REPO_RUNTIME_DIR = ".codex/ospec-workflow";
 
 function renderRepoMarkers(content) {
+  const runtimeDir = runtimeDirValue(REPO_RUNTIME_DIR, { relative: true });
   return content
     .split(SHARED_DIR_MARKER).join(sharedDirValue(REPO_SKILLS_DIR, { relative: true }))
-    .split(RUNTIME_DIR_MARKER).join(runtimeDirValue(REPO_RUNTIME_DIR, { relative: true }));
+    .split(`${RUNTIME_DIR_MARKER}/bin/ospec`).join(ospecCliValue(runtimeDir))
+    .split(RUNTIME_DIR_MARKER).join(runtimeDir);
 }
 
 // Copies a generated tree, rendering the install markers in its text files.
@@ -1143,7 +1153,7 @@ function preflightRepoInstall(outDir, repoRoot, fsImpl = fs) {
   if (fsImpl.existsSync(sharedSource)) preflightManagedTree(sharedSource, path.join(skillsRoot, "_shared"), repoRoot, fsImpl);
   const runtimeDir = path.join(repoRoot, ...REPO_RUNTIME_DIR.split("/"));
   assertManagedPathSafe(repoRoot, runtimeDir, "Codex repository runtime directory", fsImpl);
-  for (const tree of ["scripts", "schemas"]) {
+  for (const tree of ["scripts", "schemas", "bin"]) {
     const source = path.join(outDir, tree);
     if (fsImpl.existsSync(source)) preflightManagedTree(source, path.join(runtimeDir, tree), repoRoot, fsImpl);
   }
@@ -1339,6 +1349,9 @@ function install(argv, deps = {}) {
       }
       if (fsImpl.existsSync(schemasSource)) {
         preflightManagedTree(schemasSource, path.join(runtimeDir, "schemas"), codexRoot, fsImpl);
+      }
+      if (fsImpl.existsSync(path.join(outDir, "bin"))) {
+        preflightManagedTree(path.join(outDir, "bin"), path.join(runtimeDir, "bin"), codexRoot, fsImpl);
       }
       preflightManagedTree(path.join(outDir, "skills"), globalSkillsRoot, userHome, fsImpl);
     }

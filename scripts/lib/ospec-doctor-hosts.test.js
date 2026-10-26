@@ -17,7 +17,7 @@ const { DOCTOR_TARGETS, runDoctor } = require("./ospec-doctor.js");
 const BEGIN = "<!-- ospec-workflow:router:begin -->";
 const END = "<!-- ospec-workflow:router:end -->";
 const ROUTER = "# ospec-workflow\n\nIDD by default.\n";
-const SKILL = "---\nname: idd\n---\n\nRun `node \"/home/dev/.cursor/scripts/ospec.js\"`.\n";
+const SKILL = "---\nname: idd\n---\n\n`ospec` below means `/home/dev/.cursor/bin/ospec`.\n";
 
 function tempDir(t, prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -67,12 +67,21 @@ const LAYOUTS = {
 };
 const SCRIPTS = { codex: "setup:codex", cursor: "setup:cursor", antigravity: "setup:antigravity", opencode: "setup:opencode", "github-copilot": "setup:copilot", vscode: "setup:vscode" };
 
-function install(home, target, { version = "2.0.0", runtime = true, router = ROUTER, hooks = true, sdd = false, skill = SKILL } = {}) {
+// The shim beside the runtime (E1.45): bin/ospec, executable, and bin/ospec.cmd.
+function writeShim(runtimeFile, { executable = true } = {}) {
+  const bin = path.join(path.dirname(path.dirname(runtimeFile)), "bin");
+  write(path.join(bin, "ospec"), "#!/bin/sh\n");
+  fs.chmodSync(path.join(bin, "ospec"), executable ? 0o755 : 0o644);
+  write(path.join(bin, "ospec.cmd"), "@echo off\r\n");
+}
+
+function install(home, target, { version = "2.0.0", runtime = true, shim = runtime, executable = true, router = ROUTER, hooks = true, sdd = false, skill = SKILL } = {}) {
   const layout = LAYOUTS[target];
   const root = path.join(home, ...layout.root);
   const skills = layout.skills ? path.join(home, ...layout.skills) : path.join(root, "skills");
   write(path.join(root, ".ospec-workflow-install.json"), { version, target, installedAt: "2026-10-08T00:00:00.000Z", files: [] });
   if (runtime) write(path.join(root, layout.runtime), "// ospec CLI\n");
+  if (shim) writeShim(path.join(root, layout.runtime), { executable });
   if (router !== null) {
     write(path.join(root, layout.router), target === "codex" ? `# Mine\n\n${BEGIN}\n${router.trim()}\n${END}\n` : router);
   }
@@ -88,6 +97,7 @@ function install(home, target, { version = "2.0.0", runtime = true, router = ROU
 function vscodeBuild(dir, { version = "2.0.0", sdd = false, skill = SKILL } = {}) {
   write(path.join(dir, ".claude-plugin", "plugin.json"), { name: "ospec-workflow", version });
   write(path.join(dir, "scripts", "ospec.js"), "// ospec CLI\n");
+  writeShim(path.join(dir, "scripts", "ospec.js"));
   write(path.join(dir, "rules", "ospec-router.instructions.md"), ROUTER);
   write(path.join(dir, "hooks", "hooks.json"), "{}\n");
   write(path.join(dir, "agents", "review-trust.md"), "reviewer\n");
@@ -134,6 +144,39 @@ test("a healthy installation of each manifest host passes every host check", asy
     assert.equal(find(result, target, "engram").status, "info", `${target}: Engram is optional`);
     assert.equal(result.exit_code, 0, target);
   }
+});
+
+// E1.45 (B5): the protocol runs the shim, so a runtime without one, or with
+// one the shell cannot execute, cannot run the ospec CLI.
+test("a runtime without its shim, or with a shim that cannot run, is an error", async (t) => {
+  for (const target of Object.keys(LAYOUTS)) {
+    const env = setup(t);
+    install(env.home, target, { shim: false });
+    const result = await doctor(env);
+    const runtime = find(result, target, "runtime");
+    assert.equal(runtime.status, "error", `${target}/runtime`);
+    assertActionable(runtime, target);
+    // The cause names the path with the platform's separator.
+    assert.match(runtime.cause, /bin[\\/]ospec is missing/);
+    assert.match(runtime.action, new RegExp(`npm run ${SCRIPTS[target]}`));
+    assert.equal(result.exit_code, 1, target);
+
+    const windows = setup(t);
+    install(windows.home, target);
+    fs.rmSync(path.join(windows.home, ...LAYOUTS[target].root, path.dirname(path.dirname(LAYOUTS[target].runtime)), "bin", "ospec.cmd"));
+    const cmd = find(await doctor(windows, { platform: "win32" }), target, "runtime");
+    assert.equal(cmd.status, "error", `${target}/runtime on Windows`);
+    assert.match(cmd.cause, /bin[\\/]ospec\.cmd is missing/);
+  }
+});
+
+test("a POSIX shim without the execute bit is an error", { skip: process.platform === "win32" && "Windows has no execute bit" }, async (t) => {
+  const env = setup(t);
+  install(env.home, "cursor", { executable: false });
+  const runtime = find(await doctor(env), "cursor", "runtime");
+  assert.equal(runtime.status, "error");
+  assertActionable(runtime, "cursor");
+  assert.match(runtime.cause, /bin[\\/]ospec is not executable/);
 });
 
 test("a missing runtime, an unrendered marker or missing hooks is an error; a missing router is a warning", async (t) => {
@@ -388,13 +431,23 @@ test("the doctor writes nothing under the home directory", async (t) => {
 test("a repository Codex install is ok when its IDD protocol names a runtime that exists", async (t) => {
   const repo = setup(t);
   write(path.join(repo.root, "AGENTS.md"), `${BEGIN}\n${ROUTER}${END}\n`);
-  write(path.join(repo.root, ".agents", "skills", "idd", "SKILL.md"), "---\nname: idd\n---\n\n`ospec` below means `node \".codex/ospec-workflow/scripts/ospec.js\"`, run from the project root.\n");
+  write(path.join(repo.root, ".agents", "skills", "idd", "SKILL.md"), "---\nname: idd\n---\n\n`ospec` below means `.codex/ospec-workflow/bin/ospec`, run from the project root.\n");
   const missing = find(await doctor(repo), "project", "codex-repo");
   assert.equal(missing.status, "warn");
   assertActionable(missing, "codex repo runtime");
-  assert.match(missing.cause, /\.codex\/ospec-workflow\/scripts\/ospec\.js/);
+  assert.match(missing.cause, /\.codex\/ospec-workflow\/bin\/ospec/);
   assert.match(missing.action, /install:codex -- <repo>/);
 
+  write(path.join(repo.root, ".codex", "ospec-workflow", "scripts", "ospec.js"), "// ospec CLI\n");
+  writeShim(path.join(repo.root, ".codex", "ospec-workflow", "scripts", "ospec.js"));
+  assert.equal(find(await doctor(repo), "project", "codex-repo").status, "ok");
+});
+
+// An install from before E1.45 names node and the script; it still runs.
+test("a repository Codex install from before the shim is still recognized", async (t) => {
+  const repo = setup(t);
+  write(path.join(repo.root, "AGENTS.md"), `${BEGIN}\n${ROUTER}${END}\n`);
+  write(path.join(repo.root, ".agents", "skills", "idd", "SKILL.md"), "---\nname: idd\n---\n\n`ospec` below means `node \".codex/ospec-workflow/scripts/ospec.js\"`, run from the project root.\n");
   write(path.join(repo.root, ".codex", "ospec-workflow", "scripts", "ospec.js"), "// ospec CLI\n");
   assert.equal(find(await doctor(repo), "project", "codex-repo").status, "ok");
 });

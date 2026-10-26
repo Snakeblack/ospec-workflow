@@ -174,7 +174,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
   const prepareTree = (dir) => {
     if (!args.dryRun) copyBinary(dir, "vscode", sourceDir, { fs: fsImpl, stdout: reporter.detail, stderr, required: false });
     renderSharedDir(dir, sharedDirValue(path.join(absPluginPath, "skills")), fsImpl);
-    renderRuntimeDir(dir, runtimeDirValue(absPluginPath), fsImpl);
+    renderRuntimeDir(dir, runtimeDirValue(absPluginPath), fsImpl, { platform: deps.platform || process.platform });
   };
 
   // 1. Build the target vscode to dist/vscode. VS Code loads that tree, so the

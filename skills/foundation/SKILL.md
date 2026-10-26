@@ -66,7 +66,8 @@ round. The documents are the state, never the conversation.
    when the user gives one, and record who gave it. In v2 its `fitness` holds
    the `checks` commands that verify it (a benchmark, a budget) or a
    `description` for a check by hand.
-3. Take the round from `ospec foundation next`. When the map does not exist
+3. `ospec` below means `{{ospec-cli}}`, run from the project root.
+   Take the round from `ospec foundation next`. When the map does not exist
    yet, pass `--profile` and write the returned `template` to
    `docs/architecture/knowledge-map.yaml` before recording: `next` does not
    create the file. Ask only the slots in that round, in that order, all in

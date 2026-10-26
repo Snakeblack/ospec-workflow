@@ -492,8 +492,9 @@ Y vuelve a revisar:
 
 ## Solucion de problemas
 
-Empieza por `ospec doctor` desde la raíz del proyecto (`node <runtime>/scripts/ospec.js doctor`,
-o `node scripts/ospec.js doctor` en el checkout de ospec-workflow). No escribe nada e
+Empieza por `ospec doctor` desde la raíz del proyecto (`<runtime>/bin/ospec doctor`, o
+`<runtime>/bin/ospec.cmd doctor` en Windows, y `bin/ospec doctor` en el checkout de
+ospec-workflow). No escribe nada e
 informa de cada problema con su causa y la acción que lo arregla: una instalación
 desfasada o duplicada, hooks que faltan, un bloque del router ausente o desfasado,
 `mode: sdd` sin el paquete SDD, un cambio IDD o SDD interrumpido y el comando que lo
