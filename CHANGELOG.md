@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.157.1] - 2026-10-26
+
+### Fixed
+- **El test del heartbeat del lock deja de fallar en Windows** (E1.30). Tras el merge de v2.157.0 falló en `main` (run 40403581014, `windows-latest 1/2`) y bloqueó Publish Marketplace hasta relanzar el job: con 150 ms de caducidad y un heartbeat cada 30 ms, una pausa de unos 120 ms del runner bastaba para que otro proceso reclamara el lock. El test de `scripts/lib/ospec-state.test.js` y su gemelo de Go (`internal/store/lock_test.go`) pasan a 1000 ms de caducidad, heartbeat de 50 ms y 1500 ms de trabajo del dueño.
+  - El test JS añade una pausa deliberada de 250 ms del bucle de eventos, que con los márgenes anteriores falla siempre; sin heartbeat los dos tests siguen fallando. Las constantes de producción (5000 y 1000 ms) no cambian.
+
+### Changed
+- **Roadmap:** E1.30 anota el flake de `main` con su run y sigue abierto.
+
+Hecho con IDD (`idd/archive/2026-10-26-lock-heartbeat-test-margin/`): la reproducción falló antes del cambio por la pausa y pasa después.
+
+**Verificación directa**: `node scripts/check.js` (4160 tests pasando, 0 fallos y 5 omitidos). Gate de Go: `gofmt -l cmd internal` vacío, `go vet ./...` y `go test ./...` en verde.
+
 ## [2.157.0] - 2026-10-26
 
 ### Added

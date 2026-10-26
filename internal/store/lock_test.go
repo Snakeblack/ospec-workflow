@@ -82,7 +82,9 @@ func TestWithLockReclaimsAStaleTokenlessLockOfAnEarlierVersion(t *testing.T) {
 }
 
 func TestWithLockHeartbeatKeepsALiveOwnersLockFresh(t *testing.T) {
-	timing := lockTiming{stale: 150 * time.Millisecond, heartbeat: 30 * time.Millisecond}
+	// The owner works 1500 ms, past the 1000 ms staleness, so only its
+	// heartbeat keeps the waiter out; the margin absorbs a loaded runner (E1.30).
+	timing := lockTiming{stale: 1000 * time.Millisecond, heartbeat: 50 * time.Millisecond}
 	target := filepath.Join(t.TempDir(), "state.yaml")
 	var mu sync.Mutex
 	var events []string
@@ -99,7 +101,7 @@ func TestWithLockHeartbeatKeepsALiveOwnersLockFresh(t *testing.T) {
 		defer wg.Done()
 		errs[0] = withLockTiming(target, timing, func(func() error) error {
 			record("start-1")
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(1500 * time.Millisecond)
 			record("end-1")
 			return nil
 		})
