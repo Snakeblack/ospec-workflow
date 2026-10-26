@@ -687,6 +687,10 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - **Causa probable:** contención. `--test-shard` reparte los ficheros en round robin sobre la lista ordenada, así que los dos ficheros de test nuevos de E1.45 (`scripts/configure/ospec-shim.test.js` y `scripts/lib/idd-refusals.test.js`) cambian qué tests corren a la vez en el shard 2, y el arranque en frío de `powershell.exe` no llega a tiempo.
   - **Hueco:** `runHookOnceMore` solo reintenta el plazo de 4 s del lanzador (`[ospec error] Hook … failed: ETIMEDOUT` en la salida), no el `ETIMEDOUT` de `spawnSync` cuando se agota el margen de 180 s del test.
   - **Plazo:** el de 0 flakes hasta el 2026-10-29 no se cumple. El usuario lo deja como fallido, sin plazo nuevo (2026-10-26): E1.30 sigue abierto y E1.28 no entra el 2026-10-29.
+- **Flake en `main` tras v2.157.0 (2026-10-26, `lock-heartbeat-test-margin`):**
+  - **Qué falló:** en `Validate (windows-latest 1/2)` de la run [40403581014](https://github.com/Snakeblack/ospec-workflow/actions/runs/40403581014), sobre el merge de E1.47, el test del heartbeat del lock de E1.46 (`scripts/lib/ospec-state.test.js`) dio `start-1, start-2, end-1`: otro proceso reclamó el lock mientras su dueño trabajaba. Publish Marketplace esperaba ese job y falló; al relanzar el job, con el mismo código, pasó, y Publish subió v2.157.0.
+  - **Causa probable:** el test daba 150 ms de caducidad con un heartbeat cada 30 ms, así que una pausa de unos 120 ms del runner bastaba. En producción son 5000 y 1000 ms.
+  - **Arreglo, solo en los tests:** el de JS y su gemelo de Go (`internal/store/lock_test.go`) pasan a 1000 ms de caducidad, heartbeat cada 50 ms y el dueño trabajando 1500 ms. El de JS añade una pausa deliberada de 250 ms del bucle de eventos: con los márgenes anteriores falla siempre, y sin heartbeat los dos tests siguen fallando. Las constantes de producción no cambian.
 
 ### E1.31 — `doctor-hook-probe` (OSP-014, #345)
 

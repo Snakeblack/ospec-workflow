@@ -1166,12 +1166,19 @@ test("a lock an earlier version left without a token is still reclaimed once sta
 test("an owner keeps its lock fresh while it runs, so a waiter never reclaims it", async (t) => {
   const workspace = await createWorkspace(t);
   const lockTarget = path.join(workspace, "state.yaml");
-  const options = { staleMs: 150, delayMs: 5, heartbeatMs: 30, retries: 1000 };
+  // The owner works 1500 ms, past the 1000 ms staleness, so only its
+  // heartbeat keeps the waiter out; the margin absorbs a loaded runner.
+  const options = { staleMs: 1000, delayMs: 5, heartbeatMs: 50, retries: 1000 };
   const events = [];
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const first = withFileLock(lockTarget, async () => {
     events.push("start-1");
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await wait(100);
+    // A loaded runner pauses the event loop (E1.30): no heartbeat runs for
+    // 250 ms, and the lock must outlive that pause.
+    for (const until = Date.now() + 250; Date.now() < until; );
+    await wait(1150);
     events.push("end-1");
   }, options);
   await new Promise((resolve) => setTimeout(resolve, 20));
