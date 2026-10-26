@@ -7,8 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.153.2] - 2026-10-26
+
 ### Fixed
-- E1.43: ospec close revalida el estado con las reglas de los comandos (ninguna obligación withdrawn o ausente que una señal activa derive y la evidencia ligada al árbol del último check) y PreToolUse deniega escribir idd/<cambio>/state.yaml, idd/archive/** y los recibos de review en los seis targets con hook previo a editar; Cursor solo revalida (close-revalidates-state)
+- **`ospec close` revalida el estado que solo escribe el CLI** (E1.43, B2 de la auditoría del 2026-10-25). Un `state.yaml` editado a mano con `checks-pass: withdrawn` se archivaba, aunque el CLI rechaza ese mismo withdraw, y ningún hook impedía escribir el estado.
+  - `close` rechaza una obligación `withdrawn` o ausente que una señal activa deriva, y `ospec check` la reabre como `pending`.
+  - `close` vuelve a derivar las señales del diff como `check` y rechaza la señal, el gate o la referencia de arquitectura que el estado no tiene.
+  - La evidencia ligada al árbol (`checks-pass`, `boundary-tests`, contrato, migración e impacto con fitness) debe nombrar el árbol que se cierra, o `close` responde `evidence-stale`.
+  - Un cambio marcado `closed` sin archivar solo se archiva sin nada pendiente. `closed_at` debe ser ISO 8601 UTC, también en `archiveChange`, porque nombra el archivo. `close` marca cerrado el mismo estado que validó, o responde `state-changed` antes de tocar el changelog.
+  - REQ-idd-003, REQ-idd-006 y REQ-idd-009 lo especifican. Vale en los 7 targets.
+- **PreToolUse deniega escribir el estado del CLI** (REQ-hooks-029). El hook JS y el binario Go deniegan, en cualquier modo de permisos y sin interruptor, una herramienta de escritura sobre `idd/<cambio>/state.yaml` (con su `.tmp` y su `.bak`), `idd/archive/` o `.ospec/review-receipts/`. Las lecturas y el shell pasan.
+  - Actúa donde el host manda la edición a su PreToolUse. [target-capabilities](docs/target-capabilities.md) dice por target si ese hook corre: hoy VS Code y GitHub Copilot no lo corren. En Cursor, la garantía es la revalidación de `close` (`CLI_OWNED_STATE_GUARD` en `scripts/configure/validate-cursor.js`).
+  - Dos fixtures de paridad fijan la misma respuesta en los dos motores, y un test del launcher la prueba con el payload de cada host.
+
+### Changed
+- **Roadmap:** E1.43 queda hecho y sigue E1.44 `ceremony-only-rises`. E1.46 `state-durability` suma dos residuos de la cuarta trust review: las herramientas MCP de copia o anexado, y la redacción de REQ-hooks-029 sobre el archivo y los recibos.
+
+Hecho con IDD (`idd/archive/2026-10-26-close-revalidates-state/`), con cuatro trust reviews aprobadas.
+
+**Verificación directa**: `node scripts/check.js` (4077 tests pasando, 0 fallos y 3 omitidos) y la puerta Go (`gofmt -l cmd internal`, `go vet ./...` y `go test ./...`).
 
 ## [2.153.1] - 2026-10-25
 
