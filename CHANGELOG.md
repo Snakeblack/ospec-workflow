@@ -7,8 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.158.0] - 2026-10-27
+
 ### Added
-- ospec snapshot --schema-version 2 emite el snapshot de avance v2: las fases del roadmap con su tramo (los encabezados ## con tablas de fases) y, desde un fichero de avance opcional en Markdown (docs/progress.md o --progress), los textos para el cliente de cada tramo y fase, sus tareas, fechas, resultados y versión de prueba, y las peticiones al cliente; el v1 sigue siendo el de por defecto (progress-snapshot-v2)
+- **`ospec snapshot --schema-version 2`: el snapshot de avance v2, con tramos y textos para el cliente** (E5.11). El v1 solo dice qué fases hay y en qué estado están. Un proyecto que enseña su avance a un cliente tenía que escribir el resto a mano. El v2 lleva las fases del v1, con el mismo estado y orden, y además:
+  - Los tramos del roadmap: sus encabezados `##` con tablas de fases. Cada uno toma el id del `<ID>.` de su encabezado o, si no lo lleva, un id derivado de su título.
+  - Los textos de un fichero de avance opcional, `docs/progress.md` u otro con `--progress <ruta>`. Va en Markdown, en el idioma del proyecto y con palabras clave fijas en inglés. Da el título y el resumen de cada tramo, y de cada fase el título, el nombre corto, las fechas, la descripción, las tareas con un id estable, los resultados y la versión de prueba. También da las peticiones al cliente.
+  - El esquema es `schemas/progress-snapshot/v2.schema.json`, con un fixture válido y uno inválido, y REQ-idd-026 lo especifica. Sin la opción sale el v1 de siempre, byte a byte igual.
+- **Un fichero de avance fuera de formato no se publica.** Se rechaza con código 1, `progress-invalid`, el fichero y la línea del primer problema si:
+  - nombra una fase o un tramo que el roadmap no tiene;
+  - pone una fase bajo el `##` de otro tramo;
+  - deja sin marcar una tarea de una fase `done`;
+  - tiene un texto, una lista, una fecha o una URL fuera de formato.
+
+  Un `--progress` que no existe da `progress-missing`. No se recorta nada y no se escribe nada.
+
+### Changed
+- **Documentación:** `docs/README.md` explica el v2 y el fichero de avance, con un ejemplo. También explica cómo publicarlo desde la rama de integración y que, para que una fase salga en curso, su cambio se abre en esa rama.
+- **Roadmap:** E5.11 queda hecho y sigue E4.10 `greenfield-foundation-hint`, el último del bloque A.
+
+Hecho con IDD (`idd/archive/2026-10-26-progress-snapshot-v2/`). Un test de compatibilidad fija que el v1 no cambia aunque el roadmap tenga tramos o exista un fichero de avance.
+
+**Verificación directa**: `node scripts/check.js` (4175 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.157.1] - 2026-10-26
 
