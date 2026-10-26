@@ -23,5 +23,6 @@ El modelo de los registros es `ospec-decision-record/v1` ([E2.4](../roadmaps/har
 | [0009](decisions/0009-contratos-versionados-por-esquema.md) | Los contratos de máquina se versionan por esquema |
 | [0010](decisions/0010-runtime-autocontenido.md) | Runtime autocontenido: la instalación no descarga dependencias |
 | [0011](decisions/0011-modos-sdd-e-idd-separados-en-disco.md) | Los modos SDD e IDD están separados en disco |
+| [0012](decisions/0012-documentos-exportados-con-formato-cerrado.md) | Un documento exportado con formato cerrado declara solo su versión (enmienda 0009) |
 
 La referencia técnica de detalle sigue en [`../harness-runtime.md`](../harness-runtime.md), [`../target-capabilities.md`](../target-capabilities.md), [`../sdd-routing.md`](../sdd-routing.md), [`../sdd-fases.md`](../sdd-fases.md) y `openspec/specs/`. La arquitectura objetivo del programa K1–K12 está [archivada](../roadmaps/archive/2026-10-03-arquitectura/README.md): es historia, no la arquitectura vigente.
