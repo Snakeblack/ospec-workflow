@@ -1,0 +1,78 @@
+{
+  "schema": "idd-state/v1",
+  "change": "s-checks-changed",
+  "mode": "idd",
+  "status": "open",
+  "intent": {
+    "kind": "docs",
+    "summary": "Fix the README.",
+    "acceptance": "No typo."
+  },
+  "facts": {
+    "basis": "The request fixes every behavior."
+  },
+  "plan": {
+    "paths": [
+      "README.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "checks-changed",
+      "status": "open",
+      "reason": "idd/config.yaml declares test: true, and the base declares test: npm test",
+      "checks": [
+        {
+          "name": "test",
+          "command": "true"
+        }
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T10:00:00.000Z",
+      "detail": {
+        "tree": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "npm test",
+      "exit_code": 0,
+      "output_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "tree": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "recorded_at": "2026-10-09T10:00:00.000Z"
+    }
+  ]
+}

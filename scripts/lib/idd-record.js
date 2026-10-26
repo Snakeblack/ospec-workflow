@@ -131,10 +131,38 @@ function declaredFacts(input) {
   return { open };
 }
 
+function questionsOf(facts) {
+  return facts?.open || (facts?.coverage || []).flatMap((entry) => (entry.question ? [entry.question] : []));
+}
+
 function applyFacts(state, facts) {
   state.facts = facts;
-  const questions = facts.open || (facts.coverage || []).flatMap((entry) => (entry.question ? [entry.question] : []));
-  if (questions.length > 0) state.gates.push({ id: "open-facts", status: "open" });
+  if (questionsOf(facts).length > 0) state.gates.push({ id: "open-facts", status: "open" });
+}
+
+// The kinds a resolved intent may move to (E1.44, B9): only up, from docs to a
+// refactor, a bug or a feature, and from a refactor to a bug or a feature.
+const KIND_RANK = Object.freeze({ docs: 0, refactor: 1, bug: 2, feature: 2 });
+
+function raisesKind(from, to) {
+  return Object.hasOwn(KIND_RANK, to) && KIND_RANK[to] > KIND_RANK[from];
+}
+
+// A raised intent replaces the intent and its open facts. The answers already
+// given stay recorded, and only a question not asked before opens a new
+// open-facts entry.
+function raiseIntent(state, input) {
+  if (state.gates.some((gate) => gate.id === "open-facts" && gate.status === "open")) {
+    refuse("open-facts-open", "the open facts already asked have no answer yet: resolve open-facts before the intent changes");
+  }
+  validateResolvedIntent(input);
+  const facts = factsFor(input);
+  const asked = new Set(questionsOf(state.facts));
+  const next = structuredClone(state);
+  next.intent = resolvedIntent(input);
+  next.facts = facts;
+  if (questionsOf(facts).some((question) => !asked.has(question))) next.gates.push({ id: "open-facts", status: "open" });
+  return { state: next, changed: true };
 }
 
 function recordIntent(state, input = {}) {
@@ -142,6 +170,7 @@ function recordIntent(state, input = {}) {
     requireOpen(state);
     if (!isIntentAmbiguous(state)) {
       const { request = state.intent.request, ...rest } = input;
+      if (!input.ambiguous && raisesKind(state.intent.kind, input.kind)) return raiseIntent(state, { ...rest, request });
       const candidate = resolvedIntent({ ...rest, request });
       if (input.ambiguous || !sameJson(candidate, state.intent) || !sameFacts(state, input)) {
         refuse("intent-conflict", `change ${state.change} already has a different resolved intent`);
@@ -237,8 +266,12 @@ function recordGate(state, { id, action, reason, answer, source } = {}) {
   if (id === "review-limit" && action === "open") {
     refuse("gate-managed-by-review", "review-limit is opened by ospec check once the trust reviews of the change are used up");
   }
-  // review-limit repeats, one entry per authorized review (REQ-idd-016): the
-  // open entry is the one to answer, else the latest.
+  if (id === "checks-changed" && action === "open") {
+    refuse("gate-managed-by-check", "checks-changed is opened by ospec check when the checks in idd/config.yaml differ from the change's base");
+  }
+  // review-limit and checks-changed repeat, one entry per authorized review
+  // (REQ-idd-016) or approved set of checks: the open entry is the one to
+  // answer, else the latest.
   let index = state.gates.findIndex((gate) => gate.id === id && gate.status === "open");
   if (index === -1) index = state.gates.findLastIndex((gate) => gate.id === id);
   const existing = index === -1 ? null : state.gates[index];

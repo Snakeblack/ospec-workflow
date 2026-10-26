@@ -105,25 +105,34 @@ test("an invalid configuration is reported with its code", (t) => {
   assert.throws(() => readProjectContext(root), (error) => error.code === "config-invalid");
 });
 
-test("the diff holds modified, deleted and untracked paths with their added lines", (t) => {
+test("the diff holds modified, deleted and untracked paths with their added and removed lines", (t) => {
   const root = gitRepo(t);
   write(root, "src/api/orders.js", "const size = 20;\nmodule.exports = { size };\n");
   write(root, "src/legacy/fax.js", "module.exports = {};\n");
+  write(root, "db/seed.sql", "-- seed v1\nSELECT 1;\n");
   commitAll(root, "base");
 
   write(root, "src/api/orders.js", "const size = 50;\nmodule.exports = { size };\n");
   fs.rmSync(path.join(root, "src/legacy/fax.js"));
   write(root, "db/migrations/002_drop.sql", "-- cleanup\nALTER TABLE customers DROP COLUMN fax;\n");
+  write(root, "db/seed.sql", "++ counter\nSELECT 1;\n");
   write(root, "idd/c/state.yaml", "{}\n");
 
   const diff = readGitDiff(root);
-  assert.deepStrictEqual(diff.paths, ["db/migrations/002_drop.sql", "src/api/orders.js", "src/legacy/fax.js"]);
+  assert.deepStrictEqual(diff.paths, ["db/migrations/002_drop.sql", "db/seed.sql", "src/api/orders.js", "src/legacy/fax.js"]);
   assert.deepStrictEqual(diff.addedLines["src/api/orders.js"], ["const size = 50;"]);
   assert.deepStrictEqual(diff.addedLines["db/migrations/002_drop.sql"], [
     "-- cleanup",
     "ALTER TABLE customers DROP COLUMN fax;",
   ]);
   assert.ok(!("src/legacy/fax.js" in diff.addedLines));
+  assert.deepStrictEqual(diff.removedLines, {
+    "db/seed.sql": ["-- seed v1"],
+    "src/api/orders.js": ["const size = 20;"],
+    "src/legacy/fax.js": ["module.exports = {};"],
+  });
+  // Inside a hunk, `---` and `+++` are a removed `--` and an added `++` line.
+  assert.deepStrictEqual(diff.addedLines["db/seed.sql"], ["++ counter"]);
 });
 
 test("the diff reads each changed product file with the product modules it imports by relative path", (t) => {

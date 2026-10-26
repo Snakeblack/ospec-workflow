@@ -167,6 +167,8 @@ questions and wait.
   `ospec record gate --change <id> --gate adr-amend-or-contradict --open --reason "<ADR>: <how the change departs from it>"`.
   A change that conforms opens nothing.
 - `review-limit`: `ospec check` opens it when the trust reviews run out.
+- `checks-changed`: `ospec check` opens it when the checks differ from the
+  change's base. The user's approval of exactly those checks answers it.
 
 Resolve each one with `ospec record gate --change <id> --gate <id> --resolve --answer "<their words>" --source user`,
 or `user-unverified` for a relayed answer. The CLI cannot verify who answered:

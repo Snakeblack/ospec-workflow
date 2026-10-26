@@ -27,9 +27,9 @@ and archives it under `idd/archive/`.
 
 ## Core guarantees
 
-- **No self-approval**: the agent stops at five gates (ambiguous intent, open
+- **No self-approval**: the agent stops at six gates (ambiguous intent, open
   facts, irreversible operation, ADR amended or contradicted, trust reviews
-  used up), and only an
+  used up, checks changed from the base), and only an
   explicit answer from you resolves one. The agent declares who answered
   (`--source user`, or `user-unverified` for a relayed answer): the CLI
   refuses any other source but cannot verify that the answer was yours.

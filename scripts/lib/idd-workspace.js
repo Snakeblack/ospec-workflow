@@ -214,21 +214,39 @@ function isIddState(file) {
   return OWN_ROOTS.some((own) => file === own || file.startsWith(`${own}/`));
 }
 
-function addedLinesByFile(patch) {
+function headerPath(line, prefix) {
+  const target = line.slice(4).replace(/\t.*$/, "");
+  return target === "/dev/null" ? null : normalizePath(target.startsWith(prefix) ? target.slice(prefix.length) : target);
+}
+
+// The added lines of each file by its new path and the removed ones by its old
+// path (B9). Headers come before the first hunk of a file, so a `+++` or `---`
+// inside a hunk is an added `++` or a removed `--` line.
+function changedLinesByFile(patch) {
   const added = {};
-  let current = null;
+  const removed = {};
+  let oldPath = null;
+  let newPath = null;
+  let inHunk = false;
   for (const line of patch.split("\n")) {
-    if (line.startsWith("+++ ")) {
-      const target = line.slice(4).replace(/\t.*$/, "");
-      current = target === "/dev/null" ? null : normalizePath(target.replace(/^b\//, ""));
-      if (current && !added[current]) added[current] = [];
-    } else if (line.startsWith("diff --git ")) {
-      current = null;
-    } else if (current && line.startsWith("+")) {
-      added[current].push(line.slice(1).replace(/\r$/, ""));
+    if (line.startsWith("diff --git ")) {
+      oldPath = null;
+      newPath = null;
+      inHunk = false;
+    } else if (!inHunk && line.startsWith("--- ")) {
+      oldPath = headerPath(line, "a/");
+    } else if (!inHunk && line.startsWith("+++ ")) {
+      newPath = headerPath(line, "b/");
+      if (newPath && !added[newPath]) added[newPath] = [];
+    } else if (line.startsWith("@@")) {
+      inHunk = true;
+    } else if (inHunk && newPath && line.startsWith("+")) {
+      added[newPath].push(line.slice(1).replace(/\r$/, ""));
+    } else if (inHunk && oldPath && line.startsWith("-")) {
+      (removed[oldPath] ||= []).push(line.slice(1).replace(/\r$/, ""));
     }
   }
-  return added;
+  return { added, removed };
 }
 
 function readUntracked(root, file) {
@@ -351,15 +369,17 @@ function readGitDiff(root, { base = "HEAD" } = {}) {
   const untracked = nulList(git(root, ["ls-files", "--others", "--exclude-standard", "-z"]));
   const patch = git(root, ["diff", "--relative", "--no-renames", "--no-color", "--no-ext-diff", "--unified=0", base, "--"]);
 
-  const addedLines = addedLinesByFile(patch);
+  const { added: addedLines, removed: removedLines } = changedLinesByFile(patch);
   for (const file of untracked.map(normalizePath)) {
     if (!isIddState(file)) addedLines[file] = readUntracked(root, file);
   }
   const paths = [...new Set([...tracked, ...untracked].map(normalizePath))].filter((file) => !isIddState(file)).sort();
-  for (const file of Object.keys(addedLines)) {
-    if (!paths.includes(file)) delete addedLines[file];
+  for (const lines of [addedLines, removedLines]) {
+    for (const file of Object.keys(lines)) {
+      if (!paths.includes(file)) delete lines[file];
+    }
   }
-  return { paths, addedLines, sources: readSources(root, paths) };
+  return { paths, addedLines, removedLines, sources: readSources(root, paths) };
 }
 
 // What to do when there is no project to work in (E4.8): IDD needs a git work
@@ -423,6 +443,25 @@ function readTreeFingerprint(root) {
     hash.update(`\0${kind}\0${file}\0${crypto.createHash("sha256").update(content).digest("hex")}`);
   }
   return `sha256:${hash.digest("hex")}`;
+}
+
+/**
+ * The checks idd/config.yaml declared at the change's `base` (B7): none
+ * before the first commit, without the file or when it cannot be parsed.
+ */
+function readBaseChecks(root, base) {
+  if (!base || base === EMPTY_TREE) return [];
+  let text;
+  try {
+    text = git(root, ["show", `${base}:./${CONFIG_FILE}`]);
+  } catch {
+    return [];
+  }
+  try {
+    return parseIddConfig(text).checks;
+  } catch {
+    return [];
+  }
 }
 
 /** Identity for a check run: the source tree plus the effective verifier list. */
@@ -564,6 +603,7 @@ module.exports = {
   IddWorkspaceError,
   commitTree,
   readArchitecture,
+  readBaseChecks,
   readCheckTreeFingerprint,
   readDecisionRecords,
   readFitnessSources,

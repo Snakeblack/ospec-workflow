@@ -80,7 +80,8 @@ feature), `assumptions` (text recorded with `ospec record assumption`), `signals
 `diff`), `obligations` (each with `id`, `signal`, `status` in `pending`,
 `satisfied`, `withdrawn`, the `evidence` ids that satisfy it and, when
 withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
-`resolved`, an optional `reason` and, when resolved, `answer` and `source`) and
+`resolved`, an optional `reason`, when resolved, `answer` and `source` and, for
+`checks-changed`, the `checks` it approves, each with its `name` and `command`) and
 `evidence` (each with `id`, `kind`, `obligation` and `recorded_at`, plus the
 `detail` that names the runs behind run evidence), and optionally `base` (the
 commit the change started from, or null outside git), `plan` (the plan
@@ -302,15 +303,17 @@ pass", without a recorded execution MUST NOT satisfy any obligation.
 - WHEN the model reports that the tests pass
 - THEN `checks-pass` MUST stay `pending`
 
-### Requirement: Only Five Gates {#REQ-idd-008}
+### Requirement: Only Six Gates {#REQ-idd-008}
 
-IDD MUST stop for the user only at five gates: `ambiguous-intent` when the
+IDD MUST stop for the user only at six gates: `ambiguous-intent` when the
 intent is materially ambiguous, `open-facts` when behavior questions that
 neither the request nor the code settles are open (REQ-idd-018),
 `adr-amend-or-contradict` when the change amends
 or contradicts an ADR, `irreversible-operation` before a destructive or
-irreversible operation, and `review-limit` when the trust reviews of the
-change are used up (REQ-idd-016). No other question MAY block progress. A gate MUST be
+irreversible operation, `review-limit` when the trust reviews of the
+change are used up (REQ-idd-016), and `checks-changed` when the checks of
+`idd/config.yaml` differ from the ones of the change's base (REQ-idd-014). No
+other question MAY block progress. A gate MUST be
 resolved only by an explicit user answer, recorded with its source: `user`, or
 `user-unverified` for an answer relayed rather than given in the session. Any
 other source MUST be refused with `invalid-source`, both in `record gate` and
@@ -323,6 +326,10 @@ records as resolved. While
 `amends`, `supersedes` or `contradicts` MUST open `adr-amend-or-contradict`
 with a reason naming the ADR or scenario (REQ-idd-020); the agent MAY also
 open it with `record gate --open` and a reason naming the ADR before it asks.
+Only `ospec check` MAY open `checks-changed`, and `record gate --open` MUST be
+refused with `gate-managed-by-check`. Each set of checks MUST get its own
+entry, holding the `checks` it approves, so an answer approves only the checks
+it was asked about.
 
 #### Scenario: A gate answer names a known source
 
@@ -362,7 +369,16 @@ since a hand edit can break them (REQ-idd-003):
   close MUST be refused naming the obligation and the signal;
 - close MUST derive the signals again from the diff as `ospec check` does, and be
   refused naming each signal, gate or architecture reference that derivation
-  adds and the state lacks;
+  adds and the state lacks, `checks-changed` included while no resolved entry
+  approves the current checks;
+- close MUST refuse what `ospec check` refuses before it runs anything
+  (REQ-idd-014): a kind the diff contradicts (`kind-mismatch`) and a cite
+  outside the plan and the diff (`cite-outside-plan`), each with the command
+  that raises the ceremony as its way out;
+- while `boundary-tests` is satisfied and the diff against the change's base
+  adds no non-blank line to a test, close MUST be refused naming
+  `boundary-tests`, since a check against another `--base` may have counted
+  older tests as added;
 - while a satisfied `checks-pass`, `boundary-tests`, `contract-spec-and-test`,
   `migration-compat-and-test`, or `adr-impact-declaration` with fitness runs,
   holds its last evidence on another tree than the one being closed, close MUST
@@ -378,7 +394,7 @@ since a hand edit can break them (REQ-idd-003):
   meanwhile.
 
 Each refusal MUST leave the state and the changelog as they were and name
-`ospec check` as the way out. Closing MUST set `status: closed` and archive the change transactionally
+`ospec check` as the way out, unless it names its own command. Closing MUST set `status: closed` and archive the change transactionally
 (REQ-idd-017). The result MUST include `assumptions`, the text recorded with
 `ospec record assumption`, or an empty list when none was recorded. Assumptions
 MUST NOT block close.
@@ -407,6 +423,13 @@ decision.
 - WHEN close is requested
 - THEN it MUST be refused naming the signal `always`, which the diff derives
 
+#### Scenario: Close refuses a kind lowered by hand
+
+- GIVEN a refactor whose diff changes product code, ready to close, whose
+  `state.yaml` was edited by hand to kind `docs`
+- WHEN close is requested
+- THEN it MUST be refused with `kind-mismatch`, naming the product file
+
 ### Requirement: Reference Change Fixtures {#REQ-idd-010}
 
 `scripts/fixtures/idd/` MUST hold one fixture per reference change type
@@ -432,7 +455,16 @@ output. `record` MUST accept the types `intent`, `signal`, `gate`, `withdraw`,
 `retract` (REQ-idd-006) and `impact` (REQ-idd-020), and MUST NOT accept evidence: evidence is recorded only by the CLI
 commands that observe the execution it proves (REQ-idd-007). Every `record`
 MUST be idempotent: repeating it MUST leave `state.yaml` byte-identical, and
-rewriting a recorded fact with different content MUST be refused. Every write
+rewriting a recorded fact with different content MUST be refused. The one
+exception is a raised kind (E1.44): `record intent` on an open change with a
+resolved intent MAY record a new kind, summary, acceptance and open facts when
+the kind raises the ceremony, from `docs` to `refactor`, `bug` or `feature`, or
+from `refactor` to `bug` or `feature`. A lower kind, or `bug` and `feature` in
+place of each other, MUST still be refused with `intent-conflict`, and while
+`open-facts` is open the raise MUST be refused with `open-facts-open`. The
+raised intent MUST replace `intent` and `facts`, keep the answered gate
+entries, and open a new `open-facts` entry only for a question not asked
+before. Every write
 MUST run under the state file's lock and replace the file atomically, so an
 interrupted `record` leaves the last committed state readable. A change id
 MUST be kebab-case before it reaches the filesystem. `next` MUST be a read-only
@@ -441,7 +473,7 @@ check configuration and command suggestion. It MUST return the change, its pendi
 obligations in work order, the pending decision, the next step and the
 knowledge references. The next step MUST be `resolve-gate` for the first open
 gate in the order `ambiguous-intent`, `open-facts`, `adr-amend-or-contradict`,
-`irreversible-operation`, because every gate is a decision the user takes
+`irreversible-operation`, `review-limit`, `checks-changed`, because every gate is a decision the user takes
 before the work it decides (REQ-idd-008); else `declare-plan` (with `how`
 naming `ospec signals`) while the change has no recorded `plan`, no signal
 from the diff and no run; else the first pending obligation in the order
@@ -484,8 +516,10 @@ the changes on disk. A change opened before the first commit records a null
 
 - GIVEN a repository just created with `git init -b main` and a declared check
 - WHEN a change is opened, checked and closed before any commit
-- THEN its `base` MUST be null, `check` MUST answer `ready` and `close` MUST
-  succeed
+- THEN its `base` MUST be null and `check` MUST open `checks-changed`, since
+  the empty base declares no checks
+- AND once the user approves them, `check` MUST answer `ready` and `close`
+  MUST succeed
 
 #### Scenario: Next asks for the plan before any obligation
 
@@ -509,6 +543,15 @@ the changes on disk. A change opened before the first commit records a null
 - WHEN the same `record signal` runs again
 - THEN it MUST report `changed: false`
 - AND `state.yaml` MUST be byte-identical and hold one `bug-fix` signal
+
+#### Scenario: A raised kind replaces the intent
+
+- GIVEN an open change of kind `docs` whose diff changes `src/paginate.js`
+- WHEN `record intent` runs again with kind `refactor`, a new summary and its
+  open facts
+- THEN the intent MUST hold kind `refactor` and `check` MUST run
+- AND recording kind `docs` again, or a `refactor` with another summary, MUST be
+  refused with `intent-conflict`
 
 #### Scenario: Interrupted record keeps the committed state
 
@@ -587,7 +630,8 @@ module, while its path still counts for every path-driven signal. Added lines MU
 states a selector contract (`getElementById`, `querySelector`, `` `#id` ``) or
 an HTTP method plus a path. A comment line, including `//`, `#`, `--`, `/* */`
 and `<!-- -->`, MUST NOT count. For an intent of kind `feature` or `bug`, a
-diff that changes product code and no test MUST derive `untested-product`.
+diff that changes product code and adds no non-blank line to a test MUST derive
+`untested-product`: a deleted or emptied test is not one (E1.44).
 Product code is a source file; documentation, manifests and tests are not.
 No other derivation MAY open a gate. `--adr`
 and `--quality` declare the architecture references of REQ-idd-020. The
@@ -756,9 +800,12 @@ check recorded such evidence; otherwise it MUST return to `pending`, because
 older evidence proved an older tree. A run whose output reports zero tests
 (a `tests 0` summary, "could not find" test files, or "no tests ran") MUST NOT
 count as passing and MUST NOT satisfy `boundary-tests`. `boundary-tests` MUST
-be satisfied by a passing check on the current tree that reports more than
-zero tests, or, when the output has no test count, by a passing check whose
-diff touches a test. `repro-run-pair` and `tdd-red-green`
+be satisfied only while the diff adds a non-blank line to a test, by a passing
+check on the current tree that reports more than zero tests or no test count;
+the suite that passed before the change, a deleted test and an emptied test
+MUST NOT satisfy it (E1.44). Its `tested-check` evidence MUST name in `tests`
+the test paths of the diff, and a state recorded before them MUST stay valid
+with `has_test`. `repro-run-pair` and `tdd-red-green`
 evidence MUST name a failing run and a later passing run of the same purpose,
 command and unit on a different tree, and `ospec run` MUST record it when such
 a passing run is recorded.
@@ -780,6 +827,29 @@ without running anything. A completed check MUST exit with 0 whatever its
 answer; outside a git work tree it MUST be refused with `not-a-git-repo`
 (`git-not-found` without git).
 
+What the model declares MUST NOT lower the ceremony (E1.44). Before it runs
+anything, `check` MUST contrast the declaration with the diff and refuse:
+
+- with `kind-mismatch` a `docs` change whose diff changes product code, and a
+  `refactor` whose diff removes a non-blank line of a contract document
+  (`contracts.documents`, REQ-idd-015) or a documentation line that states a
+  contract as `public-contract` reads it (REQ-idd-012), unless the same text
+  comes back in one of them; its `how` MUST name the `record intent` that
+  raises the kind (REQ-idd-011);
+- with `cite-outside-plan` a feature cite outside the documentation whose file
+  is neither in the plan nor in the diff (REQ-idd-018); its `how` MUST name the
+  `ospec signals --path` that declares it.
+
+When the checks of `idd/config.yaml` differ in name, command or order from the
+ones it declared at the change's base, none at a null base or without the
+file, `check` MUST open `checks-changed` with a reason naming both sets,
+unless a resolved entry already approves the current ones. An open entry
+nobody answered MUST follow the current checks, and MUST be dropped when they
+return to the base or to an approved set. Only `checks` is contrasted with the
+base: `strict_tdd`, `impact` and `contracts` are read from the working tree, so
+a change to them can still lower the derived obligations, a limit E1.53
+`config-only-rises` closes.
+
 With no declared checks, `check` MUST keep `checks-pass` pending, answer
 `missing` with a reason naming `checks:` in `idd/config.yaml` and explicit
 approval, include a command suggestion when known, and return the same
@@ -796,7 +866,35 @@ It MUST still exit with 0, record no check runs and never write configuration.
 - AND `check` MUST answer `missing`, exit with 0 and record no check run
 - AND `close` MUST refuse while the evidence is missing
 - WHEN the approved check command is written and `check` observes it passing
-- THEN `checks-pass` MUST be satisfied and `close` MUST succeed
+- THEN `checks-changed` MUST open, since the base declares no checks
+- AND once the user's approval resolves it, `checks-pass` MUST be satisfied and
+  `close` MUST succeed
+
+#### Scenario: A feature without a new test leaves boundary-tests pending
+
+- GIVEN a feature whose diff adds product code and no test, and a check that
+  reports `tests 3` from the suite of the base
+- WHEN `ospec check` runs
+- THEN `boundary-tests` MUST stay `pending` with a reason saying the diff adds
+  no line to a test
+- AND deleting a test MUST NOT satisfy it, and adding one MUST
+
+#### Scenario: Checks changed to a trivial command need the user's answer
+
+- GIVEN a change whose base declares `test: node verify.js`
+- WHEN `idd/config.yaml` changes it to `test: node -e 0` and `ospec check` runs
+- THEN `checks-changed` MUST open naming both commands and the answer MUST be
+  `needs-decision`
+- AND once the user resolves it, another change of the checks MUST open a new
+  entry
+
+#### Scenario: A kind the diff contradicts is refused
+
+- GIVEN a `docs` change whose diff adds `src/paginate.js`, or a `refactor`
+  whose diff removes the path `/pages` from `api/openapi.yaml`
+- WHEN `ospec check` runs
+- THEN it MUST be refused with `kind-mismatch`, naming the file, and run nothing
+- AND after `record intent` raises the kind, `check` MUST run
 
 #### Scenario: A claimed passing run closes nothing
 
@@ -1079,7 +1177,15 @@ be refused with `facts-undeclared`. A state recorded before this rule, with
 every category cited, MUST stay valid. A question is concrete when it holds a digit, a quoted
 value of at least 3 characters besides spaces, or a word beyond the category's
 own name. A cited line MUST hold a letter or a digit, and no two categories MAY
-share the same `path:line` or the same fragment. A basis that cites nothing MUST
+share the same `path:line` or the same fragment. A cite of a manifest or a
+lockfile MUST be refused with `cite-unresolved`, since it settles no behavior.
+The rules MUST judge the file the cite reaches inside the project, with its
+spelling normalized (`./a`, `a/./b`, a trailing slash) and symlinks resolved,
+and the coverage MUST store that file. A cite outside the documentation MUST name a file of the plan or the diff,
+which `check` and `close` verify (REQ-idd-014). A state recorded before these
+rules MUST stay valid. An intent raised to another kind (REQ-idd-011) keeps the
+answered `open-facts` entries of the facts it replaced, so only an open entry
+MUST have open questions. A basis that cites nothing MUST
 be refused, and the refusal MUST include the command. The CLI usage MUST list
 the seven categories and the rule that at least one is a question. The declaration MUST be stored in `facts`, with repeated
 questions recorded once. Open facts MUST open the `open-facts` gate, which only
@@ -1102,6 +1208,15 @@ batch, so they are asked together before the change is built.
   reuses the cite
 - AND a cite of a blank line or of a line such as `---` MUST be refused with
   `cite-unresolved`
+
+#### Scenario: A cite lands where the behavior is settled
+
+- GIVEN a feature that cites `package.json:2` for one category
+- WHEN `record intent` runs
+- THEN it MUST be refused with `cite-unresolved`, naming the manifest
+- AND a cite of `src/store.js:1` MUST open the change, and `check` MUST refuse
+  it with `cite-outside-plan` until `ospec signals --path src/store.js`
+  declares the file or the diff touches it
 
 #### Scenario: A feature asks at least one category
 

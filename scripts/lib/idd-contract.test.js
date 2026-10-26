@@ -94,8 +94,8 @@ test("each signal derives one distinct obligation", () => {
   assert.deepStrictEqual(sorted(obligations), sorted(contract.OBLIGATIONS.map((o) => o.id)));
 });
 
-test("the spec names exactly the five gates", () => {
-  assert.deepStrictEqual(contract.GATES, ["ambiguous-intent", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit"]);
+test("the spec names exactly the six gates", () => {
+  assert.deepStrictEqual(contract.GATES, ["ambiguous-intent", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed"]);
   const section = requirementSection(readSpec(), "REQ-idd-008");
   for (const gate of contract.GATES) {
     assert.ok(section.includes(`\`${gate}\``), `REQ-idd-008 must name ${gate}`);
@@ -526,4 +526,26 @@ test("signalGaps names each obligation an active signal derives that the state w
   edited.signals = edited.signals.filter((signal) => signal.id === "bug-fix");
   edited.obligations[0].status = "pending";
   assert.deepStrictEqual(contract.signalGaps(edited), [], "an obligation no active signal derives is no gap");
+});
+
+test("checks-changed names the checks it approves (E1.44, B7)", () => {
+  const checks = [{ name: "test", command: "npm test" }];
+  assert.ok(contract.validateState(validState({ gates: [{ id: "checks-changed", status: "open", reason: "r", checks }] })).ok);
+  for (const bad of [undefined, [{ name: "test" }], [{ name: "test", command: "" }], [{ name: "test", command: "x", extra: 1 }]]) {
+    const result = contract.validateState(validState({ gates: [{ id: "checks-changed", status: "open", checks: bad }] }));
+    assert.ok(result.errors.some((error) => error.includes("checks-changed must list the checks")), JSON.stringify(bad));
+  }
+});
+
+test("an answered open-facts entry may outlive the facts a raised intent replaced, an open one may not (E1.44)", () => {
+  const answered = { id: "open-facts", status: "resolved", answer: "No.", source: "user" };
+  assert.ok(contract.validateState(validState({ facts: { basis: "Nothing is open." }, gates: [answered] })).ok);
+  const asking = contract.validateState(validState({ facts: { basis: "Nothing is open." }, gates: [{ id: "open-facts", status: "open" }] }));
+  assert.ok(asking.errors.includes("the open-facts gate needs open facts, not a basis"));
+  assert.ok(!contract.validateState(validState({ gates: [answered] })).ok, "a gate still needs facts");
+});
+
+test("REQ-idd-014 names the configuration it does not contrast with the base yet (E1.44)", () => {
+  const section = requirementSection(readSpec(), "REQ-idd-014").replace(/\s+/g, " ");
+  assert.match(section, /Only `checks` is contrasted with the base: `strict_tdd`, `impact` and `contracts` are read from the working tree/);
 });

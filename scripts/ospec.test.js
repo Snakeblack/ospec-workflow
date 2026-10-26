@@ -605,6 +605,9 @@ test("missing checks guide next and check to approved configuration, then allow 
   writeFile(root, "idd/config.yaml", "checks:\n  test: npm test\n");
   writeFile(root, "src/pages.txt", "2");
   assert.strictEqual(ospec(root, "next", "--change", "fix-readme", "--json").json.next_step.action, "satisfy-obligation");
+  // The base declares no checks, so the approval is recorded in checks-changed (E1.44).
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.decision?.gate, "checks-changed");
+  ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "checks-changed", "--resolve", "--answer", "Yes, npm test.", "--source", "user");
   assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
   assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").code, 0);
 });
@@ -741,13 +744,18 @@ test("without git on PATH a change does not open: git-not-found", (t) => {
 
 test("a repository created with git init -b main and no commit takes a change to close", (t) => {
   const root = tempRoot(t);
-  writeFile(root, "idd/config.yaml", "checks:\n  test: node verify.js\n");
-  writeFile(root, "verify.js", "console.log('ok');\n");
+  // Every file is in the diff of an empty base, so a docs change holds no
+  // product code (E1.44): the check runs inline.
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node -e 0\n");
+  writeFile(root, "README.md", "# Pages\n");
   const intent = ospec(root, ...OPEN_DOCS, "--json");
   assert.strictEqual(intent.code, 0, intent.stderr);
   assert.strictEqual(stateOf(root, "fix-readme").base, null, "no commit to start from");
   assert.strictEqual(ospec(root, "next", "--change", "fix-readme", "--json").code, 0);
 
+  const first = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(first.json.decision?.gate, "checks-changed", "the first checks need the user's answer (E1.44)");
+  ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "checks-changed", "--resolve", "--answer", "Yes, node -e 0.", "--source", "user");
   const check = ospec(root, "check", "--change", "fix-readme", "--json");
   assert.strictEqual(check.code, 0, check.stderr);
   assert.strictEqual(check.json.verdict, "ready", JSON.stringify(check.json.missing));
@@ -1966,4 +1974,246 @@ test("[REQ-idd-023] next suggests the branching when the work starts, and an exp
   assert.strictEqual(ospec(root, "team", "--json").json.branching.value, "parallel");
   ospec(root, "signals", "--change", "fix-it", "--path", "src/a.js");
   assert.ok(!("delivery" in ospec(root, "next", "--change", "fix-it", "--json").json), "building, the branching decides nothing");
+});
+
+// ---------------------------------------------------------------------------
+// E1.44 ceremony-only-rises: the model can raise the ceremony, never lower it
+// (B3, B6, B7 and B9 of the 2026-10-25 audit).
+// ---------------------------------------------------------------------------
+
+const PAGE_FEATURE = ["record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works."];
+
+function boundaryReason(result) {
+  return result.json.missing.find((entry) => entry.obligation === "boundary-tests")?.reason;
+}
+
+test("[E1.44 B3] boundary-tests needs a test the diff adds, not the suite that already passed", (t) => {
+  const { root, git } = project(t);
+  writeFile(root, "verify.js", `${VERIFY}\nconsole.log('ℹ tests 3');\n`);
+  writeFile(root, "test/old.test.js", "// an older test\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "counted suite");
+  openFeature(root, ...PAGE_FEATURE, ...FEATURE_COVER);
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "src/paginate.js", "module.exports = { maxSize: 50 };\n");
+
+  const untested = ospec(root, "check", "--change", "page-size", "--json");
+  assert.strictEqual(untested.code, 0, untested.stdout);
+  assert.ok(untested.json.added.signals.includes("untested-product"));
+  assert.match(boundaryReason(untested) ?? "satisfied", /adds no line to a test/);
+
+  fs.rmSync(path.join(root, "test", "old.test.js"));
+  assert.match(boundaryReason(ospec(root, "check", "--change", "page-size", "--json")) ?? "satisfied", /adds no line to a test/, "a deleted test is not a new one");
+
+  writeFile(root, "test/paginate.test.js", "// size=50\n");
+  const tested = ospec(root, "check", "--change", "page-size", "--json");
+  assert.strictEqual(boundaryReason(tested), undefined, JSON.stringify(tested.json.missing));
+  const evidence = stateOf(root, "page-size").evidence.find((entry) => entry.kind === "tested-check");
+  assert.deepStrictEqual(evidence.detail.tests, ["test/paginate.test.js"]);
+});
+
+test("[E1.44 B6] a feature cite never lands in a manifest, and a code cite needs a file of the plan or the diff", (t) => {
+  const { root, git } = project(t);
+  writeFile(root, "package.json", '{\n  "name": "pages",\n  "version": "1.0.0"\n}\n');
+  writeFile(root, "src/store.js", "// a corrupt file reads as empty\nmodule.exports = {};\n");
+  writeFile(root, "README.md", "# Pages\nAn error prints one line.\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "sources");
+  const intent = (...cites) => [
+    ...PAGE_FEATURE,
+    "--request",
+    "The request fixes every behavior.",
+    "--open-fact",
+    "inputs:Is a page size above 100 refused?",
+    ...["uniqueness=request fixes every", "copy=every behavior.", "url-state=The request fixes every", "accessibility=request fixes every behavior"].flatMap((quote) => ["--quote", quote]),
+    ...cites.flatMap((cite) => ["--cite", cite]),
+    "--json",
+  ];
+
+  const manifest = ospec(root, ...intent("persistence=package.json:2", "errors=README.md:2"));
+  assert.strictEqual(manifest.code, 1, manifest.stdout);
+  assert.strictEqual(manifest.json.error.code, "cite-unresolved");
+  assert.match(manifest.json.error.message, /package\.json is a manifest/);
+
+  const opened = ospec(root, ...intent("persistence=src/store.js:1", "errors=README.md:2"));
+  assert.strictEqual(opened.code, 0, opened.stdout);
+  ospec(root, "record", "gate", "--change", "page-size", "--gate", "open-facts", "--resolve", "--answer", "Yes, above 100 is refused.", "--source", "user");
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "src/paginate.js", "module.exports = 50;\n");
+  writeFile(root, "src/paginate.test.js", "// 50\n");
+
+  const outside = ospec(root, "check", "--change", "page-size", "--json");
+  assert.strictEqual(outside.code, 1, outside.stdout);
+  assert.strictEqual(outside.json.error.code, "cite-outside-plan");
+  assert.match(outside.json.error.message, /persistence=src\/store\.js:1/);
+  assert.match(outside.json.error.how, /ospec signals --change page-size --path src\/store\.js/);
+
+  ospec(root, "signals", "--change", "page-size", "--path", "src/store.js");
+  const planned = ospec(root, "check", "--change", "page-size", "--json");
+  assert.strictEqual(planned.code, 0, planned.stdout);
+  assert.strictEqual(planned.json.verdict, "ready", JSON.stringify(planned.json.missing));
+
+  // close revalidates it: a plan edited by hand does not take the file out.
+  const file = path.join(root, "idd", "page-size", "state.yaml");
+  const state = stateOf(root, "page-size");
+  state.plan.paths = state.plan.paths.filter((entry) => entry !== "src/store.js");
+  fs.writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`);
+  assert.strictEqual(ospec(root, "close", "--change", "page-size", "--json").json.error?.code, "cite-outside-plan");
+});
+
+test("[E1.44 B7] checks that differ from the base open checks-changed, and each new set needs the user's answer", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "README.md", "# Pages\n");
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node -e 0\n");
+
+  const changed = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(changed.code, 0, changed.stdout);
+  assert.strictEqual(changed.json.verdict, "needs-decision", JSON.stringify(changed.json.missing));
+  assert.strictEqual(changed.json.decision.gate, "checks-changed");
+  assert.match(changed.json.decision.reason, /test: node -e 0/);
+  assert.match(changed.json.decision.reason, /test: node verify\.js/);
+  assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").code, 1, "an open gate holds the close");
+  const manual = ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "checks-changed", "--open", "--json");
+  assert.strictEqual(manual.json.error.code, "gate-managed-by-check");
+
+  ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "checks-changed", "--resolve", "--answer", "Yes, node -e 0 is enough for a README.", "--source", "user");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node -e 1\n");
+  const again = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(again.json.decision?.gate, "checks-changed", "a new set of checks needs a new answer");
+  assert.deepStrictEqual(stateOf(root, "fix-readme").gates.filter((gate) => gate.id === "checks-changed").map((gate) => gate.status), ["resolved", "open"]);
+});
+
+test("[E1.44 B7] the first checks of a project also need the user's answer", (t) => {
+  const root = tempRoot(t);
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "README.md", "# Pages\n");
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node -e 0\n");
+  const first = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(first.json.decision?.gate, "checks-changed", JSON.stringify(first.json));
+  assert.match(first.json.decision.reason, /the base declares no checks/);
+});
+
+test("[E1.44 B9] a docs change that touches product code is refused until its kind rises", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "src/paginate.js", "module.exports = 50;\n");
+
+  const refused = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(refused.code, 1, refused.stdout);
+  assert.strictEqual(refused.json.error.code, "kind-mismatch");
+  assert.match(refused.json.error.message, /src\/paginate\.js/);
+  assert.match(refused.json.error.how, /ospec record intent --change fix-readme --kind <refactor\|bug\|feature>/);
+
+  const rerecord = (kind, summary) => ["record", "intent", "--change", "fix-readme", "--kind", kind, "--summary", summary, "--acceptance", "Two pages, as before.", "--no-open-facts", "--basis", "The behavior stays.", "--json"];
+  assert.strictEqual(ospec(root, ...rerecord("docs", "Another typo.")).json.error?.code, "intent-conflict");
+  const raised = ospec(root, ...rerecord("refactor", "Move the page count to a module."));
+  assert.strictEqual(raised.code, 0, raised.stdout);
+  assert.strictEqual(stateOf(root, "fix-readme").intent.kind, "refactor");
+  const checked = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(checked.code, 0, checked.stdout);
+  assert.strictEqual(checked.json.verdict, "ready", JSON.stringify(checked.json.missing));
+  assert.strictEqual(ospec(root, ...rerecord("docs", "Fix a typo.")).json.error?.code, "intent-conflict", "the kind never goes down");
+
+  // close revalidates it: a kind lowered by hand does not close.
+  const file = path.join(root, "idd", "fix-readme", "state.yaml");
+  const state = stateOf(root, "fix-readme");
+  state.intent.kind = "docs";
+  fs.writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`);
+  assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").json.error?.code, "kind-mismatch");
+});
+
+test("[E1.44 B9] a refactor that removes a line of a contract is refused until it is a bug or a feature", (t) => {
+  const { root, git } = project(t);
+  writeFile(root, "api/openapi.yaml", "openapi: 3.1.0\npaths:\n  /orders: {}\n  /pages: {}\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "api");
+  const intent = (kind) => ["record", "intent", "--change", "tidy-api", "--kind", kind, "--summary", "Tidy the API.", "--acceptance", "Same answers.", "--no-open-facts", "--basis", "The behavior stays.", "--json"];
+  ospec(root, ...intent("refactor"));
+  writeFile(root, "src/pages.txt", "2");
+
+  writeFile(root, "api/openapi.yaml", "openapi: 3.1.0\npaths:\n  /pages: {}\n  /orders: {}\n");
+  assert.strictEqual(ospec(root, "check", "--change", "tidy-api", "--json").code, 0, "a moved line is not a removed one");
+
+  writeFile(root, "api/openapi.yaml", "openapi: 3.1.0\npaths:\n  /orders: {}\n");
+  const refused = ospec(root, "check", "--change", "tidy-api", "--json");
+  assert.strictEqual(refused.code, 1, refused.stdout);
+  assert.strictEqual(refused.json.error.code, "kind-mismatch");
+  assert.match(refused.json.error.message, /api\/openapi\.yaml/);
+  assert.match(refused.json.error.how, /--kind <bug\|feature>/);
+
+  const raised = ospec(root, ...intent("bug"));
+  assert.strictEqual(raised.code, 0, raised.stdout);
+  assert.strictEqual(ospec(root, "check", "--change", "tidy-api", "--json").code, 0);
+});
+
+test("[E1.44 B3] a test deleted or emptied before the first check does not stand for a new one", (t) => {
+  const { root, git } = project(t);
+  writeFile(root, "verify.js", `${VERIFY}\nconsole.log('ℹ tests 3');\n`);
+  writeFile(root, "test/old.test.js", "// an older test\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "counted suite");
+  openFeature(root, ...PAGE_FEATURE, ...FEATURE_COVER);
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "src/paginate.js", "module.exports = { maxSize: 50 };\n");
+  fs.rmSync(path.join(root, "test", "old.test.js"));
+  writeFile(root, "test/empty.test.js", "\n");
+
+  const first = ospec(root, "check", "--change", "page-size", "--json");
+  assert.strictEqual(first.code, 0, first.stdout);
+  assert.ok(first.json.added.signals.includes("untested-product"), JSON.stringify(first.json.added));
+  assert.match(boundaryReason(first) ?? "satisfied", /adds no line to a test/);
+});
+
+test("[E1.44 B3] close reads boundary-tests against the change's base, not a --base the check chose", (t) => {
+  const { root, git } = project(t);
+  writeFile(root, "verify.js", `${VERIFY}\nconsole.log('ℹ tests 3');\n`);
+  writeFile(root, "test/old.test.js", "// an older test\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "counted suite");
+  openFeature(root, ...PAGE_FEATURE, ...FEATURE_COVER);
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "src/paginate.js", "module.exports = { maxSize: 50 };\n");
+  assert.match(boundaryReason(ospec(root, "check", "--change", "page-size", "--json")) ?? "satisfied", /adds no line to a test/);
+
+  // An older base puts the suite's test in the diff.
+  const older = ospec(root, "check", "--change", "page-size", "--base", "HEAD~1", "--json");
+  assert.strictEqual(older.json.verdict, "ready", JSON.stringify(older.json.missing));
+  const refused = ospec(root, "close", "--change", "page-size", "--json");
+  assert.strictEqual(refused.json.error?.code, "close-refused", refused.stdout);
+  assert.match(refused.json.error.message, /boundary-tests/);
+  assert.match(boundaryReason(ospec(root, "check", "--change", "page-size", "--json")) ?? "satisfied", /adds no line to a test/);
+});
+
+test("[E1.44 B6] a cite through a symlink is judged by the file it reads", (t) => {
+  const { root, git } = project(t);
+  writeFile(root, "package.json", '{\n  "name": "pages",\n  "version": "1.0.0"\n}\n');
+  fs.mkdirSync(path.join(root, "docs"));
+  try {
+    fs.symlinkSync(path.join("..", "package.json"), path.join(root, "docs", "notes.md"), "file");
+  } catch (error) {
+    t.skip(`symlink unavailable: ${error.message}`);
+    return;
+  }
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "sources");
+  const intent = (cite) => [
+    ...PAGE_FEATURE,
+    "--request",
+    "The request fixes every behavior.",
+    "--open-fact",
+    "inputs:Is a page size above 100 refused?",
+    ...["uniqueness=request fixes every", "copy=every behavior.", "url-state=The request fixes every", "accessibility=request fixes every behavior", "errors=quest fixes every"].flatMap((quote) => ["--quote", quote]),
+    "--cite",
+    cite,
+    "--json",
+  ];
+  for (const cite of ["persistence=docs/notes.md:2", "persistence=package.json/:2"]) {
+    const refused = ospec(root, ...intent(cite));
+    assert.strictEqual(refused.json.error?.code, "cite-unresolved", `${cite}: ${refused.stdout}`);
+    assert.match(refused.json.error.message, /package\.json is a manifest/);
+  }
 });

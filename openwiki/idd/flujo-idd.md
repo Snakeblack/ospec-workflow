@@ -55,7 +55,7 @@ Para consultar el estado: `ospec status` lista los cambios, `ospec next` dice el
 | `always` | Todo cambio con intención resuelta | `checks-pass` | Una ejecución de cada check del proyecto, todas en verde, sobre el árbol actual |
 | `strict-tdd` | `strict_tdd: true` (salvo cambios `docs` y `refactor`) | `tdd-red-green` | Un test que falla antes del código y pasa después, por cada unidad de trabajo |
 | `bug-fix` | Intención `bug` | `repro-test` | Un test de reproducción que falla antes del arreglo y pasa después |
-| `untested-product` | Intención `feature` o `bug`, y el diff toca código de producto sin ningún test | `boundary-tests` | Un check en verde que reporta más de cero tests |
+| `untested-product` | Intención `feature` o `bug`, y el diff toca código de producto sin ningún test | `boundary-tests` | Un test que añade el diff y un check en verde que reporta más de cero tests; la suite que ya pasaba no basta |
 | `multi-unit-or-decision` | Más de una unidad de trabajo o una decisión declarada | `living-doc` | `change.md` con sus secciones completas, al cerrar |
 | `public-contract` | El cambio toca un contrato público (rutas de los patrones, o los ficheros que publica el `package.json`) | `contract-spec-and-test` | Documento de contrato y su test, ambos tocados, con los checks en verde |
 | `persistent-data` | El cambio toca datos persistentes: migraciones, o código de producto que escribe en disco o en `localStorage`, o que importa por ruta relativa un módulo que lo hace (un test o un documento no cuentan) | `migration-compat-and-test` | Un plan de compatibilidad o de vuelta atrás (`--plan`) y un test de migración en verde |
@@ -76,9 +76,9 @@ Una señal que el diff activa se añade en el momento, con su obligación pendie
 
 ---
 
-## Los cinco gates
+## Los seis gates
 
-El agente se detiene en estos gates. Fuera de ellos, solo la aprobación de los `checks:` del proyecto (ver más abajo) lo detiene.
+El agente se detiene en estos gates. Fuera de ellos, solo la aprobación de los `checks:` del proyecto (ver más abajo) lo detiene, y esa aprobación queda registrada en `checks-changed`.
 
 | Gate | Se abre cuando |
 | --- | --- |
@@ -87,6 +87,7 @@ El agente se detiene en estos gates. Fuera de ellos, solo la aprobación de los 
 | `adr-amend-or-contradict` | El cambio enmienda, sustituye o contradice un ADR. |
 | `irreversible-operation` | Va a ocurrir una operación destructiva o irreversible, como borrar datos o reescribir historia. |
 | `review-limit` | Se agotan las revisiones de confianza del cambio. |
+| `checks-changed` | Los `checks:` de `idd/config.yaml` difieren de los de la base del cambio, también la primera vez que se declaran. Cada juego de checks necesita su respuesta. |
 
 Solo una respuesta explícita tuya resuelve un gate:
 
@@ -96,7 +97,7 @@ ospec record gate --change <id> --gate <gate> --resolve --answer "<tus palabras>
 
 `--source` vale `user` cuando respondiste en la sesión y `user-unverified` cuando la respuesta le llegó reenviada al agente; cualquier otro valor se rechaza con `invalid-source`. Es una declaración del agente: el CLI no puede comprobar que respondieras tú, y lo mismo vale para `--answer` y para el `--quote` de una feature, que se compara con un `--request` que también escribe el agente. Afecta a todos los gates, también a `review-limit`.
 
-La aprobación de los `checks:` del proyecto no es un gate, pero también exige tu respuesta (ver más abajo).
+Lo que declara el agente no puede bajar la ceremonia. `ospec check` y `ospec close` rechazan un cambio `docs` que toca código de producto y un `refactor` que borra una línea de un contrato (`kind-mismatch`) hasta que la intención se vuelve a registrar con un kind mayor. También rechazan una cita de una feature fuera de la documentación cuyo fichero no está ni en el plan ni en el diff (`cite-outside-plan`). El resto de `idd/config.yaml` (`strict_tdd`, `impact`, `contracts`) aún no se contrasta con la base del cambio: lo hará E1.53 `config-only-rises`.
 
 ### Revisión de confianza
 
@@ -132,7 +133,7 @@ checks:
   test: npm test
 ```
 
-Cuando falta, `ospec next` devuelve el paso `configure-checks` con un comando candidato. El agente te lo propone y espera tu aprobación antes de crear o editar el fichero, conservando las claves que ya existan. El candidato sale de tu `package.json` o de la documentación de tests, pero nunca cuenta como aprobación ni como evidencia.
+Cuando falta, `ospec next` devuelve el paso `configure-checks` con un comando candidato. El agente te lo propone y espera tu aprobación antes de crear o editar el fichero, conservando las claves que ya existan. El siguiente `ospec check` abre `checks-changed`, que se resuelve con esa aprobación. El candidato sale de tu `package.json` o de la documentación de tests, pero nunca cuenta como aprobación ni como evidencia.
 
 `strict_tdd` activa las pruebas rojo-verde. Si no lo declaras, lo decide el perfil de equipo y, sin perfil, vale `false`.
 

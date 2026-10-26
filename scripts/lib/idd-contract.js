@@ -100,7 +100,7 @@ const OBLIGATIONS = Object.freeze(
 
 const EVIDENCE_KINDS = Object.freeze(OBLIGATIONS.map((obligation) => obligation.evidence));
 
-const GATES = Object.freeze(["ambiguous-intent", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit"]);
+const GATES = Object.freeze(["ambiguous-intent", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed"]);
 
 // Architecture references a change declares (E3.1): accepted ADRs under
 // DECISIONS_ROOT and quality scenarios of the knowledge map. Each gets one
@@ -278,6 +278,11 @@ function validateState(state) {
     if (gate.status === "resolved" && (!gate.answer || !gate.source)) {
       fail(`gate ${gate.id} is resolved without the user's answer and its source`);
     }
+    // checks-changed names the checks it approves (B7).
+    const checks = gate.checks;
+    if (gate.id === "checks-changed" && !(Array.isArray(checks) && checks.every((entry) => isTextList([entry?.name, entry?.command]) && Object.keys(entry).length === 2))) {
+      fail("gate checks-changed must list the checks it approves, each with its name and command");
+    }
   }
 
   return { ok: errors.length === 0, errors };
@@ -305,11 +310,14 @@ function validateRunEvidence(entry, runs, runIndex, fail) {
   const runOf = (id) => (runIndex.has(id) ? runs[runIndex.get(id)] : null);
   if (entry.kind === "tested-check") {
     const run = runOf(detail.run);
+    // `tests` names the test paths the diff adds lines to (B3); a state
+    // recorded before it marks an uncounted run with `has_test`.
     const counted = run && run.tests > 0;
-    const uncounted = run && run.tests == null && detail.has_test === true;
+    const uncounted = run && run.tests == null && (detail.has_test === true || isTextList(detail.tests) && detail.tests.length > 0);
     if (!run || run.purpose !== purpose || run.exit_code !== 0 || run.tree !== detail.tree || (!counted && !uncounted)) {
       fail(`evidence ${entry.id} needs a passing check that executed at least one test, or a test in the diff when the output has no count`);
     }
+    if (detail.tests !== undefined && !isTextList(detail.tests)) fail(`evidence ${entry.id} tests must list the test paths of the diff`);
     return undefined;
   }
   if (entry.kind === "check-run") {
@@ -385,10 +393,14 @@ function validateReviewEvidence(entry, reviews, fail) {
 
 // The open-facts declaration (REQ-idd-018): the behavior questions neither the
 // request nor the code settles, or the basis for declaring none. States
-// recorded before the declaration existed have no facts and stay valid.
+// recorded before the declaration existed have no facts and stay valid. An
+// intent raised to another kind (E1.44) keeps the answered entries of the
+// facts it replaced, so only an open entry needs questions.
 function validateFacts(state, fail) {
   const facts = state.facts;
-  const gate = state.gates.find((entry) => entry.id === "open-facts");
+  const entries = state.gates.filter((entry) => entry.id === "open-facts");
+  const gate = entries.length > 0;
+  const asking = entries.some((entry) => entry.status === "open");
   if (facts == null) {
     if (gate) fail("the open-facts gate needs the open facts it asks");
     return;
@@ -396,7 +408,7 @@ function validateFacts(state, fail) {
   const isText = (value) => typeof value === "string" && value.trim() !== "";
   const keys = Object.keys(facts);
   if (keys.length === 1 && keys[0] === "coverage") {
-    validateCoverage(facts.coverage, gate, fail);
+    validateCoverage(facts.coverage, { gate, asking }, fail);
     return;
   }
   if (keys.length !== 1 || !["open", "basis"].includes(keys[0])) {
@@ -410,11 +422,11 @@ function validateFacts(state, fail) {
     if (!gate) fail("open facts need the open-facts gate");
   } else {
     if (!isText(facts.basis)) fail("facts.basis must say why no fact is open");
-    if (gate) fail("the open-facts gate needs open facts, not a basis");
+    if (asking) fail("the open-facts gate needs open facts, not a basis");
   }
 }
 
-function validateCoverage(coverage, gate, fail) {
+function validateCoverage(coverage, { gate, asking }, fail) {
   if (!Array.isArray(coverage) || coverage.length !== CATEGORY_IDS.length) {
     fail("facts.coverage must cover every feature category");
     return;
@@ -438,14 +450,17 @@ function validateCoverage(coverage, gate, fail) {
     if (question) questions += 1;
   }
   if (questions > 0 && !gate) fail("open facts need the open-facts gate");
-  if (questions === 0 && gate) fail("the open-facts gate needs open facts, not only citations");
+  if (questions === 0 && asking) fail("the open-facts gate needs open facts, not only citations");
+}
+
+function isTextList(value) {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string" && entry !== "");
 }
 
 // The declared plan (E1.11): what `ospec signals` was told the change touches.
 // States recorded before the plan existed have none and stay valid.
 function validatePlan(plan, fail) {
   if (plan === undefined) return;
-  const isTextList = (value) => Array.isArray(value) && value.every((entry) => typeof entry === "string" && entry !== "");
   const valid =
     plan !== null &&
     typeof plan === "object" &&

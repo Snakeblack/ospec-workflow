@@ -72,7 +72,7 @@ test("several open changes are listed without choosing one, SDD first and IDD by
 
 test("every kind of next step is written as ospec next gives it", async (t) => {
   const { stopped } = await runCase(t, "steps");
-  assert.equal(stopped.openChanges.length, 12);
+  assert.equal(stopped.openChanges.length, 13);
 });
 
 test("malformed open states are skipped and the valid change is written as if alone", async (t) => {
