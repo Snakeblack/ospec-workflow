@@ -7,8 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.155.0] - 2026-10-26
+
+### Added
+- **El CLI se invoca con una sola palabra** (E1.45, B5 de la auditoría del 2026-10-25). `bin/ospec` (sh, con bit de ejecución) y `bin/ospec.cmd` ejecutan el `scripts/ospec.js` de al lado con los mismos argumentos, desde cualquier directorio y también desde una ruta con espacios. Viajan en los 7 builds, y cada instalador los copia junto al runtime.
+  - Las skills `idd` y `foundation` definen `ospec` como ese shim: `${CLAUDE_SKILL_DIR}/../../bin/ospec` en Claude, y en el resto la ruta que renderiza el instalador, `bin/ospec.cmd` en Windows (y en una raíz WSL de Antigravity) y `bin/ospec` en los demás sistemas, entre comillas solo si tiene espacios.
+  - Un test ejecuta esa palabra en bash, zsh, fish, PowerShell y cmd, en zsh y fish también guardada en una variable, y salta con su nombre el shell que no esté instalado.
+- **Cada `next_step` lleva su `command` literal**, con solo los `<marcadores>` que el CLI no puede saber. Tras un rojo de `repro-test`, `tdd-red-green` o `migration-compat-and-test`, repite el comando de ese run en lugar de `"<test>"`, citado para bash, zsh y fish. `none` lleva `null`, `choose-change` una lista `commands`, y la salida en texto lo imprime en una línea `run:`.
+- **Cada rechazo dice cómo salir.** Un rechazo sin `how` propio toma el de su código en `scripts/lib/idd-refusals.js`, con la id del cambio de `--change`. Los seis códigos que solo alcanza un defecto del CLI están marcados `byDesign`, y un test recorre los 84 códigos del CLI sin baseline.
+
 ### Fixed
-- E1.45 (B5): el CLI se invoca con una sola palabra en los 7 targets (shim bin/ospec y bin/ospec.cmd junto al runtime, que la skill nombra por su ruta absoluta), cada next_step trae su command literal (con el comando real del último rojo en lugar de <test>), un error de uso imprime solo la línea de su subcomando y cada rechazo dice cómo salir (how) o lleva la marca by-design (cli-one-word-invocation)
+- **El protocolo IDD ya no define `ospec` como `node "<ruta>"`.** Guardado en una variable, zsh no lo ejecutaba (exit 127 en las 18 ejecuciones de `idd-7`), y el agente acababa leyendo el código del CLI.
+- **Un error de uso imprime solo las líneas de su subcomando**, o la lista de comandos si el subcomando no existe, en lugar del uso entero. Con `--json` van en `error.how`.
+- **`ospec doctor` da `error` en `runtime`** si falta el shim o no tiene bit de ejecución, y `codex-repo` reconoce tanto el protocolo nuevo como el anterior.
+- REQ-idd-011 y 019, REQ-generator-024 y REQ-install-035 y 041 lo especifican.
+
+### Changed
+- **Roadmap:** E1.45 queda hecho y sigue E1.46 `state-durability`, el siguiente del bloque A.
+
+Hecho con IDD (`idd/archive/2026-10-26-cli-one-word-invocation/`): los tests de reproducción fallaron antes del cambio y pasan después, y un test de compatibilidad fija que una instalación anterior sigue funcionando.
+
+**Verificación directa**: `node scripts/check.js` (4144 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.154.1] - 2026-10-26
 
