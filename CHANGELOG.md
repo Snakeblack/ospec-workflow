@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- E1.53: strict_tdd, impact y contracts de idd/config.yaml se contrastan con la base del cambio como checks, y se cierran los residuos de E1.44 (contract-spec-and-test con --base antiguo, classifyPath, readGitDiff con prefijos o -diff, boundary-tests con un comentario o un fixture, subida a feature) (config-only-rises)
+
 ## [2.154.0] - 2026-10-26
 
 ### Added
