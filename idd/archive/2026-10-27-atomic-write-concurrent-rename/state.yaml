@@ -1,0 +1,207 @@
+{
+  "schema": "idd-state/v1",
+  "change": "atomic-write-concurrent-rename",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En Windows, el fallback de writeFileAtomic aguanta varios escritores sin lock del mismo fichero: cada uno aparta el destino a su propio .bak y, si otro ya lo apartó (ENOENT), reintenta en vez de fallar",
+    "acceptance": "Un test inyecta EPERM y ENOENT intercalados entre dos escritores y cada escritura termina entera o falla sin perder el contenido anterior ni dejar ficheros; recoverOrphanBak (JS y Go) restaura el .bak propio de un escritor muerto; el test de 20 escritores pasa 20 veces en windows-latest"
+  },
+  "facts": {
+    "open": [
+      "Reintento: ¿un solo reintento del rename del temporal tras ENOENT, como dice el roadmap, o un bucle acotado del rename completo ante EPERM, EEXIST y ENOENT, con espera corta creciente?",
+      "Varios .bak huérfanos con el destino ausente: ¿recoverOrphanBak restaura el más reciente y borra los demás, o los deja?",
+      "Un escritor muerto tras renombrar su temporal deja su .bak junto a un destino válido: ¿se borra como los temporales viejos (más de 5 s) o se deja?",
+      "Go: ¿recoverOrphanBak y RecoverOrphanStateBackups se ponen a la par para encontrar los .bak propios, y WriteFileAtomic de Go recibe el mismo fallback o solo un test concurrente en Windows?",
+      "Validación 20x en Windows: ¿cómo se ejecuta (rama temporal con un workflow propio, o relanzar el job de la PR)?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "internal/hooks/phase-completion-reducer.go",
+      "internal/hooks/phase-completion-reducer_test.go",
+      "internal/store/lock_test.go",
+      "internal/store/store.go",
+      "scripts/lib/atomic-write.js",
+      "scripts/lib/atomic-write.test.js"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/atomic-write.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Reintento: Bucle acotado (Recomendado). Limpieza .bak: Recuperar y limpiar (Recomendado). Go: Recuperación y reintento (Recomendado). Validar 20x: Rama temporal (Recomendado).",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-27T11:19:34.182Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-27T11:21:55.168Z",
+      "detail": {
+        "tree": "sha256:d92dd79d1fcaec7fd2f01fe7ef8c0d10f563783e29b478201f205bd4bf5d2049",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-27T11:22:52.690Z",
+      "detail": {
+        "run": "run-4",
+        "tree": "sha256:835c50e326911c87cc114f0e673cc2732188b2fd0b555d2451c6a907f76a0fb6",
+        "plan": "Compatibilidad: writeFileAtomic deja de crear .bak, pero los lectores (recoverOrphanBak en JS, recoverOrphanBak y RecoverOrphanStateBackups en Go) no cambian y siguen restaurando el <destino>.bak que deje una versión anterior o renameWithFallback. Los ficheros en disco no cambian de formato. Vuelta atrás: revertir el commit; la versión anterior vuelve a apartar el destino a .bak y sabe leer lo que deja esta."
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-27T11:24:32.971Z",
+      "detail": {
+        "tree": "sha256:e868f6b814f6317e32fc7715bdf577557227ccfd0b01566e779f246874795c3f",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-27T11:24:42.958Z"
+    }
+  ],
+  "base": "04f74335ecaf7c6e01cd9a88af2c3c08cdce3fba",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/atomic-write.test.js && go test ./internal/store/ -count=1 -run 'TestWriteFileAtomic'",
+      "exit_code": 1,
+      "output_sha256": "sha256:e5096d119cda0bebb48168a917d07ea4f9fc4d4ff93d2fdb59669ec64e866002",
+      "tree": "sha256:b188278a1b859fa8fc2cecf71d13b11e7bfb879aaca1d4573a25a11c3813462b",
+      "recorded_at": "2026-10-27T11:19:10.191Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/atomic-write.test.js && go test ./internal/store/ -count=1 -run 'TestWriteFileAtomic'",
+      "exit_code": 0,
+      "output_sha256": "sha256:c54e8a60e46740e549eb8be09c7ad524368c3d1ead1fbcea4ab527b407f6431f",
+      "tree": "sha256:4ceec88db92b3a661c552c5d3ee7f8a9ea32c55a7c5896e85ee54d7a6b6df565",
+      "recorded_at": "2026-10-27T11:19:34.182Z",
+      "tests": 16
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:451912fbdd3ff71cbb38aadeb4add348099e9bdd23657113f99d57622faeeda6",
+      "tree": "sha256:d92dd79d1fcaec7fd2f01fe7ef8c0d10f563783e29b478201f205bd4bf5d2049",
+      "recorded_at": "2026-10-27T11:21:55.168Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern 'Orphaned .bak|orphaned .bak|orphaned state.yaml.bak|recovers .bak' scripts/lib/atomic-write.test.js scripts/lib/ospec-state.test.js scripts/hooks/subagent-stop.test.js scripts/lib/federation-baseline-orchestrator.test.js && go test ./internal/hooks -count=1 -run 'RecoversOrphanBackup'",
+      "exit_code": 0,
+      "output_sha256": "sha256:54a0a174bd4274c6decdac127e54a23fe977ae65f8235c54479678a75d4b9efc",
+      "tree": "sha256:835c50e326911c87cc114f0e673cc2732188b2fd0b555d2451c6a907f76a0fb6",
+      "recorded_at": "2026-10-27T11:22:52.690Z",
+      "tests": 5
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a62d93eb4fcabf23348d409bcf74bacfc1f0d27fff40133b47256b98e179ea1f",
+      "tree": "sha256:e868f6b814f6317e32fc7715bdf577557227ccfd0b01566e779f246874795c3f",
+      "recorded_at": "2026-10-27T11:24:32.971Z"
+    }
+  ],
+  "assumptions": [
+    "La intención registrada habla del .bak propio de cada escritor; por decisión del usuario (opción A, 2026-10-27) writeFileAtomic ya no aparta el destino: reintenta el rename atómico. La parte de la aceptación sobre recoverOrphanBak y el .bak propio queda sin objeto, y la recuperación del .bak antiguo no cambia."
+  ],
+  "closed_at": "2026-10-27T11:24:42.958Z"
+}

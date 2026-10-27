@@ -531,6 +531,28 @@ const staleTempAge = staleLockAge
 // before E1.46 shared.
 var tempSuffixRe = regexp.MustCompile(`^(?:\.[^.]+)?\.tmp$`)
 
+// renameAttempts and renameBackoff: Windows refuses, for a moment, to rename
+// over a target that another process is replacing or holds open. The rename
+// stays the one atomic replacement: the writer waits, twice as long each time,
+// and tries again (1.27 s at most). Mirrors scripts/lib/atomic-write.js (E1.55).
+const (
+	renameAttempts = 8
+	renameBackoff  = 10 * time.Millisecond
+)
+
+// renameFile is os.Rename; tests replace it to refuse a rename.
+var renameFile = os.Rename
+
+func renameOver(src, dst string) error {
+	for attempt := 1; ; attempt++ {
+		err := renameFile(src, dst)
+		if err == nil || attempt == renameAttempts || !(errors.Is(err, os.ErrPermission) || errors.Is(err, os.ErrExist)) {
+			return err
+		}
+		time.Sleep(renameBackoff << (attempt - 1))
+	}
+}
+
 // WriteFileAtomic writes content to dst atomically and durably: a temporary
 // file of this writer, synced to disk, renamed over dst, then the directory
 // synced. It first drops the temporary files of dst that dead writers left.
@@ -559,7 +581,7 @@ func WriteFileAtomic(dst, content string) error {
 		}
 		return fmt.Errorf("WriteFileAtomic: close: %w", closeErr)
 	}
-	if err := os.Rename(tmpPath, dst); err != nil {
+	if err := renameOver(tmpPath, dst); err != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("WriteFileAtomic: rename: %w", err)
 	}

@@ -2087,7 +2087,13 @@ once (E1.46, ADR 0002). Every atomic write, in the CLI and the hooks, Node
 (`store.WriteFileAtomic`) alike, MUST write the whole content to a temporary
 file of its own, `<target>.<writer>.tmp`, sync it to disk, rename it over the
 target and then sync the directory. A failed sync of the file MUST fail the
-write and leave the target as it was. The directory sync MUST be skipped on
+write and leave the target as it was. When Windows refuses the rename for a
+moment because another process is replacing the target or holds it open
+(`EPERM` or `EEXIST`; `os.ErrPermission` or `os.ErrExist` in Go), the writer
+MUST retry the same rename, up to 8 attempts with a wait that starts at 10 ms
+and doubles, and MUST NOT move the target aside, so the target is never absent
+(E1.55). When the attempts run out, the write MUST fail, remove its temporary
+file and leave the target as it was. The directory sync MUST be skipped on
 Windows, which cannot open a directory, and where the filesystem does not
 support it. Before writing, a writer MUST remove the temporary files of its
 target, `<target>.<writer>.tmp` and the `<target>.tmp` of earlier versions,
@@ -2130,3 +2136,20 @@ and, when another process holds the lock, write nothing and fail with
 - WHEN `state.yaml` is written
 - THEN the two old temporary files of `state.yaml` MUST be gone and the other
   two MUST stay
+
+#### Scenario: Two writers refused while the other replaces the target
+
+- GIVEN two writers of `state.yaml` without a lock, whose first rename the OS
+  refuses while the other replaces the target
+- WHEN both retry
+- THEN both writes MUST finish, `state.yaml` MUST hold one of them whole and no
+  temporary file or `.bak` MUST be left
+- AND `state.yaml` MUST never be moved aside
+
+#### Scenario: A rename refused every time keeps the target
+
+- GIVEN a rename of the temporary file over `state.yaml` that the OS refuses on
+  every attempt
+- WHEN the 8 attempts run out
+- THEN the write MUST fail with the refusal, `state.yaml` MUST keep its content
+  and the temporary file MUST be gone

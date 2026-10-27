@@ -2,8 +2,11 @@ package store
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -166,5 +169,100 @@ func TestWriteFileAtomicRemovesOnlyItsTargetsStaleTemporaryFiles(t *testing.T) {
 	entries, _ := os.ReadDir(dir)
 	if len(entries) != 1+len(kept) {
 		t.Errorf("the write left %d entries, want only the target and the kept files", len(entries))
+	}
+}
+
+// E1.55: Windows refuses, for a moment, to rename over a target another
+// process is replacing. The writer retries the same atomic rename.
+func refuseRenames(t *testing.T, refuse func(attempt int) bool) *int {
+	t.Helper()
+	attempts := 0
+	original := renameFile
+	renameFile = func(from, to string) error {
+		attempts++
+		if refuse(attempts) {
+			return &os.LinkError{Op: "rename", Old: from, New: to, Err: os.ErrPermission}
+		}
+		return original(from, to)
+	}
+	t.Cleanup(func() { renameFile = original })
+	return &attempts
+}
+
+func TestWriteFileAtomicRetriesARefusedRename(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "state.yaml")
+	if err := os.WriteFile(target, []byte("old content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	attempts := refuseRenames(t, func(attempt int) bool { return attempt <= 2 })
+
+	if err := WriteFileAtomic(target, "new content"); err != nil {
+		t.Fatalf("WriteFileAtomic: %v", err)
+	}
+
+	if *attempts != 3 {
+		t.Errorf("rename attempts = %d, want 3", *attempts)
+	}
+	if content, err := os.ReadFile(target); err != nil || string(content) != "new content" {
+		t.Fatalf("target = %q, %v", content, err)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+		t.Errorf("the write left %d entries, want only the target", len(entries))
+	}
+}
+
+func TestWriteFileAtomicKeepsTheOldContentWhenEveryRenameIsRefused(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "state.yaml")
+	if err := os.WriteFile(target, []byte("old content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	attempts := refuseRenames(t, func(int) bool { return true })
+
+	err := WriteFileAtomic(target, "new content")
+
+	if !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("WriteFileAtomic = %v, want the refused rename", err)
+	}
+	if *attempts != renameAttempts {
+		t.Errorf("rename attempts = %d, want %d", *attempts, renameAttempts)
+	}
+	if content, err := os.ReadFile(target); err != nil || string(content) != "old content" {
+		t.Fatalf("target = %q, %v", content, err)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+		t.Errorf("the write left %d entries, want only the target", len(entries))
+	}
+}
+
+// build-hooks.yml runs this on windows-latest, where the renames do collide.
+func TestWriteFileAtomicConcurrentWritersOfOneFile(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "state.yaml")
+	contents := make([]string, 20)
+	errs := make([]error, len(contents))
+	var wg sync.WaitGroup
+	for index := range contents {
+		contents[index] = strings.Repeat(fmt.Sprintf("writer %d\n", index), 500)
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			errs[index] = WriteFileAtomic(target, contents[index])
+		}(index)
+	}
+	wg.Wait()
+
+	for index, err := range errs {
+		if err != nil {
+			t.Errorf("writer %d: %v", index, err)
+		}
+	}
+	content, err := os.ReadFile(target)
+	if err != nil || !slices.Contains(contents, string(content)) {
+		t.Fatalf("the target does not hold one whole write: %v", err)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+		t.Errorf("the writes left %d entries, want only the target", len(entries))
 	}
 }

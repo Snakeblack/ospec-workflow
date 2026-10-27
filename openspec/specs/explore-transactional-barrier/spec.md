@@ -7,7 +7,8 @@ writes of `openspec/workspace.yaml` (atlas cache) and `openspec/workspace-map.md
 (human-readable map). Without an atomic barrier, a crash mid-write leaves these
 files in a partially-written or corrupt state, causing downstream consumers to
 read inconsistent data. The canonical pattern is: write full content to a temp
-file, then rename (atomic on POSIX; safe on Windows with a documented fallback).
+file, then rename (atomic on POSIX; on Windows a refused rename is retried,
+never by moving the target aside).
 
 This spec also defines the canonical temp+rename pattern reused by all C2 write
 paths, including `federation-baseline-status.yaml`.
@@ -30,12 +31,12 @@ procedure:
 3. If the rename fails, the temp file MUST be deleted and an error returned.
    The pre-existing `openspec/workspace.yaml` (if any) MUST remain intact.
 
-On Windows, if the OS rename is non-atomic when the target exists, the
-implementation MUST use a try-rename-then-fallback strategy: rename the
-existing file to `openspec/workspace.yaml.bak`, rename the temp to the
-target, then delete the `.bak`. Any failure in the fallback chain MUST
-leave the original file intact and MUST NOT leave the target in a
-partially-written state.
+On Windows, the OS refuses for a moment to rename over a target that another
+process is replacing or holds open (`EPERM`, `EEXIST`). The implementation
+MUST then retry the same rename, up to 8 attempts with a wait that starts at
+10 ms and doubles, and MUST NOT move the target aside, so the target is never
+absent (E1.55). When the attempts run out, step 3 applies: the temp file is
+deleted, the error returned and the original file left intact.
 
 #### Scenario: Normal write — temp then rename
 
@@ -64,13 +65,15 @@ partially-written state.
 - AND an error is returned to the caller with the failure reason
 - AND the stale or incomplete `.tmp` file is removed if possible
 
-#### Scenario: Windows rename fallback — no corruption
+#### Scenario: Windows refused rename — retried, the target never absent
 
-- GIVEN a Windows environment where the OS rename fails because the target exists
-- WHEN `workspace-explore` applies the fallback strategy (bak → rename → delete bak)
+- GIVEN a Windows environment where the OS refuses the rename for a moment
+  because another process is replacing `workspace.yaml`
+- WHEN `workspace-explore` retries the rename
 - THEN the target `workspace.yaml` is updated to the new content
-- AND if the fallback fails at any step, the original file is preserved
-- AND no `.bak` file is left behind on success
+- AND at no point is `workspace.yaml` absent, and no `.bak` is created
+- AND if every attempt is refused, the original file is preserved and no temp
+  file is left
 
 ---
 
@@ -158,13 +161,12 @@ it unconditionally. The writer MUST NOT fail or skip the write due to the
 presence of a stale `.tmp` file.
 
 Additionally, on Windows, at the beginning of any write OR read operation, if
-the target file is ABSENT but a `.bak` orphaned by a crashed rename-fallback
-(see the Windows fallback in *Atomic Write of workspace.yaml*) is present, the
+the target file is ABSENT but a `.bak` orphaned by the rename fallback of a
+version before E1.55, which moved the target aside, is present, the
 implementation MUST restore the `.bak` to the target path before proceeding.
 The absence of the target while a recoverable `.bak` is present MUST NOT be
-treated as data loss. This recovery clause applies to every C2 write path that
-uses the canonical bak-fallback (`workspace.yaml`, `workspace-map.md`,
-`federation-baseline-status.yaml`).
+treated as data loss. This recovery clause applies to every C2 write path
+(`workspace.yaml`, `workspace-map.md`, `federation-baseline-status.yaml`).
 
 #### Scenario: Stale .tmp overwritten unconditionally
 
