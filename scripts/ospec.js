@@ -48,7 +48,7 @@ const { runCommand } = require("./lib/idd-exec.js");
 const { CATEGORY_IDS, countTests, resolveFeatureCoverage } = require("./lib/idd-facts.js");
 const { fitnessPlan } = require("./lib/idd-fitness.js");
 const { memoryQuery, resolveReferences, touchedComponents } = require("./lib/idd-knowledge.js");
-const { nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
+const { FOUNDATION_STEPS, nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
 const { refusalHow } = require("./lib/idd-refusals.js");
 const {
   IddRecordError,
@@ -97,6 +97,7 @@ const {
   readHead,
   readKnowledgeSources,
   readProjectContext,
+  readProjectFiles,
   readTreeFingerprint,
   requireWorkTree,
   snapshotTree,
@@ -1040,9 +1041,12 @@ async function run(command, positionals, values) {
     try {
       const states = await listChanges(root);
       const next = nextForProject(states, { change: values.change });
-      if (!next.change) return next;
+      // The project's files feed the foundation suggestion, read only on the
+      // steps that offer it (E4.10).
+      const projectFiles = FOUNDATION_STEPS.includes(next.next_step.action) ? readProjectFiles(root) : undefined;
+      if (!next.change) return nextForProject(states, { projectFiles });
       const knowledge = changeKnowledge(root, states.find((state) => state.change === next.change));
-      const context = { change: values.change, knowledge, ...nextTeamContext(root) };
+      const context = { change: values.change, knowledge, projectFiles, ...nextTeamContext(root) };
       // Intent gates and change selection do not depend on configuration.
       if (next.next_step.action !== "satisfy-obligation" || !["checks-pass", "contract-spec-and-test"].includes(next.next_step.obligation)) {
         return nextForProject(states, context);
@@ -1071,7 +1075,8 @@ async function run(command, positionals, values) {
     if (!values.change) throw new UsageError(`record ${type} needs --change <id>`);
     const { state, changed } = await mutateChange(root, values.change, reducer);
     const query = type === "intent" ? intentMemoryQuery(root, state) : null;
-    return { record: type, change: state.change, changed, ...(query ? { memory_query: query } : {}), next: nextForChange(state) };
+    const next = nextForChange(state, type === "intent" ? { projectFiles: readProjectFiles(root) } : {});
+    return { record: type, change: state.change, changed, ...(query ? { memory_query: query } : {}), next };
   }
   throw new UsageError(`unknown command: ${command ?? "(none)"}`);
 }

@@ -2,8 +2,8 @@
 
 Read on demand from `skills/idd/SKILL.md` when the change bears on ADRs or
 quality scenarios: the project has `docs/architecture/`, or `next` returns
-`adr-impact-declaration`, `references`, `warnings` or an `adr-promotion`
-suggestion.
+`adr-impact-declaration`, `references`, `warnings`, or an `adr-promotion` or
+`foundation` suggestion.
 
 ## Declare the references
 
@@ -31,7 +31,10 @@ block: verify each, then
 ## What `next` adds
 
 A `suggestions` entry `adr-promotion` never blocks: when the change takes an
-architecture decision at a boundary, propose an ADR to the user. `references`
+architecture decision at a boundary, propose an ADR to the user. Nor does
+`foundation`, which means the project has no code yet: before the first change,
+offer the user the `foundation` skill as an option, once; if they decline, go
+on with the change. `references`
 lists the knowledge of the touched components by id: read only those, and
 only the `current` ones as the rules the change follows. Each `warnings` entry
 names a stale or absent reference: tell the user, and never treat it as true

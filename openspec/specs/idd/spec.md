@@ -483,7 +483,8 @@ state readable. A write whose lock another process took over MUST be refused
 with `lock-lost` and write nothing. A change id
 MUST be kebab-case before it reaches the filesystem. `next` MUST be a read-only
 function of the stored state and, when check evidence is next, the project's
-check configuration and command suggestion. It MUST return the change, its pending
+check configuration and command suggestion, and before anything is built, the
+project's files. It MUST return the change, its pending
 obligations in work order, the pending decision, the next step and the
 knowledge references. The next step MUST be `resolve-gate` for the first open
 gate in the order `ambiguous-intent`, `open-facts`, `adr-amend-or-contradict`,
@@ -546,6 +547,21 @@ other `record` types act on an existing change and `status` MUST keep listing
 the changes on disk. A change opened before the first commit records a null
 `base`, and its diff MUST be taken against the empty tree.
 
+A project with no code yet starts with foundation (E4.10). `next` MUST add the
+non-blocking suggestion `foundation` while none of the project's files is
+product code or a test, as REQ-idd-012 defines them, and none is under
+`docs/product/` or `docs/architecture/`. The project's files are those git
+sees under the root, tracked or untracked and not ignored, outside `idd/` and
+`.ospec/`: a manifest, a lockfile, documentation or any other file does not
+end the suggestion. It MUST be offered only before anything is built: with no
+open change (`open-change`) and for a change whose next step is `resolve-gate`
+or `declare-plan`, and `record intent` MUST return it in its `next`; `status`
+and the other `record` types never do. Its `how` offers the user the
+`foundation` skill as an option. It MUST NOT change the next step or the exit
+code, open a gate, add an obligation or write a file, and no refusal of it is
+recorded: it ends once the project has code. When git cannot list the files,
+there MUST be no suggestion and no error.
+
 #### Scenario: Outside a git work tree no change opens
 
 - GIVEN a directory outside any git work tree
@@ -571,6 +587,19 @@ the changes on disk. A change opened before the first commit records a null
 - THEN the next step MUST be `declare-plan`
 - AND once `signals --path src/lib/paginate.js` runs, it MUST be the first
   pending obligation
+
+#### Scenario: A project with no code yet is offered foundation
+
+- GIVEN a git work tree holding only `README.md`, `package.json` and an
+  ignored `vendor/lib.js`
+- WHEN `next` runs with no change, and `record intent` opens a change
+- THEN both MUST carry the suggestion `foundation`, in JSON and on a
+  `suggestion foundation:` line in text, with the same next step and exit code
+  as without it
+- AND a file under `docs/product/`, a source file such as `index.html`, or a
+  declared plan MUST leave it out
+- AND over the bench scenario repositories it MUST appear for `todo-spa` and
+  `receta-spa` and for none of the seven with code
 
 #### Scenario: A decision gate comes before the work it decides
 

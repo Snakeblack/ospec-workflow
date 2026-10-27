@@ -1,0 +1,415 @@
+{
+  "schema": "idd-state/v1",
+  "change": "greenfield-foundation-hint",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "Ítem E4.10 greenfield-foundation-hint del roadmap (docs/roadmaps/harness-evolution.md), el siguiente de la cola, que el usuario pidió continuar. Problema: en E4.5, el router de agy decía que un proyecto sin código empieza con la skill foundation, y Gemini lo ignoró. La CLI no detecta un proyecto vacío: no hay nada en idd-next, idd-record ni idd-signals, así que la regla solo existe como texto. Alcance: cuando no hay código fuente más allá de manifiestos o un README, ni docs/product ni docs/architecture, ospec next y record intent devuelven una sugerencia no bloqueante de foundation. La skill idd se la ofrece al usuario como opción. Hechos abiertos: qué cuenta como código fuente; si la sugerencia se repite tras rechazarla; cómo responde la persona. Hecho cuando: en todo-spa y en el escenario reservado de E4.6, IDD ofrece foundation antes del primer cambio, y el efecto en escapados y tokens se reporta frente al resultado de E4.6. En los seis escenarios con código no aparece la sugerencia.",
+    "kind": "feature",
+    "summary": "ospec next y record intent sugieren, sin bloquear, la skill foundation en un proyecto sin código fuente ni docs/product ni docs/architecture, y la skill idd se la ofrece al usuario como opción",
+    "acceptance": "En un proyecto sin código fuente (solo manifiestos, README u otra documentación) y sin docs/product ni docs/architecture, ospec next y la respuesta de record intent llevan la sugerencia foundation con su reason y su how, en JSON y en texto, y el paso siguiente y el código de salida son los mismos que sin ella; con código o con docs/product o docs/architecture no aparece; sobre los repos de los escenarios del banco aparece en todo-spa y receta-spa y no en los seis con código ni en salas; la skill idd la ofrece como opción"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "\"¿Qué cuenta como código fuente y qué ficheros se miran? Recomendado: los que git ve bajo la raíz del CLI (--root o el directorio actual, como el resto de comandos hasta E4.11), versionados y sin versionar no ignorados, sin idd/ ni .ospec/; es código un fichero que ospec signals ya clasifica como producto o test (.js, .ts, .py, .go, .html, .css, .sh, *.test.js…); no cuentan manifiestos ni lockfiles, la documentación (*.md, docs/) ni el resto (.gitignore, LICENSE, .github/, YAML o JSON de configuración). Un fichero cualquiera bajo docs/product/ o docs/architecture/ apaga la sugerencia. Alternativa: contar como código todo lo que no sea manifiesto, lockfile ni documentación, así que un .gitignore o un .github/ también la apagarían.\""
+      },
+      {
+        "category": "uniqueness",
+        "question": "\"¿Dónde aparece y se repite tras rechazarla? Recomendado: sin estado nuevo; sale en ospec next sin cambio abierto (open-change), en la respuesta de record intent y en ospec next de un cambio mientras su paso es resolve-gate o declare-plan, es decir, antes de construir; con el plan declarado ya no sale en ese cambio, y en cuanto hay código desaparece sola. Su how dice ofrecerla una vez y, si el usuario la rechaza, seguir con el cambio sin volver a ofrecerla. ospec status no la muestra. Alternativa: registrar el rechazo con un record nuevo para no repetirla nunca en el proyecto.\""
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 485
+        }
+      },
+      {
+        "category": "copy",
+        "question": "\"¿Qué texto lleva? Recomendado: id foundation, reason «the project has no source code and no docs/product or docs/architecture» y how «offer the user the foundation skill before the first change, as an option: it records the product docs, ADRs and idd/config.yaml and writes no code; if the user declines, go on with the change». En texto sale en su línea «suggestion foundation: …», en inglés como el resto del CLI, y references/architecture.md de la skill idd explica que se ofrece como opción, sin crecer SKILL.md (le quedan 363 B de margen en CRLF).\""
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "request",
+          "text": "devuelven una sugerencia no bloqueante de foundation"
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 1122
+        }
+      },
+      {
+        "category": "errors",
+        "question": "\"¿Qué pasa si no se puede decidir? Recomendado: la detección nunca hace fallar el comando; si git no puede listar los ficheros no hay sugerencia y el resto de la salida es igual; fuera de un work tree next y record intent ya se rechazan con not-a-git-repo. La sugerencia nunca cambia next_step ni el código de salida. Alternativa: devolver un warning cuando la detección falla.\""
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/idd-workspace.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/references/architecture.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Es el motivo del cambio: decidir que un proyecto no tiene código lo calcula el CLI (foundationSuggestion, con tests), y la skill solo dice qué hacer con la sugerencia en vez de llevar la regla en prosa."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "La sugerencia no añade gate ni obligación ni cambia el paso siguiente: la ceremonia sigue saliendo solo de las señales de impacto."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "close y la evidencia que exige no cambian; la sugerencia nunca satisface ni bloquea una obligación."
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones ni su consulta."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo usa la biblioteca estándar de Node y el git que el CLI ya invoca; no añade dependencias."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "No lee ni escribe el estado de SDD: solo lista rutas del proyecto, y un fichero de openspec/ cuenta como cualquier otro que no es código."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "La sugerencia se recalcula en cada llamada desde los ficheros en disco y el estado del cambio, sin depender de la conversación ni guardar nada."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Usa git ls-files local, sin red."
+    },
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "La guía de la sugerencia se escribe una vez en skills/idd/references/architecture.md y el generador la lleva a los siete targets."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "La regla vive en el CLI, que los siete targets invocan igual, y la guía de la skill sale de una sola fuente."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Código: Producto o test (Recomendado). Repetición: Antes de construir (Recomendado). Texto/fallos: Texto propuesto, silencio (Recomendado). Alcance: Avance, sigue pending (Recomendado).",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-27T16:12:22.424Z",
+      "detail": {
+        "tree": "sha256:b737214042b02f704bd108286391d7b3c70540e4a3f78e83ae9c2a872acb472b",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-27T16:12:22.424Z",
+      "detail": {
+        "tree": "sha256:b737214042b02f704bd108286391d7b3c70540e4a3f78e83ae9c2a872acb472b",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-27T16:12:22.424Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 none",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "adr:0001 conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:b737214042b02f704bd108286391d7b3c70540e4a3f78e83ae9c2a872acb472b",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-27T16:13:23.948Z",
+      "detail": {
+        "run": "run-11",
+        "tree": "sha256:8220d37cfbff0af582024f1391f88efe4d6a39e1377434cda44144f44813d3ec",
+        "plan": "Nada persistido cambia: la sugerencia foundation se calcula en cada llamada y no se guarda en state.yaml ni en ningún fichero, y record intent escribe el mismo estado que antes. Los estados ya guardados siguen siendo válidos sin migrar, y next da el mismo paso para las fixtures de referencia. Revertir es quitar el código: no deja datos que limpiar."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-27T16:13:32.499Z"
+    }
+  ],
+  "base": "fc41cbd83deb3328320bd4f21ec34d967a0c0916",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:70ca3594f069486d697c0d79488d977e6bb81e133ecf67dab881550aa6621b2c",
+      "tree": "sha256:b737214042b02f704bd108286391d7b3c70540e4a3f78e83ae9c2a872acb472b",
+      "recorded_at": "2026-10-27T16:12:22.424Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5c5d43e402267f28081912f4eac512bdbad6539bcb267c6db807f74a8bd15a2b",
+      "tree": "sha256:b737214042b02f704bd108286391d7b3c70540e4a3f78e83ae9c2a872acb472b",
+      "recorded_at": "2026-10-27T16:12:22.424Z",
+      "tests": 50
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cadaee9517325660b2961421f6c8b7bf962a99cfc5349834e3103a93f487457c",
+      "tree": "sha256:b737214042b02f704bd108286391d7b3c70540e4a3f78e83ae9c2a872acb472b",
+      "recorded_at": "2026-10-27T16:12:22.424Z",
+      "tests": 16
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b261e580749d85267813f67e50a6879d5b465730420480aa1770b0afdb9a61e1",
+      "tree": "sha256:b737214042b02f704bd108286391d7b3c70540e4a3f78e83ae9c2a872acb472b",
+      "recorded_at": "2026-10-27T16:12:22.424Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:b737214042b02f704bd108286391d7b3c70540e4a3f78e83ae9c2a872acb472b",
+      "recorded_at": "2026-10-27T16:12:22.424Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4289b3a946a50b3d758ba71ee7817d6f94a5e4b3226990100ac3afccaa7d81e9",
+      "tree": "sha256:b737214042b02f704bd108286391d7b3c70540e4a3f78e83ae9c2a872acb472b",
+      "recorded_at": "2026-10-27T16:12:22.424Z",
+      "tests": 21
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:aef10e06e1fbc2711fcf952944f410a154f3ff25145397ef5d4b226dbd0dcdb2",
+      "tree": "sha256:b737214042b02f704bd108286391d7b3c70540e4a3f78e83ae9c2a872acb472b",
+      "recorded_at": "2026-10-27T16:12:22.424Z",
+      "tests": 84
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a77d982145ee0fc90685c31c055064cfbc487b652ba0b63a2052853d8d17c1da",
+      "tree": "sha256:b737214042b02f704bd108286391d7b3c70540e4a3f78e83ae9c2a872acb472b",
+      "recorded_at": "2026-10-27T16:12:22.424Z",
+      "tests": 50
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b626043b2e1240392ab6e43febbf90e316e60afba1180208d977262117fc73ae",
+      "tree": "sha256:b737214042b02f704bd108286391d7b3c70540e4a3f78e83ae9c2a872acb472b",
+      "recorded_at": "2026-10-27T16:12:22.424Z",
+      "tests": 47
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4af8c95e9b90f1dfc033400c2035ccd45fc5ff183f340ec67df45ef5e657fea0",
+      "tree": "sha256:b737214042b02f704bd108286391d7b3c70540e4a3f78e83ae9c2a872acb472b",
+      "recorded_at": "2026-10-27T16:12:22.424Z",
+      "tests": 47
+    },
+    {
+      "id": "run-11",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/idd-next.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4398b7f96048d601da1b950ff0484acc04b9aed195a408b3260d88d375f14598",
+      "tree": "sha256:8220d37cfbff0af582024f1391f88efe4d6a39e1377434cda44144f44813d3ec",
+      "recorded_at": "2026-10-27T16:13:23.948Z",
+      "tests": 151
+    }
+  ],
+  "closed_at": "2026-10-27T16:13:32.499Z"
+}

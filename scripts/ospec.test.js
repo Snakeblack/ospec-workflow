@@ -2062,6 +2062,9 @@ test("[REQ-idd-023] next suggests the branching when the work starts, and an exp
   const config = path.join(root, "idd", "config.yaml");
   fs.mkdirSync(path.join(root, "idd"));
   fs.writeFileSync(config, "checks:\n  test: node -e 0\n");
+  // A project with code, so the foundation suggestion (E4.10) stays out.
+  fs.mkdirSync(path.join(root, "src"));
+  fs.writeFileSync(path.join(root, "src", "a.js"), "");
   ospec(root, "record", "intent", "--change", "fix-it", "--kind", "bug", "--summary", "s", "--acceptance", "a", "--no-open-facts", "--basis", "The request fixes every behavior.");
   const start = ospec(root, "next", "--change", "fix-it", "--json").json;
   assert.strictEqual(start.next_step.action, "declare-plan");
@@ -2083,6 +2086,46 @@ test("[REQ-idd-023] next suggests the branching when the work starts, and an exp
   assert.strictEqual(ospec(root, "team", "--json").json.branching.value, "parallel");
   ospec(root, "signals", "--change", "fix-it", "--path", "src/a.js");
   assert.ok(!("delivery" in ospec(root, "next", "--change", "fix-it", "--json").json), "building, the branching decides nothing");
+});
+
+test("[REQ-idd-011] next and record intent suggest foundation while the project has no code yet (E4.10)", (t) => {
+  const root = tempRoot(t);
+  const suggested = (result) => (result.suggestions || []).map((suggestion) => suggestion.id).includes("foundation");
+  fs.writeFileSync(path.join(root, "README.md"), "# Todo\n");
+  fs.writeFileSync(path.join(root, "package.json"), "{}\n");
+  // An ignored file is not the project's code.
+  fs.writeFileSync(path.join(root, ".gitignore"), "vendor/\n");
+  fs.mkdirSync(path.join(root, "vendor"));
+  fs.writeFileSync(path.join(root, "vendor", "lib.js"), "");
+
+  const start = ospec(root, "next", "--json");
+  assert.deepStrictEqual([start.code, start.json.next_step.action, start.json.suggestions.map((suggestion) => suggestion.id)], [0, "open-change", ["foundation"]]);
+  assert.match(
+    ospec(root, "next").stdout,
+    /\nsuggestion foundation: the project has no source code and no docs\/product or docs\/architecture; offer the user the foundation skill before the first change, as an option: it records the product docs, ADRs and idd\/config.yaml and writes no code; if the user declines, go on with the change\n/,
+  );
+
+  const intent = ["record", "intent", "--change", "todo-list", "--kind", "bug", "--summary", "s", "--acceptance", "a", "--no-open-facts", "--basis", "The request fixes every behavior."];
+  const opened = ospec(root, ...intent, "--json");
+  assert.deepStrictEqual([opened.code, opened.json.next.next_step.action, suggested(opened.json.next)], [0, "declare-plan", true]);
+  assert.match(ospec(root, ...intent).stdout, /\nsuggestion foundation: /);
+  assert.ok(suggested(ospec(root, "next", "--change", "todo-list", "--json").json));
+
+  // Anything under docs/product or docs/architecture, or one source file, means
+  // the project has started.
+  fs.mkdirSync(path.join(root, "docs", "product"), { recursive: true });
+  fs.writeFileSync(path.join(root, "docs", "product", "brief.md"), "# Brief\n");
+  assert.ok(!suggested(ospec(root, "next", "--change", "todo-list", "--json").json));
+  fs.rmSync(path.join(root, "docs"), { recursive: true });
+  fs.writeFileSync(path.join(root, "index.html"), "<!doctype html>\n");
+  const withCode = ospec(root, "next", "--change", "todo-list", "--json");
+  assert.deepStrictEqual([withCode.code, withCode.json.next_step.action, suggested(withCode.json)], [0, "declare-plan", false]);
+
+  // Once the plan is declared the change is being built: no more offers, even
+  // in an empty project.
+  fs.rmSync(path.join(root, "index.html"));
+  ospec(root, "signals", "--change", "todo-list", "--path", "index.html");
+  assert.ok(!suggested(ospec(root, "next", "--change", "todo-list", "--json").json));
 });
 
 // ---------------------------------------------------------------------------

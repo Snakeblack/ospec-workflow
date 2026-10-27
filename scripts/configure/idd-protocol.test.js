@@ -234,6 +234,7 @@ for (const target of Object.keys(ROUTERS)) {
       /fix the code, never the check/,
       /`ospec record fitness --change <id> --adr <id> --evidence/,
       /`adr-promotion` never blocks/,
+      /`foundation`, which means the project has no code yet: before the first change, offer the user the `foundation` skill as an option, once/,
       /never treat it as true until it is fixed/,
     ]) {
       assert.match(text, rule, `${target}: architecture detail must say ${rule}`);
