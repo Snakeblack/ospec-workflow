@@ -7,8 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.161.0] - 2026-10-27
+
 ### Added
-- El CLI encadena lo que ya sabe: record intent declara el plan, cada comando que escribe da el next completo, check --close cierra si el veredicto es ready y un run verde con el comando del check cuenta como ese check (cli-chaining)
+- **El CLI encadena lo que ya sabe** (E4.15): IDD hacía 25,3 llamadas al modelo por ejecución frente a 11,9 de gentle-ai, y muchas eran órdenes de `ospec` que repetían lo que el CLI ya sabía. Sin verbos nuevos y sin cerrar nunca sin checks, ahora:
+  - `record intent` acepta los flags del plan de `signals` (`--path`, `--work-units`, `--decision`, `--operation`, `--adr`, `--quality`) y registra intent y plan en una sola escritura, o ninguno si rechaza cualquiera. Devuelve las señales derivadas en `plan`. Con `--ambiguous`, un flag del plan es un error de uso.
+  - `record`, `signals`, `run`, `check` y `review` devuelven en `next` lo mismo que `ospec next --change <id>`, con las referencias, la entrega y la sugerencia `foundation`, así que `next` solo hace falta al reanudar.
+  - Un `ospec run` cuyo `--command` es, salvo los espacios de los extremos, el del único check declarado cuenta como ese check, en verde o en rojo. Graba además un run `checks` de la misma ejecución y asienta lo mismo que `ospec check` (señales del diff, `checks-changed`, `checks-pass`, `boundary-tests`, contrato y frescura de la review), con la misma evidencia. Los fitness checks de los ADR solo corren en `ospec check`: hasta entonces `adr-impact-declaration` solo conserva la evidencia del árbol actual. Con varios checks o con otro comando, el run no cuenta. Lo que `check` rechazaría lo deja como run de test, con un aviso.
+  - `ospec check --close` cierra en la misma llamada cuando el veredicto es `ready`. Con otro veredicto, o si `close` se niega, sale con 1 y `close-refused` (o el código del cierre), y lleva el resultado del check en `check` (JSON) o antes del rechazo (texto). `next` propone `--close` cuando solo quedan obligaciones que asienta el check y el living-doc.
+  - Un bugfix cierra con cuatro llamadas al CLI (intent, run en rojo, run en verde y close) y una feature con una pregunta, con cinco.
+
+### Changed
+- **Contrato:** REQ-idd-011 y REQ-idd-014 especifican los atajos, con sus escenarios. Las demás órdenes `record` devuelven ahora la sugerencia `foundation` como `next`, y el uso de `ospec run` gana una línea.
+- **Skill `idd`:** sigue el `next` de la última orden, declara el plan en `record intent` o en `signals` y explica el run del check y `--close`, dentro de su tope de 12 KB.
+- **Documentación:** los README describen el run del único check, `check --close` y el plan en `record intent`.
+- **Roadmap:** E4.15 queda `done`; sigue E4.16 `cli-terse-output`. La fila de tokens frente a gentle-ai se mide en el bloque D.
+
+Hecho con IDD (`idd/archive/2026-10-27-cli-chaining/`). Los tests de cada atajo fijan que su evidencia es la del camino largo: el run del check deja la misma evidencia `check-run` que `ospec check` en el mismo árbol, `record intent` con plan deja el mismo estado que `record intent` seguido de `signals`, y el `next` de cada orden es igual al de `ospec next`.
+
+**Verificación directa**: `node scripts/check.js` (4210 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.160.0] - 2026-10-27
 
