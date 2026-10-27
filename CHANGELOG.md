@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- El CLI encadena lo que ya sabe: record intent declara el plan, cada comando que escribe da el next completo, check --close cierra si el veredicto es ready y un run verde con el comando del check cuenta como ese check (cli-chaining)
+
 ## [2.160.0] - 2026-10-27
 
 ### Added

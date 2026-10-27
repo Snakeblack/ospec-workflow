@@ -361,6 +361,22 @@ function settleImpacts(state, { records = {}, fitness = null, recordedAt }) {
   return { state: next, evidence: id, reason: null };
 }
 
+/**
+ * During a run that counts as the check (E4.15): the fitness checks run only
+ * in `ospec check`, so the impact declaration keeps evidence of this tree and
+ * otherwise waits for a check.
+ */
+function deferImpacts(state, { tree }) {
+  requireOpen(state);
+  const next = structuredClone(state);
+  const target = activeObligation(next, IMPACT);
+  if (!target) return { state: next, reason: null };
+  const current = next.evidence.find((entry) => entry.id === target.evidence.at(-1));
+  if (target.status === "satisfied" && current?.detail?.tree === tree) return { state: next, reason: null };
+  reopen(target);
+  return { state: next, reason: `its fitness checks run only in ospec check: ospec check --change ${state.change}` };
+}
+
 function pairReason(state, obligationId) {
   const runs = (state.runs || []).filter((run) => run.purpose === obligationId);
   const moment = PAIR_MOMENT[obligationId];
@@ -423,6 +439,7 @@ module.exports = {
   RUN_OBLIGATIONS,
   ceremonyConfig,
   checkVerdict,
+  deferImpacts,
   recordRuns,
   settleBoundary,
   settleChecks,

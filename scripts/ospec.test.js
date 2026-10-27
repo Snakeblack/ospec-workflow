@@ -242,7 +242,8 @@ test("a usage error prints only the usage lines of its subcommand", (t) => {
     run.stderr,
     "ospec: run needs --command <cmd> (usage)\n" +
       "  ospec run --change <id> --obligation <repro-test|tdd-red-green|migration-compat-and-test> --command <cmd>\n" +
-      "            [--unit <name>] [--plan <compatibility or rollback plan>]\n",
+      "            [--unit <name>] [--plan <compatibility or rollback plan>]\n" +
+      "            a --command equal to the only declared check also counts as that check\n",
   );
 
   const unknown = ospec(root, "frobnicate");
@@ -257,6 +258,7 @@ test("a usage error prints only the usage lines of its subcommand", (t) => {
   assert.strictEqual(intent.json.error.code, "usage");
   assert.match(intent.json.error.how, /^ {2}ospec record intent --change <id> --kind <bug\|feature\|refactor\|docs>/);
   assert.match(intent.json.error.how, /at least one is an --open-fact/);
+  assert.match(intent.json.error.how, /\[<plan>\]: \[--path <file>\]\.\.\. \[--work-units <n>\]/, "record intent declares the plan too (E4.15)");
   assert.doesNotMatch(intent.json.error.how, /ospec record gate|ospec status|Options:/);
 
   const type = ospec(root, "record", "evidence", "--json");
@@ -702,8 +704,9 @@ test("run records a red then green pair of the same command as the reproduction 
   const { root } = project(t);
   ospec(root, ...OPEN_BUG);
   ospec(root, "signals", "--change", "fix-pagination");
+  // Another command than the check `node verify.js`, which a run also counts as (E4.15).
   const run = () =>
-    ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", "node verify.js", "--json");
+    ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", "node ./verify.js", "--json");
 
   const red = run();
   assert.strictEqual(red.code, 0, red.stderr);
@@ -869,7 +872,8 @@ test("a passing migration test with its plan satisfies the migration obligation 
   const passed = ospec(root, ...args, "--plan", plan, "--json");
   assert.strictEqual(passed.code, 0, passed.stderr);
   assert.ok(passed.json.evidence);
-  assert.strictEqual(stateOf(root, "add-index").runs.at(-1).purpose, "migration-test");
+  assert.strictEqual(stateOf(root, "add-index").runs.find((run) => run.id === passed.json.run.id).purpose, "migration-test");
+  assert.strictEqual(passed.json.check.name, "test", "the command of the only check counts as that check too (E4.15)");
   assert.strictEqual(ospec(root, "check", "--change", "add-index", "--json").json.verdict, "ready");
 
   writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name, id);\n");
@@ -2654,4 +2658,274 @@ test("[REQ-idd-026] no IDD step, hook or check runs snapshot", () => {
   for (const file of ["skills/idd/SKILL.md", "hooks/hooks.json", "idd/config.yaml"]) {
     assert.doesNotMatch(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), /ospec(\.js)?["']? snapshot/, file);
   }
+});
+
+// E4.15 cli-chaining: the CLI chains what it already knows (REQ-idd-011,
+// REQ-idd-014).
+// ---------------------------------------------------------------------------
+
+const PAGES_TEST = [
+  "const test = require('node:test');",
+  "const assert = require('node:assert');",
+  "const pages = require('../src/pages.js');",
+  "test('ten items fill one page', () => assert.strictEqual(pages(10), 1));",
+].join("\n");
+
+// A project whose only check runs its tests, as a bench project has. Its
+// `node --test` runs outside this runner: NODE_TEST_CONTEXT would make it report
+// to the parent and exit 0 on a failing test.
+const OWN_TEST_ENV = Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== "NODE_TEST_CONTEXT"));
+
+function chain(root, ...args) {
+  return ospecWith(OWN_TEST_ENV, root, ...args);
+}
+
+function chainProject(t) {
+  const root = tempRoot(t);
+  const git = gitInit(root);
+  writeFile(root, "src/pages.js", "module.exports = (items) => Math.floor(items / 10);\n");
+  writeFile(root, "test/pages.test.js", `${PAGES_TEST}\n`);
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node --test\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "base");
+  return { root, git };
+}
+
+const OPEN_PAGES = ["record", "intent", "--change", "fix-pages", "--kind", "bug", "--summary", "Count the last partial page.", "--acceptance", "Eleven items need two pages.", "--no-open-facts", "--basis", "A partial page is a page.", "--path", "src/pages.js", "--path", "test/pages.test.js"];
+const RED_PAGES = "test('eleven items need two pages', () => assert.strictEqual(pages(11), 2));\n";
+
+// The red run of the reproduction test, the fix and the green run.
+function redGreen(root, command = "node --test") {
+  const run = () => chain(root, "run", "--change", "fix-pages", "--obligation", "repro-test", "--command", command, "--json");
+  fs.appendFileSync(path.join(root, "test/pages.test.js"), RED_PAGES);
+  const red = run();
+  writeFile(root, "src/pages.js", "module.exports = (items) => Math.ceil(items / 10);\n");
+  return { red, green: run() };
+}
+
+test("[REQ-idd-011] record intent declares the plan in the same write, as intent then signals would (E4.15)", (t) => {
+  const { root } = chainProject(t);
+  const plan = ["--path", "src/pages.js", "--path", "test/pages.test.js", "--work-units", "2"];
+  const chained = ospec(root, ...OPEN_PAGES, "--work-units", "2", "--json");
+  assert.strictEqual(chained.code, 0, chained.stderr);
+  assert.deepStrictEqual(chained.json.plan.added, { signals: ["bug-fix", "multi-unit-or-decision"], gates: [] });
+  assert.strictEqual(chained.json.next.next_step.obligation, "repro-test", "the plan is declared");
+
+  const long = OPEN_PAGES.slice(0, OPEN_PAGES.indexOf("--path")).map((arg) => (arg === "fix-pages" ? "fix-twice" : arg));
+  ospec(root, ...long);
+  ospec(root, "signals", "--change", "fix-twice", ...plan);
+  const declared = (change) => {
+    const { plan: declaredPlan, signals, gates, obligations } = stateOf(root, change);
+    return { declaredPlan, signals, gates, obligations };
+  };
+  assert.deepStrictEqual(declared("fix-pages"), declared("fix-twice"));
+
+  const text = ospec(root, ...OPEN_PAGES, "--work-units", "2");
+  assert.strictEqual(text.code, 0, text.stderr);
+  assert.match(text.stdout, /^no change: intent already recorded on fix-pages\nmemory query: .+\nalways \(declaration\): .+\n[^]*no change: the plan and every derived signal were already recorded\n(?:floor: .+\n)?change: fix-pages \(open\)\n/);
+});
+
+test("[REQ-idd-011] record intent writes neither the intent nor the plan when it refuses either (E4.15)", (t) => {
+  const { root } = chainProject(t);
+  const ambiguous = ospec(root, "record", "intent", "--change", "fix-pages", "--ambiguous", "--request", "pages are off", "--path", "src/pages.js", "--json");
+  assert.deepStrictEqual([ambiguous.code, ambiguous.json.error.code], [2, "usage"]);
+  assert.match(ambiguous.json.error.message, /an ambiguous intent declares no plan/);
+
+  const unknown = ospec(root, ...OPEN_PAGES, "--adr", "0099", "--json");
+  assert.deepStrictEqual([unknown.code, unknown.json.error.code], [1, "unknown-reference"]);
+  const undeclared = ospec(root, ...OPEN_PAGES.filter((arg, index, args) => !["--no-open-facts", "--basis"].includes(arg) && args[index - 1] !== "--basis"), "--json");
+  assert.deepStrictEqual([undeclared.code, undeclared.json.error.code], [1, "facts-undeclared"]);
+  const units = ospec(root, ...OPEN_PAGES, "--work-units", "0", "--json");
+  assert.strictEqual(units.code, 2);
+  assert.ok(!fs.existsSync(path.join(root, "idd", "fix-pages", "state.yaml")), "nothing is written");
+});
+
+test("[REQ-idd-011] every command that writes a change returns the next ospec next gives (E4.15)", (t) => {
+  const { root } = project(t, { checks: "checks:\n  test: node verify.js\ndelivery:\n  branching: serial\n" });
+  const same = (result, label) => {
+    assert.strictEqual(result.code, 0, `${label}: ${result.stderr}`);
+    const { ok, command, ...next } = ospec(root, "next", "--change", "fix-pagination", "--json").json;
+    assert.deepStrictEqual([ok, command], [true, "next"]);
+    assert.deepStrictEqual(result.json.next, next, label);
+    return result;
+  };
+  const opened = same(ospec(root, ...OPEN_BUG), "record intent").json.next;
+  assert.deepStrictEqual([opened.next_step.action, opened.delivery.branching], ["declare-plan", "serial"]);
+  same(ospec(root, "signals", "--change", "fix-pagination", "--path", "src/pages.txt", "--json"), "signals");
+  same(ospec(root, "record", "assumption", "--change", "fix-pagination", "--text", "Pages count from one.", "--json"), "record assumption");
+  const repro = ["run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", "node ./verify.js", "--json"];
+  same(ospec(root, ...repro), "red run");
+  writeFile(root, "src/pages.txt", "2");
+  same(ospec(root, ...repro), "green run");
+  assert.strictEqual(same(ospec(root, "check", "--change", "fix-pagination", "--json"), "check").json.next.next_step.action, "close");
+});
+
+test("[REQ-idd-014] a bugfix closes with four calls: intent with its plan, the red and green runs of the check, and close (E4.15)", (t) => {
+  const { root } = chainProject(t);
+  const opened = ospec(root, ...OPEN_PAGES, "--json");
+  assert.strictEqual(opened.json.next.next_step.command, 'ospec run --change fix-pages --obligation repro-test --command "<test>"');
+  const { red, green } = redGreen(root);
+  assert.deepStrictEqual([red.code, red.json.run.exit_code, red.json.check.name, red.json.check.evidence], [0, 1, "test", null]);
+  assert.strictEqual(green.code, 0, green.stderr);
+  assert.strictEqual(green.json.verdict, "ready", JSON.stringify(green.json.missing));
+  assert.deepStrictEqual(green.json.next.next_step, { action: "close", command: "ospec close --change fix-pages" });
+  assert.match(chain(root, "run", "--change", "fix-pages", "--obligation", "repro-test", "--command", "node --test").stdout, /^counted as check test \(run-\d+\): recorded evidence ev-\d+$/m);
+  const closed = ospec(root, "close", "--change", "fix-pages", "--json");
+  assert.strictEqual(closed.code, 0, closed.stderr);
+});
+
+test("[REQ-idd-014] a run of the only check leaves the evidence ospec check leaves on the same tree (E4.15)", (t) => {
+  const { root } = pagesFeature(t);
+  const viaRun = stateOf(root, "add-pages");
+  const checked = chain(root, "check", "--change", "add-pages", "--json");
+  assert.deepStrictEqual([checked.json.verdict, checked.json.added], ["ready", { signals: [], gates: [] }], "the run recorded what the diff derives");
+  const viaCheck = stateOf(root, "add-pages");
+  const proof = (state, obligation) => {
+    const entry = state.obligations.find((item) => item.id === obligation);
+    const evidence = state.evidence.find((item) => item.id === entry.evidence.at(-1));
+    const runs = (evidence.detail.runs || [evidence.detail.run]).map((id) => state.runs.find((run) => run.id === id));
+    return {
+      status: entry.status,
+      kind: evidence.kind,
+      tree: evidence.detail.tree,
+      tests: evidence.detail.tests,
+      runs: runs.map((run) => ({ purpose: run.purpose, name: run.name, command: run.command, exit_code: run.exit_code, tree: run.tree, tests: run.tests })),
+    };
+  };
+  assert.deepStrictEqual(proof(viaRun, "checks-pass"), proof(viaCheck, "checks-pass"));
+  const statuses = (state) => state.obligations.map(({ id, status }) => `${id} ${status}`);
+  assert.deepStrictEqual([statuses(viaRun), viaRun.signals, viaRun.gates], [statuses(viaCheck), viaCheck.signals, viaCheck.gates]);
+});
+
+test("[REQ-idd-014] a failing run of the only check returns checks-pass to pending, as a failing check does (E4.15)", (t) => {
+  const { root } = project(t, { checks: "checks:\n  test: node gate.js\n" });
+  writeFile(root, "gate.js", "process.exit(process.env.OSPEC_GATE_FAIL ? 1 : 0);\n");
+  ospec(root, ...OPEN_BUG);
+  ospec(root, "signals", "--change", "fix-pagination", "--path", "gate.js");
+  const checksPass = () => stateOf(root, "fix-pagination").obligations.find((entry) => entry.id === "checks-pass").status;
+  ospec(root, "check", "--change", "fix-pagination");
+  assert.strictEqual(checksPass(), "satisfied");
+
+  const run = ["run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", "node gate.js", "--json"];
+  const red = ospecWith({ ...process.env, OSPEC_GATE_FAIL: "1" }, root, ...run);
+  assert.strictEqual(checksPass(), "pending", "the same tree, failing now");
+  assert.deepStrictEqual(red.json.missing.find((entry) => entry.obligation === "checks-pass").reason, "check test failed with exit code 1");
+  ospec(root, ...run);
+  assert.strictEqual(checksPass(), "satisfied");
+});
+
+test("[REQ-idd-014] a run counts as the check only for the exact command of a single declared check (E4.15)", (t) => {
+  const { root } = project(t);
+  writeFile(root, "src/pages.txt", "2");
+  ospec(root, ...OPEN_BUG);
+  ospec(root, "signals", "--change", "fix-pagination", "--path", "src/pages.txt");
+  const run = (command) => ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", command, "--json").json;
+  assert.strictEqual(run(" node verify.js ").check.name, "test", "spaces at the ends do not count");
+  assert.strictEqual(run("node  verify.js").check, undefined);
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node verify.js\n  lint: node -e 0\n");
+  const runs = stateOf(root, "fix-pagination").runs.length;
+  assert.strictEqual(run("node verify.js").check, undefined, "one of several checks");
+  assert.strictEqual(stateOf(root, "fix-pagination").runs.length, runs + 1);
+});
+
+test("[REQ-idd-014] what check refuses leaves the run of the check a test run, with a warning (E4.15)", (t) => {
+  const { root } = project(t);
+  const cover = [...FEATURE_COVER];
+  cover.splice(cover.indexOf("persistence=fixes every behavior") - 1, 2, "--cite", "persistence=verify.js:1");
+  openFeature(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...cover);
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name);\n");
+  ospec(root, "signals", "--change", "add-index", "--diff");
+  const ran = ospec(root, "run", "--change", "add-index", "--obligation", "migration-compat-and-test", "--command", "node verify.js", "--plan", "additive index", "--json");
+  assert.strictEqual(ran.code, 0, ran.stderr);
+  assert.ok(ran.json.evidence, "the migration test is recorded");
+  assert.strictEqual(ran.json.check, undefined);
+  assert.match(ran.json.warnings[0], /^not counted as check test: persistence=verify\.js:1 cites a file that is neither in the plan nor in the diff; ospec signals --change add-index --path verify\.js/);
+  assert.ok(!stateOf(root, "add-index").runs.some((entry) => entry.purpose === "checks"));
+});
+
+test("[REQ-idd-022] a run that counts as the check leaves the fitness checks to ospec check (E4.15)", (t) => {
+  const { root } = fitnessProject(t);
+  writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX orders_placed ON orders (placed_at);\n");
+  assert.strictEqual(ospec(root, "check", "--change", "order-events", "--json").json.missing[0].obligation, "migration-compat-and-test");
+  const fitnessRuns = () => stateOf(root, "order-events").runs.filter((entry) => entry.purpose === "fitness").length;
+  const before = fitnessRuns();
+  const migrate = () => ospec(root, "run", "--change", "order-events", "--obligation", "migration-compat-and-test", "--command", "node verify.js", "--plan", "additive index", "--json");
+
+  const sameTree = migrate();
+  assert.strictEqual(sameTree.json.check.name, "test");
+  assert.ok(!sameTree.json.missing.some((entry) => entry.obligation === "adr-impact-declaration"), "the check of this tree ran its fitness checks");
+
+  writeFile(root, "src/core.js", "module.exports = 3;\n");
+  const moved = migrate();
+  const impact = moved.json.missing.find((entry) => entry.obligation === "adr-impact-declaration");
+  assert.strictEqual(impact.reason, "its fitness checks run only in ospec check: ospec check --change order-events");
+  assert.strictEqual(fitnessRuns(), before, "a run runs no fitness check");
+  assert.strictEqual(moved.json.next.next_step.command, "ospec check --change order-events --close");
+
+  const checked = ospec(root, "check", "--change", "order-events", "--json");
+  assert.ok(!checked.json.missing.some((entry) => entry.obligation === "adr-impact-declaration"), JSON.stringify(checked.json.missing));
+  assert.strictEqual(fitnessRuns(), before + 1);
+});
+
+test("[REQ-idd-014] check --close closes a ready change in the same call and refuses as close otherwise (E4.15)", (t) => {
+  const { root, git } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  const refused = ospec(root, "check", "--change", "fix-readme", "--close", "--json");
+  assert.deepStrictEqual([refused.code, refused.json.ok, refused.json.error], [
+    1,
+    false,
+    { code: "close-refused", message: "close refused: the check answered missing (checks-pass)", how: "ospec check --change fix-readme --close" },
+  ]);
+  assert.strictEqual(refused.json.check.missing[0].reason, "check test failed with exit code 1");
+  assert.deepStrictEqual(stateOf(root, "fix-readme").runs.map((run) => run.exit_code), [1], "the check stays recorded");
+  const text = ospec(root, "check", "--change", "fix-readme", "--close");
+  assert.strictEqual(text.code, 1);
+  assert.match(text.stdout, /^missing checks-pass: check test failed with exit code 1$/m);
+  assert.strictEqual(text.stderr, "ospec: close refused: the check answered missing (checks-pass) (close-refused)\nospec check --change fix-readme --close\n");
+
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node verify.js\n  smoke: node -e 0\n");
+  const gated = ospec(root, "check", "--change", "fix-readme", "--close", "--json");
+  assert.deepStrictEqual([gated.code, gated.json.error.message], [1, "close refused: the check answered needs-decision (gate checks-changed)"]);
+  const approved = ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "checks-changed", "--resolve", "--answer", "Yes, add smoke.", "--source", "user");
+  assert.strictEqual(approved.code, 0, approved.stderr);
+
+  const closed = ospec(root, "check", "--change", "fix-readme", "--close", "--json");
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  assert.deepStrictEqual([closed.json.verdict, closed.json.close.status, closed.json.next], ["ready", "closed", undefined]);
+  assert.ok(fs.existsSync(path.join(root, closed.json.close.archive.destination, "state.yaml")));
+  assert.ok(!fs.existsSync(path.join(root, "idd", "fix-readme")));
+
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "smoke");
+  ospec(root, ...OPEN_DOCS.map((arg) => (arg === "fix-readme" ? "fix-typo" : arg)));
+  writeFile(root, "notes.txt", "typo fixed\n");
+  const closedText = ospec(root, "check", "--change", "fix-typo", "--close");
+  assert.strictEqual(closedText.code, 0, closedText.stderr);
+  assert.match(closedText.stdout, /^ready: fix-typo can close\n[^]*\nfix-typo closed and archived in idd\/archive\/\d{4}-\d{2}-\d{2}-fix-typo /);
+});
+
+// A feature of the pages project under strict TDD, answered and built red to
+// green with the command of its only check: five calls.
+function pagesFeature(t) {
+  const { root, git } = chainProject(t);
+  writeFile(root, "idd/config.yaml", "strict_tdd: true\nchecks:\n  test: node --test\n");
+  git("commit", "-q", "--no-verify", "-am", "strict");
+  const opened = ospec(root, "record", "intent", "--change", "add-pages", "--kind", "feature", "--summary", "Count the last partial page.", "--acceptance", "Eleven items need two pages.", ...FEATURE_COVER, "--path", "src/pages.js", "--path", "test/pages.test.js", "--json");
+  assert.strictEqual(opened.json.next.next_step.action, "resolve-gate");
+  const answered = ospec(root, "record", "gate", "--change", "add-pages", "--gate", "open-facts", "--resolve", "--answer", "Yes, above 100 is refused.", "--source", "user", "--json");
+  assert.strictEqual(answered.json.next.next_step.obligation, "tdd-red-green");
+  const run = () => chain(root, "run", "--change", "add-pages", "--obligation", "tdd-red-green", "--unit", "pages", "--command", "node --test", "--json");
+  fs.appendFileSync(path.join(root, "test/pages.test.js"), RED_PAGES);
+  assert.strictEqual(run().json.run.exit_code, 1);
+  writeFile(root, "src/pages.js", "module.exports = (items) => Math.ceil(items / 10);\n");
+  return { root, green: run() };
+}
+
+test("[REQ-idd-014] a feature with one question closes with five calls: intent, the answer, the red and green runs and close (E4.15)", (t) => {
+  const { root, green } = pagesFeature(t);
+  assert.strictEqual(green.json.verdict, "ready", JSON.stringify(green.json.missing));
+  const closed = ospec(root, "close", "--change", "add-pages", "--json");
+  assert.strictEqual(closed.code, 0, closed.stderr);
 });

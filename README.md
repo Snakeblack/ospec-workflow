@@ -37,7 +37,7 @@ A one-line fix and a schema migration do not need the same ceremony. IDD has no 
 
 | Signal | Raised when | Obligation |
 | --- | --- | --- |
-| `always` | Every change with a resolved intent | `checks-pass`: `ospec check` runs the checks declared in `idd/config.yaml` on the current tree |
+| `always` | Every change with a resolved intent | `checks-pass`: `ospec check` runs the checks declared in `idd/config.yaml` on the current tree; an `ospec run` of the only declared check counts as it |
 | `bug-fix` | The intent is a bug | `repro-test`: the reproduction test fails first, then passes |
 | `strict-tdd` | `strict_tdd: true` in `idd/config.yaml`, except for docs and refactor changes | `tdd-red-green`: a red → green pair per unit |
 | `untested-product` | The intent is a `feature` or a `bug`, and the diff changes product code with no test | `boundary-tests`: a test the diff adds, with a passing check on the current tree that reports more than zero tests (or no count); the suite that already passed is not evidence |
@@ -96,7 +96,7 @@ Once the plugin is loaded in your chat agent, ask for the change in your own wor
      test: npm test
    ```
 2. **Answer the open facts**: the agent records the intent, lists the behaviors the request leaves open and asks them all at once before editing.
-3. **Let the CLI close it**: the agent follows `ospec next` until `ospec close` succeeds and archives the change under `idd/archive/`. Branches, commits and PRs stay your decision.
+3. **Let the CLI close it**: the agent follows the next step each `ospec` command prints (`ospec next` when it resumes) until `ospec close`, or `ospec check --close` once the check is ready, succeeds and archives the change under `idd/archive/`. `record intent` declares the plan in the same call. Branches, commits and PRs stay your decision.
 
 On Claude Code you can also enter IDD explicitly with `/ospec-workflow:idd <request>`. To turn IDD off in a project, declare `mode: sdd` in `idd/config.yaml`: the agent then works directly and enters SDD only on request. SDD changes already in flight finish in SDD.
 

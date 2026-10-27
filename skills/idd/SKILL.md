@@ -24,7 +24,8 @@ says.
 CLI owns `idd/<change>/state.yaml`: never write that file, and never move or
 delete anything under `idd/` by hand.
 
-- `ospec next --change <id> --json` names the next step. Its
+- Every command that writes a change prints its `next`, the one
+  `ospec next --change <id> --json` gives when you resume. Its
   `next_step.how` tells how to proceed: approve missing check configuration
   as described below, or run the command that records the evidence. Follow it.
 - An obligation is satisfied only by evidence the CLI records from a run it
@@ -79,8 +80,9 @@ Then resume with `ospec next`.
    the user the question `next` returns, and resolve it with the same command
    plus `--kind --summary --acceptance --answer "<their words>" --source user`
    and the open-facts declaration of rule 2.
-4. Declare the plan before editing: `ospec signals --change <id> --path <file>...`
-   with every file you expect to touch; add `--work-units <n>` when the work
+4. Declare the plan before editing, on `record intent` or later with
+   `ospec signals --change <id>`: `--path <file>...` with every file you
+   expect to touch; add `--work-units <n>` when the work
    splits into several units, `--decision` when it records a design decision,
    and `--operation <op>` for a destructive or irreversible operation. With
    `docs/architecture/`, declare the ADRs and quality scenarios the change
@@ -89,7 +91,7 @@ Then resume with `ospec next`.
    it with `ospec record retract --change <id> --signal <id> --reason "<why>"`;
    the CLI refuses while the diff confirms it. When its `how` offers the
    user's answer, ask the user; never answer for them.
-5. Loop: `ospec next --change <id> --json`, do what `next_step` says, repeat.
+5. Loop: do what the `next_step` of the last command says, repeat.
    `resolve-gate` comes first while any gate is open: ask its
    `pending_decision` (see Gates) and build nothing it decides until the user
    answers. Work the obligations in the order `next` gives them:
@@ -108,8 +110,9 @@ Then resume with `ospec next`.
      `ospec review correct`, hand its request to the read-only
      `review-correction` validator and pass its result to
      `ospec review validate --result @<file>`.
-   - `checks-pass`: `ospec check` on the current tree; a `tests 0` summary is not
-     evidence.
+   - `checks-pass`: `ospec check` on the current tree, or a run whose command
+     is the only check; a `tests 0` summary is not evidence. `--close`, when
+     its command has it, closes the change once ready.
    - `living-doc`: keep the Plan and Decisions of `idd/<id>/change.md` current.
      A development decision stays there; it is never an ADR.
 

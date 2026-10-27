@@ -102,8 +102,21 @@ const OBLIGATION_COMMAND = Object.freeze({
   "living-doc": (state) => `ospec close --change ${state.change}`,
 });
 
-function obligationCommand(state, obligation) {
-  return OBLIGATION_COMMAND[obligation] ? OBLIGATION_COMMAND[obligation](state) : `ospec check --change ${state.change}`;
+// The obligations ospec check settles. Once only they and the living document
+// are pending, with every declared impact recorded, the check closes the
+// change in the same call (E4.15).
+const CHECK_SETTLED = Object.freeze(["boundary-tests", "contract-spec-and-test", "adr-impact-declaration", "checks-pass"]);
+
+function closesWithCheck(state, pending) {
+  const impacts = state.impacts || [];
+  const settled = (id) => CHECK_SETTLED.includes(id) && (id !== "adr-impact-declaration" || (impacts.length > 0 && impacts.every((entry) => entry.impact != null)));
+  return pending.every(({ id }) => id === "living-doc" || settled(id));
+}
+
+function obligationCommand(state, obligation, pending) {
+  const check = `ospec check --change ${state.change}`;
+  const command = OBLIGATION_COMMAND[obligation] ? OBLIGATION_COMMAND[obligation](state) : check;
+  return command === check && closesWithCheck(state, pending) ? `${check} --close` : command;
 }
 
 function gateCommand(state, gate) {
@@ -240,7 +253,7 @@ function nextForChange(state, { checks, candidateCommand, contractPatterns, know
   } else if (pending.length > 0) {
     nextStep = { action: "satisfy-obligation", obligation: pending[0].id, evidence: pending[0].evidence };
     if (HOW[pending[0].id]) nextStep.how = HOW[pending[0].id](state.change, { contractPatterns });
-    nextStep.command = obligationCommand(state, pending[0].id);
+    nextStep.command = obligationCommand(state, pending[0].id, pending);
     if (checks?.length === 0 && CHECKS_REQUIRED.includes(pending[0].id)) {
       // Once the user approved the checks and they are written, next goes on.
       nextStep = { ...configureChecksStep(candidateCommand), command: `ospec next --change ${state.change} --json` };

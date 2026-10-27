@@ -1,0 +1,395 @@
+{
+  "schema": "idd-state/v1",
+  "change": "cli-chaining",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "empieza",
+    "kind": "feature",
+    "summary": "El CLI encadena lo que ya sabe: record intent declara el plan, cada comando que escribe da el next completo, check --close cierra si el veredicto es ready y un run verde con el comando del check cuenta como ese check",
+    "acceptance": "Un bugfix cierra con 4 llamadas al CLI (intent, run en rojo, run en verde y close) y una feature con una pregunta con 6; los tests de cada atajo fijan que la evidencia es la misma que por el camino largo"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Qué flags del plan acepta record intent: solo --path o todos los de signals (--work-units, --decision, --operation, --adr, --quality)? ¿Y con --ambiguous: se rechazan o se ignoran?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿Cuándo un run \"es\" un check: igualdad exacta del comando declarado o normalizando espacios? Con varios checks declarados, ¿el run cuenta solo como el suyo (checks-pass espera a los demás en el mismo árbol) o el atajo solo vale con un único check?"
+      },
+      {
+        "category": "persistence",
+        "question": "¿Un run en ROJO con el comando del check cuenta como check fallido (devuelve checks-pass a pending) o solo cuenta el verde? Si el cambio tiene fitness checks de ADR, ¿el run verde los ejecuta o hace falta ospec check igualmente?"
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1462
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/product/brief.md",
+          "line": 10
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 146
+        }
+      },
+      {
+        "category": "errors",
+        "question": "check --close con veredicto distinto de ready: ¿sale 0 con la salida del check y una línea de «no cerrado», o sale 1 con close-refused como haría ospec close?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.es.md",
+      "README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "internal/iddsession/catalog.json",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-check.js",
+      "scripts/lib/idd-check.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 4,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Los atajos viven en el CLI y la skill solo cita sus órdenes"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "El run que cuenta como check deriva las señales del diff con la misma derivación que ospec check"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "Un run cuenta como check solo si el CLI lo ejecuta y observa; check --close cierra solo con veredicto ready y close sigue negándose con obligaciones pendientes"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No lee ni escribe memoria"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "Sin dependencias nuevas"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "Solo toca el modo IDD bajo idd/"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "El next de cada orden que escribe es el mismo que ospec next da al reanudar desde disco"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Sin llamadas de red nuevas"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Cada atajo vive en el CLI y tiene tests: deferImpacts en scripts/lib/idd-check.test.js, el --close del comando de next en scripts/lib/idd-next.test.js y el resto de punta a punta en scripts/ospec.test.js; la skill solo cita las órdenes (record intent, signals, check --close, run) que lo deciden",
+      "recorded_at": "2026-10-27T20:28:44.589Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El diff no añade llamadas de red (sin http, https, net, dns ni fetch) al CLI ni a la skill; next sigue siendo una función del estado en disco y el next que devuelve cada orden es el mismo que ospec next, comprobado en scripts/ospec.test.js",
+      "recorded_at": "2026-10-27T20:28:44.724Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Plan: \"Todos; rechaza --ambiguous (Recomendado)\". Run = check: \"Comando idéntico, un solo check (Recomendado)\". Rojo/fitness: \"Rojo también; fitness con check (Recomendado)\". --close: \"Sale 1, close-refused (Recomendado)\".",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-27T20:30:04.591Z",
+      "detail": {
+        "tree": "sha256:a20d40f9fbc36047e9dc20598eac507090bde36491733200482d5bbdb71364d7",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-27T20:30:04.591Z",
+      "detail": {
+        "tree": "sha256:a20d40f9fbc36047e9dc20598eac507090bde36491733200482d5bbdb71364d7",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-27T20:30:04.591Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:a20d40f9fbc36047e9dc20598eac507090bde36491733200482d5bbdb71364d7",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-27T20:31:02.441Z",
+      "detail": {
+        "run": "run-9",
+        "tree": "sha256:02456b47ab15c7535286a0e7a629fb8b37d4307e1344c1f7a2505b1f69099982",
+        "plan": "Sin migración: idd-state/v1 no cambia. El run checks que graba ospec run tiene los campos del de ospec check y los estados guardados siguen validando; volver atrás es revertir el código, sin tocar estados"
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-27T20:31:19.873Z"
+    }
+  ],
+  "base": "e63f765a5aa04d01d6dc9e14049698cdadfc70a6",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:54fb439cd7a44115d44756f0aa5d7224d363620d418d167c109578ac88b2885b",
+      "tree": "sha256:a20d40f9fbc36047e9dc20598eac507090bde36491733200482d5bbdb71364d7",
+      "recorded_at": "2026-10-27T20:30:04.591Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5745a1575ccddde14f867fbdb958ea3d8159414c50a0578a0e10e308c9687ccb",
+      "tree": "sha256:a20d40f9fbc36047e9dc20598eac507090bde36491733200482d5bbdb71364d7",
+      "recorded_at": "2026-10-27T20:30:04.591Z",
+      "tests": 50
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:578316241d88f15cb185d9fcc205ecfdccc8475fac2299621255cc4098c6bbee",
+      "tree": "sha256:a20d40f9fbc36047e9dc20598eac507090bde36491733200482d5bbdb71364d7",
+      "recorded_at": "2026-10-27T20:30:04.591Z",
+      "tests": 16
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9ce2625984a62f3f674f3602be777a8fe53f1a46d826c24affe160d3ea66ff51",
+      "tree": "sha256:a20d40f9fbc36047e9dc20598eac507090bde36491733200482d5bbdb71364d7",
+      "recorded_at": "2026-10-27T20:30:04.591Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:a20d40f9fbc36047e9dc20598eac507090bde36491733200482d5bbdb71364d7",
+      "recorded_at": "2026-10-27T20:30:04.591Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b5494d1bed5df595968ab4e7a00887495a58a3a9fb67b5d93a275dd19baf9b96",
+      "tree": "sha256:a20d40f9fbc36047e9dc20598eac507090bde36491733200482d5bbdb71364d7",
+      "recorded_at": "2026-10-27T20:30:04.591Z",
+      "tests": 21
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6b480944c2e315cf80a3449ace7eb2c9c68aa1cdc4a4a2314183383017125cbf",
+      "tree": "sha256:a20d40f9fbc36047e9dc20598eac507090bde36491733200482d5bbdb71364d7",
+      "recorded_at": "2026-10-27T20:30:04.591Z",
+      "tests": 84
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5a608a62da7e4b0b68abfdda8f8744c392029c709e82470906aa2ce3f8be0e0e",
+      "tree": "sha256:a20d40f9fbc36047e9dc20598eac507090bde36491733200482d5bbdb71364d7",
+      "recorded_at": "2026-10-27T20:30:04.591Z",
+      "tests": 51
+    },
+    {
+      "id": "run-9",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/idd-contract.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:632873bac4a8dd6b4b1dd79295e33b67844b1b56be9c9e06a50b8ae71ea54e73",
+      "tree": "sha256:02456b47ab15c7535286a0e7a629fb8b37d4307e1344c1f7a2505b1f69099982",
+      "recorded_at": "2026-10-27T20:31:02.441Z",
+      "tests": 170
+    }
+  ],
+  "closed_at": "2026-10-27T20:31:19.873Z"
+}
