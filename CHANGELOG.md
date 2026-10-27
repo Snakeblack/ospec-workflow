@@ -7,8 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.158.2] - 2026-10-27
+
 ### Fixed
-- En Windows, cuando el rename del temporal se rechaza porque otro proceso está sustituyendo el fichero, `writeFileAtomic` (Node) y `WriteFileAtomic` (Go) ya no apartan el destino a `.bak`: reintentan el mismo rename hasta 8 veces (1,27 s como mucho). El destino nunca falta, y dos escritores sin lock del mismo fichero ya no fallan con `ENOENT` ni se borran el `.bak` el uno al otro. Un `.bak` que deje una versión anterior se sigue recuperando (atomic-write-concurrent-rename)
+- **En Windows, dos escritores sin lock del mismo fichero ya no fallan con `ENOENT`** (E1.55). Cuando Windows rechaza un momento el rename del temporal porque otro proceso está sustituyendo el fichero, `writeFileAtomic` (Node) y `WriteFileAtomic` (Go) ya no apartan el destino a un `.bak` compartido: reintentan el mismo rename hasta 8 veces, con una espera que empieza en 10 ms y se dobla (1,27 s como mucho). Antes, un escritor podía encontrar el destino ya apartado por otro (`ENOENT`) o borrar el `.bak` del otro, y mientras tanto el fichero no existía para un lector. Ahora el destino nunca falta; agotados los intentos, la escritura falla, borra su temporal y deja el contenido anterior. Un `.bak` que deje una versión anterior se sigue recuperando, y `renameWithFallback`, que renombra directorios, no cambia (atomic-write-concurrent-rename).
+
+### Changed
+- **Contratos:** `explore-transactional-barrier` exige en Windows el reintento en lugar del apartado a `.bak`, y su cláusula de recuperación queda para el `.bak` de versiones anteriores. REQ-idd-027 añade el reintento y dos escenarios. `docs/harness-runtime.md` lo cuenta en el párrafo de durabilidad.
+- **Tests:** un test con compuertas sobre `fs.rename` sujeta a dos escritores para que el segundo encuentre el destino ya apartado, sin depender del planificador. En Go, `renameFile` sustituye a `os.Rename` en los tests del reintento, y 20 escritores concurrentes corren en Windows en `build-hooks.yml`. Los tests 1.1.4 y 1.1.8, que probaban el apartado a `.bak`, pasan a probar el reintento.
+- **Roadmap:** E1.55 queda hecho, con su alcance cambiado por el usuario, y sigue E5.12 `progress-snapshot-v3`.
+
+Hecho con IDD (`idd/archive/2026-10-27-atomic-write-concurrent-rename/`). La reproducción, en Linux, dio el mismo `ENOENT` que en CI antes del arreglo y pasa después. En una rama temporal de `windows-latest` (run 40495412302), el test de los 20 escritores falló 4 de 20 veces con el código de `main` y el TEMP en NTFS, y 0 de 20 con el arreglo, en NTFS y en Dev Drive. `go test -count=20` de `WriteFileAtomic` pasó en los dos.
+
+**Verificación directa**: `node scripts/check.js` (4178 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.158.1] - 2026-10-27
 
