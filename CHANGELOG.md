@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Los tests que crean cambios SDD temporales lo hacen en una raíz temporal fuera del repositorio, en vez de en su openspec/changes real, así que otro test que recorre ese directorio en paralelo ya no falla con ENOENT al entrar en uno que se acaba de borrar (test-changes-temp-root)
+
 ## [2.159.0] - 2026-10-27
 
 ### Added

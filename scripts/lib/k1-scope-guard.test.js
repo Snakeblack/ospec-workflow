@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const test = require("node:test");
@@ -610,12 +611,18 @@ test("K1 scope guard: the PP2 phase-validator successor is narrow and preserves 
     "the protected-path exception must stay limited to the PP2 validator contract",
   );
 
-  const changeDir = fs.mkdtempSync(path.join(ROOT, "openspec", "changes", "k1-validator-"));
-  const changeName = path.basename(changeDir);
+  // The change lives in a project outside the repository, with a copy of its
+  // openspec/config.yaml: one written into the repository's openspec/changes
+  // raced contract-lint, which walks it while the other test files run.
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), "k1-validator-"));
+  const changeName = "k1-validator";
+  const changeDir = path.join(project, "openspec", "changes", changeName);
+  fs.mkdirSync(changeDir, { recursive: true });
+  fs.copyFileSync(path.join(ROOT, "openspec", "config.yaml"), path.join(project, "openspec", "config.yaml"));
   const validator = path.join(ROOT, "scripts", "configure", "validate-phase.js");
   const run = (routeName) =>
     spawnSync(process.execPath, [validator, "sdd-tasks", routeName, changeName], {
-      cwd: ROOT,
+      cwd: project,
       encoding: "utf8",
     });
 
@@ -638,7 +645,7 @@ test("K1 scope guard: the PP2 phase-validator successor is narrow and preserves 
     assert.equal(conflictingRoute.status, 1);
     assert.match(conflictingRoute.stderr, /no coincide con la ruta persistida/);
   } finally {
-    fs.rmSync(changeDir, { recursive: true, force: true });
+    fs.rmSync(project, { recursive: true, force: true });
   }
 });
 

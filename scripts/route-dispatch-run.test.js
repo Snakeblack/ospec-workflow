@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { execSync, execFileSync } = require("node:child_process");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
@@ -15,6 +16,17 @@ const {
 } = require("./route-dispatch-run.js");
 const { readPersistedRouteInfo } = require("./validate-phase.js");
 
+
+// A project outside the repository with a copy of its openspec/config.yaml and
+// an empty change. A change written into the repository's openspec/changes
+// raced contract-lint, which walks it while the other test files run.
+function tempProject(changeName) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "dispatch-project-"));
+  const changeDir = path.join(root, "openspec", "changes", changeName);
+  fs.mkdirSync(changeDir, { recursive: true });
+  fs.copyFileSync(path.join(ROOT, "openspec", "config.yaml"), path.join(root, "openspec", "config.yaml"));
+  return { root, changeDir };
+}
 test("route-dispatch-run: parseArgs extracts flags and options correctly", () => {
   const flags = parseArgs([
     "my-change",
@@ -163,8 +175,7 @@ test("route-dispatch-run CLI E2E: fails closed on conflicting classification sig
 
 test("route-dispatch-run CLI E2E: reads state.yaml from active change directory", () => {
   const tempChange = `test-dispatch-${Date.now()}`;
-  const changeDir = path.join(ROOT, "openspec", "changes", tempChange);
-  fs.mkdirSync(changeDir, { recursive: true });
+  const { root, changeDir } = tempProject(tempChange);
 
   const stateContent = `
 change: ${tempChange}
@@ -177,21 +188,20 @@ route:
 
   try {
     const cmd = `node "${DISPATCH_SCRIPT}" ${tempChange}`;
-    const output = execSync(cmd, { cwd: ROOT }).toString();
+    const output = execSync(cmd, { cwd: root }).toString();
     const parsed = JSON.parse(output);
 
     assert.equal(parsed.status, "success");
     assert.equal(parsed.name, "lite");
     assert.ok(parsed.reasons.includes("continuation_locked"));
   } finally {
-    fs.rmSync(changeDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
 test("route-dispatch-run: persisted route.actual_route is authority over --persisted-route [REQ-routing-016]", () => {
   const tempChange = `test-route-authority-${Date.now()}`;
-  const changeDir = path.join(ROOT, "openspec", "changes", tempChange);
-  fs.mkdirSync(changeDir, { recursive: true });
+  const { root, changeDir } = tempProject(tempChange);
   fs.writeFileSync(
     path.join(changeDir, "state.yaml"),
     [
@@ -209,7 +219,7 @@ test("route-dispatch-run: persisted route.actual_route is authority over --persi
       execFileSync(
         process.execPath,
         [DISPATCH_SCRIPT, tempChange, "--persisted-route=standard"],
-        { cwd: ROOT, stdio: "pipe" },
+        { cwd: root, stdio: "pipe" },
       );
     } catch (err) {
       threw = true;
@@ -226,13 +236,13 @@ test("route-dispatch-run: persisted route.actual_route is authority over --persi
       execFileSync(
         process.execPath,
         [DISPATCH_SCRIPT, tempChange, "--persisted-route=lite"],
-        { cwd: ROOT, encoding: "utf8" },
+        { cwd: root, encoding: "utf8" },
       ),
     );
     assert.equal(ok.status, "success");
     assert.equal(ok.name, "lite");
   } finally {
-    fs.rmSync(changeDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
@@ -285,8 +295,7 @@ test("route-dispatch-run: indented route block matches validate-phase [REQ-routi
 
 test("route-dispatch-run: missing direct actual_route rejects caller route [REQ-routing-016]", () => {
   const tempChange = `test-missing-direct-${Date.now()}`;
-  const changeDir = path.join(ROOT, "openspec", "changes", tempChange);
-  fs.mkdirSync(changeDir, { recursive: true });
+  const { root, changeDir } = tempProject(tempChange);
   fs.writeFileSync(
     path.join(changeDir, "state.yaml"),
     [
@@ -304,7 +313,7 @@ test("route-dispatch-run: missing direct actual_route rejects caller route [REQ-
     let threw = false;
     try {
       execFileSync(process.execPath, [DISPATCH_SCRIPT, tempChange, ...args], {
-        cwd: ROOT,
+        cwd: root,
         stdio: "pipe",
       });
     } catch (err) {
@@ -322,7 +331,7 @@ test("route-dispatch-run: missing direct actual_route rejects caller route [REQ-
     assertMissing(["--persisted-route=standard"]);
     assertMissing(["--context", JSON.stringify({ actual_route: "standard" })]);
   } finally {
-    fs.rmSync(changeDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 

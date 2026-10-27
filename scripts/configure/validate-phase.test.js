@@ -46,6 +46,17 @@ function writeProjectChange(projectRoot, changeName, { design = true, state = nu
   return changeDir;
 }
 
+// A project outside the repository with a copy of its openspec/config.yaml and
+// an empty change. A change written into the repository's openspec/changes
+// raced contract-lint, which walks it while the other test files run.
+function tempProject(changeName) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vp-project-"));
+  const changeDir = path.join(root, "openspec", "changes", changeName);
+  fs.mkdirSync(changeDir, { recursive: true });
+  fs.copyFileSync(path.join(ROOT, "openspec", "config.yaml"), path.join(root, "openspec", "config.yaml"));
+  return { root, changeDir };
+}
+
 test("validate-phase CLI: exits with 0 for freeform or undefined route", () => {
   const cmd = `node "${VALIDATE_SCRIPT}" sdd-tasks freeform my-change`;
   const result = execSync(cmd).toString().trim();
@@ -55,14 +66,13 @@ test("validate-phase CLI: exits with 0 for freeform or undefined route", () => {
 test("validate-phase CLI: fails validation when required file is missing", () => {
   // Use standard route which expects design.md for sdd-tasks phase
   const changeName = `test-change-${Date.now()}`;
-  const changeDir = path.join(ROOT, "openspec", "changes", changeName);
-  fs.mkdirSync(changeDir, { recursive: true });
+  const { root, changeDir } = tempProject(changeName);
 
   try {
     const cmd = `node "${VALIDATE_SCRIPT}" sdd-tasks standard ${changeName}`;
     let threw = false;
     try {
-      execSync(cmd, { stdio: "pipe" });
+      execSync(cmd, { cwd: root, stdio: "pipe" });
     } catch (e) {
       threw = true;
       assert.equal(e.status, 1);
@@ -70,29 +80,27 @@ test("validate-phase CLI: fails validation when required file is missing", () =>
     assert.equal(threw, true, "execSync should throw error with status 1");
   } finally {
     // Clean up temporary change dir
-    fs.rmSync(changeDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
 test("validate-phase CLI: passes validation when required file is present", () => {
   const changeName = `test-change-ok-${Date.now()}`;
-  const changeDir = path.join(ROOT, "openspec", "changes", changeName);
-  fs.mkdirSync(changeDir, { recursive: true });
+  const { root, changeDir } = tempProject(changeName);
   fs.writeFileSync(path.join(changeDir, "design.md"), "Design details");
 
   try {
     const cmd = `node "${VALIDATE_SCRIPT}" sdd-tasks standard ${changeName}`;
-    const result = execSync(cmd).toString();
+    const result = execSync(cmd, { cwd: root }).toString();
     assert.match(result, /\[OK\]/);
   } finally {
-    fs.rmSync(changeDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
 test("validate-phase CLI: uses the persisted lite route and rejects a conflicting launch route", () => {
   const changeName = `test-lite-route-${Date.now()}`;
-  const changeDir = path.join(ROOT, "openspec", "changes", changeName);
-  fs.mkdirSync(changeDir, { recursive: true });
+  const { root, changeDir } = tempProject(changeName);
   fs.writeFileSync(path.join(changeDir, "proposal-lite.md"), "# Lite proposal");
   fs.writeFileSync(path.join(changeDir, "state.yaml"), [
     "change: test-lite-route",
@@ -101,22 +109,21 @@ test("validate-phase CLI: uses the persisted lite route and rejects a conflictin
   ].join("\n"));
 
   try {
-    const valid = execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks lite ${changeName}`).toString();
+    const valid = execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks lite ${changeName}`, { cwd: root }).toString();
     assert.match(valid, /\[OK\]/);
 
     assert.throws(
-      () => execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks standard ${changeName}`, { stdio: "pipe" }),
+      () => execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks standard ${changeName}`, { cwd: root, stdio: "pipe" }),
       (error) => error.status === 1 && /no coincide con la ruta persistida/.test(error.stderr.toString()),
     );
   } finally {
-    fs.rmSync(changeDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
 test("validate-phase CLI: rejects an undeclared persisted route instead of bypassing validation", () => {
   const changeName = `test-unknown-route-${Date.now()}`;
-  const changeDir = path.join(ROOT, "openspec", "changes", changeName);
-  fs.mkdirSync(changeDir, { recursive: true });
+  const { root, changeDir } = tempProject(changeName);
   fs.writeFileSync(path.join(changeDir, "state.yaml"), [
     "change: test-unknown-route",
     "route:",
@@ -125,11 +132,11 @@ test("validate-phase CLI: rejects an undeclared persisted route instead of bypas
 
   try {
     assert.throws(
-      () => execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks removed-route ${changeName}`, { stdio: "pipe" }),
+      () => execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks removed-route ${changeName}`, { cwd: root, stdio: "pipe" }),
       (error) => error.status === 1 && /no está declarada con fases/.test(error.stderr.toString()),
     );
   } finally {
-    fs.rmSync(changeDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
@@ -221,8 +228,7 @@ test("validate-phase: collapsed global openspec (only under plugin) fails closed
 
 test("validate-phase: policy-bound route section without actual_route fails closed [REQ-routing-016]", () => {
   const changeName = `test-missing-actual-${Date.now()}`;
-  const changeDir = path.join(ROOT, "openspec", "changes", changeName);
-  fs.mkdirSync(changeDir, { recursive: true });
+  const { root, changeDir } = tempProject(changeName);
   fs.writeFileSync(path.join(changeDir, "design.md"), "Design");
   fs.writeFileSync(
     path.join(changeDir, "state.yaml"),
@@ -231,19 +237,18 @@ test("validate-phase: policy-bound route section without actual_route fails clos
 
   try {
     assert.throws(
-      () => execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks standard ${changeName}`, { stdio: "pipe" }),
+      () => execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks standard ${changeName}`, { cwd: root, stdio: "pipe" }),
       (error) =>
         error.status === 1 && /missing_actual_route|sin actual_route/.test(error.stderr.toString()),
     );
   } finally {
-    fs.rmSync(changeDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
 test("validate-phase: nested actual_route does not satisfy a missing direct child [REQ-routing-016]", () => {
   const changeName = `test-nested-actual-${Date.now()}`;
-  const changeDir = path.join(ROOT, "openspec", "changes", changeName);
-  fs.mkdirSync(changeDir, { recursive: true });
+  const { root, changeDir } = tempProject(changeName);
   fs.writeFileSync(path.join(changeDir, "design.md"), "Design");
   fs.writeFileSync(
     path.join(changeDir, "state.yaml"),
@@ -252,25 +257,37 @@ test("validate-phase: nested actual_route does not satisfy a missing direct chil
 
   try {
     assert.throws(
-      () => execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks lite ${changeName}`, { stdio: "pipe" }),
+      () => execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks lite ${changeName}`, { cwd: root, stdio: "pipe" }),
       (error) =>
         error.status === 1 && /missing_actual_route|sin actual_route/.test(error.stderr.toString()),
     );
   } finally {
-    fs.rmSync(changeDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
 test("validate-phase: in-repo coincident roots still pass [REQ-install-027]", () => {
+  // In this repository the plugin and the project share one root. The change
+  // it names does not exist, so nothing is written into the repository's
+  // openspec/changes: sdd-propose needs no earlier artifact, and sdd-tasks
+  // asks for the design.md of the shared openspec/config.yaml routing.
   const changeName = `test-inrepo-${Date.now()}`;
-  const changeDir = path.join(ROOT, "openspec", "changes", changeName);
-  fs.mkdirSync(changeDir, { recursive: true });
+  const result = execSync(`node "${VALIDATE_SCRIPT}" sdd-propose standard ${changeName}`, { cwd: ROOT }).toString();
+  assert.match(result, /\[OK\]/);
+  assert.throws(
+    () => execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks standard ${changeName}`, { cwd: ROOT, stdio: "pipe" }),
+    (error) => error.status === 1 && /design\.md/.test(error.stderr.toString()),
+  );
+  // With both roots in one directory outside the repository, the change's
+  // files are read from it.
+  const { root, changeDir } = tempProject(changeName);
   fs.writeFileSync(path.join(changeDir, "design.md"), "Design details");
   try {
-    const result = execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks standard ${changeName}`).toString();
-    assert.match(result, /\[OK\]/);
+    const shared = captureMain(["sdd-tasks", "standard", changeName], { cwd: root, scriptDir: path.join(root, "scripts") });
+    assert.equal(shared.code, 0, shared.errors.join("\n"));
+    assert.match(shared.logs.join("\n"), /\[OK\]/);
   } finally {
-    fs.rmSync(changeDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
