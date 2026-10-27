@@ -7,6 +7,7 @@
 
 const { CHANGE_ROOT, DECISIONS_ROOT, GATES, IMPACTS, INTENT_KINDS, LIVING_DOC_FILE, OBLIGATIONS, RUN_EVIDENCE } = require("./idd-contract.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
+const { COVERAGE_RULES, featureCommand, projectCategories } = require("./idd-facts.js");
 const { classifyPath } = require("./idd-signals.js");
 
 // Order in which pending obligations are worked: evidence produced while
@@ -50,7 +51,8 @@ const HOW = Object.freeze({
     contractPatterns
       ? `in one diff, touch a contract document (${contractPatterns.documents.join(", ")}) and its test (${contractPatterns.tests.join(", ")}), then ospec check --change ${change}; if the project keeps its contract elsewhere, propose contracts.documents for idd/config.yaml to the user and edit it only after approval`
       : `in one diff, touch a contract document and its test (contracts.documents and contracts.tests of idd/config.yaml), then ospec check --change ${change}`,
-  "living-doc": (change) => `write the Plan and Decisions of idd/${change}/change.md, then ospec close --change ${change}`,
+  "living-doc": (change) =>
+    `the CLI writes the Plan of idd/${change}/change.md from --path and its Decisions from --decision "<text>"; add by hand what they leave out, then ospec close --change ${change}`,
   "trust-review": (change) =>
     `ospec review start --change ${change}, dispatch review-trust on the returned paths, then ospec review record --change ${change} --result '<findings json>'`,
   "migration-compat-and-test": (change) =>
@@ -179,7 +181,7 @@ function planDeclared(state) {
 function declarePlanStep(change) {
   return {
     action: "declare-plan",
-    how: `ospec signals --change ${change} --path <file>... [--work-units <n>] [--decision] [--operation <op>]`,
+    how: `ospec signals --change ${change} --path <file>... [--work-units <n>] [--decision "<text>"]... [--operation <op>]`,
     command: `ospec signals --change ${change} --path <file>...`,
   };
 }
@@ -302,7 +304,12 @@ function nextForProject(states, { change, ...context } = {}) {
   }
   const open = states.filter((state) => state.status === "open");
   if (open.length === 0) {
-    const result = { change: null, next_step: { action: "open-change", command: `ospec record intent --change <id> ${INTENT_FIELDS}` } };
+    // A feature gets the template of the categories its project covers
+    // (E4.16), so its first record intent need not be refused to learn them.
+    const { categories, omitted, reason } = projectCategories({ files: context.projectFiles, classify: classifyPath });
+    const feature = { command: featureCommand(categories), how: COVERAGE_RULES, categories };
+    if (omitted.length > 0) Object.assign(feature, { omitted, reason });
+    const result = { change: null, next_step: { action: "open-change", command: `ospec record intent --change <id> ${INTENT_FIELDS}`, feature } };
     const foundation = foundationSuggestion(context.projectFiles);
     if (foundation) result.suggestions = [foundation];
     return result;

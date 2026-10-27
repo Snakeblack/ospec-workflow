@@ -110,7 +110,7 @@ test("record intent opens the change, reports the next step and is idempotent", 
   assert.strictEqual(first.json.changed, true);
   assert.deepStrictEqual(first.json.next.next_step, {
     action: "declare-plan",
-    how: "ospec signals --change fix-pagination --path <file>... [--work-units <n>] [--decision] [--operation <op>]",
+    how: "ospec signals --change fix-pagination --path <file>... [--work-units <n>] [--decision \"<text>\"]... [--operation <op>]",
     command: "ospec signals --change fix-pagination --path <file>...",
   });
 
@@ -160,7 +160,7 @@ test("signals, gates and refused withdrawals flow through record", (t) => {
     "--json",
   );
   assert.strictEqual(resolved.code, 0, resolved.stderr);
-  assert.strictEqual(resolved.json.next.pending_decision, null);
+  assert.strictEqual(resolved.json.next.pending_decision, undefined);
 });
 
 test("record intent needs the open-facts declaration, and open facts are asked first", (t) => {
@@ -312,7 +312,6 @@ test("signals derives declaration signals with their reasons and is idempotent",
   assert.strictEqual(first.code, 0, first.stderr);
   assert.deepStrictEqual(first.json.added, {
     signals: ["strict-tdd", "bug-fix", "multi-unit-or-decision", "public-contract"],
-    gates: [],
   });
   assert.strictEqual(
     first.json.signals.find((s) => s.id === "public-contract").reason,
@@ -331,8 +330,8 @@ test("signals derives declaration signals with their reasons and is idempotent",
 
   const text = ospec(root, ...args.filter((arg) => arg !== "--json"));
   assert.strictEqual(text.code, 0);
-  assert.match(text.stdout, /public-contract \(declaration\): public contract: touches src\/api\/pages\.js/);
-  assert.match(text.stdout, /no change: the plan and every derived signal were already recorded/);
+  // E4.16: one status line; the reasons stay in --json.
+  assert.match(text.stdout, /^plan of fix-pagination: the plan and every derived signal were already recorded; floor [a-z]+\nnext \(repro-test\): ospec run /);
 
   // A wider plan that derives no new signal is still recorded, and says so.
   const widened = ospec(root, "signals", "--change", "fix-pagination", "--path", "src/lib/paginate.js");
@@ -455,7 +454,7 @@ test("check runs the declared checks and satisfies checks-pass only on the tree 
   writeFile(root, "src/pages.txt", "2");
   const passing = ospec(root, "check", "--change", "fix-readme", "--json");
   assert.strictEqual(passing.json.verdict, "ready");
-  assert.deepStrictEqual(passing.json.missing, []);
+  assert.strictEqual(passing.json.missing, undefined);
   assert.strictEqual(passing.json.next.next_step.action, "close");
   const state = stateOf(root, "fix-readme");
   assert.deepStrictEqual(state.runs.map((run) => [run.id, run.purpose, run.name, run.exit_code]), [
@@ -680,7 +679,7 @@ test("empty checks keep configuration and require a user command when no candida
   const before = fs.readFileSync(path.join(root, "idd", "config.yaml"), "utf8");
   const next = ospec(root, "next", "--change", "fix-readme", "--json");
   assert.strictEqual(next.json.next_step.action, "configure-checks");
-  assert.strictEqual(next.json.next_step.candidate_command, null);
+  assert.strictEqual(next.json.next_step.candidate_command, undefined);
   assert.match(next.json.next_step.how, /ask.*command/i);
   assert.strictEqual(fs.readFileSync(path.join(root, "idd", "config.yaml"), "utf8"), before);
 });
@@ -693,7 +692,7 @@ test("check recomputes the signals from the diff: touching a migration adds its 
 
   const result = ospec(root, "check", "--change", "add-index", "--json");
   assert.strictEqual(result.code, 0, result.stderr);
-  assert.deepStrictEqual(result.json.added, { signals: ["persistent-data"], gates: [] });
+  assert.deepStrictEqual(result.json.added, { signals: ["persistent-data"] });
   assert.strictEqual(result.json.verdict, "missing");
   assert.deepStrictEqual(result.json.missing.map((entry) => entry.obligation), ["migration-compat-and-test"]);
   const signal = stateOf(root, "add-index").signals.find((entry) => entry.id === "persistent-data");
@@ -711,11 +710,11 @@ test("run records a red then green pair of the same command as the reproduction 
   const red = run();
   assert.strictEqual(red.code, 0, red.stderr);
   assert.strictEqual(red.json.run.exit_code, 1);
-  assert.strictEqual(red.json.evidence, null);
+  assert.strictEqual(red.json.evidence, undefined);
   assert.match(red.json.missing.find((entry) => entry.obligation === "repro-test").reason, /run the same command again after the fix/);
 
   const stillRed = run();
-  assert.strictEqual(stillRed.json.evidence, null, "the same tree proves nothing");
+  assert.strictEqual(stillRed.json.evidence, undefined, "the same tree proves nothing");
 
   writeFile(root, "src/pages.txt", "2");
   const green = run();
@@ -1204,7 +1203,7 @@ test("a documentation change closes without review and is archived by date", (t)
   assert.ok(!fs.existsSync(path.join(root, "idd", "fix-readme")));
   const archived = JSON.parse(fs.readFileSync(path.join(root, "idd", "archive", `${day}-fix-readme`, "state.yaml"), "utf8"));
   assert.strictEqual(archived.status, "closed");
-  assert.deepStrictEqual(ospec(root, "status", "--json").json.changes, []);
+  assert.strictEqual(ospec(root, "status", "--json").json.changes, undefined);
 
   const again = ospec(root, "close", "--change", "fix-readme", "--json");
   assert.strictEqual(again.code, 0, again.stderr);
@@ -1216,15 +1215,10 @@ test("a documentation change closes without review and is archived by date", (t)
 test("close returns the decisions of the archived change as knowledge records", (t) => {
   const { root } = project(t);
   ospec(root, ...OPEN_DOCS);
-  assert.strictEqual(ospec(root, "signals", "--change", "fix-readme", "--path", "docs/security/token-rotation.md", "--decision").code, 0);
+  const decision = ["--decision", "**Hourly rotation:** tokens rotate every hour."];
+  assert.strictEqual(ospec(root, "signals", "--change", "fix-readme", "--path", "docs/security/token-rotation.md", ...decision).code, 0);
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "docs/security/token-rotation.md", "Rotate tokens hourly.\n");
-  const doc = path.join(root, "idd", "fix-readme", "change.md");
-  const decided = fs
-    .readFileSync(doc, "utf8")
-    .replace("## Plan\n", "## Plan\n\n1. Document the rotation.\n")
-    .replace("## Decisions\n", "## Decisions\n\n- **Hourly rotation:** tokens rotate every hour.\n");
-  fs.writeFileSync(doc, decided);
   assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
 
   const closed = ospec(root, "close", "--change", "fix-readme", "--json");
@@ -1303,7 +1297,7 @@ test("[REQ-idd-025] close creates a missing changelog, and without a previous ve
   assert.strictEqual(closed.code, 0, closed.stderr);
   const text = fs.readFileSync(path.join(root, "docs", "CHANGELOG.md"), "utf8");
   assert.match(text, /^# Changelog\n[\s\S]*Keep a Changelog[\s\S]*\n\n## \[Unreleased\]\n\n### Changed\n- Fix a typo\. \(fix-readme\)\n$/);
-  assert.deepStrictEqual(closed.json.release, { version: null, bump: "patch", tag: null, notes: "### Changed\n- Fix a typo. (fix-readme)" });
+  assert.deepStrictEqual(closed.json.release, { bump: "patch", notes: "### Changed\n- Fix a typo. (fix-readme)" });
 });
 
 test("[REQ-idd-025] an undeclared changelog, a refused close or an unreadable configuration write nothing", (t) => {
@@ -1348,6 +1342,9 @@ test("a change with a living document closes once its plan and decisions are wri
   ospec(root, "signals", "--change", "add-paging", "--work-units", "2");
   writeFile(root, "src/pages.txt", "2");
   const doc = path.join(root, "idd", "add-paging", "change.md");
+  // Without the CLI's markers, as changes opened before E4.16 have them, the
+  // model writes both sections.
+  fs.writeFileSync(doc, fs.readFileSync(doc, "utf8").replace(/<!-- ospec:(plan|decisions):start -->[^]*?<!-- ospec:\1:end -->\n/g, ""));
 
   const blank = ospec(root, "check", "--change", "add-paging", "--json");
   assert.strictEqual(blank.json.verdict, "missing");
@@ -1413,7 +1410,7 @@ test("next asks to declare the plan after the intent gates and until signals rec
   const opened = ospec(root, ...OPEN_BUG);
   assert.deepStrictEqual(opened.json.next.next_step, {
     action: "declare-plan",
-    how: "ospec signals --change fix-pagination --path <file>... [--work-units <n>] [--decision] [--operation <op>]",
+    how: "ospec signals --change fix-pagination --path <file>... [--work-units <n>] [--decision \"<text>\"]... [--operation <op>]",
     command: "ospec signals --change fix-pagination --path <file>...",
   });
   assert.match(ospec(root, "next", "--change", "fix-pagination").stdout, /next: declare the plan: ospec signals --change fix-pagination/);
@@ -1568,7 +1565,7 @@ test("record retract takes the user's answer for persistent data the diff conten
 
   const checked = ospec(root, "check", "--change", "rename-report", "--json");
   assert.strictEqual(checked.code, 0, checked.stderr);
-  assert.ok(!checked.json.added.signals.includes("persistent-data"), "the same reason stays retracted");
+  assert.ok(!(checked.json.added?.signals || []).includes("persistent-data"), "the same reason stays retracted");
   assert.strictEqual(stateOf(root, "rename-report").obligations.find((o) => o.id === "migration-compat-and-test").status, "withdrawn");
 
   // A second write brings it back; a migration path then keeps any answer out.
@@ -1627,7 +1624,7 @@ test("record retract withdraws persistent data from the diff once the diff is ba
   assert.strictEqual(ospec(root, ...retract, "--json").json.changed, false);
   const checked = ospec(root, "check", "--change", "rename-report", "--json");
   assert.strictEqual(checked.code, 0, checked.stderr);
-  assert.ok(!checked.json.added.signals.includes("persistent-data"), "the answered hits stay retracted");
+  assert.ok(!(checked.json.added?.signals || []).includes("persistent-data"), "the answered hits stay retracted");
 });
 
 test("record retract withdraws a public contract from the diff once the diff no longer touches it", (t) => {
@@ -1776,7 +1773,7 @@ test("an amendment stops at the gate and settles once its new ADR passes the lin
 
   const settled = ospec(root, "check", "--change", "order-events", "--json");
   assert.strictEqual(settled.code, 0, settled.stderr);
-  assert.ok(!settled.json.missing.some((entry) => entry.obligation === "adr-impact-declaration"), JSON.stringify(settled.json.missing));
+  assert.ok(!(settled.json.missing || []).some((entry) => entry.obligation === "adr-impact-declaration"), JSON.stringify(settled.json.missing));
   const state = stateOf(root, "order-events");
   assert.strictEqual(state.obligations.find((entry) => entry.id === "adr-impact-declaration").status, "satisfied");
   assert.deepStrictEqual(state.evidence.find((entry) => entry.kind === "adr-impact-declaration").detail, { refs: ["adr:0002 amends"], records: [record] });
@@ -1851,7 +1848,7 @@ test("[REQ-idd-021] the touched component derives the ADR signal from its curren
     "stale ADR 0004 (orders): ADR 0004 is superseded",
     "absent term Order (orders): docs/product/glossary.md does not exist",
   ]);
-  assert.deepStrictEqual(next.json.knowledge_refs, []);
+  assert.strictEqual(next.json.knowledge_refs, undefined);
   assert.strictEqual(next.json.next_step.obligation, "adr-impact-declaration");
 
   const human = ospec(root, "next", "--change", "order-events");
@@ -1881,7 +1878,7 @@ test("[REQ-idd-021] a broken component map warns and gives no references, and no
   assert.match(planned.json.warnings[0], /component-map\.yaml is not JSON text/);
   const next = ospec(root, "next", "--change", "order-events", "--json");
   assert.strictEqual(next.code, 0, next.stderr);
-  assert.deepStrictEqual(next.json.references, []);
+  assert.strictEqual(next.json.references, undefined);
   assert.match(next.json.warnings[0], /component-map\.yaml is not JSON text/);
   const checked = ospec(root, "check", "--change", "order-events");
   assert.strictEqual(checked.code, 0, checked.stderr);
@@ -1889,7 +1886,7 @@ test("[REQ-idd-021] a broken component map warns and gives no references, and no
 
   fs.rmSync(path.join(root, "docs/architecture/component-map.yaml"));
   const bare = ospec(root, "next", "--change", "order-events", "--json");
-  assert.deepStrictEqual([bare.json.references, bare.json.warnings], [[], []]);
+  assert.deepStrictEqual([bare.json.references, bare.json.warnings], [undefined, undefined]);
 });
 
 // E1.47 (B8): the ADRs and components the CLI derives from the paths a new
@@ -1985,13 +1982,13 @@ test("[REQ-idd-022] a prose fitness function is a checklist item that keeps its 
   const { root } = fitnessProject(t);
   const next = ospec(root, "next", "--change", "order-events", "--json");
   assert.deepStrictEqual(next.json.fitness.manual, [
-    { kind: "adr", id: "0002", path: "docs/architecture/decisions/0002-integracion-sincrona.md", fitness: "Un test de integración entre módulos.", evidence: null },
+    { kind: "adr", id: "0002", path: "docs/architecture/decisions/0002-integracion-sincrona.md", fitness: "Un test de integración entre módulos." },
   ]);
   assert.deepStrictEqual(next.json.fitness.checks.map((check) => check.command), ["node boundary.js"]);
   assert.match(ospec(root, "next", "--change", "order-events").stdout, /manual fitness ADR 0002: Un test de integración entre módulos\. \(no evidence recorded/);
 
   const checked = ospec(root, "check", "--change", "order-events", "--json");
-  assert.ok(!checked.json.missing.some((entry) => entry.obligation === "adr-impact-declaration"), JSON.stringify(checked.json.missing));
+  assert.ok(!(checked.json.missing || []).some((entry) => entry.obligation === "adr-impact-declaration"), JSON.stringify(checked.json.missing));
 
   const refused = ospec(root, "record", "fitness", "--change", "order-events", "--adr", "0006", "--evidence", "ran it", "--json");
   assert.strictEqual(refused.json.error.code, "not-manual-fitness");
@@ -2030,7 +2027,7 @@ test("[REQ-idd-023] two projects with different teams get different defaults wit
   assert.strictEqual(nextMulti.team.delivery_strategy, "auto-chain");
   assert.ok(!nextSmall.pending_obligations.some((o) => o.id === "tdd-red-green"));
   assert.ok(nextMulti.pending_obligations.some((o) => o.id === "tdd-red-green"));
-  assert.strictEqual(nextSmall.pending_decision, null);
+  assert.strictEqual(nextSmall.pending_decision, undefined);
   assert.match(ospec(small, "next", "--change", "fix-pagination").stdout, /team: solo; delivery single-pr; mentorship expert/);
 });
 
@@ -2140,7 +2137,7 @@ test("[REQ-idd-011] next and record intent suggest foundation while the project 
 const PAGE_FEATURE = ["record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works."];
 
 function boundaryReason(result) {
-  return result.json.missing.find((entry) => entry.obligation === "boundary-tests")?.reason;
+  return (result.json.missing || []).find((entry) => entry.obligation === "boundary-tests")?.reason;
 }
 
 test("[E1.44 B3] boundary-tests needs a test the diff adds, not the suite that already passed", (t) => {
@@ -2708,7 +2705,7 @@ test("[REQ-idd-011] record intent declares the plan in the same write, as intent
   const plan = ["--path", "src/pages.js", "--path", "test/pages.test.js", "--work-units", "2"];
   const chained = ospec(root, ...OPEN_PAGES, "--work-units", "2", "--json");
   assert.strictEqual(chained.code, 0, chained.stderr);
-  assert.deepStrictEqual(chained.json.plan.added, { signals: ["bug-fix", "multi-unit-or-decision"], gates: [] });
+  assert.deepStrictEqual(chained.json.plan.added, { signals: ["bug-fix", "multi-unit-or-decision"] });
   assert.strictEqual(chained.json.next.next_step.obligation, "repro-test", "the plan is declared");
 
   const long = OPEN_PAGES.slice(0, OPEN_PAGES.indexOf("--path")).map((arg) => (arg === "fix-pages" ? "fix-twice" : arg));
@@ -2722,7 +2719,7 @@ test("[REQ-idd-011] record intent declares the plan in the same write, as intent
 
   const text = ospec(root, ...OPEN_PAGES, "--work-units", "2");
   assert.strictEqual(text.code, 0, text.stderr);
-  assert.match(text.stdout, /^no change: intent already recorded on fix-pages\nmemory query: .+\nalways \(declaration\): .+\n[^]*no change: the plan and every derived signal were already recorded\n(?:floor: .+\n)?change: fix-pages \(open\)\n/);
+  assert.match(text.stdout, /^no change: intent already recorded on fix-pages; the plan and every derived signal were already recorded; floor [a-z]+\nmemory query: .+\nnext \(repro-test\): ospec run --change fix-pages /);
 });
 
 test("[REQ-idd-011] record intent writes neither the intent nor the plan when it refuses either (E4.15)", (t) => {
@@ -2744,8 +2741,9 @@ test("[REQ-idd-011] every command that writes a change returns the next ospec ne
   const { root } = project(t, { checks: "checks:\n  test: node verify.js\ndelivery:\n  branching: serial\n" });
   const same = (result, label) => {
     assert.strictEqual(result.code, 0, `${label}: ${result.stderr}`);
-    const { ok, command, ...next } = ospec(root, "next", "--change", "fix-pagination", "--json").json;
-    assert.deepStrictEqual([ok, command], [true, "next"]);
+    // E4.16: it leaves out the intent, which ospec next keeps.
+    const { ok, command, intent, ...next } = ospec(root, "next", "--change", "fix-pagination", "--json").json;
+    assert.deepStrictEqual([ok, command, intent.kind], [true, "next", "bug"]);
     assert.deepStrictEqual(result.json.next, next, label);
     return result;
   };
@@ -2765,7 +2763,7 @@ test("[REQ-idd-014] a bugfix closes with four calls: intent with its plan, the r
   const opened = ospec(root, ...OPEN_PAGES, "--json");
   assert.strictEqual(opened.json.next.next_step.command, 'ospec run --change fix-pages --obligation repro-test --command "<test>"');
   const { red, green } = redGreen(root);
-  assert.deepStrictEqual([red.code, red.json.run.exit_code, red.json.check.name, red.json.check.evidence], [0, 1, "test", null]);
+  assert.deepStrictEqual([red.code, red.json.run.exit_code, red.json.check.name, red.json.check.evidence], [0, 1, "test", undefined]);
   assert.strictEqual(green.code, 0, green.stderr);
   assert.strictEqual(green.json.verdict, "ready", JSON.stringify(green.json.missing));
   assert.deepStrictEqual(green.json.next.next_step, { action: "close", command: "ospec close --change fix-pages" });
@@ -2778,7 +2776,7 @@ test("[REQ-idd-014] a run of the only check leaves the evidence ospec check leav
   const { root } = pagesFeature(t);
   const viaRun = stateOf(root, "add-pages");
   const checked = chain(root, "check", "--change", "add-pages", "--json");
-  assert.deepStrictEqual([checked.json.verdict, checked.json.added], ["ready", { signals: [], gates: [] }], "the run recorded what the diff derives");
+  assert.deepStrictEqual([checked.json.verdict, checked.json.added], ["ready", undefined], "the run recorded what the diff derives");
   const viaCheck = stateOf(root, "add-pages");
   const proof = (state, obligation) => {
     const entry = state.obligations.find((item) => item.id === obligation);
@@ -2854,7 +2852,7 @@ test("[REQ-idd-022] a run that counts as the check leaves the fitness checks to 
 
   const sameTree = migrate();
   assert.strictEqual(sameTree.json.check.name, "test");
-  assert.ok(!sameTree.json.missing.some((entry) => entry.obligation === "adr-impact-declaration"), "the check of this tree ran its fitness checks");
+  assert.ok(!(sameTree.json.missing || []).some((entry) => entry.obligation === "adr-impact-declaration"), "the check of this tree ran its fitness checks");
 
   writeFile(root, "src/core.js", "module.exports = 3;\n");
   const moved = migrate();
@@ -2928,4 +2926,141 @@ test("[REQ-idd-014] a feature with one question closes with five calls: intent, 
   assert.strictEqual(green.json.verdict, "ready", JSON.stringify(green.json.missing));
   const closed = ospec(root, "close", "--change", "add-pages", "--json");
   assert.strictEqual(closed.code, 0, closed.stderr);
+});
+
+// E4.16 cli-terse-output: the next of a new change prints the template of the
+// categories the project covers, so the record intent refusals reproduced
+// from idd-7 had it before failing; a project with code and no UI covers five.
+const CLI_FEATURE = ["record", "intent", "--change", "add-priority", "--kind", "feature", "--summary", "Tasks take a priority.", "--acceptance", "add --priority high stores it.", "--request", "Las tareas tienen prioridad"];
+const CORE_ASKED = [
+  "inputs:¿Qué prioridad recibe una tarea creada sin --priority?",
+  'uniqueness:¿"High" y "high" son la misma prioridad?',
+  'persistence:¿Una prioridad desconocida en tasks.json se lee como "normal"?',
+  'copy:¿La lista muestra la prioridad como "[alta]"?',
+  "errors:¿--priority urgente sale con código 2?",
+].flatMap((fact) => ["--open-fact", fact]);
+
+test("[REQ-idd-018] the next of a new change prints the categories of the project's profile (E4.16)", (t) => {
+  const root = tempRoot(t);
+  const git = gitInit(root);
+  writeFile(root, "src/tasks.js", "module.exports = [];\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "base");
+  const next = ospec(root, "next", "--json").json.next_step;
+  assert.strictEqual(next.action, "open-change");
+  assert.deepStrictEqual(next.feature.categories, ["inputs", "uniqueness", "persistence", "copy", "errors"]);
+  assert.deepStrictEqual(next.feature.omitted, ["url-state", "accessibility"]);
+  assert.match(next.feature.command, /--kind feature [^]*--open-fact inputs:"<question>" --open-fact uniqueness:"<question>"/);
+  const text = ospec(root, "next").stdout;
+  assert.ok(text.includes(`feature: ${next.feature.command}\n`), text);
+  assert.match(text, /left out: url-state, accessibility \(the project has code and no UI file/);
+
+  // The idd-7 refusals: no category, a category of its own, one twice and the
+  // plain form; each prints the template next gave before failing.
+  for (const facts of [
+    ["--open-fact", "¿Qué prioridad recibe una tarea creada sin --priority?"],
+    ["--open-fact", "Base del porcentaje:¿se aplica sobre 100 o sobre el subtotal?"],
+    ["--open-fact", "inputs:¿Qué prioridad recibe una tarea sin --priority?", "--open-fact", "inputs:¿Se admite --priority 0?"],
+    ["--no-open-facts", "--basis", "the request settles it"],
+  ]) {
+    const refused = ospec(root, ...CLI_FEATURE, ...facts, "--json");
+    assert.strictEqual(refused.json.error.code, "facts-undeclared", facts.join(" "));
+    assert.ok(refused.json.error.how.startsWith(next.feature.command), refused.json.error.how);
+  }
+  // The regulated refusal: without url-state and accessibility the change opens.
+  const opened = ospec(root, ...CLI_FEATURE, ...CORE_ASKED, "--json");
+  assert.strictEqual(opened.code, 0, opened.stdout);
+  assert.deepStrictEqual(stateOf(root, "add-priority").facts.coverage.map((entry) => entry.category), ["inputs", "uniqueness", "persistence", "copy", "errors"]);
+
+  // A UI file in the plan, or in the project, asks all seven.
+  const withUi = ospec(root, ...CLI_FEATURE.map((arg) => (arg === "add-priority" ? "priority-badge" : arg)), ...CORE_ASKED, "--path", "src/badge.tsx", "--json");
+  assert.strictEqual(withUi.json.error.message, "a feature must cover url-state, accessibility");
+  const web = tempRoot(t);
+  writeFile(web, "src/tasks.js", "module.exports = [];\n");
+  writeFile(web, "public/index.html", "<main></main>\n");
+  const webNext = ospec(web, "next", "--json").json.next_step.feature;
+  assert.deepStrictEqual([webNext.categories.length, webNext.omitted], [7, undefined]);
+  assert.strictEqual(ospec(tempRoot(t), "next", "--json").json.next_step.feature.categories.length, 7, "a project without code");
+});
+
+// E4.16: the CLI writes the Plan of change.md from --path and its Decisions
+// from --decision "<text>", so a change with a decision closes without a hand
+// edit; --decision without its text is a usage error.
+test("[REQ-idd-004] a change with a decision closes without editing change.md (E4.16)", (t) => {
+  const { root } = chainProject(t);
+  const bare = ospec(root, ...OPEN_PAGES, "--decision", "--json");
+  assert.deepStrictEqual([bare.code, bare.json.error.code], [2, "usage"]);
+  assert.strictEqual(ospec(root, ...OPEN_PAGES, "--decision", " ", "--json").code, 2);
+  assert.ok(!fs.existsSync(path.join(root, "idd", "fix-pages")), "nothing is written");
+
+  const opened = ospec(root, ...OPEN_PAGES, "--decision", "A partial page counts as a page.", "--json");
+  assert.strictEqual(opened.code, 0, opened.stdout);
+  assert.deepStrictEqual(stateOf(root, "fix-pages").plan.decisions, ["A partial page counts as a page."]);
+  const doc = fs.readFileSync(path.join(root, "idd", "fix-pages", "change.md"), "utf8");
+  assert.match(doc, /## Plan\n\n<!-- ospec:plan:start -->\n- Files: `src\/pages\.js`, `test\/pages\.test\.js`\n<!-- ospec:plan:end -->\n/);
+  assert.match(doc, /## Decisions\n\n<!-- ospec:decisions:start -->\n- A partial page counts as a page\.\n<!-- ospec:decisions:end -->\n/);
+  const { green } = redGreen(root);
+  assert.strictEqual(green.json.verdict, "ready", JSON.stringify(green.json.missing));
+  const closed = ospec(root, "close", "--change", "fix-pages", "--json");
+  assert.strictEqual(closed.code, 0, closed.stdout);
+  assert.deepStrictEqual(closed.json.records.map((record) => record.summary), ["A partial page counts as a page."]);
+});
+
+test("[REQ-idd-004] a change of several units without a decision closes with empty Decisions (E4.16)", (t) => {
+  const { root } = chainProject(t);
+  assert.strictEqual(ospec(root, ...OPEN_PAGES, "--work-units", "2").code, 0);
+  const { green } = redGreen(root);
+  assert.strictEqual(green.json.verdict, "ready", JSON.stringify(green.json.missing));
+  assert.strictEqual(ospec(root, "close", "--change", "fix-pages").code, 0);
+});
+
+// E4.16: every command that writes prints a status line and the next, with
+// what that step needs, within a ceiling of bytes; --json leaves out null, []
+// and {} and the intent of the next. The ceilings are about 1.3 times the
+// sizes E4.16 measured (190, 180, 124, 872 and 830 bytes of text); v2.161.0
+// printed 518, 500, 347, 2380 and 2308.
+const TEXT_CEILINGS = Object.freeze({ intent: 256, signals: 256, assumption: 192, green: 1152, check: 1152 });
+const JSON_CEILINGS = Object.freeze({ intent: 1600, signals: 1400, assumption: 1024, green: 4608, check: 4736 });
+
+function emptyFields(value, at = "$") {
+  if (value === null || typeof value !== "object") return [];
+  if (!Array.isArray(value) && Object.keys(value).length === 0) return [at];
+  return Object.entries(value).flatMap(([key, entry]) =>
+    entry === null || (typeof entry === "object" && Object.keys(entry).length === 0) ? [`${at}.${key}`] : emptyFields(entry, `${at}.${key}`),
+  );
+}
+
+test("[REQ-idd-011] each command that writes prints a status line and its next within a byte ceiling (E4.16)", (t) => {
+  for (const json of [false, true]) {
+    const { root } = chainProject(t);
+    const flag = json ? ["--json"] : [];
+    const runPages = () => chain(root, "run", "--change", "fix-pages", "--obligation", "repro-test", "--command", "node --test", ...flag);
+    const outputs = { intent: ospec(root, ...OPEN_PAGES, ...flag) };
+    outputs.signals = ospec(root, "signals", "--change", "fix-pages", "--path", "src/pages.js", ...flag);
+    outputs.assumption = ospec(root, "record", "assumption", "--change", "fix-pages", "--text", "Pages count from one.", ...flag);
+    fs.appendFileSync(path.join(root, "test/pages.test.js"), RED_PAGES);
+    const red = runPages();
+    writeFile(root, "src/pages.js", "module.exports = (items) => Math.ceil(items / 10);\n");
+    outputs.green = runPages();
+    outputs.check = ospec(root, "check", "--change", "fix-pages", ...flag);
+    for (const [label, result] of Object.entries(outputs)) {
+      assert.strictEqual(result.code, 0, `${label}: ${result.stderr}`);
+      const bytes = Buffer.byteLength(result.stdout);
+      assert.ok(bytes <= (json ? JSON_CEILINGS : TEXT_CEILINGS)[label], `${label}${json ? " --json" : ""}: ${bytes} bytes\n${result.stdout}`);
+      if (json) {
+        assert.deepStrictEqual(emptyFields(result.json), [], label);
+        assert.strictEqual(result.json.next.intent, undefined, `${label}: the next leaves out the intent`);
+        assert.ok(result.json.next.next_step.command, label);
+      } else {
+        assert.match(result.stdout, /^.+\n(?:memory query: .+\n)?(?:.+\n)*?next \(\S+\): ospec /, label);
+        assert.doesNotMatch(result.stdout, /^(?:pending|refs|team|branching|changelog|release)(?: rules)?: /m, label);
+      }
+    }
+    if (!json) {
+      // A failing run prints its status, its output and the next.
+      assert.match(red.stdout, /^run-1: exit 1; no evidence recorded by this run\n {2}/);
+      assert.match(red.stdout, /\nnext \(repro-test\): ospec run --change fix-pages --obligation repro-test --command "node --test"\n$/);
+      assert.match(outputs.check.stdout, /^ready: fix-pages can close\nran: check test exit 0\nnext \(close\): ospec close --change fix-pages\n/);
+    }
+  }
 });

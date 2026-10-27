@@ -58,3 +58,23 @@ func TestDescribeStepAsksOpenGatesFirst(t *testing.T) {
 		}
 	}
 }
+
+// The same plans as validatePlan of scripts/lib/idd-contract.js: the texts of
+// the decisions (E4.16) come only with a declared decision, and never empty.
+func TestValidPlanAcceptsDecisionTexts(t *testing.T) {
+	cases := map[string]bool{
+		``: true,
+		`{"paths":[],"work_units":1,"decision":false,"operations":[]}`:                            true,
+		`{"paths":["a"],"work_units":2,"decision":true,"operations":[],"decisions":["Keep A."]}`:  true,
+		`{"paths":["a"],"work_units":2,"decision":false,"operations":[],"decisions":["Keep A."]}`: false,
+		`{"paths":["a"],"work_units":2,"decision":true,"operations":[],"decisions":[]}`:           false,
+		`{"paths":["a"],"work_units":2,"decision":true,"operations":[],"decisions":[""]}`:         false,
+		`{"paths":["a"],"work_units":2,"decision":true,"operations":[],"extra":["x"]}`:            false,
+		`{"paths":["a"],"work_units":0,"decision":true,"operations":[],"decisions":["Keep A."]}`:  false,
+	}
+	for raw, want := range cases {
+		if got := validPlan(json.RawMessage(raw)); got != want {
+			t.Errorf("validPlan(%s) = %v, want %v", raw, got, want)
+		}
+	}
+}

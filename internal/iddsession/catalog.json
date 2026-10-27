@@ -62,7 +62,7 @@
     {
       "id": "living-doc",
       "evidence": "living-doc-current",
-      "how": "write the Plan and Decisions of idd/{change}/change.md, then ospec close --change {change}"
+      "how": "the CLI writes the Plan of idd/{change}/change.md from --path and its Decisions from --decision \"<text>\"; add by hand what they leave out, then ospec close --change {change}"
     },
     {
       "id": "contract-spec-and-test",

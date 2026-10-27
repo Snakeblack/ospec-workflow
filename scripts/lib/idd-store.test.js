@@ -13,8 +13,8 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 
-const { EVIDENCE_MARKERS, LIVING_DOC_SECTIONS } = require("./idd-contract.js");
-const { recordIntent, recordSignal } = require("./idd-record.js");
+const { DECISIONS_MARKERS, EVIDENCE_MARKERS, LIVING_DOC_SECTIONS, PLAN_MARKERS } = require("./idd-contract.js");
+const { recordIntent, recordPlan, recordSignal } = require("./idd-record.js");
 const { listChanges, mutateChange, readChange, serializeState, statePath } = require("./idd-store.js");
 
 const BUG = { change: "fix-pagination", kind: "bug", summary: "Fix the last page.", acceptance: "Two full pages.", noOpenFacts: true, basis: "The request fixes every behavior." };
@@ -224,5 +224,39 @@ test("the living document is created from the template only when living-doc is a
 
   fs.writeFileSync(doc, "edited by the model\n");
   await mutateChange(root, "fix-pagination", addDoc);
+  assert.strictEqual(fs.readFileSync(doc, "utf8"), "edited by the model\n");
+});
+
+// E4.16: the CLI writes the declared plan and decisions between its markers in
+// change.md, after every write; the rest of the document stays the model's.
+test("the CLI writes the declared plan and decisions of change.md between its markers", async (t) => {
+  const root = tempRoot(t);
+  const doc = path.join(root, "idd", "fix-pagination", "change.md");
+  const declare = (plan) => (state) => {
+    const planned = recordPlan(state, plan);
+    return planned.state.signals.some((signal) => signal.id === "multi-unit-or-decision")
+      ? planned
+      : { state: recordSignal(planned.state, { id: "multi-unit-or-decision", reason: "declared a non-obvious decision", source: "declaration" }).state, changed: true };
+  };
+  await mutateChange(root, "fix-pagination", openBug);
+  await mutateChange(root, "fix-pagination", declare({ paths: ["src/pages.js"], workUnits: 2, decisions: ["Round up a partial page."] }));
+  const created = fs.readFileSync(doc, "utf8");
+  assert.ok(created.includes(`${PLAN_MARKERS.start}\n- Files: \`src/pages.js\`\n- Work units: 2\n${PLAN_MARKERS.end}`), created);
+  assert.ok(created.includes(`${DECISIONS_MARKERS.start}\n- Round up a partial page.\n${DECISIONS_MARKERS.end}`), created);
+
+  // Hand text outside the markers and CRLF line endings stay; a repeated
+  // decision is written once; a multi-line one keeps its lines.
+  fs.writeFileSync(doc, created.replace(PLAN_MARKERS.start, `1. Count pages.\n${PLAN_MARKERS.start}`).replace(/\n/g, "\r\n"));
+  await mutateChange(root, "fix-pagination", declare({ paths: ["test/pages.test.js"], decisions: [" Round up a partial page. ", "Empty lists have zero pages.\nNot one."] }));
+  const updated = fs.readFileSync(doc, "utf8");
+  assert.ok(updated.includes("1. Count pages.\r\n<!-- ospec:plan:start -->\r\n- Files: `src/pages.js`, `test/pages.test.js`\r\n"), updated);
+  assert.ok(updated.includes("- Round up a partial page.\r\n- Empty lists have zero pages.\r\n  Not one.\r\n<!-- ospec:decisions:end -->"), updated);
+  assert.ok(!/[^\r]\n/.test(updated), "CRLF kept");
+  const state = await readChange(root, "fix-pagination");
+  assert.deepStrictEqual(state.plan.decisions, ["Round up a partial page.", "Empty lists have zero pages.\nNot one."]);
+
+  // A document without the markers, as older changes have, is left alone.
+  fs.writeFileSync(doc, "edited by the model\n");
+  await mutateChange(root, "fix-pagination", declare({ decisions: ["Another one."] }));
   assert.strictEqual(fs.readFileSync(doc, "utf8"), "edited by the model\n");
 });

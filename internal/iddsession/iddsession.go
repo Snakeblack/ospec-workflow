@@ -201,13 +201,14 @@ func isObject(raw json.RawMessage) bool {
 }
 
 // validPlan mirrors validatePlan of idd-contract.js: absent, or an object
-// with exactly paths, work_units (at least 1), decision and operations.
+// with exactly paths, work_units (at least 1), decision and operations, plus
+// the texts of its decisions when there is one (E4.16).
 func validPlan(raw json.RawMessage) bool {
 	if len(raw) == 0 {
 		return true
 	}
 	var keys map[string]json.RawMessage
-	if json.Unmarshal(raw, &keys) != nil || len(keys) != 4 {
+	if json.Unmarshal(raw, &keys) != nil {
 		return false
 	}
 	var plan struct {
@@ -215,11 +216,24 @@ func validPlan(raw json.RawMessage) bool {
 		WorkUnits  *int      `json:"work_units"`
 		Decision   *bool     `json:"decision"`
 		Operations *[]string `json:"operations"`
+		Decisions  *[]string `json:"decisions"`
 	}
 	if json.Unmarshal(raw, &plan) != nil || plan.Paths == nil || plan.WorkUnits == nil || plan.Decision == nil || plan.Operations == nil {
 		return false
 	}
-	for _, list := range [][]string{*plan.Paths, *plan.Operations} {
+	fields := 4
+	lists := [][]string{*plan.Paths, *plan.Operations}
+	if _, ok := keys["decisions"]; ok {
+		if plan.Decisions == nil || len(*plan.Decisions) == 0 || !*plan.Decision {
+			return false
+		}
+		fields = 5
+		lists = append(lists, *plan.Decisions)
+	}
+	if len(keys) != fields {
+		return false
+	}
+	for _, list := range lists {
 		for _, entry := range list {
 			if entry == "" {
 				return false
@@ -365,7 +379,7 @@ func DescribeStep(s *State, hasChecks bool) string {
 		return resolveGate(open[0])
 	}
 	if !s.planDeclared() {
-		return "Declare the plan: `ospec signals --change " + change + " --path <file>... [--work-units <n>] [--decision] [--operation <op>]`."
+		return "Declare the plan: `ospec signals --change " + change + " --path <file>... [--work-units <n>] [--decision \"<text>\"]... [--operation <op>]`."
 	}
 	if pending := s.PendingObligations(); len(pending) > 0 {
 		first := pending[0]

@@ -1,10 +1,10 @@
 # Feature Open Facts
 
 Read on demand from `skills/idd/SKILL.md` when rule 2 opens a `feature`. A
-feature declares seven fact categories instead of a plain list of questions,
-so the user sees the plan before it is built.
+feature declares fact categories instead of a plain list of questions, so the
+user sees the plan before it is built.
 
-## The seven categories
+## The categories
 
 - `inputs`: inputs and limits.
 - `uniqueness`: uniqueness and normalization.
@@ -13,6 +13,13 @@ so the user sees the plan before it is built.
 - `url-state`: state in the URL.
 - `accessibility`: accessibility.
 - `errors`: errors.
+
+A project that has code and no UI file (`.html`, `.css`, `.scss`, `.jsx`,
+`.tsx`, `.vue`, `.svelte`, `.astro` and the like) leaves out `url-state` and
+`accessibility`, unless the plan declares a UI file. A project without code
+covers all seven. Before the first `record intent`, `ospec next` prints the
+template of this project: one `--open-fact <category>:"<question>"` per
+category it covers. Fill it in.
 
 ## How each one is covered
 

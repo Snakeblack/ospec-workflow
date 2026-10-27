@@ -15,9 +15,11 @@ const {
   ARCHIVE_ROOT,
   CHANGE_ID_PATTERN,
   CHANGE_ROOT,
+  DECISIONS_MARKERS,
   EVIDENCE_MARKERS,
   LIVING_DOC_FILE,
   LIVING_DOC_SECTIONS,
+  PLAN_MARKERS,
   STATE_FIELDS,
   STATE_FILE,
   validateState,
@@ -102,27 +104,66 @@ async function listChanges(root) {
   return states;
 }
 
+// The declared plan and decisions as the CLI writes them (E4.16).
+function planLines(plan) {
+  if (!plan) return [];
+  const lines = [];
+  if (plan.paths.length > 0) lines.push(`- Files: ${plan.paths.map((file) => `\`${file}\``).join(", ")}`);
+  if (plan.work_units > 1) lines.push(`- Work units: ${plan.work_units}`);
+  if (plan.operations.length > 0) lines.push(`- Operations: ${plan.operations.join(", ")}`);
+  return lines;
+}
+
+function decisionLines(plan, eol) {
+  return (plan?.decisions || []).map((text) => `- ${text.replace(/\r?\n/g, `${eol}  `)}`);
+}
+
+// Rewrites only the text between one pair of markers, keeping the file's line
+// endings; a document without them stays as it is.
+function renderBlock(text, markers, lines, eol) {
+  const start = text.indexOf(markers.start);
+  const end = text.indexOf(markers.end, start);
+  if (start === -1 || end === -1) return text;
+  const body = lines.length ? `${eol}${lines.join(eol)}${eol}` : eol;
+  return `${text.slice(0, start + markers.start.length)}${body}${text.slice(end)}`;
+}
+
+function renderLivingDoc(text, state) {
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const planned = renderBlock(text, PLAN_MARKERS, planLines(state.plan), eol);
+  return renderBlock(planned, DECISIONS_MARKERS, decisionLines(state.plan, eol), eol);
+}
+
 function livingDocTemplate(state) {
-  const [intentHeading, ...rest] = LIVING_DOC_SECTIONS;
+  const [intentHeading, planHeading, decisionsHeading, evidenceHeading] = LIVING_DOC_SECTIONS;
   const lines = [`# ${state.change}`, "", `## ${intentHeading}`, "", state.intent.summary, "", `Acceptance: ${state.intent.acceptance}`, ""];
-  for (const heading of rest) {
-    lines.push(`## ${heading}`, "");
-  }
-  lines.push(EVIDENCE_MARKERS.start, EVIDENCE_MARKERS.end, "");
-  return lines.join("\n");
+  lines.push(`## ${planHeading}`, "", PLAN_MARKERS.start, PLAN_MARKERS.end, "");
+  lines.push(`## ${decisionsHeading}`, "", DECISIONS_MARKERS.start, DECISIONS_MARKERS.end, "");
+  lines.push(`## ${evidenceHeading}`, "", EVIDENCE_MARKERS.start, EVIDENCE_MARKERS.end, "");
+  return renderLivingDoc(lines.join("\n"), state);
 }
 
 // The living document exists only while living-doc is active (REQ-idd-002)
-// and is created once from the template; the model owns its first sections.
-async function ensureLivingDoc(root, state) {
+// and is created once from the template. The model owns its sections; after
+// each write the CLI rewrites the plan and decisions between its markers.
+async function ensureLivingDoc(root, state, writeFile) {
   const active = state.obligations.some((o) => o.id === "living-doc" && o.status !== "withdrawn");
   if (!active) return;
   const file = path.join(changeDir(root, state.change), LIVING_DOC_FILE);
+  let text;
   try {
-    await fs.writeFile(file, livingDocTemplate(state), { encoding: "utf8", flag: "wx" });
+    text = await fs.readFile(file, "utf8");
   } catch (error) {
-    if (error.code !== "EEXIST") throw error;
+    if (error.code !== "ENOENT") throw error;
+    try {
+      await fs.writeFile(file, livingDocTemplate(state), { encoding: "utf8", flag: "wx" });
+    } catch (created) {
+      if (created.code !== "EEXIST") throw created;
+    }
+    return;
   }
+  const rendered = renderLivingDoc(text, state);
+  if (rendered !== text) await writeFile(file, rendered);
 }
 
 async function mutateChange(root, changeId, reducer, { writeFile = writeFileAtomic } = {}) {
@@ -142,7 +183,7 @@ async function mutateChange(root, changeId, reducer, { writeFile = writeFileAtom
       });
       await writeFile(file, serializeState(result.state));
     }
-    await ensureLivingDoc(root, result.state);
+    await ensureLivingDoc(root, result.state, writeFile);
     return result;
   });
 }
