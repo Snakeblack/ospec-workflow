@@ -1,0 +1,78 @@
+{
+  "schema": "idd-state/v1",
+  "change": "roadmap-order-e1-55-e5-12",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "El roadmap coloca E1.55 atomic-write-concurrent-rename en el bloque A y acepta E5.12 progress-snapshot-v3, un encargo de otra sesión: sigue E1.55, después E5.12 y después E4.10",
+    "acceptance": "docs/roadmaps/harness-evolution.md pone E1.55 en el bloque A antes de E4.10, tiene la fila y la sección de E5.12 pendiente (snapshot v3 con la etapa de entrega de cada fase done sacada del changelog), el orden ▶, el diagrama y el historial con ese orden, y la sección E1.55 recoge el segundo fallo en la PR #442"
+  },
+  "facts": {
+    "basis": "El usuario respondió 'si, haz lo recomendado' a la recomendación E1.55 → S2d (E5.12) → E4.10, con S2d en una sesión nueva; el precedente de E5.11 fija el formato de la sección, agnóstica respecto al consumidor"
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-27T08:53:26.247Z",
+      "detail": {
+        "tree": "sha256:ed1f4b9ea6fa2f7a3a204fd202e5f746f74a22e4264db2fd584c9854181a1b33",
+        "runs": [
+          "run-2"
+        ]
+      }
+    }
+  ],
+  "base": "192eb8ff4cab2ac66d789a52835b16451a0a775e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:6023f7404b833dc198c86a9b5183b86dd94b998255721a1d17d20bfbb62dd00f",
+      "tree": "sha256:ed1f4b9ea6fa2f7a3a204fd202e5f746f74a22e4264db2fd584c9854181a1b33",
+      "recorded_at": "2026-10-27T08:12:28.041Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4354f8451f7c6e4363c9d50239dbe0e3264e4573ad3caf656730d500f905637a",
+      "tree": "sha256:ed1f4b9ea6fa2f7a3a204fd202e5f746f74a22e4264db2fd584c9854181a1b33",
+      "recorded_at": "2026-10-27T08:53:26.247Z"
+    }
+  ],
+  "closed_at": "2026-10-27T08:53:33.797Z"
+}

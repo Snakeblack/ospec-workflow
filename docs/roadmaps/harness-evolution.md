@@ -175,7 +175,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.51** | `open-change-nudge` (Stop pide continuar una vez si queda un cambio sin `close` y SessionStart inyecta su paso) | feature |
 | `pending` | **E1.52** | `review-frozen-tree` (revisor sobre el árbol congelado, `relayed` no basta donde hay recibos y fuera el linaje sin uso) | bugfix |
 | `pending` | **E1.54** | `lock-reclaim-rename` (residuo de E1.46: un lock caducado se reclama por rename atómico, así que dos procesos que lo reclaman a la vez no se creen dueños los dos; prioridad baja, fuera del orden ▶) | bugfix |
-| `pending` | **E1.55** | `atomic-write-concurrent-rename` (residuo de E1.46: en Windows, el fallback de `writeFileAtomic` aguanta dos escritores sin lock del mismo fichero, sin fallar con `ENOENT` ni dejar un `.bak`; fuera del orden ▶) | bugfix |
+| `pending` | **E1.55** | `atomic-write-concurrent-rename` (residuo de E1.46: en Windows, el fallback de `writeFileAtomic` aguanta dos escritores sin lock del mismo fichero, sin fallar con `ENOENT` ni dejar un `.bak`; en el bloque A, por delante de E4.10) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -211,19 +211,20 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E5.9** | `installer-tui-and-skill-profiles` (propuesta de #348: TUI coherente y perfiles de skills instalables; fuera de la cola actual) | feature |
 | `done` | **E5.10** | `progress-snapshot` (`ospec snapshot` exporta bajo demanda el snapshot de avance v1 de un proyecto: las fases de su roadmap con el estado que les dan sus cambios IDD y SDD; ningún flujo, hook ni check lo ejecuta; el ADR 0012 enmienda el 0009 para los documentos exportados con formato cerrado, en v2.154.0) | feature |
 | `done` | **E5.11** | `progress-snapshot-v2` (`ospec snapshot --schema-version 2` exporta el snapshot de avance v2: las fases del roadmap con sus tramos y, desde un fichero de avance opcional en Markdown, los textos para el cliente de cada tramo y fase, sus tareas, fechas, resultados y versión de prueba, y las peticiones al cliente; el v1 sigue siendo el de por defecto, en v2.158.0) | feature |
+| `pending` | **E5.12** | `progress-snapshot-v3` (`ospec snapshot --schema-version 3` exporta el v2 más la etapa de entrega de cada fase `done`, en pruebas o en producción con su versión y fecha, sacada del changelog que declara `delivery.changelog`; el v1 y el v2 no cambian) | feature |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
 **▶ SIGUIENTE:** el orden que sale de la [auditoría del harness frente a gentle-ai del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Mantiene la decisión del usuario del 2026-10-23 (primero los defectos del harness, el banco después) y la del 2026-10-25: un change por sesión, y todo funciona en los 7 targets. Hasta la v2.151.0, la cola anterior dejó hechos E1.29, E1.31, E1.32 y E1.34–E1.41 y E4.12.
 
-E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1, E1.43 `close-revalidates-state` en v2.153.2 y E1.44 `ceremony-only-rises` en v2.153.3. E5.10 `progress-snapshot`, que el usuario pidió el 2026-10-26 por delante de E1.53, quedó hecho en v2.154.0, E1.53 `config-only-rises` en v2.154.1, E1.45 `cli-one-word-invocation` en v2.155.0, E1.46 `state-durability` en v2.156.0 y E1.47 `memory-loop-visible` en v2.157.0. E5.11 `progress-snapshot-v2`, que el usuario aceptó el 2026-10-26 por delante de E4.10, quedó hecho en v2.158.0; sigue E4.10 `greenfield-foundation-hint`, el último del bloque A.
+E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1, E1.43 `close-revalidates-state` en v2.153.2 y E1.44 `ceremony-only-rises` en v2.153.3. E5.10 `progress-snapshot`, que el usuario pidió el 2026-10-26 por delante de E1.53, quedó hecho en v2.154.0, E1.53 `config-only-rises` en v2.154.1, E1.45 `cli-one-word-invocation` en v2.155.0, E1.46 `state-durability` en v2.156.0 y E1.47 `memory-loop-visible` en v2.157.0. E5.11 `progress-snapshot-v2`, que el usuario aceptó el 2026-10-26 por delante de E4.10, quedó hecho en v2.158.0. El 2026-10-27 el usuario colocó E1.55 `atomic-write-concurrent-rename` en el bloque A, por delante de E4.10, y aceptó detrás E5.12 `progress-snapshot-v3`: sigue E1.55, después E5.12 y después E4.10 `greenfield-foundation-hint`, el último del bloque A.
 
-1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.53 `config-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E4.10 `greenfield-foundation-hint`.
+1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.53 `config-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E1.55 `atomic-write-concurrent-rename` → E4.10 `greenfield-foundation-hint`.
 2. **B. Economía**, antes que C porque C añade una ejecución de la suite: E4.15 `cli-chaining` → E4.16 `cli-terse-output` → E4.3 `context-budget-ratchet`, que fija los techos por target después de B.
 3. **E4.17** `bench-knowledge-scenarios`: escribe y congela escenarios sin correrlos. Es una excepción acotada a «banco después», decidida por el usuario el 2026-10-25 para que C no se ajuste sobre ellos.
 4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.50 `content-security-signal` → E1.51 `open-change-nudge` → E1.52 `review-frozen-tree` → E3.7 `fact-ledger`.
 5. **D. Banco, todo junto.** E4.14 `bench-validation-readiness` (con el doble conteo) → corrida de validación de E4.6 en Claude y agy → E4.4, recalculando antes su premisa → E4.13 `worker-delegation`, solo si E4.4 da evidencia (decisión del usuario del 2026-10-22) → E4.11 `workspace-root-resolution`, al final de la cola.
 
-E1.54 `lock-reclaim-rename`, residuo de E1.46 anotado el 2026-10-26, tiene prioridad baja y queda fuera del orden ▶ hasta que el usuario lo coloque. E1.55 `atomic-write-concurrent-rename`, otro residuo de E1.46 anotado el 2026-10-27, también queda fuera del orden ▶ hasta que el usuario lo coloque.
+E1.54 `lock-reclaim-rename`, residuo de E1.46 anotado el 2026-10-26, tiene prioridad baja y queda fuera del orden ▶ hasta que el usuario lo coloque. E1.55 `atomic-write-concurrent-rename`, otro residuo de E1.46 anotado el 2026-10-27, entró ese mismo día en el bloque A porque su flake ya había roto dos de las cuatro ejecuciones de Windows desde v2.158.0.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -320,9 +321,10 @@ E4.12 (independiente; arregla también los agentes actuales) ──┴─ E4.13
 
 E5.10 (petición del usuario del 2026-10-26, por delante de E1.53)
 E5.11 (aceptado por el usuario el 2026-10-26, por delante de E4.10)
+E5.12 (aceptado por el usuario el 2026-10-27, detrás de E1.55 y por delante de E4.10)
 
 Auditoría del 2026-10-25 (un change por sesión, en este orden):
-A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E4.10
+A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.55 ─ E4.10
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
 C: E1.48 ─ E1.49 ─ E1.50 ─ E1.51 ─ E1.52 ─ E3.7
@@ -1009,6 +1011,7 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 - **Problema:**
   - En Windows, renombrar sobre un destino que otro proceso está sustituyendo falla con `EPERM`. Entonces `writeFileAtomic` (`scripts/lib/atomic-write.js`) aparta el destino a `<destino>.bak`, renombra su temporal y borra el `.bak`. Ese `.bak` es el mismo para todos los escritores.
   - Si dos escritores del mismo fichero entran a la vez en ese fallback, uno puede apartar el destino justo antes que el otro, y el segundo recibe `ENOENT` y su escritura falla. Así falló en `main` tras v2.158.0 el test de 20 escritores sin lock (run [40428047045](https://github.com/Snakeblack/ospec-workflow/actions/runs/40428047045)): `ENOENT: … rename 'state.yaml' -> 'state.yaml.bak'`, en `atomic-write.js:118`.
+  - Volvió a fallar igual en la PR [#442](https://github.com/Snakeblack/ospec-workflow/pull/442), que solo cambiaba documentación (run [40431186194](https://github.com/Snakeblack/ospec-workflow/actions/runs/40431186194)), y pasó al relanzar el job: dos fallos en las cuatro ejecuciones de ese shard de Windows desde v2.158.0.
   - Desde E1.46 cada escritor tiene su temporal, pero solo el estado IDD (`scripts/lib/ospec-state.js`) se escribe bajo el lock. Otros escritores, como los hooks `stop.js` y `pre-compact.js`, no toman ninguno.
 - **Garantía que protege:** estado en disco y reanudación (escenario `deterministic-resume`), y la puerta «publicar solo con CI verde» de E1.30.
 - **Alcance:**
@@ -1513,6 +1516,22 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
   - Errores: `progress-invalid` y `progress-missing`, además de los del v1, siempre con código 1 y sin escribir nada. Solo se informa del primer error.
 - **Entregado en v2.158.0:** REQ-idd-026 describe el v2, con el esquema `schemas/progress-snapshot/v2.schema.json` y sus fixtures; sus reglas son las mismas que las del esquema del consumidor. `scripts/lib/progress-snapshot-v2.js` lee los tramos y el fichero de avance y valida el v2 antes de emitirlo. `ospec snapshot` añade `--schema-version` y `--progress`, y `docs/README.md` explica el fichero y su publicación.
 
+### E5.12 — `progress-snapshot-v3`
+
+- **Origen:** encargo de otra sesión del 2026-10-27, aceptado por el usuario detrás de E1.55 y por delante de E4.10.
+- **Problema:** el v2 dice que una fase está `done`, pero en un proyecto que publica el snapshot desde su rama de integración, terminado no es en producción: a la rama principal solo llega lo que el cliente ya usa. El snapshot no dice si una fase hecha está en pruebas o en producción, ni con qué versión llegó.
+- **Alcance:**
+  - `ospec snapshot --schema-version 3` emite el v2 tal cual más `release` en las fases `done`, con el esquema `schemas/progress-snapshot/v3.schema.json`: `{"stage":"testing"}` o `{"stage":"production","version":"x.y.z","date":"YYYY-MM-DD"}`. Las fases que no son `done` nunca lo llevan.
+  - La etapa sale del changelog que declara `delivery.changelog`: para cada cambio archivado de la fase, su entrada `(<change-id>)`, la que escribe `ospec close`, que puede ocupar varias líneas sangradas. Bajo `## [Unreleased]` o bajo una versión pre-release es `testing`; bajo `## [x.y.z] - YYYY-MM-DD`, `production` con esa versión y esa fecha.
+  - Con varios cambios en la fase manda el menos avanzado y, en producción, la versión mayor con su fecha. Un cambio sin entrada no cuenta, y una fase `done` sin ninguna entrada sale sin `release`, como en el v2.
+  - El v1 y el v2 no cambian, y solo corre bajo demanda, como ellos.
+- **Targets:** los 7, por el CLI común; ningún adaptador cambia.
+- **Hecho cuando:**
+  - con `--schema-version 3`, la orden emite un snapshot que cumple el esquema v3, con las mismas reglas que el contrato del consumidor;
+  - una entrada bajo dos encabezados distintos, o un encabezado `x.y.z` sin fecha o con una fecha que no existe, termina con código 1, el fichero y la línea, y sin escribir nada; sin changelog, las fases `done` salen sin `release` y sin error;
+  - la documentación dice que el snapshot solo ve producción cuando el encabezado de la versión llega a la rama que lee.
+- **Pendiente:** la sintaxis exacta y el resto de errores se cierran con el usuario en el gate `open-facts` del cambio, como en E5.11.
+
 ## Aparcado (con criterio de reapertura)
 
 Se conserva el código y la documentación; no recibe inversión mientras no se cumpla el criterio.
@@ -1561,6 +1580,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-27: orden de E1.55 y E5.12 (IDD, `roadmap-order-e1-55-e5-12`, solo documentación). El usuario coloca E1.55 `atomic-write-concurrent-rename` en el bloque A, por delante de E4.10, porque su flake volvió a romper el job de Windows en la PR #442 (run 40431186194), y acepta detrás E5.12 `progress-snapshot-v3`, un encargo de otra sesión. E5.12 añade al v2 la etapa de entrega de cada fase hecha, en pruebas o en producción con su versión y fecha, sacada del changelog. Sigue E1.55, después E5.12 y después E4.10.
 - 2026-10-27: E1.55 (IDD, `e1-55-atomic-write-race-note`, solo documentación). El roadmap anota `atomic-write-concurrent-rename`, otro residuo de E1.46: tras el merge de E5.11, el test de 20 escritores sin lock de `atomic-write` falló en Windows en `main` (run 40428047045) con `ENOENT` al apartar el destino a su `.bak`, y Publish Marketplace subió v2.158.0 tras relanzar el job. La causa es el `.bak` compartido del fallback de Windows, y la sufre cualquier escritor sin lock, no solo el test. Fuera del orden ▶ hasta que el usuario lo coloque; E1.30 recoge el flake.
 - 2026-10-27: `progress-snapshot-v2` (IDD), publicado en v2.158.0. E5.11 hecho, por delante de E4.10 a petición del usuario. Con `--schema-version 2`, `ospec snapshot` exporta el snapshot de avance v2. Lleva las fases del v1, con el mismo estado y orden, más los tramos del roadmap (sus `##` con tablas de fases) y los textos para el cliente de un fichero de avance opcional, `docs/progress.md` o `--progress`. Ese fichero va en Markdown y en el idioma del proyecto, con palabras clave fijas en inglés. Un fichero de avance fuera de formato, con una fase o un tramo que el roadmap no tiene, o con una tarea sin marcar en una fase `done` sale con código 1, `progress-invalid`, el fichero y la línea, sin escribir nada. Sin la opción, el v1 no cambia. Sigue E4.10.
 - 2026-10-26: `lock-heartbeat-test-margin` (IDD), publicado en v2.157.1, dentro de E1.30. Tras el merge de E1.47, el test del heartbeat del lock de E1.46 falló en Windows en `main` (run 40403581014) y bloqueó Publish Marketplace hasta relanzar el job. El test JS y su gemelo de Go pasan a 1000 ms de caducidad, heartbeat de 50 ms y 1500 ms de trabajo del dueño, y el de JS añade una pausa de 250 ms del bucle de eventos que reproduce el fallo con los márgenes anteriores; producción no cambia. E1.30 sigue abierto. Sigue E5.11 `progress-snapshot-v2`, que entra en el roadmap con su propio cambio.
