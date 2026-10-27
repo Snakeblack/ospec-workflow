@@ -7,12 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- El roadmap anota E1.55 atomic-write-concurrent-rename, residuo de E1.46: en Windows, el fallback de writeFileAtomic falla con ENOENT o deja un .bak cuando dos escritores sin lock escriben el mismo fichero a la vez, como en el flake de main tras v2.158.0 (e1-55-atomic-write-race-note)
-- El roadmap coloca E1.55 atomic-write-concurrent-rename en el bloque A y acepta E5.12 progress-snapshot-v3, un encargo de otra sesión: sigue E1.55, después E5.12 y después E4.10 (roadmap-order-e1-55-e5-12)
+## [2.158.1] - 2026-10-27
 
 ### Fixed
-- El Chromium headless del banco no carga ninguna página http cuando el llavero del escritorio (org.freedesktop.secrets por D-Bus) no responde, porque cifra las cookies con una clave que pide al llavero antes de su primera petición de red; además, cuando una página no carga, el check-runner muere por un rechazo no gestionado y deja el navegador y su perfil huérfanos (bench-browser-keyring)
+- **Los checks de Chromium del banco ya no dependen del llavero del escritorio** (E1.56). Antes de su primera petición, Chromium pide al llavero, por D-Bus, la clave con la que cifra las cookies. Tras algunos arranques el llavero no respondía, y ninguna página cargaba, tampoco de `127.0.0.1`: los checks de `checks-greenfield.test.js` fallaban con `the page did not finish loading` y `ospec check` no pasaba en local. El navegador arranca ahora con `--password-store=basic` (Linux) y `--use-mock-keychain` (macOS), como Puppeteer; su perfil es desechable y cada plataforma ignora la opción de la otra. En CI no se veía, porque un runner sin escritorio ya usa el almacén básico (bench-browser-keyring).
+- **Un check cuya página no carga ya no deja su navegador huérfano.** Cuando una navegación no respondía, `open()` y `reload()` dejaban el plazo de carga rechazado sin nadie esperándolo, y Node terminaba el check runner antes de cerrar el navegador y borrar su perfil: una ejecución del fichero dejaba unos 330 procesos y 33 perfiles de 149 MB en `/tmp`. Ahora esperan a la vez la carga y el comando, y el check falla con su error y limpia lo suyo.
+
+### Changed
+- **Tests:** `browser.test.js` fija las dos opciones del arranque y que una navegación sin respuesta falla con `the page did not finish loading`; `createPage` se exporta con `loadTimeoutMs` para que ese test tarde 50 ms.
+- El roadmap anota E1.55 atomic-write-concurrent-rename, residuo de E1.46: en Windows, el fallback de writeFileAtomic falla con ENOENT o deja un .bak cuando dos escritores sin lock escriben el mismo fichero a la vez, como en el flake de main tras v2.158.0 (e1-55-atomic-write-race-note)
+- El roadmap coloca E1.55 atomic-write-concurrent-rename en el bloque A y acepta E5.12 progress-snapshot-v3, un encargo de otra sesión: sigue E1.55, después E5.12 y después E4.10 (roadmap-order-e1-55-e5-12)
+- El roadmap anota E1.56 bench-browser-keyring en el bloque A, por delante de E1.55.
+- **Roadmap:** E1.56 queda hecho y sigue E1.55 `atomic-write-concurrent-rename`.
+
+Hecho con IDD (`idd/archive/2026-10-27-bench-browser-keyring/`). La reproducción fueron los checks reales de Chromium del corpus greenfield, con el llavero de la máquina sin responder: en rojo fallaban los 32 y quedaban 330 procesos huérfanos, y en verde pasan sin dejar navegadores ni perfiles.
+
+**Verificación directa**: `node scripts/check.js` (4177 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.158.0] - 2026-10-27
 
