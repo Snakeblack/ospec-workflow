@@ -7,8 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.160.0] - 2026-10-27
+
 ### Added
-- ospec next y record intent sugieren, sin bloquear, la skill foundation en un proyecto sin código fuente ni docs/product ni docs/architecture, y la skill idd se la ofrece al usuario como opción (greenfield-foundation-hint)
+- **`ospec next` y `record intent` sugieren la skill `foundation` en un proyecto que aún no tiene código** (E4.10). Un proyecto vacío pasaba directamente a construir, sin registrar antes sus decisiones de producto y arquitectura. Ahora:
+  - Mientras ningún fichero que git ve bajo la raíz (versionado, o sin versionar y no ignorado, fuera de `idd/` y `.ospec/`) es código de producto o test según lo clasifican las señales, y no hay nada en `docs/product/` ni `docs/architecture/`, `next` lleva la entrada `foundation` en `suggestions`. Manifiestos, README, `LICENSE` y configuración no cuentan como código.
+  - Solo sale antes de construir: sin cambio abierto, o en un cambio cuyo paso es `open-change`, `resolve-gate` o `declare-plan`. `record intent` la devuelve en su `next`, y la salida de texto la imprime como `suggestion foundation: …`.
+  - No bloquea: no cambia el paso ni el código de salida, no guarda el rechazo y desaparece en cuanto hay código. git solo se consulta en los pasos que la ofrecen, y si no puede listar los ficheros no hay sugerencia ni error.
+  - La skill `idd` (`references/architecture.md`) la ofrece al usuario una vez, como opción, y sigue con el cambio si la rechaza. REQ-idd-011 la especifica con su escenario.
+
+### Changed
+- **Documentación:** la sección Foundation del README explica la sugerencia.
+- **Roadmap:** E4.10 anota este avance y sigue `pending`. Su medición en `todo-spa` y `receta-spa` pasa al bloque D, detrás de la corrida de validación de E4.6, y sigue el bloque B con E4.15 `cli-chaining`.
+
+Hecho con IDD (`idd/archive/2026-10-27-greenfield-foundation-hint/`). Un test recorre los repos de los escenarios del banco: la sugerencia sale en `todo-spa` y `receta-spa` y en ninguno de los siete que tienen código.
+
+**Verificación directa**: `node scripts/check.js` (4197 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.159.1] - 2026-10-27
 
