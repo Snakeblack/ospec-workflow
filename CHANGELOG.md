@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - El roadmap anota E1.55 atomic-write-concurrent-rename, residuo de E1.46: en Windows, el fallback de writeFileAtomic falla con ENOENT o deja un .bak cuando dos escritores sin lock escriben el mismo fichero a la vez, como en el flake de main tras v2.158.0 (e1-55-atomic-write-race-note)
 - El roadmap coloca E1.55 atomic-write-concurrent-rename en el bloque A y acepta E5.12 progress-snapshot-v3, un encargo de otra sesión: sigue E1.55, después E5.12 y después E4.10 (roadmap-order-e1-55-e5-12)
 
+### Fixed
+- El Chromium headless del banco no carga ninguna página http cuando el llavero del escritorio (org.freedesktop.secrets por D-Bus) no responde, porque cifra las cookies con una clave que pide al llavero antes de su primera petición de red; además, cuando una página no carga, el check-runner muere por un rechazo no gestionado y deja el navegador y su perfil huérfanos (bench-browser-keyring)
+
 ## [2.158.0] - 2026-10-27
 
 ### Added
