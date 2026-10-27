@@ -7,8 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.159.0] - 2026-10-27
+
 ### Added
-- ospec snapshot --schema-version 3 emite el snapshot de avance v3: el v2 tal cual más la etapa de entrega de cada fase done (en pruebas, o en producción con su versión y su fecha), sacada de las entradas (<change-id>) del changelog que declara delivery.changelog; el v1 y el v2 no cambian (progress-snapshot-v3)
+- **`ospec snapshot --schema-version 3`: el snapshot de avance v3, con la etapa de entrega de cada fase hecha** (E5.12). El v2 dice que una fase está `done`, pero un proyecto que publica su avance desde la rama de integración no distinguía lo que el cliente aún prueba de lo que ya usa en producción. El v3 es el v2 tal cual, más `release` en cada fase `done`:
+  - `{"stage":"testing"}` si está en pruebas, o `{"stage":"production","version":"x.y.z","date":"YYYY-MM-DD"}` con la versión y la fecha que la llevaron a producción. Las fases que no son `done` nunca lo llevan.
+  - La etapa sale del changelog que declara `delivery.changelog` en `idd/config.yaml`, por las entradas que `ospec close` escribe con el id del cambio al final, `- <resumen> (<cambio>)`. Bajo `## [Unreleased]` o una versión pre-release es `testing`; bajo `## [x.y.z] - YYYY-MM-DD`, `production`. Con varios cambios en la fase manda el menos avanzado y, en producción, la versión mayor con su fecha.
+  - Sin changelog declarado, con `none` o sin el fichero, las fases salen sin `release` y sin error. El informe de `--out` añade `changelog`, la ruta leída o null.
+  - El esquema es `schemas/progress-snapshot/v3.schema.json`, con un fixture válido y uno inválido, y REQ-idd-026 lo especifica. El v1 y el v2 no leen el changelog y salen byte a byte igual.
+- **Un changelog que no decide la etapa no se publica.** Solo se comprueba lo que decide una etapa, así que la historia antigua puede tener otro formato. Se rechaza con código 1, `changelog-invalid`, el fichero y la línea del primer problema:
+  - una entrada que cuenta bajo dos encabezados, antes del primer `##` o bajo un `##` que no es `[Unreleased]` ni una versión;
+  - un encabezado que la contiene sin fecha, con una fecha que no existe o con algo detrás de ella (`[YANKED]`), o con una versión con ceros a la izquierda, `+build` o repetida.
+
+  Un `idd/config.yaml` ilegible da `config-invalid`, solo en el v3. No se escribe nada.
+
+### Changed
+- **Documentación:** `docs/README.md` explica el v3: de dónde sale la etapa, qué da cada encabezado, sus errores y que producción solo se ve cuando el encabezado de la versión llega a la rama que se lee.
+- **Roadmap:** E5.12 queda hecho y sigue E4.10 `greenfield-foundation-hint`, el último del bloque A.
+
+Hecho con IDD (`idd/archive/2026-10-27-progress-snapshot-v3/`). Un test de compatibilidad fija que el v1 y el v2 no cambian aunque el changelog esté roto. Contra un proyecto real con versiones publicadas, el v3 que sale pasa el esquema y el validador del consumidor.
+
+**Verificación directa**: `node scripts/check.js` (4192 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.158.2] - 2026-10-27
 
