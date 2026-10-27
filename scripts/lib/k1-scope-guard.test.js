@@ -240,6 +240,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E5.12 the progress snapshot v3, with the delivery stage from the changelog.
   "scripts/lib/progress-snapshot-v3.js",
   "scripts/lib/progress-snapshot-v3.test.js",
+  // E5.13 the progress snapshot v4, with the documentation and the decisions.
+  "scripts/lib/progress-snapshot-v4.js",
+  "scripts/lib/progress-snapshot-v4.test.js",
   "scripts/lib/idd-catalog.js",
   "scripts/lib/idd-catalog.test.js",
   // E1.7 (a) ospec doctor and the read-only Engram detection it shares with

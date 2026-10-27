@@ -31,6 +31,8 @@ const REFUSALS = Object.freeze({
   "cite-unresolved": "cite path:line of a file inside the project, from the documentation or the code that settles the category, or ask it as an --open-fact",
   "close-refused": "settle what the message lists, run ospec check --change <id>, then ospec close --change <id> again",
   "config-invalid": "fix idd/config.yaml as the message says (JSON text, valid YAML 1.2), keeping its other keys, then run the command again",
+  "decisions-invalid":
+    "fix the ADR header at the line the message names ('# NNNN. <title>', '- Status:' and '- Date:'), or give its decision a reason under '## Decisions' of the progress file",
   "evidence-conflict": { byDesign: CLI_ONLY },
   "evidence-id-required": { byDesign: CLI_ONLY },
   "evidence-kind-mismatch": { byDesign: CLI_ONLY },

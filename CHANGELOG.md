@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.163.0] - 2026-10-27
+
+### Added
+- **Snapshot de avance v4 con la documentación del proyecto** (E5.13). `ospec snapshot --schema-version 4` emite el v3 tal cual más seis campos opcionales de la raíz, escritos para el cliente: `problem`, `objectives`, `includes`, `excludes`, `deliverables` y `decisions`. Su esquema es `schemas/progress-snapshot/v4.schema.json`, con las mismas reglas que el contrato del consumidor. Cada campo sale solo si tiene contenido, y ningún documento se publica tal cual (progress-snapshot-v4).
+  - El fichero de avance gana seis secciones, cada una una vez como mucho y con un `###` por elemento: `## Problem` con un párrafo; `## Objectives`, `## Excludes` y `## Deliverables` con un `### <título>` y su párrafo (cómo se mide, por qué se queda fuera o el resumen), y en los entregables `- phase: <ID>` y `- url:`; `## Includes` con un `- <texto>` por elemento; y `## Decisions` con `### NNNN. <título para el cliente>` o `### NNNN`, el motivo en su párrafo o `- internal`.
+  - Las decisiones salen de los ADRs `accepted` y `superseded by NNNN` de `docs/architecture/decisions/`, con la plantilla de `foundation`, ordenadas por número. Llevan su fecha, su estado, `supersededBy` cuando la sustituta se publica y las fases cuya columna `ADRs` del roadmap las nombra, en el orden del roadmap. Los ADRs no se tocan, y otras líneas de su cabecera, como `- Amends:`, no cambian nada. Sin la carpeta no hay decisiones ni error.
+  - Un ADR sin encabezado, con un número distinto del de su fichero o repetido, sin estado o con otro, o con un `superseded by` hacia una sustituta que no existe o no es mayor sale con `decisions-invalid`, el ADR y la línea. Lo mismo pasa con un ADR publicado sin fecha o sin motivo para el cliente. Una celda `ADRs` fuera de formato o con un ADR que no existe sale con `roadmap-invalid`, y el fichero de avance fuera de su sintaxis con `progress-invalid`, siempre con código 1 y sin escribir nada. Más de 100 decisiones publicadas dan `snapshot-limit`.
+  - El informe de `--out` añade `decisions`, la carpeta leída o null.
+
+### Changed
+- **El v1, el v2 y el v3 no cambian.** El v2 y el v3 siguen rechazando las secciones nuevas del fichero de avance con el `progress-invalid` de antes, así que el fichero con esas secciones y `--schema-version 4` van juntos.
+- **Contrato:** REQ-idd-026 describe el v4 con dos escenarios nuevos; el catálogo de rechazos gana la pista de `decisions-invalid`.
+- **Documentación:** `docs/README.md` explica las secciones nuevas, de dónde salen las decisiones y sus fases, y que un ADR nuevo aceptado hace fallar el snapshot hasta que tiene su motivo o se marca interno.
+- **Roadmap:** E5.13 queda `done`; sigue E4.3 `context-budget-ratchet`.
+
+Hecho con IDD (`idd/archive/2026-10-27-progress-snapshot-v4/`). El v4 que sale del fichero de avance real de un proyecto consumidor, con sus 8 ADRs, cumple el esquema; el ejemplo válido del contrato pasa y el inválido se rechaza.
+
+**Verificación directa**: `node scripts/check.js` (4234 tests pasando, 0 fallos y 5 omitidos).
+
 ## [2.162.0] - 2026-10-27
 
 ### Added

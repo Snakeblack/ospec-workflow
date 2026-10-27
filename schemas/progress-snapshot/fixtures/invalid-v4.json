@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 4,
+  "phases": [
+    {
+      "id": "s1a",
+      "title": "Platform",
+      "status": "done"
+    },
+    {
+      "id": "m1",
+      "title": "Docs",
+      "status": "in-progress"
+    }
+  ],
+  "problem": "",
+  "objectives": [
+    {
+      "title": "Clients see how their project goes"
+    }
+  ],
+  "includes": [
+    ""
+  ],
+  "excludes": [
+    {
+      "title": "Online payments",
+      "reason": "Payments keep their usual channels.",
+      "owner": "the team"
+    }
+  ],
+  "deliverables": [
+    {
+      "title": "The client area",
+      "phase": "s1a",
+      "url": "http://clients.example.com/"
+    }
+  ],
+  "decisions": [
+    {
+      "number": 1,
+      "title": "A web app",
+      "date": "2026-01-05",
+      "status": "proposed",
+      "reason": "Nothing to install."
+    },
+    {
+      "number": 2,
+      "title": "Orders by email",
+      "date": "2026-01-09",
+      "status": "accepted",
+      "supersededBy": 3,
+      "reason": "The whole path worked at once."
+    },
+    {
+      "number": 3,
+      "title": "Orders to the ERP",
+      "date": "2026-02-01",
+      "status": "accepted",
+      "reason": "Nobody types an order twice.",
+      "phases": [
+        "m1",
+        "m1"
+      ]
+    },
+    {
+      "number": 0,
+      "title": "Numbered from zero",
+      "date": "2026-02-02",
+      "status": "accepted",
+      "reason": "Out of the range."
+    }
+  ]
+}

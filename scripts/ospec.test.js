@@ -2577,7 +2577,7 @@ test("[REQ-idd-026] snapshot v2 --out reports its version and the progress file 
 
 test("[REQ-idd-026] snapshot refuses a bad version, --progress without the v2 and a progress file out of its syntax, writing nothing", (t) => {
   const root = snapshotV2Project(t, SNAPSHOT_V2_PROGRESS.replace("- [x] domain", "- [ ] domain"));
-  for (const args of [["--schema-version", "4"], ["--progress", "docs/progress.md"]]) {
+  for (const args of [["--schema-version", "5"], ["--progress", "docs/progress.md"]]) {
     const result = ospec(root, "snapshot", ...args, "--out", "snapshot.json");
     assert.strictEqual(result.code, 2, result.stderr);
     assert.match(result.stderr, /\(usage\)/);
@@ -2649,6 +2649,61 @@ test("[REQ-idd-026] snapshot v3 refuses a changelog that cannot decide a stage, 
   assert.ok(!fs.existsSync(path.join(root, "snapshot.json")));
   // The v2 reads neither.
   assert.strictEqual(ospec(root, "snapshot", "--schema-version", "2").code, 0);
+});
+
+// E5.13 the v4: the documentation of the project, with the decisions of its ADRs.
+const SNAPSHOT_V4_PROGRESS = `${SNAPSHOT_V2_PROGRESS}\n## Problem\n\nClients ask how it goes.\n\n## Decisions\n\n### 0001. A web app\n\nNothing to install.\n`;
+
+function snapshotV4Project(t) {
+  const root = snapshotV3Project(t, SNAPSHOT_V3_CHANGELOG);
+  writeFile(root, "docs/roadmap.md", SNAPSHOT_V2_ROADMAP.replace("| Change | Content |\n| --- | --- |\n| S1a. Platform | x |", "| Change | Content | ADRs |\n| --- | --- | --- |\n| S1a. Platform | x | 0001 |"));
+  writeFile(root, "docs/progress.md", SNAPSHOT_V4_PROGRESS);
+  writeFile(root, "docs/architecture/decisions/0001-web-app.md", "# 0001. Web application\n\n- Status: accepted\n- Date: 2026-01-02\n");
+  writeFile(root, "docs/architecture/decisions/0002-native-app.md", "# 0002. Native application\n\n- Status: rejected\n");
+  return root;
+}
+
+test("[REQ-idd-026] snapshot --schema-version 4 prints the v3 with the documentation and the decisions", (t) => {
+  const root = snapshotV4Project(t);
+  const outputs = [["snapshot", "--schema-version", "4"], ["snapshot", "--schema-version", "4", "--json"]].map((args) => ospec(root, ...args));
+  for (const result of outputs) assert.strictEqual(result.code, 0, result.stderr);
+  assert.strictEqual(outputs[1].stdout, outputs[0].stdout);
+  const { problem, decisions, ...rest } = JSON.parse(outputs[0].stdout);
+  assert.strictEqual(problem, "Clients ask how it goes.");
+  assert.deepStrictEqual(decisions, [{ number: 1, title: "A web app", date: "2026-01-02", status: "accepted", reason: "Nothing to install.", phases: ["s1a"] }]);
+  // The v3 refuses the documentation sections; without them it is the rest of the v4.
+  assert.strictEqual(ospec(root, "snapshot", "--schema-version", "3").code, 1);
+  writeFile(root, "docs/progress.md", SNAPSHOT_V2_PROGRESS);
+  assert.deepStrictEqual(rest, { ...JSON.parse(ospec(root, "snapshot", "--schema-version", "3").stdout), schemaVersion: 4 });
+});
+
+test("[REQ-idd-026] snapshot v4 --out reports the ADR directory it read, and refuses a decision without its reason, writing nothing", (t) => {
+  const root = snapshotV4Project(t);
+  const result = ospec(root, "snapshot", "--schema-version", "4", "--out", "snapshot.json");
+  assert.strictEqual(result.code, 0, result.stderr);
+  const bytes = Buffer.byteLength(fs.readFileSync(path.join(root, "snapshot.json"), "utf8"));
+  assert.strictEqual(result.stdout, `snapshot v4: 3 phases from docs/roadmap.md, docs/progress.md, CHANGELOG.md and docs/architecture/decisions written to snapshot.json (${bytes} bytes)\n`);
+  const json = ospec(root, "snapshot", "--schema-version", "4", "--out", "snapshot.json", "--json").json;
+  assert.deepStrictEqual(json, {
+    ok: true,
+    command: "snapshot",
+    schema_version: 4,
+    roadmap: "docs/roadmap.md",
+    out: "snapshot.json",
+    phases: 3,
+    bytes,
+    progress: "docs/progress.md",
+    changelog: "CHANGELOG.md",
+    decisions: "docs/architecture/decisions",
+  });
+  fs.rmSync(path.join(root, "snapshot.json"));
+  writeFile(root, "docs/progress.md", SNAPSHOT_V4_PROGRESS.split("\n## Decisions")[0]);
+  const reasonless = ospec(root, "snapshot", "--schema-version", "4", "--out", "snapshot.json", "--json");
+  assert.strictEqual(reasonless.code, 1);
+  assert.strictEqual(reasonless.json.error.code, "decisions-invalid");
+  assert.strictEqual(reasonless.json.error.message, "docs/architecture/decisions/0001-web-app.md:3: ADR 0001 is accepted and has no reason for the client");
+  assert.match(reasonless.json.error.how, /'## Decisions' section of docs\/progress\.md, or mark it '- internal'/);
+  assert.ok(!fs.existsSync(path.join(root, "snapshot.json")));
 });
 
 test("[REQ-idd-026] no IDD step, hook or check runs snapshot", () => {

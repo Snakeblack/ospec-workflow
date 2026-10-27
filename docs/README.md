@@ -77,6 +77,60 @@ Con `--schema-version 3` sale el snapshot de avance v3, con el esquema [`schemas
 - **Errores.** Solo se comprueba lo que decide una etapa, así que la historia antigua del changelog puede tener otro formato. Una entrada que cuenta bajo dos encabezados, antes del primer `##` o bajo un `##` que no es `[Unreleased]` ni una versión termina con código 1 y `changelog-invalid`, con el fichero y la línea, sin escribir nada. Lo mismo pasa con el encabezado que la contiene si su versión lleva ceros a la izquierda o `+build`, repite la de otro encabezado o no tiene fecha, si la fecha no existe o si lleva algo detrás de ella, como `[YANKED]`.
 - **Producción, en la rama que lee.** ospec lee el changelog de la rama descargada, así que una fase solo sale en producción cuando el encabezado de su versión llega a esa rama: el commit de release que pasa `[Unreleased]` a la versión tiene que llegar a la rama de integración, fusionándolo de vuelta si la release se corta en otra rama. Entre la fusión de un cambio y su release, su fase sale en pruebas.
 
+Con `--schema-version 4` sale el snapshot de avance v4, con el esquema [`schemas/progress-snapshot/v4.schema.json`](../schemas/progress-snapshot/v4.schema.json). Es el v3, con los mismos tramos, fases, textos, peticiones y etapas, más la documentación del proyecto escrita para el cliente: el problema que resuelve, sus objetivos, lo que incluye y lo que deja fuera, sus entregables y sus decisiones. Cada campo sale solo si tiene contenido, y ningún documento se publica tal cual: todos los textos salen del fichero de avance. El v1, el v2 y el v3 no cambian, y siguen rechazando las secciones nuevas con `progress-invalid`; por eso el fichero de avance con estas secciones y `--schema-version 4` van juntos.
+
+```markdown
+## Problem
+
+Los clientes siguen sus proyectos por correos sueltos y tienen que preguntar cómo van.
+
+## Objectives
+
+### Que los clientes vean cómo va su proyecto sin preguntar
+
+Lo medimos con los correos que preguntan por el estado de un proyecto, cada mes.
+
+## Includes
+
+- El avance de cada proyecto por fases
+- Las facturas de cada cliente, con su estado
+
+## Excludes
+
+### Pagar online
+
+Los pagos siguen por los medios de siempre.
+
+## Deliverables
+
+### El área de clientes
+
+- phase: S1a
+- url: https://clientes.example.com/
+
+En el dominio propio, con los datos en la región elegida.
+
+## Decisions
+
+### 0003. Cada proyecto envía su avance
+
+La aplicación nunca lee el código de los proyectos.
+
+### 0005
+
+Nadie teclea un pedido dos veces.
+
+### 0008
+
+- internal
+```
+
+- **Qué da cada sección.** Cada sección va una vez como mucho, en cualquier orden y fuera de los tramos. `## Problem` lleva un párrafo, el problema. `## Objectives` y `## Excludes` llevan un `### <título>` por objetivo o por exclusión, con un párrafo: cómo se mide, o por qué aún no hay cifra, y por qué se queda fuera. `## Includes` lleva un elemento `- <texto>` por cada cosa que incluye. `## Deliverables` lleva un `### <título>` por entregable, con `- phase: <ID>` (la fase del roadmap que lo trae, obligatoria), `- url:` opcional y un párrafo opcional de resumen. Los textos se limpian como en el v2, la URL sigue las reglas de `preview` y las listas guardan el orden del fichero. Los límites son 10 objetivos, 30 inclusiones, 30 exclusiones, 50 entregables, 200 caracteres los títulos y 1000 los párrafos.
+- **Las decisiones.** Salen de los ADRs de `docs/architecture/decisions/`, con la plantilla de la skill `foundation`: cada fichero `NNNN-<título>.md` es un ADR, con su encabezado `# NNNN. <título>` y, en la cabecera, `- Status:` y `- Date:`. Los estados son `inferred`, `proposed`, `accepted`, `superseded by NNNN`, `rejected` y `deprecated`. Solo se publican los `accepted` y los `superseded by`, por orden de número, con su número, su fecha y su estado. `## Decisions` les da, con `### NNNN` y las cuatro cifras del ADR, un título para el cliente, que sustituye al del ADR, y un párrafo con el motivo para el cliente. `- internal` deja el ADR fuera del snapshot. Una decisión sustituida lleva `supersededBy` cuando su sustituta se publica. Otras líneas de la cabecera, como `- Amends:`, no cambian nada: un ADR que modifica otro sin sustituirlo sale como otra decisión vigente. Sin la carpeta no hay decisiones ni error.
+- **Las fases de cada decisión.** Salen de la columna `ADRs` de las tablas de fases del roadmap: una celda con `—`, `-` o vacía no nombra ninguno, y si no lleva números `NNNN` separados por comas. Una decisión lleva las fases que la nombran, en el orden del roadmap y sin repetirse. Solo el v4 lee esa columna.
+- **Errores.** Un fichero de avance fuera de esta sintaxis termina con `progress-invalid`, con el fichero y la línea. Pasa lo mismo con una sección vacía, un objetivo sin su medida, una exclusión sin su motivo o un entregable sin su fase o con una fase que el roadmap no tiene. También con una decisión que no nombra un ADR, que nombra uno que no se publica, que no lleva motivo ni `- internal`, o que es interna y lleva título o motivo. Un ADR fuera de su formato termina con `decisions-invalid`, con el ADR y la línea: sin encabezado, con un número distinto del de su fichero o repetido, sin estado o con otro, o con un `superseded by` que nombra un ADR que no existe o que no tiene un número mayor. Lo mismo pasa con un ADR publicado sin fecha, con una fecha que no existe o sin su decisión en el fichero de avance. Una celda `ADRs` fuera de su formato, o que nombra un ADR que no existe, termina con `roadmap-invalid`. Nunca se recorta ni se escribe nada.
+- **Al añadir un ADR.** Un ADR nuevo aceptado hace fallar el snapshot hasta que el fichero de avance le da un motivo para el cliente o lo marca `- internal`, así que el cambio que lo añade escribe una de las dos cosas.
+
 | Documento | Para qué sirve |
 | --- | --- |
 | [README.es.md](../README.es.md#idd-obligaciones-según-el-impacto-evidencia-de-ejecuciones-reales) | Señales, obligaciones, gates e inicio rápido. |
