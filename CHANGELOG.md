@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.159.1] - 2026-10-27
+
+### Fixed
+- **Los tests que crean cambios SDD temporales ya no los crean dentro del repositorio** (E1.30). En la PR #446 (run 40504848459, `windows-latest 1/2`) falló contract-lint con `ENOENT: scandir '…\openspec\changes\test-nested-actual-…'`: `validate-phase.test.js`, `route-dispatch-run.test.js` y `k1-scope-guard.test.js` creaban 11 cambios en el `openspec/changes` real y los borraban al terminar, y el checker K4a recorre ese directorio mientras los demás ficheros de test corren en paralelo.
+  - Los 11 tests crean su proyecto en el directorio temporal del sistema, con una copia del `openspec/config.yaml` del repositorio, y ejecutan el CLI con ese `cwd`: siguen probando la misma tabla de rutas. El de las raíces coincidentes (REQ-install-027) sigue invocando el CLI dentro del repositorio, con un cambio que no existe.
+  - `scripts/test-repo-writes.test.js` ejecuta los tres ficheros y falla si crean algún directorio bajo el `openspec/changes` del repositorio. El escáner de contract-lint no cambia.
+
+### Changed
+- **Roadmap:** E1.30 anota el flake de la PR #446 con su causa y su arreglo, y sigue abierto.
+
+Hecho con IDD (`idd/archive/2026-10-27-test-changes-temp-root/`): la reproducción dio los 7 directorios de `validate-phase.test.js` antes del cambio y ninguno después.
+
+**Verificación directa**: `node scripts/check.js` (4193 tests pasando, 0 fallos y 5 omitidos).
+
 ## [2.159.0] - 2026-10-27
 
 ### Added

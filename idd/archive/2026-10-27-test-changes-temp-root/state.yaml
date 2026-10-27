@@ -1,0 +1,238 @@
+{
+  "schema": "idd-state/v1",
+  "change": "test-changes-temp-root",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Los tests que crean cambios SDD temporales lo hacen en una raíz temporal fuera del repositorio, en vez de en su openspec/changes real, así que otro test que recorre ese directorio en paralelo ya no falla con ENOENT al entrar en uno que se acaba de borrar",
+    "acceptance": "Ejecutar los tests afectados no crea ningún directorio bajo el openspec/changes del repositorio (un test lo comprueba y falla con el código actual); los tests siguen comprobando lo mismo (mismos códigos de salida y mensajes del CLI); contract-lint ya no puede encontrarse un directorio temporal a medio borrar; node scripts/check.js pasa"
+  },
+  "facts": {
+    "open": [
+      "¿Qué alcance tiene? El fallo de la PR #446 vino de validate-phase.test.js (7 tests), pero route-dispatch-run.test.js (3 tests) y k1-scope-guard.test.js (1 test) escriben igual en el openspec/changes real y pueden provocar la misma carrera. Recomendado: los tres ficheros.",
+      "¿Qué openspec/config.yaml lleva la raíz temporal? Recomendado: una copia del openspec/config.yaml real del repositorio, para que los tests sigan probando la tabla de rutas que se distribuye; alternativa: la MINIMAL_ROUTING_CONFIG que ya usa validate-phase.test.js, más hermética pero distinta de la real.",
+      "¿Se cambia también el escáner K4a de contract-lint (scripts/lib/contract-checkers/k4a-microscopic-nodes.js) para que tolere un directorio que desaparece mientras lo recorre? Recomendado: no, la causa son los tests que escriben en el repositorio y el escáner lee un árbol que nadie debería tocar durante la suite."
+    ]
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/configure/validate-phase.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/route-dispatch-run.test.js",
+      "scripts/test-repo-writes.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "none",
+      "reason": "Solo cambian tests: dónde crean sus cambios temporales. El generador de targets y lo que distribuye no cambian."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "Solo cambian tests, que usan node:fs, node:os y node:path; no se añade ninguna dependencia."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "Los tests siguen sin red: solo crean sus proyectos en el directorio temporal del sistema."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "none",
+      "reason": "Ningún target ni adaptador cambia; los tests de validate-phase y route-dispatch-run siguen probando el mismo CLI con la misma tabla de rutas."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Comprobado: el diff solo toca tres ficheros de test, el test nuevo scripts/test-repo-writes.test.js, CHANGELOG y roadmap; los tests solo usan node:fs, node:os, node:path y node:child_process para ejecutar el CLI local, sin red. No cambia el CLI, ni los hooks ni las skills, y next, check y close no cambian.",
+      "recorded_at": "2026-10-27T13:28:53.802Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Alcance: Los tres ficheros (Recomendado). Routing: Copia del real (Recomendado). Escáner: No (Recomendado).",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-27T13:26:56.514Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-27T13:28:45.616Z",
+      "detail": {
+        "tree": "sha256:9265c6a6c288521fb1b3a3a9987296211566b9af36eeb56f2b1f639436b8238f",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-27T13:28:45.616Z",
+      "detail": {
+        "refs": [
+          "adr:0001 none",
+          "adr:0010 none",
+          "scenario:offline-operation none",
+          "scenario:target-parity none"
+        ],
+        "records": [],
+        "tree": "sha256:9265c6a6c288521fb1b3a3a9987296211566b9af36eeb56f2b1f639436b8238f",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    }
+  ],
+  "base": "ca407780bd39e92b555467f2aaf61700bdf4998f",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/test-repo-writes.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d26dce9b607dd601fdeb3430f6d0424a45a18ddfd07aa5798357aa6ea2e59d00",
+      "tree": "sha256:c376c26340fcf64d61f4c2cfcc41b4cd69ab811ca77d13d41157970611f22ef0",
+      "recorded_at": "2026-10-27T13:24:30.345Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/test-repo-writes.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b2de14a6a56df5954e9a9664ec196135e324dee7035b6a7c63c94e84284797bd",
+      "tree": "sha256:d30e34456779c1af76d507dee99ec22281b1248773bf3fce08a0a3a3201c90c5",
+      "recorded_at": "2026-10-27T13:26:56.514Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:37e4cf66aa157962a6aa8db724965bad736ccd890125b5cbb8711eb0267cb60d",
+      "tree": "sha256:9265c6a6c288521fb1b3a3a9987296211566b9af36eeb56f2b1f639436b8238f",
+      "recorded_at": "2026-10-27T13:28:45.616Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0ddf5698d2e04ce49502c9773df447efcab5ec01eb22620da0d9f2876e70d4ec",
+      "tree": "sha256:9265c6a6c288521fb1b3a3a9987296211566b9af36eeb56f2b1f639436b8238f",
+      "recorded_at": "2026-10-27T13:28:45.616Z",
+      "tests": 47
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:9265c6a6c288521fb1b3a3a9987296211566b9af36eeb56f2b1f639436b8238f",
+      "recorded_at": "2026-10-27T13:28:45.616Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2342edd09de411380fe2722949c93eda51470085531c8247966df42581e49b03",
+      "tree": "sha256:9265c6a6c288521fb1b3a3a9987296211566b9af36eeb56f2b1f639436b8238f",
+      "recorded_at": "2026-10-27T13:28:45.616Z",
+      "tests": 21
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b6b2a55ba0ef82cc3cb17bd28ce38f55f436b94eda0d5b3dcb847b676c98d48e",
+      "tree": "sha256:9265c6a6c288521fb1b3a3a9987296211566b9af36eeb56f2b1f639436b8238f",
+      "recorded_at": "2026-10-27T13:28:45.616Z",
+      "tests": 47
+    }
+  ],
+  "closed_at": "2026-10-27T13:28:53.890Z"
+}
