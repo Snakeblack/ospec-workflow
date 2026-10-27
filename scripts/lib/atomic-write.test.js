@@ -7,7 +7,7 @@ const path = require("node:path");
 const os = require("node:os");
 
 // Load the module that does not exist or has no implementation yet
-const { writeFileAtomic, recoverOrphanBak, renameWithFallback } = require("./atomic-write.js");
+const { RENAME_ATTEMPTS, writeFileAtomic, recoverOrphanBak, renameWithFallback } = require("./atomic-write.js");
 
 async function createTempDir() {
   return await fs.mkdtemp(path.join(os.tmpdir(), "atomic-write-test-"));
@@ -86,25 +86,19 @@ test("1.1.3 · Write failure of temp — original preserved, tmp cleaned up", as
   }
 });
 
-test("1.1.4 · Windows rename fallback — target.bak created, tmp renamed, .bak deleted", async () => {
+test("1.1.4 · Windows rename refused once — retried, the target never moved aside", async () => {
   const tmpDir = await createTempDir();
   try {
     const targetPath = path.join(tmpDir, "workspace.yaml");
-    const originalContent = "original content";
-    await fs.writeFile(targetPath, originalContent);
+    await fs.writeFile(targetPath, "original content");
 
-    // We want to force the Windows rename fallback.
-    // The fallback is triggered when fs.rename throws EEXIST or EPERM.
-    // Let's override fs.rename to simulate this once.
+    // Windows refuses, for a moment, to rename over a target another process
+    // is replacing (E1.55): the first rename of the temp file fails.
     const originalRename = fs.rename;
-    let renameCallCount = 0;
-    let renameSpy = [];
-
+    const renames = [];
     fs.rename = async (oldPath, newPath) => {
-      renameCallCount++;
-      renameSpy.push({ oldPath, newPath });
-      if (newPath === targetPath && isTempOf(targetPath, oldPath) && renameCallCount === 1) {
-        // Throw EEXIST to simulate Windows rename collision
+      renames.push({ oldPath, newPath });
+      if (newPath === targetPath && isTempOf(targetPath, oldPath) && renames.length === 1) {
         const err = new Error("EEXIST: file already exists, rename");
         err.code = "EEXIST";
         throw err;
@@ -113,23 +107,15 @@ test("1.1.4 · Windows rename fallback — target.bak created, tmp renamed, .bak
     };
 
     try {
-      const content = "new windows content";
-      await writeFileAtomic(targetPath, content);
-
-      const actual = await fs.readFile(targetPath, "utf8");
-      assert.strictEqual(actual, content);
-
-      // Verify the spy showed the fallback calls:
-      // 1. rename(temp, targetPath) -> fails EEXIST
-      // 2. rename(targetPath, targetPath + '.bak') -> success
-      // 3. rename(temp, targetPath) -> success
-      assert.ok(renameCallCount >= 3);
-      
-      // Verify no .bak or temp left
-      assert.deepStrictEqual(await fs.readdir(tmpDir), ["workspace.yaml"]);
+      await writeFileAtomic(targetPath, "new windows content");
     } finally {
       fs.rename = originalRename;
     }
+
+    assert.strictEqual(await fs.readFile(targetPath, "utf8"), "new windows content");
+    assert.strictEqual(renames.length, 2);
+    assert.ok(renames.every((rename) => rename.oldPath !== targetPath), "the target is never moved aside");
+    assert.deepStrictEqual(await fs.readdir(tmpDir), ["workspace.yaml"]);
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
@@ -169,67 +155,6 @@ test("1.1.6 · Crash post-tmp before rename — stale .tmp removed in re-run", a
     const actual = await fs.readFile(targetPath, "utf8");
     assert.strictEqual(actual, "full content");
     await assert.rejects(fs.stat(tempPath), { code: "ENOENT" });
-  } finally {
-    await fs.rm(tmpDir, { recursive: true, force: true });
-  }
-});
-
-test("1.1.8 · Double-rename failure (fallback rename AND rollback both fail) surfaces the .bak path instead of silently losing data", async () => {
-  const tmpDir = await createTempDir();
-  try {
-    const targetPath = path.join(tmpDir, "workspace.yaml");
-    const bakPath = targetPath + ".bak";
-    const originalContent = "original content — must remain recoverable";
-    await fs.writeFile(targetPath, originalContent);
-
-    const originalRename = fs.rename;
-    let call = 0;
-
-    fs.rename = async (oldPath, newPath) => {
-      call += 1;
-      // 1st call: tmp -> target, fail EEXIST (forces the Windows fallback path)
-      if (call === 1 && isTempOf(targetPath, oldPath) && newPath === targetPath) {
-        const err = new Error("EEXIST: file already exists, rename");
-        err.code = "EEXIST";
-        throw err;
-      }
-      // 2nd call: target -> .bak (the fallback's own backup step) — let it succeed for real.
-      if (call === 2 && oldPath === targetPath && newPath === bakPath) {
-        return originalRename(oldPath, newPath);
-      }
-      // 3rd call: tmp -> target retry — fail again (simulates a still-locked target).
-      if (call === 3 && isTempOf(targetPath, oldPath) && newPath === targetPath) {
-        const err = new Error("EPERM: operation not permitted, rename");
-        err.code = "EPERM";
-        throw err;
-      }
-      // 4th call: rollback attempt .bak -> target — fail too (worst case).
-      if (call === 4 && oldPath === bakPath && newPath === targetPath) {
-        const err = new Error("EPERM: rollback rename blocked");
-        err.code = "EPERM";
-        throw err;
-      }
-      return originalRename(oldPath, newPath);
-    };
-
-    try {
-      await assert.rejects(
-        writeFileAtomic(targetPath, "new content"),
-        (error) => {
-          // The error must not be silent about where the content actually is.
-          assert.match(error.message, /\.bak/);
-          assert.strictEqual(error.bakPath, bakPath);
-          return true;
-        },
-      );
-
-      // The content must still be recoverable from the .bak sibling — this is
-      // the whole point of not swallowing the rollback failure.
-      const bakActual = await fs.readFile(bakPath, "utf8");
-      assert.strictEqual(bakActual, originalContent);
-    } finally {
-      fs.rename = originalRename;
-    }
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
@@ -358,6 +283,88 @@ test("concurrent writers of one file each use their own temporary file", async (
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
+});
+
+// E1.55 atomic-write-concurrent-rename: Windows refuses, for a moment, to rename
+// over a target another writer is replacing. Each writer retries the same
+// atomic rename instead of moving the target aside.
+function eperm() {
+  return Object.assign(new Error("EPERM: operation not permitted, rename"), { code: "EPERM" });
+}
+
+test("two writers refused while the other replaces the target both finish, and the target never leaves", async (t) => {
+  const tmpDir = await createTempDir();
+  t.after(() => fs.rm(tmpDir, { recursive: true, force: true }));
+  const targetPath = path.join(tmpDir, "state.yaml");
+  await fs.writeFile(targetPath, "old content");
+  const realRename = fs.rename;
+  t.after(() => {
+    fs.rename = realRename;
+  });
+
+  // Each writer's first rename over the target is refused. A writer that moves
+  // the target aside is held until the other has tried to move it too, so the
+  // second one always finds it gone, whatever the scheduler does.
+  const refused = new Set();
+  const movedAside = [];
+  let firstMoved;
+  const firstMovedAside = new Promise((resolve) => (firstMoved = resolve));
+  let secondTried;
+  const secondTriedToMove = new Promise((resolve) => (secondTried = resolve));
+  fs.rename = async (from, to) => {
+    if (to === targetPath && isTempOf(targetPath, from) && !refused.has(from)) {
+      refused.add(from);
+      throw eperm();
+    }
+    if (from !== targetPath) return realRename(from, to);
+    movedAside.push(to);
+    if (movedAside.length === 1) {
+      await realRename(from, to);
+      firstMoved();
+      await secondTriedToMove;
+      return;
+    }
+    await firstMovedAside;
+    try {
+      return await realRename(from, to);
+    } finally {
+      secondTried();
+    }
+  };
+
+  const contents = ["writer A\n", "writer B\n"];
+  await Promise.all(contents.map((content) => writeFileAtomic(targetPath, content)));
+  fs.rename = realRename;
+
+  assert.ok(contents.includes(await fs.readFile(targetPath, "utf8")), "the target holds one whole write");
+  assert.deepStrictEqual(movedAside, [], "the target is never moved aside");
+  assert.deepStrictEqual(await fs.readdir(tmpDir), ["state.yaml"]);
+});
+
+test("a rename refused every time fails the write and keeps the old content, without leftovers", async (t) => {
+  const tmpDir = await createTempDir();
+  t.after(() => fs.rm(tmpDir, { recursive: true, force: true }));
+  const targetPath = path.join(tmpDir, "state.yaml");
+  await fs.writeFile(targetPath, "old content");
+  const realRename = fs.rename;
+  t.after(() => {
+    fs.rename = realRename;
+  });
+  let attempts = 0;
+  fs.rename = async (from, to) => {
+    if (to === targetPath && isTempOf(targetPath, from)) {
+      attempts += 1;
+      throw eperm();
+    }
+    return realRename(from, to);
+  };
+
+  await assert.rejects(writeFileAtomic(targetPath, "new content"), { code: "EPERM" });
+  fs.rename = realRename;
+
+  assert.strictEqual(attempts, RENAME_ATTEMPTS);
+  assert.strictEqual(await fs.readFile(targetPath, "utf8"), "old content");
+  assert.deepStrictEqual(await fs.readdir(tmpDir), ["state.yaml"]);
 });
 
 test("a failed fsync of the new content fails the write and keeps the old file", async (t) => {

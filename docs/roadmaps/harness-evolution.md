@@ -1015,10 +1015,11 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
   - Volvió a fallar igual en la PR [#442](https://github.com/Snakeblack/ospec-workflow/pull/442), que solo cambiaba documentación (run [40431186194](https://github.com/Snakeblack/ospec-workflow/actions/runs/40431186194)), y pasó al relanzar el job: dos fallos en las cuatro ejecuciones de ese shard de Windows desde v2.158.0.
   - Desde E1.46 cada escritor tiene su temporal, pero solo el estado IDD (`scripts/lib/ospec-state.js`) se escribe bajo el lock. Otros escritores, como los hooks `stop.js` y `pre-compact.js`, no toman ninguno.
 - **Garantía que protege:** estado en disco y reanudación (escenario `deterministic-resume`), y la puerta «publicar solo con CI verde» de E1.30.
-- **Alcance:**
-  - Si apartar el destino da `ENOENT`, otro escritor ya lo apartó: se repite el rename del temporal, como ya hace `renameWithFallback` en el mismo fichero.
-  - Un `.bak` propio de cada escritor, como su temporal, para que ninguno restaure ni borre el de otro, y que `recoverOrphanBak` siga encontrando.
-  - El `WriteFileAtomic` de Go (`internal/store/store.go`) renombra sin este fallback: el cambio comprueba si en Windows le llega el mismo `EPERM`.
+- **Alcance** (lo cambió el usuario el 2026-10-27, al abrir el cambio):
+  - `writeFileAtomic` deja de apartar el destino a `.bak`. Si Windows rechaza el rename del temporal (`EPERM`, `EEXIST`), espera y reintenta el mismo rename, hasta 8 intentos con una espera que empieza en 10 ms y se dobla (1,27 s como mucho). Agotados, la escritura falla, borra su temporal y el destino conserva el contenido anterior.
+  - El `WriteFileAtomic` de Go (`internal/store/store.go`) reintenta igual.
+  - `recoverOrphanBak` (JS y Go) no cambia: recupera el `.bak` que dejen versiones anteriores. `renameWithFallback` tampoco, porque en Windows renombrar sobre un directorio existente falla siempre, no de forma transitoria.
+  - Descartado: un `.bak` propio de cada escritor, el alcance anotado al principio. Arreglaba el `ENOENT`, pero apartar el destino no es atómico: entre apartarlo y renombrar el temporal, el destino no existe para un lector. Además, renombrar un destino que otro tiene abierto falla igual que sustituirlo, así que apartarlo no añadía nada.
 - **Targets:** los 7 en Windows (`writeFileAtomic` es del CLI y de los hooks).
 - **Hecho cuando:**
   - un test fuerza el `EPERM` y el `ENOENT` intercalados sin depender del planificador de Windows, y cada escritura termina entera o falla sin perder el contenido anterior ni dejar ficheros;

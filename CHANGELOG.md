@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- En Windows, cuando el rename del temporal se rechaza porque otro proceso está sustituyendo el fichero, `writeFileAtomic` (Node) y `WriteFileAtomic` (Go) ya no apartan el destino a `.bak`: reintentan el mismo rename hasta 8 veces (1,27 s como mucho). El destino nunca falta, y dos escritores sin lock del mismo fichero ya no fallan con `ENOENT` ni se borran el `.bak` el uno al otro. Un `.bak` que deje una versión anterior se sigue recuperando (atomic-write-concurrent-rename)
+
 ## [2.158.1] - 2026-10-27
 
 ### Fixed

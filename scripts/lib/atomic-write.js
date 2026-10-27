@@ -10,9 +10,16 @@ const STALE_TEMP_MS = 5000;
 // Syncing a directory is not supported on these, so the rename stays as
 // durable as the filesystem makes it.
 const DIRECTORY_SYNC_UNSUPPORTED = new Set(["EINVAL", "ENOTSUP", "EOPNOTSUPP"]);
+// Windows refuses, for a moment, to rename over a target that another process
+// is replacing or holds open. The rename stays the one atomic replacement: the
+// writer waits, twice as long each time, and tries again (1.27 s at most).
+const RENAME_ATTEMPTS = 8;
+const RENAME_BACKOFF_MS = 10;
+const RENAME_REFUSED = new Set(["EEXIST", "EPERM"]);
 
 /**
- * Restores an orphaned target.bak to target if target is absent.
+ * Restores an orphaned target.bak to target if target is absent. Since E1.55
+ * writeFileAtomic leaves none; versions before it and renameWithFallback may.
  * @param {string} targetPath
  */
 async function recoverOrphanBak(targetPath) {
@@ -80,6 +87,17 @@ async function syncDirectory(dir) {
   }
 }
 
+async function renameOver(tempPath, targetPath) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await fs.rename(tempPath, targetPath);
+    } catch (error) {
+      if (!RENAME_REFUSED.has(error.code) || attempt === RENAME_ATTEMPTS) throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, RENAME_BACKOFF_MS * 2 ** (attempt - 1)));
+  }
+}
+
 /**
  * Writes content to targetPath atomically and durably: the content goes to a
  * temporary file of this writer, synced to disk, then renamed over the target,
@@ -89,7 +107,6 @@ async function syncDirectory(dir) {
  */
 async function writeFileAtomic(targetPath, content) {
   const tempPath = `${targetPath}.${process.pid}-${crypto.randomBytes(6).toString("hex")}.tmp`;
-  const bakPath = targetPath + ".bak";
 
   // 1. Ensure the parent directory exists and drop what dead writers left
   await fs.mkdir(path.dirname(targetPath), { recursive: true });
@@ -106,63 +123,14 @@ async function writeFileAtomic(targetPath, content) {
     throw error;
   }
 
-  // 3. Rename temp file to target
+  // 3. Rename temp file over the target; the target never goes missing
   try {
-    await fs.rename(tempPath, targetPath);
+    await renameOver(tempPath, targetPath);
   } catch (error) {
-    // Fallback for Windows rename issue: target exists and throws EEXIST or EPERM
-    if (error.code === "EEXIST" || error.code === "EPERM") {
-      let backedUp = false;
-      try {
-        // Try to backup existing target
-        await fs.rename(targetPath, bakPath);
-        backedUp = true;
-
-        // Try renaming temp to target again
-        await fs.rename(tempPath, targetPath);
-
-        // Delete backup on success
-        await fs.unlink(bakPath);
-      } catch (fallbackError) {
-        // Rollback: if backed up, restore original target
-        if (backedUp) {
-          try {
-            await fs.rename(bakPath, targetPath);
-          } catch (rollbackError) {
-            // Rollback itself failed: target is now MISSING and the only
-            // surviving copy of the pre-write content is at bakPath. Do not
-            // swallow this — surface the .bak path in the thrown error so a
-            // caller (or a recoverOrphanBak() call on the next read) can
-            // restore it, instead of the failure looking identical to a
-            // clean single-rename failure with the original file intact.
-            try {
-              await fs.unlink(tempPath);
-            } catch (_) {}
-            const aggregate = new Error(
-              `writeFileAtomic: rollback to "${bakPath}" also failed after the ` +
-                `rename fallback errored; the pre-write content is still recoverable ` +
-                `at "${bakPath}" (original error: ${fallbackError.message}; ` +
-                `rollback error: ${rollbackError.message})`,
-            );
-            aggregate.code = fallbackError.code;
-            aggregate.bakPath = bakPath;
-            aggregate.cause = fallbackError;
-            throw aggregate;
-          }
-        }
-        // Clean up temp file
-        try {
-          await fs.unlink(tempPath);
-        } catch (_) {}
-        throw fallbackError;
-      }
-    } else {
-      // Normal error path
-      try {
-        await fs.unlink(tempPath);
-      } catch (_) {}
-      throw error;
-    }
+    try {
+      await fs.unlink(tempPath);
+    } catch (_) {}
+    throw error;
   }
 
   // 4. Sync the directory so the rename itself is durable
@@ -240,6 +208,7 @@ async function renameWithFallback(sourcePath, targetPath, options = {}) {
 }
 
 module.exports = {
+  RENAME_ATTEMPTS,
   STALE_TEMP_MS,
   writeFileAtomic,
   recoverOrphanBak,
