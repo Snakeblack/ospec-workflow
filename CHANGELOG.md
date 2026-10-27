@@ -7,8 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.162.0] - 2026-10-27
+
 ### Added
-- El CLI ahorra tokens al abrir y al cerrar: el next de un cambio nuevo imprime la plantilla de categorías según el perfil del proyecto, el CLI escribe Plan y Decisions del living-doc desde --path y --decision "<texto>", y cada orden que escribe imprime una línea de estado y otra de next, con --json sin campos vacíos (cli-terse-output)
+- **El CLI ahorra tokens al abrir y al cerrar un cambio** (E4.16). En `idd-7`, 14 de los 34 `record intent` de feature se rechazaban la primera vez con `facts-undeclared`, el agente leía y editaba `change.md` a mano, y las salidas de `ospec` se arrastraban en cada llamada siguiente. Ahora:
+  - Antes de abrir un cambio, `ospec next` imprime la plantilla de una feature (`next_step.feature`): el `record intent` con una `--open-fact <categoría>:"<pregunta>"` por categoría del proyecto y sus reglas. Un rechazo de la cobertura imprime la misma plantilla.
+  - Un proyecto con código y ningún fichero de UI (`.html`, `.css`, `.scss`, `.jsx`, `.tsx`, `.vue`, `.svelte`, `.astro` y similares) cubre cinco categorías, sin `url-state` ni `accessibility`. Sin código, o con un fichero de UI en el plan, cubre las siete. Esas dos se aceptan siempre que se den.
+  - `--decision "<texto>"` lleva el texto de la decisión y se puede repetir; el mismo texto se guarda una vez en `plan.decisions`. El CLI escribe el Plan (desde `--path`) y las Decisions de `change.md` entre sus marcadores, conservando el texto escrito a mano y los finales de línea, así que un cambio con decisión cierra sin editar `change.md`. Decisions puede quedar vacía cuando el plan no declara ninguna decisión.
+  - `record`, `signals`, `run`, `check` y `review` imprimen una línea de estado y `next (<obligación, gate o acción>): <comando>`, más solo lo que ese paso necesita: el `how` de una obligación que no es un run, las preguntas del gate, los avisos, las sugerencias y la salida de lo que falla. La lista de pendientes, las referencias, el equipo y la entrega siguen en `ospec next`. En el flujo de un bugfix, el texto de `record intent`, el run verde y `check` baja de 518, 2380 y 2308 bytes a 190, 872 y 830.
+
+### Changed
+- **`--decision` sin texto es un error de uso** (sale con 2). Los estados con `decision: true` sin textos siguen valiendo y su Decisions se escribe a mano.
+- **`--json`:** `status`, `next`, `record`, `signals`, `check`, `run`, `review` y `close` omiten los campos `null`, `[]` y `{}` a cualquier profundidad (conservan `false` y `0`), y el `next` de las órdenes que escriben no repite el `intent`. `doctor`, `team`, `foundation` y `snapshot` no cambian.
+- **Estado:** `idd-state/v1` admite `plan.decisions` y una cobertura de feature sin `url-state` ni `accessibility`; los estados anteriores siguen validando en el CLI y en el hook de Go, que valida `plan.decisions` igual. Un CLI anterior rechaza con `state-invalid` un estado con esos campos.
+- **Contrato:** REQ-idd-003, 004, 011, 012 y 018 recogen la plantilla por perfil, el living-doc escrito por el CLI y la salida mínima, con sus escenarios.
+- **Skill `idd`:** la regla 2 remite a la plantilla de `ospec next`, `--decision` lleva su texto y el living-doc lo escribe el CLI; `references/open-facts.md` explica qué categorías aplican. La skill queda a 74 B de su tope de 12 KiB.
+- **Documentación:** los README dicen que el CLI escribe el plan y las decisiones del living-doc.
+- **Roadmap:** E4.16 queda `done`; sigue E4.3 `context-budget-ratchet`. La fila de tokens frente a gentle-ai se mide en el bloque D.
+
+Hecho con IDD (`idd/archive/2026-10-27-cli-terse-output/`). Los tests reproducen los rechazos de `idd-7` y fijan los techos de bytes de cada salida en texto y en JSON; las decisiones de este cambio las escribió el propio CLI con `ospec signals --decision`.
+
+**Verificación directa**: `node scripts/check.js` (4222 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.161.0] - 2026-10-27
 
