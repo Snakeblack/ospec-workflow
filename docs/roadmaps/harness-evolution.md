@@ -1548,7 +1548,11 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
   - con `--schema-version 3`, la orden emite un snapshot que cumple el esquema v3, con las mismas reglas que el contrato del consumidor;
   - una entrada bajo dos encabezados distintos, o un encabezado `x.y.z` sin fecha o con una fecha que no existe, termina con código 1, el fichero y la línea, y sin escribir nada; sin changelog, las fases `done` salen sin `release` y sin error;
   - la documentación dice que el snapshot solo ve producción cuando el encabezado de la versión llega a la rama que lee.
-- **Pendiente:** la sintaxis exacta y el resto de errores se cierran con el usuario en el gate `open-facts` del cambio, como en E5.11.
+- **Decidido en el gate `open-facts`** (2026-10-27, las cuatro recomendadas):
+  - Solo se lee el changelog declarado; sin declararlo, con `none` o sin el fichero, no hay `release` ni error, y no hay opción `--changelog`. Un `idd/config.yaml` ilegible da `config-invalid`, solo en el v3.
+  - Una entrada es un elemento `-`, `*` o `+` en la primera columna, fuera de bloques de código, con sus líneas sangradas, que acaba en `(<change-id>)`. Los encabezados se leen como en la release que propone `close`, con corchetes y `v` opcionales.
+  - Solo se valida lo que decide una etapa, con `changelog-invalid`, el fichero y la línea del primer problema; también una versión con ceros a la izquierda, `+build`, repetida o con algo tras la fecha (`[YANKED]`).
+  - El informe de `--out` añade `changelog`, la ruta leída o null.
 
 ## Aparcado (con criterio de reapertura)
 

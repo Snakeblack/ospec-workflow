@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- ospec snapshot --schema-version 3 emite el snapshot de avance v3: el v2 tal cual más la etapa de entrega de cada fase done (en pruebas, o en producción con su versión y su fecha), sacada de las entradas (<change-id>) del changelog que declara delivery.changelog; el v1 y el v2 no cambian (progress-snapshot-v3)
+
 ## [2.158.2] - 2026-10-27
 
 ### Fixed

@@ -7,7 +7,8 @@
 // v1 it declares only its version (ADR 0012), its schema is
 // schemas/progress-snapshot/v2.schema.json and nothing invalid is ever
 // emitted: a progress file out of its syntax is refused at the line of the
-// first problem, and nothing is cut.
+// first problem, and nothing is cut. The v3 builds on this module
+// (progress-snapshot-v3.js).
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -379,13 +380,14 @@ function exactKeys(value, required, optional) {
   return required.every((key) => keys.includes(key)) && keys.every((key) => required.includes(key) || optional.includes(key));
 }
 
-// Every rule of the v2 format, checked on what is about to be emitted.
-function problems(document) {
+// Every rule of the v2 format, checked on what is about to be emitted. The v3
+// checks the same rules under its own version, with its phases' release.
+function problems(document, { version = SNAPSHOT_VERSION, phaseFields = [] } = {}) {
   const found = [];
   const check = (problem, at) => problem && found.push(`${at} ${problem}`);
   const checkDate = (value, at) => !isDate(value) && found.push(`${at} must be a date YYYY-MM-DD that exists in the calendar`);
   if (!exactKeys(document, ["schemaVersion", "phases"], ["groups", "requests"])) found.push("the snapshot holds schemaVersion and phases, and may hold groups and requests");
-  if (document?.schemaVersion !== SNAPSHOT_VERSION) found.push(`schemaVersion must be ${SNAPSHOT_VERSION}`);
+  if (document?.schemaVersion !== version) found.push(`schemaVersion must be ${version}`);
   const groups = document?.groups;
   const groupIds = new Set();
   if (groups !== undefined) {
@@ -409,7 +411,7 @@ function problems(document) {
     let current = null;
     phases.forEach((phase, index) => {
       const at = `phases[${index}]`;
-      const optional = ["group", "shortTitle", "start", "end", "summary", "tasks", "outcomes", "previewUrl"];
+      const optional = ["group", "shortTitle", "start", "end", "summary", "tasks", "outcomes", "previewUrl", ...phaseFields];
       if (!exactKeys(phase, ["id", "title", "status"], optional)) found.push(`${at} holds id, title and status, and may hold ${optional.join(", ")}`);
       if (typeof phase?.id !== "string" || !PHASE_ID_PATTERN.test(phase.id)) found.push(`${at}.id must match ${PHASE_ID_PATTERN.source}`);
       else if (phaseIds.has(phase.id)) found.push(`${at}.id ${phase.id} repeats an earlier phase`);
@@ -475,19 +477,23 @@ function problems(document) {
 }
 
 // The snapshot text, or a refusal: nothing invalid is ever emitted.
-function serializeSnapshotV2(document) {
+function serializeChecked(document, problemsOf) {
   if (Array.isArray(document?.phases) && document.phases.length > MAX_PHASES) {
     throw new SnapshotError("snapshot-limit", `the snapshot would hold ${document.phases.length} phases; the limit is ${MAX_PHASES}`);
   }
   if (Array.isArray(document?.groups) && document.groups.length > MAX_GROUPS) {
     throw new SnapshotError("snapshot-limit", `the snapshot would hold ${document.groups.length} groups; the limit is ${MAX_GROUPS}`);
   }
-  const found = problems(document);
+  const found = problemsOf(document);
   if (found.length > 0) throw new SnapshotError("snapshot-invalid", `the snapshot would break its format: ${found.join("; ")}`);
   const text = `${JSON.stringify(document, null, 2)}\n`;
   const bytes = Buffer.byteLength(text);
   if (bytes > MAX_BYTES) throw new SnapshotError("snapshot-limit", `the snapshot would take ${bytes} bytes; the limit is ${MAX_BYTES} (64 KiB)`);
   return text;
+}
+
+function serializeSnapshotV2(document) {
+  return serializeChecked(document, problems);
 }
 
 // The progress file, or null when the default one does not exist; one that
@@ -502,10 +508,13 @@ function readProgress(root, file, named) {
   }
 }
 
-function buildSnapshotV2({ root, roadmap, progress }) {
+// The v2 document of a project, with the progress file it read, if any, and
+// the roadmap phases and changes it came from, which the v3 reads again.
+function documentV2({ root, roadmap, progress }) {
   const phases = roadmapPhases(readRoadmap(root, roadmap), roadmap);
   const { groups, groupOf } = roadmapGroups(phases, roadmap);
-  const statuses = phaseStatuses(phases, readChanges(root)).map((phase) => ({ ...phase, group: groupOf.get(phase.id) }));
+  const changes = readChanges(root);
+  const statuses = phaseStatuses(phases, changes).map((phase) => ({ ...phase, group: groupOf.get(phase.id) }));
   const file = progress ?? DEFAULT_PROGRESS;
   const text = readProgress(root, file, progress !== undefined);
   const context = {
@@ -513,8 +522,12 @@ function buildSnapshotV2({ root, roadmap, progress }) {
     phases: new Map(statuses.map(({ id, status, group }) => [id, { status, group: group ?? null }])),
   };
   const texts = text === null ? { groups: new Map(), phases: new Map(), requests: [] } : parseProgress(text, file, context);
-  const document = assemble(groups, statuses, texts);
-  return { roadmap, progress: text === null ? null : file, snapshot: document, text: serializeSnapshotV2(document) };
+  return { phases, changes, progress: text === null ? null : file, document: assemble(groups, statuses, texts) };
+}
+
+function buildSnapshotV2({ root, roadmap, progress }) {
+  const { progress: read, document } = documentV2({ root, roadmap, progress });
+  return { roadmap, progress: read, snapshot: document, text: serializeSnapshotV2(document) };
 }
 
 module.exports = {
@@ -528,7 +541,12 @@ module.exports = {
   MAX_URL,
   buildSnapshotV2,
   derivedId,
+  documentV2,
+  exactKeys,
+  isDate,
   parseProgress,
+  problems,
   roadmapGroups,
+  serializeChecked,
   serializeSnapshotV2,
 };

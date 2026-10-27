@@ -1922,8 +1922,8 @@ before this requirement. SDD MUST NOT read them (ADR 0011).
 snapshot v1, `{ "schemaVersion": 1, "phases": [...] }`, each phase holding
 only `id`, `title` and `status` (`pending`, `in-progress` or `done`), with
 `schemas/progress-snapshot/v1.schema.json` as its schema, unless
-`--schema-version 2` asks for the v2 below; `--schema-version` takes `1`, the
-default, or `2`. It MUST run only
+`--schema-version 2` or `3` asks for the v2 or the v3 below;
+`--schema-version` takes `1`, the default, `2` or `3`. It MUST run only
 when invoked: no IDD or SDD step, hook, check, gate or doctor check runs it,
 and it writes nothing but the snapshot. It needs no git work tree.
 
@@ -1978,7 +1978,8 @@ and two groups with the same id MUST be refused with `roadmap-invalid`,
 naming the file and the line. The v1 ignores the headings.
 
 The progress file is `docs/progress.md` unless `--progress <path>` names
-another, and `--progress` without `--schema-version 2` is a usage error.
+another, and `--progress` without `--schema-version 2` or `3` is a usage
+error.
 Without the file the v2 holds only groups and phases; a `--progress` path
 that does not exist MUST be refused with `progress-missing`. The file is
 Markdown written for the client in the language of the project, with fixed
@@ -2021,6 +2022,51 @@ a done phase has every task done; dates exist and `start` is not after
 20 groups, 100 phases and 64 KiB of UTF-8 (`snapshot-limit`). Output,
 `--out` and refusals work as for the v1; the `--out` report of a v2 also
 names its schema version and the progress file it read, if any.
+
+The progress snapshot v3 (E5.12), with
+`schemas/progress-snapshot/v3.schema.json` as its schema, MUST hold the v2 of
+the same project, with the same groups, phases, texts and requests, plus the
+delivery stage of each `done` phase that has one, `release`:
+`{ "stage": "testing" }`, or
+`{ "stage": "production", "version": "<x.y.z>", "date": "<YYYY-MM-DD>" }`. A
+phase that is not `done` never holds it. The stage comes from the changelog
+that `delivery.changelog` declares in `idd/config.yaml` (REQ-idd-023): without
+that declaration, with `none` or without the file, no phase holds a
+`release` and nothing is refused. A configuration that does not parse MUST be
+refused with `config-invalid`. The v1 and the v2 read neither file.
+
+An entry of the changelog is a `-`, `*` or `+` list item at the first column,
+outside code fences, with the indented lines that follow it joined, whose
+text ends in `(<change-id>)` followed only by spaces, as `ospec close` writes
+it (REQ-idd-025). Only the entries of the archived changes of `done` phases
+count, each under the `##` heading above it. `## [Unreleased]`, in any case,
+and a version with a pre-release suffix give `testing`; a version `x.y.z`
+gives `production` with that version and the date of its heading. A version
+heading reads as the release proposal of `ospec close` reads it, with the
+brackets and a leading `v` optional, followed by nothing or by
+` - YYYY-MM-DD`. The same entry repeated under one heading counts once. A
+change without an entry does not count, and a `done` phase whose changes have
+none holds no `release`. With several, the least advanced decides: one in
+`testing` gives `testing`; else the phase is in `production` with the highest
+version, by Semantic Versioning precedence, and its date.
+
+Only what decides a stage is checked, so the rest of the changelog may
+follow any format. An entry that counts under two headings, before the first
+`##` heading or after a `#` one, or under a `##` heading that is neither
+`[Unreleased]` nor a version, and a heading holding one whose version has a
+leading zero, build metadata, more than 64 characters or the version of
+another such heading, whose plain version has no date, whose date does not
+exist in the calendar or that holds anything after its date, MUST be refused
+with `changelog-invalid`, naming the file and the line of the first one.
+
+The v3 MUST meet its schema and the rules of the v2, plus a `release` only
+in a `done` phase, `testing` alone or `production` with a version `x.y.z`
+without leading zeros, pre-release or build, of at most 64 characters, and a
+date that exists (`snapshot-invalid`). Output, `--out` and refusals work as
+for the v2; the `--out` report of a v3 also names the changelog it read, or
+null. The snapshot sees a version only once its heading is in the files it
+reads: the commit that moves the entries under the version must reach the
+branch the snapshot is exported from.
 
 #### Scenario: Phases take their status from the changes on disk
 
@@ -2066,6 +2112,34 @@ names its schema version and the progress file it read, if any.
 - WHEN `ospec snapshot --schema-version 2 --out snapshot.json` runs
 - THEN it MUST exit 1 with `progress-invalid` naming the line of that task
 - AND `snapshot.json` MUST NOT exist
+
+#### Scenario: The v3 adds the delivery stage of each done phase
+
+- GIVEN the roadmap of the v2 scenario above, with the archived changes
+  `idd/archive/2026-01-02-s1a-platform/` and `idd/archive/2026-01-09-s1b-access/`
+- AND an `idd/config.yaml` that declares `delivery.changelog: CHANGELOG.md`
+- AND a `CHANGELOG.md` whose `## [1.0.0] - 2026-01-05` holds
+  `- The platform (s1a-platform)` and whose `## [Unreleased]` holds
+  `- Sign-in (s1b-access)`
+- WHEN `ospec snapshot --schema-version 3` runs
+- THEN stdout MUST hold only a v3 in which `s1a` holds the release
+  `{ "stage": "production", "version": "1.0.0", "date": "2026-01-05" }`,
+  `s1b` holds `{ "stage": "testing" }` and `m1` holds none
+
+#### Scenario: A version heading without its date writes nothing
+
+- GIVEN the project of the scenario above, with `## [1.0.0]` as the heading
+  of the entry of `s1a-platform`
+- WHEN `ospec snapshot --schema-version 3 --out snapshot.json` runs
+- THEN it MUST exit 1 with `changelog-invalid` naming the line of that
+  heading
+- AND `snapshot.json` MUST NOT exist
+
+#### Scenario: Without a changelog no phase holds a stage
+
+- GIVEN the project of the first v3 scenario without `CHANGELOG.md`
+- WHEN `ospec snapshot --schema-version 3` runs
+- THEN it MUST exit 0 with a v3 in which no phase holds a `release`
 
 #### Scenario: Without the option the v1 is unchanged
 

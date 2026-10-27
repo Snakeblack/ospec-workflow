@@ -26,6 +26,7 @@ const REFUSALS = Object.freeze({
   "change-closed": 'a closed change takes no more records: open a new one with ospec record intent --change <new-id> --kind <kind> --summary "<what>" --acceptance "<observable result>"',
   "change-mismatch": RESTORE_STATE,
   "change-open": { byDesign: "only ospec close archives a change, after closing it; no agent input reaches it" },
+  "changelog-invalid": "fix the changelog entry or heading at the line the message names: an entry goes once, under '## [Unreleased]' or '## [x.y.z] - YYYY-MM-DD'",
   "cite-outside-plan": "add the cited file to the plan with ospec signals --change <id> --path <file>, or cite a file of the plan or the diff",
   "cite-unresolved": "cite path:line of a file inside the project, from the documentation or the code that settles the category, or ask it as an --open-fact",
   "close-refused": "settle what the message lists, run ospec check --change <id>, then ospec close --change <id> again",

@@ -1,0 +1,574 @@
+{
+  "schema": "idd-state/v1",
+  "change": "progress-snapshot-v3",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "Encargo S2d, reenviado por otra sesión y aceptado por el usuario como E5.12: `ospec snapshot --schema-version 3` emite el v2 tal cual, más `phases[].release`, opcional y solo en fases `done`: `{\"stage\":\"testing\"}` o `{\"stage\":\"production\",\"version\":\"x.y.z\",\"date\":\"YYYY-MM-DD\"}`; en `production`, la versión es semver x.y.z sin pre-release ni build, de como mucho 64 caracteres, y la fecha es obligatoria. Origen: el CHANGELOG de `delivery.changelog` (idd/config.yaml) de la rama leída; para cada cambio archivado de una fase `done` se busca el elemento de lista que termina en `(<change-id>)`, como lo escribe `ospec close`, que puede ocupar varias líneas sangradas. Una entrada bajo `## [Unreleased]` o bajo una versión pre-release da `testing`; bajo `## [x.y.z] - YYYY-MM-DD` da `production` con esa versión y fecha. Con varios cambios en la fase manda el menos avanzado, y en `production` la versión mayor con su fecha. Un cambio sin entrada no cuenta; una fase `done` sin entradas sale sin `release`, y las fases que no son `done` nunca la llevan. Errores: código 1 con fichero y línea, sin escribir nada, si una entrada aparece bajo dos encabezados, o si un encabezado x.y.z no tiene fecha o la fecha no existe. Sin CHANGELOG, las fases `done` salen sin `release` y sin error. El v1 y el v2 no cambian. Documentación agnóstica, que no nombra al consumidor, y solo bajo demanda. La doc dice que el snapshot solo ve producción cuando el encabezado de la versión llega a la rama que lee. El esquema v3 dice lo mismo que el del consumidor.",
+    "kind": "feature",
+    "summary": "ospec snapshot --schema-version 3 emite el snapshot de avance v3: el v2 tal cual más la etapa de entrega de cada fase done (en pruebas, o en producción con su versión y su fecha), sacada de las entradas (<change-id>) del changelog que declara delivery.changelog; el v1 y el v2 no cambian",
+    "acceptance": "Con --schema-version 3, ospec snapshot emite un JSON que cumple schemas/progress-snapshot/v3.schema.json y las reglas del v2, con release solo en fases done: testing si alguna entrada de sus cambios archivados está bajo [Unreleased] o una pre-release, production con la versión mayor y su fecha si todas están bajo x.y.z con fecha, y sin release si no hay entradas o no hay changelog; una entrada bajo dos encabezados o un encabezado x.y.z sin fecha o con una fecha inexistente termina con código 1, el fichero y la línea, sin escribir nada; el v1 y el v2 salen igual; la documentación es agnóstica, dice que producción solo se ve cuando el encabezado de la versión llega a la rama que lee, y ningún flujo, hook, check ni gate lo ejecuta"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Qué changelog lee el v3 y qué cambios cuentan? Recomendado: solo el que declara delivery.changelog en idd/config.yaml, como ospec close; sin declararlo, con none o si el fichero no existe, las fases done salen sin release y sin error; sin opción nueva --changelog (alternativa: --changelog <ruta>, solo con el v3, como --roadmap). Cuentan los cambios archivados de la fase en idd/archive y también en openspec/changes/archive, los mismos que ya dan su estado done."
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿Cómo se reconocen entradas y encabezados? Recomendado: una entrada es un elemento -, * o + en la primera columna, fuera de bloques de código, con sus líneas sangradas unidas, cuyo texto acaba exactamente en (<change-id>), con solo espacios detrás (ni punto ni varios ids); el id se compara exacto. Encabezados: ## [Unreleased] sin distinguir mayúsculas, y ## [x.y.z] - YYYY-MM-DD o ## [x.y.z-pre] - YYYY-MM-DD, con corchetes y v opcionales, como ya los lee la propuesta de release de close. La versión mayor se elige por precedencia semver, y la misma entrada repetida bajo un mismo encabezado cuenta una vez."
+      },
+      {
+        "category": "persistence",
+        "question": "¿Qué pasa con lo que no se puede leer? Recomendado: un idd/config.yaml ilegible termina el v3 con código 1 y su error de configuración (el v1 y el v2 siguen sin leerlo); un changelog declarado que es un directorio cuenta como ausente; BOM y CRLF se aceptan. Alternativa: ignorar la configuración ilegible y emitir sin release."
+      },
+      {
+        "category": "copy",
+        "question": "¿Qué informa --out en el v3? Recomendado: lo del v2 con schema_version 3 y además changelog (la ruta leída, o null sin changelog), y en texto «snapshot v3: N phases from <roadmap>, <progress> and <changelog> written to <out>»; los mensajes en inglés, como el resto del CLI."
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "request",
+          "text": "emite el v2 tal cual"
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 1377
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿Qué se valida y con qué código? Recomendado: changelog-invalid, código 1, fichero:línea del primer problema y sin escribir nada. Solo se valida lo que decide una etapa, las entradas de cambios archivados de fases done y sus encabezados, para que la historia antigua con otro formato no rompa el snapshot (alternativa: validar todos los ## del fichero). Son error: la misma entrada bajo dos encabezados distintos; un encabezado x.y.z sin fecha, con fecha inexistente, con ceros a la izquierda, con +build o marcado [YANKED]; una pre-release con fecha inexistente; y una entrada que cuenta bajo un ## que no es versión ni Unreleased, o antes del primer ##."
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "docs/README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/idd/spec.md",
+      "schemas/progress-snapshot/fixtures/invalid-v3.json",
+      "schemas/progress-snapshot/fixtures/valid-v3.json",
+      "schemas/progress-snapshot/v3.schema.json",
+      "scripts/lib/idd-changelog.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/progress-snapshot-v2.js",
+      "scripts/lib/progress-snapshot-v3.js",
+      "scripts/lib/progress-snapshot-v3.test.js",
+      "scripts/lib/progress-snapshot.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0003, 0009, 0010, 0011, 0012 and quality scenario contract-compatibility, deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Las reglas del v3 (entradas y encabezados del changelog, etapa de cada fase y formato) se calculan en scripts/lib/progress-snapshot-v3.js con tests; ninguna skill ni hook las describe ni cambia."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "Solo se añade al catálogo de rechazos la pista de changelog-invalid; la derivación de señales y obligaciones no cambia."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "El catálogo de rechazos solo gana una pista; el cierre y su evidencia no cambian."
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "El v3 es una versión nueva con su esquema y fixtures válido e inválido; el v1 y el v2 siguen igual, y la orden elige el constructor por --schema-version en vez de reinterpretar una versión existente."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "El módulo nuevo usa solo node:fs, node:path y módulos del propio CLI (idd-config, idd-changelog, team-profile); no se declara ninguna dependencia."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "El estado sigue saliendo solo de los nombres de directorio de idd/ y openspec/changes/ (readChanges del v1); el v3 lee además delivery.changelog de idd/config.yaml, la configuración IDD, y nunca el estado de ningún cambio de ninguno de los dos modos."
+    },
+    {
+      "kind": "adr",
+      "id": "0012",
+      "impact": "conforms",
+      "reason": "El v3 declara solo schemaVersion: 3, su nombre es el $id ospec://schemas/progress-snapshot/v3 y la orden lo valida contra sus reglas antes de emitirlo."
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "Sin --schema-version el v1 sale igual y con 2 el v2, byte a byte; el v3 convive con ellos y su esquema tiene las mismas reglas que el del consumidor, cuyo validador acepta lo que emite."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "El snapshot no lee ni escribe el estado de ningún cambio, así que no toca la reanudación."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "La orden lee solo ficheros locales (roadmap, fichero de avance, idd/config.yaml y el changelog), sin red, git ni memoria entre sesiones."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Comprobado: las reglas del v3 (entradas y encabezados del changelog, etapa de cada fase y formato) se calculan en scripts/lib/progress-snapshot-v3.js y tienen 11 tests en scripts/lib/progress-snapshot-v3.test.js más 3 de extremo a extremo en scripts/ospec.test.js; git status no muestra ninguna skill ni hook tocados, así que ninguna prosa describe la regla.",
+      "recorded_at": "2026-10-27T12:23:18.141Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Comprobado: progress-snapshot-v3.js solo requiere node:fs, node:path y módulos del CLI (idd-config, idd-changelog, team-profile y los del v1 y el v2), que a su vez solo requieren módulos relativos; ninguno usa http, https, net, dns, tls, child_process ni fetch. El diff de scripts/ospec.js solo añade ese require y la rama del v3. No se tocan hooks ni skills, y next, check y close no cambian.",
+      "recorded_at": "2026-10-27T12:23:18.226Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Changelog y cambios: Solo el declarado (Recomendado). Reconocimiento: Flexible acotado (Recomendado). Errores: Solo lo que decide (Recomendado). Datos ilegibles e informe: Error + changelog (Recomendado).",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-27T12:21:18.142Z",
+      "detail": {
+        "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-27T12:21:18.142Z",
+      "detail": {
+        "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "schemas/progress-snapshot/v3.schema.json"
+        ],
+        "tests": [
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/progress-snapshot-v3.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-27T12:21:29.908Z",
+      "detail": {
+        "run": "run-11",
+        "tree": "sha256:5e7eb88fc7dbe0659799c509dcf0551b48051fc1d28c8d75e05d4def6c7bf1b2",
+        "plan": "Versión nueva junto a las anteriores: sin --schema-version sale el v1 y con 2 el v2, byte a byte igual (los fixtures valid.json y valid-v2.json se comparan con lo que se emite, y un test comprueba que el v1 y el v2 no leen el changelog ni idd/config.yaml); el v3 solo sale con --schema-version 3, con su propio esquema y fixtures. --out escribe el snapshot como antes con writeFileAtomic; no hay datos guardados que migrar, y volver atrás es dejar de pasar la opción."
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-27T12:23:00.874Z",
+      "detail": {
+        "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+        "runs": [
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-27T12:23:00.874Z",
+      "detail": {
+        "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+        "check": "ev-4",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "schemas/progress-snapshot/v3.schema.json"
+        ],
+        "tests": [
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/progress-snapshot-v3.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-27T12:23:00.874Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "adr:0012 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume none",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+        "fitness": [
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-27T12:23:56.838Z"
+    }
+  ],
+  "base": "f4e0ec36d951c830a78d0f02a114623eb55bcf85",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3527e846945a7cd302ff76e4944c23bda30c57ef8432c71334f5109ee7ae0aa2",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:21:18.142Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:05fedb92faff7ee435eefde91e79299bc9d0efd28992403a89b7e6b9cc29c3eb",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:21:18.142Z",
+      "tests": 50
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:816180ad672921579ddb6dde05442db0f972d3956ec8a7ea71814692a64bcffc",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:21:18.142Z",
+      "tests": 16
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ee861781aff2558f67aec538fffeca9a0e6bc49bdf303067f4072d8ead776076",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:21:18.142Z",
+      "tests": 32
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:21:18.142Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cc46f994f7be1e6f030c6c1c86545a026060d3b2384678569199bbd5494b6313",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:21:18.142Z",
+      "tests": 21
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:40a18bb50ff5f28cb60e3165df3101c5b3cdd0f88a398a37f227d1ce9e5a8584",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:21:18.142Z",
+      "tests": 84
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0012",
+      "command": "node --test scripts/lib/progress-snapshot.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4cad106f68a9643c9728354f18935ba171c75f8fb6a05a9a2c48072e607e8e26",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:21:18.142Z",
+      "tests": 10
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:308577fbe844f9a90fee753b345be37343f56c76384b41f27022b76889f179cb",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:21:18.142Z",
+      "tests": 32
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:455b66fdb7e694315c7a8b12a9e1646865bb42b82024247b92c0408cb4dcd10d",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:21:18.142Z",
+      "tests": 47
+    },
+    {
+      "id": "run-11",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/progress-snapshot.test.js scripts/lib/progress-snapshot-v2.test.js scripts/lib/progress-snapshot-v3.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0a56946f1628e63f409a1047b26899c25bf6212179d5878ba00f632e7f81082b",
+      "tree": "sha256:5e7eb88fc7dbe0659799c509dcf0551b48051fc1d28c8d75e05d4def6c7bf1b2",
+      "recorded_at": "2026-10-27T12:21:29.908Z",
+      "tests": 33
+    },
+    {
+      "id": "run-12",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fa80e02f8757ea83db75e1d5164ef00bda14f84e571412df4fcb1643ccdf3367",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:23:00.874Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e1f83f42cec650bfa1ff3fd06894f5f5b3f1589463a5d7ee893715a84b98c91c",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:23:00.874Z",
+      "tests": 50
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8926c90b65c33365d3b30820b5a7dacaf49ce005d3a767ae3fc57934ed323575",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:23:00.874Z",
+      "tests": 16
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2f39edb3d600125a6b15b6c19ab4ea429d478605e916764d3ac288c82d44e2b1",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:23:00.874Z",
+      "tests": 32
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:23:00.874Z"
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:85c7f27921112a7c837e50a21d1bc51549cd8ee6e2e2388df5b1c03e1cae9a48",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:23:00.874Z",
+      "tests": 21
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:294ea9b6f4c5040df5a8635fecdf417be9922eae61a97547ecf92bd0060a3a41",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:23:00.874Z",
+      "tests": 84
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0012",
+      "command": "node --test scripts/lib/progress-snapshot.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3afb115c15fadbe119f37f39cf4d3757a93b3079c6fb1f80d16b85302c46e494",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:23:00.874Z",
+      "tests": 10
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:16d3e5e0987383b90bd77fbd5d9b3852f5f1052a9ea740af62d06041748f0c9a",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:23:00.874Z",
+      "tests": 32
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:46eb42d887254f6a66d63d064805946ea82b0eece662fd49e54ab981bfe73fd3",
+      "tree": "sha256:55032818ab57e200e85a7a1b7efb8efc2ce54a0732ed74771ae14cb160471ffd",
+      "recorded_at": "2026-10-27T12:23:00.874Z",
+      "tests": 47
+    }
+  ],
+  "assumptions": [
+    "Dos encabezados de producción con la misma versión que deciden una etapa se rechazan con changelog-invalid, porque la versión mayor no diría qué fecha lleva; no estaba entre las respuestas del gate open-facts."
+  ],
+  "closed_at": "2026-10-27T12:23:56.838Z"
+}

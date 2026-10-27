@@ -126,6 +126,8 @@ function proposeRelease(text) {
 
 module.exports = {
   SECTION_BY_KIND,
+  UNRELEASED_HEADING,
+  VERSION_HEADING,
   addEntry,
   changelogEntry,
   proposeRelease,

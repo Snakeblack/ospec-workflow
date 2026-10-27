@@ -6,8 +6,8 @@
 // hook, check or gate runs it. The status comes from directory names only, so
 // no state of either mode is read (ADR 0011). The document declares only its
 // version: its format is closed (ADR 0009) and its schema is
-// schemas/progress-snapshot/v1.schema.json. The v2 builds on this module
-// (progress-snapshot-v2.js).
+// schemas/progress-snapshot/v1.schema.json. The v2 and the v3 build on this
+// module (progress-snapshot-v2.js, progress-snapshot-v3.js).
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -138,23 +138,29 @@ function parseRoadmap(text, file) {
   return roadmapPhases(text, file).map(({ id, title, line }) => ({ id, title, line }));
 }
 
-// The status of each phase. A change belongs to the phase whose link key, the
-// id without dots, equals the change id or prefixes it before a hyphen; the
-// longest key wins. An active change gives in-progress, else an archived one
-// gives done, else the phase is pending.
-function phaseStatuses(phases, changes) {
-  const found = new Map(phases.map((phase) => [phase.id, { active: false, archived: false }]));
+// The changes of each phase, by phase id. A change belongs to the phase whose
+// link key, the id without dots, equals the change id or prefixes it before a
+// hyphen; the longest key wins.
+function phaseChanges(phases, changes) {
+  const found = new Map(phases.map((phase) => [phase.id, []]));
   for (const change of changes) {
     let owner = null;
     for (const phase of phases) {
       const key = linkKey(phase.id);
       if ((change.id === key || change.id.startsWith(`${key}-`)) && (!owner || key.length > linkKey(owner.id).length)) owner = phase;
     }
-    if (owner) found.get(owner.id)[change.archived ? "archived" : "active"] = true;
+    if (owner) found.get(owner.id).push(change);
   }
+  return found;
+}
+
+// The status of each phase: an active change gives in-progress, else an
+// archived one gives done, else the phase is pending.
+function phaseStatuses(phases, changes) {
+  const found = phaseChanges(phases, changes);
   return phases.map(({ id, title }) => {
-    const { active, archived } = found.get(id);
-    return { id, title, status: active ? "in-progress" : archived ? "done" : "pending" };
+    const own = found.get(id);
+    return { id, title, status: own.some((change) => !change.archived) ? "in-progress" : own.length > 0 ? "done" : "pending" };
   });
 }
 
@@ -248,6 +254,7 @@ module.exports = {
   SnapshotError,
   buildSnapshot,
   parseRoadmap,
+  phaseChanges,
   phaseStatuses,
   plainText,
   readChanges,
