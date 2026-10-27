@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.158.0, 2026-10-27.
+> **Versión de referencia:** v2.158.1, 2026-10-27.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -176,6 +176,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.52** | `review-frozen-tree` (revisor sobre el árbol congelado, `relayed` no basta donde hay recibos y fuera el linaje sin uso) | bugfix |
 | `pending` | **E1.54** | `lock-reclaim-rename` (residuo de E1.46: un lock caducado se reclama por rename atómico, así que dos procesos que lo reclaman a la vez no se creen dueños los dos; prioridad baja, fuera del orden ▶) | bugfix |
 | `pending` | **E1.55** | `atomic-write-concurrent-rename` (residuo de E1.46: en Windows, el fallback de `writeFileAtomic` aguanta dos escritores sin lock del mismo fichero, sin fallar con `ENOENT` ni dejar un `.bak`; en el bloque A, por delante de E4.10) | bugfix |
+| `done` | **E1.56** | `bench-browser-keyring` (el Chromium de los checks del banco arranca sin el llavero del escritorio, así que uno que no responde ya no deja las páginas sin cargar; una navegación sin respuesta termina el check con su error y cierra el navegador, sin dejarlo huérfano; en el bloque A, por delante de E1.55, en v2.158.1) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -216,15 +217,15 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 
 **▶ SIGUIENTE:** el orden que sale de la [auditoría del harness frente a gentle-ai del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Mantiene la decisión del usuario del 2026-10-23 (primero los defectos del harness, el banco después) y la del 2026-10-25: un change por sesión, y todo funciona en los 7 targets. Hasta la v2.151.0, la cola anterior dejó hechos E1.29, E1.31, E1.32 y E1.34–E1.41 y E4.12.
 
-E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1, E1.43 `close-revalidates-state` en v2.153.2 y E1.44 `ceremony-only-rises` en v2.153.3. E5.10 `progress-snapshot`, que el usuario pidió el 2026-10-26 por delante de E1.53, quedó hecho en v2.154.0, E1.53 `config-only-rises` en v2.154.1, E1.45 `cli-one-word-invocation` en v2.155.0, E1.46 `state-durability` en v2.156.0 y E1.47 `memory-loop-visible` en v2.157.0. E5.11 `progress-snapshot-v2`, que el usuario aceptó el 2026-10-26 por delante de E4.10, quedó hecho en v2.158.0. El 2026-10-27 el usuario colocó E1.55 `atomic-write-concurrent-rename` en el bloque A, por delante de E4.10, y aceptó detrás E5.12 `progress-snapshot-v3`: sigue E1.55, después E5.12 y después E4.10 `greenfield-foundation-hint`, el último del bloque A.
+E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1, E1.43 `close-revalidates-state` en v2.153.2 y E1.44 `ceremony-only-rises` en v2.153.3. E5.10 `progress-snapshot`, que el usuario pidió el 2026-10-26 por delante de E1.53, quedó hecho en v2.154.0, E1.53 `config-only-rises` en v2.154.1, E1.45 `cli-one-word-invocation` en v2.155.0, E1.46 `state-durability` en v2.156.0 y E1.47 `memory-loop-visible` en v2.157.0. E5.11 `progress-snapshot-v2`, que el usuario aceptó el 2026-10-26 por delante de E4.10, quedó hecho en v2.158.0. El 2026-10-27 el usuario colocó E1.55 `atomic-write-concurrent-rename` en el bloque A, por delante de E4.10, y aceptó detrás E5.12 `progress-snapshot-v3`. Ese mismo día pidió E1.56 `bench-browser-keyring` por delante de E1.55, y quedó hecho en v2.158.1: sigue E1.55, después E5.12 y después E4.10 `greenfield-foundation-hint`, el último del bloque A.
 
-1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.53 `config-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E1.55 `atomic-write-concurrent-rename` → E4.10 `greenfield-foundation-hint`.
+1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.53 `config-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E1.56 `bench-browser-keyring` → E1.55 `atomic-write-concurrent-rename` → E4.10 `greenfield-foundation-hint`.
 2. **B. Economía**, antes que C porque C añade una ejecución de la suite: E4.15 `cli-chaining` → E4.16 `cli-terse-output` → E4.3 `context-budget-ratchet`, que fija los techos por target después de B.
 3. **E4.17** `bench-knowledge-scenarios`: escribe y congela escenarios sin correrlos. Es una excepción acotada a «banco después», decidida por el usuario el 2026-10-25 para que C no se ajuste sobre ellos.
 4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.50 `content-security-signal` → E1.51 `open-change-nudge` → E1.52 `review-frozen-tree` → E3.7 `fact-ledger`.
 5. **D. Banco, todo junto.** E4.14 `bench-validation-readiness` (con el doble conteo) → corrida de validación de E4.6 en Claude y agy → E4.4, recalculando antes su premisa → E4.13 `worker-delegation`, solo si E4.4 da evidencia (decisión del usuario del 2026-10-22) → E4.11 `workspace-root-resolution`, al final de la cola.
 
-E1.54 `lock-reclaim-rename`, residuo de E1.46 anotado el 2026-10-26, tiene prioridad baja y queda fuera del orden ▶ hasta que el usuario lo coloque. E1.55 `atomic-write-concurrent-rename`, otro residuo de E1.46 anotado el 2026-10-27, entró ese mismo día en el bloque A porque su flake ya había roto dos de las cuatro ejecuciones de Windows desde v2.158.0.
+E1.54 `lock-reclaim-rename`, residuo de E1.46 anotado el 2026-10-26, tiene prioridad baja y queda fuera del orden ▶ hasta que el usuario lo coloque. E1.55 `atomic-write-concurrent-rename`, otro residuo de E1.46 anotado el 2026-10-27, entró ese mismo día en el bloque A porque su flake ya había roto dos de las cuatro ejecuciones de Windows desde v2.158.0. E1.56 `bench-browser-keyring` entró también el 2026-10-27, por delante de E1.55, porque los checks de Chromium del banco fallaban en local tras cada reinicio y dejaban cientos de navegadores huérfanos.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -324,7 +325,7 @@ E5.11 (aceptado por el usuario el 2026-10-26, por delante de E4.10)
 E5.12 (aceptado por el usuario el 2026-10-27, detrás de E1.55 y por delante de E4.10)
 
 Auditoría del 2026-10-25 (un change por sesión, en este orden):
-A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.55 ─ E4.10
+A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.56 ─ E1.55 ─ E4.10
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
 C: E1.48 ─ E1.49 ─ E1.50 ─ E1.51 ─ E1.52 ─ E3.7
@@ -1023,6 +1024,21 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
   - un test fuerza el `EPERM` y el `ENOENT` intercalados sin depender del planificador de Windows, y cada escritura termina entera o falla sin perder el contenido anterior ni dejar ficheros;
   - el test de los 20 escritores pasa 20× en un runner Windows.
 
+### E1.56 — `bench-browser-keyring`
+
+- **Problema:**
+  - Tras algunos arranques de la máquina, el Chromium headless de los checks del banco (`scripts/evals/bench/browser.js`) no carga ninguna página http, tampoco de `127.0.0.1`. Antes de su primera petición pide al llavero del escritorio, por D-Bus, la clave con la que cifra las cookies, y el llavero no responde. Los checks de `checks-greenfield.test.js` fallan en local con `the page did not finish loading`, y `ospec check` no pasa. En CI no se ve, porque un runner sin escritorio usa el almacén básico.
+  - Cuando una navegación no responde, `open()` y `reload()` dejan el plazo de carga rechazado sin que nadie lo espere. Node termina el check runner antes de que cierre su navegador y borre su perfil: una ejecución del fichero dejó unos 330 procesos y 33 perfiles de 149 MB en `/tmp`, y el 2026-10-27 llegaron a 13 GB.
+- **Garantía que protege:** que `ospec check` pase en local con el código correcto, y que un check del banco falle con su error y sin fugas.
+- **Alcance:**
+  - El navegador arranca con `--password-store=basic` (Linux) y `--use-mock-keychain` (macOS), como Puppeteer; cada plataforma ignora la opción de la otra. El perfil es desechable, así que sus cookies no necesitan el llavero.
+  - `open()` y `reload()` esperan a la vez la carga y el comando, así que el plazo de carga termina el check con su error y el runner cierra el navegador.
+- **Targets:** ninguno; es del banco.
+- **Hecho cuando:**
+  - con el llavero del escritorio sin responder, los checks de `checks-greenfield.test.js` pasan en local y no queda ningún navegador ni perfil;
+  - un test fija las dos opciones del arranque y otro que una navegación sin respuesta falla con `the page did not finish loading`, sin un rechazo sin gestionar.
+- **Entregado en v2.158.1:** `BROWSER_FLAGS` (`scripts/evals/bench/browser.js`) lleva `--password-store=basic` y `--use-mock-keychain`, y `open()` y `reload()` esperan con `Promise.all` la carga y el comando. En rojo, con el llavero de la máquina sin responder, fallaban los 32 checks de Chromium del corpus greenfield y quedaban 330 procesos huérfanos; en verde pasan sin dejar navegadores ni perfiles.
+
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
 **Resultado de la etapa:** al crear un proyecto, ospec hace las preguntas que haría un arquitecto con experiencia en proyectos serios. Captura la información funcional, el contexto del equipo, los atributos de calidad y las restricciones, y produce **ADRs de arquitectura agnósticos de tecnología**, separados de la selección tecnológica. Las preguntas no salen de un cuestionario fijo: salen de los huecos de conocimiento que más condicionan las decisiones pendientes. La foundation sirve igual a IDD y al modo SDD.
@@ -1580,6 +1596,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-27: `bench-browser-keyring` (IDD), publicado en v2.158.1. E1.56 hecho, por delante de E1.55 a petición del usuario. El Chromium de los checks del banco arranca con `--password-store=basic` y `--use-mock-keychain`, así que un llavero del escritorio que no responde ya no deja las páginas sin cargar ni `ospec check` en rojo en local. `open()` y `reload()` esperan a la vez la carga y el comando: una navegación sin respuesta termina el check con su error y el runner cierra su navegador, en vez de morir por un rechazo sin gestionar y dejar cientos de procesos y perfiles en `/tmp`. Sigue E1.55.
 - 2026-10-27: orden de E1.55 y E5.12 (IDD, `roadmap-order-e1-55-e5-12`, solo documentación). El usuario coloca E1.55 `atomic-write-concurrent-rename` en el bloque A, por delante de E4.10, porque su flake volvió a romper el job de Windows en la PR #442 (run 40431186194), y acepta detrás E5.12 `progress-snapshot-v3`, un encargo de otra sesión. E5.12 añade al v2 la etapa de entrega de cada fase hecha, en pruebas o en producción con su versión y fecha, sacada del changelog. Sigue E1.55, después E5.12 y después E4.10.
 - 2026-10-27: E1.55 (IDD, `e1-55-atomic-write-race-note`, solo documentación). El roadmap anota `atomic-write-concurrent-rename`, otro residuo de E1.46: tras el merge de E5.11, el test de 20 escritores sin lock de `atomic-write` falló en Windows en `main` (run 40428047045) con `ENOENT` al apartar el destino a su `.bak`, y Publish Marketplace subió v2.158.0 tras relanzar el job. La causa es el `.bak` compartido del fallback de Windows, y la sufre cualquier escritor sin lock, no solo el test. Fuera del orden ▶ hasta que el usuario lo coloque; E1.30 recoge el flake.
 - 2026-10-27: `progress-snapshot-v2` (IDD), publicado en v2.158.0. E5.11 hecho, por delante de E4.10 a petición del usuario. Con `--schema-version 2`, `ospec snapshot` exporta el snapshot de avance v2. Lleva las fases del v1, con el mismo estado y orden, más los tramos del roadmap (sus `##` con tablas de fases) y los textos para el cliente de un fichero de avance opcional, `docs/progress.md` o `--progress`. Ese fichero va en Markdown y en el idioma del proyecto, con palabras clave fijas en inglés. Un fichero de avance fuera de formato, con una fase o un tramo que el roadmap no tiene, o con una tarea sin marcar en una fase `done` sale con código 1, `progress-invalid`, el fichero y la línea, sin escribir nada. Sin la opción, el v1 no cambia. Sigue E4.10.

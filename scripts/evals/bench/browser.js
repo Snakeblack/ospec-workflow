@@ -135,7 +135,7 @@ function connect(url) {
   }));
 }
 
-function createPage(connection, sessionId, baseUrl) {
+function createPage(connection, sessionId, baseUrl, { loadTimeoutMs = LOAD_TIMEOUT_MS } = {}) {
   const send = (method, params) => connection.send(method, params, sessionId);
   const errors = [];
   connection.on((message) => {
@@ -147,7 +147,7 @@ function createPage(connection, sessionId, baseUrl) {
 
   function loaded() {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { stop(); reject(new Error("the page did not finish loading")); }, LOAD_TIMEOUT_MS);
+      const timer = setTimeout(() => { stop(); reject(new Error("the page did not finish loading")); }, loadTimeoutMs);
       const stop = connection.on((message) => {
         if (message.sessionId === sessionId && message.method === "Page.loadEventFired") {
           clearTimeout(timer);
@@ -186,19 +186,18 @@ function createPage(connection, sessionId, baseUrl) {
     await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount });
   }
 
+  // The load and the command are awaited together: a navigation the browser
+  // never answers left the load timeout rejected with nobody awaiting it, and
+  // Node ended the check runner before it closed its browser (E1.56).
   return {
     errors,
     evaluate,
     /** Opens `relative` (default index.html) of the served workspace, with an optional hash. */
     async open(relative = "index.html") {
-      const done = loaded();
-      await send("Page.navigate", { url: new URL(relative, baseUrl).href });
-      await done;
+      await Promise.all([loaded(), send("Page.navigate", { url: new URL(relative, baseUrl).href })]);
     },
     async reload() {
-      const done = loaded();
-      await send("Page.reload", {});
-      await done;
+      await Promise.all([loaded(), send("Page.reload", {})]);
     },
     async click(selector, index = 0) {
       const { x, y } = await centerOf(selector, index);
@@ -248,6 +247,10 @@ function createPage(connection, sessionId, baseUrl) {
   };
 }
 
+// The cookies of a throwaway profile need no desktop keyring: Chromium asks
+// it for their key before the first request, and one that never answered
+// left every page unloaded (E1.56). Linux reads --password-store, macOS
+// --use-mock-keychain, and each platform ignores the other one.
 const BROWSER_FLAGS = Object.freeze([
   "--headless=new",
   "--no-sandbox",
@@ -255,6 +258,8 @@ const BROWSER_FLAGS = Object.freeze([
   "--no-first-run",
   "--no-default-browser-check",
   "--disable-extensions",
+  "--password-store=basic",
+  "--use-mock-keychain",
   "--remote-debugging-port=0",
 ]);
 
@@ -356,4 +361,4 @@ async function launchBrowser({ root, executable = findBrowser() }) {
   };
 }
 
-module.exports = { LAUNCH_TIMEOUT_MS, connect, findBrowser, launchBrowser, serveDirectory, startBrowser };
+module.exports = { LAUNCH_TIMEOUT_MS, connect, createPage, findBrowser, launchBrowser, serveDirectory, startBrowser };

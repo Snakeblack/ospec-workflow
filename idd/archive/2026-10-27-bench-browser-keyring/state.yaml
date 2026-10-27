@@ -1,0 +1,140 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-browser-keyring",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El Chromium headless del banco no carga ninguna página http cuando el llavero del escritorio (org.freedesktop.secrets por D-Bus) no responde, porque cifra las cookies con una clave que pide al llavero antes de su primera petición de red; además, cuando una página no carga, el check-runner muere por un rechazo no gestionado y deja el navegador y su perfil huérfanos",
+    "acceptance": "Con el llavero del escritorio sin responder, los checks de navegador del corpus greenfield (checks-greenfield.test.js) cargan sus páginas y pasan en local, porque el navegador arranca con --password-store=basic"
+  },
+  "facts": {
+    "open": [
+      "¿El cambio arregla también la fuga de navegadores huérfanos (open()/reload() de browser.js dejan un rechazo sin gestionar cuando Page.navigate no responde en 15 s, y el check-runner sale sin cerrar el navegador ni borrar su perfil), o queda como un ítem aparte del roadmap?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/evals/bench/browser.js",
+      "scripts/evals/bench/browser.test.js"
+    ],
+    "work_units": 2,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Huérfanos: Incluirla (Recomendado). macOS: Añadirla (Recomendado), también --use-mock-keychain.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-27T09:47:24.265Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-27T09:51:38.046Z",
+      "detail": {
+        "tree": "sha256:054aa6bf7ff87a767cb4c9cca661668c06f1d223dd8f875bfaaa045c4636aef5",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-27T09:51:45.326Z"
+    }
+  ],
+  "base": "e2d723b0ba0ab6d34c77c5a92c52d6c597cfa97b",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/browser.test.js scripts/evals/bench/checks-greenfield.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:94f75a034ebee025f82ad10ca3d0f351eab4d353fddfc5a333909b350bddda8c",
+      "tree": "sha256:a15984cddae18c9d32c53a902cf59c1a0df8d570d4c44d1616533540c8c13c7f",
+      "recorded_at": "2026-10-27T09:45:53.288Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/browser.test.js scripts/evals/bench/checks-greenfield.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:42d7201f8098c0bb9941bf5500282f16a2e74535e416732b4fa9b6882482c963",
+      "tree": "sha256:635a4f6b7ecce5a51b20c3ebf1aba3221ad8e14ac407e00833dfb76c86b4043d",
+      "recorded_at": "2026-10-27T09:47:24.265Z",
+      "tests": 14
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b7118de481c152c179f4357e886d85b9f117855dcfca59bf6c46ba0147c29a21",
+      "tree": "sha256:054aa6bf7ff87a767cb4c9cca661668c06f1d223dd8f875bfaaa045c4636aef5",
+      "recorded_at": "2026-10-27T09:51:38.046Z"
+    }
+  ],
+  "closed_at": "2026-10-27T09:51:45.326Z"
+}

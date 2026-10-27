@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const http = require("node:http");
 const { EventEmitter } = require("node:events");
 
-const { LAUNCH_TIMEOUT_MS, connect, findBrowser, serveDirectory, startBrowser } = require("./browser.js");
+const { LAUNCH_TIMEOUT_MS, connect, createPage, findBrowser, serveDirectory, startBrowser } = require("./browser.js");
 
 // A browser that writes to stderr and never opens its port, kept in this
 // process: a Node start on a loaded Windows runner wrote its stderr after
@@ -18,14 +18,17 @@ const { LAUNCH_TIMEOUT_MS, connect, findBrowser, serveDirectory, startBrowser } 
 // numbered `opensPortOn` writes DevToolsActivePort before it returns, as a
 // warm start after a cold CI runner's first one did (E4.7). stop() ends it
 // with child.kill() on Windows and with process.kill(-pid) elsewhere, so the
-// mock sends that kill to it.
+// mock sends that kill to it. args() lists the arguments of each start.
 function hangingBrowser(t, { opensPortOn } = {}) {
   const children = new Map();
+  const starts = [];
   const kill = process.kill;
   t.mock.method(process, "kill", (pid, signal) => (children.has(-pid) ? children.get(-pid).kill(signal) : kill.call(process, pid, signal)));
   return {
     starts: () => children.size,
+    args: () => starts,
     spawnProcess: (_executable, args) => {
+      starts.push(args);
       const child = new EventEmitter();
       // Above any pid_max, so it names no real process.
       child.pid = 2 ** 30 + children.size;
@@ -115,6 +118,22 @@ test("startBrowser retries a start that does not open its DevTools port in time"
   }
 });
 
+test("startBrowser starts the browser without the desktop keyring", async (t) => {
+  // Chromium asks the desktop keyring for the key of its cookies before its
+  // first request, and a keyring that never answered left every page of the
+  // bench unloaded (E1.56). A CI runner has no desktop keyring, so only the
+  // arguments show it here: basic on Linux, a mock keychain on macOS.
+  const fake = hangingBrowser(t, { opensPortOn: 1 });
+  const started = await startBrowser({ executable: "chromium", timeoutMs: 100, spawnProcess: fake.spawnProcess });
+  try {
+    assert.equal(fake.args().length, 1);
+    assert.ok(fake.args()[0].includes("--password-store=basic"), fake.args()[0].join(" "));
+    assert.ok(fake.args()[0].includes("--use-mock-keychain"), fake.args()[0].join(" "));
+  } finally {
+    await started.stop();
+  }
+});
+
 test("startBrowser reports the exit code and stderr of a browser that exits on both starts", async (t) => {
   const fake = crashingBrowser();
   await assert.rejects(
@@ -154,6 +173,29 @@ test("a request the browser never answers fails when its DevTools connection clo
     new Promise((resolve) => setTimeout(resolve, 3000, "still pending")),
   ]);
   assert.match(outcome, /Browser\.getVersion: the browser closed its DevTools connection/);
+});
+
+// A DevTools connection that never answers a navigation or a reload, as a
+// Chromium waiting on the desktop keyring did (E1.56); every other command
+// succeeds.
+function stalledNavigation() {
+  return {
+    send: (method) => (method === "Page.navigate" || method === "Page.reload" ? new Promise(() => {}) : Promise.resolve({})),
+    on: () => () => {},
+  };
+}
+
+test("open() and reload() fail with the load timeout when the browser never answers the navigation", async () => {
+  // The timeout used to reject with nobody awaiting it, and Node ended the
+  // check runner before it closed its browser and removed the profile.
+  const page = createPage(stalledNavigation(), "session", "http://127.0.0.1:9/", { loadTimeoutMs: 50 });
+  for (const action of [() => page.open(), () => page.reload()]) {
+    const outcome = await Promise.race([
+      action().then(() => "loaded", (error) => error.message),
+      new Promise((resolve) => setTimeout(resolve, 2000, "still pending")),
+    ]);
+    assert.equal(outcome, "the page did not finish loading");
+  }
 });
 
 test("a start waits up to 60 s before its retry, because a loaded CI runner outlasts 20 s twice", () => {
