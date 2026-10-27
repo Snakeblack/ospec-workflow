@@ -215,6 +215,17 @@ function isIddState(file) {
   return OWN_ROOTS.some((own) => file === own || file.startsWith(`${own}/`));
 }
 
+// The project's files under root that git sees, tracked or untracked and not
+// ignored, without its own state (E4.10). Null when git cannot list them: the
+// foundation suggestion it feeds never fails a command.
+function readProjectFiles(root) {
+  try {
+    return nulList(git(root, ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ".", ...OWN_EXCLUDES])).map(normalizePath);
+  } catch {
+    return null;
+  }
+}
+
 function headerPath(line, prefix) {
   const target = line.slice(4).replace(/\t.*$/, "");
   return target === "/dev/null" ? null : normalizePath(target.startsWith(prefix) ? target.slice(prefix.length) : target);
@@ -644,6 +655,7 @@ module.exports = {
   readHead,
   readKnowledgeSources,
   readProjectContext,
+  readProjectFiles,
   readTreeFingerprint,
   requireWorkTree,
   snapshotTree,

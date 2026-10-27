@@ -53,7 +53,7 @@ The agent builds the smallest change that meets the acceptance and chooses tests
 
 ### Foundation: architecture before the first change
 
-A new project, or a request to define a system's architecture, starts with the `foundation` skill in any mode. It asks rounds of at most four questions, each with a recommended answer, and works like an architect: quality drivers as measurable scenarios, the simplest structure that meets them (services only for a named driver), and decisions deferred until their last responsible moment. It records the product docs, one ADR per structural decision under `docs/architecture/decisions/` and, with your approval, the `idd/config.yaml` that IDD needs (checks, Strict TDD, impact paths, contract documents). A later change that departs from an ADR stops at `adr-amend-or-contradict`. It never writes application code.
+A new project, or a request to define a system's architecture, starts with the `foundation` skill in any mode. In IDD, while the project has no source code and nothing under `docs/product/` or `docs/architecture/`, `ospec next` and `record intent` suggest it before the first change is built, without blocking. It asks rounds of at most four questions, each with a recommended answer, and works like an architect: quality drivers as measurable scenarios, the simplest structure that meets them (services only for a named driver), and decisions deferred until their last responsible moment. It records the product docs, one ADR per structural decision under `docs/architecture/decisions/` and, with your approval, the `idd/config.yaml` that IDD needs (checks, Strict TDD, impact paths, contract documents). A later change that departs from an ADR stops at `adr-amend-or-contradict`. It never writes application code.
 
 ---
 

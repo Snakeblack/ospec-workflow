@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- ospec next y record intent sugieren, sin bloquear, la skill foundation en un proyecto sin código fuente ni docs/product ni docs/architecture, y la skill idd se la ofrece al usuario como opción (greenfield-foundation-hint)
+
 ## [2.159.1] - 2026-10-27
 
 ### Fixed

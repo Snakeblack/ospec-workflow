@@ -9,7 +9,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { nextForChange, nextForProject, statusOf } = require("./idd-next.js");
+const { foundationSuggestion, nextForChange, nextForProject, statusOf } = require("./idd-next.js");
 const { recordEvidence, recordGate, recordImpact, recordIntent, recordPlan, recordReferences, recordSignal } = require("./idd-record.js");
 
 const FIXTURES_DIR = path.join(__dirname, "..", "fixtures", "idd");
@@ -349,6 +349,62 @@ test("a boundary without a declared ADR suggests one and changes nothing else", 
   assert.strictEqual(nextForChange(declared).suggestions, undefined);
   // A closed change suggests nothing.
   assert.strictEqual(nextForChange({ ...state, status: "closed" }).suggestions, undefined);
+});
+
+// E4.10: the files a project with no code yet may already hold.
+const GREENFIELD_FILES = ["README.md", "package.json", "package-lock.json", ".gitignore", "LICENSE", ".github/workflows/ci.yml", "openspec/config.yaml", "docs/notes.md"];
+const FOUNDATION = {
+  id: "foundation",
+  reason: "the project has no source code and no docs/product or docs/architecture",
+  how: "offer the user the foundation skill before the first change, as an option: it records the product docs, ADRs and idd/config.yaml and writes no code; if the user declines, go on with the change",
+};
+
+test("[REQ-idd-011] a project without source code or product and architecture docs suggests foundation", () => {
+  assert.deepStrictEqual(foundationSuggestion([]), FOUNDATION);
+  assert.deepStrictEqual(foundationSuggestion(GREENFIELD_FILES), FOUNDATION);
+  // Product or test code, or anything foundation writes, means it has started.
+  for (const file of ["src/app.js", "index.html", "styles/site.css", "scripts/build.sh", "main.go", "test/app.test.js", "docs/product/brief.md", "docs/architecture/knowledge-map.yaml"]) {
+    assert.strictEqual(foundationSuggestion([...GREENFIELD_FILES, file]), null, file);
+  }
+  // Without a file list, the suggestion is left out and nothing fails.
+  assert.strictEqual(foundationSuggestion(null), null);
+  assert.strictEqual(foundationSuggestion(undefined), null);
+});
+
+test("[REQ-idd-011] foundation is offered only before anything is built, without changing the next step", () => {
+  const projectFiles = GREENFIELD_FILES;
+  assert.deepStrictEqual(nextForProject([], { projectFiles }), { ...nextForProject([]), suggestions: [FOUNDATION] });
+
+  const questions = ["Is an empty title an error?"];
+  let state = recordIntent(null, { change: "todo-list", kind: "bug", summary: "s", acceptance: "a", openFacts: questions }).state;
+  const gate = nextForChange(state, { projectFiles });
+  assert.deepStrictEqual([gate.next_step, gate.suggestions], [nextForChange(state).next_step, [FOUNDATION]]);
+
+  state = recordGate(state, { id: "open-facts", action: "resolve", answer: "yes", source: "user" }).state;
+  const plan = nextForChange(state, { projectFiles });
+  assert.deepStrictEqual([plan.next_step.action, plan.suggestions], ["declare-plan", [FOUNDATION]]);
+
+  // Once the plan is declared the change is being built: no more offers.
+  state = recordPlan(state, { paths: ["index.html"] }).state;
+  const building = nextForChange(state, { projectFiles });
+  assert.deepStrictEqual([building.next_step.obligation, building.suggestions], ["checks-pass", undefined]);
+  // Choosing among open changes offers nothing either.
+  const other = recordIntent(null, { change: "other", kind: "docs", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
+  assert.strictEqual(nextForProject([state, other], { projectFiles }).suggestions, undefined);
+});
+
+// The bench scenarios (E4.10 "Hecho cuando"): the greenfield ones get the
+// suggestion, and none of the ones with code does.
+test("[REQ-idd-011] foundation is suggested for the greenfield bench scenarios and for no scenario with code", () => {
+  const bench = path.join(__dirname, "..", "evals", "bench");
+  const filesOf = (repo) => fs.readdirSync(repo, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => path.relative(repo, path.join(entry.parentPath, entry.name)).split(path.sep).join("/"));
+  const repos = (dir) => fs.readdirSync(path.join(bench, dir)).sort().map((id) => [id, filesOf(path.join(bench, dir, id, "repo"))]);
+  const greenfield = repos("scenarios-greenfield");
+  const withCode = [...repos("scenarios"), ...repos("scenarios-reserved")];
+  assert.deepStrictEqual(greenfield.map(([id]) => id), ["receta-spa", "todo-spa"]);
+  assert.strictEqual(withCode.length, 7);
+  for (const [id, files] of greenfield) assert.deepStrictEqual(foundationSuggestion(files), FOUNDATION, id);
+  for (const [id, files] of withCode) assert.strictEqual(foundationSuggestion(files), null, id);
 });
 
 test("[REQ-idd-021] next carries the knowledge references and warnings it is given, and keeps knowledge_refs", () => {

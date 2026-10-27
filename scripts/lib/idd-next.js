@@ -7,6 +7,7 @@
 
 const { CHANGE_ROOT, DECISIONS_ROOT, GATES, IMPACTS, INTENT_KINDS, LIVING_DOC_FILE, OBLIGATIONS, RUN_EVIDENCE } = require("./idd-contract.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
+const { classifyPath } = require("./idd-signals.js");
 
 // Order in which pending obligations are worked: evidence produced while
 // building comes first, checks run on the finished diff, and the living
@@ -134,6 +135,27 @@ function adrSuggestion(state) {
   };
 }
 
+// The steps taken before anything is built: only there is the foundation
+// suggestion offered (E4.10).
+const FOUNDATION_STEPS = Object.freeze(["open-change", "resolve-gate", "declare-plan"]);
+
+// The documentation foundation writes: any file under them means the project
+// has started recording its product or architecture.
+const FOUNDATION_ROOTS = Object.freeze(["docs/product/", "docs/architecture/"]);
+
+// The foundation suggestion (E4.10): a suggestion, never a gate, while the
+// project's files hold no source code, product or test, and nothing under
+// docs/product or docs/architecture. Without a file list there is none.
+function foundationSuggestion(files) {
+  if (!files) return null;
+  if (files.some((file) => ["product", "test"].includes(classifyPath(file)) || FOUNDATION_ROOTS.some((root) => file.startsWith(root)))) return null;
+  return {
+    id: "foundation",
+    reason: "the project has no source code and no docs/product or docs/architecture",
+    how: "offer the user the foundation skill before the first change, as an option: it records the product docs, ADRs and idd/config.yaml and writes no code; if the user declines, go on with the change",
+  };
+}
+
 // The plan is declared once `ospec signals` recorded it, or once the change
 // has evidence of its own: a signal the diff derived or a run the CLI observed
 // (E1.11). States recorded before the plan existed are judged by the latter.
@@ -197,7 +219,7 @@ function closeOptionSuggestions(delivery) {
     }));
 }
 
-function nextForChange(state, { checks, candidateCommand, contractPatterns, knowledge, team, delivery } = {}) {
+function nextForChange(state, { checks, candidateCommand, contractPatterns, knowledge, team, delivery, projectFiles } = {}) {
   const pending = state.obligations
     .filter((obligation) => obligation.status === "pending")
     .sort(byWorkOrder)
@@ -245,7 +267,7 @@ function nextForChange(state, { checks, candidateCommand, contractPatterns, know
     // The fitness functions of the change's references (E3.3, REQ-idd-022).
     if (knowledge.fitness) result.fitness = knowledge.fitness;
   }
-  const suggestions = [adrSuggestion(state)].filter(Boolean);
+  const suggestions = [adrSuggestion(state), FOUNDATION_STEPS.includes(nextStep.action) && foundationSuggestion(projectFiles)].filter(Boolean);
   // How the change reaches the default branch, with its reasons and rules,
   // where it decides something (REQ-idd-023).
   if (delivery && DELIVERY_STEPS.includes(nextStep.action)) {
@@ -267,7 +289,10 @@ function nextForProject(states, { change, ...context } = {}) {
   }
   const open = states.filter((state) => state.status === "open");
   if (open.length === 0) {
-    return { change: null, next_step: { action: "open-change", command: `ospec record intent --change <id> ${INTENT_FIELDS}` } };
+    const result = { change: null, next_step: { action: "open-change", command: `ospec record intent --change <id> ${INTENT_FIELDS}` } };
+    const foundation = foundationSuggestion(context.projectFiles);
+    if (foundation) result.suggestions = [foundation];
+    return result;
   }
   if (open.length === 1) return nextForChange(open[0], context);
   const changes = open.map((state) => state.change).sort();
@@ -307,9 +332,11 @@ function statusOf(states) {
 
 module.exports = {
   CHECKS_REQUIRED,
+  FOUNDATION_STEPS,
   GATE_QUESTIONS,
   HOW,
   WORK_ORDER,
+  foundationSuggestion,
   nextForChange,
   planDeclared,
   nextForProject,
