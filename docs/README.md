@@ -27,6 +27,49 @@ El perfil de equipo (`team:` con `size` y `experience`) decide la estrategia de 
 
 `ospec snapshot` exporta bajo demanda el avance del proyecto como snapshot de avance v1, con el esquema [`schemas/progress-snapshot/v1.schema.json`](../schemas/progress-snapshot/v1.schema.json): las fases de `docs/roadmap.md` (u otro fichero con `--roadmap <ruta>`), en orden, cada una con su estado. Una fase es cada fila de una tabla cuya primera celda empieza por `<ID>. <título>`, como `P1b.1. Revocación de acceso`. Un cambio IDD o SDD pertenece a la fase si su id es el de la fase sin puntos o empieza por él seguido de guion (`p1b1-revocacion`). La fase está `in-progress` si tiene un cambio activo, `done` si solo tiene archivados y `pending` si no tiene ninguno. El snapshot sale por stdout o se escribe con `--out <fichero>`. Un roadmap ausente o inválido sale con código 1, un mensaje con el fichero y la línea, y sin escribir nada. Ningún paso de IDD ni de SDD, ningún hook y ningún check lo ejecutan: publicarlo, por ejemplo desde el CI del proyecto, es cosa de cada proyecto (REQ-idd-026).
 
+Con `--schema-version 2` sale el snapshot de avance v2, con el esquema [`schemas/progress-snapshot/v2.schema.json`](../schemas/progress-snapshot/v2.schema.json). Lleva las mismas fases, estados y orden que el v1, más los tramos del roadmap y los textos para el cliente de un fichero de avance. Sin la opción sale el v1, igual que antes.
+
+- **Tramos.** Un tramo es un encabezado `##` del roadmap con tablas de fases debajo, hasta el siguiente `#` o `##`. Su id es el `<ID>` de `## S1. Walking skeleton`, en minúsculas. Si el encabezado no lleva `<ID>.`, el id sale del título, en minúsculas, sin tildes y con guiones: `## Hitos` da `hitos`. Un roadmap sin tramos da un v2 sin `groups`, y uno con fases dentro y fuera de tramos se rechaza.
+- **Fichero de avance.** Es `docs/progress.md`, u otro con `--progress <ruta>`. Es opcional: sin él, el v2 lleva solo tramos y fases. Se escribe en Markdown, en el idioma del proyecto y con palabras clave fijas en inglés. Lo que va antes del primer `##` o `###` es libre y se ignora.
+
+```markdown
+## S1. La base
+
+Lo imprescindible para empezar.
+
+### S1a. La plataforma
+
+- short: Plataforma
+- start: 2026-01-05
+- end: 2026-01-16
+- preview: https://pruebas.example.com/
+
+El proyecto ya está en internet, con una versión de prueba de cada cambio.
+
+#### Tasks
+
+- [x] dominio: Dominio propio
+- [x] pruebas: Una versión de prueba de cada cambio
+
+#### Outcomes
+
+- Abrir la versión de prueba desde cualquier navegador
+
+## Requests
+
+### logo. Envíanos el logo
+
+- phase: s1a
+- due: 2026-01-30
+
+Mejor en SVG.
+```
+
+- **Qué da cada parte.** `## <ID>. <título>` da el título y el resumen de un tramo del roadmap: su párrafo es el resumen. `### <ID>. <título>` va bajo el `##` de su tramo y da los textos de una fase del roadmap. `short`, `start`, `end` y `preview` dan su nombre corto, sus fechas y su versión de prueba, y su párrafo es la descripción. `#### Tasks` y `#### Outcomes` dan sus tareas y lo que el cliente podrá hacer cuando termine. `## Requests` lleva lo que el equipo necesita del cliente, con una fase y una fecha límite opcionales y un párrafo de detalle. Un título tras `<ID>.` sustituye al del roadmap, y `### S1b.` sin título conserva el suyo. Lo que no se escribe no sale.
+- **Reglas.** Los ids se comparan en minúsculas y son exactos: `S1c.1`, no `S1c1`. Los de tareas y peticiones se escriben a mano y siguen el patrón `^[a-z0-9.-]{1,64}$`, para seguir una tarea de un snapshot al siguiente aunque cambie su título. Cada texto pierde el Markdown en línea y las líneas de un párrafo se unen; cada elemento admite un solo párrafo. Las fechas son `YYYY-MM-DD` reales y `start` no va después de `end`: en una fase `done` son las reales, en una `in-progress` el inicio real y el fin previsto, y en una `pending` las previstas. `preview` es una URL `https://` sin usuario ni contraseña, y se emite tal cual. Los límites son 20 tramos, 100 fases, 50 tareas por fase, 10 resultados, 10 peticiones, 40 caracteres el nombre corto, 200 los títulos, 1000 los párrafos y 64 KiB el snapshot.
+- **Errores.** Un fichero de avance que nombra una fase o un tramo que el roadmap no tiene, que pone una fase bajo otro tramo, que deja sin marcar una tarea de una fase `done` o que se sale del formato termina con código 1 y `progress-invalid`, con el fichero y la línea del primer problema. Un `--progress` que no existe da `progress-missing`. Nunca se recorta ni se escribe nada.
+- **Publicarlo.** Publicarlo sigue siendo cosa del proyecto, y conviene hacerlo desde la rama de integración, la que reúne el trabajo ya fusionado: `dev` si existe y si no `main`. ospec lee lo que hay en disco y no sabe de ramas. Un cambio llega a esa rama ya archivado dentro de su PR, así que su fase pasaría de `pending` a `done` sin salir nunca en curso. Para que salga `in-progress`, el cambio se abre en la rama de integración, con un commit que solo lleva `idd/<cambio>/`, antes de crear la rama de trabajo.
+
 | Documento | Para qué sirve |
 | --- | --- |
 | [README.es.md](../README.es.md#idd-obligaciones-según-el-impacto-evidencia-de-ejecuciones-reales) | Señales, obligaciones, gates e inicio rápido. |

@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/progress-snapshot/v2",
+  "title": "ospec progress snapshot v2",
+  "description": "The progress of a project that `ospec snapshot --schema-version 2` exports on demand: the phases of v1 with what a client reads about them, the groups they belong to and what the team needs from the client. Rules the schema cannot express: ids are unique among the groups, among the phases, among the requests and among the tasks of a phase; with groups, every phase names one, the phases of a group are consecutive and no group is empty; the phase of a request exists; a done phase has no task left undone; dates exist in the calendar and start is not after end; texts are trimmed, NFC and free of control characters; previewUrl holds no user or password; the document is at most 64 KiB (openspec/specs/idd/spec.md, REQ-idd-026).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "phases"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "groups": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": { "$ref": "#/$defs/group" }
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/phase" }
+    },
+    "requests": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": { "$ref": "#/$defs/request" }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9.-]{1,64}$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "title": { "$ref": "#/$defs/title" },
+        "summary": { "$ref": "#/$defs/text" }
+      }
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "title": { "$ref": "#/$defs/title" },
+        "status": { "enum": ["pending", "in-progress", "done"] },
+        "group": { "$ref": "#/$defs/id" },
+        "shortTitle": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "start": { "$ref": "#/$defs/date" },
+        "end": { "$ref": "#/$defs/date" },
+        "summary": { "$ref": "#/$defs/text" },
+        "tasks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": { "$ref": "#/$defs/task" }
+        },
+        "outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": { "$ref": "#/$defs/title" }
+        },
+        "previewUrl": { "type": "string", "maxLength": 2048, "pattern": "^https://\\S+$" }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "done"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "title": { "$ref": "#/$defs/title" },
+        "done": { "type": "boolean" }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "phase": { "$ref": "#/$defs/id" },
+        "title": { "$ref": "#/$defs/title" },
+        "body": { "$ref": "#/$defs/text" },
+        "due": { "$ref": "#/$defs/date" }
+      }
+    }
+  }
+}
