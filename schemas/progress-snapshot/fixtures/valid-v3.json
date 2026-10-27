@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 3,
+  "groups": [
+    {
+      "id": "s1",
+      "title": "The base",
+      "summary": "What every client needs to sign in and see their project."
+    },
+    {
+      "id": "milestones",
+      "title": "Milestones"
+    }
+  ],
+  "phases": [
+    {
+      "id": "s1a",
+      "title": "The platform",
+      "status": "done",
+      "group": "s1",
+      "shortTitle": "Platform",
+      "start": "2026-01-05",
+      "end": "2026-01-16",
+      "summary": "The project lives online, with its data in one region and a preview of every change.",
+      "tasks": [
+        {
+          "id": "domain",
+          "title": "Own domain and certificate",
+          "done": true
+        },
+        {
+          "id": "previews",
+          "title": "A preview of every change",
+          "done": true
+        }
+      ],
+      "outcomes": [
+        "Open the preview from any browser"
+      ],
+      "previewUrl": "https://preview.example.com/",
+      "release": {
+        "stage": "production",
+        "version": "1.2.0",
+        "date": "2026-01-19"
+      }
+    },
+    {
+      "id": "s1b",
+      "title": "Access",
+      "status": "done",
+      "group": "s1",
+      "shortTitle": "Access",
+      "start": "2026-01-19",
+      "end": "2026-02-04",
+      "tasks": [
+        {
+          "id": "invite",
+          "title": "Invite a person by email",
+          "done": true
+        },
+        {
+          "id": "sign-in",
+          "title": "Sign in without a password",
+          "done": true
+        }
+      ],
+      "release": {
+        "stage": "testing"
+      }
+    },
+    {
+      "id": "s1c",
+      "title": "Clients",
+      "status": "in-progress",
+      "group": "s1",
+      "start": "2026-02-05",
+      "end": "2026-02-20"
+    },
+    {
+      "id": "m1",
+      "title": "Docs",
+      "status": "pending",
+      "group": "milestones",
+      "start": "2026-03-02",
+      "end": "2026-03-13"
+    }
+  ],
+  "requests": [
+    {
+      "id": "logo",
+      "phase": "s1c",
+      "title": "Send the logo",
+      "body": "An SVG file works best.",
+      "due": "2026-01-30"
+    }
+  ]
+}

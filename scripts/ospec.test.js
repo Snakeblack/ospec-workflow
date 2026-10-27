@@ -2533,7 +2533,7 @@ test("[REQ-idd-026] snapshot v2 --out reports its version and the progress file 
 
 test("[REQ-idd-026] snapshot refuses a bad version, --progress without the v2 and a progress file out of its syntax, writing nothing", (t) => {
   const root = snapshotV2Project(t, SNAPSHOT_V2_PROGRESS.replace("- [x] domain", "- [ ] domain"));
-  for (const args of [["--schema-version", "3"], ["--progress", "docs/progress.md"]]) {
+  for (const args of [["--schema-version", "4"], ["--progress", "docs/progress.md"]]) {
     const result = ospec(root, "snapshot", ...args, "--out", "snapshot.json");
     assert.strictEqual(result.code, 2, result.stderr);
     assert.match(result.stderr, /\(usage\)/);
@@ -2546,6 +2546,65 @@ test("[REQ-idd-026] snapshot refuses a bad version, --progress without the v2 an
   assert.strictEqual(missing.code, 1);
   assert.match(missing.stderr, /^ospec: progress file not found: nope\.md \(progress-missing\)\n/);
   assert.ok(!fs.existsSync(path.join(root, "snapshot.json")));
+});
+
+// E5.12 the v3: the delivery stage of each done phase, from the changelog.
+function snapshotV3Project(t, changelog) {
+  const root = snapshotV2Project(t, SNAPSHOT_V2_PROGRESS);
+  writeFile(root, "idd/config.yaml", "delivery:\n  changelog: CHANGELOG.md\n");
+  if (changelog !== undefined) writeFile(root, "CHANGELOG.md", changelog);
+  return root;
+}
+
+const SNAPSHOT_V3_CHANGELOG = "# Changelog\n\n## [Unreleased]\n\n## [1.0.0] - 2026-01-03\n\n### Added\n- The platform (s1a-platform)\n";
+
+test("[REQ-idd-026] snapshot --schema-version 3 prints the v2 with the delivery stage of each done phase", (t) => {
+  const root = snapshotV3Project(t, SNAPSHOT_V3_CHANGELOG);
+  for (const args of [["snapshot", "--schema-version", "3"], ["snapshot", "--schema-version", "3", "--json"]]) {
+    const result = ospec(root, ...args);
+    assert.strictEqual(result.code, 0, result.stderr);
+    const v2 = JSON.parse(ospec(root, "snapshot", "--schema-version", "2").stdout);
+    v2.schemaVersion = 3;
+    v2.phases[0].release = { stage: "production", version: "1.0.0", date: "2026-01-03" };
+    assert.strictEqual(result.stdout, `${JSON.stringify(v2, null, 2)}\n`);
+  }
+  // Still unreleased, the phase is in testing; without a changelog it has no stage.
+  writeFile(root, "CHANGELOG.md", "## [Unreleased]\n\n- The platform (s1a-platform)\n");
+  assert.deepStrictEqual(JSON.parse(ospec(root, "snapshot", "--schema-version", "3").stdout).phases[0].release, { stage: "testing" });
+  fs.rmSync(path.join(root, "CHANGELOG.md"));
+  assert.strictEqual(JSON.parse(ospec(root, "snapshot", "--schema-version", "3").stdout).phases[0].release, undefined);
+});
+
+test("[REQ-idd-026] snapshot v3 --out reports the changelog it read", (t) => {
+  const root = snapshotV3Project(t, SNAPSHOT_V3_CHANGELOG);
+  const result = ospec(root, "snapshot", "--schema-version", "3", "--out", "snapshot.json");
+  assert.strictEqual(result.code, 0, result.stderr);
+  const bytes = Buffer.byteLength(fs.readFileSync(path.join(root, "snapshot.json"), "utf8"));
+  assert.strictEqual(result.stdout, `snapshot v3: 3 phases from docs/roadmap.md, docs/progress.md and CHANGELOG.md written to snapshot.json (${bytes} bytes)\n`);
+  const json = ospec(root, "snapshot", "--schema-version", "3", "--out", "snapshot.json", "--json").json;
+  assert.deepStrictEqual(json, { ok: true, command: "snapshot", schema_version: 3, roadmap: "docs/roadmap.md", out: "snapshot.json", phases: 3, bytes, progress: "docs/progress.md", changelog: "CHANGELOG.md" });
+  fs.rmSync(path.join(root, "CHANGELOG.md"));
+  assert.strictEqual(ospec(root, "snapshot", "--schema-version", "3", "--out", "snapshot.json", "--json").json.changelog, null);
+});
+
+test("[REQ-idd-026] snapshot v3 refuses a changelog that cannot decide a stage, or an unreadable configuration, writing nothing", (t) => {
+  const root = snapshotV3Project(t, SNAPSHOT_V3_CHANGELOG.replace(" - 2026-01-03", ""));
+  const undated = ospec(root, "snapshot", "--schema-version", "3", "--out", "snapshot.json", "--json");
+  assert.strictEqual(undated.code, 1);
+  assert.strictEqual(undated.json.error.code, "changelog-invalid");
+  assert.strictEqual(undated.json.error.message, "CHANGELOG.md:5: version 1.0.0 needs its date: '## [1.0.0] - YYYY-MM-DD'");
+  assert.match(undated.json.error.how, /## \[Unreleased\]/);
+  writeFile(root, "CHANGELOG.md", "## [Unreleased]\n- The platform (s1a-platform)\n## [1.0.0] - 2026-01-03\n- The platform (s1a-platform)\n");
+  const twice = ospec(root, "snapshot", "--schema-version", "3", "--out", "snapshot.json");
+  assert.strictEqual(twice.code, 1);
+  assert.match(twice.stderr, /^ospec: CHANGELOG\.md:4: the entry of change s1a-platform sits under the heading of line 3, and the one of line 2 under the heading of line 1 \(changelog-invalid\)\n/);
+  writeFile(root, "idd/config.yaml", "delivery:\n  changelog: /etc/changes.md\n");
+  const config = ospec(root, "snapshot", "--schema-version", "3", "--out", "snapshot.json");
+  assert.strictEqual(config.code, 1);
+  assert.match(config.stderr, /\(config-invalid\)/);
+  assert.ok(!fs.existsSync(path.join(root, "snapshot.json")));
+  // The v2 reads neither.
+  assert.strictEqual(ospec(root, "snapshot", "--schema-version", "2").code, 0);
 });
 
 test("[REQ-idd-026] no IDD step, hook or check runs snapshot", () => {

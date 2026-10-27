@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 3,
+  "phases": [
+    {
+      "id": "s1a",
+      "title": "Platform",
+      "status": "done",
+      "release": {
+        "stage": "production",
+        "version": "1.2.0-rc.1",
+        "date": "2026-02-30"
+      }
+    },
+    {
+      "id": "s1b",
+      "title": "Access",
+      "status": "done",
+      "release": {
+        "stage": "production",
+        "version": "01.2.0"
+      }
+    },
+    {
+      "id": "s1c",
+      "title": "Clients",
+      "status": "done",
+      "release": {
+        "stage": "testing",
+        "version": "1.2.0"
+      }
+    },
+    {
+      "id": "m1",
+      "title": "Docs",
+      "status": "in-progress",
+      "release": {
+        "stage": "testing"
+      }
+    },
+    {
+      "id": "m2",
+      "title": "Billing",
+      "status": "done",
+      "release": {
+        "stage": "staging"
+      }
+    }
+  ]
+}
