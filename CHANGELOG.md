@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- El roadmap anota E1.55 atomic-write-concurrent-rename, residuo de E1.46: en Windows, el fallback de writeFileAtomic falla con ENOENT o deja un .bak cuando dos escritores sin lock escriben el mismo fichero a la vez, como en el flake de main tras v2.158.0 (e1-55-atomic-write-race-note)
+
 ## [2.158.0] - 2026-10-27
 
 ### Added

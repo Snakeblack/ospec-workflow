@@ -175,6 +175,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.51** | `open-change-nudge` (Stop pide continuar una vez si queda un cambio sin `close` y SessionStart inyecta su paso) | feature |
 | `pending` | **E1.52** | `review-frozen-tree` (revisor sobre el árbol congelado, `relayed` no basta donde hay recibos y fuera el linaje sin uso) | bugfix |
 | `pending` | **E1.54** | `lock-reclaim-rename` (residuo de E1.46: un lock caducado se reclama por rename atómico, así que dos procesos que lo reclaman a la vez no se creen dueños los dos; prioridad baja, fuera del orden ▶) | bugfix |
+| `pending` | **E1.55** | `atomic-write-concurrent-rename` (residuo de E1.46: en Windows, el fallback de `writeFileAtomic` aguanta dos escritores sin lock del mismo fichero, sin fallar con `ENOENT` ni dejar un `.bak`; fuera del orden ▶) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -222,7 +223,7 @@ E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delan
 4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.50 `content-security-signal` → E1.51 `open-change-nudge` → E1.52 `review-frozen-tree` → E3.7 `fact-ledger`.
 5. **D. Banco, todo junto.** E4.14 `bench-validation-readiness` (con el doble conteo) → corrida de validación de E4.6 en Claude y agy → E4.4, recalculando antes su premisa → E4.13 `worker-delegation`, solo si E4.4 da evidencia (decisión del usuario del 2026-10-22) → E4.11 `workspace-root-resolution`, al final de la cola.
 
-E1.54 `lock-reclaim-rename`, residuo de E1.46 anotado el 2026-10-26, tiene prioridad baja y queda fuera del orden ▶ hasta que el usuario lo coloque.
+E1.54 `lock-reclaim-rename`, residuo de E1.46 anotado el 2026-10-26, tiene prioridad baja y queda fuera del orden ▶ hasta que el usuario lo coloque. E1.55 `atomic-write-concurrent-rename`, otro residuo de E1.46 anotado el 2026-10-27, también queda fuera del orden ▶ hasta que el usuario lo coloque.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -693,6 +694,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - **Qué falló:** en `Validate (windows-latest 1/2)` de la run [40403581014](https://github.com/Snakeblack/ospec-workflow/actions/runs/40403581014), sobre el merge de E1.47, el test del heartbeat del lock de E1.46 (`scripts/lib/ospec-state.test.js`) dio `start-1, start-2, end-1`: otro proceso reclamó el lock mientras su dueño trabajaba. Publish Marketplace esperaba ese job y falló; al relanzar el job, con el mismo código, pasó, y Publish subió v2.157.0.
   - **Causa probable:** el test daba 150 ms de caducidad con un heartbeat cada 30 ms, así que una pausa de unos 120 ms del runner bastaba. En producción son 5000 y 1000 ms.
   - **Arreglo, solo en los tests:** el de JS y su gemelo de Go (`internal/store/lock_test.go`) pasan a 1000 ms de caducidad, heartbeat cada 50 ms y el dueño trabajando 1500 ms. El de JS añade una pausa deliberada de 250 ms del bucle de eventos: con los márgenes anteriores falla siempre, y sin heartbeat los dos tests siguen fallando. Las constantes de producción no cambian.
+- **Flake en `main` tras v2.158.0 (2026-10-27, E1.55):** en `Validate (windows-latest 2/2)` de la run [40428047045](https://github.com/Snakeblack/ospec-workflow/actions/runs/40428047045), sobre el merge de E5.11, falló `concurrent writers of one file each use their own temporary file` (`scripts/lib/atomic-write.test.js`). Publish Marketplace esperaba ese job y falló; al relanzar el job, con el mismo código, pasó, y Publish subió v2.158.0. No es un margen del test sino una carrera del código, que E1.55 anota.
 
 ### E1.31 — `doctor-hook-probe` (OSP-014, #345)
 
@@ -1001,6 +1003,22 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 - **Hecho cuando:**
   - un test simula el proceso detenido entre mirar y borrar, y ningún lock fresco se pierde ni se escriben dos estados a la vez;
   - en un sistema de ficheros sin enlaces duros (FAT, exFAT, algunas unidades de red) el fallo de `link` termina en `lock-lost`, nunca en dos dueños.
+
+### E1.55 — `atomic-write-concurrent-rename` (residuo de E1.46)
+
+- **Problema:**
+  - En Windows, renombrar sobre un destino que otro proceso está sustituyendo falla con `EPERM`. Entonces `writeFileAtomic` (`scripts/lib/atomic-write.js`) aparta el destino a `<destino>.bak`, renombra su temporal y borra el `.bak`. Ese `.bak` es el mismo para todos los escritores.
+  - Si dos escritores del mismo fichero entran a la vez en ese fallback, uno puede apartar el destino justo antes que el otro, y el segundo recibe `ENOENT` y su escritura falla. Así falló en `main` tras v2.158.0 el test de 20 escritores sin lock (run [40428047045](https://github.com/Snakeblack/ospec-workflow/actions/runs/40428047045)): `ENOENT: … rename 'state.yaml' -> 'state.yaml.bak'`, en `atomic-write.js:118`.
+  - Desde E1.46 cada escritor tiene su temporal, pero solo el estado IDD (`scripts/lib/ospec-state.js`) se escribe bajo el lock. Otros escritores, como los hooks `stop.js` y `pre-compact.js`, no toman ninguno.
+- **Garantía que protege:** estado en disco y reanudación (escenario `deterministic-resume`), y la puerta «publicar solo con CI verde» de E1.30.
+- **Alcance:**
+  - Si apartar el destino da `ENOENT`, otro escritor ya lo apartó: se repite el rename del temporal, como ya hace `renameWithFallback` en el mismo fichero.
+  - Un `.bak` propio de cada escritor, como su temporal, para que ninguno restaure ni borre el de otro, y que `recoverOrphanBak` siga encontrando.
+  - El `WriteFileAtomic` de Go (`internal/store/store.go`) renombra sin este fallback: el cambio comprueba si en Windows le llega el mismo `EPERM`.
+- **Targets:** los 7 en Windows (`writeFileAtomic` es del CLI y de los hooks).
+- **Hecho cuando:**
+  - un test fuerza el `EPERM` y el `ENOENT` intercalados sin depender del planificador de Windows, y cada escritura termina entera o falla sin perder el contenido anterior ni dejar ficheros;
+  - el test de los 20 escritores pasa 20× en un runner Windows.
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
@@ -1543,6 +1561,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-27: E1.55 (IDD, `e1-55-atomic-write-race-note`, solo documentación). El roadmap anota `atomic-write-concurrent-rename`, otro residuo de E1.46: tras el merge de E5.11, el test de 20 escritores sin lock de `atomic-write` falló en Windows en `main` (run 40428047045) con `ENOENT` al apartar el destino a su `.bak`, y Publish Marketplace subió v2.158.0 tras relanzar el job. La causa es el `.bak` compartido del fallback de Windows, y la sufre cualquier escritor sin lock, no solo el test. Fuera del orden ▶ hasta que el usuario lo coloque; E1.30 recoge el flake.
 - 2026-10-27: `progress-snapshot-v2` (IDD), publicado en v2.158.0. E5.11 hecho, por delante de E4.10 a petición del usuario. Con `--schema-version 2`, `ospec snapshot` exporta el snapshot de avance v2. Lleva las fases del v1, con el mismo estado y orden, más los tramos del roadmap (sus `##` con tablas de fases) y los textos para el cliente de un fichero de avance opcional, `docs/progress.md` o `--progress`. Ese fichero va en Markdown y en el idioma del proyecto, con palabras clave fijas en inglés. Un fichero de avance fuera de formato, con una fase o un tramo que el roadmap no tiene, o con una tarea sin marcar en una fase `done` sale con código 1, `progress-invalid`, el fichero y la línea, sin escribir nada. Sin la opción, el v1 no cambia. Sigue E4.10.
 - 2026-10-26: `lock-heartbeat-test-margin` (IDD), publicado en v2.157.1, dentro de E1.30. Tras el merge de E1.47, el test del heartbeat del lock de E1.46 falló en Windows en `main` (run 40403581014) y bloqueó Publish Marketplace hasta relanzar el job. El test JS y su gemelo de Go pasan a 1000 ms de caducidad, heartbeat de 50 ms y 1500 ms de trabajo del dueño, y el de JS añade una pausa de 250 ms del bucle de eventos que reproduce el fallo con los márgenes anteriores; producción no cambia. E1.30 sigue abierto. Sigue E5.11 `progress-snapshot-v2`, que entra en el roadmap con su propio cambio.
 - 2026-10-26: `memory-loop-visible` (IDD), publicado en v2.157.0. E1.47 hecho (B8). `ospec close` en texto ya no dice solo cuántos registros de conocimiento hay: lista `- <topic> | <title>` de cada uno bajo una cabecera con `ospec close --change <id> --json`, que da su resumen y su procedencia; el JSON no cambia. `record intent` devuelve `memory_query`, en JSON y como `memory query:` en texto, en cada intención resuelta y nunca en una ambigua: los `ADR-<NNNN>` y componentes de las rutas que el cambio ya nombra (plan, diff y cites de una feature) y después las palabras de `--request`, o de `--summary` sin él, en minúsculas, sin repetir, de 4 o más caracteres y sin palabras vacías en inglés y español, como máximo 12 términos. No se guarda en `state.yaml`. La regla 2 de la skill `idd` y `references/memory-loop.md` consultan la memoria tras `record intent`, con cualquiera de sus términos, y antes de preguntar los hechos abiertos; una decisión previa confirmada en disco da contexto o la respuesta recomendada, nunca la respuesta. Mientras un cambio IDD está abierto, los records de `close` sustituyen al guardado genérico. REQ-idd-024 y REQ-session-memory-011 lo especifican. Sigue E4.10.
