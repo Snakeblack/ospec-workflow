@@ -32,8 +32,14 @@ const {
 const { IddRecordError } = require("./idd-record.js");
 
 const LIVING_DOC = "living-doc";
-// The model writes these sections; they must say something at close.
+// The model writes these sections, and the CLI the plan and decisions it was
+// declared between its markers (E4.16); they must say something at close.
 const AUTHORED_SECTIONS = Object.freeze(["Plan", "Decisions"]);
+const CLI_MARKER = /^<!-- ospec:[a-z]+:(?:start|end) -->$/;
+
+function withoutMarkers(lines) {
+  return lines.filter((line) => !CLI_MARKER.test(line.trim()));
+}
 
 function refuse(code, message, how) {
   const error = new IddRecordError(code, message);
@@ -51,8 +57,11 @@ function sectionsOf(text) {
   return sections;
 }
 
-/** Whether change.md is current enough to close (REQ-idd-004). */
-function livingDocStatus(text) {
+/**
+ * Whether change.md is current enough to close (REQ-idd-004). Decisions may
+ * stay empty when the plan declared no decision (`decisionRequired` false).
+ */
+function livingDocStatus(text, { decisionRequired = true } = {}) {
   if (typeof text !== "string") return { ok: false, reason: "change.md is missing" };
   const sections = sectionsOf(text);
   const headings = sections.map((section) => section.heading);
@@ -60,7 +69,8 @@ function livingDocStatus(text) {
     return { ok: false, reason: `change.md must keep the sections ${LIVING_DOC_SECTIONS.join(", ")} in that order` };
   }
   for (const name of AUTHORED_SECTIONS) {
-    const body = sections.find((section) => section.heading === name).body.join("\n");
+    if (name === "Decisions" && !decisionRequired) continue;
+    const body = withoutMarkers(sections.find((section) => section.heading === name).body).join("\n");
     if (body.trim() === "") return { ok: false, reason: `the section ${name} is empty in change.md` };
   }
   const evidence = sections.at(-1).body.join("\n");
@@ -239,13 +249,21 @@ async function archiveChange(root, state) {
 
 const TITLE_LENGTH = 80;
 
-/** The top-level bullets of the Decisions section, each with its continuation lines joined. */
+/**
+ * The top-level bullets of the Decisions section, each with its continuation
+ * lines joined. A marker of the CLI ends the bullet before it.
+ */
 function decisionBullets(text) {
   const decisions = typeof text === "string" ? sectionsOf(text).find((section) => section.heading === "Decisions") : null;
   const bullets = [];
+  let open = false;
   for (const line of decisions?.body || []) {
-    if (/^[-*] /.test(line)) bullets.push(line.slice(2));
-    else if (bullets.length > 0 && line.trim() !== "") bullets[bullets.length - 1] += ` ${line.trim()}`;
+    if (CLI_MARKER.test(line.trim())) open = false;
+    else if (/^[-*] /.test(line)) {
+      bullets.push(line.slice(2));
+      open = true;
+    }
+    else if (open && line.trim() !== "") bullets[bullets.length - 1] += ` ${line.trim()}`;
   }
   return bullets.map((bullet) => bullet.replace(/\s+/g, " ").trim()).filter(Boolean);
 }

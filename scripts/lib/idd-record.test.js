@@ -165,6 +165,20 @@ test("a feature is refused until every category is covered", () => {
   assert.strictEqual(recordAssumption(open, { text: "El título admite 200 caracteres." }).state.assumptions[0], "El título admite 200 caracteres.");
 });
 
+// E4.16: a project without a UI covers the five core categories; the stored
+// state stays valid without url-state and accessibility, and not with less.
+test("a feature without url-state and accessibility records and validates", () => {
+  const { CORE_CATEGORY_IDS, citedCoverage } = require("./idd-facts.js");
+  const core = citedCoverage()
+    .filter((entry) => CORE_CATEGORY_IDS.includes(entry.category))
+    .map((entry, index) => (index === 0 ? { category: "inputs", question: "¿el título admite más de 200 caracteres?" } : entry));
+  const { state } = recordIntent(null, { ...FEATURE, coverage: core });
+  assertValid(state);
+  assert.deepStrictEqual(state.facts.coverage.map((entry) => entry.category), [...CORE_CATEGORY_IDS]);
+  const fewer = { ...state, facts: { coverage: state.facts.coverage.filter((entry) => entry.category !== "errors") } };
+  assert.ok(validateState(fewer).errors.includes("facts.coverage must cover every feature category"));
+});
+
 test("no open facts records the basis and opens no gate", () => {
   const { state } = recordIntent(null, { ...FEATURE, kind: "bug", ...NO_OPEN_FACTS });
   assertValid(state);
@@ -777,4 +791,22 @@ test("[E1.53] raising to a feature asks its facts again, even a question answere
 
   const unrequested = recordGate(opened({ ...refactor, request: undefined }), { id: "open-facts", action: "resolve", answer: "No.", source: "user" }).state;
   assert.strictEqual(recordIntent(unrequested, feature).state.intent.request, "Fix the code lookup.", "a raise may record a request the intent lacked");
+});
+
+// E4.16: the texts of --decision accumulate once each, in the order declared.
+test("the plan keeps the texts of its decisions once each, in order", () => {
+  const { recordPlan } = require("./idd-record.js");
+  const first = recordPlan(opened(), { paths: ["src/a.js"], decisions: ["Keep A.", " Keep A. "] }).state;
+  assert.deepStrictEqual(first.plan, { paths: ["src/a.js"], work_units: 1, decision: true, operations: [], decisions: ["Keep A."] });
+  assertValid(first);
+  const second = recordPlan(first, { decisions: ["Drop B.", "Keep A."] });
+  assert.deepStrictEqual(second.state.plan.decisions, ["Keep A.", "Drop B."]);
+  assert.strictEqual(recordPlan(second.state, { decisions: ["Drop B."] }).changed, false);
+  assertCode(() => recordPlan(first, { decisions: ["  "] }), "invalid-plan");
+  // A plan without texts keeps its four fields, and texts need a decision.
+  assert.deepStrictEqual(Object.keys(recordPlan(opened(), { paths: ["src/a.js"] }).state.plan), ["paths", "work_units", "decision", "operations"]);
+  const { validateState } = require("./idd-contract.js");
+  for (const plan of [{ ...first.plan, decision: false }, { ...first.plan, decisions: [] }, { ...first.plan, decisions: [""] }]) {
+    assert.strictEqual(validateState({ ...first, plan }).ok, false, JSON.stringify(plan));
+  }
 });

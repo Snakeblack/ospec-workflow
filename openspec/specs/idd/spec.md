@@ -89,7 +89,8 @@ an entry recorded before E1.53 lacks) and
 `detail` that names the runs behind run evidence), and optionally `base` (the
 commit the change started from, or null outside git), `plan` (the plan
 `ospec signals` was declared, REQ-idd-012: `paths`, `work_units`, `decision`
-and `operations`), `retracted` (each declared signal retracted under
+and `operations`, plus `decisions`, the texts of `--decision`, once there is
+one), `retracted` (each declared signal retracted under
 REQ-idd-006, with its `id`, `reason`, `source` and `retract_reason`, plus
 `confirmed_by`, `hits`, `answer` and `answer_source` when the user's answer
 retracted it), `impacts`
@@ -135,19 +136,37 @@ written as JSON, which is valid YAML 1.2. Only the `ospec` CLI MAY write
 
 When the `living-doc` obligation is active, `change.md` MUST carry the sections
 `Intent and acceptance`, `Plan`, `Decisions` and `Evidence`, in that order. The
-model writes the first three. The `Evidence` section MUST be written only by the
+model writes the first three. After every write of the state, the CLI MUST
+write the declared plan (its files, its work units above one and its
+operations) between `<!-- ospec:plan:start -->` and `<!-- ospec:plan:end -->`
+in `Plan`, and the texts of `--decision` between
+`<!-- ospec:decisions:start -->` and `<!-- ospec:decisions:end -->` in
+`Decisions`, keeping the line endings of the file and the text outside the
+markers (E4.16). A document without those markers, as changes opened before
+them have, MUST keep its text. The `Evidence` section MUST be written only by the
 CLI, between `<!-- ospec:evidence:start -->` and `<!-- ospec:evidence:end -->`.
 The `living-doc` obligation MUST be satisfied only by a `living-doc-current`
 evidence entry recorded at close, and only when `change.md` keeps the four
-sections in order, its `Plan` and `Decisions` are not empty and the evidence
-markers are in place. While it is current, `ospec check` MUST NOT report it
-as missing.
+sections in order, its `Plan` is not empty, its `Decisions` is not empty unless
+the declared plan holds no decision, and the evidence markers are in place. A
+marker line alone MUST NOT count as content, and it MUST end the decision
+before it for the knowledge records of REQ-idd-024. While it is current,
+`ospec check` MUST NOT report it as missing.
 
 #### Scenario: Evidence section is CLI-owned
 
 - GIVEN a `change.md` whose model-written sections changed
 - WHEN the CLI records evidence
 - THEN it MUST rewrite only the text between the evidence markers
+
+#### Scenario: A decision closes without a hand edit
+
+- GIVEN a bug fix recorded with `--path src/pages.js --path test/pages.test.js`
+  and `--decision "A partial page counts as a page."`
+- WHEN its red and green runs pass and it closes, with `change.md` untouched
+- THEN `close` MUST succeed and return that decision as a knowledge record
+- AND a change of two work units without a decision MUST close with an empty
+  `Decisions`, and `--decision` without its text MUST be a usage error
 
 ### Requirement: Signal Obligation Evidence Catalog {#REQ-idd-005}
 
@@ -481,7 +500,7 @@ MUST run under the state file's lock and replace the file atomically and
 durably (REQ-idd-027), so an interrupted `record` leaves the last committed
 state readable. A write whose lock another process took over MUST be refused
 with `lock-lost` and write nothing. `record intent` MAY take the plan flags of
-`ospec signals` (`--path`, `--work-units`, `--decision`, `--operation`, `--adr`
+`ospec signals` (`--path`, `--work-units`, `--decision <text>`, `--operation`, `--adr`
 and `--quality`, REQ-idd-012) and MUST then declare the plan and record the
 signals it derives in the same write, returning them in `plan` as `signals`
 reports them (E4.15): a refused intent or plan MUST write neither, and with
@@ -506,8 +525,9 @@ REQ-idd-020. For an open change, `next` MUST also return the `references` and
 `warnings` of REQ-idd-021 and the `fitness` of REQ-idd-022; `knowledge_refs`
 keeps naming the living document. Every command that writes a change
 (`record`, `signals`, `check`, `run` and `review`) MUST return in `next` what
-`next --change <id>` returns for the state it wrote (E4.15), so `next` is
-needed only to resume.
+`next --change <id>` returns for the state it wrote (E4.15), without the
+`intent` it has just recorded or already holds (E4.16), so `next` is needed
+only to resume.
 
 Every next step MUST carry `command`, the literal `ospec` command that does it
 (E1.45), so the protocol can be followed without reading the CLI: the agent
@@ -527,9 +547,35 @@ recorded, and `checks-pass`) or `living-doc` (E4.15), `trust-review` names
 first declared reference without its impact, and `living-doc` and `close`
 name `ospec close`. `configure-checks` names `ospec next --change <id> --json`,
 to run once the approved checks are written; `open-change` names the
-`record intent` template; `choose-change` carries `commands`, one `ospec next`
-per open change; and `none` carries a null `command`. The text output MUST
-print each one on a `run:` line.
+`record intent` template and carries `feature`, the `record intent` of a
+feature with one `--open-fact <category>:"<question>"` per category its
+project covers (REQ-idd-018), the rules of the categories and, when
+`url-state` and `accessibility` are left out, `omitted` with the reason
+(E4.16); `choose-change` carries `commands`, one `ospec next` per open change;
+and `none` carries a null `command`. The text output of `next` MUST print
+each one on a `run:` line.
+
+A command that writes a change MUST print in text a status line and then its
+next step on one line, `next (<obligation, gate or action>): <command>`,
+followed only by what that step needs: the `how` of an obligation that is not
+a run, the gate's questions, the warnings and the suggestions; besides, the
+output of a failing run, check or fitness check, the dispatch of a review and,
+at close, its records, changelog and release. The pending list, the
+references, the fitness functions, the team and the delivery stay in `next`
+(E4.16). The `--json` output of `status`, `next`, `record`, `signals`, `check`,
+`run`, `review` and `close` MUST leave out every field whose value is null, an
+empty list or an empty object, at any depth, while `false` and `0` stay.
+
+#### Scenario: A command that writes prints its status and next step
+
+- GIVEN a bug fix of the pages project with its plan
+- WHEN `record intent`, `signals`, `record assumption`, the green run and
+  `check` print in text and in `--json`
+- THEN each text MUST start with a status line and hold its `next (...)` line,
+  without the pending list, the references, the team or the delivery, within
+  a ceiling of bytes a test fixes
+- AND no `--json` output MUST hold a null, an empty list or an empty object,
+  nor an `intent` in its `next`
 
 A refusal MUST say how to get past it (E1.45): with `--json` in `error.how`,
 and in text on the line after the error. A refusal whose site names no `how`
@@ -714,7 +760,10 @@ behavior, and a refactor keeps behavior under the tests that already pass);
 non-obvious decision. A call that names paths, work units, a decision or an
 operation MUST record them as the change's `plan`, widening any plan already
 recorded (paths and operations accumulate, the largest work-unit count and a
-declared decision stay); a call that only reads the diff declares no plan. `public-contract`, `persistent-data` and
+declared decision stay); a call that only reads the diff declares no plan.
+Each `--decision` MUST carry the text of the decision, and without it, or with
+a blank one, the call MUST be a usage error; the texts accumulate in the
+order declared, each once, compared without the spaces at their ends (E4.16). `public-contract`, `persistent-data` and
 `security-boundary` MUST derive from paths matching their impact patterns: the
 planned paths give `source: declaration` and, with `--diff`, the paths of the
 git diff against a base commit (default: the change's recorded `base`, else
@@ -1378,8 +1427,13 @@ silent handling, normalization and compatibility with existing behavior. The
 declaration MUST be either at least one question (`--open-fact`, repeatable)
 or `--no-open-facts` with the `--basis` that settles every behavior, never both
 and never neither; otherwise `record intent` MUST be refused with
-`facts-undeclared`. A `feature` MUST instead cover every category (`inputs`,
-`uniqueness`, `persistence`, `copy`, `url-state`, `accessibility`, `errors`)
+`facts-undeclared`. A `feature` MUST instead cover every category its project
+covers (E4.16): `inputs`, `uniqueness`, `persistence`, `copy` and `errors`
+always, and `url-state` and `accessibility` unless the project has code (a
+product or test file) and no UI file (`.html`, `.htm`, `.css`, `.scss`,
+`.sass`, `.less`, `.jsx`, `.tsx`, `.vue`, `.svelte`, `.astro`) among its files
+and the paths of the plan; those two MUST be accepted when given, and a
+stored state MAY leave them out. Each category is covered
 with a concrete `--open-fact` that names a value, limit or format, a `--cite`
 of `path:line` that exists in the tree, or a `--quote` of at least 12 characters
 taken from `--request`, and at least one category MUST be a question, so a
@@ -1397,7 +1451,9 @@ which `check` and `close` verify (REQ-idd-014). A state recorded before these
 rules MUST stay valid. An intent raised to another kind (REQ-idd-011) keeps the
 answered `open-facts` entries of the facts it replaced, so only an open entry
 MUST have open questions. A basis that cites nothing MUST
-be refused, and the refusal MUST include the command. The CLI usage MUST list
+be refused, and the refusal MUST include the command. A refused feature
+coverage MUST print the template of the categories its project covers, the one
+`next` gives before the change opens. The CLI usage MUST list
 the seven categories and the rule that at least one is a question. The declaration MUST be stored in `facts`, with repeated
 questions recorded once. Open facts MUST open the `open-facts` gate, which only
 `record intent` opens, and which MUST be resolved only by the user's answer
@@ -1437,6 +1493,16 @@ batch, so they are asked together before the change is built.
 - THEN it MUST be refused with `facts-undeclared` and the command
 - AND the same coverage with one category as a concrete `--open-fact` MUST open
   the change with `open-facts` open
+
+#### Scenario: A project without a UI covers five categories
+
+- GIVEN a project with `src/tasks.js` and no UI file
+- WHEN `next` runs before any change
+- THEN its `feature` template MUST ask `inputs`, `uniqueness`, `persistence`,
+  `copy` and `errors`, and name `url-state` and `accessibility` as left out
+- AND a `record intent` refused for a question without its category MUST
+  print that template, the five categories asked MUST open the change, and a
+  `--path src/badge.tsx` MUST ask all seven
 
 #### Scenario: No open facts records its basis
 

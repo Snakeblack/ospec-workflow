@@ -213,7 +213,7 @@ for (const target of Object.keys(ROUTERS)) {
   test(`${target}: the protocol links the architecture and feature-facts detail it moved to references`, (t) => {
     const { byPath } = generate(t, target);
     const protocol = byPath.get(PROTOCOL).replace(/\s+/g, " ");
-    assert.match(protocol, /A `feature` covers seven fact categories instead, as `references\/open-facts\.md` says/, `${target}: rule 2 links the categories`);
+    assert.match(protocol, /A `feature` covers the categories of the template `ospec next` prints, as `references\/open-facts\.md` says/, `${target}: rule 2 links the categories`);
     assert.match(protocol, /`--quality <id>`\) as `references\/architecture\.md` says/, `${target}: rule 4 links the ADR declaration`);
     assert.match(protocol, /`adr-impact-declaration`: `ospec record impact`[^.]*`references\/architecture\.md`/, `${target}: the ADR obligation links its detail`);
 
@@ -223,6 +223,8 @@ for (const target of Object.keys(ROUTERS)) {
       assert.ok(facts.includes(`- \`${category}\`:`), `${target}: open facts must name ${category}`);
     }
     assert.match(facts.replace(/\s+/g, " "), /At least one category is a question/, `${target}: a feature asks at least one category`);
+    // E4.16: url-state and accessibility belong to a user interface.
+    assert.match(facts.replace(/\s+/g, " "), /code and no UI file \([^)]*\) leaves out `url-state` and `accessibility`/, `${target}: the categories depend on the project`);
 
     const architecture = byPath.get(ARCHITECTURE);
     assert.ok(architecture, `${target}: ${ARCHITECTURE} is not shipped`);

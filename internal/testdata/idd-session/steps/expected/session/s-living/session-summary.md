@@ -13,4 +13,4 @@ feature: Two units.
 - None
 
 ## Next recommended action
-Satisfy `living-doc` with living-doc-current evidence: write the Plan and Decisions of idd/s-living/change.md, then ospec close --change s-living.
+Satisfy `living-doc` with living-doc-current evidence: the CLI writes the Plan of idd/s-living/change.md from --path and its Decisions from --decision "<text>"; add by hand what they leave out, then ospec close --change s-living.

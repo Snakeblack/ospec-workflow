@@ -207,10 +207,20 @@ test("project next picks the only open change, asks to choose among several, or 
   const b = recordIntent(null, { change: "a-change", kind: "docs", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
   const closed = { ...recordIntent(null, { change: "c-change", kind: "docs", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state, status: "closed" };
 
+  const { COVERAGE_RULES, featureCommand } = require("./idd-facts.js");
   assert.deepStrictEqual(nextForProject([]).next_step, {
     action: "open-change",
     command:
       'ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>" (--open-fact "<question>"... | --no-open-facts --basis "<why>")',
+    feature: { command: featureCommand(), how: COVERAGE_RULES, categories: ["inputs", "uniqueness", "persistence", "copy", "url-state", "accessibility", "errors"] },
+  });
+  // E4.16: a project with code and no UI file gets the five core categories.
+  assert.deepStrictEqual(nextForProject([], { projectFiles: ["src/cli.js"] }).next_step.feature, {
+    command: featureCommand(["inputs", "uniqueness", "persistence", "copy", "errors"]),
+    how: COVERAGE_RULES,
+    categories: ["inputs", "uniqueness", "persistence", "copy", "errors"],
+    omitted: ["url-state", "accessibility"],
+    reason: "the project has code and no UI file; a --path with a UI file adds them",
   });
   assert.strictEqual(nextForProject([a, closed]).change, "b-change");
   assert.deepStrictEqual(nextForProject([a, b, closed]), {
@@ -275,7 +285,7 @@ test("next asks to declare the plan after the intent gates and before any obliga
   const unplanned = recordSignal(opened, { id: "bug-fix", reason: "bug", source: "declaration" }).state;
   assert.deepStrictEqual(nextForChange(unplanned).next_step, {
     action: "declare-plan",
-    how: "ospec signals --change fix-it --path <file>... [--work-units <n>] [--decision] [--operation <op>]",
+    how: "ospec signals --change fix-it --path <file>... [--work-units <n>] [--decision \"<text>\"]... [--operation <op>]",
     command: "ospec signals --change fix-it --path <file>...",
   });
   assert.strictEqual(nextForChange(unplanned, { checks: [] }).next_step.action, "declare-plan");

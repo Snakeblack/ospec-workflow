@@ -1,0 +1,689 @@
+{
+  "schema": "idd-state/v1",
+  "change": "cli-terse-output",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "kind": "feature",
+    "summary": "El CLI ahorra tokens al abrir y al cerrar: el next de un cambio nuevo imprime la plantilla de categorías según el perfil del proyecto, el CLI escribe Plan y Decisions del living-doc desde --path y --decision \"<texto>\", y cada orden que escribe imprime una línea de estado y otra de next, con --json sin campos vacíos",
+    "acceptance": "Los rechazos de record intent reproducidos de idd-7 reciben la plantilla antes de fallar, y los de url-state y accessibility en proyectos sin UI dejan de fallar; un cambio con decisión cierra sin editar change.md a mano; los techos de bytes de las salidas quedan fijados en tests"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Cómo decide el CLI que un proyecto no recibe url-state ni accessibility? Recomendado: ningún fichero de UI versionado (.html, .htm, .css, .scss, .sass, .less, .jsx, .tsx, .vue, .svelte, .astro) en un proyecto que ya tiene código; sin código (greenfield) recibe las 7, un --path de UI en el plan del record intent las devuelve, y si se cubren igualmente se aceptan. Alternativas: el profile del knowledge map, o una clave nueva en idd/config.yaml."
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿Un mismo texto de --decision declarado dos veces, en la misma llamada o en otra, se guarda una sola vez, comparando el texto exacto tras recortar los espacios de los extremos y en el orden en que se declaró? Recomendado: sí."
+      },
+      {
+        "category": "persistence",
+        "question": "¿El CLI escribe Plan y Decisions de change.md entre marcadores propios, como Evidence, regenerados desde state.yaml en cada declaración y sin tocar el texto escrito a mano fuera de ellos, y guarda los textos de --decision en plan.decisions de state.yaml? Y un change de varias unidades sin decisión: ¿close deja de exigir Decisions no vacía? Recomendado: sí a las dos; los estados con decision: true siguen valiendo y su Decisions se escribe a mano como hasta ahora."
+      },
+      {
+        "category": "copy",
+        "question": "Salida en texto de las órdenes que escriben (record, signals, run, check, review, close): ¿una línea de estado y otra de next con el comando literal, más solo lo que ese paso necesita (preguntas del gate, cola de un check o run que falla, avisos, sugerencias, petición de review y, en close, registros y release), y salen team, delivery con sus reglas, refs y la lista pending, que siguen en ospec next? Recomendado: sí."
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/product/brief.md",
+          "line": 10
+        }
+      },
+      {
+        "category": "accessibility",
+        "question": "Con --json, la salida que leen los agentes: ¿se omiten null, [] y {} en todos los niveles, conservando false y 0, y el next anidado de las órdenes que escriben deja de repetir el intent, que sigue en ospec next --json? Recomendado: sí a las dos; team y delivery se quedan."
+      },
+      {
+        "category": "errors",
+        "question": "--decision sin texto, la forma de hoy: ¿error de uso (exit 2) que pide --decision \"<texto>\", o se sigue aceptando y entonces Decisions se escribe a mano? Recomendado: error de uso; --decision pasa a llevar texto y se puede repetir."
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.es.md",
+      "README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "internal/iddsession/catalog.json",
+      "internal/iddsession/iddsession.go",
+      "internal/iddsession/iddsession_test.go",
+      "internal/testdata/idd-session/many/expected/session/b-docs/session-summary.md",
+      "internal/testdata/idd-session/many/expected/session/latest.md",
+      "internal/testdata/idd-session/steps/expected/session/latest.md",
+      "internal/testdata/idd-session/steps/expected/session/s-living/session-summary.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/lib/idd-close.js",
+      "scripts/lib/idd-close.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-facts.js",
+      "scripts/lib/idd-facts.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-store.js",
+      "scripts/lib/idd-store.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md",
+      "skills/idd/references/open-facts.md"
+    ],
+    "work_units": 3,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Respuestas del usuario al gate open-facts (2026-10-27, «todas las recomendadas»): un proyecto con código y sin fichero de UI no recibe url-state ni accessibility, sin código recibe las 7 y un --path de UI las devuelve; --decision lleva texto, repetible, y sin él es un error de uso; el mismo texto se guarda una vez; el CLI escribe Plan y Decisions entre marcadores y Decisions puede quedar vacía sin decisión declarada; las órdenes que escriben imprimen una línea de estado y su next; --json omite null, [] y {}, y el next anidado no repite el intent.",
+      "La compactación del JSON se aplica solo a las órdenes del bucle IDD (status, next, record, signals, check, run, review y close); doctor, team, foundation y snapshot conservan su forma porque sus consumidores leen campos vacíos.",
+      "El texto terso solo imprime el how de una obligación que no es un run: el comando de repro-test, tdd-red-green o migration-compat-and-test ya es la acción. check conserva sus líneas missing con el motivo, porque son su veredicto, e imprime una línea ran: con el código de cada check y fitness y la salida solo de los que fallan.",
+      "El hook de Go valida el plan con un número exacto de campos, así que validPlan (internal/iddsession) acepta plan.decisions como validatePlan, y el how de declare-plan, que Go copia, cambia en los dos lados con sus golden de idd-session. El how de living-doc vive en catalog.json, regenerado.",
+      "Este change se abrió con el --decision booleano de la base, así que su change.md no tenía marcadores: se añadieron a mano y las decisiones se declararon después con ospec signals --decision.",
+      "ADR 0009: plan.decisions y la cobertura de cinco categorías son aditivos dentro de idd-state/v1 y los estados anteriores siguen validando; la salida --json no es un contrato persistido con esquema y su forma la fija REQ-idd-011. Un CLI anterior rechaza con state-invalid un estado con plan.decisions.",
+      "Medido en el flujo de un bugfix frente a v2.161.0: el texto de intent, signals, assumption, run verde y check baja de 518, 500, 347, 2380 y 2308 bytes a 190, 180, 124, 872 y 830, y el JSON entre un 10 y un 20 %. Los techos del test son unas 1,3 veces lo medido.",
+      "La skill idd queda a 74 B de su techo de 12 KiB medido en CRLF (antes 153 B): E4.3 debe contar con ese margen."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: touches scripts/lib/idd-store.js (matches scripts/lib/idd-store.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components change-state, cli, idd-engine, skills: ADR 0002, 0003, 0004, 0005, 0006, 0009, 0010, 0011 and quality scenario contract-compatibility, deterministic-resume, offline-operation",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0002",
+      "impact": "conforms",
+      "reason": "plan.decisions vive en state.yaml y el CLI regenera desde él los bloques de Plan y Decisions de change.md; el disco sigue siendo la autoridad"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "El perfil de categorías, la plantilla, los bloques del living-doc y la salida mínima los decide el CLI (idd-facts, idd-store, ospec.js); la skill cita ospec next en lugar de describir la regla"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "La derivación de señales y obligaciones no cambia; solo las categorías de open-facts se ajustan al perfil del proyecto, y una feature sigue preguntando al menos una"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "living-doc sigue exigiendo un Plan con contenido y Decisions cuando el plan declara una decisión; la evidencia sigue registrándola close"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "close deriva los registros de conocimiento de change.md como antes; el CLI no lee memoria y las decisiones escritas por el CLI salen del disco"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "idd-state/v1 gana un campo opcional (plan.decisions) y una cobertura sin url-state ni accessibility; los estados anteriores siguen validando en JS y en Go. La salida --json no es un contrato persistido con esquema: su forma la fija REQ-idd-011, actualizado en este cambio"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "No añade dependencias ni ficheros al runtime"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "Todo lo nuevo vive en idd/ (state.yaml y change.md); openspec/ no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "La versión nueva lee los estados anteriores (plan de cuatro campos, coverage de siete categorías y change.md sin marcadores) sin reinterpretarlos"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "next sigue siendo función pura del estado y de los ficheros del proyecto; la plantilla depende solo de la lista de ficheros"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "No añade llamadas de red: la detección de UI usa git ls-files, que el CLI ya ejecutaba"
+    },
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "La skill idd y references/open-facts.md cambian en su fuente única; los 7 targets los generan igual y idd-protocol.test.js los valida en cada uno"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El CLI y la skill son comunes a los 7 targets; los builds generados pasan idd-protocol.test.js y el check completo"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Las órdenes nuevas tienen tests en scripts/lib/idd-facts.test.js, idd-store.test.js, idd-record.test.js, idd-close.test.js, idd-next.test.js y scripts/ospec.test.js; la skill y references/open-facts.md citan ospec next para la plantilla",
+      "recorded_at": "2026-10-27T21:29:02.957Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Revisado el diff: ninguna llamada de red nueva en el CLI, los hooks ni la skill; readProjectFiles es git ls-files local",
+      "recorded_at": "2026-10-27T21:29:03.096Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "todas las recomendadas",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-27T21:30:19.217Z",
+      "detail": {
+        "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-27T21:30:19.217Z",
+      "detail": {
+        "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/iddsession/iddsession_test.go",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-store.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-27T21:30:34.335Z",
+      "detail": {
+        "run": "run-14",
+        "tree": "sha256:3dd22179d4bed6c97e7ab0812bf4a6cc41ee795c02dcabf0963dd04fcc704515",
+        "plan": "Aditivo dentro de idd-state/v1: plan.decisions es opcional y solo aparece con el texto de una decisión, y facts.coverage puede no tener url-state ni accessibility. Los estados anteriores (plan de cuatro campos, cobertura de siete categorías, change.md sin marcadores) siguen validando en JS y en el hook de Go sin reescribirse. Vuelta atrás: un CLI anterior rechaza con state-invalid un estado con plan.decisions o con cinco categorías, así que se cierra el change antes de volver a una versión anterior."
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "detail": {
+        "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+        "runs": [
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "detail": {
+        "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+        "check": "ev-4",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/iddsession/iddsession_test.go",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-store.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0009 conforms",
+          "adr:0010 none",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "adr:0001 conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+        "fitness": [
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26",
+          "run-27"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-27T21:32:04.735Z"
+    }
+  ],
+  "base": "091cb3820e0aca7136e0bc52a5e98e869f289ab6",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f5d299e882230b6e5246afea48b66aa49af5cffa493f8747ac44823fed41b1ae",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:30:19.217Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b2c28965bb52c9ad5eeaf41e8564522a8b31e9e78bafe3475572e28ef0b27ecd",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:30:19.217Z",
+      "tests": 14
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1650393f96dc9778dd6a6ec32438eeff4b5b2fc445ca296cafb9b34dafead3b2",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:30:19.217Z",
+      "tests": 50
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8298d8ce29b2c315ce73ef37b3875fac0704034d685c8b981994ba61e2816b36",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:30:19.217Z",
+      "tests": 18
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:46b1bb75f7bc6e21847d29391a397d567ddbf135839cbfdeb03750e08c06897f",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:30:19.217Z",
+      "tests": 2
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f16475f8c749abe1b8a18f45099bc73c76999845f74df08f4349c52df8b0297c",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:30:19.217Z",
+      "tests": 32
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:30:19.217Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9e10ec461947a55ac74d0cb5f50320146dc04df2a16c16cee97932bdedc0e7e3",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:30:19.217Z",
+      "tests": 21
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:56798ecf2d29ba19bcaeddcd249bd253d03edfdacbe5ee0156ea5737039ec8b3",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:30:19.217Z",
+      "tests": 85
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:73e6f9742691260dcf23426469e1178675a0b91c70ee3e06bd70bc88f976f43f",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:30:19.217Z",
+      "tests": 32
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dbdb00bdb74445e5b7f30439c4b178c519e1ccf30758b01e8927b7d0c65eaecf",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:30:19.217Z",
+      "tests": 52
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:df83526ab381a1c0028d3253a1de3647df63bc3ad3802a23ffde25742ea189a7",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:30:19.217Z",
+      "tests": 47
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bbbf838f1ea9b51c2a0911da29b64ed739aba5d747e14774b855a7649ab9de09",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:30:19.217Z",
+      "tests": 47
+    },
+    {
+      "id": "run-14",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/idd-contract.test.js scripts/lib/idd-record.test.js scripts/lib/idd-facts.test.js scripts/lib/idd-close.test.js && go test ./internal/iddsession/",
+      "exit_code": 0,
+      "output_sha256": "sha256:8a08d033b2e84244fc38278adbb2973ee5018ecc831ebf7abf855e4c41a16632",
+      "tree": "sha256:3dd22179d4bed6c97e7ab0812bf4a6cc41ee795c02dcabf0963dd04fcc704515",
+      "recorded_at": "2026-10-27T21:30:34.335Z",
+      "tests": 138
+    },
+    {
+      "id": "run-15",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:38bc94cab38eda69c08e2c1b37ceba724997b5d08e9217161a131f0c0c51b853",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:32:04.588Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d927fc8f3a47fdbb4ddda98f3a8e0236c7507a344cf495c9e9e7ac54a62e0a24",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "tests": 14
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8ae321cfcb1fc5c20e2fcb0f4d6481812287c39f95c79fdf6195dddf57e775c1",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "tests": 50
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:702432ce2d336c31f8345d6980be3b3078f26cc6938e9036ed17077d490d46e7",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "tests": 18
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:310ca76ef4d131dc8212c3a817d41b44354865285e1f5de1c9a71b8771742f19",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "tests": 2
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:73b8fd8be305a06de635b9957bb34f256f4793d3882b65a5448e80da0f2c2fd4",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "tests": 32
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:32:04.588Z"
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3d54486c176176560e3a418f093afe4b139d481e72636a8932c61e0f93b10b76",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "tests": 21
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6bf85adb648430a913ef77b2b4f361a405750316d6451c63acfa45269b7c39fd",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "tests": 85
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0d6cb85f5c3da7650f46fbdbf2f9381d07a73e49d100048b08e433ba908171e5",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "tests": 32
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3a10c09dc03c5c291024b40d73bec1cca10db9e4561d9e89e6ccfa99ea9c1ad",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "tests": 52
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:51b59fc6b51dd309ed5efaefdad77f0e6713f81c614f448fb6ca0e75f884e7f1",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "tests": 47
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b74cc66b2b4dd365adbc9fca21c4919e32895ae257fd599b28564b752c854bf1",
+      "tree": "sha256:7a5ba0341365cf22778afadf85517b1d96efb45db3bf69d5ef04979f458be894",
+      "recorded_at": "2026-10-27T21:32:04.588Z",
+      "tests": 47
+    }
+  ],
+  "closed_at": "2026-10-27T21:32:04.735Z"
+}

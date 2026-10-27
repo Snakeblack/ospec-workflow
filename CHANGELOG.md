@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- El CLI ahorra tokens al abrir y al cerrar: el next de un cambio nuevo imprime la plantilla de categorías según el perfil del proyecto, el CLI escribe Plan y Decisions del living-doc desde --path y --decision "<texto>", y cada orden que escribe imprime una línea de estado y otra de next, con --json sin campos vacíos (cli-terse-output)
+
 ## [2.161.0] - 2026-10-27
 
 ### Added

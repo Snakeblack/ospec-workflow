@@ -24,10 +24,10 @@ says.
 CLI owns `idd/<change>/state.yaml`: never write that file, and never move or
 delete anything under `idd/` by hand.
 
-- Every command that writes a change prints its `next`, the one
-  `ospec next --change <id> --json` gives when you resume. Its
-  `next_step.how` tells how to proceed: approve missing check configuration
-  as described below, or run the command that records the evidence. Follow it.
+- Every command that writes a change prints its next step; `ospec next
+  --change <id>` gives it in full when you resume. Its `next_step.how` tells
+  how to proceed: approve missing check configuration as described below, or
+  run the command that records the evidence. Follow it.
 - An obligation is satisfied only by evidence the CLI records from a run it
   observes (`ospec run`, `ospec check`, `ospec review`). Saying that tests
   pass satisfies nothing.
@@ -69,8 +69,8 @@ Then resume with `ospec next`.
    the intent with `ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>"`
    plus the open facts, one `--open-fact "<question>"` each, or
    `--no-open-facts --basis "<what settles every behavior>"` when there are
-   none. A `feature` covers seven fact categories instead, as
-   `references/open-facts.md` says. Assumptions: `ospec record assumption --text`
+   none. A `feature` covers the categories of the template `ospec next`
+   prints, as `references/open-facts.md` says. Assumptions: `ospec record assumption --text`
    (close lists them). With cross-session memory tools, recall prior
    decisions with the `memory_query` it returns, as
    `references/memory-loop.md` says. Open `open-facts`: then ask all at once
@@ -83,7 +83,7 @@ Then resume with `ospec next`.
 4. Declare the plan before editing, on `record intent` or later with
    `ospec signals --change <id>`: `--path <file>...` with every file you
    expect to touch; add `--work-units <n>` when the work
-   splits into several units, `--decision` when it records a design decision,
+   splits into several units, `--decision "<text>"` per design decision,
    and `--operation <op>` for a destructive or irreversible operation. With
    `docs/architecture/`, declare the ADRs and quality scenarios the change
    bears on (`--adr <id>`, `--quality <id>`) as `references/architecture.md`
@@ -113,8 +113,9 @@ Then resume with `ospec next`.
    - `checks-pass`: `ospec check` on the current tree, or a run whose command
      is the only check; a `tests 0` summary is not evidence. `--close`, when
      its command has it, closes the change once ready.
-   - `living-doc`: keep the Plan and Decisions of `idd/<id>/change.md` current.
-     A development decision stays there; it is never an ADR.
+   - `living-doc`: the CLI writes the Plan and Decisions of `change.md` from
+     `--path` and `--decision`; add only what they miss. A development
+     decision stays there; it is never an ADR.
 
    For the `suggestions`, `references` and `warnings` of `next`, read
    `references/architecture.md`; tell the user each warning.
@@ -132,7 +133,7 @@ Then resume with `ospec next`.
 Make the smallest change that meets the acceptance. Reuse what the code
 already has and follow its conventions. Add a layer, abstraction, dependency
 or configuration switch only for a need present in this change, and record
-the choice with `--decision` when it is not obvious. Leave unrelated code as
+the choice with `--decision "<text>"` when it is not obvious. Leave unrelated code as
 it is: report a defect outside the change instead of fixing it in passing.
 
 ## Tests by risk

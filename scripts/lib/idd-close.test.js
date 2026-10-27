@@ -134,6 +134,19 @@ test("the living document must keep its sections with a plan and decisions", () 
   assert.match(livingDocStatus(null).reason, /change.md is missing/);
 });
 
+// E4.16: the markers of the CLI say nothing; Decisions may stay empty when the
+// plan declared no decision.
+test("the CLI markers alone leave a section empty, and Decisions is optional without a decision", () => {
+  const marked = DOC.replace("1. Count pages.", "<!-- ospec:plan:start -->\n<!-- ospec:plan:end -->")
+    .replace("- Round up.", "<!-- ospec:decisions:start -->\n<!-- ospec:decisions:end -->");
+  assert.match(livingDocStatus(marked).reason, /Plan is empty/);
+  const planned = marked.replace("<!-- ospec:plan:start -->\n", "<!-- ospec:plan:start -->\n- Files: `src/pages.js`\n");
+  assert.match(livingDocStatus(planned).reason, /Decisions is empty/);
+  assert.deepStrictEqual(livingDocStatus(planned, { decisionRequired: false }), { ok: true, reason: null });
+  const decided = planned.replace("<!-- ospec:decisions:start -->\n", "<!-- ospec:decisions:start -->\n- Round up.\n");
+  assert.deepStrictEqual(livingDocStatus(decided), { ok: true, reason: null });
+});
+
 test("closing with living-doc records its evidence and writes only between the markers", () => {
   let state = satisfyChecks(openTypo());
   state = recordSignal(state, { id: "multi-unit-or-decision", reason: "declared 2 work units", source: "declaration" }).state;
@@ -238,6 +251,12 @@ const DESTINATION = "idd/archive/2026-10-05-add-paging";
 function decisionsDoc(lines) {
   return DOC.replace("- Round up.", lines.join("\n"));
 }
+
+test("a decision the CLI wrote is one record, and its end marker ends it", () => {
+  const livingDoc = decisionsDoc(["<!-- ospec:decisions:start -->", "- Round up.", "<!-- ospec:decisions:end -->", "A note by hand."]);
+  const records = knowledgeRecords({ state: { change: "add-paging", closed_at: AT }, livingDoc, destination: DESTINATION });
+  assert.deepStrictEqual(records.map((record) => record.summary), ["Round up."]);
+});
 
 test("each decision of change.md is a record with its provenance and stable topic", () => {
   const livingDoc = decisionsDoc([

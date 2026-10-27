@@ -17,7 +17,7 @@ Several changes are open; choose the one to resume:
 - `s-contract` (idd): Satisfy `contract-spec-and-test` with contract-spec-and-test evidence: in one diff, touch a contract document and its test (contracts.documents and contracts.tests of idd/config.yaml), then ospec check --change s-contract.
 - `s-gate` (idd): Resolve the `irreversible-operation` gate with the user: `ospec next --change s-gate` shows what to ask.
 - `s-limit` (idd): Resolve the `review-limit` gate with the user: `ospec next --change s-limit` shows what to ask.
-- `s-living` (idd): Satisfy `living-doc` with living-doc-current evidence: write the Plan and Decisions of idd/s-living/change.md, then ospec close --change s-living.
+- `s-living` (idd): Satisfy `living-doc` with living-doc-current evidence: the CLI writes the Plan of idd/s-living/change.md from --path and its Decisions from --decision "<text>"; add by hand what they leave out, then ospec close --change s-living.
 - `s-migration` (idd): Satisfy `migration-compat-and-test` with migration-test evidence: ospec run --change s-migration --obligation migration-compat-and-test --command "<migration test>" --plan "<compatibility or rollback>".
 - `s-review` (idd): Satisfy `trust-review` with frozen-review evidence: ospec review start --change s-review, dispatch review-trust on the returned paths, then ospec review record --change s-review --result '<findings json>'.
 - `s-tdd` (idd): Satisfy `tdd-red-green` with tdd-red-green evidence: ospec run --change s-tdd --obligation tdd-red-green --command "<test>" [--unit <name>]: failing before the code, passing after it.

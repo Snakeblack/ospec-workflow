@@ -363,17 +363,23 @@ function sortedUnion(left, right) {
 // Records the plan `ospec signals` was told about (E1.11). A later declaration
 // widens it: paths and operations accumulate, the work units keep the largest
 // count and a declared decision stays declared, so nothing planned is dropped.
-function recordPlan(state, { paths = [], workUnits = 1, nonObviousDecision = false, operations = [] } = {}) {
+// The texts of the decisions (E4.16) accumulate in the order declared, each
+// once, compared without the spaces at their ends.
+function recordPlan(state, { paths = [], workUnits = 1, nonObviousDecision = false, operations = [], decisions = [] } = {}) {
   requireOpen(state);
   if (isIntentAmbiguous(state)) refuse("ambiguous-intent-open", "no plan is declared while the intent is ambiguous");
   if (!Number.isInteger(workUnits) || workUnits < 1) refuse("invalid-plan", "work units must be a positive integer");
+  const texts = decisions.map((text) => String(text).trim());
+  if (texts.some((text) => text === "")) refuse("invalid-plan", "a decision needs its text");
   const previous = state.plan || { paths: [], work_units: 1, decision: false, operations: [] };
   const plan = {
     paths: sortedUnion(previous.paths, paths.map(normalizePath)),
     work_units: Math.max(previous.work_units, workUnits),
-    decision: previous.decision || nonObviousDecision === true,
+    decision: previous.decision || nonObviousDecision === true || texts.length > 0,
     operations: sortedUnion(previous.operations, operations.map(String)),
   };
+  const kept = [...new Set([...(previous.decisions || []), ...texts])];
+  if (kept.length > 0) plan.decisions = kept;
   if (state.plan && sameJson(plan, state.plan)) return unchanged(state);
   return { state: { ...structuredClone(state), plan }, changed: true };
 }

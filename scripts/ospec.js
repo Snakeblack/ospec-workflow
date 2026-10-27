@@ -46,7 +46,7 @@ const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvi
 const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
 const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { runCommand } = require("./lib/idd-exec.js");
-const { CATEGORY_IDS, countTests, resolveFeatureCoverage } = require("./lib/idd-facts.js");
+const { CATEGORY_IDS, UI_CATEGORY_IDS, countTests, projectCategories, resolveFeatureCoverage } = require("./lib/idd-facts.js");
 const { fitnessPlan } = require("./lib/idd-fitness.js");
 const { memoryQuery, resolveReferences, touchedComponents } = require("./lib/idd-knowledge.js");
 const { CHECKS_REQUIRED, FOUNDATION_STEPS, nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
@@ -115,8 +115,9 @@ const USAGE = `Usage:
                       [--request <text>] [--answer <text> --source user|user-unverified] [<plan>]
   ospec record intent --change <id> --kind feature --summary <text> --acceptance <text> --request <text>
                       (--open-fact <category>:<question> | --cite <category>=<path:line> | --quote <category>=<fragment>)...
-                      categories: ${CATEGORY_IDS.join(", ")}; at least one is an --open-fact
-                      [<plan>]: [--path <file>]... [--work-units <n>] [--decision] [--operation <op>]...
+                      categories: ${CATEGORY_IDS.join(", ")}; at least one is an --open-fact;
+                      ${UI_CATEGORY_IDS.join(" and ")} only with a UI file or no code (ospec next prints the template)
+                      [<plan>]: [--path <file>]... [--work-units <n>] [--decision <text>]... [--operation <op>]...
                                 [--adr <id>]... [--quality <id>]..., declared as ospec signals does
   ospec record intent --change <id> --ambiguous --request <text>
   ospec record assumption --change <id> --text <text>
@@ -127,7 +128,7 @@ const USAGE = `Usage:
   ospec record impact --change <id> (--adr <id> | --quality <id>)
                       [--impact <none|conforms|amends|supersedes|contradicts> --reason <text>] [--record <new ADR>]
   ospec record fitness --change <id> (--adr <id> | --quality <id>) --evidence <text>
-  ospec signals --change <id> [--path <file>]... [--work-units <n>] [--decision]
+  ospec signals --change <id> [--path <file>]... [--work-units <n>] [--decision <text>]...
                 [--operation <op>]... [--adr <id>]... [--quality <id>]... [--diff] [--base <ref>]
   ospec check --change <id> [--base <ref>] [--close]
   ospec run --change <id> --obligation <repro-test|tdd-red-green|migration-compat-and-test> --command <cmd>
@@ -204,7 +205,7 @@ const OPTIONS = {
   obligation: { type: "string" },
   path: { type: "string", multiple: true },
   "work-units": { type: "string" },
-  decision: { type: "boolean" },
+  decision: { type: "string", multiple: true },
   operation: { type: "string", multiple: true },
   adr: { type: "string", multiple: true },
   quality: { type: "string", multiple: true },
@@ -382,7 +383,7 @@ function parseWorkUnits(raw) {
 // A call that names paths, work units, a decision or an operation declares the
 // plan; one that only reads the diff does not (E1.11).
 function declaresPlan(values) {
-  return Boolean(values.path?.length || values["work-units"] !== undefined || values.decision || values.operation?.length);
+  return Boolean(values.path?.length || values["work-units"] !== undefined || values.decision?.length || values.operation?.length);
 }
 
 // What a declaration of the plan reads before the state lock: the declared
@@ -390,10 +391,15 @@ function declaresPlan(values) {
 // knowledge. `signals` and `record intent` take the same flags (E4.15).
 function planContext(root, values) {
   const refs = declaredReferences(values);
+  // Each --decision carries its text, which the CLI writes to the Decisions
+  // of change.md (E4.16).
+  const decisions = (values.decision || []).map((text) => text.trim());
+  if (decisions.includes("")) throw new UsageError('--decision needs the text of the decision: --decision "<text>"');
   const declaration = {
     paths: values.path || [],
     workUnits: parseWorkUnits(values["work-units"]),
-    nonObviousDecision: values.decision === true,
+    nonObviousDecision: decisions.length > 0,
+    decisions,
     operations: values.operation || [],
     adrs: refs.filter((ref) => ref.kind === "adr").map((ref) => ref.id),
     scenarios: refs.filter((ref) => ref.kind === "scenario").map((ref) => ref.id),
@@ -421,7 +427,7 @@ async function signals(root, values) {
   const plan = planContext(root, values);
   if (values.diff || values.base) plan.diff = readGitDiff(root, { base: diffBase(values, await readChange(root, values.change)) });
   const declared = await mutateChange(root, values.change, existing((current) => declarePlan(current, plan)));
-  const result = { change: declared.state.change, changed: declared.changed, ...derivationView(declared), next: changeNext(root, declared.state) };
+  const result = { change: declared.state.change, changed: declared.changed, ...derivationView(declared), next: nextAfterWrite(root, declared.state) };
   if (plan.warnings.length) result.warnings = plan.warnings;
   return result;
 }
@@ -494,8 +500,12 @@ function citeTarget(root, file) {
   return relative.split(path.sep).join("/");
 }
 
+// The categories of the project's profile (E4.16): its files and the plan of
+// the intent decide whether url-state and accessibility apply.
 function featureCoverage(root, values) {
+  const { categories } = projectCategories({ files: readProjectFiles(root), planPaths: values.path || [], classify: classifyPath });
   const resolved = resolveFeatureCoverage({
+    categories,
     openFacts: values["open-fact"] || [],
     cites: values.cite || [],
     quotes: values.quote || [],
@@ -629,7 +639,7 @@ async function check(root, values) {
     reasons: settled.reasons,
     livingDoc: readLivingDoc(root, state),
   });
-  const result = { change: state.change, changed, added: settled.added, checks, tree: checkTree, ...verdict, next: changeNext(root, state) };
+  const result = { change: state.change, changed, added: settled.added, checks, tree: checkTree, ...verdict, next: nextAfterWrite(root, state) };
   const view = fitnessView(inputs.fitness, fitnessRuns);
   if (view) result.fitness = view;
   if (inputs.warnings.length) result.warnings = inputs.warnings;
@@ -732,7 +742,7 @@ async function runObligation(root, values) {
   const output = { change: state.change, run: { id: runId, ...extra, ...result }, evidence };
   if (settledCheck) output.check = { name: onlyCheck.name, run: settledCheck.runIds[0], evidence: settledCheck.evidence, added: settledCheck.added };
   if (warnings.length) output.warnings = warnings;
-  return { ...output, ...verdict, next: changeNext(root, state) };
+  return { ...output, ...verdict, next: nextAfterWrite(root, state) };
 }
 
 // --- close (REQ-idd-009, REQ-idd-017) ---------------------------------------
@@ -741,10 +751,12 @@ function livingDocFile(root, changeId) {
   return path.join(changeDir(root, changeId), LIVING_DOC_FILE);
 }
 
+// Decisions may stay empty only when the declared plan holds no decision
+// (E4.16); a change without a plan keeps needing them.
 function readLivingDoc(root, state) {
   if (!state.obligations.some((entry) => entry.id === "living-doc" && entry.status !== "withdrawn")) return null;
   try {
-    return livingDocStatus(fs.readFileSync(livingDocFile(root, state.change), "utf8"));
+    return livingDocStatus(fs.readFileSync(livingDocFile(root, state.change), "utf8"), { decisionRequired: state.plan?.decision !== false });
   } catch (error) {
     if (error.code === "ENOENT") return livingDocStatus(null);
     throw error;
@@ -1037,7 +1049,7 @@ async function review(root, positionals, values) {
     evidence: outcome.evidence ?? null,
     ...(outcome.warnings?.length ? { warnings: outcome.warnings } : {}),
     ...checkVerdict(state, { checks: (context || readProjectContext(root)).checks, livingDoc: readLivingDoc(root, state) }),
-    next: changeNext(root, state),
+    next: nextAfterWrite(root, state),
   };
 }
 
@@ -1147,6 +1159,13 @@ function changeNext(root, state) {
   return nextForChange(state, { ...context, ...readProjectContext(root) });
 }
 
+// The next of a command that writes (E4.15) leaves out the intent, which the
+// agent has just recorded or already holds (E4.16); ospec next keeps it.
+function nextAfterWrite(root, state) {
+  const { intent, ...next } = changeNext(root, state);
+  return next;
+}
+
 async function run(command, positionals, values) {
   const root = values.root || process.cwd();
   if (command === "status") {
@@ -1187,7 +1206,7 @@ async function run(command, positionals, values) {
     const query = type === "intent" ? intentMemoryQuery(root, state) : null;
     // The signals the plan of record intent derived, as signals reports them.
     const plan = recorded.derivation ? { plan: derivationView(recorded) } : {};
-    return { record: type, change: state.change, changed, ...(query ? { memory_query: query } : {}), ...plan, next: changeNext(root, state) };
+    return { record: type, change: state.change, changed, ...(query ? { memory_query: query } : {}), ...plan, next: nextAfterWrite(root, state) };
   }
   throw new UsageError(`unknown command: ${command ?? "(none)"}`);
 }
@@ -1221,6 +1240,10 @@ function describeNext(result) {
   }
   // The literal command of the step (E1.45).
   for (const command of step.commands || (step.command ? [step.command] : [])) lines.push(`run: ${command}`);
+  if (step.feature) {
+    lines.push(`feature: ${step.feature.command}`, `  ${step.feature.how}`);
+    if (step.feature.omitted) lines.push(`  left out: ${step.feature.omitted.join(", ")} (${step.feature.reason})`);
+  }
   if (result.pending_obligations?.length) {
     lines.push(`pending: ${result.pending_obligations.map((o) => o.id).join(", ")}`);
   }
@@ -1239,6 +1262,32 @@ function describeNext(result) {
   if (result.team) lines.push(`team: ${result.team.size}; delivery ${result.team.delivery_strategy}; mentorship ${result.team.mentorship}`);
   if (result.delivery) lines.push(...describeDelivery({ ...result.delivery, value: result.delivery.branching }, result.delivery));
   return lines.join("\n");
+}
+
+// The step a command that writes returns, in one line with its literal
+// command, and what that step needs: the gate's questions, the warnings and
+// the suggestions (E4.16). ospec next prints the rest: the pending list, the
+// references, the fitness functions, the team and the delivery.
+function describeStep(next) {
+  const step = next.next_step;
+  const command = step.command ? `: ${step.command}` : "";
+  const lines = [];
+  if (step.action === "satisfy-obligation") {
+    lines.push(`next (${step.obligation})${command}`);
+    // A run records its own evidence; the other obligations need work first.
+    if (step.how && !Object.hasOwn(RUN_OBLIGATIONS, step.obligation)) lines.push(`  ${step.how}`);
+  } else if (step.action === "resolve-gate") lines.push(`next (gate ${step.gate})${command}`);
+  else if (step.action === "declare-plan" || step.action === "configure-checks") lines.push(`next (${step.action}): ${step.how}`);
+  else if (step.action === "none") lines.push(`next: none, ${next.change} is ${next.status}`);
+  else lines.push(`next (${step.action})${command}`);
+  if (next.pending_decision) {
+    const { gate, question, reason, questions = [] } = next.pending_decision;
+    lines.push(`decision: ${gate}: ${question}${reason ? ` (${reason})` : ""}`);
+    for (const entry of questions) lines.push(`  - ${entry}`);
+  }
+  for (const warning of next.warnings || []) lines.push(`warning: ${warning}`);
+  for (const suggestion of next.suggestions || []) lines.push(`suggestion ${suggestion.id}: ${suggestion.reason}; ${suggestion.how}`);
+  return lines;
 }
 
 // A delivery option, why it fits and the rules that follow from it.
@@ -1272,34 +1321,29 @@ function describeFitness(fitness) {
   return lines;
 }
 
-// The signals a declaration derived; `changed` says whether the call recorded
-// anything else, such as the plan.
+// What a declaration recorded, as part of a status line (E4.16): the signals
+// and gates it added, and the ceremony floor; `changed` says whether the call
+// recorded anything else, such as the plan.
 function describeDerivation(result, changed) {
-  const lines = result.signals.map((s) => `${s.id} (${s.source}): ${s.reason}`);
-  for (const gate of result.gates) lines.push(`gate ${gate.id}: ${gate.reason}`);
   const added = [...result.added.signals, ...result.added.gates.map((g) => `gate:${g}`)];
-  if (added.length) lines.push(`recorded: ${added.join(", ")}`);
-  else if (changed) lines.push("recorded the plan; every derived signal was already recorded");
-  else lines.push("no change: the plan and every derived signal were already recorded");
-  if (result.floor) lines.push(`floor: ${result.floor}`);
-  return lines;
+  let recorded = "the plan and every derived signal were already recorded";
+  if (added.length) recorded = `recorded ${added.join(", ")}`;
+  else if (changed) recorded = "recorded the plan; every derived signal was already recorded";
+  return `${recorded}${result.floor ? `; floor ${result.floor}` : ""}`;
 }
 
 function describeSignals(result) {
-  const lines = describeDerivation(result, result.changed);
+  const lines = [`plan of ${result.change}: ${describeDerivation(result, result.changed)}`];
   for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
-  lines.push(describeNext(result.next));
+  lines.push(...describeStep(result.next));
   return lines.join("\n");
 }
 
+// The verdict of a check; a decision it needs is the next step's.
 function describeVerdict(result) {
   const lines = [];
   if (result.verdict === "ready") lines.push(`ready: ${result.change} can close`);
   for (const entry of result.missing) lines.push(`missing ${entry.obligation}: ${entry.reason}`);
-  if (result.decision) {
-    const { gate, question, reason } = result.decision;
-    lines.push(`needs your decision: ${gate}: ${question}${reason ? ` (${reason})` : ""}`);
-  }
   return lines;
 }
 
@@ -1309,14 +1353,22 @@ function describeRun(label, run) {
   return lines;
 }
 
+// The verdict, one line with the exit code of every run and the output of
+// the failing ones, and the manual fitness items still without evidence
+// (E4.16).
 function describeCheck(result) {
   const lines = describeVerdict(result);
-  for (const run of result.checks) lines.push(...describeRun(`check ${run.name}`, run));
-  lines.push(...describeFitness(result.fitness));
+  const runs = [
+    ...result.checks.map((run) => ({ ...run, label: `check ${run.name}` })),
+    ...(result.fitness?.checks || []).map((run) => ({ ...run, label: `fitness ${FITNESS_LABELS[run.kind]} ${run.id}` })),
+  ];
+  if (runs.length) lines.push(`ran: ${runs.map((run) => `${run.label} exit ${run.exit_code}`).join(", ")}`);
+  for (const run of runs.filter((entry) => entry.exit_code !== 0)) lines.push(`${run.label} \`${run.command}\`:`, ...run.output_tail.map((line) => `  ${line}`));
+  lines.push(...describeFitness({ checks: [], manual: (result.fitness?.manual || []).filter((item) => !item.evidence) }));
   lines.push(...describeAdded(result.added));
   for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
   // check --close reports the close in place of the next step (E4.15).
-  lines.push(result.close ? describeClose(result.close) : describeNext(result.next));
+  lines.push(...(result.close ? [describeClose(result.close)] : describeStep(result.next)));
   return lines.join("\n");
 }
 
@@ -1326,14 +1378,15 @@ function describeAdded(added) {
 }
 
 function describeRunResult(result) {
-  const lines = describeRun(`${result.run.id}`, result.run);
-  lines.push(result.evidence ? `recorded evidence ${result.evidence}` : "no evidence recorded by this run");
+  const evidence = result.evidence ? `recorded evidence ${result.evidence}` : "no evidence recorded by this run";
+  const lines = [`${result.run.id}: exit ${result.run.exit_code}; ${evidence}`];
+  if (result.run.exit_code !== 0) lines.push(...result.run.output_tail.map((line) => `  ${line}`));
   if (result.check) {
-    const { name, run, evidence, added } = result.check;
-    lines.push(`counted as check ${name} (${run}): ${evidence ? `recorded evidence ${evidence}` : "no check evidence"}`, ...describeAdded(added));
+    const { name, run, evidence: checked, added } = result.check;
+    lines.push(`counted as check ${name} (${run}): ${checked ? `recorded evidence ${checked}` : "no check evidence"}`, ...describeAdded(added));
   }
   for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
-  lines.push(...describeVerdict(result), describeNext(result.next));
+  lines.push(...describeStep(result.next));
   return lines.join("\n");
 }
 
@@ -1353,7 +1406,7 @@ function describeReview(result) {
   for (const finding of review.findings || []) lines.push(`${finding.id} ${finding.severity}: ${finding.summary}`);
   if (result.evidence) lines.push(`recorded evidence ${result.evidence}`);
   for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
-  lines.push(...describeVerdict(result), describeNext(result.next));
+  lines.push(...describeStep(result.next));
   return lines.join("\n");
 }
 
@@ -1488,9 +1541,32 @@ function describe(command, result) {
   const head = result.changed
     ? `recorded ${result.record} on ${result.change}`
     : `no change: ${result.record} already recorded on ${result.change}`;
-  const query = result.memory_query === undefined ? "" : `\nmemory query: ${result.memory_query}`;
-  const plan = result.plan ? `\n${describeDerivation(result.plan, result.changed).join("\n")}` : "";
-  return `${head}${query}${plan}\n${describeNext(result.next)}`;
+  const lines = [result.plan ? `${head}; ${describeDerivation(result.plan, result.changed)}` : head];
+  if (result.memory_query !== undefined) lines.push(`memory query: ${result.memory_query}`);
+  return [...lines, ...describeStep(result.next)].join("\n");
+}
+
+// The commands of the IDD loop leave out empty fields in JSON (E4.16): null,
+// [] and {} at any depth, while false and 0 stay.
+const COMPACT_JSON = Object.freeze(["status", "next", "record", "signals", "check", "run", "review", "close"]);
+
+function isEmpty(value) {
+  return value == null || (typeof value === "object" && Object.keys(value).length === 0);
+}
+
+function compact(value) {
+  if (Array.isArray(value)) return value.map(compact);
+  if (value === null || typeof value !== "object") return value;
+  const kept = {};
+  for (const [key, entry] of Object.entries(value)) {
+    const compacted = compact(entry);
+    if (!isEmpty(compacted)) kept[key] = compacted;
+  }
+  return kept;
+}
+
+function jsonOf(command, payload) {
+  return `${JSON.stringify(COMPACT_JSON.includes(command) ? compact(payload) : payload, null, 2)}\n`;
 }
 
 // The words and the change of a call that failed to parse, to point its
@@ -1516,7 +1592,7 @@ async function main(argv = process.argv.slice(2)) {
     const result = await run(command, positionals.slice(1), values);
     // The snapshot is JSON already: stdout holds it alone, with or without --json.
     if (command === "snapshot" && "text" in result) process.stdout.write(result.text);
-    else if (wantsJson) process.stdout.write(`${JSON.stringify({ ok: true, command, ...result }, null, 2)}\n`);
+    else if (wantsJson) process.stdout.write(jsonOf(command, { ok: true, command, ...result }));
     else process.stdout.write(`${describe(command, result)}\n`);
     return command === "doctor" ? result.exit_code : 0;
   } catch (error) {
@@ -1540,7 +1616,7 @@ async function main(argv = process.argv.slice(2)) {
     // A refused check --close keeps the check it ran (E4.15).
     const checked = error.check ? { check: error.check } : {};
     if (wantsJson) {
-      process.stdout.write(`${JSON.stringify({ ok: false, command, error: { code, message: error.message, ...(how ? { how } : {}) }, ...checked }, null, 2)}\n`);
+      process.stdout.write(jsonOf(command, { ok: false, command, error: { code, message: error.message, ...(how ? { how } : {}) }, ...checked }));
     } else {
       if (error.check) process.stdout.write(`${describeCheck(error.check)}\n`);
       process.stderr.write(`ospec: ${error.message} (${code})\n${how ? `${how}\n` : ""}`);

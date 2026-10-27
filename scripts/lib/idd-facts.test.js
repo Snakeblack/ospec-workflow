@@ -3,7 +3,18 @@
 const test = require("node:test");
 const assert = require("node:assert");
 
-const { CATEGORY_IDS, citedCoverage, countTests, factsFromCoverage, isConcrete, resolveFeatureCoverage } = require("./idd-facts.js");
+const {
+  CATEGORY_IDS,
+  CORE_CATEGORY_IDS,
+  citedCoverage,
+  countTests,
+  factsFromCoverage,
+  featureCommand,
+  featureCoverageHow,
+  isConcrete,
+  projectCategories,
+  resolveFeatureCoverage,
+} = require("./idd-facts.js");
 
 const REQUEST = "Build a task list that stores items and rejects an empty title.";
 
@@ -134,4 +145,47 @@ test("a manifest cite is refused however its path is spelled (B6)", () => {
   }
   const canonical = resolveFeatureCoverage({ cites: ["persistence=./README.md:1"], readFile: filesOf({ "README.md": "line one\n" }), classify: classifyPath });
   assert.notStrictEqual(canonical.error?.code, "cite-unresolved", "a leading ./ still names the file");
+});
+
+// E4.16: url-state and accessibility belong to a user interface.
+test("a project with code and no UI file covers the five core categories", () => {
+  const { classifyPath } = require("./idd-signals.js");
+  const cli = projectCategories({ files: ["src/cli.js", "test/cli.test.js", "README.md"], classify: classifyPath });
+  assert.deepStrictEqual(cli.categories, [...CORE_CATEGORY_IDS]);
+  assert.deepStrictEqual(cli.omitted, ["url-state", "accessibility"]);
+  assert.match(cli.reason, /no UI file/);
+  for (const ui of ["public/index.html", "src/App.tsx", "src/styles.scss", "src/Page.vue", "src/page.astro"]) {
+    assert.deepStrictEqual(projectCategories({ files: ["src/cli.js", ui], classify: classifyPath }).categories, [...CATEGORY_IDS], ui);
+  }
+  // A UI file the plan declares brings them back; a project without code,
+  // or whose files cannot be read, covers all seven.
+  assert.deepStrictEqual(projectCategories({ files: ["src/cli.js"], planPaths: ["src/view.jsx"], classify: classifyPath }).categories, [...CATEGORY_IDS]);
+  assert.deepStrictEqual(projectCategories({ files: ["README.md", "package.json"], classify: classifyPath }).categories, [...CATEGORY_IDS]);
+  assert.deepStrictEqual(projectCategories({ files: null, classify: classifyPath }).categories, [...CATEGORY_IDS]);
+});
+
+test("the template asks every category the project covers, and its refusal names it", () => {
+  const command = featureCommand(CORE_CATEGORY_IDS);
+  for (const id of CORE_CATEGORY_IDS) assert.ok(command.includes(`--open-fact ${id}:"<question>"`), id);
+  assert.doesNotMatch(command, /url-state|accessibility/);
+  const refused = resolveFeatureCoverage({ openFacts: ["¿Qué prioridad recibe una tarea creada sin --priority?"], categories: CORE_CATEGORY_IDS, readFile: () => null });
+  assert.strictEqual(refused.error.code, "facts-undeclared");
+  assert.strictEqual(refused.error.how, featureCoverageHow(CORE_CATEGORY_IDS));
+  assert.ok(refused.error.how.startsWith(command));
+  assert.match(refused.error.how, /url-state and accessibility are optional here/);
+});
+
+test("the core categories cover a feature without a UI; the others are accepted when given", () => {
+  const asked = (ids) => ids.map((id, index) => `${id}:¿se admiten más de ${index + 2} valores?`);
+  const core = resolveFeatureCoverage({ openFacts: asked(CORE_CATEGORY_IDS), categories: CORE_CATEGORY_IDS, readFile: () => null });
+  assert.strictEqual(core.error, undefined);
+  assert.deepStrictEqual(core.coverage.map((entry) => entry.category), [...CORE_CATEGORY_IDS]);
+  const all = resolveFeatureCoverage({ openFacts: asked(CATEGORY_IDS), categories: CORE_CATEGORY_IDS, readFile: () => null });
+  assert.deepStrictEqual(all.coverage.map((entry) => entry.category), [...CATEGORY_IDS]);
+  // A UI project still needs all seven.
+  const ui = resolveFeatureCoverage({ openFacts: asked(CORE_CATEGORY_IDS), readFile: () => null });
+  assert.strictEqual(ui.error.message, "a feature must cover url-state, accessibility");
+  // The stored coverage keeps the core five and refuses less.
+  assert.deepStrictEqual(factsFromCoverage(core.coverage).facts.coverage, core.coverage);
+  assert.strictEqual(factsFromCoverage(core.coverage.slice(1)).error.message, "a feature must cover inputs");
 });

@@ -5,7 +5,7 @@
 // CLI (E1.2–E1.4) consumes; idd-contract.test.js keeps them in parity with the
 // spec. Pure data and validators: no filesystem access.
 
-const { CATEGORY_IDS } = require("./idd-facts.js");
+const { CATEGORY_IDS, CORE_CATEGORY_IDS } = require("./idd-facts.js");
 
 const MODES = Object.freeze(["idd", "sdd"]);
 // IDD is the default entry since E1.6 (REQ-idd-001).
@@ -21,6 +21,10 @@ const EVIDENCE_MARKERS = Object.freeze({
   start: "<!-- ospec:evidence:start -->",
   end: "<!-- ospec:evidence:end -->",
 });
+// The CLI writes the declared plan and decisions between these (E4.16); the
+// model keeps the rest of the Plan and Decisions sections.
+const PLAN_MARKERS = Object.freeze({ start: "<!-- ospec:plan:start -->", end: "<!-- ospec:plan:end -->" });
+const DECISIONS_MARKERS = Object.freeze({ start: "<!-- ospec:decisions:start -->", end: "<!-- ospec:decisions:end -->" });
 
 const STATE_SCHEMA = "idd-state/v1";
 const STATE_FIELDS = Object.freeze([
@@ -431,8 +435,10 @@ function validateFacts(state, fail) {
   }
 }
 
+// The five core categories always; url-state and accessibility only when the
+// project has a UI or no code (E4.16), so a state may leave them out.
 function validateCoverage(coverage, { gate, asking }, fail) {
-  if (!Array.isArray(coverage) || coverage.length !== CATEGORY_IDS.length) {
+  if (!Array.isArray(coverage) || !CORE_CATEGORY_IDS.every((id) => coverage.some((entry) => entry?.category === id))) {
     fail("facts.coverage must cover every feature category");
     return;
   }
@@ -477,9 +483,12 @@ function isTextList(value) {
 }
 
 // The declared plan (E1.11): what `ospec signals` was told the change touches.
-// States recorded before the plan existed have none and stay valid.
+// States recorded before the plan existed have none and stay valid. The texts
+// of --decision (E4.16) are kept only when there is one, so older plans keep
+// their four fields.
 function validatePlan(plan, fail) {
   if (plan === undefined) return;
+  const decisions = plan?.decisions === undefined || (isTextList(plan.decisions) && plan.decisions.length > 0 && plan.decision === true);
   const valid =
     plan !== null &&
     typeof plan === "object" &&
@@ -488,8 +497,9 @@ function validatePlan(plan, fail) {
     plan.work_units >= 1 &&
     typeof plan.decision === "boolean" &&
     isTextList(plan.operations) &&
-    Object.keys(plan).length === 4;
-  if (!valid) fail("plan must hold its paths, work_units (at least 1), decision and operations");
+    decisions &&
+    Object.keys(plan).length === (plan.decisions === undefined ? 4 : 5);
+  if (!valid) fail("plan must hold its paths, work_units (at least 1), decision and operations, and the texts of its decisions if any");
 }
 
 // The declared architecture references (E3.1): an ADR or quality scenario,
@@ -601,6 +611,7 @@ module.exports = {
   CHANGE_ROOT,
   CHANGE_STATUSES,
   CLOSE_TIME,
+  DECISIONS_MARKERS,
   DECISIONS_ROOT,
   DEFAULT_MODE,
   EVIDENCE_KINDS,
@@ -616,6 +627,7 @@ module.exports = {
   MODES,
   OBLIGATIONS,
   OBLIGATION_STATUSES,
+  PLAN_MARKERS,
   RECORDED_IMPACTS,
   REFERENCE_KINDS,
   RUN_EVIDENCE,

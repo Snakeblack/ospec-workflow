@@ -18,25 +18,63 @@ const FEATURE_CATEGORIES = Object.freeze([
 ]);
 
 const CATEGORY_IDS = Object.freeze(FEATURE_CATEGORIES.map((category) => category.id));
+// The categories only a user interface has (E4.16): a project with code and
+// no UI file covers the other five, which every feature covers.
+const UI_CATEGORY_IDS = Object.freeze(["url-state", "accessibility"]);
+const CORE_CATEGORY_IDS = Object.freeze(CATEGORY_IDS.filter((id) => !UI_CATEGORY_IDS.includes(id)));
+const UI_FILE = /\.(?:html?|css|scss|sass|less|jsx|tsx|vue|svelte|astro)$/i;
 const MIN_QUOTE = 12;
 const STOP = new Set(
   "el la los las un una de del al y o en se es son por para con sin que qué como cómo cual cuál cuando the a an of to and or is are for what how does do if when this that not".split(" "),
 );
 
-const FEATURE_COVERAGE_HOW = [
-  'ospec record intent --change <id> --kind feature --summary "<what>" --acceptance "<observable result>" --request "<the user\'s words>"',
-  '--open-fact inputs:"<question naming a value, limit or format>"',
-  "--cite persistence=README.md:12",
-  '--quote copy="<a literal fragment of --request, at least 12 characters>"',
-  `Categories: ${FEATURE_CATEGORIES.map((category) => `${category.id} (${category.label})`).join(", ")}.`,
-  "Each category is one --open-fact, one --cite path:line that exists and has a letter or digit, or one --quote of the request; no two categories share a cite or a quote.",
+const COVERAGE_RULES = [
+  "Each category is one --open-fact naming a value, limit or format, one --cite <category>=<path:line> that exists and has a letter or digit,",
+  'or one --quote <category>="<a literal fragment of --request, at least 12 characters>"; no two categories share a cite or a quote.',
   "A cite never names a manifest or a lockfile, and one outside the documentation names a file of the plan or the diff.",
   "At least one category is an --open-fact: the user sees the plan before it is built.",
   "A question that only names the category is refused.",
 ].join(" ");
 
+/**
+ * The categories a feature of this project covers (E4.16). `files` lists the
+ * project's files, or null when they cannot be read; `planPaths` the paths the
+ * intent declares; `classify(path)` is classifyPath of idd-signals.js. A
+ * project with code and no UI file, in its files or its plan, leaves out
+ * url-state and accessibility; one without code covers all seven.
+ */
+function projectCategories({ files, planPaths = [], classify }) {
+  const code = Array.isArray(files) && files.some((file) => ["product", "test"].includes(classify(file)));
+  const ui = [...(files || []), ...planPaths].some((file) => UI_FILE.test(file));
+  if (!code || ui) return { categories: [...CATEGORY_IDS], omitted: [] };
+  return { categories: [...CORE_CATEGORY_IDS], omitted: [...UI_CATEGORY_IDS], reason: "the project has code and no UI file; a --path with a UI file adds them" };
+}
+
+// The record intent of a feature with one question per category, to fill in.
+function featureCommand(categories = CATEGORY_IDS) {
+  return [
+    'ospec record intent --change <id> --kind feature --summary "<what>" --acceptance "<observable result>" --request "<the user\'s words>"',
+    ...categories.map((id) => `--open-fact ${id}:"<question>"`),
+  ].join(" ");
+}
+
+function featureCoverageHow(categories = CATEGORY_IDS) {
+  const labels = categories.map((id) => `${id} (${categoryOf(id).label})`).join(", ");
+  const omitted = CATEGORY_IDS.filter((id) => !categories.includes(id));
+  const optional = omitted.length ? `; ${omitted.join(" and ")} are optional here` : "";
+  return `${featureCommand(categories)} Categories: ${labels}${optional}. ${COVERAGE_RULES}`;
+}
+
+const FEATURE_COVERAGE_HOW = featureCoverageHow();
+
 function problem(code, message) {
-  return { error: { code, message, how: FEATURE_COVERAGE_HOW } };
+  return { error: { code, message } };
+}
+
+// A refusal prints the template of the categories the project covers.
+function withHow(result, categories) {
+  if (result.error) result.error.how = featureCoverageHow(categories);
+  return result;
 }
 
 function categoryOf(id) {
@@ -164,9 +202,15 @@ function reusedCite(entries) {
  * Turns the feature flags into resolved coverage. `readFile(path)` returns the
  * file text, or null when the path is missing; `classify(path)` is
  * classifyPath of idd-signals.js; `canonical(path)` is the file the path
- * reaches inside the project, symlinks resolved, or null.
+ * reaches inside the project, symlinks resolved, or null. `categories` are
+ * the ones the project covers (projectCategories); another category is
+ * accepted when given.
  */
-function resolveFeatureCoverage({ openFacts = [], cites = [], quotes = [], request, readFile, classify = () => null, canonical = (file) => file }) {
+function resolveFeatureCoverage({ categories = CATEGORY_IDS, ...input }) {
+  return withHow(coverageOf(input, categories), categories);
+}
+
+function coverageOf({ openFacts = [], cites = [], quotes = [], request, readFile, classify = () => null, canonical = (file) => file }, categories) {
   const found = new Map();
   for (const raw of openFacts) {
     const failed = parseOpenFact(raw, found);
@@ -182,7 +226,7 @@ function resolveFeatureCoverage({ openFacts = [], cites = [], quotes = [], reque
   }
   const reused = reusedCite(found.values());
   if (reused) return reused;
-  const missing = CATEGORY_IDS.filter((id) => !found.has(id));
+  const missing = categories.filter((id) => !found.has(id));
   if (missing.length > 0) return problem("facts-undeclared", `a feature must cover ${missing.join(", ")}`);
   // Cites settle nothing the user has not seen: the features that cited every
   // category escaped hidden facts, the ones that asked did not (#390). Stored
@@ -190,10 +234,16 @@ function resolveFeatureCoverage({ openFacts = [], cites = [], quotes = [], reque
   if (![...found.values()].some((entry) => entry.question)) {
     return problem("facts-undeclared", "a feature must ask at least one category with --open-fact; cites and quotes cover the rest");
   }
-  return { coverage: CATEGORY_IDS.map((id) => found.get(id)) };
+  return { coverage: CATEGORY_IDS.filter((id) => found.has(id)).map((id) => found.get(id)) };
 }
 
+// Stored or resolved coverage: the five core categories always, url-state and
+// accessibility when they were covered (E4.16).
 function factsFromCoverage(coverage) {
+  return withHow(storedFacts(coverage), CATEGORY_IDS);
+}
+
+function storedFacts(coverage) {
   if (!Array.isArray(coverage)) return problem("facts-undeclared", "a feature must cover every category");
   const found = new Map();
   for (const entry of coverage) {
@@ -221,9 +271,9 @@ function factsFromCoverage(coverage) {
   }
   const reused = reusedCite(found.values());
   if (reused) return reused;
-  const missing = CATEGORY_IDS.filter((id) => !found.has(id));
+  const missing = CORE_CATEGORY_IDS.filter((id) => !found.has(id));
   if (missing.length > 0) return problem("facts-undeclared", `a feature must cover ${missing.join(", ")}`);
-  return { facts: { coverage: CATEGORY_IDS.map((id) => found.get(id)) } };
+  return { facts: { coverage: CATEGORY_IDS.filter((id) => found.has(id)).map((id) => found.get(id)) } };
 }
 
 function citedCoverage(text = "the user asked for this behavior") {
@@ -245,13 +295,19 @@ function countTests(tail) {
 
 module.exports = {
   CATEGORY_IDS,
+  CORE_CATEGORY_IDS,
+  COVERAGE_RULES,
   FEATURE_CATEGORIES,
   FEATURE_COVERAGE_HOW,
   MIN_QUOTE,
+  UI_CATEGORY_IDS,
   citedCoverage,
   countTests,
   factsFromCoverage,
+  featureCommand,
+  featureCoverageHow,
   isConcrete,
   lineCount,
+  projectCategories,
   resolveFeatureCoverage,
 };
