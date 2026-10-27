@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/progress-snapshot/v4",
+  "title": "ospec progress snapshot v4",
+  "description": "The progress of a project that `ospec snapshot --schema-version 4` exports on demand: the v3 with the documentation of the project written for the client: the problem it solves and its objectives, what it includes and leaves out, its deliverables and its decisions, from its ADRs, with their reason. Rules the schema cannot express: ids are unique among the groups, among the phases, among the requests and among the tasks of a phase; with groups, every phase names one, the phases of a group are consecutive and no group is empty; the phase of a request, a deliverable or a decision exists; a done phase has no task left undone; dates exist in the calendar and start is not after end; texts are trimmed, NFC and free of control characters; previewUrl and url hold no user or password; decision numbers are unique, and supersededBy names a decision of the snapshot with a greater number; the document is at most 64 KiB (openspec/specs/idd/spec.md, REQ-idd-026).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "phases"],
+  "properties": {
+    "schemaVersion": { "const": 4 },
+    "groups": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": { "$ref": "#/$defs/group" }
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/phase" }
+    },
+    "requests": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": { "$ref": "#/$defs/request" }
+    },
+    "problem": { "description": "The problem the project solves.", "$ref": "#/$defs/text" },
+    "objectives": {
+      "description": "The objectives of the project, each with how it is measured, in order.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": { "$ref": "#/$defs/objective" }
+    },
+    "includes": {
+      "description": "What the project includes, in order.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": { "$ref": "#/$defs/title" }
+    },
+    "excludes": {
+      "description": "What the project leaves out, each with its reason, in order.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": { "$ref": "#/$defs/exclusion" }
+    },
+    "deliverables": {
+      "description": "What the project delivers, each with the phase that brings it, in order.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": { "$ref": "#/$defs/deliverable" }
+    },
+    "decisions": {
+      "description": "The decisions of the project, from its ADRs, in any order.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/decision" }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9.-]{1,64}$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "version": {
+      "description": "A Semantic Versioning x.y.z version, without a pre-release or build suffix.",
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "title": { "$ref": "#/$defs/title" },
+        "summary": { "$ref": "#/$defs/text" }
+      }
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "title": { "$ref": "#/$defs/title" },
+        "status": { "enum": ["pending", "in-progress", "done"] },
+        "group": { "$ref": "#/$defs/id" },
+        "shortTitle": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "start": { "$ref": "#/$defs/date" },
+        "end": { "$ref": "#/$defs/date" },
+        "summary": { "$ref": "#/$defs/text" },
+        "tasks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": { "$ref": "#/$defs/task" }
+        },
+        "outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": { "$ref": "#/$defs/title" }
+        },
+        "previewUrl": { "type": "string", "maxLength": 2048, "pattern": "^https://\\S+$" },
+        "release": { "$ref": "#/$defs/release" }
+      },
+      "if": { "required": ["release"] },
+      "then": { "properties": { "status": { "const": "done" } } }
+    },
+    "release": {
+      "description": "The delivery stage of a done phase: in testing, or in production since the version and the date that took it there.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["stage"],
+          "properties": { "stage": { "const": "testing" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["stage", "version", "date"],
+          "properties": {
+            "stage": { "const": "production" },
+            "version": { "$ref": "#/$defs/version" },
+            "date": { "$ref": "#/$defs/date" }
+          }
+        }
+      ]
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "done"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "title": { "$ref": "#/$defs/title" },
+        "done": { "type": "boolean" }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "phase": { "$ref": "#/$defs/id" },
+        "title": { "$ref": "#/$defs/title" },
+        "body": { "$ref": "#/$defs/text" },
+        "due": { "$ref": "#/$defs/date" }
+      }
+    },
+    "objective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "measure"],
+      "properties": {
+        "title": { "$ref": "#/$defs/title" },
+        "measure": { "$ref": "#/$defs/text" }
+      }
+    },
+    "exclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "reason"],
+      "properties": {
+        "title": { "$ref": "#/$defs/title" },
+        "reason": { "$ref": "#/$defs/text" }
+      }
+    },
+    "deliverable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "phase"],
+      "properties": {
+        "title": { "$ref": "#/$defs/title" },
+        "summary": { "$ref": "#/$defs/text" },
+        "phase": { "$ref": "#/$defs/id" },
+        "url": { "type": "string", "maxLength": 2048, "pattern": "^https://\\S+$" }
+      }
+    },
+    "decisionNumber": { "type": "integer", "minimum": 1, "maximum": 9999 },
+    "decision": {
+      "description": "A published decision: in force, or superseded by a later one. A proposed, inferred, rejected or deprecated ADR is not published.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["number", "title", "date", "status", "reason"],
+      "properties": {
+        "number": { "$ref": "#/$defs/decisionNumber" },
+        "title": { "$ref": "#/$defs/title" },
+        "date": { "$ref": "#/$defs/date" },
+        "status": { "enum": ["accepted", "superseded"] },
+        "supersededBy": { "$ref": "#/$defs/decisionNumber" },
+        "reason": { "$ref": "#/$defs/text" },
+        "phases": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        }
+      },
+      "if": { "required": ["supersededBy"] },
+      "then": { "properties": { "status": { "const": "superseded" } } }
+    }
+  }
+}

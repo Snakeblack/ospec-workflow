@@ -9,7 +9,7 @@
 // under. Only what decides a stage is checked, so an older history in another
 // format does not stop the snapshot. Its schema is
 // schemas/progress-snapshot/v3.schema.json, and nothing invalid is ever
-// emitted.
+// emitted. The v4 builds on this module (progress-snapshot-v4.js).
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -164,9 +164,9 @@ function phaseRelease(changes, stages) {
 
 // Every rule of the v3 format: those of the v2 under its own version, plus a
 // release only in a done phase, testing alone or production with its version
-// and date.
-function problems(document) {
-  const found = problemsV2(document, { version: SNAPSHOT_VERSION, phaseFields: ["release"] });
+// and date. The v4 checks the same rules under its version, with its fields.
+function problems(document, { version = SNAPSHOT_VERSION, rootFields = [] } = {}) {
+  const found = problemsV2(document, { version, phaseFields: ["release"], rootFields });
   if (!Array.isArray(document?.phases)) return found;
   document.phases.forEach((phase, index) => {
     const release = phase?.release;
@@ -190,8 +190,10 @@ function serializeSnapshotV3(document) {
   return serializeChecked(document, problems);
 }
 
-function buildSnapshotV3({ root, roadmap, progress }) {
-  const built = documentV2({ root, roadmap, progress });
+// The v3 document of a project, with the progress file and the changelog it
+// read and what the v2 came from, which the v4 reads again.
+function documentV3({ root, roadmap, progress, sections = null }) {
+  const built = documentV2({ root, roadmap, progress, sections });
   const document = { ...built.document, schemaVersion: SNAPSHOT_VERSION };
   const changelog = declaredChangelog(root);
   if (changelog !== null) {
@@ -204,7 +206,12 @@ function buildSnapshotV3({ root, roadmap, progress }) {
       if (release) phase.release = release;
     }
   }
-  return { roadmap, progress: built.progress, changelog: changelog?.file ?? null, snapshot: document, text: serializeSnapshotV3(document) };
+  return { ...built, changelog: changelog?.file ?? null, document };
+}
+
+function buildSnapshotV3({ root, roadmap, progress }) {
+  const { progress: read, changelog, document } = documentV3({ root, roadmap, progress });
+  return { roadmap, progress: read, changelog, snapshot: document, text: serializeSnapshotV3(document) };
 }
 
 module.exports = {
@@ -213,6 +220,8 @@ module.exports = {
   buildSnapshotV3,
   changelogStages,
   compareVersions,
+  documentV3,
   phaseRelease,
+  problems,
   serializeSnapshotV3,
 };

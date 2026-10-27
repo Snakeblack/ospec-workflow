@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- ospec snapshot --schema-version 4 emite el snapshot de avance v4: el v3 tal cual más la documentación del proyecto (problema, objetivos, alcance, entregables y decisiones), con las decisiones sacadas de los ADRs aceptados o sustituidos de docs/architecture/decisions/ y de la columna ADRs del roadmap, y los textos para el cliente del fichero de avance; el v1, el v2 y el v3 no cambian (progress-snapshot-v4)
+
 ## [2.162.0] - 2026-10-27
 
 ### Added

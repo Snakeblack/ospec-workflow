@@ -7,8 +7,8 @@
 // v1 it declares only its version (ADR 0012), its schema is
 // schemas/progress-snapshot/v2.schema.json and nothing invalid is ever
 // emitted: a progress file out of its syntax is refused at the line of the
-// first problem, and nothing is cut. The v3 builds on this module
-// (progress-snapshot-v3.js).
+// first problem, and nothing is cut. The v3 and the v4 build on this module
+// (progress-snapshot-v3.js, progress-snapshot-v4.js).
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -187,8 +187,12 @@ function progressBlocks(lines, file) {
 // pass so that a refusal names the first problem: `## <ID>. <title>` for a
 // group, `### <ID>. <title>` for a phase under the `##` of its group, its
 // `- <key>: <value>` items, paragraph, `#### Tasks` and `#### Outcomes`, and
-// `## Requests` with one `### <id>. <title>` per request.
-function parseProgress(text, file, roadmap) {
+// `## Requests` with one `### <id>. <title>` per request. `sections` adds the
+// `##` sections a later version reads, as `{ names, open(name, line, tools) }`
+// with `tools` holding `fail` and the `roadmap`: `open` returns the reader of
+// the blocks of that section, `{ add(block), close() }`, or null. Without it
+// the syntax is the v2's.
+function parseProgress(text, file, roadmap, sections = null) {
   const fail = (line, message) => progressInvalid(file, line, message);
   // A heading is clean already: cleaning it twice would drop escaped emphasis.
   const checked = (clean, max, what, line) => {
@@ -210,6 +214,8 @@ function parseProgress(text, file, roadmap) {
   let seenRequests = false;
   let entry = null;
   let section = null;
+  let extra = null;
+  const keywords = [REQUESTS_HEADING, ...(sections?.names ?? [])];
 
   // A section heading without items is an empty list.
   const closeSection = () => {
@@ -219,11 +225,17 @@ function parseProgress(text, file, roadmap) {
 
   for (const block of progressBlocks(text.replace(/^﻿/, "").split(/\r?\n/), file)) {
     const { line } = block;
+    if (extra && !(block.kind === "heading" && block.level <= 2)) {
+      extra.add(block);
+      continue;
+    }
     if (block.kind === "heading") {
       closeSection();
       const heading = plainText(block.text);
       const named = NAMED.exec(heading);
       if (block.level === 2) {
+        extra?.close();
+        extra = null;
         entry = null;
         group = null;
         inRequests = heading === REQUESTS_HEADING;
@@ -232,7 +244,9 @@ function parseProgress(text, file, roadmap) {
           seenRequests = true;
           continue;
         }
-        if (!named) throw fail(line, `a '##' heading reads '<ID>. <title>' for a group of the roadmap, or '${REQUESTS_HEADING}'`);
+        extra = named ? null : sections?.open(heading, line, { fail, roadmap }) ?? null;
+        if (extra) continue;
+        if (!named) throw fail(line, `a '##' heading reads '<ID>. <title>' for a group of the roadmap, or '${keywords.join("', '")}'`);
         const id = named[1].toLowerCase();
         if (!roadmap.groups.has(id)) throw fail(line, `group ${id} is not a group of the roadmap`);
         if (groups.has(id)) throw fail(line, `group ${id} repeats the one of line ${groups.get(id).line}`);
@@ -340,6 +354,7 @@ function parseProgress(text, file, roadmap) {
     }
   }
   closeSection();
+  extra?.close();
   return { groups, phases, requests };
 }
 
@@ -381,12 +396,16 @@ function exactKeys(value, required, optional) {
 }
 
 // Every rule of the v2 format, checked on what is about to be emitted. The v3
-// checks the same rules under its own version, with its phases' release.
-function problems(document, { version = SNAPSHOT_VERSION, phaseFields = [] } = {}) {
+// checks the same rules under its own version, with its phases' release, and
+// the v4 with its documentation fields.
+function problems(document, { version = SNAPSHOT_VERSION, phaseFields = [], rootFields = [] } = {}) {
   const found = [];
   const check = (problem, at) => problem && found.push(`${at} ${problem}`);
   const checkDate = (value, at) => !isDate(value) && found.push(`${at} must be a date YYYY-MM-DD that exists in the calendar`);
-  if (!exactKeys(document, ["schemaVersion", "phases"], ["groups", "requests"])) found.push("the snapshot holds schemaVersion and phases, and may hold groups and requests");
+  const rootOptional = ["groups", "requests", ...rootFields];
+  if (!exactKeys(document, ["schemaVersion", "phases"], rootOptional)) {
+    found.push(`the snapshot holds schemaVersion and phases, and may hold ${rootOptional.slice(0, -1).join(", ")} and ${rootOptional.at(-1)}`);
+  }
   if (document?.schemaVersion !== version) found.push(`schemaVersion must be ${version}`);
   const groups = document?.groups;
   const groupIds = new Set();
@@ -509,8 +528,9 @@ function readProgress(root, file, named) {
 }
 
 // The v2 document of a project, with the progress file it read, if any, and
-// the roadmap phases and changes it came from, which the v3 reads again.
-function documentV2({ root, roadmap, progress }) {
+// the roadmap phases and changes it came from, which the v3 and the v4 read
+// again. `sections` passes on the sections of a later version.
+function documentV2({ root, roadmap, progress, sections = null }) {
   const phases = roadmapPhases(readRoadmap(root, roadmap), roadmap);
   const { groups, groupOf } = roadmapGroups(phases, roadmap);
   const changes = readChanges(root);
@@ -521,7 +541,7 @@ function documentV2({ root, roadmap, progress }) {
     groups: new Set(groups.map((group) => group.id)),
     phases: new Map(statuses.map(({ id, status, group }) => [id, { status, group: group ?? null }])),
   };
-  const texts = text === null ? { groups: new Map(), phases: new Map(), requests: [] } : parseProgress(text, file, context);
+  const texts = text === null ? { groups: new Map(), phases: new Map(), requests: [] } : parseProgress(text, file, context, sections);
   return { phases, changes, progress: text === null ? null : file, document: assemble(groups, statuses, texts) };
 }
 
@@ -549,4 +569,6 @@ module.exports = {
   roadmapGroups,
   serializeChecked,
   serializeSnapshotV2,
+  textProblem,
+  urlProblem,
 };

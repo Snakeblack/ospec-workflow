@@ -2099,8 +2099,8 @@ before this requirement. SDD MUST NOT read them (ADR 0011).
 snapshot v1, `{ "schemaVersion": 1, "phases": [...] }`, each phase holding
 only `id`, `title` and `status` (`pending`, `in-progress` or `done`), with
 `schemas/progress-snapshot/v1.schema.json` as its schema, unless
-`--schema-version 2` or `3` asks for the v2 or the v3 below;
-`--schema-version` takes `1`, the default, `2` or `3`. It MUST run only
+`--schema-version 2`, `3` or `4` asks for the v2, the v3 or the v4 below;
+`--schema-version` takes `1`, the default, `2`, `3` or `4`. It MUST run only
 when invoked: no IDD or SDD step, hook, check, gate or doctor check runs it,
 and it writes nothing but the snapshot. It needs no git work tree.
 
@@ -2155,7 +2155,7 @@ and two groups with the same id MUST be refused with `roadmap-invalid`,
 naming the file and the line. The v1 ignores the headings.
 
 The progress file is `docs/progress.md` unless `--progress <path>` names
-another, and `--progress` without `--schema-version 2` or `3` is a usage
+another, and `--progress` without `--schema-version 2`, `3` or `4` is a usage
 error.
 Without the file the v2 holds only groups and phases; a `--progress` path
 that does not exist MUST be refused with `progress-missing`. The file is
@@ -2245,6 +2245,77 @@ null. The snapshot sees a version only once its heading is in the files it
 reads: the commit that moves the entries under the version must reach the
 branch the snapshot is exported from.
 
+The progress snapshot v4 (E5.13), with
+`schemas/progress-snapshot/v4.schema.json` as its schema, MUST hold the v3 of
+the same project, with the same groups, phases, texts, requests and
+releases, plus the documentation of the project written for the client, each
+field only when it has content: `problem`, `objectives` (`title` and
+`measure`), `includes`, `excludes` (`title` and `reason`), `deliverables`
+(`title` and `phase`, with an optional `summary` and `url`) and `decisions`.
+No document is published as it is: every client text comes from the progress
+file. The v1, the v2 and the v3 read neither the ADRs nor the `ADRs` column
+of the roadmap, and they refuse the new sections of the progress file as
+before.
+
+The progress file of the v4 adds these sections, each at most once and in
+any order:
+
+- `## Problem` holds one paragraph, the `problem`.
+- `## Objectives` and `## Excludes` hold one `### <title>` per objective or
+  exclusion, with one paragraph: its `measure` or its `reason`.
+- `## Includes` holds one `- <text>` item per include.
+- `## Deliverables` holds one `### <title>` per deliverable, with the item
+  `- phase: <phase id>`, an optional item `- url: <url>` and an optional
+  paragraph, its `summary`.
+- `## Decisions` holds one `### NNNN. <title>` or `### NNNN` per ADR, by the
+  four digits of its number, with a paragraph, its `reason` for the client,
+  or the item `- internal`, which keeps the ADR out of the snapshot.
+
+Texts are cleaned as in the v2, a `url` follows the rules of a preview, and
+the lists keep the order of the file. An empty section, a second paragraph,
+an element without its measure, reason or phase, a deliverable whose phase
+the roadmap lacks, more than 10 objectives, 30 includes, 30 exclusions or 50
+deliverables, a text out of its limit, a repeated section, key or decision,
+an internal decision with a title or a reason, a decision that names no ADR
+or an ADR that is not published, a decision with neither a reason nor
+`- internal`, and any other line out of this syntax MUST be refused with
+`progress-invalid`, naming the file and the line of the first one.
+
+The decisions come from `docs/architecture/decisions/`. Each
+`NNNN-<title>.md` file there is an ADR, whose heading `# NNNN. <title>`
+carries the number of its file name, and whose header, before the next
+heading, holds `- Status:` and `- Date:`. The status, in any case, is
+`inferred`, `proposed`, `accepted`, `superseded by NNNN`, `rejected` or
+`deprecated`. Other files are not read, other header lines such as
+`- Amends:` change nothing, and without the directory there are no decisions
+and nothing is refused. Every `accepted` or `superseded by` ADR that the
+progress file does not mark internal is published, in number order, with its
+`number`, the client `title` of the progress file or else its own clean
+title, its `date`, its `status` (`accepted`, or `superseded`), `supersededBy`
+when its substitute is published, its `reason`, and its `phases`: those whose
+`ADRs` column names it, in roadmap order and without repeats. The `ADRs`
+column is the one of a phase table whose header, once clean, reads `ADRs` in
+any case; its cell holds `—`, `-` or nothing, or ADR numbers separated by
+commas.
+
+An ADR without its heading, whose heading number differs from its file name
+or repeats another's, without a status or with another one, with a repeated
+`Status` or `Date`, or whose `superseded by` names no ADR or one whose number
+is not greater, and a published ADR without a date, with a date that does
+not exist, numbered `0000`, without a decision in the progress file, or
+whose own title, without a client title, is out of the limit of a title MUST
+be refused with `decisions-invalid`, naming the ADR and the line. An `ADRs`
+cell out of its format or naming an ADR that does not exist MUST be refused
+with `roadmap-invalid`, naming the line of its row.
+
+The v4 MUST meet its schema and the rules of the v3, plus: the phase of a
+deliverable and the phases of a decision exist, the phases of a decision do
+not repeat, decision numbers go from 1 to 9999 without repeats, and
+`supersededBy` goes only in a superseded decision and names a decision of the
+snapshot with a greater number (`snapshot-invalid`). It holds at most 100
+decisions (`snapshot-limit`). Output, `--out` and refusals work as for the
+v3; the `--out` report of a v4 also names the ADR directory it read, or null.
+
 #### Scenario: Phases take their status from the changes on disk
 
 - GIVEN a `docs/roadmap.md` table whose rows read `P1a. Platform`,
@@ -2317,6 +2388,29 @@ branch the snapshot is exported from.
 - GIVEN the project of the first v3 scenario without `CHANGELOG.md`
 - WHEN `ospec snapshot --schema-version 3` runs
 - THEN it MUST exit 0 with a v3 in which no phase holds a `release`
+
+#### Scenario: The v4 adds the documentation and the decisions
+
+- GIVEN the roadmap of the v2 scenario above, whose `## S1. Base` table has
+  an `ADRs` column holding `0001` in the row of `S1a. Platform`
+- AND a `docs/architecture/decisions/0001-web-app.md` with
+  `# 0001. Web application`, `- Status: accepted` and `- Date: 2026-01-02`,
+  and a `0002-native-app.md` with `- Status: rejected`
+- AND a `docs/progress.md` whose `## Problem` holds a paragraph and whose
+  `## Decisions` holds `### 0001. A web app` with the paragraph
+  `Nothing to install.`
+- WHEN `ospec snapshot --schema-version 4` runs
+- THEN stdout MUST hold only a v4 with that paragraph as its `problem` and
+  one decision, `{ "number": 1, "title": "A web app", "date": "2026-01-02",
+  "status": "accepted", "reason": "Nothing to install.", "phases": ["s1a"] }`
+
+#### Scenario: A published ADR without a reason writes nothing
+
+- GIVEN the project of the scenario above without its `## Decisions` section
+- WHEN `ospec snapshot --schema-version 4 --out snapshot.json` runs
+- THEN it MUST exit 1 with `decisions-invalid` naming the `Status` line of
+  `0001-web-app.md`
+- AND `snapshot.json` MUST NOT exist
 
 #### Scenario: Without the option the v1 is unchanged
 

@@ -6,8 +6,9 @@
 // hook, check or gate runs it. The status comes from directory names only, so
 // no state of either mode is read (ADR 0011). The document declares only its
 // version: its format is closed (ADR 0009) and its schema is
-// schemas/progress-snapshot/v1.schema.json. The v2 and the v3 build on this
-// module (progress-snapshot-v2.js, progress-snapshot-v3.js).
+// schemas/progress-snapshot/v1.schema.json. The v2, the v3 and the v4 build on
+// this module (progress-snapshot-v2.js, progress-snapshot-v3.js,
+// progress-snapshot-v4.js).
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -65,8 +66,9 @@ function cells(line) {
 }
 
 // The body rows of every Markdown table outside code fences, grouped by table,
-// each table with the `##` heading it sits under: null before the first one
-// and after a `#` heading. Only the v2 reads the heading.
+// each table with its header cells and the `##` heading it sits under: null
+// before the first one and after a `#` heading. Only the v2 reads the heading,
+// and only the v4 the header and the other cells.
 function tables(lines) {
   const found = [];
   let fence = null;
@@ -86,10 +88,11 @@ function tables(lines) {
     const rows = [];
     let at = index + 2;
     while (at < lines.length && lines[at].includes("|") && lines[at].trim() !== "") {
-      rows.push({ line: at + 1, first: cells(lines[at])[0] ?? "" });
+      const row = cells(lines[at]);
+      rows.push({ line: at + 1, first: row[0] ?? "", cells: row });
       at += 1;
     }
-    found.push({ heading, rows });
+    found.push({ heading, header: cells(lines[index]), rows });
     index = at - 1;
   }
   return found;
@@ -104,12 +107,12 @@ function invalid(file, line, message) {
 }
 
 // The phases of a roadmap: each row of a table whose every row starts with
-// `<ID>. <title>`, with the `##` heading of its table. A table with no such
-// row is not a phase table.
+// `<ID>. <title>`, with the `##` heading, the header cells and the row cells
+// of its table. A table with no such row is not a phase table.
 function roadmapPhases(text, file) {
   const phases = [];
   const byKey = new Map();
-  for (const { heading, rows } of tables(text.split(/\r?\n/))) {
+  for (const { heading, header, rows } of tables(text.split(/\r?\n/))) {
     const matches = rows.map((row) => PHASE_CELL.exec(plainText(row.first)));
     if (!matches.some(Boolean)) continue;
     const stray = rows.find((row, index) => !matches[index]);
@@ -123,7 +126,7 @@ function roadmapPhases(text, file) {
       if (CONTROL.test(title)) throw invalid(file, row.line, `the title of phase ${id} holds a control character`);
       const clash = byKey.get(linkKey(id));
       if (clash) throw invalid(file, row.line, `phase id ${id} repeats ${clash.id} of line ${clash.line}`);
-      const phase = { id, title, line: row.line, heading };
+      const phase = { id, title, line: row.line, heading, header, cells: row.cells };
       byKey.set(linkKey(id), phase);
       phases.push(phase);
     });

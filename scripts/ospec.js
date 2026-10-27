@@ -78,6 +78,7 @@ const { readReceipt } = require("./lib/review-receipt.js");
 const { DEFAULT_ROADMAP, SnapshotError, buildSnapshot } = require("./lib/progress-snapshot.js");
 const { DEFAULT_PROGRESS, buildSnapshotV2 } = require("./lib/progress-snapshot-v2.js");
 const { buildSnapshotV3 } = require("./lib/progress-snapshot-v3.js");
+const { buildSnapshotV4 } = require("./lib/progress-snapshot-v4.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
 const { addedTests, applyDerivation, classifyPath, deriveSignals, persistentHits, requireDeclaredCeremony } = require("./lib/idd-signals.js");
@@ -139,7 +140,7 @@ const USAGE = `Usage:
   ospec close --change <id>
   ospec doctor [--target <host>] [--repair] [--json]
   ospec team [--mode <idd|sdd>] [--json]
-  ospec snapshot [--schema-version <1|2|3>] [--roadmap <path>] [--progress <path>] [--out <file>] [--json]
+  ospec snapshot [--schema-version <1|2|3|4>] [--roadmap <path>] [--progress <path>] [--out <file>] [--json]
   ospec foundation next [--profile <id>] [--map <path>] [--json]
   ospec foundation record --slot <id> --state <confirmed|assumed|n/a|deferred>
                           [--source-kind <user|document|repository>] [--source-ref <text>]
@@ -152,11 +153,12 @@ Options:
   --diff        signals: also read the git diff against --base
   --base <ref>  diff base (default: the commit the change started from, else HEAD)
   --close       check: close the change in the same call when the verdict is ready
-  --schema-version <1|2|3>
+  --schema-version <1|2|3|4>
                 snapshot: the version to emit (default: 1); the v3 reads the changelog
-                that delivery.changelog declares in idd/config.yaml
+                that delivery.changelog declares in idd/config.yaml, and the v4 also
+                the ADRs of docs/architecture/decisions/
   --roadmap     snapshot: the roadmap to read (default: ${DEFAULT_ROADMAP})
-  --progress    snapshot v2 and v3: the progress file to read (default: ${DEFAULT_PROGRESS}, when it exists)
+  --progress    snapshot v2, v3 and v4: the progress file to read (default: ${DEFAULT_PROGRESS}, when it exists)
   --out <file>  snapshot: write the snapshot to this file instead of stdout
 `;
 
@@ -1442,15 +1444,15 @@ function describeCloseDelivery({ changelog, release }) {
   return lines;
 }
 
-// The progress snapshot, v1 unless --schema-version asks for the v2 or the
-// v3, on stdout or written whole to --out; an invalid one is refused before
-// anything is written (REQ-idd-026).
-const SNAPSHOT_BUILDERS = Object.freeze({ 1: buildSnapshot, 2: buildSnapshotV2, 3: buildSnapshotV3 });
+// The progress snapshot, v1 unless --schema-version asks for the v2, the v3
+// or the v4, on stdout or written whole to --out; an invalid one is refused
+// before anything is written (REQ-idd-026).
+const SNAPSHOT_BUILDERS = Object.freeze({ 1: buildSnapshot, 2: buildSnapshotV2, 3: buildSnapshotV3, 4: buildSnapshotV4 });
 
 async function snapshot(root, values) {
   const version = values["schema-version"] ?? "1";
-  if (!Object.hasOwn(SNAPSHOT_BUILDERS, version)) throw new UsageError(`snapshot --schema-version takes 1, 2 or 3, got ${JSON.stringify(version)}`);
-  if (version === "1" && values.progress !== undefined) throw new UsageError("snapshot --progress needs --schema-version 2 or 3");
+  if (!Object.hasOwn(SNAPSHOT_BUILDERS, version)) throw new UsageError(`snapshot --schema-version takes 1, 2, 3 or 4, got ${JSON.stringify(version)}`);
+  if (version === "1" && values.progress !== undefined) throw new UsageError("snapshot --progress needs --schema-version 2, 3 or 4");
   const built = SNAPSHOT_BUILDERS[version]({ root, roadmap: values.roadmap ?? DEFAULT_ROADMAP, progress: values.progress });
   const { roadmap, snapshot: document, text } = built;
   if (values.out === undefined) return { text };
@@ -1458,7 +1460,9 @@ async function snapshot(root, values) {
   const report = { roadmap, out: values.out, phases: document.phases.length, bytes: Buffer.byteLength(text) };
   if (version === "1") return report;
   const v2 = { schema_version: Number(version), ...report, progress: built.progress };
-  return version === "2" ? v2 : { ...v2, changelog: built.changelog };
+  if (version === "2") return v2;
+  const v3 = { ...v2, changelog: built.changelog };
+  return version === "3" ? v3 : { ...v3, decisions: built.decisions };
 }
 
 async function foundation(root, positionals, values) {
@@ -1524,7 +1528,7 @@ function describe(command, result) {
   if (command === "run") return describeRunResult(result);
   if (command === "snapshot") {
     const head = result.schema_version ? `snapshot v${result.schema_version}` : "snapshot";
-    const sources = [result.roadmap, result.progress, result.changelog].filter(Boolean);
+    const sources = [result.roadmap, result.progress, result.changelog, result.decisions].filter(Boolean);
     const from = sources.length > 1 ? `${sources.slice(0, -1).join(", ")} and ${sources.at(-1)}` : sources[0];
     return `${head}: ${result.phases} phases from ${from} written to ${result.out} (${result.bytes} bytes)`;
   }
