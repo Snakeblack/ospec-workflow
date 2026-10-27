@@ -1,0 +1,71 @@
+{
+  "schema": "idd-state/v1",
+  "change": "e1-55-atomic-write-race-note",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "El roadmap anota E1.55 atomic-write-concurrent-rename, residuo de E1.46: en Windows, el fallback de writeFileAtomic falla con ENOENT o deja un .bak cuando dos escritores sin lock escriben el mismo fichero a la vez, como en el flake de main tras v2.158.0",
+    "acceptance": "docs/roadmaps/harness-evolution.md tiene la fila y la sección de E1.55 pendiente, fuera del orden ▶, con el fallo de la run 40428047045, la causa en atomic-write.js, qué escritores no toman lock, y una nota en E1.30"
+  },
+  "facts": {
+    "basis": "El usuario aceptó anotarlo en el roadmap como cambio propio, como E1.54; el precedente de E1.30 y E1.54 fija el formato: cambio de solo documentación, línea en [Unreleased] y sin release propia"
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-27T01:07:21.081Z",
+      "detail": {
+        "tree": "sha256:22a8aed9814e5b534bcf2999323ad69bae64a3617a63a5578dafb6a54e61292d",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "a214885aa2f390d55b99cbd898ddba5f65656ed4",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:24150c2c1c5c3dff2f63882fb7bb72cd3ba1ca222a071992513cf6f6e62cbb8d",
+      "tree": "sha256:22a8aed9814e5b534bcf2999323ad69bae64a3617a63a5578dafb6a54e61292d",
+      "recorded_at": "2026-10-27T01:07:21.081Z"
+    }
+  ],
+  "assumptions": [
+    "E1.55 queda fuera del orden ▶ hasta que el usuario lo coloque, como E1.54; el usuario no ha fijado su prioridad"
+  ],
+  "closed_at": "2026-10-27T01:07:25.440Z"
+}
