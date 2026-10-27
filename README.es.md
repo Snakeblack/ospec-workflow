@@ -37,7 +37,7 @@ Un arreglo de una línea y una migración de esquema no necesitan la misma cerem
 
 | Señal | Se activa cuando | Obligación |
 | --- | --- | --- |
-| `always` | Todo cambio con intención resuelta | `checks-pass`: `ospec check` ejecuta los checks declarados en `idd/config.yaml` sobre el árbol actual |
+| `always` | Todo cambio con intención resuelta | `checks-pass`: `ospec check` ejecuta los checks declarados en `idd/config.yaml` sobre el árbol actual; un `ospec run` del único check declarado cuenta como él |
 | `bug-fix` | La intención es un bug | `repro-test`: el test de reproducción falla primero y después pasa |
 | `strict-tdd` | `strict_tdd: true` en `idd/config.yaml`, salvo en cambios de documentación y refactors | `tdd-red-green`: un par rojo → verde por unidad |
 | `untested-product` | La intención es una `feature` o un `bug`, y el diff cambia código de producto sin ningún test | `boundary-tests`: un test que añade el diff, con un check que pasa sobre el árbol actual e informa más de cero tests (o ningún recuento); la suite que ya pasaba no es evidencia |
@@ -96,7 +96,7 @@ Una vez cargado el plugin en tu agente de chat, pide el cambio con tus palabras 
      test: npm test
    ```
 2. **Responde los hechos abiertos**: el agente registra la intención, enumera los comportamientos que la petición deja abiertos y los pregunta todos juntos antes de editar.
-3. **Deja que el CLI lo cierre**: el agente sigue `ospec next` hasta que `ospec close` termina bien y archiva el cambio en `idd/archive/`. Ramas, commits y PRs siguen siendo decisión tuya.
+3. **Deja que el CLI lo cierre**: el agente sigue el siguiente paso que imprime cada orden de `ospec` (`ospec next` al reanudar) hasta que `ospec close`, o `ospec check --close` cuando el check está listo, termina bien y archiva el cambio en `idd/archive/`. `record intent` declara el plan en la misma llamada. Ramas, commits y PRs siguen siendo decisión tuya.
 
 En Claude Code también puedes entrar en IDD de forma explícita con `/ospec-workflow:idd <petición>`. Para apagar IDD en un proyecto, declara `mode: sdd` en `idd/config.yaml`: el agente trabaja entonces directo y entra en SDD solo si se lo pides. Los cambios SDD en curso terminan en SDD.
 

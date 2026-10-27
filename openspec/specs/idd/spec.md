@@ -480,7 +480,12 @@ one MAY record it. Every write
 MUST run under the state file's lock and replace the file atomically and
 durably (REQ-idd-027), so an interrupted `record` leaves the last committed
 state readable. A write whose lock another process took over MUST be refused
-with `lock-lost` and write nothing. A change id
+with `lock-lost` and write nothing. `record intent` MAY take the plan flags of
+`ospec signals` (`--path`, `--work-units`, `--decision`, `--operation`, `--adr`
+and `--quality`, REQ-idd-012) and MUST then declare the plan and record the
+signals it derives in the same write, returning them in `plan` as `signals`
+reports them (E4.15): a refused intent or plan MUST write neither, and with
+`--ambiguous` a plan flag MUST be a usage error. A change id
 MUST be kebab-case before it reaches the filesystem. `next` MUST be a read-only
 function of the stored state and, when check evidence is next, the project's
 check configuration and command suggestion, and before anything is built, the
@@ -499,7 +504,10 @@ success, 1 when the IDD contract refuses the request and 2 on a usage error.
 `next` MAY add `suggestions` that never block, such as the ADR promotion of
 REQ-idd-020. For an open change, `next` MUST also return the `references` and
 `warnings` of REQ-idd-021 and the `fitness` of REQ-idd-022; `knowledge_refs`
-keeps naming the living document.
+keeps naming the living document. Every command that writes a change
+(`record`, `signals`, `check`, `run` and `review`) MUST return in `next` what
+`next --change <id>` returns for the state it wrote (E4.15), so `next` is
+needed only to resume.
 
 Every next step MUST carry `command`, the literal `ospec` command that does it
 (E1.45), so the protocol can be followed without reading the CLI: the agent
@@ -511,7 +519,10 @@ bash, zsh and fish: in double quotes, or in single quotes when it holds a
 quote, `$`, a backtick or a backslash. `resolve-gate` names the `record gate`
 that resolves it with the user's answer (`record intent` for
 `ambiguous-intent`), `declare-plan` names `ospec signals`, an obligation whose
-evidence comes from the checks names `ospec check`, `trust-review` names
+evidence comes from the checks names `ospec check`, with `--close` while every
+pending obligation is one `check` settles (`boundary-tests`,
+`contract-spec-and-test`, `adr-impact-declaration` with every declared impact
+recorded, and `checks-pass`) or `living-doc` (E4.15), `trust-review` names
 `ospec review start`, `adr-impact-declaration` names `record impact` for the
 first declared reference without its impact, and `living-doc` and `close`
 name `ospec close`. `configure-checks` names `ospec next --change <id> --json`,
@@ -555,8 +566,8 @@ sees under the root, tracked or untracked and not ignored, outside `idd/` and
 `.ospec/`: a manifest, a lockfile, documentation or any other file does not
 end the suggestion. It MUST be offered only before anything is built: with no
 open change (`open-change`) and for a change whose next step is `resolve-gate`
-or `declare-plan`, and `record intent` MUST return it in its `next`; `status`
-and the other `record` types never do. Its `how` offers the user the
+or `declare-plan`, and `record intent` and the other commands that write the
+change MUST return it in their `next` as `next` does; `status` never does. Its `how` offers the user the
 `foundation` skill as an option. It MUST NOT change the next step or the exit
 code, open a gate, add an obligation or write a file, and no refusal of it is
 recorded: it ends once the project has code. When git cannot list the files,
@@ -579,6 +590,23 @@ there MUST be no suggestion and no error.
   the empty base declares no checks
 - AND once the user approves them, `check` MUST answer `ready` and `close`
   MUST succeed
+
+#### Scenario: Record intent declares the plan in the same write
+
+- GIVEN a project with no open change
+- WHEN `record intent` opens a bug with `--path src/pages.js --work-units 2`
+- THEN the state MUST hold the plan, signals, gates and obligations that
+  `record intent` followed by `signals` with the same flags records, and its
+  `next` MUST be the first pending obligation
+- AND a refused intent, an unknown `--adr` or an invalid `--work-units` MUST
+  write no state, and `--ambiguous` with `--path` MUST exit with 2
+
+#### Scenario: Every write returns the next of ospec next
+
+- GIVEN an open change
+- WHEN `record`, `signals`, `run` or `check` writes it
+- THEN its `next` MUST equal what `next --change <id>` returns right after it,
+  with the delivery of the `declare-plan` step included
 
 #### Scenario: Next asks for the plan before any obligation
 
@@ -651,8 +679,8 @@ there MUST be no suggestion and no error.
 - GIVEN any project
 - WHEN `ospec run --change fix-pagination --obligation repro-test` runs without
   `--command`
-- THEN it MUST exit with 2 and print the two usage lines of `ospec run`, not
-  the whole usage
+- THEN it MUST exit with 2 and print the usage lines of `ospec run`, not the
+  whole usage
 - AND `ospec frobnicate` MUST print the list of commands
 
 #### Scenario: A refusal says how to get past it
@@ -909,7 +937,7 @@ cannot start or ends by a signal MUST NOT count as passing.
 
 `check-run` evidence MUST name its tree and the runs of one `check` in which
 every declared check passed on that tree, the tree current when the checks
-finished. After each `check`, `checks-pass` MUST be satisfied exactly when that
+finished, or the run that counts as the only check (E4.15). After each `check`, `checks-pass` MUST be satisfied exactly when that
 check recorded such evidence; otherwise it MUST return to `pending`, because
 older evidence proved an older tree. A run whose output reports zero tests
 (a `tests 0` summary, "could not find" test files, or "no tests ran") MUST NOT
@@ -923,6 +951,60 @@ with `has_test`. `repro-run-pair` and `tdd-red-green`
 evidence MUST name a failing run and a later passing run of the same purpose,
 command and unit on a different tree, and `ospec run` MUST record it when such
 a passing run is recorded.
+
+When the project declares exactly one check and the `--command` of `ospec run`
+equals its command, apart from leading and trailing spaces, the run MUST also
+count as that check (E4.15): besides its own run it MUST record a `checks` run
+of the same execution, with the check's name and command and the check tree,
+and settle from it what `check` settles, passing or failing: the signals of
+the diff, `checks-changed`, `checks-pass`, `boundary-tests`,
+`contract-spec-and-test` and the trust review's freshness, with the same
+evidence a `check` on that tree records. The fitness checks of REQ-idd-022 run
+only in `check`: with some to run, `adr-impact-declaration` MUST keep only
+evidence of the current check tree and otherwise return to `pending`, with a
+reason naming `ospec check`. With several declared checks, or another command,
+the run counts as no check. What `check` refuses before it runs anything MUST
+leave the run a test run, recorded as before, with a warning that names the
+refusal. The result MUST name the check it counted as, its run and evidence.
+
+`ospec check --close` MUST close the change in the same call when the check
+answers `ready`, returning the check's result with the `close` of
+REQ-idd-009 in place of `next`. Any other answer, or a close that refuses,
+MUST be refused as `close` refuses, with exit 1 and `close-refused` or the
+code of the close: the check's runs and evidence stay recorded, `--json`
+carries the check's result in `check` next to `error`, and the text output
+prints it before the refusal.
+
+#### Scenario: A bugfix closes with four calls
+
+- GIVEN a project whose only check is `node --test`
+- WHEN a bug opens with `record intent` and its plan, `ospec run --obligation
+  repro-test --command "node --test"` fails, the fix is applied and the same
+  run passes
+- THEN the passing run MUST count as the check, the answer MUST be `ready` and
+  the next step `close`
+- AND `close` MUST succeed: four calls to the CLI
+- AND a feature with one question MUST close with five: `record intent`, the
+  `record gate` of the answer, the red and green runs and `close`
+
+#### Scenario: A run of the only check leaves the evidence of check
+
+- GIVEN a passing run that counted as the only check
+- WHEN `ospec check` runs on the same tree
+- THEN its `check-run` evidence MUST name the same tree and a run with the same
+  purpose, name, command, exit code and test count, and it MUST add no signal
+- AND a failing run of the check on a tree where `checks-pass` was satisfied
+  MUST return it to `pending`
+- AND with fitness checks to run, the run MUST run none of them
+
+#### Scenario: Check --close closes only a ready change
+
+- GIVEN an open change whose check fails
+- WHEN `ospec check --close` runs
+- THEN it MUST exit with 1 and `close-refused`, keep the failing run and carry
+  the check's result
+- AND once the check passes and `checks-changed` is answered, it MUST close and
+  archive the change in the same call
 
 #### Scenario: Changed verifier invalidates old check evidence
 

@@ -513,9 +513,9 @@ test("every next step of every reference fixture carries its literal command", (
 
 test("each obligation names the command that records its evidence", () => {
   const cases = [
-    ["checks-pass", "ospec check --change fix-it"],
-    ["boundary-tests", "ospec check --change fix-it"],
-    ["contract-spec-and-test", "ospec check --change fix-it"],
+    ["checks-pass", "ospec check --change fix-it --close"],
+    ["boundary-tests", "ospec check --change fix-it --close"],
+    ["contract-spec-and-test", "ospec check --change fix-it --close"],
     ["trust-review", "ospec review start --change fix-it"],
     ["living-doc", "ospec close --change fix-it"],
     ["migration-compat-and-test", 'ospec run --change fix-it --obligation migration-compat-and-test --command "<migration test>" --plan "<compatibility or rollback>"'],
@@ -574,5 +574,22 @@ test("the impact step names the first declared reference without an impact, then
   );
   state = recordImpact(state, { kind: "scenario", id: "module-integration", impact: "none", reason: "r" }).state;
   const step = nextForChange(state).next_step;
-  if (step.obligation === "adr-impact-declaration") assert.strictEqual(step.command, "ospec check --change evented");
+  if (step.obligation === "adr-impact-declaration") assert.strictEqual(step.command, "ospec check --change evented --close");
+});
+
+test("the check step closes in the same call only while the rest is check evidence or the living document (E4.15)", () => {
+  const base = planned({ change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  const pending = (...ids) => ids.map((id) => ({ id, signal: "always", status: "pending", evidence: [] }));
+  const command = (state) => nextForChange(state).next_step.command;
+
+  assert.strictEqual(command({ ...base, obligations: pending("checks-pass", "living-doc") }), "ospec check --change fix-it --close");
+  assert.strictEqual(command({ ...base, obligations: pending("boundary-tests", "contract-spec-and-test", "checks-pass") }), "ospec check --change fix-it --close");
+  assert.strictEqual(command({ ...base, obligations: pending("boundary-tests", "trust-review", "checks-pass") }), "ospec check --change fix-it", "a trust review is still to come");
+
+  const declared = recordReferences(base, [{ kind: "adr", id: "0002" }]).state;
+  const impact = { ...declared, obligations: pending("boundary-tests", "adr-impact-declaration", "checks-pass") };
+  assert.strictEqual(command(impact), "ospec check --change fix-it", "an impact without its value is recorded first");
+  assert.strictEqual(command({ ...base, obligations: impact.obligations }), "ospec check --change fix-it", "the references are declared first");
+  const conforming = recordImpact(impact, { kind: "adr", id: "0002", impact: "conforms", reason: "r" }).state;
+  assert.strictEqual(command(conforming), "ospec check --change fix-it --close");
 });

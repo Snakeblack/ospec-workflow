@@ -13,6 +13,7 @@ const { RUN_PURPOSES, validateState } = require("./idd-contract.js");
 const {
   ceremonyConfig,
   checkVerdict,
+  deferImpacts,
   recordRuns,
   settleBoundary,
   settleChecks,
@@ -314,6 +315,22 @@ test("a conforming declaration settles at check with the references it covers", 
   const again = settleImpacts(settled.state, { records: {}, recordedAt: AT });
   assert.strictEqual(again.evidence, settled.evidence);
   assert.strictEqual(again.state.evidence.length, settled.state.evidence.length);
+});
+
+test("a run that counts as the check keeps impact evidence of its tree only, and leaves the fitness checks to check (E4.15)", () => {
+  let state = recordImpact(declaring(), { kind: "adr", id: "0002", impact: "conforms", reason: "keeps direct calls" }).state;
+  state = recordRuns(state, [{ purpose: "fitness", ref: "adr:0002", command: "node boundary.js", exit_code: 0, output_sha256: DIGEST, tree: TREE_A, recorded_at: AT }]).state;
+  const checked = settleImpacts(state, { records: {}, fitness: { tree: TREE_A, runIds: ["run-1"] }, recordedAt: AT });
+  assert.strictEqual(impactOf(checked.state).status, "satisfied");
+
+  const sameTree = deferImpacts(checked.state, { tree: TREE_A });
+  assert.deepStrictEqual([impactOf(sameTree.state), sameTree.reason], [impactOf(checked.state), null]);
+
+  const moved = deferImpacts(checked.state, { tree: TREE_B });
+  assert.deepStrictEqual(impactOf(moved.state), { ...impactOf(checked.state), status: "pending", evidence: [] });
+  assert.strictEqual(moved.reason, "its fitness checks run only in ospec check: ospec check --change fix-pagination");
+  assert.strictEqual(deferImpacts(state, { tree: TREE_A }).reason, moved.reason, "never settled by a check");
+  assert.deepStrictEqual(deferImpacts(openBug(), { tree: TREE_A }), { state: openBug(), reason: null }, "without the obligation");
 });
 
 test("an undeclared impact or an unanswered gate keeps the declaration pending with its reason", () => {
