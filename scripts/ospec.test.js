@@ -110,8 +110,8 @@ test("record intent opens the change, reports the next step and is idempotent", 
   assert.strictEqual(first.json.changed, true);
   assert.deepStrictEqual(first.json.next.next_step, {
     action: "declare-plan",
-    how: "ospec signals --change fix-pagination --path <file>... [--work-units <n>] [--decision \"<text>\"]... [--operation <op>]",
-    command: "ospec signals --change fix-pagination --path <file>...",
+    how: "ospec signals --change fix-pagination [--path <file>]... [--work-units <n>] [--decision \"<text>\"]... [--operation <op>]",
+    command: "ospec signals --change fix-pagination [--path <file>]...",
   });
 
   const file = path.join(root, "idd", "fix-pagination", "state.yaml");
@@ -268,6 +268,42 @@ test("a usage error prints only the usage lines of its subcommand", (t) => {
   const option = ospec(root, "next", "--bogus", "--json");
   assert.strictEqual(option.code, 2);
   assert.strictEqual(option.json.error.how, "  ospec next [--change <id>] [--json]");
+});
+
+// A word no subcommand takes, or a single-value flag given twice, is an
+// argument the CLI would drop: `--path a b` kept only `a`. It refuses the
+// call and writes nothing.
+test("a stray word or a repeated single-value flag is a usage error that writes nothing", (t) => {
+  const root = tempRoot(t);
+  ospec(root, ...OPEN_BUG);
+  const state = path.join(root, "idd", "fix-pagination", "state.yaml");
+  const before = fs.readFileSync(state, "utf8");
+
+  const stray = ospec(root, "signals", "--change", "fix-pagination", "--path", "src/a.js", "src/b.js", "--json");
+  assert.strictEqual(stray.code, 2);
+  assert.strictEqual(stray.json.error.code, "usage");
+  assert.match(stray.json.error.message, /src\/b\.js/);
+  assert.match(stray.json.error.how, /^ {2}ospec signals --change <id> \[--path <file>\]\.\.\./);
+
+  const repeated = ospec(root, "signals", "--change", "fix-pagination", "--work-units", "2", "--work-units", "3", "--json");
+  assert.strictEqual(repeated.code, 2);
+  assert.match(repeated.json.error.message, /--work-units/);
+
+  const unquoted = ospec(root, "record", "assumption", "--change", "fix-pagination", "--text", "the", "last", "page");
+  assert.strictEqual(unquoted.code, 2);
+  assert.match(unquoted.stderr, /"last"/);
+  assert.match(unquoted.stderr, /ospec record assumption --change <id> --text <text>/);
+
+  assert.strictEqual(ospec(root, "status", "fix-pagination").code, 2);
+  assert.strictEqual(ospec(root, "review", "start", "now", "--change", "fix-pagination").code, 2);
+  assert.strictEqual(fs.readFileSync(state, "utf8"), before);
+
+  // A subcommand keeps its word, a repeated boolean drops nothing, and a
+  // repeatable flag takes one value per occurrence.
+  assert.strictEqual(ospec(root, "next", "--change", "fix-pagination", "--json", "--json").code, 0);
+  const paths = ospec(root, "signals", "--change", "fix-pagination", "--path", "src/a.js", "--path", "src/b.js", "--json");
+  assert.strictEqual(paths.code, 0);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(state, "utf8")).plan.paths, ["src/a.js", "src/b.js"]);
 });
 
 // E1.45 (B5): a refusal that names no way out of its own takes the one its
@@ -1410,8 +1446,8 @@ test("next asks to declare the plan after the intent gates and until signals rec
   const opened = ospec(root, ...OPEN_BUG);
   assert.deepStrictEqual(opened.json.next.next_step, {
     action: "declare-plan",
-    how: "ospec signals --change fix-pagination --path <file>... [--work-units <n>] [--decision \"<text>\"]... [--operation <op>]",
-    command: "ospec signals --change fix-pagination --path <file>...",
+    how: "ospec signals --change fix-pagination [--path <file>]... [--work-units <n>] [--decision \"<text>\"]... [--operation <op>]",
+    command: "ospec signals --change fix-pagination [--path <file>]...",
   });
   assert.match(ospec(root, "next", "--change", "fix-pagination").stdout, /next: declare the plan: ospec signals --change fix-pagination/);
 

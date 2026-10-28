@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- El CLI ospec descarta sin avisar los argumentos que no asigna: --path a b c guarda solo a, y un flag de un solo valor repetido se queda con el último; la skill idd, el next_step de declare-plan y el resumen de sesión enseñan --path <file>... (cli-dropped-arguments)
+
 ## [2.165.0] - 2026-10-28
 
 ### Added

@@ -379,7 +379,7 @@ func DescribeStep(s *State, hasChecks bool) string {
 		return resolveGate(open[0])
 	}
 	if !s.planDeclared() {
-		return "Declare the plan: `ospec signals --change " + change + " --path <file>... [--work-units <n>] [--decision \"<text>\"]... [--operation <op>]`."
+		return "Declare the plan: `ospec signals --change " + change + " [--path <file>]... [--work-units <n>] [--decision \"<text>\"]... [--operation <op>]`."
 	}
 	if pending := s.PendingObligations(); len(pending) > 0 {
 		first := pending[0]

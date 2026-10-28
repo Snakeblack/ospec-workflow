@@ -112,7 +112,7 @@ const USAGE = `Usage:
   ospec status [--change <id>] [--json]
   ospec next [--change <id>] [--json]
   ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary <text> --acceptance <text>
-                      (--open-fact <question>... | --no-open-facts --basis <text>)
+                      ((--open-fact <question>)... | --no-open-facts --basis <text>)
                       [--request <text>] [--answer <text> --source user|user-unverified] [<plan>]
   ospec record intent --change <id> --kind feature --summary <text> --acceptance <text> --request <text>
                       (--open-fact <category>:<question> | --cite <category>=<path:line> | --quote <category>=<fragment>)...
@@ -1573,6 +1573,29 @@ function jsonOf(command, payload) {
   return `${JSON.stringify(COMPACT_JSON.includes(command) ? compact(payload) : payload, null, 2)}\n`;
 }
 
+// parseArgs drops what no option takes: `--path a b` keeps only `a`, and a
+// single-value flag given twice keeps its last value. Such a call is refused
+// instead. How many words a command takes comes from its usage lines: the
+// command, and its subcommand when it has one. A repeated boolean drops
+// nothing.
+function requireEveryArgument(positionals, tokens) {
+  const [command] = positionals;
+  const entries = USAGE_ENTRIES.filter((entry) => entry.command === command);
+  if (entries.length === 0) return;
+  const words = entries.some((entry) => entry.sub.length > 0) ? 2 : 1;
+  const stray = positionals.slice(words);
+  if (stray.length > 0) {
+    const takes = positionals.slice(0, words).join(" ");
+    throw new UsageError(`${takes} does not take ${stray.map((word) => JSON.stringify(word)).join(", ")}: each value needs its own flag (--path a --path b), and a value with spaces needs quotes`);
+  }
+  const seen = new Set();
+  for (const token of tokens) {
+    if (token.kind !== "option" || OPTIONS[token.name].type !== "string" || OPTIONS[token.name].multiple) continue;
+    if (seen.has(token.name)) throw new UsageError(`--${token.name} takes one value and was given more than once`);
+    seen.add(token.name);
+  }
+}
+
 // The words and the change of a call that failed to parse, to point its
 // refusal at the right usage and change.
 function lenientArgs(argv) {
@@ -1587,12 +1610,13 @@ async function main(argv = process.argv.slice(2)) {
   const wantsJson = argv.includes("--json");
   let command;
   try {
-    const { values, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: true });
+    const { values, positionals, tokens } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: true, tokens: true });
     if (values.help) {
       process.stdout.write(USAGE);
       return 0;
     }
     command = positionals[0];
+    requireEveryArgument(positionals, tokens);
     const result = await run(command, positionals.slice(1), values);
     // The snapshot is JSON already: stdout holds it alone, with or without --json.
     if (command === "snapshot" && "text" in result) process.stdout.write(result.text);

@@ -59,7 +59,7 @@ delete anything under `idd/` by hand.
    plus `--kind --summary --acceptance --answer "<their words>" --source user`
    and the open-facts declaration of rule 2.
 4. Declare the plan before editing, on `record intent` or later with
-   `ospec signals --change <id>`: `--path <file>...` with every file you
+   `ospec signals --change <id>`: `--path <file>` once per file you
    expect to touch; add `--work-units <n>` when the work
    splits into several units, `--decision "<text>"` per design decision,
    and `--operation <op>` for a destructive or irreversible operation. With

@@ -585,7 +585,10 @@ filled in from `--change`. A code that no agent input reaches is marked
 throws in that table, with no baseline. A usage error MUST print only the
 usage lines of its subcommand, with their continuation lines, or the list of
 commands for an unknown one, and `--json` MUST carry the same lines in
-`error.how`; `--help` still prints the whole usage.
+`error.how`; `--help` still prints the whole usage. The CLI MUST NOT drop an
+argument: a word beyond the command and its subcommand (`--path a b`, an
+unquoted `--summary`) and a single-value option given twice MUST be a usage
+error that names it and writes nothing. A repeated boolean drops nothing.
 
 Before the pending `checks-pass` or `contract-spec-and-test` step, if no checks
 are declared, `next` MUST instead return `next_step.action: configure-checks`,
@@ -728,6 +731,14 @@ there MUST be no suggestion and no error.
 - THEN it MUST exit with 2 and print the usage lines of `ospec run`, not the
   whole usage
 - AND `ospec frobnicate` MUST print the list of commands
+
+#### Scenario: The CLI drops no argument
+
+- GIVEN an open change
+- WHEN `ospec signals --change <id> --path src/a.js src/b.js` runs, or one
+  with `--work-units` twice
+- THEN it MUST exit with 2, name `src/b.js` or `--work-units` and write nothing
+- AND `--path src/a.js --path src/b.js` MUST declare both files
 
 #### Scenario: A refusal says how to get past it
 

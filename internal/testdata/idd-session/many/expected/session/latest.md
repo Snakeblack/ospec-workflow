@@ -11,5 +11,5 @@
 Several changes are open; choose the one to resume:
 - `add-export` (sdd): Run `sdd-apply add-export`.
 - `a-config` (idd): Configure the project checks before `checks-pass`: `ospec next --change a-config` proposes the command, which needs the user's approval.
-- `b-docs` (idd): Declare the plan: `ospec signals --change b-docs --path <file>... [--work-units <n>] [--decision "<text>"]... [--operation <op>]`.
+- `b-docs` (idd): Declare the plan: `ospec signals --change b-docs [--path <file>]... [--work-units <n>] [--decision "<text>"]... [--operation <op>]`.
 - `c-facts` (idd): Resolve the `open-facts` gate with the user: `ospec next --change c-facts` shows what to ask.
