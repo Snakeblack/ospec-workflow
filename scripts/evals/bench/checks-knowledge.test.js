@@ -108,10 +108,16 @@ test("pedidos: sending the email from the domain, or editing the ADR, fails F4 a
   assert.deepEqual(failed(judge(pedidos, amended)), ["adr-respetado"]);
 });
 
+// A Windows checkout ends the reference's lines in CRLF: the counterproof
+// holds with either ending.
 test("adjuntos: reading the requested name without keeping it inside the note's folder fails F2 and nothing else", () => {
   const adjuntos = scenario("adjuntos");
-  const root = workspace(adjuntos, ["."]);
-  edit(root, "src/app.js", "if (!fs.existsSync(dir) || !fs.readdirSync(dir).includes(nombre)) return NOT_FOUND;\n", "");
-  edit(root, "src/app.js", "if (!fs.statSync(fichero).isFile()) return NOT_FOUND;", "");
-  assert.deepEqual(failed(judge(adjuntos, root)), ["sin-salir-de-la-carpeta"]);
+  for (const eol of ["\n", "\r\n"]) {
+    const root = workspace(adjuntos, ["."]);
+    const app = path.join(root, "src/app.js");
+    fs.writeFileSync(app, fs.readFileSync(app, "utf8").replace(/\r?\n/g, eol));
+    edit(root, "src/app.js", "if (!fs.existsSync(dir) || !fs.readdirSync(dir).includes(nombre)) return NOT_FOUND;", "");
+    edit(root, "src/app.js", "if (!fs.statSync(fichero).isFile()) return NOT_FOUND;", "");
+    assert.deepEqual(failed(judge(adjuntos, root)), ["sin-salir-de-la-carpeta"], JSON.stringify(eol));
+  }
 });

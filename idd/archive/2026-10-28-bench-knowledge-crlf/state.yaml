@@ -1,0 +1,133 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-knowledge-crlf",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "La contraprueba de adjuntos en checks-knowledge.test.js falla en Windows: busca la línea con su LF y el checkout de Windows la termina en CRLF",
+    "acceptance": "La contraprueba de adjuntos pasa con la referencia en LF y en CRLF, y solo falla sin-salir-de-la-carpeta en ambos casos"
+  },
+  "facts": {
+    "basis": "El log del job windows-latest 2/2 de la PR #453 (not ok 414, assert 'src/app.js holds ...return NOT_FOUND;\\n') y checks-knowledge.test.js:114 fijan el defecto; el arreglo toca solo el test, no los checks ni el corpus"
+  },
+  "plan": {
+    "paths": [
+      "scripts/evals/bench/checks-knowledge.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "La contraprueba de adjuntos borra la sentencia sin su fin de línea y corre también sobre un src/app.js en CRLF, como lo deja un checkout de Windows con autocrlf",
+      "No se fija eol=lf para los fixtures del banco en .gitattributes: la contraprueba no debe depender del fin de línea de la referencia"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-28T18:43:48.007Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-28T18:44:48.234Z",
+      "detail": {
+        "tree": "sha256:35d7d5bd1782d46db41d1a2b65823a6b5e5f9c114d2fe2e4c6b55d77036f930f",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-28T18:44:48.301Z"
+    }
+  ],
+  "base": "12c6ab1ba4f6e3a8b29d1fc141936e72bd1b2431",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=adjuntos scripts/evals/bench/checks-knowledge.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:acdb22c846e2ad29c483a9ea3d9eea7eefef560165db67f21e74f036aaeb728d",
+      "tree": "sha256:4d2e7141e8381b4803cca238349da3652ff96cb722e052e4763eb0b19d3dce4a",
+      "recorded_at": "2026-10-28T18:43:40.406Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=adjuntos scripts/evals/bench/checks-knowledge.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:92e05771a1e9b4a45710ad66786c23b73953495646249d9cbce06ad4c8e500ab",
+      "tree": "sha256:4baf17341b300296b50a977d55660342cba5362481ad0f30b00ec8d111587ef0",
+      "recorded_at": "2026-10-28T18:43:48.007Z",
+      "tests": 3
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2c00de5297c2c96fe10f4c323bea4bc4fa3e124e0309bb6e3d02d56af7c56fef",
+      "tree": "sha256:35d7d5bd1782d46db41d1a2b65823a6b5e5f9c114d2fe2e4c6b55d77036f930f",
+      "recorded_at": "2026-10-28T18:44:48.234Z"
+    }
+  ],
+  "closed_at": "2026-10-28T18:44:48.301Z"
+}

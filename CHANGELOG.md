@@ -24,7 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Contrato:** `REQ-bench-001` describe el corpus `knowledge` y el schema 2. El README del banco documenta el corpus y la corrida para la que está congelado.
 - **Roadmap:** E4.17 queda `done`; sigue el bloque C con E1.48 `base-counterproof`.
 
-Hecho con IDD (`idd/archive/2026-10-28-bench-knowledge-scenarios/`).
+### Fixed
+- **La contraprueba de `adjuntos` falla en Windows**: buscaba la línea que borra con su LF, y el checkout de Windows con `autocrlf` la termina en CRLF. Ahora borra la sentencia sin su fin de línea y corre también sobre un `src/app.js` en CRLF (bench-knowledge-crlf).
+
+Hecho con IDD (`idd/archive/2026-10-28-bench-knowledge-scenarios/` e `idd/archive/2026-10-28-bench-knowledge-crlf/`).
 
 **Verificación directa**: `node scripts/check.js` (4261 tests pasando, 0 fallos y 5 omitidos).
 
