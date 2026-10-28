@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.164.0] - 2026-10-28
+
+### Added
+- **Ratchet de los techos de contexto** (E4.3, #338). `node scripts/measure-context-baseline.js --update` baja los techos de `scripts/fixtures/context-baseline.json` sin pedir nada, pero rechaza con código 1 cualquier subida sin `--allow-growth <métrica> --reason "<motivo>"`, y no escribe nada (context-budget-ratchet).
+  - Todas las métricas del techo lo exigen: *always-on*, orquestador, skills, listado, cada agente y las tres nuevas del flujo por defecto. El permiso nombra la métrica y vale en todos los targets donde sube, y un target o un agente nuevo cuenta como subida.
+  - Cada subida aceptada queda en el campo `growth` de `ospec-context-baseline/v1`, con la versión de `package.json` al medir, los valores de antes y de después por target y el motivo. Un JSON escrito antes de este cambio, sin `growth`, se sigue leyendo.
+  - Un permiso sin motivo, repetido, sin `--update` o para una métrica que no sube es un error de uso con código 2.
+- **Presupuesto absoluto** en `scripts/fixtures/context-budget.json` (`ospec-context-budget/v1`), en bytes LF: *always-on* ≤ 4096, router más protocolo IDD ≤ 16 000, eso más `references/memory-loop.md` ≤ 18 000 y cada agente ≤ 16 000. El check lo comprueba en cada target, y ningún permiso lo salta.
+- **Tres métricas nuevas por target:** la skill `idd` (`idd_protocol_bytes`), router más protocolo IDD (`default_flow_bytes`, 14,0–14,3 KB) y lo mismo con la referencia de memoria (`memory_flow_bytes`, 16,9–17,3 KB). Cierran el techo que el checkpoint de la Etapa 3 dejó a E4.3.
+
+### Changed
+- **El check falla también con holgura:** un techo por encima de lo medido, o un techo sin medida, es una regresión que pide `--update`, así que cada reducción baja el techo en el mismo cambio. El `--update` de este cambio elimina la que quedaba: 284 B de *always-on* en Claude y 19–81 B en los revisores.
+- **Skill `idd`:** `Project checks` pasa a `references/checks.md` y `Several services or repositories` a `references/repository.md`, con su enlace desde el protocolo. Baja de 12 236 a 10 844 B en CRLF y queda a 1 444 B de los 12 KiB de `idd-protocol.test.js`, que siguen como tope absoluto.
+- **El script acepta rutas, medida y versión inyectadas**, de modo que sus tests no tocan los ficheros versionados.
+- **Documentación:** `docs/target-capabilities.md` describe el flujo por defecto, los techos y el presupuesto, y la skill local `harness-audit` cita el presupuesto y `--allow-growth`.
+- **Roadmap:** E4.3 queda `done` y cierra el bloque B; sigue E4.17 `bench-knowledge-scenarios`.
+
+Hecho con IDD (`idd/archive/2026-10-28-context-budget-ratchet/`).
+
+**Verificación directa**: `node scripts/check.js` (4246 tests pasando, 0 fallos y 5 omitidos).
+
 ## [2.163.0] - 2026-10-27
 
 ### Added

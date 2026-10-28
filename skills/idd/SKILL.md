@@ -15,7 +15,7 @@ Questions, explanations and read-only work need no change and do not use it.
 
 Outside a git work tree `ospec` opens no change (`not-a-git-repo`,
 `git-not-found`): set up the repository first, as `references/repository.md`
-says.
+says. It also covers a change across several services or repositories.
 
 ## The CLI decides
 
@@ -26,36 +26,14 @@ delete anything under `idd/` by hand.
 
 - Every command that writes a change prints its next step; `ospec next
   --change <id>` gives it in full when you resume. Its `next_step.how` tells
-  how to proceed: approve missing check configuration as described below, or
-  run the command that records the evidence. Follow it.
+  how to proceed: run the command that records the evidence or, for
+  `configure-checks`, propose a check command as `references/checks.md` says;
+  without one no IDD change can close. Follow it.
 - An obligation is satisfied only by evidence the CLI records from a run it
   observes (`ospec run`, `ospec check`, `ospec review`). Saying that tests
   pass satisfies nothing.
 - The change is done when `ospec close` succeeds, and only then. Never report
   it done, verified or archived before that.
-
-## Project checks
-
-`idd/config.yaml` is optional, but without at least one `checks:` command no
-IDD change can close. `ospec next` returns `configure-checks` when checks are
-needed and none are declared; `ospec check` names the missing configuration.
-Do not repeat `check` while that configuration is missing.
-
-When `next_step.action` is `configure-checks`, propose its `candidate_command`
-to the user as a suggestion, never as evidence or an approved command. If it
-is null, inspect the project's test documentation and manifests to propose
-a command, or ask which command to use. Ask for explicit approval and stop
-until the user answers. Only after approval, create or update
-`idd/config.yaml` with the approved command, for example:
-
-```yaml
-checks:
-  test: npm test
-```
-
-Read any existing configuration first and preserve its other keys and
-checks. Do not infer consent from a manifest, lockfile or passing test.
-Then resume with `ospec next`.
 
 ## Rules
 
@@ -155,7 +133,7 @@ no coverage percentage replaces this choice.
 
 ## Gates
 
-Stop for the user at the gates and for project-check approval above. Ask
+Stop for the user at the gates and for project-check approval. Ask
 with the host's question tool, or without one end your turn with the questions.
 A skipped, empty or default answer is not the user's: end your turn with the
 questions and wait.
@@ -181,16 +159,6 @@ or `user-unverified` for a relayed answer. The CLI cannot verify who answered:
 read `references/approvals.md` first. Only an explicit answer from the user
 resolves a gate. Outside these gates and project-check approval, follow the
 code and the evidence without asking.
-
-## Several services or repositories
-
-`ospec` works on one repository root. A change across repositories is one
-IDD change per repository, each closed on its own evidence. Keep a shared
-contract compatible until every consumer moves: extend the provider first,
-then migrate the consumers, and remove the old form last. In a monorepo whose
-services keep their manifests below the root, propose to the user the
-`impact:` entries of `idd/config.yaml` (`stack` and the contract, data and
-security paths of each service), as for checks.
 
 ## Delivery
 

@@ -22,6 +22,7 @@ const REPOSITORY = "skills/idd/references/repository.md";
 const ARCHITECTURE = "skills/idd/references/architecture.md";
 const OPEN_FACTS = "skills/idd/references/open-facts.md";
 const APPROVALS = "skills/idd/references/approvals.md";
+const CHECKS = "skills/idd/references/checks.md";
 const MAX_PROTOCOL_BYTES = 12 * 1024;
 // Measured with CRLF, as a Windows checkout has it, so an excess fails on
 // every platform and not only on the Windows runners.
@@ -113,16 +114,13 @@ for (const target of Object.keys(ROUTERS)) {
     assert.match(protocol, /`resolve-gate` comes first/, `${target}: an open gate is asked before the work it decides`);
     // #399: agy without a UI answers ask_question with "User Skipped".
     assert.match(protocol, /skipped, empty or\s+default answer is not the user's: end your turn with the\s+questions/, `${target}: a skipped answer ends the turn`);
-    for (const section of ["## Build it simply", "## Tests by risk", "## Several services or repositories"]) {
+    for (const section of ["## Build it simply", "## Tests by risk"]) {
       assert.ok(protocol.includes(section), `${target}: protocol must keep ${section}`);
     }
     assert.match(protocol, /deterministic and offline/, `${target}: unit tests stay isolated from external dependencies`);
     for (const command of ["ospec next", "ospec record intent", "ospec signals", "ospec check", "ospec close"]) {
       assert.ok(protocol.includes(command), `${target}: protocol must use ${command}`);
     }
-    assert.ok(protocol.includes("configure-checks"), `${target}: missing checks must have an actionable step`);
-    assert.match(protocol, /Ask for explicit approval and stop\s+until the user answers/, `${target}: configuration needs user approval`);
-    assert.match(protocol, /preserve its other keys and\s+checks/, `${target}: an approved edit must retain existing configuration`);
   });
 
   test(`${target}: the router enters IDD by default, off with mode: sdd, and keeps SDD on request`, (t) => {
@@ -210,7 +208,7 @@ for (const target of Object.keys(ROUTERS)) {
 
   // OSP-028 (#405): the detail a change needs only sometimes lives in
   // references/, so the protocol keeps its margin under the budget.
-  test(`${target}: the protocol links the architecture and feature-facts detail it moved to references`, (t) => {
+  test(`${target}: the protocol links the detail it moved to references`, (t) => {
     const { byPath } = generate(t, target);
     const protocol = byPath.get(PROTOCOL).replace(/\s+/g, " ");
     assert.match(protocol, /A `feature` covers the categories of the template `ospec next` prints, as `references\/open-facts\.md` says/, `${target}: rule 2 links the categories`);
@@ -229,6 +227,20 @@ for (const target of Object.keys(ROUTERS)) {
     const architecture = byPath.get(ARCHITECTURE);
     assert.ok(architecture, `${target}: ${ARCHITECTURE} is not shipped`);
     const text = architecture.replace(/\s+/g, " ");
+    // E4.3: project checks and changes across repositories, read only sometimes.
+    assert.match(protocol, /for `configure-checks`, propose a check command as `references\/checks\.md` says; without one no IDD change can close/, `${target}: the protocol links the checks setup`);
+    assert.match(protocol, /`references\/repository\.md` says\. It also covers a change across several services or repositories/, `${target}: the protocol links the multi-repository rules`);
+    const checks = byPath.get(CHECKS);
+    assert.ok(checks, `${target}: ${CHECKS} is not shipped`);
+    assert.ok(checks.includes("configure-checks"), `${target}: missing checks must have an actionable step`);
+    assert.match(checks, /Ask for explicit approval and stop\s+until the user answers/, `${target}: configuration needs user approval`);
+    assert.match(checks, /preserve its other keys and\s+checks/, `${target}: an approved edit must retain existing configuration`);
+    assert.match(checks, /Do not infer\s+consent from a manifest, lockfile or passing test/, `${target}: consent is never inferred`);
+    const repositories = byPath.get(REPOSITORY).replace(/\s+/g, " ");
+    assert.match(repositories, /## Several services or repositories/, `${target}: the repository reference keeps the multi-repository rules`);
+    assert.match(repositories, /one IDD change per repository, each closed on its own evidence/, `${target}: one change per repository`);
+    assert.match(repositories, /extend the provider first, then migrate the consumers, and remove the old form last/, `${target}: a shared contract moves in order`);
+
     for (const rule of [
       /`docs\/architecture\/component-map\.yaml` gives components `paths` and `knowledge`/,
       /`ospec record impact --change <id> --adr <id> --impact <none\|conforms\|amends\|supersedes\|contradicts>/,
