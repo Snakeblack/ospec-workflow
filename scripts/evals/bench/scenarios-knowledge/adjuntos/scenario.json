@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "adjuntos",
+  "profile": "security",
+  "title": "Descargar los adjuntos de una nota",
+  "brief": "Los usuarios quieren descargar los adjuntos de sus notas: `GET /notes/:id/attachments/:name` devuelve el contenido del fichero, que está en `<adjuntosDir>/<id de la nota>/<name>`. Los nombres llegan codificados en la URL, por ejemplo `acta%20de%20marzo.txt`. Deja el trabajo commiteado.",
+  "facts": [
+    { "id": "F1", "text": "Solo el dueño de la nota descarga sus adjuntos: para cualquier otra persona la nota no existe (404)." },
+    { "id": "F2", "text": "Solo se sirven ficheros que están dentro de la carpeta de esa nota: un nombre con `/`, `\\` o `..`, o que no está entre sus adjuntos, responde 404 y no lee nada de fuera de esa carpeta." },
+    { "id": "F3", "text": "Un adjunto se descarga siempre como fichero y nunca se muestra en el navegador: `Content-Type: application/octet-stream` y `Content-Disposition: attachment; filename=\"<nombre>\"`." },
+    { "id": "F4", "text": "Los adjuntos pueden ser binarios, como imágenes o PDF: se devuelven sus bytes tal cual, sin convertirlos a texto." }
+  ]
+}

@@ -14,7 +14,8 @@ tooling only: it grants no authority and never runs a model in `npm test`.
 | `scenarios/<id>/` | The `default` corpus: `scenario.json` (brief and hidden facts), `repo/` (the seed the agent gets), `checks.js` (hidden checks) |
 | `scenarios-greenfield/<id>/` | The `greenfield` corpus: `todo-spa` (E4.5) and the reserved `receta-spa` (E4.6), each one page |
 | `scenarios-reserved/<id>/` | The `reserved` corpus (OSP-011): `salas`, frozen before the head-to-head runs that judge it; its digest is pinned in `scenarios.test.js` and its ids differ from the default corpus |
-| `__fixtures__/reference/<id>/`, `__fixtures__/reference-greenfield/<id>/` | A correct delivery per scenario; `checks.test.js` and `checks-greenfield.test.js` prove every check passes on it and acceptance fails on the seed |
+| `scenarios-knowledge/<id>/` | The `knowledge` corpus (E4.17): `reparto`, `pedidos` and `adjuntos`, frozen and not runnable yet (see below); its digest is pinned in `scenarios.test.js` and its ids differ from every other corpus |
+| `__fixtures__/reference/<id>/`, `__fixtures__/reference-greenfield/<id>/`, `__fixtures__/reference-knowledge/<id>/` | A correct delivery per scenario (one per session in `reparto`); `checks.test.js`, `checks-greenfield.test.js` and `checks-knowledge.test.js` prove every check passes on it and acceptance fails on the seed |
 | `scenarios.js` | Loads and validates the corpus, digests it, materializes a seed |
 | `checks.js`, `check-runner.js`, `check-kit.js` | Run each hidden check in its own process against the delivered workspace |
 | `browser.js` | A headless Chromium-family browser over the DevTools protocol, with Node's own WebSocket: serves the workspace on 127.0.0.1 and gives each check a fresh profile (`BENCH_CHROMIUM` names the browser) |
@@ -45,10 +46,30 @@ tooling only: it grants no authority and never runs a model in `npm test`.
 | `greenfield` (corpus `greenfield`) | A to-do list in one `index.html`, from a README and an empty `package.json` | Trimmed titles and their 200-character limit, pending duplicates, storage key and corrupt data, counter wording, filter in the URL, editing keys, order, titles as text, accessible names |
 | `greenfield` (corpus `greenfield`) | `receta-spa`, a recipe card in one `index.html`, reserved for E4.6 | Nine hidden facts, frozen in its `scenario.json`. They are not repeated here, so tuning IDD does not read them |
 | `saas-small` (corpus `reserved`) | `salas`, room bookings in a multi-tenant API, reserved for OSP-011 | Four hidden facts, frozen in its `scenario.json` and not repeated here, for the same reason |
+| `two-sessions` (corpus `knowledge`) | `reparto`, splitting a group's expenses: one decision in session 1, a request that touches it in session 2 | Memory between sessions; the facts stay in its `scenario.json` |
+| `architecture` (corpus `knowledge`) | `pedidos`, an email when an order is confirmed, in a repository whose ADR has an executable `Check:` | Project knowledge; the facts stay in its `scenario.json` |
+| `security` (corpus `knowledge`) | `adjuntos`, downloading a note's attachments in a module outside `auth/` | A sink no path signal covers; the facts stay in its `scenario.json` |
 
 The facts are what a careful engineer would ask about, never trivia. An agent
 that does not ask may still get them right from the code; one that asks gets
 them from the persona.
+
+### Knowledge corpus (E4.17)
+
+Written and frozen before block C of the roadmap, which tunes IDD's knowledge,
+memory and security signals, so that tuning cannot fit them; block D runs them.
+Until the bench drives them, `bench.js list --corpus knowledge` shows them and
+their digest, and `bench.js run --corpus knowledge` exits with code 1.
+
+`reparto` is the first scenario of schema 2: `sessions` holds the brief and the
+facts of each of its two sessions, `memory` the `seeded` and `contradictory`
+observation (`{ title, content }`), and each check declares the session after
+which it judges. The run it is frozen for (user decision, 2026-10-28): session 1
+runs in every arm; before session 2 the bench empties Engram and writes the
+arm's variant: the seeded observation, nothing, or the contradictory one. The
+disk stays as session 1 left it. The persona of session 2 knows the facts of
+both sessions and repeats a decision of session 1 when asked, which counts as a
+repeated question.
 
 ## Running
 

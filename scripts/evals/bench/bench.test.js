@@ -92,6 +92,23 @@ test("list prints every scenario and the corpus digest", async () => {
   assert.match(d.stdout.text, /digest [a-f0-9]{64}/);
 });
 
+test("the knowledge corpus is listed with its digest, and run refuses it before doing anything (E4.17)", async () => {
+  const listed = deps(tempDir());
+  assert.equal(await main(["list", "--corpus", "knowledge"], listed), 0);
+  for (const id of ["reparto", "pedidos", "adjuntos"]) assert.match(listed.stdout.text, new RegExp(`^${id} `, "m"));
+  assert.match(listed.stdout.text, /digest [a-f0-9]{64}/);
+
+  const dir = tempDir();
+  const d = deps(dir, {
+    buildPlugin: () => { throw new Error("run built the plugin"); },
+    runScenario: () => { throw new Error("run drove a scenario"); },
+  });
+  const code = await main(["run", "--corpus", "knowledge", "--arm", "idd", "--record", "r1", "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir], d);
+  assert.equal(code, 1);
+  assert.match(d.stderr.text, /corpus knowledge is frozen and not runnable yet/);
+  assert.deepEqual(fs.readdirSync(dir), [], "no record, lock or workspace");
+});
+
 test("run requires the bench configuration directory to exist", async () => {
   const dir = tempDir();
   const d = deps(dir);

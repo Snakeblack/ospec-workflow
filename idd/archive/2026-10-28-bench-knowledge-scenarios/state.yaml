@@ -1,0 +1,290 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-knowledge-scenarios",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "kind": "feature",
+    "summary": "E4.17: tres escenarios nuevos del banco (dos sesiones con memoria, brownfield con ADR y Check:, sink de seguridad fuera de auth/), escritos y congelados con su digest sin ejecutarlos",
+    "acceptance": "Un corpus nuevo carga y valida los tres escenarios con su digest fijado en un test; sus checks ocultos pasan sobre una entrega de referencia y la aceptación falla sobre la semilla; ningún run los ejecuta; el diff no toca IDD"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿El escenario de dos sesiones usa un scenario.json schema_version 2 que el cargador valida ya (sessions con brief y facts de cada sesión, memory con los textos sembrado y contradictorio, y cada check declara tras qué sesión juzga), o ficheros aparte sin validar hasta el bloque D?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/evals/bench/scenarios.test.js",
+          "line": 158
+        }
+      },
+      {
+        "category": "persistence",
+        "question": "¿Entre las dos sesiones la sesión 1 se corre de verdad en cada brazo, el banco vacía Engram y aplica la variante (sembrada: texto congelado con la decisión; vacía; contradictoria: texto congelado con la regla contraria), con el disco tal como lo dejó la sesión 1; y en la sesión 2 la persona repite la decisión si le preguntan y cuenta como pregunta repetida?"
+      },
+      {
+        "category": "copy",
+        "question": "¿Apruebas el contenido propuesto de los tres escenarios: (1) reparto de gastos en dos sesiones, con la regla de los céntimos sobrantes decidida en la primera y un reparto por pesos en la segunda; (2) pedidos con un ADR 'el dominio no importa infraestructura' con Check: ejecutable y una petición de email al confirmar que invita a llamar al mailer desde el dominio, y la persona dice no a saltarse el ADR; (3) descarga de adjuntos de notas fuera de auth/ con path traversal como sink, y el no-traversal como hecho oculto que la persona conoce si le preguntan?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/evals/bench/README.md",
+          "line": 33
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/evals/bench/README.md",
+          "line": 8
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿bench.js run --corpus knowledge se niega (código 1 y mensaje de corpus congelado hasta el bloque D) mientras list sí lo muestra con su digest, y cada escenario lleva una entrega de referencia (dos en el de dos sesiones) que prueba sus checks?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/bench/spec.md",
+      "scripts/evals/bench/README.md",
+      "scripts/evals/bench/__fixtures__/reference-knowledge/adjuntos/src/app.js",
+      "scripts/evals/bench/__fixtures__/reference-knowledge/pedidos/src/app.js",
+      "scripts/evals/bench/__fixtures__/reference-knowledge/reparto/session-1/src/gastos.js",
+      "scripts/evals/bench/__fixtures__/reference-knowledge/reparto/session-2/src/gastos.js",
+      "scripts/evals/bench/bench.js",
+      "scripts/evals/bench/bench.test.js",
+      "scripts/evals/bench/checks-knowledge.test.js",
+      "scripts/evals/bench/scenarios-knowledge/adjuntos/checks.js",
+      "scripts/evals/bench/scenarios-knowledge/adjuntos/repo/README.md",
+      "scripts/evals/bench/scenarios-knowledge/adjuntos/repo/package.json",
+      "scripts/evals/bench/scenarios-knowledge/adjuntos/repo/src/app.js",
+      "scripts/evals/bench/scenarios-knowledge/adjuntos/repo/src/notas.js",
+      "scripts/evals/bench/scenarios-knowledge/adjuntos/repo/test/app.js",
+      "scripts/evals/bench/scenarios-knowledge/adjuntos/scenario.json",
+      "scripts/evals/bench/scenarios-knowledge/pedidos/checks.js",
+      "scripts/evals/bench/scenarios-knowledge/pedidos/repo/README.md",
+      "scripts/evals/bench/scenarios-knowledge/pedidos/repo/docs/architecture/decisions/0001-dominio-sin-infraestructura.md",
+      "scripts/evals/bench/scenarios-knowledge/pedidos/repo/package.json",
+      "scripts/evals/bench/scenarios-knowledge/pedidos/repo/scripts/check-limites.js",
+      "scripts/evals/bench/scenarios-knowledge/pedidos/repo/src/app.js",
+      "scripts/evals/bench/scenarios-knowledge/pedidos/repo/src/domain/pedidos.js",
+      "scripts/evals/bench/scenarios-knowledge/pedidos/repo/src/infra/almacen.js",
+      "scripts/evals/bench/scenarios-knowledge/pedidos/repo/src/infra/mailer.js",
+      "scripts/evals/bench/scenarios-knowledge/pedidos/repo/test/pedidos.js",
+      "scripts/evals/bench/scenarios-knowledge/pedidos/scenario.json",
+      "scripts/evals/bench/scenarios-knowledge/reparto/checks.js",
+      "scripts/evals/bench/scenarios-knowledge/reparto/repo/README.md",
+      "scripts/evals/bench/scenarios-knowledge/reparto/repo/package.json",
+      "scripts/evals/bench/scenarios-knowledge/reparto/repo/src/gastos.js",
+      "scripts/evals/bench/scenarios-knowledge/reparto/repo/test/gastos.js",
+      "scripts/evals/bench/scenarios-knowledge/reparto/scenario.json",
+      "scripts/evals/bench/scenarios.js",
+      "scripts/evals/bench/scenarios.test.js"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "harnessDigest excluye todo directorio scenarios*/: hoy scenarios-reserved/salas/checks.js entraba en el digest del harness, contra su contrato (escenarios, fixtures, records y tests fuera)",
+      "schema_version 2 solo para el escenario de dos sesiones (sessions y memory); los otros dos escenarios del corpus knowledge siguen en schema 1",
+      "memory.seeded y memory.contradictory son { title, content }: la observación exacta que el banco escribirá en Engram antes de la sesión 2",
+      "un corpus con runnable: false lo lista bench.js list, y bench.js run lo rechaza con código 1 antes de tomar el lock",
+      "la semilla de adjuntos no tiene directorio auth/: el gateway autentica, como en salas, y ninguna ruta del escenario deriva security-boundary",
+      "los hechos ocultos no se repiten en el README del banco, el roadmap ni change.md, como en salas y receta-spa"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: scripts/evals/bench/scenarios-knowledge/adjuntos/repo/README.md adds API",
+      "source": "diff"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/evals/bench/scenarios-knowledge/adjuntos/checks.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Contenido: Sí, tal cual (Recomendado). Formato: schema_version 2 validado ya (Recomendado). Memoria: Variante controlada (Recomendado). Guardas: run se niega + referencias (Recomendado).",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-28T18:22:26.051Z",
+      "detail": {
+        "tree": "sha256:afa94129eac959ea02468c757e884042d38656bb781748067fd8cad40f4f3757",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-28T18:22:26.051Z",
+      "detail": {
+        "tree": "sha256:afa94129eac959ea02468c757e884042d38656bb781748067fd8cad40f4f3757",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/bench/spec.md"
+        ],
+        "tests": [
+          "scripts/evals/bench/bench.test.js",
+          "scripts/evals/bench/checks-knowledge.test.js",
+          "scripts/evals/bench/scenarios-knowledge/adjuntos/repo/test/app.js",
+          "scripts/evals/bench/scenarios-knowledge/pedidos/repo/test/pedidos.js",
+          "scripts/evals/bench/scenarios-knowledge/reparto/repo/test/gastos.js",
+          "scripts/evals/bench/scenarios.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-28T18:22:46.000Z",
+      "detail": {
+        "run": "run-2",
+        "tree": "sha256:8a09e48b99f96d15812e7bd3f31cc31b2ea18af3f5789e726df144c50c229de2",
+        "plan": "schema 2 de scenario.json es aditivo: los escenarios schema 1 de los corpus default, greenfield y reserved cargan igual, sus digests siguen fijados en scenarios.test.js y sus checks pasan sobre sus referencias; reversión: borrar scenarios-knowledge/ y la rama de schema 2 del cargador"
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-28T18:24:05.002Z",
+      "detail": {
+        "tree": "sha256:afa94129eac959ea02468c757e884042d38656bb781748067fd8cad40f4f3757",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-28T18:24:05.002Z",
+      "detail": {
+        "tree": "sha256:afa94129eac959ea02468c757e884042d38656bb781748067fd8cad40f4f3757",
+        "check": "ev-4",
+        "documents": [
+          "openspec/specs/bench/spec.md"
+        ],
+        "tests": [
+          "scripts/evals/bench/bench.test.js",
+          "scripts/evals/bench/checks-knowledge.test.js",
+          "scripts/evals/bench/scenarios-knowledge/adjuntos/repo/test/app.js",
+          "scripts/evals/bench/scenarios-knowledge/pedidos/repo/test/pedidos.js",
+          "scripts/evals/bench/scenarios-knowledge/reparto/repo/test/gastos.js",
+          "scripts/evals/bench/scenarios.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-28T18:24:05.112Z"
+    }
+  ],
+  "base": "5f75708c31449fdad5f0ed1b7020624e00aed020",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:33dc54d8760c0ecc55b6ba742dd76067b94e3e34b9e1ebc42f0aae809652716a",
+      "tree": "sha256:afa94129eac959ea02468c757e884042d38656bb781748067fd8cad40f4f3757",
+      "recorded_at": "2026-10-28T18:22:26.051Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "migration-test",
+      "command": "node --test scripts/evals/bench/scenarios.test.js scripts/evals/bench/checks.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6838d25fca1495832b8f5ac80c28745d0faa3f8cf7d1fb788824c1dfa64f3e3b",
+      "tree": "sha256:8a09e48b99f96d15812e7bd3f31cc31b2ea18af3f5789e726df144c50c229de2",
+      "recorded_at": "2026-10-28T18:22:46.000Z",
+      "tests": 32
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a6ce9335c115b8a193b534c21fd0f920632d796da2c4dc203c11e48ed400a9f9",
+      "tree": "sha256:afa94129eac959ea02468c757e884042d38656bb781748067fd8cad40f4f3757",
+      "recorded_at": "2026-10-28T18:24:05.002Z"
+    }
+  ],
+  "closed_at": "2026-10-28T18:24:05.112Z"
+}

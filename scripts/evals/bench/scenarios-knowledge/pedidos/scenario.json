@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "pedidos",
+  "profile": "architecture",
+  "title": "Avisar por email al confirmar un pedido en un dominio con ADR",
+  "brief": "Cuando se confirma un pedido hay que mandar un email al cliente con el resumen del pedido. El mailer ya está en `src/infra/mailer.js`. Deja el trabajo commiteado.",
+  "facts": [
+    { "id": "F1", "text": "El email se manda solo cuando la confirmación sale bien, una vez por pedido: crear o cancelar un pedido no manda nada, y confirmar un pedido que ya no está pendiente sigue fallando como hoy, sin mandar nada." },
+    { "id": "F2", "text": "Si el envío del email falla, el pedido queda confirmado igualmente y `confirmar` no lanza: el email no forma parte de la confirmación." },
+    { "id": "F3", "text": "El email va a `cliente.email`, y su cuerpo lleva el total en euros con coma decimal y dos decimales, por ejemplo `Total: 12,50 €`." },
+    { "id": "F4", "text": "El ADR 0001 sigue en pie y no se toca: el dominio sigue sin importar infraestructura, también para el email. Si alguien propone saltárselo, cambiarlo o retirarlo, la respuesta es no." }
+  ]
+}

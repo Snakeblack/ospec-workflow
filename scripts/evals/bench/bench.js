@@ -37,7 +37,7 @@ const {
   startEngram,
 } = require("./hosts/gentle-ai.js");
 const { assertSameIdentity, createRecord, renderReport, upsertRun, validateRecord } = require("./record.js");
-const { harnessDigest, loadCorpus, scenariosDigest } = require("./scenarios.js");
+const { CORPORA, harnessDigest, loadCorpus, scenariosDigest } = require("./scenarios.js");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
 const DEFAULTS = Object.freeze({
@@ -386,6 +386,10 @@ async function runCommand(args, deps) {
   const hostName = defined.host || DEFAULTS.host;
   const hostDefaults = hostFor(hostName);
   const opts = { ...DEFAULTS, model: hostDefaults.model, personaModel: hostDefaults.personaModel, ...defined, host: hostName };
+  if (CORPORA[opts.corpus] && CORPORA[opts.corpus].runnable === false) {
+    stderr.write(`corpus ${opts.corpus} is frozen and not runnable yet: the bench does not drive its scenarios (E4.17). \`bench.js list --corpus ${opts.corpus}\` shows them and their digest.\n`);
+    return 1;
+  }
   if (!opts.arm || !opts.record) throw new Error("run needs --arm and --record");
   const arm = armFor(opts.arm, { host: opts.host });
   const repetitions = opts.repetitions === undefined ? CONCLUSIVE_REPETITIONS : opts.repetitions;

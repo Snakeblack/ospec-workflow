@@ -1507,6 +1507,11 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
   Es una excepción acotada a «banco después», por decisión del usuario del 2026-10-25: se escriben antes del bloque C y se corren en el bloque D.
 - **Targets:** Claude y agy, los hosts del banco.
 - **Hecho cuando:** los tres escenarios están congelados, con su digest registrado en un cambio que no toca IDD, y ninguna corrida los ha ejecutado.
+- **Respuestas del usuario (2026-10-28, gate `open-facts`, las recomendadas):**
+  - Un corpus propio, `knowledge` (`scenarios-knowledge/`), con `reparto` (una librería de gastos en dos sesiones), `pedidos` (un dominio cuyo ADR prohíbe importar infraestructura con un `Check:` ejecutable, y una petición que invita a hacerlo) y `adjuntos` (una descarga de ficheros en un módulo fuera de `auth/`). Sus hechos ocultos solo están en sus `scenario.json`.
+  - El escenario de dos sesiones usa `schema_version: 2`, que el cargador valida ya: `sessions` con el brief y los hechos de cada sesión, `memory` con la observación sembrada y la contradictoria (`{ title, content }`), y en cada check la sesión tras la que juzga.
+  - En el bloque D la sesión 1 se corre de verdad en cada brazo; antes de la 2, el banco vacía Engram y aplica la variante (sembrada, vacía o contradictoria), con el disco tal como lo dejó la sesión 1. En la sesión 2, la persona repite una decisión de la 1 si le preguntan, y cuenta como pregunta repetida.
+  - `bench.js list --corpus knowledge` lo muestra con su digest, y `bench.js run --corpus knowledge` sale con código 1 hasta que el banco lo conduzca. Cada escenario tiene su entrega de referencia (una por sesión en `reparto`) y una contraprueba con el defecto que mide.
 
 ## Etapa 5 — Plataforma por demanda
 

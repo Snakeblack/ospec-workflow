@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- E4.17: tres escenarios nuevos del banco (dos sesiones con memoria, brownfield con ADR y Check:, sink de seguridad fuera de auth/), escritos y congelados con su digest sin ejecutarlos (bench-knowledge-scenarios)
+
 ## [2.164.0] - 2026-10-28
 
 ### Added
