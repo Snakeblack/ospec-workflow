@@ -1,0 +1,79 @@
+{
+  "schema": "idd-state/v1",
+  "change": "e1-57-e1-58-roadmap",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Registrar en el roadmap los ítems de #409 (abandonar un change IDD) y #423 (retirar public-contract derivado por contenido de una doc), los dos únicos issues abiertos sin ítem",
+    "acceptance": "harness-evolution.md tiene E1.57 y E1.58 en la tabla de estado como pending, con su sección (problema, garantía, alcance, hecho cuando), en la tabla de issues y en el historial; node scripts/check.js pasa"
+  },
+  "facts": {
+    "open": [
+      "¿Dónde entran E1.57 y E1.58 en el orden ▶: fuera del orden hasta que el usuario los coloque (como E1.54), o en un bloque concreto?",
+      "¿El alcance de #423 fija la opción 1 de la auditoría (retirada con --answer atada a los hits, como persistent-data) o deja abiertas las dos opciones del issue?",
+      "¿El alcance de #409 fija la forma del comando (ospec abandon nuevo o ospec close --abandon) o la deja como decisión del propio ítem?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Respuestas del usuario del 2026-10-28 a estas mismas preguntas (reutilizadas con su autorización al abrir este change nuevo tras mover main): Posición: E1.57 antes de E1.51 (Recommended) — E1.57 entra en el bloque C justo antes de E1.51 open-change-nudge; E1.58 fuera del orden ▶, como E1.54. Alcance #423: Fijar la opción 1 (Recommended). Forma #409: Requisitos fijos, forma abierta (Recommended).",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-28T20:16:11.521Z",
+      "detail": {
+        "tree": "sha256:82fba4cd76e4cf562b0bccdfd5541a78f1c6eed358d9fee754ec08d83bb194d3",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "062014c2800887a3b0e32a37e75ee0dd4a7b79f3",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e16e17252dd35a218cae1a82da1ab0cd4693cdeb8bfc1dd0046831bd89ea3e48",
+      "tree": "sha256:82fba4cd76e4cf562b0bccdfd5541a78f1c6eed358d9fee754ec08d83bb194d3",
+      "recorded_at": "2026-10-28T20:16:11.521Z"
+    }
+  ],
+  "closed_at": "2026-10-28T20:16:11.586Z"
+}

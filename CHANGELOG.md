@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Registrar en el roadmap los ítems de #409 (abandonar un change IDD) y #423 (retirar public-contract derivado por contenido de una doc), los dos únicos issues abiertos sin ítem (e1-57-e1-58-roadmap)
+
 ## [2.165.1] - 2026-10-28
 
 ### Fixed
