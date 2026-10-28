@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.165.1] - 2026-10-28
+
 ### Fixed
-- El CLI ospec descarta sin avisar los argumentos que no asigna: --path a b c guarda solo a, y un flag de un solo valor repetido se queda con el último; la skill idd, el next_step de declare-plan y el resumen de sesión enseñan --path <file>... (cli-dropped-arguments)
+- **El CLI `ospec` ya no descarta argumentos sin avisar** (cli-dropped-arguments). Con `ospec signals --path a b c` el plan guardaba solo `a`, un `--summary` sin comillas perdía todo tras su primera palabra y un flag de un solo valor repetido se quedaba con el último, y el CLI salía con código 0.
+  - Una palabra que ni el comando ni su subcomando toman, y un flag de un solo valor dado dos veces, son ahora un error de uso (código 2) que nombra el argumento, imprime el uso de su subcomando y no escribe nada. Cuántas palabras toma cada comando sale de sus líneas de uso; un booleano repetido se acepta, porque no pierde nada.
+  - La skill `idd`, el `next_step` de `declare-plan`, el resumen de sesión de los hooks (JS y Go) y el openwiki escribían `--path <file>...`, que invita a dar varios ficheros tras un solo flag. Ahora usan la forma del uso, `[--path <file>]...`, y el uso de `record intent` escribe `(--open-fact <question>)...`.
+- **Contrato:** REQ-idd-011 recoge la regla, con el escenario «The CLI drops no argument».
+- **Contexto:** la skill `idd` baja 5 B y el ratchet de E4.3 ajusta sus techos.
+
+Hecho con IDD (`idd/archive/2026-10-28-cli-dropped-arguments/`).
+
+**Verificación directa**: `node scripts/check.js` (4262 tests pasando, 0 fallos y 5 omitidos). La puerta de Go (`gofmt -l cmd internal`, `go vet ./...`, `go test ./...`) también pasa.
 
 ## [2.165.0] - 2026-10-28
 
