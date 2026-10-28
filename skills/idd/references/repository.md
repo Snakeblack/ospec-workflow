@@ -3,7 +3,8 @@
 Read on demand from `skills/idd/SKILL.md` when the router sends a project
 request here and there is no project yet: no git work tree, or one whose top
 level is `$HOME` or `/`. A system fix or a loose script never comes here: it
-is done directly. `ospec` opens no change until the repository exists.
+is done directly. `ospec` opens no change until the repository exists. Also
+read when a change spans several services or repositories.
 
 ## Where the project lives
 
@@ -31,3 +32,13 @@ Use `main` only in a repository created here; never rename an existing branch.
 A project with no code yet continues with the `foundation` skill; otherwise
 open the change with `ospec record intent`. When `ospec` answers
 `git-not-found`, ask the user to install git.
+
+## Several services or repositories
+
+`ospec` works on one repository root. A change across repositories is one
+IDD change per repository, each closed on its own evidence. Keep a shared
+contract compatible until every consumer moves: extend the provider first,
+then migrate the consumers, and remove the old form last. In a monorepo whose
+services keep their manifests below the root, propose to the user the
+`impact:` entries of `idd/config.yaml` (`stack` and the contract, data and
+security paths of each service), as for checks (`references/checks.md`).

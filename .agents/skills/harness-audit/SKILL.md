@@ -17,7 +17,7 @@ Local skill for developing ospec-workflow itself; it is not shipped to consumers
 2. **Generated targets**: build each of the 7 targets with `node scripts/configure/cli.js --target <target> --out <tmp>` and run its `validate-<target>` script. Assert generated output in a temp dir, never in `dist/`.
 3. **Agent boundaries**: the orchestrator coordinates and delegates; phase agents execute, never delegate recursively and never ask the user directly; each work agent carries its skill under `## Embedded references`.
 4. **Skill registry**: `.ospec/cache/skill-registry.cache.json` is fresh, `compact_rules` come only from rules sections, and every knowledge skill declares `Trigger:` (`scripts/lib/skill-registry.test.js`).
-5. **Context cost**: `node scripts/measure-context-baseline.js` stays under the ceilings in `scripts/fixtures/context-baseline.json`; any reduction lowers them with `--update`.
+5. **Context cost**: `node scripts/measure-context-baseline.js` matches the ceilings in `scripts/fixtures/context-baseline.json` and stays within the budget in `scripts/fixtures/context-budget.json`; a reduction lowers the ceilings with `--update`, and a rise needs `--allow-growth <metric> --reason "<why>"`.
 6. **Rule scope**: always-on rules are only the `**` ones; `agents/**` rules are embedded in the orchestrator and path rules use each host's native scope.
 7. **Hooks**: `hooks/hooks.json` wires `SessionStart` (registry refresh), `PreToolUse` (dangerous commands, token advisor), `PreCompact` (session summary), `SubagentStop` (skill resolution) and `Stop`, with JS and Go parity (`scripts/hooks/parity-contract.test.js`).
 8. **Gates**: blocking decisions go through the host's question tool and are persisted in `state.yaml`.

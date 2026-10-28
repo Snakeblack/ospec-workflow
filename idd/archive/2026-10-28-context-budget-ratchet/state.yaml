@@ -1,0 +1,518 @@
+{
+  "schema": "idd-state/v1",
+  "change": "context-budget-ratchet",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "si, empieza E4.3",
+    "kind": "feature",
+    "summary": "Ratchet de los techos de contexto: --update no sube un techo sin --allow-growth y su motivo, presupuesto absoluto en scripts/fixtures/context-budget.json, techo medido de router más protocolo IDD por target, y la skill idd recupera al menos 1 KiB de margen",
+    "acceptance": "measure-context-baseline.js --update sale con 1 si una métrica sube sin --allow-growth y con él escribe el motivo en el JSON; findRegressions informa un valor por encima de context-budget.json; la línea base fija router más protocolo IDD por target; la skill idd queda al menos 1 KiB por debajo de su techo en CRLF en los 7 targets"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Qué métricas exigen --allow-growth al subir, y con qué forma: todas las del techo (always-on, orquestador, skills, listado, agentes y las nuevas de router más protocolo IDD), nombradas por métrica para todos los targets donde suben (p. ej. agent_read_bytes.review-trust), o solo agentes y orquestador como dice #338? ¿Un target o un agente nuevo cuenta como subida?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿El presupuesto absoluto se mide en bytes LF, como la línea base (always-on ≤ 4096 B, router más protocolo IDD ≤ 16000 B, más memory-loop.md ≤ 18000 B, cada agente ≤ 16000 B), mientras el techo de la skill idd sigue midiéndose en CRLF en idd-protocol.test.js?"
+      },
+      {
+        "category": "persistence",
+        "question": "¿El motivo de cada subida se guarda como historial acumulado en context-baseline.json (growth: [{version, metric, targets, reason}], aditivo dentro de ospec-context-baseline/v1) o solo el último motivo por métrica?"
+      },
+      {
+        "category": "copy",
+        "question": "¿Qué texto sale de skills/idd/SKILL.md para recuperar al menos 1 KiB: Project checks a references/checks.md y Several services or repositories a references/repository.md (unos 1,2 KB netos), y a qué baja el techo de idd-protocol.test.js (11 KiB en CRLF)?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/measure-context-baseline.js",
+          "line": 7
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/measure-context-baseline.js",
+          "line": 5
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿Qué es un error: --allow-growth sin --reason o para una métrica que no sube (error de uso), superar el presupuesto absoluto (sin excepción por flag; se cambia editando context-budget.json) y un techo por encima de lo medido (el test falla y pide --update)?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      ".agents/skills/harness-audit/SKILL.md",
+      "docs/roadmaps/harness-evolution.md",
+      "docs/target-capabilities.md",
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/fixtures/context-baseline.json",
+      "scripts/fixtures/context-budget.json",
+      "scripts/lib/context-baseline.js",
+      "scripts/lib/context-baseline.test.js",
+      "scripts/measure-context-baseline.js",
+      "scripts/measure-context-baseline.test.js",
+      "skills/idd/SKILL.md",
+      "skills/idd/references/checks.md",
+      "skills/idd/references/repository.md"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Todas las métricas del techo exigen --allow-growth <métrica> --reason al subir con --update; el flag vale en todos los targets donde sube y se repite; un target o un agente nuevo cuenta como subida; --allow-growth sin --reason, --reason sin --allow-growth o un --allow-growth para una métrica que no sube son error de uso (exit 2)",
+      "scripts/fixtures/context-budget.json fija en bytes LF always-on ≤ 4096, router más protocolo IDD ≤ 16000, más references/memory-loop.md ≤ 18000 y cada agente ≤ 16000; ningún flag lo salta y --update rechaza un techo que lo supere",
+      "context-baseline.json acumula growth: [{version, metric, targets: {target: [antes, después]}, reason}] como campo aditivo de ospec-context-baseline/v1; un techo por encima de lo medido es una regresión que pide --update",
+      "Project checks pasa a skills/idd/references/checks.md y Several services or repositories a skills/idd/references/repository.md; idd-protocol.test.js conserva 12 KiB en CRLF como tope absoluto y el tamaño de la skill pasa a ser un techo del ratchet"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components generator, skills: ADR 0001, 0003, 0006, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/measure-context-baseline.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Las referencias nuevas de la skill idd se editan en la fuente y llegan a los 7 targets por el transform; la medición sigue leyendo la salida generada"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "El ratchet y el presupuesto se calculan en scripts/lib/context-baseline.js con tests; lo que sale de la skill es guía de cuándo actuar, no una regla de cálculo"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "Solo se mide el tamaño de references/memory-loop.md; la memoria no decide nada nuevo"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "El ratchet usa solo node:fs y node:path; no se declara ninguna dependencia"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "El script de medición y el presupuesto trabajan sobre ficheros locales, sin red"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Los mismos techos y el mismo presupuesto se comprueban en los 7 targets, y la skill mueve el mismo texto en todos"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Las reglas del ratchet (subida sin permiso, holgura, presupuesto) se calculan en scripts/lib/context-baseline.js (findRegressions, updateCeilings), con tests en scripts/lib/context-baseline.test.js y scripts/measure-context-baseline.test.js; checks.md y repository.md dicen cuándo actuar y no reimplementan ninguna regla de cálculo del CLI; el cambio no añade órdenes de ospec",
+      "recorded_at": "2026-10-28T15:21:40.889Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El diff solo añade require de ./lib/context-baseline.js y ../package.json: ni red ni child_process; las referencias movidas no nombran red, y next, check y close no cambian porque el cambio no toca scripts/ospec.js ni scripts/lib/idd-*",
+      "recorded_at": "2026-10-28T15:21:41.035Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Métricas: Todas, por métrica (Recomendado). Presupuesto: LF, valores del roadmap (Recomendado). Motivo: Historial + holgura falla (Recomendado). Skill idd: Checks y servicios, 12 KiB (Recomendado).",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-28T15:21:07.013Z",
+      "detail": {
+        "tree": "sha256:4edf44d4bdd4b28dc56e817f90746d2a3deda8da43af829606d5e82d89a65ae2",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-28T15:21:07.013Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:4edf44d4bdd4b28dc56e817f90746d2a3deda8da43af829606d5e82d89a65ae2",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-28T15:21:31.905Z",
+      "detail": {
+        "run": "run-7",
+        "tree": "sha256:55fceb928c62ad548bbf5ae1952dd4e315562e3ac79d36741cd98985bfa6faab",
+        "plan": "context-baseline.json sigue en ospec-context-baseline/v1: growth es un campo aditivo, y un fichero sin él ni las tres métricas del flujo por defecto se lee igual; --update pide un permiso por cada métrica nueva y conserva los techos que ya tenía. Para revertir basta el commit anterior: su script ignora growth y las métricas nuevas, y su --update las quita al reescribir."
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-28T15:23:10.004Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+        "fitness": [
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-28T15:26:31.468Z",
+      "detail": {
+        "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+        "runs": [
+          "run-14"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-28T15:26:31.468Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+        "fitness": [
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-28T15:26:41.009Z"
+    }
+  ],
+  "base": "b598a5fe4e73188dd8f318b1dbb63fdfa264b9a7",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6b233b9c5b5c07529ead01d3467fdf942ae6ae3462f7b0e28206a18dd750e4b0",
+      "tree": "sha256:4edf44d4bdd4b28dc56e817f90746d2a3deda8da43af829606d5e82d89a65ae2",
+      "recorded_at": "2026-10-28T15:21:07.013Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fb929cbe4b519edf7b79ca0c368463a54b10969af2dc94150e284020619c08c4",
+      "tree": "sha256:4edf44d4bdd4b28dc56e817f90746d2a3deda8da43af829606d5e82d89a65ae2",
+      "recorded_at": "2026-10-28T15:21:07.013Z",
+      "tests": 47
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f673e54871e129c5e9fd8fdd885a7b30e398f2411b22ca0664357bf99c1e8c59",
+      "tree": "sha256:4edf44d4bdd4b28dc56e817f90746d2a3deda8da43af829606d5e82d89a65ae2",
+      "recorded_at": "2026-10-28T15:21:07.013Z",
+      "tests": 2
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4edf44d4bdd4b28dc56e817f90746d2a3deda8da43af829606d5e82d89a65ae2",
+      "recorded_at": "2026-10-28T15:21:07.013Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:15a59c66aa0473591d009faa1de34e095586ab67b7450fc95dbdc34bd0a54677",
+      "tree": "sha256:4edf44d4bdd4b28dc56e817f90746d2a3deda8da43af829606d5e82d89a65ae2",
+      "recorded_at": "2026-10-28T15:21:07.013Z",
+      "tests": 21
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1a549026de1ad6e988e3f3d5321e51870545d7d64445e2acb8a4a3950a7373f6",
+      "tree": "sha256:4edf44d4bdd4b28dc56e817f90746d2a3deda8da43af829606d5e82d89a65ae2",
+      "recorded_at": "2026-10-28T15:21:07.013Z",
+      "tests": 47
+    },
+    {
+      "id": "run-7",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/context-baseline.test.js scripts/measure-context-baseline.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c94063e71a5c42f0ff2cf35cf3cfde542d986afbd6703384a69cb239782b7a0a",
+      "tree": "sha256:55fceb928c62ad548bbf5ae1952dd4e315562e3ac79d36741cd98985bfa6faab",
+      "recorded_at": "2026-10-28T15:21:31.905Z",
+      "tests": 21
+    },
+    {
+      "id": "run-8",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:89916c576073b7f752d15a2e2124ae7f830ca849858936ec368a673bf40ed8f7",
+      "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+      "recorded_at": "2026-10-28T15:23:10.004Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3ac94e164bfe2e5bee9f040ad0147c9d73b28d152c50fef8ac01e0366e24de97",
+      "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+      "recorded_at": "2026-10-28T15:23:10.004Z",
+      "tests": 47
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:18174e82040ae6529f0c6d04ea5192224ce220885e026361ae974b1fe1cdc97d",
+      "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+      "recorded_at": "2026-10-28T15:23:10.004Z",
+      "tests": 2
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+      "recorded_at": "2026-10-28T15:23:10.004Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0b4ed5c12cc9e5cf93fbb662e607462578fb1494b3681732900646e87816080d",
+      "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+      "recorded_at": "2026-10-28T15:23:10.004Z",
+      "tests": 21
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e6436934b00a292e945f46d4c968a66ee7951c0943fc891c09e1e7a411bb0c99",
+      "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+      "recorded_at": "2026-10-28T15:23:10.004Z",
+      "tests": 47
+    },
+    {
+      "id": "run-14",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:39c459323cf9d5845bdd5bc199bba3c111c68ff0fcf0f8979e22563260385b36",
+      "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+      "recorded_at": "2026-10-28T15:26:31.468Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:76c4fef0e8086b0d25067dc4705fc729db84ca80e9ea7289c09967e51c43360e",
+      "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+      "recorded_at": "2026-10-28T15:26:31.468Z",
+      "tests": 47
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4cdea212db3d75171dd5620692651044d28cee156378216a5e4b3c57b1c496c0",
+      "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+      "recorded_at": "2026-10-28T15:26:31.468Z",
+      "tests": 2
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+      "recorded_at": "2026-10-28T15:26:31.468Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e73227113a26f8c629a51b7f50741e25b4feefb0a8ba54ca95b68fa858afc7b3",
+      "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+      "recorded_at": "2026-10-28T15:26:31.468Z",
+      "tests": 21
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9c6954118abf1e3acf282f77671cb30cdf96230045fa0f5125bbf0fd308b30ef",
+      "tree": "sha256:277660237667761fb315de3a3d61f683ec7fd37cfa2a7ad1fc55a8af4ad0ef93",
+      "recorded_at": "2026-10-28T15:26:31.468Z",
+      "tests": 47
+    }
+  ],
+  "closed_at": "2026-10-28T15:26:41.009Z"
+}

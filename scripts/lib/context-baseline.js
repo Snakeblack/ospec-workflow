@@ -12,6 +12,9 @@ const path = require("node:path");
 const frontmatter = require("./frontmatter.js");
 
 const SCHEMA = "ospec-context-baseline/v1";
+const BUDGET_SCHEMA = "ospec-context-budget/v1";
+const IDD_PROTOCOL = "skills/idd/SKILL.md";
+const MEMORY_LOOP = "skills/idd/references/memory-loop.md";
 const GLOBAL_APPLY_TO = new Set(["**", "**/*"]);
 const SKILL_REF = /skills\/([a-z0-9][a-z0-9-]*)\/SKILL\.md/g;
 const SHARED_REF = /_shared\/([A-Za-z0-9][A-Za-z0-9._-]*\.md)/g;
@@ -19,7 +22,10 @@ const ORCHESTRATOR = /(^|\/)sdd-orchestrator(\/SKILL\.md|\.agent\.md|\.md|\.toml
 const AGENT_FILE = /(^|\/)agents\/([^/]+?)(\.agent\.md|\.md|\.toml)$/;
 const SKILL_FILE = /^skills\/(.+\/)?SKILL\.md$/;
 const EMBEDDED_SECTION = /^## Embedded references$/m;
-const CEILING_METRICS = ["always_on_bytes", "orchestrator_bytes", "skills_installed", "skills_listed", "skill_listing_bytes"];
+const CEILING_METRICS = [
+  "always_on_bytes", "orchestrator_bytes", "skills_installed", "skills_listed", "skill_listing_bytes",
+  "idd_protocol_bytes", "default_flow_bytes", "memory_flow_bytes",
+];
 
 function bytes(content) {
   return Buffer.byteLength(String(content ?? ""), "utf8");
@@ -109,13 +115,20 @@ function measureTarget(files) {
     if (agent && filePath !== orchestratorPath) agents[agent[2]] = measureAgent(content, byPath);
   }
 
+  const alwaysOnBytes = Object.values(alwaysOnFiles).reduce((sum, value) => sum + value, 0);
+  const iddProtocolBytes = bytes(byPath.get(IDD_PROTOCOL));
   return {
-    always_on_bytes: Object.values(alwaysOnFiles).reduce((sum, value) => sum + value, 0),
+    always_on_bytes: alwaysOnBytes,
     always_on_files: alwaysOnFiles,
     orchestrator: { path: orchestratorPath, bytes: orchestratorPath ? bytes(byPath.get(orchestratorPath)) : 0 },
     skills_installed: skillsInstalled,
     skills_listed: skillsListed,
     skill_listing_bytes: skillListingBytes,
+    // The default flow (E4.3): router plus the IDD protocol, and with the
+    // memory loop the protocol reads after every close.
+    idd_protocol_bytes: iddProtocolBytes,
+    default_flow_bytes: alwaysOnBytes + iddProtocolBytes,
+    memory_flow_bytes: alwaysOnBytes + iddProtocolBytes + bytes(byPath.get(MEMORY_LOOP)),
     agents,
   };
 }
@@ -141,11 +154,7 @@ function measureSource(sourceDir) {
 
 function targetCeilings(measured) {
   return {
-    always_on_bytes: measured.always_on_bytes,
-    orchestrator_bytes: measured.orchestrator.bytes,
-    skills_installed: measured.skills_installed,
-    skills_listed: measured.skills_listed,
-    skill_listing_bytes: measured.skill_listing_bytes,
+    ...Object.fromEntries(CEILING_METRICS.map((metric) => [metric, metric === "orchestrator_bytes" ? measured.orchestrator.bytes : measured[metric]])),
     agent_read_bytes: Object.fromEntries(Object.entries(measured.agents).map(([name, agent]) => [name, agent.read_bytes])),
   };
 }
@@ -157,27 +166,86 @@ function ceilingsFrom(report) {
   };
 }
 
-// A metric regresses when it exceeds its ceiling or has none: new targets and
-// agents need an explicit `--update`, so growth is always a reviewed decision.
-function findRegressions(report, ceilings) {
+// Each ceiling as [metric, value], the agents' as `agent_read_bytes.<agent>`.
+function metricEntries(ceiling = {}) {
+  return [
+    ...CEILING_METRICS.map((metric) => [metric, ceiling[metric]]),
+    ...Object.entries(ceiling.agent_read_bytes || {}).map(([name, value]) => [`agent_read_bytes.${name}`, value]),
+  ];
+}
+
+// The absolute budget (`context-budget.json`): one limit per metric for every
+// target, `agent_read_bytes` for each agent. No grant lifts it.
+function overBudget(report, budget) {
+  const limits = budget?.limits || {};
+  return Object.entries(report.targets).flatMap(([target, measured]) => metricEntries(targetCeilings(measured)).flatMap(([metric, value]) => {
+    const limit = limits[metric.startsWith("agent_read_bytes.") ? "agent_read_bytes" : metric];
+    return typeof limit === "number" && value > limit ? [{ kind: "budget", target, metric, value, ceiling: limit }] : [];
+  }));
+}
+
+// The ratchet (E4.3): a metric regresses when it exceeds its ceiling (`over`)
+// or has none (`missing`), so growth is always a reviewed decision, and when
+// it stays below its ceiling or the ceiling measures nothing (`slack`), so a
+// reduction lowers the ceiling in the same change. `budget` adds the values
+// above the absolute budget.
+function findRegressions(report, ceilings, budget) {
   const regressions = [];
   for (const [target, measured] of Object.entries(report.targets)) {
     const ceiling = ceilings.targets?.[target];
     if (!ceiling) {
-      regressions.push({ target, metric: "target", value: null, ceiling: null });
+      regressions.push({ kind: "missing", target, metric: "target", value: null, ceiling: null });
       continue;
     }
-    const current = targetCeilings(measured);
-    const checks = [
-      ...CEILING_METRICS.map((metric) => [metric, current[metric], ceiling[metric]]),
-      ...Object.entries(current.agent_read_bytes).map(([name, value]) => [`agent_read_bytes.${name}`, value, ceiling.agent_read_bytes?.[name]]),
-    ];
-    for (const [metric, value, limit] of checks) {
-      if (typeof limit !== "number") regressions.push({ target, metric, value, ceiling: null });
-      else if (value > limit) regressions.push({ target, metric, value, ceiling: limit });
+    const current = metricEntries(targetCeilings(measured));
+    const limits = new Map(metricEntries(ceiling));
+    for (const [metric, value] of current) {
+      const limit = limits.get(metric);
+      if (typeof limit !== "number") regressions.push({ kind: "missing", target, metric, value, ceiling: null });
+      else if (value > limit) regressions.push({ kind: "over", target, metric, value, ceiling: limit });
+      else if (value < limit) regressions.push({ kind: "slack", target, metric, value, ceiling: limit });
+    }
+    const measuredMetrics = new Set(current.map(([metric]) => metric));
+    for (const [metric, limit] of limits) {
+      if (!measuredMetrics.has(metric) && typeof limit === "number") regressions.push({ kind: "slack", target, metric, value: null, ceiling: limit });
     }
   }
-  return regressions;
+  for (const target of Object.keys(ceilings.targets || {})) {
+    if (!report.targets[target]) regressions.push({ kind: "slack", target, metric: "target", value: null, ceiling: null });
+  }
+  return [...regressions, ...overBudget(report, budget)];
 }
 
-module.exports = { SCHEMA, buildTargetFiles, ceilingsFrom, findRegressions, measureSource, measureTarget };
+// `--update` (E4.3): ceilings drop freely, but a metric that rises, or comes
+// with a new target or agent, needs a grant `{ metric, reason }` for every
+// target where it rises, and `growth` keeps it after the earlier ones. Returns
+// `{ ceilings }`, or what refuses them: `ungranted` rises, `unused` grants and
+// values `overBudget`.
+function updateCeilings(report, previous, { grants = [], budget, version } = {}) {
+  const next = ceilingsFrom(report);
+  const rises = new Map();
+  for (const [target, ceiling] of Object.entries(next.targets)) {
+    const before = new Map(metricEntries(previous?.targets?.[target]));
+    for (const [metric, value] of metricEntries(ceiling)) {
+      const from = typeof before.get(metric) === "number" ? before.get(metric) : null;
+      if (from !== null && value <= from) continue;
+      if (!rises.has(metric)) rises.set(metric, {});
+      rises.get(metric)[target] = [from, value];
+    }
+  }
+  const reasons = new Map(grants.map(({ metric, reason }) => [metric, reason]));
+  const ungranted = [...rises].filter(([metric]) => !reasons.has(metric)).map(([metric, targets]) => ({ metric, targets }));
+  const unused = [...reasons.keys()].filter((metric) => !rises.has(metric));
+  const above = overBudget(report, budget);
+  if (ungranted.length || unused.length || above.length) return { ungranted, unused, overBudget: above };
+  const growth = [
+    ...(previous?.growth || []),
+    ...[...rises].map(([metric, targets]) => ({ version, metric, targets, reason: reasons.get(metric) })),
+  ];
+  return { ceilings: growth.length ? { ...next, growth } : next };
+}
+
+module.exports = {
+  BUDGET_SCHEMA, CEILING_METRICS, SCHEMA,
+  buildTargetFiles, ceilingsFrom, findRegressions, measureSource, measureTarget, updateCeilings,
+};

@@ -1,0 +1,9 @@
+{
+  "schema": "ospec-context-budget/v1",
+  "limits": {
+    "always_on_bytes": 4096,
+    "default_flow_bytes": 16000,
+    "memory_flow_bytes": 18000,
+    "agent_read_bytes": 16000
+  }
+}

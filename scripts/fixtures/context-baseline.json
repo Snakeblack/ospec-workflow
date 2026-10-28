@@ -2,11 +2,14 @@
   "schema": "ospec-context-baseline/v1",
   "targets": {
     "claude": {
-      "always_on_bytes": 3688,
+      "always_on_bytes": 3404,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
       "skill_listing_bytes": 4613,
+      "idd_protocol_bytes": 10661,
+      "default_flow_bytes": 14065,
+      "memory_flow_bytes": 17013,
       "agent_read_bytes": {
         "review-change": 4757,
         "review-correction": 5197,
@@ -17,86 +20,104 @@
       }
     },
     "vscode": {
-      "always_on_bytes": 3947,
+      "always_on_bytes": 3663,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
       "skill_listing_bytes": 4613,
+      "idd_protocol_bytes": 10657,
+      "default_flow_bytes": 14320,
+      "memory_flow_bytes": 17268,
       "agent_read_bytes": {
-        "review-change": 4785,
-        "review-correction": 5225,
-        "review-efficiency": 14581,
-        "review-evolution": 14787,
-        "review-runtime": 14649,
-        "review-trust": 14554
+        "review-change": 4754,
+        "review-correction": 5192,
+        "review-efficiency": 14548,
+        "review-evolution": 14754,
+        "review-runtime": 14616,
+        "review-trust": 14521
       }
     },
     "github-copilot": {
-      "always_on_bytes": 3947,
+      "always_on_bytes": 3663,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
       "skill_listing_bytes": 4613,
+      "idd_protocol_bytes": 10657,
+      "default_flow_bytes": 14320,
+      "memory_flow_bytes": 17268,
       "agent_read_bytes": {
-        "review-change": 4771,
-        "review-correction": 5211,
-        "review-efficiency": 14567,
-        "review-evolution": 14773,
-        "review-runtime": 14635,
-        "review-trust": 14540
+        "review-change": 4740,
+        "review-correction": 5178,
+        "review-efficiency": 14534,
+        "review-evolution": 14740,
+        "review-runtime": 14602,
+        "review-trust": 14507
       }
     },
     "opencode": {
-      "always_on_bytes": 3625,
+      "always_on_bytes": 3341,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
       "skill_listing_bytes": 4613,
+      "idd_protocol_bytes": 10657,
+      "default_flow_bytes": 13998,
+      "memory_flow_bytes": 16946,
       "agent_read_bytes": {
-        "review-change": 4783,
-        "review-correction": 5227,
-        "review-efficiency": 14581,
-        "review-evolution": 14787,
-        "review-runtime": 14649,
-        "review-trust": 14554
+        "review-change": 4752,
+        "review-correction": 5190,
+        "review-efficiency": 14544,
+        "review-evolution": 14750,
+        "review-runtime": 14612,
+        "review-trust": 14517
       }
     },
     "codex": {
-      "always_on_bytes": 3628,
+      "always_on_bytes": 3344,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
       "skill_listing_bytes": 4613,
+      "idd_protocol_bytes": 10657,
+      "default_flow_bytes": 14001,
+      "memory_flow_bytes": 16949,
       "agent_read_bytes": {
-        "review-change": 4878,
-        "review-correction": 5316,
-        "review-efficiency": 14670,
-        "review-evolution": 14876,
-        "review-runtime": 14738,
-        "review-trust": 14643
+        "review-change": 4797,
+        "review-correction": 5235,
+        "review-efficiency": 14589,
+        "review-evolution": 14795,
+        "review-runtime": 14657,
+        "review-trust": 14562
       }
     },
     "cursor": {
-      "always_on_bytes": 3955,
+      "always_on_bytes": 3671,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
       "skill_listing_bytes": 4613,
+      "idd_protocol_bytes": 10657,
+      "default_flow_bytes": 14328,
+      "memory_flow_bytes": 17276,
       "agent_read_bytes": {
-        "review-change": 4725,
-        "review-correction": 5172,
-        "review-efficiency": 14526,
-        "review-evolution": 14732,
-        "review-runtime": 14594,
-        "review-trust": 14499
+        "review-change": 4706,
+        "review-correction": 5144,
+        "review-efficiency": 14498,
+        "review-evolution": 14704,
+        "review-runtime": 14566,
+        "review-trust": 14471
       }
     },
     "antigravity": {
-      "always_on_bytes": 3957,
+      "always_on_bytes": 3673,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
       "skill_listing_bytes": 4613,
+      "idd_protocol_bytes": 10657,
+      "default_flow_bytes": 14330,
+      "memory_flow_bytes": 17278,
       "agent_read_bytes": {
         "review-change": 4761,
         "review-correction": 5199,
@@ -106,5 +127,112 @@
         "review-trust": 14538
       }
     }
-  }
+  },
+  "growth": [
+    {
+      "version": "2.163.0",
+      "metric": "idd_protocol_bytes",
+      "targets": {
+        "claude": [
+          null,
+          10661
+        ],
+        "vscode": [
+          null,
+          10657
+        ],
+        "github-copilot": [
+          null,
+          10657
+        ],
+        "opencode": [
+          null,
+          10657
+        ],
+        "codex": [
+          null,
+          10657
+        ],
+        "cursor": [
+          null,
+          10657
+        ],
+        "antigravity": [
+          null,
+          10657
+        ]
+      },
+      "reason": "E4.3: techo nuevo de la skill idd, medida en LF; idd-protocol.test.js conserva 12 KiB en CRLF como tope absoluto"
+    },
+    {
+      "version": "2.163.0",
+      "metric": "default_flow_bytes",
+      "targets": {
+        "claude": [
+          null,
+          14065
+        ],
+        "vscode": [
+          null,
+          14320
+        ],
+        "github-copilot": [
+          null,
+          14320
+        ],
+        "opencode": [
+          null,
+          13998
+        ],
+        "codex": [
+          null,
+          14001
+        ],
+        "cursor": [
+          null,
+          14328
+        ],
+        "antigravity": [
+          null,
+          14330
+        ]
+      },
+      "reason": "E4.3: techo nuevo de router más protocolo IDD, la carga del flujo por defecto (checkpoint de la Etapa 3)"
+    },
+    {
+      "version": "2.163.0",
+      "metric": "memory_flow_bytes",
+      "targets": {
+        "claude": [
+          null,
+          17013
+        ],
+        "vscode": [
+          null,
+          17268
+        ],
+        "github-copilot": [
+          null,
+          17268
+        ],
+        "opencode": [
+          null,
+          16946
+        ],
+        "codex": [
+          null,
+          16949
+        ],
+        "cursor": [
+          null,
+          17276
+        ],
+        "antigravity": [
+          null,
+          17278
+        ]
+      },
+      "reason": "E4.3: techo nuevo del flujo por defecto con references/memory-loop.md, que se lee tras cada close"
+    }
+  ]
 }

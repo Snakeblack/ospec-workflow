@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Ratchet de los techos de contexto: --update no sube un techo sin --allow-growth y su motivo, presupuesto absoluto en scripts/fixtures/context-budget.json, techo medido de router más protocolo IDD por target, y la skill idd recupera al menos 1 KiB de margen (context-budget-ratchet)
+
 ## [2.163.0] - 2026-10-27
 
 ### Added
