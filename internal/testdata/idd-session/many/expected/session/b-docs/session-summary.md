@@ -13,4 +13,4 @@ docs: Document paging.
 - None
 
 ## Next recommended action
-Declare the plan: `ospec signals --change b-docs --path <file>... [--work-units <n>] [--decision "<text>"]... [--operation <op>]`.
+Declare the plan: `ospec signals --change b-docs [--path <file>]... [--work-units <n>] [--decision "<text>"]... [--operation <op>]`.

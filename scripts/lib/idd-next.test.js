@@ -285,8 +285,8 @@ test("next asks to declare the plan after the intent gates and before any obliga
   const unplanned = recordSignal(opened, { id: "bug-fix", reason: "bug", source: "declaration" }).state;
   assert.deepStrictEqual(nextForChange(unplanned).next_step, {
     action: "declare-plan",
-    how: "ospec signals --change fix-it --path <file>... [--work-units <n>] [--decision \"<text>\"]... [--operation <op>]",
-    command: "ospec signals --change fix-it --path <file>...",
+    how: "ospec signals --change fix-it [--path <file>]... [--work-units <n>] [--decision \"<text>\"]... [--operation <op>]",
+    command: "ospec signals --change fix-it [--path <file>]...",
   });
   assert.strictEqual(nextForChange(unplanned, { checks: [] }).next_step.action, "declare-plan");
   assert.deepStrictEqual(nextForChange(unplanned).pending_obligations.map((o) => o.id), ["repro-test", "checks-pass"]);

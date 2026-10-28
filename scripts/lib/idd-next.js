@@ -181,8 +181,8 @@ function planDeclared(state) {
 function declarePlanStep(change) {
   return {
     action: "declare-plan",
-    how: `ospec signals --change ${change} --path <file>... [--work-units <n>] [--decision "<text>"]... [--operation <op>]`,
-    command: `ospec signals --change ${change} --path <file>...`,
+    how: `ospec signals --change ${change} [--path <file>]... [--work-units <n>] [--decision "<text>"]... [--operation <op>]`,
+    command: `ospec signals --change ${change} [--path <file>]...`,
   };
 }
 
