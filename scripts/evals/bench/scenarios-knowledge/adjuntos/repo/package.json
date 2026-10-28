@@ -1,0 +1,10 @@
+{
+  "name": "notas-api",
+  "version": "0.7.0",
+  "private": true,
+  "description": "API de notas personales con adjuntos",
+  "main": "src/app.js",
+  "scripts": {
+    "test": "node --test"
+  }
+}

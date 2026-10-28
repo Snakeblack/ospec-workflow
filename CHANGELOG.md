@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.165.0] - 2026-10-28
+
+### Added
+- **Corpus `knowledge` del banco** (E4.17): tres escenarios escritos y congelados antes del bloque C, que ajusta el conocimiento, la memoria y las señales de seguridad de IDD, y que el bloque D correrá (bench-knowledge-scenarios).
+  - `reparto`: una librería de gastos en dos sesiones; la primera fija una decisión y la segunda recibe una petición que depende de ella, con memoria sembrada, vacía o contradictoria.
+  - `pedidos`: un repositorio cuyo ADR prohíbe que el dominio importe infraestructura, con un `Check:` ejecutable, y una petición que invita a saltárselo.
+  - `adjuntos`: una descarga de ficheros en un módulo fuera de `auth/`.
+  - Sus hechos ocultos solo están en cada `scenario.json`. El digest del corpus queda fijado en `scenarios.test.js`, y los de `default`, `greenfield` y `reserved` no cambian.
+- **`scenario.json` de schema 2**, para el escenario de dos sesiones: `sessions` con el brief y los hechos de cada sesión, `memory` con la observación sembrada y la contradictoria (`{ title, content }`), y en cada check la sesión tras la que juzga. El cargador lo valida; un check de schema 1 no declara sesión.
+- **`checks-knowledge.test.js`** prueba cada escenario con su entrega de referencia (una por sesión en `reparto`) y con una contraprueba que contiene el defecto que mide. El ADR de la semilla de `pedidos` pasa el lint de `decision-records` sin avisos.
+
+### Changed
+- **`bench.js run --corpus knowledge` sale con código 1** antes de tomar el lock o construir nada, hasta que el banco conduzca esos escenarios; `bench.js list --corpus knowledge` los muestra con su digest.
+- **El digest del harness del banco excluye todo directorio `scenarios*/`**: antes `scenarios-reserved/salas/checks.js` entraba en él.
+- **Contrato:** `REQ-bench-001` describe el corpus `knowledge` y el schema 2. El README del banco documenta el corpus y la corrida para la que está congelado.
+- **Roadmap:** E4.17 queda `done`; sigue el bloque C con E1.48 `base-counterproof`.
+
+### Fixed
+- **La contraprueba de `adjuntos` falla en Windows**: buscaba la línea que borra con su LF, y el checkout de Windows con `autocrlf` la termina en CRLF. Ahora borra la sentencia sin su fin de línea y corre también sobre un `src/app.js` en CRLF (bench-knowledge-crlf).
+
+Hecho con IDD (`idd/archive/2026-10-28-bench-knowledge-scenarios/` e `idd/archive/2026-10-28-bench-knowledge-crlf/`).
+
+**Verificación directa**: `node scripts/check.js` (4261 tests pasando, 0 fallos y 5 omitidos).
+
 ## [2.164.0] - 2026-10-28
 
 ### Added

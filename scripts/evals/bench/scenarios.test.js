@@ -7,6 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const {
+  CORPORA,
   PROFILES,
   BenchScenarioError,
   harnessDigest,
@@ -40,6 +41,28 @@ function writeScenario(root, id, overrides = {}) {
   fs.writeFileSync(path.join(dir, "checks.js"), checks);
   return dir;
 }
+
+function writeSessionScenario(root, id, overrides = {}) {
+  const dir = path.join(root, id);
+  fs.mkdirSync(path.join(dir, "repo"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "repo", "a.js"), "module.exports = 1;\n");
+  const scenario = {
+    schema_version: 2,
+    id,
+    profile: "two-sessions",
+    title: "t",
+    sessions: [{ brief: "b1", facts: [{ id: "F1", text: "f1" }] }, { brief: "b2", facts: [{ id: "F2", text: "f2" }] }],
+    memory: { seeded: { title: "m", content: "said" }, contradictory: { title: "m", content: "unsaid" } },
+    ...overrides.scenario,
+  };
+  fs.writeFileSync(path.join(dir, "scenario.json"), JSON.stringify(scenario));
+  const checks = overrides.checks
+    || "module.exports = [{ id: 'a', kind: 'acceptance', session: 1, describe: 'd', run() {} }, { id: 'b', kind: 'fact', fact: 'F1', session: 2, describe: 'd', run() {} }, { id: 'c', kind: 'fact', fact: 'F2', session: 2, describe: 'd', run() {} }];";
+  fs.writeFileSync(path.join(dir, "checks.js"), checks);
+  return dir;
+}
+
+const KNOWLEDGE_PROFILES = CORPORA.knowledge.profiles;
 
 test("the committed corpus covers the six profiles with valid scenarios", () => {
   const scenarios = loadScenarios();
@@ -82,6 +105,46 @@ test("check ids are unique and kinds are known", () => {
   assert.throws(() => loadScenario(kind), /kind/);
 });
 
+test("a scenario of an unknown schema version is rejected", () => {
+  const root = tempDir();
+  const dir = writeScenario(root, "cli-local", { scenario: { schema_version: 3 } });
+  assert.throws(() => loadScenario(dir), /schema_version must be one of 1, 2/);
+});
+
+test("a two-session scenario loads both sessions, its memory and the session each check judges", () => {
+  const scenario = loadScenario(writeSessionScenario(tempDir(), "two"), KNOWLEDGE_PROFILES);
+  assert.deepEqual(scenario.sessions.map((session) => session.brief), ["b1", "b2"]);
+  assert.deepEqual(scenario.facts.map((fact) => fact.id), ["F1", "F2"]);
+  assert.deepEqual(scenario.memory, { seeded: { title: "m", content: "said" }, contradictory: { title: "m", content: "unsaid" } });
+  assert.deepEqual(scenario.checks.map((check) => [check.id, check.session]), [["a", 1], ["b", 2], ["c", 2]]);
+  assert.equal(scenario.brief, undefined);
+});
+
+test("a two-session scenario is rejected when its sessions, memory or check sessions do not hold", () => {
+  const root = tempDir();
+  const sessions = [{ brief: "b1", facts: [{ id: "F1", text: "f1" }] }, { brief: "b2", facts: [{ id: "F2", text: "f2" }] }];
+  const cases = [
+    [{ checks: "module.exports = [{ id: 'a', kind: 'acceptance', describe: 'd', run() {} }];" }, /must declare the session it judges, 1 to 2/],
+    [{ checks: "module.exports = [{ id: 'a', kind: 'acceptance', session: 3, describe: 'd', run() {} }];" }, /must declare the session it judges/],
+    [{ checks: "module.exports = [{ id: 'a', kind: 'fact', fact: 'F2', session: 1, describe: 'd', run() {} }];" }, /judges fact F2 before the session that discloses it/],
+    [{ scenario: { sessions: sessions.slice(0, 1) } }, /sessions must be 2 entries/],
+    [{ scenario: { sessions: [sessions[0], { brief: "b2", facts: [{ id: "F1", text: "again" }] }] } }, /fact ids must be unique across sessions/],
+    [{ scenario: { memory: { seeded: { title: "m", content: "said" } } } }, /memory must declare seeded and contradictory/],
+    [{ scenario: { memory: { seeded: { title: "m", content: "said" }, contradictory: { title: "m", content: "" } } } }, /memory must declare/],
+    [{ scenario: { brief: "b" } }, /must declare exactly schema_version, id, profile, title, sessions, memory/],
+  ];
+  cases.forEach(([overrides, error], index) => {
+    assert.throws(() => loadScenario(writeSessionScenario(root, `two-${index}`, overrides), KNOWLEDGE_PROFILES), error, String(error));
+  });
+});
+
+test("a check of a one-session scenario declares no session", () => {
+  const dir = writeScenario(tempDir(), "cli-local", {
+    checks: "module.exports = [{ id: 'a', kind: 'acceptance', session: 1, describe: 'd', run() {} }];",
+  });
+  assert.throws(() => loadScenario(dir), /only a scenario with sessions gives a check its session/);
+});
+
 test("a corpus missing a profile is rejected", () => {
   const root = tempDir();
   writeScenario(root, "cli-local");
@@ -107,8 +170,11 @@ test("the harness digest covers the bench code but not scenarios, fixtures, reco
   fs.writeFileSync(path.join(root, "hosts", "claude.js"), "b\n");
   const before = harnessDigest(root);
   fs.writeFileSync(path.join(root, "scenarios", "x", "checks.js"), "c\n");
-  fs.mkdirSync(path.join(root, "scenarios-greenfield", "y"), { recursive: true });
-  fs.writeFileSync(path.join(root, "scenarios-greenfield", "y", "checks.js"), "e\n");
+  for (const corpus of ["scenarios-greenfield", "scenarios-reserved", "scenarios-knowledge"]) {
+    fs.mkdirSync(path.join(root, corpus, "y", "repo", "scripts"), { recursive: true });
+    fs.writeFileSync(path.join(root, corpus, "y", "checks.js"), "e\n");
+    fs.writeFileSync(path.join(root, corpus, "y", "repo", "scripts", "check.js"), "f\n");
+  }
   fs.writeFileSync(path.join(root, "driver.test.js"), "d\n");
   assert.equal(harnessDigest(root), before);
   fs.writeFileSync(path.join(root, "hosts", "claude.js"), "b2\n");
@@ -167,4 +233,33 @@ test("the reserved corpus is frozen apart from the default one, with ids of its 
   // Frozen: changing the reserved scenario changes this digest.
   assert.equal(scenariosDigest(reserved), "bba3c8d0b72e6e2a339f100784270ff138a4763f7d6c7c828d2d878e9d585ff3");
   assert.equal(scenariosDigest(loadCorpus()), "3eed3740a0d60661b6724c7884225f575189723fb75b334d8c7377bfe93ad8b4");
+});
+
+test("the knowledge corpus is frozen apart from the others, with ids of its own, and is not runnable (E4.17)", () => {
+  const knowledge = loadCorpus("knowledge");
+  assert.deepEqual(knowledge.map((scenario) => [scenario.id, scenario.profile]), [["reparto", "two-sessions"], ["pedidos", "architecture"], ["adjuntos", "security"]]);
+  assert.equal(CORPORA.knowledge.runnable, false);
+  const others = new Set(["default", "greenfield", "reserved"].flatMap((name) => loadCorpus(name).map((scenario) => scenario.id)));
+  assert.ok(knowledge.every((scenario) => !others.has(scenario.id)), "knowledge ids must differ from every other corpus");
+  for (const scenario of knowledge) {
+    const sessions = scenario.sessions || [scenario];
+    sessions.forEach((session, index) => {
+      const where = `${scenario.id} session ${index + 1}`;
+      const judged = scenario.checks.filter((check) => !scenario.sessions || check.session === index + 1);
+      assert.match(session.brief, /Deja el trabajo commiteado\.$/, where);
+      assert.ok(judged.some((check) => check.kind === "acceptance"), where);
+      assert.ok(judged.some((check) => check.kind === "regression" && check.id.startsWith("suite")), where);
+    });
+    for (const fact of scenario.facts) {
+      assert.ok(scenario.checks.some((check) => check.fact === fact.id), `${scenario.id} ${fact.id}`);
+    }
+  }
+  const { memory } = knowledge[0];
+  assert.equal(memory.seeded.title, memory.contradictory.title);
+  assert.notEqual(memory.seeded.content, memory.contradictory.content);
+  // Frozen: changing a knowledge scenario changes this digest; the other corpora keep theirs.
+  assert.equal(scenariosDigest(knowledge), "e76b7dd75ec3b8a9668f1b8e5082743430fb58b7c480fc7054ffb94c7ea74af0");
+  assert.equal(scenariosDigest(loadCorpus()), "3eed3740a0d60661b6724c7884225f575189723fb75b334d8c7377bfe93ad8b4");
+  assert.equal(scenariosDigest(loadCorpus("greenfield")), "7ce1db3ed2ba5500ec3d60506e5bfac9595afb49929e731089c03a4114224a62");
+  assert.equal(scenariosDigest(loadCorpus("reserved")), "bba3c8d0b72e6e2a339f100784270ff138a4763f7d6c7c828d2d878e9d585ff3");
 });

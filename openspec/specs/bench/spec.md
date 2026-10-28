@@ -21,13 +21,25 @@ directory, cover the `greenfield` profile, and leave the `default` corpus
 digest unchanged; `bench.js --corpus` selects one. The `reserved` corpus
 (OSP-011) MUST live in its own directory, cover the `saas-small` profile, use
 scenario ids absent from the `default` corpus, and keep its digest pinned by a
-test, so the scenario stays frozen before the head-to-head runs that judge it. A scenario MUST declare a seed repository (`repo/`), a change
+test, so the scenario stays frozen before the head-to-head runs that judge it. The `knowledge` corpus (E4.17) MUST live in its own
+directory, cover the `two-sessions`, `architecture`, and `security` profiles,
+use scenario ids absent from every other corpus, and keep its digest pinned by
+a test; `bench.js list` MUST show it, and `bench.js run` MUST refuse it with
+exit code 1, before taking the lock or building anything, until the bench drives
+its scenarios. A scenario MUST declare a seed repository (`repo/`), a change
 request (`brief`), the facts only the simulated user knows (`F<n>`), and hidden
-checks of kind `acceptance`, `fact`, or `regression`. Every fact MUST be judged
-by at least one `fact` check, and every scenario MUST run its own test suite as
-a regression check. Only `repo/` MAY reach the agent's workspace. A reference
-delivery per scenario MUST pass every hidden check, and the untouched seed MUST
-fail its acceptance checks while passing its regression checks. The corpus
+checks of kind `acceptance`, `fact`, or `regression`. A scenario of schema 2
+MUST instead declare two `sessions`, each with its `brief` and facts, with fact
+ids unique across them, and the `seeded` and `contradictory` `memory`, each a
+`title` and a `content`; each of its checks MUST declare the session after which
+it judges, and a `fact` check MUST NOT judge a fact before the session that
+discloses it. A check of a schema 1 scenario MUST NOT declare a session. Every
+fact MUST be judged by at least one `fact` check, and every scenario MUST run
+its own test suite as a regression check, after each session for schema 2. Only
+`repo/` MAY reach the agent's workspace. A reference delivery per scenario (per
+session for schema 2, each over the previous one) MUST pass every hidden check
+of its session, and the untouched seed MUST fail its acceptance checks while
+passing its regression checks. The corpus
 digest MUST NOT depend on the checkout's line endings. The checks of a page
 scenario MUST drive the delivered page in a headless Chromium-family browser
 over the DevTools protocol, without any dependency, serving the workspace on
@@ -45,6 +57,21 @@ browser, the test of its reference delivery MUST be skipped, not failed.
 - GIVEN the `reserved` corpus with its digest pinned by its test
 - WHEN a scenario of it changes, or takes an id of the `default` corpus
 - THEN that test MUST fail
+
+#### Scenario: The knowledge corpus is frozen and not runnable
+
+- GIVEN the `knowledge` corpus with its digest pinned by its test
+- WHEN `bench.js run --corpus knowledge` runs
+- THEN it MUST exit with code 1, naming the corpus as frozen
+- AND it MUST NOT take the lock, build the plugin, or drive a scenario
+- AND `bench.js list --corpus knowledge` MUST print its three scenarios and
+  its digest
+
+#### Scenario: A check of a two-session scenario judges after a session
+
+- GIVEN a schema 2 scenario whose fact `F2` is disclosed in session 2
+- WHEN a `fact` check of `F2` declares session 1, or a check declares no session
+- THEN loading the scenario MUST fail
 
 #### Scenario: A browser check starts from an empty profile
 

@@ -1,0 +1,33 @@
+{
+  "schema_version": 2,
+  "id": "reparto",
+  "profile": "two-sessions",
+  "title": "Repartir los gastos de un grupo, en dos sesiones",
+  "sessions": [
+    {
+      "brief": "Hay que poder repartir un gasto entre varias personas: `repartir(importe, personas)` en `src/gastos.js` devuelve lo que paga cada una; por ejemplo, `repartir(900, [\"ana\", \"bruno\", \"carla\"])` da `{ ana: 300, bruno: 300, carla: 300 }`. Deja el trabajo commiteado.",
+      "facts": [
+        { "id": "F1", "text": "Vale para cualquier reparto de la librería, no solo para este: cada persona paga la parte entera en céntimos de lo que le toca, redondeada hacia abajo, y los céntimos que sobran se dan de uno en uno a las primeras personas en el orden dado, así la suma cuadra siempre con el importe. Por ejemplo, 1000 entre tres son 334, 333 y 333." },
+        { "id": "F2", "text": "El importe tiene que ser un entero de céntimos mayor o igual que 0: un decimal, un negativo o algo que no sea un número es un error y se lanza una excepción. Un importe 0 da 0 a cada persona." },
+        { "id": "F3", "text": "Una lista de personas vacía, o con un nombre repetido, es un error y se lanza una excepción." }
+      ]
+    },
+    {
+      "brief": "Ahora queremos repartir según lo que consumió cada uno: `repartirPorPesos(importe, pesos)` en `src/gastos.js`, con `pesos` como `{ ana: 2, bruno: 1 }`, devuelve lo que paga cada persona; por ejemplo, `repartirPorPesos(900, { ana: 2, bruno: 1 })` da `{ ana: 600, bruno: 300 }`. Deja el trabajo commiteado.",
+      "facts": [
+        { "id": "F4", "text": "Un peso 0 vale: esa persona aparece en el resultado con 0 y nunca recibe un céntimo sobrante." },
+        { "id": "F5", "text": "Un peso negativo o no entero es un error y se lanza una excepción; también lo son unos pesos vacíos o en los que todos valen 0." }
+      ]
+    }
+  ],
+  "memory": {
+    "seeded": {
+      "title": "Reparto de gastos: céntimos sobrantes",
+      "content": "**What**: en cualquier reparto de la librería, cada persona paga la parte entera en céntimos de lo que le toca, redondeada hacia abajo, y los céntimos que sobran van de uno en uno a las primeras personas en el orden dado.\n**Why**: decisión del usuario al añadir `repartir(importe, personas)`.\n**Where**: src/gastos.js"
+    },
+    "contradictory": {
+      "title": "Reparto de gastos: céntimos sobrantes",
+      "content": "**What**: en cualquier reparto de la librería, cada persona paga la parte entera en céntimos de lo que le toca, redondeada hacia abajo, y los céntimos que sobran van de uno en uno a las últimas personas en el orden dado.\n**Why**: decisión del usuario al añadir `repartir(importe, personas)`.\n**Where**: src/gastos.js"
+    }
+  }
+}
