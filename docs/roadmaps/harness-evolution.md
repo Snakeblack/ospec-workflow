@@ -177,6 +177,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.54** | `lock-reclaim-rename` (residuo de E1.46: un lock caducado se reclama por rename atómico, así que dos procesos que lo reclaman a la vez no se creen dueños los dos; prioridad baja, fuera del orden ▶) | bugfix |
 | `done` | **E1.55** | `atomic-write-concurrent-rename` (residuo de E1.46: en Windows, `writeFileAtomic` reintenta el rename atómico en vez de apartar el destino a `.bak`, así que dos escritores sin lock del mismo fichero ya no fallan con `ENOENT` y el destino nunca falta; en el bloque A, por delante de E4.10, en v2.158.2) | bugfix |
 | `done` | **E1.56** | `bench-browser-keyring` (el Chromium de los checks del banco arranca sin el llavero del escritorio, así que uno que no responde ya no deja las páginas sin cargar; una navegación sin respuesta termina el check con su error y cierra el navegador, sin dejarlo huérfano; en el bloque A, por delante de E1.55, en v2.158.1) | bugfix |
+| `pending` | **E1.57** | `idd-change-abandon` (#409: un cambio IDD sustituido, descartado o abierto por error se archiva como `abandoned` con la respuesta del usuario, sin exigir evidencia; en el bloque C, antes de E1.51) | feature |
+| `pending` | **E1.58** | `contract-content-retract` (#423: `public-contract` que solo deriva el contenido de una doc se retira con la respuesta del usuario, como `persistent-data` en E1.38; prioridad baja, fuera del orden ▶) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -223,10 +225,12 @@ E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delan
 1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.53 `config-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E1.56 `bench-browser-keyring` → E1.55 `atomic-write-concurrent-rename` → E4.10 `greenfield-foundation-hint`.
 2. **B. Economía**, antes que C porque C añade una ejecución de la suite: E4.15 `cli-chaining` → E4.16 `cli-terse-output` → E4.3 `context-budget-ratchet`, que fija los techos por target después de B.
 3. **E4.17** `bench-knowledge-scenarios`: escribe y congela escenarios sin correrlos. Es una excepción acotada a «banco después», decidida por el usuario el 2026-10-25 para que C no se ajuste sobre ellos.
-4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.50 `content-security-signal` → E1.51 `open-change-nudge` → E1.52 `review-frozen-tree` → E3.7 `fact-ledger`.
+4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.50 `content-security-signal` → E1.57 `idd-change-abandon` → E1.51 `open-change-nudge` → E1.52 `review-frozen-tree` → E3.7 `fact-ledger`.
 5. **D. Banco, todo junto.** E4.14 `bench-validation-readiness` (con el doble conteo) → corrida de validación de E4.6 en Claude y agy → medición de E4.10 en `todo-spa` y `receta-spa` → E4.4, recalculando antes su premisa → E4.13 `worker-delegation`, solo si E4.4 da evidencia (decisión del usuario del 2026-10-22) → E4.11 `workspace-root-resolution`, al final de la cola.
 
 E1.54 `lock-reclaim-rename`, residuo de E1.46 anotado el 2026-10-26, tiene prioridad baja y queda fuera del orden ▶ hasta que el usuario lo coloque. E1.55 `atomic-write-concurrent-rename`, otro residuo de E1.46 anotado el 2026-10-27, entró ese mismo día en el bloque A porque su flake ya había roto dos de las cuatro ejecuciones de Windows desde v2.158.0. E1.56 `bench-browser-keyring` entró también el 2026-10-27, por delante de E1.55, porque los checks de Chromium del banco fallaban en local tras cada reinicio y dejaban cientos de navegadores huérfanos.
+
+E1.57 `idd-change-abandon` (#409) y E1.58 `contract-content-retract` (#423), los dos únicos issues abiertos sin ítem, entraron el 2026-10-28. El usuario colocó E1.57 en el bloque C, antes de E1.51, porque sin una salida legítima ese nudge pediría continuar un cambio sustituido que no se puede cerrar. E1.58 tiene prioridad baja y queda fuera del orden ▶ hasta que el usuario lo coloque.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -276,6 +280,13 @@ La matriz de eventos por target de la v2.151.0 está en la [auditoría](../analy
 | #415 | **E1.37** `review-receipt-race` (nuevo) |
 | #416 | **E1.38** `persistent-data-touched-writer` (nuevo; seguimiento de E1.36) |
 | #418 | **E1.40** `diff-signal-retract-dead-end` (nuevo; seguimiento de E1.38) |
+
+**Issues sin ítem, incorporados el 2026-10-28.** Llevan también la etiqueta `roadmap:<ID>` del ítem que los cierra.
+
+| Issue | Cambio que lo cierra |
+| --- | --- |
+| #409 · OSP-039 | **E1.57** `idd-change-abandon` (nuevo) |
+| #423 · OSP-040 | **E1.58** `contract-content-retract` (nuevo; seguimiento de E1.38 y E1.40) |
 
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16, E1.12 en v2.117.17 y E1.14 en v2.117.18. E1.13 y E1.15 quedan hechos: el pre-commit sigue el modo activo y el sucesor de review IDD no pide aprobación. El plugin SDD del marketplace permanece en E5.8, por demanda.
 
@@ -330,7 +341,7 @@ Auditoría del 2026-10-25 (un change por sesión, en este orden):
 A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.56 ─ E1.55 ─ E4.10
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
-C: E1.48 ─ E1.49 ─ E1.50 ─ E1.51 ─ E1.52 ─ E3.7
+C: E1.48 ─ E1.49 ─ E1.50 ─ E1.57 ─ E1.51 ─ E1.52 ─ E3.7
 D: E4.14 ─ E4.6 (corrida de validación) ─ E4.4 ─ E4.13 ─ E4.11
 E1.28 espera a que E1.30 cumpla su criterio de hecho: su plazo del 2026-10-29 quedó fallido el 2026-10-26.
 ```
@@ -969,6 +980,7 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
   - SessionStart no aporta nada de IDD, porque exige `openspec/config.yaml` (`internal/store/store.go`).
   - Un cambio puede quedarse sin `close`, y la sesión siguiente no lo ve.
 - **Garantía que protege:** que un cambio solo esté hecho tras `close`, y la reanudación desde disco.
+- **Depende de:** E1.57 `idd-change-abandon`. Sin una salida para un cambio sustituido, el nudge pediría continuar uno que no se puede cerrar.
 - **Alcance:**
   - Stop pide continuar una sola vez por cambio y huella del árbol, solo si quedan obligaciones pendientes, el árbol cambió en la sesión y no hay ningún gate abierto (un gate abierto es una parada legítima). Respeta `stop_hook_active`.
   - SessionStart inyecta el paso de cada cambio IDD abierto.
@@ -1046,6 +1058,45 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
   - con el llavero del escritorio sin responder, los checks de `checks-greenfield.test.js` pasan en local y no queda ningún navegador ni perfil;
   - un test fija las dos opciones del arranque y otro que una navegación sin respuesta falla con `the page did not finish loading`, sin un rechazo sin gestionar.
 - **Entregado en v2.158.1:** `BROWSER_FLAGS` (`scripts/evals/bench/browser.js`) lleva `--password-store=basic` y `--use-mock-keychain`, y `open()` y `reload()` esperan con `Promise.all` la carga y el comando. En rojo, con el llavero de la máquina sin responder, fallaban los 32 checks de Chromium del corpus greenfield y quedaban 330 procesos huérfanos; en verde pasan sin dejar navegadores ni perfiles.
+
+### E1.57 — `idd-change-abandon` (#409)
+
+- **Problema:**
+  - Un cambio IDD solo termina con éxito: `ospec close` lo archiva en `idd/archive/` y exige todas sus obligaciones. No hay salida para un cambio sustituido por otro, descartado o abierto por error, y el CLI no tiene `abandon`, `discard` ni `cancel` (`ospec --help`).
+  - `ospec record withdraw` da `withdraw-refused` mientras una señal activa deriva la obligación (`canWithdraw` en `scripts/lib/idd-record.js`), que es lo normal en un cambio real. La skill `idd` prohíbe mover o borrar nada de `idd/` a mano.
+  - Caso real (2026-10-23): un cambio con `trust-review` y `living-doc` pendientes, cuyo trabajo ya se había entregado bajo otro id. Una sesión lo escondió en `.git/info/exclude` y al final el usuario autorizó borrar la carpeta a mano. E4.8 había dejado fuera de su alcance un comando para abandonar cambios.
+  - Segundo caso (2026-10-28, al registrar este ítem): `main` avanzó con #454 y v2.165.1 mientras el cambio estaba abierto en otro worktree. La base de un cambio solo se fija en `record intent` y `close` vuelve a derivar las señales contra ella, así que con `main` integrado el diff arrastraba el código de #454 a un cambio `docs`, y sin integrarlo fallaba el test de tags de `manifest-sync`. El usuario autorizó borrar a mano el cambio sin commitear y abrir otro sobre el `main` nuevo.
+- **Garantía que protege:** que un cambio solo esté hecho tras `close` y que nada salga de `idd/` sin el CLI y sin una respuesta explícita del usuario (principio 8). Es la salida que necesita E1.51 `open-change-nudge`, que va detrás.
+- **Alcance** (requisitos fijados por el usuario el 2026-10-28; la forma del comando, `ospec abandon` o `ospec close --abandon`, la deciden los open facts del propio ítem):
+  - Solo actúa con la respuesta del usuario (`--answer … --source user`, como los gates); sin ella se niega.
+  - Archiva el cambio en `idd/archive/<fecha>-<id>/` con `status: abandoned`, su motivo y, si lo hay, el cambio que lo sustituye, sin ejecutar checks ni revisiones y sin exigir obligaciones.
+  - `ospec status` y `ospec next` dejan de listarlo como abierto, y `ospec close` sigue exigiendo evidencia a los cambios que se entregan.
+  - Sus decisiones no se devuelven como vigentes para la memoria.
+  - La skill `idd` nombra la salida. Está a 1 444 B de su techo (E4.3), así que el detalle va a `references/`.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando:**
+  - un cambio abierto con obligaciones pendientes y señales activas pasa a `idd/archive/` como `abandoned`, con su motivo, sin checks ni revisiones;
+  - sin la respuesta del usuario, el comando se niega;
+  - `status` y `next` no lo listan, y un cambio entregado sigue sin cerrar sin su evidencia;
+  - ningún caso necesita tocar `idd/` a mano.
+
+### E1.58 — `contract-content-retract` (#423, seguimiento de E1.38 y E1.40)
+
+- **Problema:**
+  - `contractHit` (`scripts/lib/idd-signals.js`) deriva `public-contract` de cualquier documentación cuyas líneas añadidas casen con `CONTRACT_PATTERNS` (etiqueta `API`, `\b(?:GET|POST|PUT|PATCH|DELETE)\s+\/`). Una política de seguridad, un README o un runbook que solo cita una ruta que ya existe recibe `contract-spec-and-test`.
+  - La señal llega con `source: diff`, así que `record retract` sin respuesta la rechaza con `signal-confirmed-by-diff`. La retirada con la respuesta del usuario de E1.38 solo cubre `persistent-data` (`contentOnly` en `diffConfirmation`, `scripts/ospec.js`), y E1.40 solo ayuda si se reescribe el texto para que el patrón no case.
+  - La auditoría del 2026-10-25 (OSP-040) lo reprodujo con `deriveSignals` de v2.151.0: basta una línea en `SECURITY.md`, `README.md` o `docs/runbook.md`, con `kind: docs` o `feature`. Se detectó en el cambio `security-policy` de retama-landing.
+  - Volvió a pasar el 2026-10-28 al registrar este ítem: una línea de ejemplo de esta sección, con un método HTTP y una ruta, derivó `public-contract` del roadmap, y solo se pudo retirar reescribiéndola (E1.40).
+- **Garantía que protege:** que una obligación solo salga de `pending` con evidencia o con una razón registrada (REQ-idd-006), y que un cambio de documentación cierre sin tocar un contrato que no le corresponde.
+- **Alcance** (opción 1 de la auditoría, fijada por el usuario el 2026-10-28):
+  - `public-contract` que solo deriva el contenido de una doc admite `record retract --answer … --source user`. Se generalizan `persistentHits` y la retirada con respuesta de E1.38, atada a los hits `<razón>: <línea>` que vio el usuario.
+  - Una línea de contrato nueva o cambiada en la doc devuelve la señal. Si una ruta del diff ya la deriva por patrón, no se retira con respuesta, como en E1.38.
+  - Descartado: derivar la señal solo si la ruta no existe en la base, porque obliga a resolver las rutas del producto por framework y es más caro y frágil.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando** (un test por caso):
+  - una doc que cita una ruta existente se retira con la respuesta del usuario y su obligación queda `withdrawn`;
+  - una línea añadida después que cite un endpoint nuevo devuelve la señal;
+  - sin `--answer` se sigue rechazando con `signal-confirmed-by-diff`.
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
@@ -1645,6 +1696,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-28: E1.57 y E1.58 (IDD, `e1-57-e1-58-roadmap`, solo documentación, sin release propia). La auditoría de issues del 2026-10-28 confirmó contra `main` que los siete issues abiertos siguen sin resolver, y que #409 (OSP-039) y #423 (OSP-040) eran los únicos sin ítem. Entran como E1.57 `idd-change-abandon`, que fija lo observable y deja la forma del comando a sus open facts, en el bloque C antes de E1.51, y E1.58 `contract-content-retract`, que fija la retirada con respuesta de la auditoría, fuera del orden ▶. Sigue E1.48.
 - 2026-10-28: `cli-dropped-arguments` (IDD), publicado en v2.165.1, por delante del bloque C. El CLI descartaba sin avisar lo que `parseArgs` no asignaba: `ospec signals --path a b c` guardaba solo `a` y un flag de un solo valor repetido se quedaba con el último. Ahora una palabra que ningún subcomando toma y un flag de un solo valor repetido son un error de uso que no escribe nada, y la skill `idd`, el `next_step` de `declare-plan`, el resumen de sesión (JS y Go) y el openwiki escriben `[--path <file>]...`, como el uso. REQ-idd-011 recoge la regla. Sigue E1.48 `base-counterproof`.
 - 2026-10-28: `bench-knowledge-scenarios` (IDD), publicado en v2.165.0. E4.17 hecho: el corpus `knowledge` del banco congela `reparto`, `pedidos` y `adjuntos` con su digest y `scenario.json` de schema 2, y `bench.js run` lo rechaza hasta el bloque D. En la PR, `bench-knowledge-crlf` arregló la contraprueba de `adjuntos`, que fallaba en Windows porque buscaba la línea con su LF.
 - 2026-10-28: `context-budget-ratchet` (IDD, OSP-009, #338), publicado en v2.164.0. E4.3 hecho, el último del bloque B. `measure-context-baseline.js --update` baja los techos sin pedir nada y rechaza cualquier subida sin `--allow-growth <métrica> --reason "<motivo>"`, que queda en `growth`; un techo con holgura hace fallar el check. `scripts/fixtures/context-budget.json` fija un presupuesto absoluto en bytes LF que ningún permiso salta, con router más protocolo IDD ≤ 16 000 y un techo medido por target (14,0–14,3 KB). La skill `idd` mueve dos secciones a `references/` y queda a 1 444 B de sus 12 KiB. Sigue E4.17.
