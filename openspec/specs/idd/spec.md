@@ -1029,7 +1029,8 @@ passing run would record a pair, and when a check would satisfy
 objects, that holds the test paths of the diff and the files under
 `testdata/`, `__snapshots__/`, `fixtures/` or `__fixtures__/` as the working
 tree holds them, absent where the diff deletes them, with the ignored
-`node_modules`, `.venv`, `venv` and `vendor` of the project and of the
+`node_modules`, `.venv`, `venv`, `.tox`, `.nox`, `vendor`, `deps`,
+`.dart_tool`, `Pods` and `bower_components` of the project and of the
 repository root linked in; every other path stays as the base holds it.
 There it MUST run the same command, or for `boundary-tests` each declared
 check in order until one fails and detects the change, in the project root
@@ -1039,7 +1040,13 @@ the diff, with the same timeout; in the output of both, the path of the
 worktree reads as `<worktree>`. The counterproof detects the change only when
 its control passed, or failed with another exit code or another output, so a
 command that fails on the base for a reason the tests of the diff do not
-touch, such as `test -f marker` beside a filler test, proves nothing. Each
+touch, such as `test -f marker` beside a filler test, proves nothing. When the
+control failed another way, each declared check MUST run as a control as well,
+a check being its own control: the counterproof detects the change only while
+they all pass. When one fails, or no check is declared, the worktree cannot be
+shown to run the tests, for lack of a build or a dependency it does not link,
+and the counterproof is inconclusive: its runs are recorded and the evidence
+records the reason in `counterproof_skipped`, naming the check that fails. Each
 execution MUST be recorded as a `counterproof` run that also holds the
 `obligation`, the `base`, the `mount` (the digest of what it put on the base,
 nothing for a control), `control: true` for a control and `timed_out` when the
@@ -1047,7 +1054,8 @@ timeout killed it; a timeout counts as failing. A counterproof already
 recorded on the same base and mount for the same command, and a control
 already recorded on the same base for the same command, MUST be reused
 instead of run again. The evidence MUST name its runs in `counterproof`: one
-that failed and detects the change, and its control. While none does the
+that failed and detects the change, and its control, with the controls of the
+checks when that control failed. While none does the
 obligation MUST stay `pending` with a reason saying that the test passes
 against the base product too or, when it failed the same way as its control,
 that the red does not come from the tests of the diff; the passing run of a
@@ -1266,6 +1274,16 @@ It MUST still exit with 0, record no check runs and never write configuration.
 - AND no pair MUST be recorded, and `repro-test` MUST stay `pending` with a
   reason naming both runs and saying that the red does not come from the tests
   of the diff
+
+#### Scenario: A base that cannot run its own checks leaves the counterproof inconclusive
+
+- GIVEN a bug change whose tests import a build in an ignored `dist/` that the
+  worktree does not link
+- WHEN the reproduction test fails, the fix is applied and it passes, while
+  its control and the declared check fail on the base alone
+- THEN the counterproof runs and the controls MUST be recorded
+- AND the pair MUST be recorded with `counterproof_skipped` naming the check
+  that fails on the base, and `run` MUST warn about it
 
 #### Scenario: A test that passes against the base product does not close
 

@@ -601,6 +601,23 @@ test("[E1.48] a counterproof worktree holds the base product, the tests of the w
   assert.strictEqual(fs.readFileSync(path.join(root, "src/pages.js"), "utf8"), "ceil", "the working tree is untouched");
 });
 
+test("[E1.48] a counterproof worktree links the ignored dependencies of Elixir, tox, nox, Dart, CocoaPods and Bower too", (t) => {
+  const root = gitRepo(t);
+  const dirs = ["deps", ".tox", ".nox", ".dart_tool", "Pods", "bower_components"];
+  write(root, ".gitignore", `${dirs.map((dir) => `${dir}/`).join("\n")}\n`);
+  write(root, "src/a.js", "1");
+  commitAll(root, "base");
+  const base = git(root, "rev-parse", "HEAD").trim();
+  for (const dir of dirs) write(root, `${dir}/installed.txt`, dir);
+  const mounted = mountCounterproof(root, { base, paths: [] });
+  try {
+    for (const dir of dirs) assert.strictEqual(fs.readFileSync(path.join(mounted.cwd, dir, "installed.txt"), "utf8"), dir, dir);
+  } finally {
+    mounted.remove();
+  }
+  for (const dir of dirs) assert.ok(fs.existsSync(path.join(root, dir, "installed.txt")), `removing it never follows ${dir}`);
+});
+
 test("[E1.48] a counterproof worktree takes a test whose path is longer than 260 characters", (t) => {
   const root = gitRepo(t);
   git(root, "config", "core.longpaths", "true");

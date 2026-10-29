@@ -292,11 +292,12 @@ test("[E1.48] a counterproof is reused only on the same base, mount and command"
 
 test("[E1.48] a counterproof counts only when its control, without the tests of the diff, passed or failed another way", () => {
   const runs = recordRuns(openBug(), [reproRun(), reproRun({ exit_code: 0, tree: TREE_B })]);
-  const settle = (control) => {
-    const proof = recordRuns(runs.state, [counterproofRun(), controlRun(control)]);
+  const settle = (control, ...checks) => {
+    const proof = recordRuns(runs.state, [counterproofRun(), controlRun(control), ...checks]);
     const state = structuredClone(proof.state);
-    state.runs.find((run) => run.id === "run-2").counterproof = ["run-3", "run-4"];
-    return settlePair(state, { obligation: "repro-test", runId: "run-2", recordedAt: AT, tests: PAIR_TESTS, counterproof: { runs: ["run-3", "run-4"] } });
+    const ids = state.runs.slice(2).map((run) => run.id);
+    state.runs.find((run) => run.id === "run-2").counterproof = ids;
+    return settlePair(state, { obligation: "repro-test", runId: "run-2", recordedAt: AT, tests: PAIR_TESTS, counterproof: { runs: ids } });
   };
   const same = settle({ exit_code: 1, output_sha256: DIGEST });
   assert.strictEqual(same.evidence, null, "test -f marker beside a filler test");
@@ -304,8 +305,10 @@ test("[E1.48] a counterproof counts only when its control, without the tests of 
     checkVerdict(same.state, { checks: [] }).missing[0].reason,
     "the test fails the same way on the base without the tests of the diff (counterproof run-3, control run-4): the red does not come from them; make the command run the test the diff adds, then run the same command again",
   );
-  for (const control of [{}, { exit_code: 2, output_sha256: DIGEST }, { exit_code: 1 }]) {
-    const settled = settle(control);
+  // A control that failed another way needs the checks to pass on the base.
+  const check = controlRun({ command: "npm test" });
+  for (const [control, ...checks] of [[{}], [{ exit_code: 2, output_sha256: DIGEST }, check], [{ exit_code: 1 }, check]]) {
+    const settled = settle(control, ...checks);
     assert.strictEqual(settled.evidence, "ev-1", JSON.stringify(control));
     assert.ok(validateState(settled.state).ok, validateState(settled.state).errors.join("; "));
   }
@@ -328,6 +331,23 @@ test("[E1.48] a counterproof counts only when its control, without the tests of 
     refused.reason,
     "the checks fail the same way on the base without the tests the diff adds (counterproof run-2, control run-3): the red does not come from them; make the checks run them, then ospec check --change fix-pagination",
   );
+});
+
+test("[E1.48] a counterproof whose control failed another way counts only while the controls of the checks passed", () => {
+  const runs = recordRuns(openBug(), [reproRun(), reproRun({ exit_code: 0, tree: TREE_B })]);
+  const settle = (...controls) => {
+    const proof = recordRuns(runs.state, [counterproofRun(), controlRun({ exit_code: 2 }), ...controls]);
+    const ids = proof.state.runs.slice(2).map((run) => run.id);
+    return settlePair(proof.state, { obligation: "repro-test", runId: "run-2", recordedAt: AT, tests: PAIR_TESTS, counterproof: { runs: ids } });
+  };
+  assert.strictEqual(settle().evidence, null, "nothing shows the base runs its own tests");
+  assert.strictEqual(settle(controlRun({ command: "npm test", exit_code: 1 })).evidence, null, "a check failing on the base");
+  const settled = settle(controlRun({ command: "npm test" }));
+  assert.strictEqual(settled.evidence, "ev-1");
+  assert.ok(validateState(settled.state).ok, validateState(settled.state).errors.join("; "));
+  const forged = structuredClone(settled.state);
+  forged.evidence[0].detail.counterproof = ["run-3", "run-4"];
+  assert.match(validateState(forged).errors.join("; "), /needs a counterproof run that failed on the change's base/);
 });
 
 test("[E1.48] a control is reused on the same base and command, and a counterproof never stands for one", () => {

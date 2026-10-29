@@ -546,13 +546,15 @@ const COUNTERPROOF_TIMEOUT_MS = 10 * 60 * 1000;
 /**
  * Runs `commands` in order on a worktree of the change's base with the tests
  * of the diff on top, until one fails where its control, the same command on
- * a worktree of the base alone, passed or failed another way (E1.48). A
- * command already counterproved on the same base and mount, or controlled on
- * the same base, reuses that run. It runs outside the state lock; without a
- * base, when the diff adds code to a Rust inline test, or when the base cannot
- * be mounted, it is skipped with the reason.
+ * a worktree of the base alone, passed or failed another way (E1.48). When the
+ * control failed another way, the declared `checks` run as controls too: one
+ * failing means the worktree cannot run the tests, so the counterproof is
+ * inconclusive. A command already counterproved on the same base and mount,
+ * or controlled on the same base, reuses that run. It runs outside the state
+ * lock; without a base, when the diff adds code to a Rust inline test, or when
+ * the base cannot be mounted, it is skipped with the reason.
  */
-function runCounterproof(root, state, { diff, commands }) {
+function runCounterproof(root, state, { diff, commands, checks = [] }) {
   if (!state.base) return { skipped: "the change has no base commit to run it on" };
   const inline = inlineTests(diff);
   if (inline.length > 0) return { skipped: `the inline tests of ${inline.join(", ")} share the file with the product, so the base cannot run them without the change` };
@@ -572,16 +574,32 @@ function runCounterproof(root, state, { diff, commands }) {
     ...(prior.control ? { control: true } : {}),
     ...(prior.timed_out ? { timed_out: true } : {}),
   });
+  const controls = new Map();
+  // The control of a command on the base alone, reused or run once per call.
+  const controlOf = ({ command, name }) => {
+    if (!controls.has(command)) {
+      const prior = priorControl(state.runs, { base: state.base, command });
+      const control = prior ? reused(prior) : { command, ...(name ? { name } : {}), control: true, ...execute(on("base", []), command) };
+      controls.set(command, control);
+      results.push(control);
+    }
+    return controls.get(command);
+  };
+  let inconclusive = null;
   try {
     for (const { command, name } of commands) {
       const prior = priorCounterproof(state.runs, { base: state.base, mount, command });
       const result = prior ? reused(prior) : { command, ...(name ? { name } : {}), ...execute(on("tests", paths), command) };
       results.push(result);
       if (result.exit_code === 0) continue;
-      const priorControlled = priorControl(state.runs, { base: state.base, command });
-      const control = priorControlled ? reused(priorControlled) : { command, ...(name ? { name } : {}), control: true, ...execute(on("base", []), command) };
-      results.push(control);
-      if (counterproofDetects(result, control)) break;
+      const control = controlOf({ command, name });
+      if (!counterproofDetects(result, control)) continue;
+      if (control.exit_code !== 0) {
+        // A declared check is its own control; any other one runs as well.
+        const failing = checks.find((check) => check.command.trim() === command.trim()) ?? checks.find((check) => controlOf(check).exit_code !== 0);
+        if (checks.length === 0 || failing) inconclusive = failing ? { check: failing } : {};
+      }
+      break;
     }
   } catch (error) {
     if (error instanceof IddWorkspaceError) return { skipped: error.message };
@@ -589,7 +607,15 @@ function runCounterproof(root, state, { diff, commands }) {
   } finally {
     for (const where of Object.values(mounted)) where.remove();
   }
-  return { base: state.base, mount, controlMount, results };
+  return { base: state.base, mount, controlMount, results, ...(inconclusive ? { inconclusive } : {}) };
+}
+
+// Why a counterproof that ran proves nothing (E1.48): a declared check fails
+// on the base alone, or no check says whether it runs its own tests.
+function inconclusiveReason(inconclusive, results) {
+  if (!inconclusive.check) return "no declared check tells whether the base runs its own tests, so the red of the counterproof proves nothing";
+  const control = results.find((result) => result.control && result.command.trim() === inconclusive.check.command.trim());
+  return `check ${inconclusive.check.name} fails on the base without the tests of the diff (counterproof ${control.id}): the worktree lacks something the tests need, such as a build or a dependency it does not link, so the red proves nothing`;
 }
 
 /**
@@ -612,17 +638,23 @@ function recordCounterproof(state, outcome, { obligation, tree, recordedAt }) {
   const recorded = recordRuns(state, fresh.map((result) => runRecord(COUNTERPROOF, result.command, result, tree, recordedAt, extra(result))));
   const ids = [...recorded.ids];
   const results = outcome.results.map((result) => (result.id ? result : { ...result, id: ids.shift() }));
+  // An inconclusive counterproof keeps its runs for reuse; the evidence marks it skipped.
+  if (outcome.inconclusive) {
+    const skipped = inconclusiveReason(outcome.inconclusive, results);
+    return { state: recorded.state, proof: { skipped }, outcome: { ...outcome, results, skipped } };
+  }
   return { state: recorded.state, proof: { runs: results.map((result) => result.id) }, outcome: { ...outcome, results } };
 }
 
 // What run and check report of a counterproof, and its warnings.
 function counterproofView(outcome) {
-  if (outcome.skipped) return { view: { skipped: outcome.skipped }, warnings: [`counterproof skipped: ${outcome.skipped}`] };
+  const skipped = outcome.skipped ? [`counterproof skipped: ${outcome.skipped}`] : [];
+  if (!outcome.results) return { view: { skipped: outcome.skipped }, warnings: skipped };
   const runs = outcome.results.map(({ id, exit_code, control, timed_out, reused }) => ({ id, exit_code, ...(control ? { control } : {}), ...(timed_out ? { timed_out } : {}), ...(reused ? { reused } : {}) }));
   const warnings = runs
     .filter((run) => run.timed_out && !run.control)
     .map((run) => `counterproof ${run.id} timed out after ${COUNTERPROOF_TIMEOUT_MS / 60000} minutes on the base (exit ${TIMED_OUT_EXIT}): it counts as failing`);
-  return { view: { base: outcome.base, runs }, warnings };
+  return { view: { base: outcome.base, runs, ...(outcome.skipped ? { skipped: outcome.skipped } : {}) }, warnings: [...skipped, ...warnings] };
 }
 
 // What checks-changed contrasts (B7, E1.53): the checks and the ceremony
@@ -722,7 +754,7 @@ async function check(root, values) {
     return result;
   });
   const fitnessRuns = inputs.fitness.checks.map(({ kind, id, command }) => ({ ref: `${kind}:${id}`, command, ...runCommand(command, { cwd: root }) }));
-  const counterproof = settlesBoundary(current, inputs.diff, checks) ? runCounterproof(root, current, { diff: inputs.diff, commands: context.checks }) : null;
+  const counterproof = settlesBoundary(current, inputs.diff, checks) ? runCounterproof(root, current, { diff: inputs.diff, commands: context.checks, checks: context.checks }) : null;
   const tree = readTreeFingerprint(root);
   const checkTree = readCheckTreeFingerprint(root);
   const recordedAt = new Date().toISOString();
@@ -836,11 +868,11 @@ async function runObligation(root, values) {
   if (!migration && result.exit_code === 0 && pairRed(current.runs || [], { purpose, command: values.command, unit: values.unit, tree })) {
     const diff = inputs?.diff ?? readGitDiff(root, { base: diffBase(values, current) });
     tests = addedTests(diff);
-    if (tests.length > 0) pairCounterproof = runCounterproof(root, current, { diff, commands: [{ command: values.command }] });
+    if (tests.length > 0) pairCounterproof = runCounterproof(root, current, { diff, commands: [{ command: values.command }], checks: context.checks });
   }
   const boundaryCounterproof =
     inputs && settlesBoundary(current, inputs.diff, [checkResult])
-      ? (pairCounterproof ?? runCounterproof(root, current, { diff: inputs.diff, commands: [{ command: onlyCheck.command, name: onlyCheck.name }] }))
+      ? (pairCounterproof ?? runCounterproof(root, current, { diff: inputs.diff, commands: [{ command: onlyCheck.command, name: onlyCheck.name }], checks: context.checks }))
       : null;
 
   let runId;

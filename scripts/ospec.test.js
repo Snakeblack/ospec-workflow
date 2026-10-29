@@ -736,11 +736,12 @@ test("check recomputes the signals from the diff: touching a migration adds its 
 });
 
 test("run records a red then green pair of the same command as the reproduction evidence", (t) => {
-  const { root } = project(t);
+  // A base that passes its own check, as the counterproof's control needs (E1.48).
+  const { root } = project(t, { checks: "checks:\n  test: node -e 0\n" });
   ospec(root, ...OPEN_BUG);
   ospec(root, "signals", "--change", "fix-pagination");
   // The reproduction test the diff adds (E1.48), under another command than
-  // the check `node verify.js`, which a run also counts as (E4.15).
+  // the check, which a run also counts as (E4.15).
   writeFile(root, "test/pages.js", `${VERIFY}\n`);
   const run = () =>
     ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", "node test/pages.js", "--json");
@@ -758,11 +759,16 @@ test("run records a red then green pair of the same command as the reproduction 
   const green = run();
   assert.strictEqual(green.json.run.exit_code, 0);
   assert.strictEqual(green.json.evidence, "ev-1");
-  // The base still has one page; without the new test the command fails another way.
-  assert.deepStrictEqual(green.json.counterproof.runs, [{ id: "run-4", exit_code: 1 }, { id: "run-5", exit_code: 1, control: true }]);
+  // The base still has one page; without the new test the command fails
+  // another way, and the base passes its own check.
+  assert.deepStrictEqual(green.json.counterproof.runs, [
+    { id: "run-4", exit_code: 1 },
+    { id: "run-5", exit_code: 1, control: true },
+    { id: "run-6", exit_code: 0, control: true },
+  ]);
   const state = stateOf(root, "fix-pagination");
   assert.strictEqual(state.obligations.find((entry) => entry.id === "repro-test").status, "satisfied");
-  assert.deepStrictEqual(state.evidence[0].detail, { red: "run-2", green: "run-3", counterproof: ["run-4", "run-5"] });
+  assert.deepStrictEqual(state.evidence[0].detail, { red: "run-2", green: "run-3", counterproof: ["run-4", "run-5", "run-6"] });
   const counterproof = state.runs.find((entry) => entry.id === "run-4");
   assert.deepStrictEqual(
     [counterproof.purpose, counterproof.obligation, counterproof.command, counterproof.base],
@@ -898,8 +904,41 @@ test("[E1.48] a change without a base commit skips the counterproof with a warni
   assert.match(closed.stdout, /^warning: counterproof skipped for repro-test \(ev-1\): the change has no base commit to run it on$/m);
 });
 
+test("[E1.48] a counterproof whose base cannot run its own checks proves nothing: the pair closes with it skipped and a warning", (t) => {
+  const root = tempRoot(t);
+  const git = gitInit(root);
+  // The tests import the build in dist/, which git ignores and no worktree links.
+  const build = (round) => `module.exports = (items) => Math.${round}(items / 10);\n`;
+  const builtTest = PAGES_TEST.replace("../src/pages.js", "../dist/pages.js");
+  writeFile(root, ".gitignore", "dist/\n");
+  writeFile(root, "src/pages.js", build("floor"));
+  writeFile(root, "dist/pages.js", build("floor"));
+  writeFile(root, "test/pages.test.js", `${builtTest}\n`);
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node --test\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "base");
+  chain(root, ...OPEN_PAGES);
+  const run = () => chain(root, "run", "--change", "fix-pages", "--obligation", "repro-test", "--command", "node --test test/eleven.test.js", "--json").json;
+  writeFile(root, "test/eleven.test.js", `${builtTest}\n${RED_PAGES}`);
+  assert.strictEqual(run().run.exit_code, 1);
+  writeFile(root, "src/pages.js", build("ceil"));
+  writeFile(root, "dist/pages.js", build("ceil"));
+  const green = run();
+  const runs = stateOf(root, "fix-pages").runs.filter((entry) => entry.purpose === "counterproof");
+  assert.deepStrictEqual(runs.map((entry) => [entry.command, entry.exit_code !== 0, entry.control ?? false]), [
+    ["node --test test/eleven.test.js", true, false],
+    ["node --test test/eleven.test.js", true, true],
+    ["node --test", true, true],
+  ]);
+  const reason = `check test fails on the base without the tests of the diff (counterproof ${runs[2].id}): the worktree lacks something the tests need, such as a build or a dependency it does not link, so the red proves nothing`;
+  assert.strictEqual(green.evidence, "ev-1", JSON.stringify(green.missing));
+  assert.strictEqual(green.counterproof.skipped, reason);
+  assert.ok(green.warnings.includes(`counterproof skipped: ${reason}`), JSON.stringify(green.warnings));
+  assert.strictEqual(stateOf(root, "fix-pages").evidence[0].detail.counterproof_skipped, reason);
+});
+
 test("[E1.48] a reproduction under spec/, as rspec lays it out, closes its pair with its counterproof", (t) => {
-  const { root } = project(t);
+  const { root } = project(t, { checks: "checks:\n  test: node -e 0\n" });
   ospec(root, ...OPEN_BUG);
   ospec(root, "signals", "--change", "fix-pagination", "--path", "src/pages.txt");
   writeFile(root, "spec/pages.js", `${VERIFY}\n`);
@@ -910,8 +949,8 @@ test("[E1.48] a reproduction under spec/, as rspec lays it out, closes its pair 
   assert.strictEqual(green.evidence, "ev-1", JSON.stringify(green.missing));
   assert.deepStrictEqual(
     green.counterproof.runs.map((entry) => [entry.exit_code, entry.control ?? false]),
-    [[1, false], [1, true]],
-    "without the new test the command fails another way",
+    [[1, false], [1, true], [0, true]],
+    "without the new test the command fails another way, and the base passes its check",
   );
 });
 

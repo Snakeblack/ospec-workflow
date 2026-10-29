@@ -632,9 +632,11 @@ function readFitnessSources(root, base) {
 // data beside them. Every other path stays as the change's base holds it.
 const TEST_DATA = /(?:^|\/)(?:testdata|__snapshots__|fixtures|__fixtures__)\//i;
 // Ignored dependency directories a counterproof links in from the project, so
-// a missing install never stands for a red. Build outputs (dist, build,
-// target) hold the candidate's product and are never linked.
-const DEPENDENCY_DIRS = Object.freeze(["node_modules", ".venv", "venv", "vendor"]);
+// a missing install never stands for a red: Node, Python virtualenvs, tox and
+// nox, PHP, Go and Ruby vendoring, Elixir, Dart, CocoaPods and Bower. Build
+// outputs (dist, build, target, _build) hold the candidate's product and are
+// never linked.
+const DEPENDENCY_DIRS = Object.freeze(["node_modules", ".venv", "venv", ".tox", ".nox", "vendor", "deps", ".dart_tool", "Pods", "bower_components"]);
 
 /** The paths of the diff a counterproof takes from the working tree. */
 function counterproofPaths(diff) {

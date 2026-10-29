@@ -377,9 +377,20 @@ function counterproofDetects(run, control) {
   return control.exit_code === 0 || control.exit_code !== run.exit_code || control.output_sha256 !== run.output_sha256;
 }
 
-/** Whether one counterproof run among `runs` detects the change, by its control among them. */
+/**
+ * Whether one counterproof run among `runs` detects the change, by its control
+ * among them. A control that failed another way leaves the red unproven
+ * unless the controls of the declared checks, the other controls, all passed:
+ * the base then runs its own tests in the worktree (E1.48).
+ */
 function counterproofDetected(runs) {
-  return runs.some((run) => !run.control && counterproofDetects(run, runs.find((control) => control.control === true && control.command === run.command)));
+  const controls = runs.filter((run) => run.control === true);
+  return runs.some((run) => {
+    const control = controls.find((entry) => entry.command === run.command);
+    if (run.control || !counterproofDetects(run, control)) return false;
+    const checks = controls.filter((entry) => entry.command !== run.command);
+    return control.exit_code === 0 || (checks.length > 0 && checks.every((entry) => entry.exit_code === 0));
+  });
 }
 
 // A pair or boundary-tests recorded since E1.48 names its counterproof: runs
