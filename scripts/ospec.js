@@ -33,6 +33,7 @@ const {
   counterproofWarnings,
   deferImpacts,
   pairRed,
+  priorControl,
   priorCounterproof,
   recordRuns,
   settleBoundary,
@@ -48,7 +49,7 @@ const { classifyContractPaths } = require("./lib/idd-contracts.js");
 const { addEntry, changelogEntry, proposeRelease } = require("./lib/idd-changelog.js");
 const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvidence, requireResumable, staleEvidence } = require("./lib/idd-close.js");
 const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
-const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
+const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, counterproofDetects, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { TIMED_OUT_EXIT, runCommand } = require("./lib/idd-exec.js");
 const { CATEGORY_IDS, UI_CATEGORY_IDS, countTests, projectCategories, resolveFeatureCoverage } = require("./lib/idd-facts.js");
 const { fitnessPlan } = require("./lib/idd-fitness.js");
@@ -544,10 +545,12 @@ const COUNTERPROOF_TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
  * Runs `commands` in order on a worktree of the change's base with the tests
- * of the diff on top, until one fails (E1.48). A command already counterproved
- * on the same base and mount reuses that run. It runs outside the state lock;
- * without a base, when the diff adds code to a Rust inline test, or when the
- * base cannot be mounted, it is skipped with the reason.
+ * of the diff on top, until one fails where its control, the same command on
+ * a worktree of the base alone, passed or failed another way (E1.48). A
+ * command already counterproved on the same base and mount, or controlled on
+ * the same base, reuses that run. It runs outside the state lock; without a
+ * base, when the diff adds code to a Rust inline test, or when the base cannot
+ * be mounted, it is skipped with the reason.
  */
 function runCounterproof(root, state, { diff, commands }) {
   if (!state.base) return { skipped: "the change has no base commit to run it on" };
@@ -555,25 +558,38 @@ function runCounterproof(root, state, { diff, commands }) {
   if (inline.length > 0) return { skipped: `the inline tests of ${inline.join(", ")} share the file with the product, so the base cannot run them without the change` };
   const paths = counterproofPaths(diff);
   const mount = counterproofMount(root, paths);
+  const controlMount = counterproofMount(root, []);
   const results = [];
-  let mounted = null;
+  const mounted = {};
+  const on = (key, files) => (mounted[key] ??= mountCounterproof(root, { base: state.base, paths: files }));
+  const execute = (where, command) => runCommand(command, { cwd: where.cwd, timeoutMs: COUNTERPROOF_TIMEOUT_MS, mask: where.mask });
+  const reused = (prior) => ({
+    id: prior.id,
+    reused: true,
+    command: prior.command,
+    exit_code: prior.exit_code,
+    output_sha256: prior.output_sha256,
+    ...(prior.control ? { control: true } : {}),
+    ...(prior.timed_out ? { timed_out: true } : {}),
+  });
   try {
     for (const { command, name } of commands) {
       const prior = priorCounterproof(state.runs, { base: state.base, mount, command });
-      if (!prior) mounted ??= mountCounterproof(root, { base: state.base, paths });
-      const result = prior
-        ? { id: prior.id, reused: true, command, exit_code: prior.exit_code, ...(prior.timed_out ? { timed_out: true } : {}) }
-        : { command, ...(name ? { name } : {}), ...runCommand(command, { cwd: mounted.cwd, timeoutMs: COUNTERPROOF_TIMEOUT_MS }) };
+      const result = prior ? reused(prior) : { command, ...(name ? { name } : {}), ...execute(on("tests", paths), command) };
       results.push(result);
-      if (result.exit_code !== 0) break;
+      if (result.exit_code === 0) continue;
+      const priorControlled = priorControl(state.runs, { base: state.base, command });
+      const control = priorControlled ? reused(priorControlled) : { command, ...(name ? { name } : {}), control: true, ...execute(on("base", []), command) };
+      results.push(control);
+      if (counterproofDetects(result, control)) break;
     }
   } catch (error) {
     if (error instanceof IddWorkspaceError) return { skipped: error.message };
     throw error;
   } finally {
-    mounted?.remove();
+    for (const where of Object.values(mounted)) where.remove();
   }
-  return { base: state.base, mount, results };
+  return { base: state.base, mount, controlMount, results };
 }
 
 /**
@@ -585,7 +601,14 @@ function runCounterproof(root, state, { diff, commands }) {
 function recordCounterproof(state, outcome, { obligation, tree, recordedAt }) {
   if (outcome.skipped) return { state, proof: { skipped: outcome.skipped }, outcome };
   const fresh = outcome.results.filter((result) => !result.id);
-  const extra = (result) => ({ obligation, ...(result.name ? { name: result.name } : {}), base: outcome.base, mount: outcome.mount, ...(result.timed_out ? { timed_out: true } : {}) });
+  const extra = (result) => ({
+    obligation,
+    ...(result.name ? { name: result.name } : {}),
+    base: outcome.base,
+    mount: result.control ? outcome.controlMount : outcome.mount,
+    ...(result.control ? { control: true } : {}),
+    ...(result.timed_out ? { timed_out: true } : {}),
+  });
   const recorded = recordRuns(state, fresh.map((result) => runRecord(COUNTERPROOF, result.command, result, tree, recordedAt, extra(result))));
   const ids = [...recorded.ids];
   const results = outcome.results.map((result) => (result.id ? result : { ...result, id: ids.shift() }));
@@ -595,9 +618,9 @@ function recordCounterproof(state, outcome, { obligation, tree, recordedAt }) {
 // What run and check report of a counterproof, and its warnings.
 function counterproofView(outcome) {
   if (outcome.skipped) return { view: { skipped: outcome.skipped }, warnings: [`counterproof skipped: ${outcome.skipped}`] };
-  const runs = outcome.results.map(({ id, exit_code, timed_out, reused }) => ({ id, exit_code, ...(timed_out ? { timed_out } : {}), ...(reused ? { reused } : {}) }));
+  const runs = outcome.results.map(({ id, exit_code, control, timed_out, reused }) => ({ id, exit_code, ...(control ? { control } : {}), ...(timed_out ? { timed_out } : {}), ...(reused ? { reused } : {}) }));
   const warnings = runs
-    .filter((run) => run.timed_out)
+    .filter((run) => run.timed_out && !run.control)
     .map((run) => `counterproof ${run.id} timed out after ${COUNTERPROOF_TIMEOUT_MS / 60000} minutes on the base (exit ${TIMED_OUT_EXIT}): it counts as failing`);
   return { view: { base: outcome.base, runs }, warnings };
 }
@@ -1498,7 +1521,9 @@ function describeCheck(result) {
 // One line per counterproof run (E1.48); a skipped one is a warning.
 function describeCounterproof(counterproof) {
   if (!counterproof?.runs) return [];
-  return counterproof.runs.map((run) => `counterproof ${run.id}: exit ${run.exit_code} on base ${counterproof.base.slice(0, 12)}${run.reused ? " (recorded before)" : ""}`);
+  return counterproof.runs.map(
+    (run) => `counterproof ${run.id}: exit ${run.exit_code} on base ${counterproof.base.slice(0, 12)}${run.control ? " without the tests of the diff" : ""}${run.reused ? " (recorded before)" : ""}`,
+  );
 }
 
 function describeAdded(added) {

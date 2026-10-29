@@ -1,0 +1,480 @@
+{
+  "schema": "idd-state/v1",
+  "change": "counterproof-control",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Límite 1 de E1.48: un test de relleno junto a test -f marker cierra la pareja, porque la contraprueba falla al faltar marker en la base y no porque el test detecte el cambio",
+    "acceptance": "Con test -f marker y un test de relleno en test/, la pareja no cierra y el motivo nombra la contraprueba y su control, que falló igual sobre la base sin los tests del diff; un repro en un fichero nuevo lanzado por su ruta y un check que corre el test nuevo siguen cerrando"
+  },
+  "facts": {
+    "basis": "El usuario eligió en esta sesión «Control, bloquea si igual»: el mismo comando corre sobre la base pura, sin los tests del diff; si falla con el mismo exit y la misma salida que la contraprueba, el rojo no viene de los tests y la pareja no cierra, con el motivo; el control se reutiliza mientras no cambien la base ni el comando"
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "openspec/specs/idd/spec.md",
+      "openwiki/testing-quality/verification.md",
+      "scripts/lib/idd-check.js",
+      "scripts/lib/idd-check.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-exec.js",
+      "scripts/lib/idd-exec.test.js",
+      "scripts/lib/idd-workspace.js",
+      "scripts/lib/idd-workspace.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El control corre en un worktree aparte de la base pura, montado solo cuando una contraprueba falla y no hay control previo del mismo comando sobre la misma base; la ruta del worktree se enmascara como <worktree> en la salida de los dos, para que la comparación no dependa de dónde se montó",
+      "El control es un run counterproof con control: true y el mount de nada; la evidencia lo nombra junto a la contraprueba, y vale la contraprueba que falló si su control pasó, o falló con otro exit o con otra salida",
+      "Para boundary-tests, una contraprueba que falla igual que su control no corta: siguen los checks declarados hasta uno cuyo rojo venga de los tests"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine: ADR 0003, 0004, 0005, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La regla del control vive en el CLI (counterproofDetects en idd-contract.js, runCounterproof en ospec.js) con sus tests; la skill no la describe"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "No añade señales ni obligaciones: endurece la evidencia de repro-test, tdd-red-green y boundary-tests"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El control es otra ejecución que el CLI observa y registra; la evidencia lo nombra y validateState comprueba que la contraprueba detecta el cambio frente a él"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo biblioteca estándar de Node y git; ninguna dependencia nueva"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "Solo toca IDD: la contraprueba, el estado bajo idd/ y su contrato; SDD no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "El motivo de una pareja rechazada sale del disco: el run verde nombra la contraprueba y su control, y next da el mismo comando"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "El control se monta desde el repositorio local como la contraprueba, sin hooks ni LFS; no hay llamadas de red"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "counterproofDetects, counterproofDetected y priorControl tienen tests [E1.48] en idd-check.test.js; la máscara, en idd-exec.test.js; el montaje, en idd-workspace.test.js; la trampa de relleno, en ospec.test.js; la skill idd no describe la regla",
+      "recorded_at": "2026-10-29T00:49:58.536Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El control es un git worktree local más, con GIT_LFS_SKIP_SMUDGE=1 y sin hooks; la máscara es una sustitución de texto. No hay llamadas de red",
+      "recorded_at": "2026-10-29T00:49:58.693Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-29T00:48:18.242Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-29T00:49:44.052Z",
+      "detail": {
+        "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-29T00:49:44.052Z",
+      "detail": {
+        "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-exec.test.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-29T00:49:57.487Z",
+      "detail": {
+        "run": "run-10",
+        "tree": "sha256:c4e684a521b45a8449fd9dd5fbb5fa97caba7c259bb638f29ecd1344295a92b9",
+        "plan": "idd-state/v1 gana control: true en los runs counterproof, y la evidencia de las parejas y de tested-check nombra el control junto a la contraprueba. E1.48 no se ha publicado, así que ningún estado publicado tiene runs counterproof sin control; la evidencia anterior a E1.48 no nombra ninguno y sigue valiendo, sin migración. Volver a un CLI anterior con un cambio abierto que ya registró runs counterproof lo rechaza por propósito desconocido, como con E1.48: ese cambio se cierra antes de bajar de versión."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-29T00:51:06.542Z",
+      "detail": {
+        "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-29T00:51:06.542Z",
+      "detail": {
+        "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+        "check": "ev-5",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-exec.test.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-29T00:51:06.542Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+        "fitness": [
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-29T00:51:06.693Z"
+    }
+  ],
+  "base": "9fc5341faaa56d7d78366dc8db0bbd645da5256e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"\\[E1\\.48\\]\" scripts/lib/idd-check.test.js scripts/lib/idd-exec.test.js scripts/lib/idd-workspace.test.js scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:fc00610feb99bc4f39f55d04478039f5524163a57cc65c96e29d2a631091ed07",
+      "tree": "sha256:496942c1bcc1ea027579dae152be70109b130450015baa7724bcd3325ef832b3",
+      "recorded_at": "2026-10-29T00:42:07.996Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"\\[E1\\.48\\]\" scripts/lib/idd-check.test.js scripts/lib/idd-exec.test.js scripts/lib/idd-workspace.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:563820f940683e5200e0b1416008d679ac3e1e844070caf4d4b7ee88f78cd6ec",
+      "tree": "sha256:c4e684a521b45a8449fd9dd5fbb5fa97caba7c259bb638f29ecd1344295a92b9",
+      "recorded_at": "2026-10-29T00:48:18.242Z",
+      "tests": 19
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:abcba92d4d61e9ddea66248bc3c2a06417daf6d53356bce468a63cfadc98231c",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:49:44.052Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c2d583bbdb4cd2e756c34f8c4ef571beecee1427496ce1bb051fa50953730bdd",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:49:44.052Z",
+      "tests": 52
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:392cd9a0d3f1518198ce5edaadd3eaa4948f97e85c318939092e8268f9e6927b",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:49:44.052Z",
+      "tests": 18
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:49:44.052Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e53aaf8f06e72d88bae7d523538a8e9293692c790ece529ffd662be953d7c62d",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:49:44.052Z",
+      "tests": 21
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5f072702774aa792e3ac40c4372b3c663caf86373831e20d01a5b3d5d46e8cf2",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:49:44.052Z",
+      "tests": 85
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7311c8fd462e6b0bcda57c3674bafc3aeed3ef89e093b8438bb4abcb06d321b5",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:49:44.052Z",
+      "tests": 52
+    },
+    {
+      "id": "run-10",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern E1.48 scripts/lib/idd-check.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:63fcea730c9863ad0a10681c975c02187fcd5a9e0294ab0026f40e25f0a48f7f",
+      "tree": "sha256:c4e684a521b45a8449fd9dd5fbb5fa97caba7c259bb638f29ecd1344295a92b9",
+      "recorded_at": "2026-10-29T00:49:57.487Z",
+      "tests": 6
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9150460351c318b632d9b66103509cfcf02cc9f1dda1aa8147919328dbe4e17f",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:51:06.542Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:705b5466a2b08fdfb4b9ddeafe92e9dda4c163f305b9fc0cbb4d1681659e22bc",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:51:06.542Z",
+      "tests": 52
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ec9798417cb7647c6f520c68e63039d405b471f0cc29a08382029f97b33add83",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:51:06.542Z",
+      "tests": 18
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:51:06.542Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:67540d0d230dcaebc91a6fc67bc83bdbc930e7e35e44844138203527ae3c3ea0",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:51:06.542Z",
+      "tests": 21
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:af912a8d5da1ba8be9e4cdd5af0d2b9deaf6b5bb35993bb8accea7707883b6a2",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:51:06.542Z",
+      "tests": 85
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:82e24970960c3b3cd152947d8d71c8fa1c03f64c639c6f3c6b1d66d54491ae19",
+      "tree": "sha256:1ea17704548dda823165ee558ce98a3632504d735afa4a24b2ce4bff9190efcd",
+      "recorded_at": "2026-10-29T00:51:06.542Z",
+      "tests": 52
+    }
+  ],
+  "closed_at": "2026-10-29T00:51:06.693Z"
+}

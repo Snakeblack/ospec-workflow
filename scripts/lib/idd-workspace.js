@@ -686,7 +686,9 @@ function removeLink(link) {
  * paths as the working tree holds them, absent where the diff deletes them,
  * and the ignored dependency directories of the project and of the repository
  * root linked in. No hook runs and no LFS object is downloaded. `cwd` is the
- * project root inside it; `remove` deletes it and prunes its git entry.
+ * project root inside it; `mask` lists the spellings of the worktree a command
+ * may print, which runCommand masks so that two worktrees compare; `remove`
+ * deletes it and prunes its git entry.
  */
 function mountCounterproof(root, { base, paths }) {
   requireWorkTree(root);
@@ -740,7 +742,9 @@ function mountCounterproof(root, { base, paths }) {
         links.push(target);
       }
     }
-    return { cwd, remove };
+    const real = fs.realpathSync(tree);
+    const mask = [...new Set([tree, real, tree.replace(/\\/g, "/"), real.replace(/\\/g, "/")])];
+    return { cwd, mask, remove };
   } catch (error) {
     remove();
     const detail = String(error.stderr || error.message || error).trim().split("\n")[0];

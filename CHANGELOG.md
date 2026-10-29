@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - La contraprueba de E1.48 reconoce como test el directorio spec/, los sufijos _test y _spec de cualquier lenguaje (_test.py, _spec.rb…) y los módulos tests.py y tests.rs; un test inline de Rust cierra la pareja con la contraprueba omitida y un aviso. Antes, en esos proyectos repro-test, tdd-red-green y boundary-tests no podían cerrar (counterproof-test-conventions)
+- La contraprueba de E1.48 tiene un control: cuando falla, el mismo comando corre sobre la base sin los tests del diff, y solo vale si el control pasó o falló de otra forma. Un test de relleno junto a test -f marker ya no cierra la pareja (counterproof-control)
 
 ## [2.165.1] - 2026-10-28
 

@@ -11,7 +11,7 @@
 // document and a test with every check passing. No filesystem access:
 // idd-exec.js runs the commands, idd-store.js persists.
 
-const { DECISIONS_ROOT, GATED_IMPACTS, GATES, OBLIGATIONS, RECORDED_IMPACTS, RUN_EVIDENCE, isIntentAmbiguous } = require("./idd-contract.js");
+const { DECISIONS_ROOT, GATED_IMPACTS, GATES, OBLIGATIONS, RECORDED_IMPACTS, RUN_EVIDENCE, counterproofDetected, isIntentAmbiguous } = require("./idd-contract.js");
 const { GATE_QUESTIONS, WORK_ORDER } = require("./idd-next.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
 const { fitnessReason } = require("./idd-fitness.js");
@@ -107,8 +107,11 @@ function settleBoundary(state, { tree, runIds, recordedAt, tests = [], counterpr
     target.status = "pending";
     target.evidence = [];
     let reason = null;
+    const same = proof && counterproof?.runs?.length ? sameRed(next, counterproof.runs) : null;
     if (tests.length === 0) reason = `the diff adds no line to a test: write the test of the product code, then ospec check --change ${state.change}`;
-    else if (proof && counterproof?.runs?.length) {
+    else if (same) {
+      reason = `the checks fail the same way on the base without the tests the diff adds (${same}): the red does not come from them; make the checks run them, then ospec check --change ${state.change}`;
+    } else if (proof && counterproof?.runs?.length) {
       reason = `the tests the diff adds pass against the base product too (counterproof ${counterproof.runs.join(", ")}): they do not detect the change; make them fail on the base, then ospec check --change ${state.change}`;
     }
     return { state: next, evidence: null, reason };
@@ -207,12 +210,27 @@ function pairRed(runs, green) {
   return before.reverse().find((run) => samePairKey(run, green) && run.exit_code !== 0 && run.tree !== green.tree) || null;
 }
 
+function proofRuns(state, ids) {
+  return (state.runs || []).filter((run) => run.purpose === COUNTERPROOF && (ids || []).includes(run.id));
+}
+
 // The counterproof of E1.48 proves a pair or boundary-tests when one of its
-// runs failed on the base, or when it was skipped, which the evidence marks.
+// runs failed on the base and its control, without the tests of the diff,
+// passed or failed another way, or when it was skipped, which the evidence
+// marks.
 function counterproofHolds(state, proof) {
   if (proof?.skipped) return true;
-  const runs = (state.runs || []).filter((run) => proof?.runs?.includes(run.id));
-  return runs.some((run) => run.purpose === COUNTERPROOF && run.exit_code !== 0);
+  return counterproofDetected(proofRuns(state, proof?.runs));
+}
+
+// The runs of a counterproof that failed the same way as their control, as
+// "counterproof <ids>, control <ids>", or null when none did.
+function sameRed(state, ids) {
+  const runs = proofRuns(state, ids);
+  const failed = runs.filter((run) => !run.control && run.exit_code !== 0);
+  const controls = runs.filter((run) => run.control && failed.some((entry) => entry.command === run.command));
+  if (failed.length === 0 || controls.length === 0) return null;
+  return `counterproof ${failed.map((run) => run.id).join(", ")}, control ${controls.map((run) => run.id).join(", ")}`;
 }
 
 function counterproofDetail(proof) {
@@ -224,7 +242,15 @@ function counterproofDetail(proof) {
  * the same mount (E1.48): running it again would observe the same thing.
  */
 function priorCounterproof(runs, { base, mount, command }) {
-  return (runs || []).filter((run) => run.purpose === COUNTERPROOF && run.base === base && run.mount === mount && run.command === command).at(-1) || null;
+  return (runs || []).filter((run) => run.purpose === COUNTERPROOF && !run.control && run.base === base && run.mount === mount && run.command === command).at(-1) || null;
+}
+
+/**
+ * The control already recorded for `command` on the same base (E1.48): the
+ * base without the tests of the diff does not change while the tests do.
+ */
+function priorControl(runs, { base, command }) {
+  return (runs || []).filter((run) => run.purpose === COUNTERPROOF && run.control === true && run.base === base && run.command === command).at(-1) || null;
 }
 
 /**
@@ -412,8 +438,9 @@ function deferImpacts(state, { tree }) {
 }
 
 // Why a pair is still pending. A passing run that had its failing run and
-// recorded no pair was refused by E1.48: its counterproof passed on the base,
-// or, without one, the diff added no line to a test.
+// recorded no pair was refused by E1.48: its counterproof passed on the base
+// or failed the same way as its control, or, without one, the diff added no
+// line to a test.
 function pairReason(state, obligationId) {
   const all = state.runs || [];
   const runs = all.filter((run) => run.purpose === obligationId);
@@ -422,6 +449,10 @@ function pairReason(state, obligationId) {
     return `no failing run recorded: run the test with ospec run --obligation ${obligationId} before ${moment}`;
   }
   const refused = runs.filter((run) => run.exit_code === 0 && pairRed(all, run)).at(-1);
+  const same = refused?.counterproof?.length ? sameRed(state, refused.counterproof) : null;
+  if (same) {
+    return `the test fails the same way on the base without the tests of the diff (${same}): the red does not come from them; make the command run the test the diff adds, then run the same command again`;
+  }
   if (refused?.counterproof?.length) {
     return `the test passes against the base product too (counterproof ${refused.counterproof.join(", ")}): it does not detect the change; make it fail on the base, then run the same command again`;
   }
@@ -443,7 +474,7 @@ function counterproofWarnings(state) {
     const detail = entry?.detail || {};
     if (detail.counterproof_skipped) warnings.push(`counterproof skipped for ${target.id} (${entry.id}): ${detail.counterproof_skipped}`);
     for (const id of detail.counterproof || []) {
-      if (runs.get(id)?.timed_out) warnings.push(`counterproof ${id} of ${target.id} timed out on the base and counts as failing`);
+      if (runs.get(id)?.timed_out && !runs.get(id).control) warnings.push(`counterproof ${id} of ${target.id} timed out on the base and counts as failing`);
     }
   }
   return warnings;
@@ -506,6 +537,7 @@ module.exports = {
   counterproofWarnings,
   deferImpacts,
   pairRed,
+  priorControl,
   priorCounterproof,
   recordRuns,
   settleBoundary,

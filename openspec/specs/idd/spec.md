@@ -1032,15 +1032,25 @@ tree holds them, absent where the diff deletes them, with the ignored
 `node_modules`, `.venv`, `venv` and `vendor` of the project and of the
 repository root linked in; every other path stays as the base holds it.
 There it MUST run the same command, or for `boundary-tests` each declared
-check in order until one fails, in the project root with a timeout of 10
-minutes, and remove the worktree. Each execution MUST be recorded as a
-`counterproof` run that also holds the `obligation`, the `base`, the `mount`
-(the digest of what it put on the base) and `timed_out` when the timeout
-killed it; a timeout counts as failing. A counterproof already recorded on
-the same base and mount for the same command MUST be reused instead of run
-again. The evidence MUST name its runs in `counterproof`, one of which failed.
-While none failed the obligation MUST stay `pending` with a reason saying
-that the test passes against the base product too, and the passing run of a
+check in order until one fails and detects the change, in the project root
+with a timeout of 10 minutes, and remove the worktree. A failing command MUST
+then run as its control on a worktree of the base alone, without the tests of
+the diff, with the same timeout; in the output of both, the path of the
+worktree reads as `<worktree>`. The counterproof detects the change only when
+its control passed, or failed with another exit code or another output, so a
+command that fails on the base for a reason the tests of the diff do not
+touch, such as `test -f marker` beside a filler test, proves nothing. Each
+execution MUST be recorded as a `counterproof` run that also holds the
+`obligation`, the `base`, the `mount` (the digest of what it put on the base,
+nothing for a control), `control: true` for a control and `timed_out` when the
+timeout killed it; a timeout counts as failing. A counterproof already
+recorded on the same base and mount for the same command, and a control
+already recorded on the same base for the same command, MUST be reused
+instead of run again. The evidence MUST name its runs in `counterproof`: one
+that failed and detects the change, and its control. While none does the
+obligation MUST stay `pending` with a reason saying that the test passes
+against the base product too or, when it failed the same way as its control,
+that the red does not come from the tests of the diff; the passing run of a
 pair names its counterproof runs. Without a base commit, when the diff adds
 code to a Rust inline test, which shares its file with the product, or when
 the base cannot be mounted, the counterproof MUST be skipped: the evidence records the
@@ -1232,8 +1242,9 @@ It MUST still exit with 0, record no check runs and never write configuration.
 - WHEN `ospec run --obligation repro-test --command "node --test"` fails,
   the fix is applied and the same command passes
 - THEN a `counterproof` run of the same command MUST fail on the change's base
-- AND `repro-run-pair` evidence MUST name both runs and that counterproof, and
-  `repro-test` MUST be `satisfied`
+- AND its control, without the reproduction test, MUST pass or fail another way
+- AND `repro-run-pair` evidence MUST name both runs, that counterproof and its
+  control, and `repro-test` MUST be `satisfied`
 - AND a passing run on the same tree as the failing one MUST NOT record it
 - AND a check on the same base and tests MUST reuse the counterproof without
   running it again
@@ -1244,6 +1255,17 @@ It MUST still exit with 0, record no check runs and never write configuration.
 - WHEN the fix is `touch marker` and the same command passes
 - THEN no pair MUST be recorded and `repro-test` MUST stay `pending` with a
   reason saying that the diff adds no line to a test
+
+#### Scenario: A filler test beside a reproduction that runs no test does not close
+
+- GIVEN a bug change whose failing run is `test -f marker` and whose diff adds
+  a test that asserts nothing about the product
+- WHEN the fix is `touch marker` and the same command passes
+- THEN a `counterproof` run and its control MUST be recorded, both failing the
+  same way on the base
+- AND no pair MUST be recorded, and `repro-test` MUST stay `pending` with a
+  reason naming both runs and saying that the red does not come from the tests
+  of the diff
 
 #### Scenario: A test that passes against the base product does not close
 

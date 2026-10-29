@@ -591,6 +591,7 @@ test("[E1.48] a counterproof worktree holds the base product, the tests of the w
     assert.ok(!fs.lstatSync(path.join(mounted.cwd, "vendor")).isSymbolicLink(), "a tracked vendor comes from the base");
     assert.ok(!fs.existsSync(path.join(mounted.cwd, "dist")), "a build output is never linked");
     assert.ok(!fs.existsSync(path.join(mounted.cwd, "..", "hook-ran")), "no hook runs");
+    assert.ok(mounted.mask.includes(path.dirname(mounted.cwd)), "the worktree reads the same in the output of every mount");
   } finally {
     mounted.remove();
   }

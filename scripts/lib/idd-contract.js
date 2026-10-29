@@ -369,9 +369,23 @@ function validateRunEvidence(entry, runs, runIndex, fail) {
   return undefined;
 }
 
+// A failing counterproof run detects the change when its control, the same
+// command on the base without the tests of the diff, passed or failed another
+// way: with another exit code or another output (E1.48).
+function counterproofDetects(run, control) {
+  if (!run || !control || run.exit_code === 0) return false;
+  return control.exit_code === 0 || control.exit_code !== run.exit_code || control.output_sha256 !== run.output_sha256;
+}
+
+/** Whether one counterproof run among `runs` detects the change, by its control among them. */
+function counterproofDetected(runs) {
+  return runs.some((run) => !run.control && counterproofDetects(run, runs.find((control) => control.control === true && control.command === run.command)));
+}
+
 // A pair or boundary-tests recorded since E1.48 names its counterproof: runs
-// of the base among which one failed, or the reason it was skipped. Evidence
-// recorded before it names neither and stays valid.
+// of the base, one of which detects the change against its control, or the
+// reason it was skipped. Evidence recorded before it names neither and stays
+// valid.
 function validateCounterproof(entry, runOf, fail) {
   const { counterproof, counterproof_skipped: skipped } = entry.detail || {};
   if (counterproof === undefined && skipped === undefined) return;
@@ -384,8 +398,8 @@ function validateCounterproof(entry, runOf, fail) {
     return;
   }
   const runs = isTextList(counterproof) ? counterproof.map(runOf) : [];
-  if (runs.length === 0 || runs.some((run) => run?.purpose !== "counterproof") || !runs.some((run) => run.exit_code !== 0)) {
-    fail(`evidence ${entry.id} needs a counterproof run that failed on the change's base`);
+  if (runs.length === 0 || runs.some((run) => run?.purpose !== "counterproof") || !counterproofDetected(runs)) {
+    fail(`evidence ${entry.id} needs a counterproof run that failed on the change's base where its control, without the tests of the diff, passed or failed another way`);
   }
 }
 
@@ -663,6 +677,8 @@ module.exports = {
   STATE_SCHEMA,
   canClose,
   canWithdraw,
+  counterproofDetected,
+  counterproofDetects,
   deriveObligations,
   isIntentAmbiguous,
   resolveMode,
