@@ -1,6 +1,7 @@
 // stop hook handler.
 // Ports runStop from scripts/hooks/stop.js.
 // Always exits 0 and emits {"continue":true}. Uses internal/store + internal/yamllite.
+// It also counts the turn end in .ospec/turns (E1.49).
 package hooks
 
 import (
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,12 +49,38 @@ func (h *stopHandler) Run(stdin []byte) ([]byte, int) {
 		return continueWithError(fmt.Sprintf("Stop hook could not write the session trace: %s", err.Error())), 0
 	}
 
+	// E1.49: every turn end is counted before the trace, so a trace that
+	// cannot be written still counts it.
+	counted := countTurnEnd(resolveCwd(input.Cwd))
 	if err := runStop(input); err != nil {
 		return continueWithError(fmt.Sprintf("Stop hook could not write the session trace: %s", err.Error())), 0
+	}
+	if counted != nil {
+		return continueWithError(fmt.Sprintf("Stop hook could not count the turn end: %s", counted.Error())), 0
 	}
 
 	b, _ := json.Marshal(map[string]bool{"continue": true})
 	return b, 0
+}
+
+// maxTurn is the largest count the CLI reads (Number.MAX_SAFE_INTEGER).
+const maxTurn = 1<<53 - 1
+
+// countTurnEnd adds one turn end to .ospec/turns of the workspace, which the
+// CLI reads to fence the gates (countTurnEnd of scripts/lib/turn-fence.js); an
+// unreadable count starts again.
+func countTurnEnd(workspace string) error {
+	turnsPath := filepath.Join(workspace, filepath.FromSlash(store.TurnsRelPath))
+	if err := ospecdir.MkdirAll(filepath.Dir(turnsPath), 0755); err != nil {
+		return fmt.Errorf("stop: mkdir: %w", err)
+	}
+	var turn uint64
+	if data, err := os.ReadFile(turnsPath); err == nil {
+		if n, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64); err == nil && n <= maxTurn {
+			turn = n
+		}
+	}
+	return store.WriteFileAtomic(turnsPath, strconv.FormatUint(turn+1, 10)+"\n")
 }
 
 func runStop(input stopInput) error {

@@ -54,6 +54,9 @@ test("a tool that writes a file the ospec CLI owns is denied in every permission
     ["apply_patch", { input: "*** Begin Patch\n  *** Update File: idd/fix-pagination/state.yaml\n*** End Patch" }],
     ["apply_patch", { input: "*** Begin Patch\n*** Update File: idd/fix-pagination/state.yaml\n@@\n-a\n+b\n*** End Patch" }],
     ["apply_patch", { command: "*** Begin Patch\r\n*** Update File: src/a.js\r\n*** Move to: idd/archive/x/a.js\r\n*** End Patch" }],
+    ["Write", { file_path: ".ospec/turns", content: "99\n" }],
+    ["Edit", { file_path: path.join(workspace, ".OSPEC", "Turns"), old_string: "1", new_string: "9" }],
+    ["delete_file", { path: "pkg\\.ospec\\turns" }],
   ];
   for (const [tool, input] of denied) {
     for (const mode of ["default", "bypassPermissions"]) {
@@ -76,6 +79,9 @@ test("a tool that writes a file the ospec CLI owns is denied in every permission
     ["Write", { file_path: "notes.txt", content: "*** Update File: idd/fix-pagination/state.yaml" }],
     ["Bash", { command: "cat idd/fix-pagination/state.yaml" }],
     ["apply_patch", { input: "*** Begin Patch\n*** Update File: src/a.js\n*** End Patch" }],
+    ["Write", { file_path: ".ospec/turns.md", content: "notes" }],
+    ["Write", { file_path: ".ospec/turns/notes.md", content: "notes" }],
+    ["Write", { file_path: "docs/turns", content: "notes" }],
   ];
   for (const [tool, input] of passing) assert.equal(decide(tool, input, "default").permissionDecision, null, `${tool} ${JSON.stringify(input)}`);
 });

@@ -32,6 +32,9 @@ const (
 	CacheRelPath = ".ospec/cache/skill-registry.cache.json"
 	// LatestRelPath is the workspace-relative path to the latest-session trace.
 	LatestRelPath = ".ospec/session/latest.md"
+	// TurnsRelPath is the workspace-relative path to the count of turn ends
+	// (E1.49, TURNS_FILE of scripts/lib/turn-fence.js).
+	TurnsRelPath = ".ospec/turns"
 	// RuntimeEventsRelPath is the workspace-relative path to the JSONL events file.
 	RuntimeEventsRelPath = ".ospec/runtime/subagent-events.jsonl"
 	// PhaseCostFileName is the JSONL file name for per-change phase-cost records.

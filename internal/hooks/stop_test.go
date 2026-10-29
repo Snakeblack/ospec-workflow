@@ -308,3 +308,74 @@ func TestStop_Triangulate(t *testing.T) {
 		}
 	})
 }
+
+// ── turn count (E1.49) ────────────────────────────────────────────────────────
+
+func readTurns(t *testing.T, ws string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(ws, filepath.FromSlash(store.TurnsRelPath)))
+	if err != nil {
+		t.Fatalf("turn count missing: %v", err)
+	}
+	return string(data)
+}
+
+// TestStop_CountsEachTurnEnd mirrors the JS case: each Stop adds one to
+// .ospec/turns, and the count stays out of git.
+func TestStop_CountsEachTurnEnd(t *testing.T) {
+	ws := createStopWorkspace(t)
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	if out, err := exec.Command("git", "-C", ws, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+
+	r, _ := runStopHook(t, stopInput(ws, "", "first"))
+	runStopHook(t, stopInput(ws, "", "second"))
+
+	if r.SystemMessage != "" {
+		t.Errorf("systemMessage: got %q, want none", r.SystemMessage)
+	}
+	if got := readTurns(t, ws); got != "2\n" {
+		t.Errorf("turns: got %q, want %q", got, "2\n")
+	}
+	if out, _ := exec.Command("git", "-C", ws, "status", "--porcelain", "--untracked-files=all").Output(); len(out) != 0 {
+		t.Errorf("the tree is dirty after Stop:\n%s", out)
+	}
+}
+
+func TestStop_UnreadableTurnCountStartsAgain(t *testing.T) {
+	ws := createStopWorkspace(t)
+	if err := os.MkdirAll(filepath.Join(ws, ".ospec"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, filepath.FromSlash(store.TurnsRelPath)), []byte("seven\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	runStopHook(t, stopInput(ws, "", ""))
+
+	if got := readTurns(t, ws); got != "1\n" {
+		t.Errorf("turns: got %q, want %q", got, "1\n")
+	}
+}
+
+func TestStop_UnwritableTurnCountStillWritesTheTrace(t *testing.T) {
+	ws := createStopWorkspace(t)
+	if err := os.MkdirAll(filepath.Join(ws, filepath.FromSlash(store.TurnsRelPath)), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	r, code := runStopHook(t, stopInput(ws, "", "blocked"))
+
+	if code != 0 || !r.Continue {
+		t.Errorf("got exit %d continue %v, want 0 and true", code, r.Continue)
+	}
+	if !strings.HasPrefix(r.SystemMessage, "Stop hook could not count the turn end: ") {
+		t.Errorf("systemMessage: got %q", r.SystemMessage)
+	}
+	if latest := readLatestSession(t, ws); !strings.Contains(latest, "blocked") {
+		t.Errorf("trace not written; got:\n%s", latest)
+	}
+}

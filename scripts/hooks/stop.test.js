@@ -230,3 +230,42 @@ test("ignores terminal changes when creating the latest trace", async (t) => {
 
   assert.equal(result.activeChange, null);
 });
+
+// E1.49: the hook process counts each turn end in .ospec/turns, which the CLI
+// reads to fence the gates.
+function runStopProcess(input) {
+  return execFileSync(process.execPath, [path.join(__dirname, "stop.js")], { input: JSON.stringify(input), encoding: "utf8" });
+}
+
+test("each turn end adds one to the turn count, out of git", async (t) => {
+  const workspace = await createWorkspace(t);
+  const git = (...args) => execFileSync("git", args, { cwd: workspace, encoding: "utf8" });
+  git("init", "-q");
+
+  assert.equal(runStopProcess({ cwd: workspace, sessionId: "first" }), '{"continue":true}\n');
+  runStopProcess({ cwd: workspace, sessionId: "second" });
+
+  assert.equal(await fs.readFile(path.join(workspace, ".ospec", "turns"), "utf8"), "2\n");
+  assert.equal(git("status", "--porcelain", "--untracked-files=all"), "");
+});
+
+test("an unreadable turn count starts again at one", async (t) => {
+  const workspace = await createWorkspace(t);
+  await fs.mkdir(path.join(workspace, ".ospec"), { recursive: true });
+  await fs.writeFile(path.join(workspace, ".ospec", "turns"), "seven\n");
+
+  runStopProcess({ cwd: workspace });
+
+  assert.equal(await fs.readFile(path.join(workspace, ".ospec", "turns"), "utf8"), "1\n");
+});
+
+test("a turn count that cannot be written still writes the trace and says why", async (t) => {
+  const workspace = await createWorkspace(t);
+  await fs.mkdir(path.join(workspace, ".ospec", "turns"), { recursive: true });
+
+  const output = JSON.parse(runStopProcess({ cwd: workspace, sessionId: "blocked" }));
+
+  assert.equal(output.continue, true);
+  assert.match(output.systemMessage, /^Stop hook could not count the turn end: /);
+  assert.match(await readLatest(workspace), /blocked/);
+});

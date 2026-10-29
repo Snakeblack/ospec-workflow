@@ -260,7 +260,7 @@ const READ_TOOLS = new Set(["read", "grep", "glob", "ls", "list", "viewfile", "n
 // tool names its files in the patch headers. Shell commands are left to the
 // revalidation of ospec close.
 const CLI_OWNED_REASON =
-  "Bloqueado: este fichero es del CLI de ospec (el estado de un cambio IDD, su archivo o un recibo de review). Avanza con los comandos de ospec (record, run, check, review, close); no lo edites a mano.";
+  "Bloqueado: este fichero es del CLI de ospec (el estado de un cambio IDD, su archivo, un recibo de review o la cuenta de turnos). Avanza con los comandos de ospec (record, run, check, review, close); no lo edites a mano.";
 // copy, append, save and upload cover third-party MCP tools (E1.46).
 const WRITE_TOOL_RE = /write|edit|patch|create|replace|insert|delete|remove|move|rename|copy|append|save|upload/;
 // A move or a copy names both ends (MCP filesystem move_file); both count.
@@ -277,14 +277,14 @@ function collectStrings(value, found = []) {
 }
 
 // idd/<change>/state.yaml (with its .tmp and .bak), idd/archive/ or
-// .ospec/review-receipts/ and anything under them, wherever the path holds
-// them and in any case.
+// .ospec/review-receipts/ and anything under them, and the turn count
+// .ospec/turns (E1.49), wherever the path holds them and in any case.
 function isCliOwnedPath(filePath) {
   const segments = filePath.toLowerCase().split(/[\\/]+/).filter(Boolean);
   return segments.some((segment, index) => {
     const after = segments.length - index - 1;
     if (segment === "idd") return (segments[index + 1] === "archive" && after >= 1) || (after === 2 && STATE_FILE_RE.test(segments[index + 2]));
-    return segment === ".ospec" && segments[index + 1] === "review-receipts" && after >= 1;
+    return segment === ".ospec" && ((segments[index + 1] === "review-receipts" && after >= 1) || (segments[index + 1] === "turns" && after === 1));
   });
 }
 
