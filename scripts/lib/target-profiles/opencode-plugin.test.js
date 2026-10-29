@@ -407,3 +407,54 @@ test("v1 rewrites the fields of the tool output in place", async (t) => {
   await hooks["tool.execute.after"]({ tool: "bash" }, output);
   assert.deepEqual(output, { title: "cat", output: "[REDACTED:github-token]", metadata: {} });
 });
+
+// --- end of turn -> Stop hook (E1.49) --------------------------------------
+
+const ROOT_SESSION = { id: "ses_root", parentID: undefined };
+const CHILD_SESSION = { id: "ses_child", parentID: "ses_root" };
+const stopCalls = (calls) => calls.filter((call) => call.subcommand === "stop").map((call) => call.input);
+
+test("v1 runs the Stop hook when the root session goes idle, never for a subagent or an unreadable session", async (t) => {
+  const { mod, calls } = await loadPluginWithStub(t, () => ({ status: 0, stdout: '{"continue":true}' }));
+  const sessions = { ses_root: ROOT_SESSION, ses_child: CHILD_SESSION };
+  const client = {
+    session: {
+      get: async ({ path: { id } }) => {
+        if (!sessions[id]) throw new Error("no such session");
+        return { data: sessions[id] };
+      },
+    },
+  };
+  const hooks = await mod.default.server({ directory: "/repo", client });
+
+  for (const sessionID of ["ses_child", "ses_gone", "ses_root"]) await hooks.event({ event: { type: "session.idle", properties: { sessionID } } });
+  await hooks.event({ event: { type: "session.status", properties: { sessionID: "ses_root", status: { type: "idle" } } } });
+
+  assert.deepEqual(stopCalls(calls), [{ cwd: "/repo", session_id: "ses_root" }]);
+});
+
+test("v2 runs the Stop hook when the root session's execution ends, never for a subagent or another event", async (t) => {
+  const { mod, calls } = await loadPluginWithStub(t, () => ({ status: 0, stdout: '{"continue":true}' }));
+  const sessions = { ses_root: ROOT_SESSION, ses_child: CHILD_SESSION };
+  const events = [
+    { type: "session.execution.started", data: { sessionID: "ses_root" } },
+    { type: "session.execution.succeeded", data: { sessionID: "ses_child" } },
+    { type: "session.execution.succeeded", data: { sessionID: "ses_root" } },
+    { type: "session.execution.interrupted", data: { sessionID: "ses_root" } },
+    { type: "session.execution.failed", data: { sessionID: "ses_gone" } },
+  ];
+  const ctx = {
+    ...fakeContext(),
+    event: { subscribe: () => (async function* () { yield* events; })() },
+    session: {
+      get: async ({ sessionID }) => {
+        if (!sessions[sessionID]) throw new Error("no such session");
+        return sessions[sessionID];
+      },
+    },
+  };
+  await mod.default.setup(ctx);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(stopCalls(calls), [{ cwd: "/repo", session_id: "ses_root" }, { cwd: "/repo", session_id: "ses_root" }]);
+});

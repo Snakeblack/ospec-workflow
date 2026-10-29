@@ -848,3 +848,34 @@ test("E1.32 (OSP-021): the CLI runs from a cwd outside the checkout without --so
   assert.match(result.stdout, /configure --target vscode ->/);
   assert.ok(fs.existsSync(path.join(out, "models.yaml")), "the source must be the checkout that owns the CLI");
 });
+
+// ---------------------------------------------------------------------------
+// End of a turn (E1.49)
+// ---------------------------------------------------------------------------
+
+// Every target counts the end of a turn for the gate fence: its hooks run the
+// stop subcommand on the host's end-of-turn event, and OpenCode's plugin runs
+// it when the root session's turn ends (validate-opencode.js checks it). The
+// fixture source has no Stop hook, so the real one is generated.
+test("every target runs the stop hook on its end-of-turn event (E1.49)", (t) => {
+  const root = path.resolve(__dirname, "..", "..");
+  const ends = {
+    claude: ["hooks/hooks.json", (hooks) => hooks.hooks.Stop],
+    codex: ["hooks.json", (hooks) => hooks.hooks.Stop],
+    vscode: ["hooks/hooks.json", (hooks) => hooks.hooks.Stop],
+    "github-copilot": [".github/hooks/hooks.json", (hooks) => hooks.hooks.agentStop],
+    cursor: ["hooks.json", (hooks) => hooks.hooks.stop],
+    antigravity: ["hooks.json", (hooks) => hooks["ospec-stop"].Stop],
+  };
+  const commands = (value) => (Array.isArray(value) ? value.flatMap(commands)
+    : value && typeof value === "object" ? [value.command, value.bash, ...commands(value.hooks)].filter((entry) => typeof entry === "string") : []);
+  for (const [target, [file, endOfTurn]] of Object.entries(ends)) {
+    const out = tmpOut(t);
+    runConfigure({ sourceDir: root, target, outDir: out, validate: false, withSdd: true });
+    const runs = commands(endOfTurn(JSON.parse(fs.readFileSync(path.join(out, file), "utf8"))));
+    assert.ok(runs.length > 0 && runs.every((command) => /scripts[\\/]hooks[\\/]ospec-[a-z-]+\.js" stop$/.test(command)), `${target}: ${JSON.stringify(runs)}`);
+  }
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: root, target: "opencode", outDir: out, validate: false, withSdd: true });
+  assert.match(fs.readFileSync(path.join(out, ".opencode/plugins/ospec.js"), "utf8"), /runHook\("stop", \{ cwd: directory, session_id: sessionID \}/);
+});
