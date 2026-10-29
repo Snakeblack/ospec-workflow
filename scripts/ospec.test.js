@@ -868,6 +868,44 @@ test("[E1.48] a change without a base commit skips the counterproof with a warni
   assert.match(closed.stdout, /^warning: counterproof skipped for repro-test \(ev-1\): the change has no base commit to run it on$/m);
 });
 
+test("[E1.48] a reproduction under spec/, as rspec lays it out, closes its pair with its counterproof", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_BUG);
+  ospec(root, "signals", "--change", "fix-pagination", "--path", "src/pages.txt");
+  writeFile(root, "spec/pages.js", `${VERIFY}\n`);
+  const run = () => ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", "node spec/pages.js", "--json");
+  assert.strictEqual(run().json.run.exit_code, 1);
+  writeFile(root, "src/pages.txt", "2");
+  const green = run().json;
+  assert.strictEqual(green.evidence, "ev-1", JSON.stringify(green.missing));
+  assert.deepStrictEqual(green.counterproof.runs.map((entry) => entry.exit_code), [1]);
+});
+
+test("[E1.48] a reproduction in an inline Rust test closes its pair with the counterproof skipped and a warning", (t) => {
+  const { root, git } = project(t);
+  const product = (pages) => `pub fn pages() -> u32 {\n    ${pages}\n}\n`;
+  const inline = "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn eleven_items_need_two_pages() {\n        assert_eq!(pages(), 2);\n    }\n}\n";
+  writeFile(root, "src/lib.rs", product(1));
+  // cargo test, as node stands for it: the inline test asserts two pages.
+  writeFile(root, "cargo-test.js", "const lib = require('fs').readFileSync('src/lib.rs', 'utf8');\nprocess.exit(lib.includes('#[test]') && /^ {4}2$/m.test(lib) ? 0 : 1);\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "lib");
+  ospec(root, ...OPEN_BUG);
+  ospec(root, "signals", "--change", "fix-pagination", "--path", "src/lib.rs");
+  const run = () => ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", "node cargo-test.js", "--json");
+  writeFile(root, "src/lib.rs", product(1) + inline);
+  assert.strictEqual(run().json.run.exit_code, 1);
+  writeFile(root, "src/lib.rs", product(2) + inline);
+  const green = run().json;
+  const reason = "the inline tests of src/lib.rs share the file with the product, so the base cannot run them without the change";
+  assert.strictEqual(green.evidence, "ev-1", JSON.stringify(green.missing));
+  assert.deepStrictEqual(green.counterproof, { skipped: reason });
+  assert.ok(green.warnings.includes(`counterproof skipped: ${reason}`), JSON.stringify(green.warnings));
+  const state = stateOf(root, "fix-pagination");
+  assert.strictEqual(state.evidence[0].detail.counterproof_skipped, reason);
+  assert.ok(!state.runs.some((entry) => entry.purpose === "counterproof"), "nothing ran on the base");
+});
+
 test("run is refused for an obligation it cannot prove and needs a command", (t) => {
   const { root } = project(t);
   ospec(root, ...OPEN_DOCS);

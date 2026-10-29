@@ -85,7 +85,7 @@ const { buildSnapshotV3 } = require("./lib/progress-snapshot-v3.js");
 const { buildSnapshotV4 } = require("./lib/progress-snapshot-v4.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
-const { addedTests, applyDerivation, classifyPath, deriveSignals, persistentHits, requireDeclaredCeremony } = require("./lib/idd-signals.js");
+const { addedTests, applyDerivation, classifyPath, deriveSignals, inlineTests, persistentHits, requireDeclaredCeremony } = require("./lib/idd-signals.js");
 const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { writeFileAtomic } = require("./lib/atomic-write.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange, serializeState } = require("./lib/idd-store.js");
@@ -546,11 +546,13 @@ const COUNTERPROOF_TIMEOUT_MS = 10 * 60 * 1000;
  * Runs `commands` in order on a worktree of the change's base with the tests
  * of the diff on top, until one fails (E1.48). A command already counterproved
  * on the same base and mount reuses that run. It runs outside the state lock;
- * without a base, or when the base cannot be mounted, it is skipped with the
- * reason.
+ * without a base, when the diff adds code to a Rust inline test, or when the
+ * base cannot be mounted, it is skipped with the reason.
  */
 function runCounterproof(root, state, { diff, commands }) {
   if (!state.base) return { skipped: "the change has no base commit to run it on" };
+  const inline = inlineTests(diff);
+  if (inline.length > 0) return { skipped: `the inline tests of ${inline.join(", ")} share the file with the product, so the base cannot run them without the change` };
   const paths = counterproofPaths(diff);
   const mount = counterproofMount(root, paths);
   const results = [];

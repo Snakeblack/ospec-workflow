@@ -47,9 +47,10 @@ pasa (VERDE)"]
 - **Contraprueba en la base:** demuestra que el test detecta el cambio.
   - Cuándo corre: al registrar el verde de una pareja, y antes de dar por cumplida `boundary-tests`.
   - Qué monta: un worktree temporal de la base del cambio con los tests del diff encima, y con lo que haya bajo `testdata/`, `__snapshots__/`, `fixtures/` o `__fixtures__/`. Enlaza los `node_modules`, `.venv`, `venv` y `vendor` ignorados, y nada más de lo ignorado.
+  - Qué es un test: un fichero bajo `test/`, `tests/`, `__tests__/` o `spec/`, o con nombre de test: `*.test.*` y `*.spec.*` en JS y TS, el sufijo `_test` o `_spec` en cualquier lenguaje (`_test.go`, `_test.py`, `_spec.rb`…), un módulo `tests` (`tests.py` de Django, `tests.rs` de Rust), `test_*.py`, `*Test.java` y `*Tests.cs`.
   - Qué exige: el mismo comando, o los checks declarados, tiene que fallar ahí. Si pasa, la obligación sigue pendiente. La pareja exige además que el diff añada código a un test, así que `test -f marker` no cierra.
   - Límites: corre con 10 minutos de timeout, y agotarlo cuenta como fallo. Se reutiliza mientras no cambien la base, el comando y los tests.
-  - Sin commit base, o si la base no se puede montar, se omite con un aviso en `run`, `check` y `close`.
+  - Se omite con un aviso en `run`, `check` y `close` cuando no hay commit base, cuando la base no se puede montar, y cuando el diff añade código a un test inline de Rust (dentro de un `mod` bajo `#[cfg(test)]`), porque comparte fichero con el producto y la base no lo puede correr sin el cambio.
 
 ---
 

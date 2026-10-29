@@ -829,7 +829,13 @@ and `<!-- -->`, MUST NOT count. For an intent of kind `feature` or `bug`, a
 diff that changes product code and adds no code to a test MUST derive
 `untested-product`. Code is a line that is neither blank nor only a comment, in
 a test with a source-file extension: a deleted or emptied test, a comment and a
-fixture or golden file are not one (E1.44, E1.53). The CLI cannot judge what a
+fixture or golden file are not one (E1.44, E1.53). A test is a file under a
+`test`, `tests`, `__tests__` or `spec` directory, or one named as a test:
+`*.test.*` and `*.spec.*` in JS and TS, a source file with the `_test` or
+`_spec` suffix or named `tests` (Django's `tests.py`, Rust's `tests.rs`),
+`test_*.py`, `*Test.java` and `*Tests.cs`. A line added to a Rust file that
+appears only inside a module under `#[cfg(test)]`, up to the brace that closes
+it at its indentation, is code added to a test as well (E1.48). The CLI cannot judge what a
 test asserts, so a trivial test is the trust review's to find. Product code is
 a source file by its extension, scripts included: besides JS/TS, Python, Go,
 JVM, .NET, Ruby, PHP, Rust and web files, C and C++, Objective-C, Swift, Scala,
@@ -1035,8 +1041,9 @@ the same base and mount for the same command MUST be reused instead of run
 again. The evidence MUST name its runs in `counterproof`, one of which failed.
 While none failed the obligation MUST stay `pending` with a reason saying
 that the test passes against the base product too, and the passing run of a
-pair names its counterproof runs. Without a base commit, or when the base
-cannot be mounted, the counterproof MUST be skipped: the evidence records the
+pair names its counterproof runs. Without a base commit, when the diff adds
+code to a Rust inline test, which shares its file with the product, or when
+the base cannot be mounted, the counterproof MUST be skipped: the evidence records the
 reason in `counterproof_skipped`, and `run`, `check` and `close` MUST warn
 about it, as `close` warns about a counterproof that timed out. Evidence
 recorded before E1.48 names neither and stays valid.
@@ -1254,6 +1261,21 @@ It MUST still exit with 0, record no check runs and never write configuration.
 - WHEN its reproduction test fails, the fix is applied and it passes
 - THEN the pair MUST be recorded with `counterproof_skipped` and its reason
 - AND `run` and `close` MUST warn that the counterproof was skipped
+
+#### Scenario: Test conventions beyond JS close a pair
+
+- GIVEN a bug change whose reproduction test the diff adds under `spec/`, as
+  rspec lays it out, or as `app/pages_test.py`
+- WHEN the test fails, the fix is applied and it passes
+- THEN its counterproof MUST run and the pair MUST be recorded once it fails
+
+#### Scenario: A Rust inline test skips the counterproof
+
+- GIVEN a bug change whose reproduction test the diff adds inside the
+  `#[cfg(test)]` module of `src/lib.rs`
+- WHEN the test fails, the fix is applied and it passes
+- THEN the pair MUST be recorded with `counterproof_skipped` naming
+  `src/lib.rs`, and `run` MUST warn about it
 
 ### Requirement: Contract And Migration Evidence {#REQ-idd-015}
 

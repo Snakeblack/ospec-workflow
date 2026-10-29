@@ -683,3 +683,42 @@ test("[E1.53] a comment-only line, or a file without a code extension under a te
   };
   assert.deepStrictEqual(addedTests(diff), ["test/helper.js"]);
 });
+
+// E1.48: the tests of rspec, pytest and the like, and Rust's inline tests,
+// close a pair or boundary-tests like any other test.
+test("[E1.48] classifyPath knows spec/, the _test and _spec suffixes of any code and a tests module", () => {
+  const tests = ["spec/models/user_spec.rb", "engines/billing/spec/invoice.rb", "app/pages_test.py", "lib/page_test.rb", "src/page_test.cc", "src/page_spec.lua", "test/page_test.exs", "app/tests.py", "src/parser/tests.rs"];
+  for (const file of tests) assert.strictEqual(classifyPath(file), "test", file);
+  for (const file of ["src/latest.py", "src/contest.rb", "src/spec.rb", "src/specs/page.rb", "app/test.py", "src/page_test.txt", "openspec/specs/idd/spec.md"]) {
+    assert.notStrictEqual(classifyPath(file), "test", file);
+  }
+});
+
+test("[E1.48] code added inside a Rust #[cfg(test)] module is a test the diff adds, and code added outside it is not", () => {
+  const lines = [
+    "pub fn page(n: u32) -> u32 {",
+    "    n.max(1)",
+    "}",
+    "",
+    "#[cfg(test)]",
+    "mod tests {",
+    "    use super::*;",
+    "",
+    "    #[test]",
+    "    fn page_zero_is_one() {",
+    "        assert_eq!(page(0), 1);",
+    "    }",
+    "}",
+    "",
+    "pub fn last() -> u32 {",
+    "    9",
+    "}",
+  ];
+  const diff = (added) => ({ paths: ["src/lib.rs"], addedLines: { "src/lib.rs": added }, sources: { "src/lib.rs": { lines, imports: {} } } });
+  assert.deepStrictEqual(addedTests(diff(["    n.max(1)", "    #[test]", "    fn page_zero_is_one() {", "        assert_eq!(page(0), 1);", "    }"])), ["src/lib.rs"]);
+  assert.deepStrictEqual(addedTests(diff(["    n.max(1)"])), [], "product code only");
+  assert.deepStrictEqual(addedTests(diff(["pub fn last() -> u32 {", "    9"])), [], "after the module closes");
+  assert.deepStrictEqual(addedTests(diff(["", "    // page zero"])), [], "a blank or comment line");
+  const untested = (added) => deriveSignals({ intent: { kind: "bug" }, diff: diff(added), patterns: patternsFor() }).signals.some((signal) => signal.id === "untested-product");
+  assert.deepStrictEqual([untested(["    n.max(1)", "        assert_eq!(page(0), 1);"]), untested(["    n.max(1)"])], [false, true]);
+});

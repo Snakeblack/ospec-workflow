@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Registrar en el roadmap los ítems de #409 (abandonar un change IDD) y #423 (retirar public-contract derivado por contenido de una doc), los dos únicos issues abiertos sin ítem (e1-57-e1-58-roadmap)
 
+### Fixed
+- La contraprueba de E1.48 reconoce como test el directorio spec/, los sufijos _test y _spec de cualquier lenguaje (_test.py, _spec.rb…) y los módulos tests.py y tests.rs; un test inline de Rust cierra la pareja con la contraprueba omitida y un aviso. Antes, en esos proyectos repro-test, tdd-red-green y boundary-tests no podían cerrar (counterproof-test-conventions)
+
 ## [2.165.1] - 2026-10-28
 
 ### Fixed
