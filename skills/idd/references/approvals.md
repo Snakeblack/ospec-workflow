@@ -29,3 +29,24 @@ So the record is only as true as you make it:
   questions and wait.
 - Use `user-unverified` whenever you did not see the user give the answer
   yourself.
+
+## The turn fence
+
+The end-of-turn hook of each host counts the turns that ended in
+`.ospec/turns`, and a gate keeps the count of its opening. An answer recorded
+with `--source user` before another turn ended is kept as `user-unverified`,
+with the source you declared and the reason, and `record gate` and `close`
+warn about it; nothing blocks. So ask a gate by ending your turn, and record
+the answer in the turn that brings it. A question tool answers inside the turn,
+and the CLI cannot tell its answer from one you wrote. Without a count (no
+hook in this workspace), every `user` answer is kept as `user-unverified`.
+The count says that a turn ended, not who answered.
+
+For the same reason, a project check is approved at `checks-changed`, never
+before it is written: write the proposed command to `idd/config.yaml` and run
+`ospec check`, which runs nothing and opens the gate; then end your turn
+asking, as `references/checks.md` says. An approval given before the gate
+opened is recorded in the turn that opens it, so it is kept `user-unverified`.
+A `user-unverified` answer still approves the checks it lists, and the next
+`ospec check` runs them: the fence warns, it does not stop a command. Only
+asking and waiting keeps an unapproved command from running.

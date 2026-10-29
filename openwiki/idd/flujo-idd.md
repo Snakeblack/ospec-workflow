@@ -78,7 +78,7 @@ Una señal que el diff activa se añade en el momento, con su obligación pendie
 
 ## Los seis gates
 
-El agente se detiene en estos gates. Fuera de ellos, solo la aprobación de los `checks:` del proyecto (ver más abajo) lo detiene, y esa aprobación queda registrada en `checks-changed`, igual que la de un cambio en los ajustes de ceremonia.
+El agente se detiene en estos gates y en ningún otro sitio. La aprobación de los `checks:` del proyecto (ver más abajo) se pide en `checks-changed`, igual que la de un cambio en los ajustes de ceremonia.
 
 | Gate | Se abre cuando |
 | --- | --- |
@@ -96,6 +96,8 @@ ospec record gate --change <id> --gate <gate> --resolve --answer "<tus palabras>
 ```
 
 `--source` vale `user` cuando respondiste en la sesión y `user-unverified` cuando la respuesta le llegó reenviada al agente; cualquier otro valor se rechaza con `invalid-source`. Es una declaración del agente: el CLI no puede comprobar que respondieras tú, y lo mismo vale para `--answer` y para el `--quote` de una feature, que se compara con un `--request` que también escribe el agente. Afecta a todos los gates, también a `review-limit`.
+
+Desde E1.49 hay una valla de turnos. El hook de fin de turno de cada host suma uno a `.ospec/turns`, y cada gate guarda la cuenta de cuando se abrió (`opened_turn`). Si el agente registra `--source user` sin que haya terminado otro turno desde entonces, el CLI lo guarda como `user-unverified`, con la fuente declarada y el motivo, y lo avisan `record gate` y `close`. No bloquea. Por eso el agente pregunta un gate terminando el turno y no con la herramienta de pregunta del host, cuya respuesta llega dentro del mismo turno. Sin cuenta (un workspace sin hooks) toda respuesta `user` queda `user-unverified`. La cuenta la comparten las sesiones del workspace y el agente puede escribir el mismo fichero: dice que terminó un turno, no quién respondió.
 
 Lo que declara el agente no puede bajar la ceremonia. `ospec check` y `ospec close` rechazan un cambio `docs` que toca código de producto y un `refactor` que borra una línea de un contrato (`kind-mismatch`) hasta que la intención se vuelve a registrar con un kind mayor. También rechazan una cita de una feature fuera de la documentación cuyo fichero no está ni en el plan ni en el diff (`cite-outside-plan`). La configuración tampoco baja la ceremonia sin tu respuesta: `strict_tdd`, `impact` y `contracts` se contrastan con la base del cambio como los `checks`, en `checks-changed`. `boundary-tests` solo cuenta código añadido a un test con extensión de código: ni un comentario ni un fixture. Y `close` vuelve a leer contra la base del cambio la evidencia de `boundary-tests` y de `contract-spec-and-test`, por si un `check --base` más antiguo la infló.
 
@@ -133,7 +135,7 @@ checks:
   test: npm test
 ```
 
-Cuando falta, `ospec next` devuelve el paso `configure-checks` con un comando candidato. El agente te lo propone y espera tu aprobación antes de crear o editar el fichero, conservando las claves que ya existan. El siguiente `ospec check` abre `checks-changed`, que se resuelve con esa aprobación. El candidato sale de tu `package.json` o de la documentación de tests, pero nunca cuenta como aprobación ni como evidencia.
+Cuando falta, `ospec next` devuelve el paso `configure-checks` con un comando candidato. El agente lo escribe en el fichero, conservando las claves que ya existan, y lanza `ospec check`. Mientras no lo apruebes, `ospec check` no ejecuta nada: abre `checks-changed` con los checks y ajustes exactos, y el agente termina el turno preguntándote. Con tu sí, el siguiente `ospec check` los ejecuta; con un no, el agente restaura el fichero. Así ningún comando escrito en `idd/config.yaml` corre antes de tu aprobación (E1.49). El candidato sale de tu `package.json` o de la documentación de tests, pero nunca cuenta como aprobación ni como evidencia.
 
 `strict_tdd` activa las pruebas rojo-verde. Si no lo declaras, lo decide el perfil de equipo y, sin perfil, vale `false`.
 

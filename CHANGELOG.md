@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Un gate resuelto con --source user sin un fin de turno posterior a su apertura queda user-unverified: el hook de fin de turno de cada host incrementa un contador local en .ospec/, el gate guarda el turno en que se abrió y close muestra las respuestas no verificadas (gate-turn-fence)
+
 ## [2.166.0] - 2026-10-29
 
 ### Added

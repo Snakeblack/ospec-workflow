@@ -1,0 +1,1983 @@
+{
+  "schema": "idd-state/v1",
+  "change": "gate-turn-fence",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "kind": "feature",
+    "summary": "Un gate resuelto con --source user sin un fin de turno posterior a su apertura queda user-unverified: el hook de fin de turno de cada host incrementa un contador local en .ospec/, el gate guarda el turno en que se abrió y close muestra las respuestas no verificadas",
+    "acceptance": "En cada target con fin de turno cableado, un gate resuelto con --source user en el mismo turno en que se abrió queda user-unverified con aviso en record y en close, y uno resuelto después de un fin de turno queda user; ningún caso bloquea"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "Las respuestas de la herramienta de pregunta del host (AskUserQuestion, askQuestions, ask_user, ask_question, question) llegan dentro del mismo turno, sin Stop: ¿la skill pide los gates terminando el turno y una respuesta dentro del turno queda user-unverified, cuenta el PostToolUse de esa herramienta como fin de turno, o se aceptan como user-unverified sin cambiar la skill?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿La valla cubre los seis gates (ambiguous-intent incluido, vía record intent) y deja fuera record retract --answer, que no abre gate; y un checks-changed reabierto con otros checks reinicia su turno de apertura?"
+      },
+      {
+        "category": "persistence",
+        "question": "¿El contador vive en .ospec/turns, compartido por workspace y no por sesión, protegido de las herramientas de escritura como los recibos de review, y un gate abierto antes de E1.49 (sin turno guardado) conserva la fuente declarada?"
+      },
+      {
+        "category": "copy",
+        "question": "¿record gate avisa al degradar (warning que nombra el gate y el motivo), y close lista todos los gates user-unverified, declarados o degradados, con el motivo de los degradados, o solo los degradados?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 952
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 1609
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Sin contador legible (hooks no instalados, OpenCode sin evento, CLI usado a mano en una terminal), ¿una respuesta --source user queda user-unverified con aviso, o conserva user?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "internal/hooks/pretooluse.go",
+      "internal/hooks/stop.go",
+      "openspec/specs/idd/spec.md",
+      "scripts/configure/validate-opencode.js",
+      "scripts/hooks/pre-tool-use.js",
+      "scripts/hooks/stop.js",
+      "scripts/lib/idd-check.js",
+      "scripts/lib/idd-checks-config.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-review.js",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/target-profiles/opencode-plugin.js",
+      "scripts/ospec.js",
+      "skills/idd/SKILL.md",
+      "skills/idd/references/approvals.md",
+      "skills/idd/references/checks.md"
+    ],
+    "work_units": 3,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Los gates se piden terminando el turno, nunca con la herramienta de pregunta del host; una respuesta --source user dentro del mismo turno en que se abrió el gate queda user-unverified (respuesta del usuario: «todas las recomendadas»)",
+      "Sin contador legible, una respuesta --source user queda user-unverified con aviso; no bloquea",
+      "record gate avisa al degradar, con el gate y el motivo; close lista todos los gates user-unverified, declarados o degradados, con el motivo de los degradados",
+      "El contador vive en .ospec/turns, compartido por workspace; las herramientas de escritura no lo tocan, como los recibos de review; un gate abierto antes de E1.49, sin turno guardado, conserva la fuente declarada",
+      "La valla cubre los seis gates, ambiguous-intent incluido; record retract --answer queda fuera porque no abre gate; un checks-changed reabierto con otros checks guarda el turno de su nueva apertura",
+      "checks-changed se pregunta en el gate: el agente escribe el check propuesto en idd/config.yaml, ospec check abre checks-changed con los valores exactos y el agente termina el turno preguntando; si el usuario lo rechaza, restaura el fichero. Desaparece la aprobación previa a escribir, que dejaba el gate respondido en el mismo turno en que se abría (respuesta del usuario: «A»)",
+      "ospec check no ejecuta checks ni ajustes sin aprobar: con checks o ajustes de ceremonia distintos de la base y sin una entrada resuelta que los apruebe, abre checks-changed con esos valores y para sin correr checks, fitness ni contraprueba; el siguiente check, ya aprobado, los ejecuta. Así ningún comando escrito en idd/config.yaml corre antes del sí del usuario (respuesta del usuario: «A2»)",
+      "Una respuesta a checks-changed que la valla deja user-unverified, o una reenviada, sigue aprobando los checks, con el aviso de la valla: el CLI no puede verificar quién respondió y bloquearla no protegería (el agente declara la fuente) y dejaría sin checks un workspace sin hooks. La spec, approvals.md y checks.md lo dicen y un test lo fija (respuesta del usuario: «la recomendada», al WARNING F-2f3f984d8324eff0 de la review 2)"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/pre-tool-use.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, generator, hooks, idd-engine, skills: ADR 0001, 0003, 0004, 0005, 0006, 0008, 0010, 0011 and quality scenario deterministic-resume, guard-fail-closed, offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: internal/hooks/stop.go uses os.WriteFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El cableado de OpenCode sale de PLUGIN_SOURCE y los hooks de los demás targets de hooks/hooks.json; el golden de OpenCode se regenera desde la fuente y cli.test.js comprueba el fin de turno en los 7 targets generados"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La valla la decide el CLI (fenceGates en scripts/lib/turn-fence.js, aplicada en mutateChange) con tests; la skill dice cuándo terminar el turno y qué registra el CLI, sin calcular la regla"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "La valla no cambia señales ni obligaciones: solo la fuente registrada de una respuesta"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "close sigue exigiendo evidencia y gates resueltos; ahora además avisa de cada respuesta user-unverified, sin bloquear"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "El cambio no lee ni escribe memoria entre sesiones"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "El guard PreToolUse niega escribir .ospec/turns en cualquier modo de permisos; contar el turno solo traza y falla abierto, y sin cuenta la respuesta queda user-unverified"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias: el binario Go y el hook JS de respaldo cuentan el turno igual (tests en los dos runtimes y fixture de paridad del guard)"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "El estado IDD sigue en idd/; .ospec/turns es runtime de los hooks, como los recibos de review, y solo IDD lo lee"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "Los turnos de cada gate viven en state.yaml y validateState los comprueba; next, check y close los leen del disco"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "El guard que protege .ospec/turns niega en modo bypass igual que en default"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Contar y vallar no hace llamadas de red: un fichero local y el estado en disco"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Los 7 targets cuentan el fin de turno: Stop, agentStop o stop en los hooks generados, y el plugin de OpenCode en session.idle y session.execution.*"
+    },
+    {
+      "kind": "adr",
+      "id": "0002",
+      "impact": "conforms",
+      "reason": "Los turnos de cada gate se guardan en state.yaml, que solo escribe el CLI bajo lock y validado; .ospec/turns lo escribe solo el hook Stop, de forma atómica"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "Campos opcionales y aditivos en idd-state/v1: un estado anterior sigue validando y sus gates sin opened_turn conservan su fuente; nada se reinterpreta, así que no hace falta versión nueva"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "Un estado escrito por la versión anterior se lee igual: un gate sin opened_turn no se valla (test E1.49 de ospec.test.js)"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "La regla de la valla la calcula el CLI: fenceGates y unverifiedGateWarnings en scripts/lib/turn-fence.js, aplicadas en mutateChange (idd-store.js), con tests en scripts/lib/turn-fence.test.js, idd-contract.test.js (validateState) y ospec.test.js (record gate, record intent y close). SKILL.md y references/approvals.md dicen cuándo terminar el turno y qué registra el CLI, sin calcular la regla.",
+      "recorded_at": "2026-10-29T11:02:10.925Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El diff no añade llamadas de red (sin http, fetch, net ni dns en scripts, internal ni skills): el hook escribe .ospec/turns y el CLI lo lee del disco local; next, check y close leen el estado y el contador sin red ni memoria.",
+      "recorded_at": "2026-10-29T11:02:11.087Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-14"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-13"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-12"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "todas las recomendadas",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-29T11:02:17.330Z",
+      "detail": {
+        "run": "run-16",
+        "tree": "sha256:0a5459b08358ad33a563e8da86c42a38d99ad2821c108fd8c0c9dba7787735f6",
+        "plan": "Campos opcionales y aditivos en idd-state/v1 (opened_turn, resolved_turn, declared_source, unverified_reason): un state.yaml anterior a E1.49 sigue validando y un gate sin opened_turn conserva la fuente con que se responde; el CLI anterior no rechaza los campos nuevos. .ospec/turns nace con el primer fin de turno y una cuenta ilegible empieza de nuevo, lo que solo puede dejar más respuestas user-unverified. Vuelta atrás: revertir el commit; los estados con turnos siguen siendo JSON válido para el CLI anterior."
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-29T11:06:55.196Z",
+      "detail": {
+        "lineage_id": "sha256:9245acecb1a4b16a81e5ad4b14f2ac73fa8377d87a311471d4905408f98f46e8",
+        "candidate_id": "sha256:a8599cb7764dd1026f1842d9cccd69d33923bab8dca1ba667c370634ac8772c7",
+        "candidate_tree": "5f8535a441f393b45da1230e90cca5fc95594c2e",
+        "findings_digest": "sha256:a0a9a526187e94373c52c1f08591c5980b32c4a6594b85f506b3a4237c1fe563",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-29T11:06:50.745Z",
+          "result_digest": "sha256:2d64f3e9c2f12ab7eec2c6e7907eb901f4fdfd0c542799dfeaf18748126f936f"
+        }
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms",
+          "adr:0002 conforms",
+          "adr:0009 conforms",
+          "scenario:contract-compatibility conforms"
+        ],
+        "records": [],
+        "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+        "fitness": [
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26",
+          "run-27",
+          "run-28",
+          "run-29",
+          "run-30",
+          "run-31"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "detail": {
+        "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+        "runs": [
+          "run-32"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "detail": {
+        "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+        "check": "ev-4",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/stop_test.go",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms",
+          "adr:0002 conforms",
+          "adr:0009 conforms",
+          "scenario:contract-compatibility conforms"
+        ],
+        "records": [],
+        "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+        "fitness": [
+          "run-33",
+          "run-34",
+          "run-35",
+          "run-36",
+          "run-37",
+          "run-38",
+          "run-39",
+          "run-40",
+          "run-41",
+          "run-42",
+          "run-43",
+          "run-44",
+          "run-45",
+          "run-46"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-29T14:44:56.656Z",
+      "detail": {
+        "run": "run-47",
+        "tree": "sha256:296fc9c4ab7c02c272d536ca4c43c60a2640b52140d5e2f4a1a0cd4fa086543d",
+        "plan": "Campos opcionales y aditivos en idd-state/v1 (opened_turn, resolved_turn, declared_source, unverified_reason): un state.yaml anterior a E1.49 sigue validando y un gate sin opened_turn conserva la fuente con que se responde; el CLI anterior no rechaza los campos nuevos. .ospec/turns nace con el primer fin de turno y una cuenta ilegible empieza de nuevo, lo que solo puede dejar más respuestas user-unverified. Vuelta atrás: revertir el commit; los estados con turnos siguen siendo JSON válido para el CLI anterior."
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-29T14:48:30.185Z",
+      "detail": {
+        "lineage_id": "sha256:15b93e32dab61a7c713640616d28b355cbc389b2188bdfa9494ab09c29d496be",
+        "candidate_id": "sha256:43e38113836797fbc1f5155d2e4ace12b4ad112707f6aac90756de8aa94b91b8",
+        "candidate_tree": "64e774b2603efed2bfb106e695a3581c3ecd7842",
+        "findings_digest": "sha256:225e934493f8ee431c0925524f5fb960d6f9e7512bf216c41f29ebd4b3dd52ba",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-29T14:48:13.634Z",
+          "result_digest": "sha256:c3604b6e79519c2fe61859db3f2889068d5d35e5c815d968d54865db0a00f642"
+        }
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "detail": {
+        "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+        "runs": [
+          "run-48"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "detail": {
+        "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+        "check": "ev-9",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/stop_test.go",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms",
+          "adr:0002 conforms",
+          "adr:0009 conforms",
+          "scenario:contract-compatibility conforms"
+        ],
+        "records": [],
+        "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+        "fitness": [
+          "run-49",
+          "run-50",
+          "run-51",
+          "run-52",
+          "run-53",
+          "run-54",
+          "run-55",
+          "run-56",
+          "run-57",
+          "run-58",
+          "run-59",
+          "run-60",
+          "run-61",
+          "run-62"
+        ]
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-29T15:03:04.172Z",
+      "detail": {
+        "run": "run-63",
+        "tree": "sha256:ab45ceb987b823c79b7b12af6b23cad20daf65bf0e70339da658da3680bb0def",
+        "plan": "Campos opcionales y aditivos en idd-state/v1 (opened_turn, resolved_turn, declared_source, unverified_reason): un state.yaml anterior a E1.49 sigue validando y un gate sin opened_turn conserva la fuente con que se responde; el CLI anterior no rechaza los campos nuevos. .ospec/turns nace con el primer fin de turno y una cuenta ilegible empieza de nuevo, lo que solo puede dejar más respuestas user-unverified. Vuelta atrás: revertir el commit; los estados con turnos siguen siendo JSON válido para el CLI anterior."
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-29T15:06:05.821Z",
+      "detail": {
+        "lineage_id": "sha256:105d6c8b0ee3323e094feb08ac5f385ec54c6c4cc46b43cb3b61ff9dca69da84",
+        "candidate_id": "sha256:0be0d21ed42c2cb2502bbcfa84fc82d839506bf02de665876137db642e79df97",
+        "candidate_tree": "f6a4c3e27a95d4ddcfa43df399f94eb00cb8d58e",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-29T15:05:47.715Z",
+          "result_digest": "sha256:062bbfa7c037ad4097c936b7c231c09bbdc44e31c1c5703b3598a5a305ef0d6e"
+        }
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-29T15:06:16.098Z"
+    }
+  ],
+  "base": "359ebee4bb25aa647d82e5ec787c6858e78c7915",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:3f41947ee2fd6f2fd15b40367cb776b1bc4d2760aee8ca46210f3e46f1c5db3b",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e840c299be3fcd780fac2d41d3ff3ec8ca0d3bb4ba584bfeaae2ef47ec39ebe5",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z",
+      "tests": 48
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9d066e6ba411b4c779895c3ac22100e9cc2e2424441a6d04df076d0cc04ec291",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z",
+      "tests": 52
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8cf7f773383f73206665b33bdce1e00b4f16fa69c7a5955e060d270a0971692f",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z",
+      "tests": 18
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b7a3a1f656eeda2627fda007df8b81dcb26980a23922ba4d4e3c68e7df7bad54",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z",
+      "tests": 2
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6564fe4714f1fddcb1dc3c1ed80d73de01abcb91920adad2a849fd9f5cea89e1",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z",
+      "tests": 82
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8a4a05fffd12f657c9c64ae268f230af41bcb2854723b3a1a72ce8889a395007",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z",
+      "tests": 22
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9631be0cfafcdfdff4b01c4af2d796d20a21484ed06e41064b6a6e6034e1f138",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z",
+      "tests": 85
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b1b208139c7a8d69f5e8cf839c3d285f647f00c399c0febeac3464bd047ae2f4",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z",
+      "tests": 52
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:731d254a0653219e97ef4134ad6de355c87d2ef4b27fb69f93fe7247ba26acb2",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z",
+      "tests": 82
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5bcdfe966bc289a100aacb116c5a3e7cda980042989bc51b6e6912e64835971a",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z",
+      "tests": 48
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3bcfc47cf6dcb3538930d3ea63abaacefc6179be7efc52b7009b8a0effc31d0b",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z",
+      "tests": 14
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e05fdea916c6ce07f2d31d1af9b63aa1c4e43d06157ddcf863e5b39158b9ca81",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z",
+      "tests": 32
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f1c50f5788c1f655b74aa285decc3cae1812ea582ff2d233f3d1f05b2d9f111c",
+      "tree": "sha256:22ad59e7e546f06f47804c0436e2800e8b19068b37d5007a2d16cfb5e3bdc2f8",
+      "recorded_at": "2026-10-29T11:00:58.189Z",
+      "tests": 32
+    },
+    {
+      "id": "run-16",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern E1.49 scripts/ospec.test.js scripts/lib/idd-contract.test.js scripts/lib/turn-fence.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a2b06ba5a3913def8ff49ec3df4350e6b7eceed97870195c1f0f5f3b3925245b",
+      "tree": "sha256:0a5459b08358ad33a563e8da86c42a38d99ad2821c108fd8c0c9dba7787735f6",
+      "recorded_at": "2026-10-29T11:02:17.330Z",
+      "tests": 5
+    },
+    {
+      "id": "run-17",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:620978f4a39058f736f8d0680fbaa8db86a0004ebfa899444114f207557c736c",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c9d38858da6410fba76c8c217efc12428ee331d5ea4f1411010cbecd6109db04",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "tests": 48
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b70ad8c43c1e5da1a7065a47137ce5f11913ab8a01c974f462ef44e9d061dfb6",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "tests": 52
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:001db9926d10b37e0b25b7137b522d8500968e566e33d975bd14b9e113664b0b",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "tests": 18
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:12101b2fdee1e4b952e5bfd30f3ef588bd1ad96013223355e2bfd2d8f141fa3e",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "tests": 2
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:45b5adbb8a62f7166439e72b56d5108e80ee3786fdcdf6c8cda629e6a0f6b393",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "tests": 82
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z"
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:385f84431b6b4b1bba885376c4d5fe85e9be0b0568810c2e5edbb0fb85b9110b",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "tests": 22
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3ed72b63ba7982ccfad15693656ee8835afd5cc3116447b3cb5f2ea37208d1c1",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "tests": 85
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:df1e5fa3ce7c52b7eafcb9eb2b4f8d0a0ffab31c0db8f21e87198034e71e7cfb",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "tests": 52
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:206a16ac7f3e32c6d74fd6a90f0db720ee9560a9efa39b03fe98a01481820223",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "tests": 82
+    },
+    {
+      "id": "run-28",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fe4364b18c7c0841241719ed99c8f19fedcf08f16b79c969c56502c43f5aa7ad",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "tests": 48
+    },
+    {
+      "id": "run-29",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:64fa08f0d04b5594a1b1b2ce112ea41cab92209139488f046eb4dc96a0bbe6c5",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "tests": 14
+    },
+    {
+      "id": "run-30",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8ce6bca1f9772a765babd46393bc55c81c6b88c4b9fc62e3da329277fd02a2bf",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "tests": 32
+    },
+    {
+      "id": "run-31",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fd34edb06aa199b8638c66a7e6899f454dc8b05214e0c69ed766a59205f51399",
+      "tree": "sha256:848a4d5488e980436bc50320e4a8168a244392c4f42e47f88982cb93b54457c3",
+      "recorded_at": "2026-10-29T11:08:38.540Z",
+      "tests": 32
+    },
+    {
+      "id": "run-32",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:43a002e843c87a503b1fb73bbaf85c7fec3d9ebd7c51d25a4eb8086941ae5560",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z"
+    },
+    {
+      "id": "run-33",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0a3584d847147ad524ce88e5bb2ca11d3e2ecc03ab0202462af5d91a959e2d58",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "tests": 48
+    },
+    {
+      "id": "run-34",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eac6fcc273b1ec5daddfd00112e7a2f6b2b4466e327283eff10ea2aa84c40d5c",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "tests": 52
+    },
+    {
+      "id": "run-35",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8bbbf225098cb0deb0072c2b4484e4ec6a4a948bc2fd961b58e3b014033138e1",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "tests": 18
+    },
+    {
+      "id": "run-36",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a060c421567d1396cc29137dbbd18db153637b70ca414e838d8a630bbdca021f",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "tests": 2
+    },
+    {
+      "id": "run-37",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8525a34a32440ca43cf4d1620711fcadd5e1d02a5a7b69cd7ea97fa23cab04a1",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "tests": 82
+    },
+    {
+      "id": "run-38",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z"
+    },
+    {
+      "id": "run-39",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:aba7a5c040ffadcf2b15344056705bbd5abc76b36cb598711db20fa1b0150a4c",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "tests": 22
+    },
+    {
+      "id": "run-40",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:645220e73ddf56420bd14e4e16dd0aca793f1aacc5221814af90b764478fb95c",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "tests": 85
+    },
+    {
+      "id": "run-41",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7bb853e9e93bb06e664f20942a4827742467acad7a0e58aaacc83ddeeafb8715",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "tests": 52
+    },
+    {
+      "id": "run-42",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:95a6449061f921a44d2384ecb93c6f6fecc5c1ade390f7702565605aade5d2f8",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "tests": 82
+    },
+    {
+      "id": "run-43",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:50c89750550a81622de761facf390ea8486911c5b29637061a2f457a53fe1246",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "tests": 48
+    },
+    {
+      "id": "run-44",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:aa3cca614f895dfa0c86980da954aa3bd5338a37ed8b9c306fd975028d2e5881",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "tests": 14
+    },
+    {
+      "id": "run-45",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2000042933d0f34091727e5306353182b1e6b3fbf4637e6c5ef13de6fdf6518b",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "tests": 32
+    },
+    {
+      "id": "run-46",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:347021b18ecd96245829cc6eb7ee17e8822ac87c58dcc1c5bd3b786e251070fa",
+      "tree": "sha256:b3a197c1efe5230fc305e8f3b1e0f8a885184d03914d7a9494438eda1228dac3",
+      "recorded_at": "2026-10-29T14:44:36.610Z",
+      "tests": 32
+    },
+    {
+      "id": "run-47",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern E1.49 scripts/ospec.test.js scripts/lib/idd-contract.test.js scripts/lib/turn-fence.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eaae0d4a458503106f6d34b4145b8af2a14cfa419272eeeef983a78c17f74705",
+      "tree": "sha256:296fc9c4ab7c02c272d536ca4c43c60a2640b52140d5e2f4a1a0cd4fa086543d",
+      "recorded_at": "2026-10-29T14:44:56.656Z",
+      "tests": 6
+    },
+    {
+      "id": "run-48",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:50851d3b6c09f9c4a3bfd1f6149cb2e482944f8a94d1d6921432f453715f9908",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z"
+    },
+    {
+      "id": "run-49",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:577cfe4270fc9012042c996ad09c49bf533abb1e3be07f23b4407005a2438be2",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "tests": 48
+    },
+    {
+      "id": "run-50",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:08da1c82f01eb0c849e845a7c6dcf34ced4a49103a0a86588b570e3c84b550c8",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "tests": 52
+    },
+    {
+      "id": "run-51",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5ea333a1298dbc870e550d0fb0dbd79ce9c574e25296c199db509e99cb7432c3",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "tests": 18
+    },
+    {
+      "id": "run-52",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4c01951955768103b56919feb5c4ecb42a3b110606a227ef3b7ce9c4029123e0",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "tests": 2
+    },
+    {
+      "id": "run-53",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e6d695301bbc0784da1da1d09067795334f4fd01f3a3359b86ad01791f624c6c",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "tests": 82
+    },
+    {
+      "id": "run-54",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z"
+    },
+    {
+      "id": "run-55",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:105d895f4f32dbda0af386511a3808b11fbeba51993ddc106234d2b8bc6253b3",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "tests": 22
+    },
+    {
+      "id": "run-56",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7504a3705e0ff93bf4923b822a05e139e8da8d19552676fa4857047251ce494e",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "tests": 85
+    },
+    {
+      "id": "run-57",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1fcb63712edaecf7aea7c166867cf4997d4a145d22f51f3f060cea6d4503fe16",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "tests": 52
+    },
+    {
+      "id": "run-58",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9c48582b5d789ad8cc3efdeea681de7d2cee1af6679ff936e6a9a56b2f0d3cce",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "tests": 82
+    },
+    {
+      "id": "run-59",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b137a486f18b2da66499739efa7461bb8348230985faddcf5b491eea67e9a1f9",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "tests": 48
+    },
+    {
+      "id": "run-60",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c300db17e87df18611d2c06c95301b36e1cec3a912dc932a60505d8495ad8761",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "tests": 14
+    },
+    {
+      "id": "run-61",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:612e3b6495cb7892be48bef041183e8ed1766d6d053e28c2d9e4c96bd18378d5",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "tests": 32
+    },
+    {
+      "id": "run-62",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ae524328542e775c2362c78903f859175a16033cea716df2233f220337aadf5c",
+      "tree": "sha256:637782b98368dab35a4a97a6e0eedd6bf7e43fb3fa76397ca18501a43e522e49",
+      "recorded_at": "2026-10-29T15:02:53.767Z",
+      "tests": 32
+    },
+    {
+      "id": "run-63",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern E1.49 scripts/ospec.test.js scripts/lib/idd-contract.test.js scripts/lib/turn-fence.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:db57e9b530154f0a4ac587e83d5162b5760240260c331a84bb72f8b71425e575",
+      "tree": "sha256:ab45ceb987b823c79b7b12af6b23cad20daf65bf0e70339da658da3680bb0def",
+      "recorded_at": "2026-10-29T15:03:04.172Z",
+      "tests": 7
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:9245acecb1a4b16a81e5ad4b14f2ac73fa8377d87a311471d4905408f98f46e8",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "5415e07ade30094f009760d4160737e0e96f875e",
+          "candidate_tree": "5f8535a441f393b45da1230e90cca5fc95594c2e",
+          "paths": [
+            "docs/README.md",
+            "docs/en/README.md",
+            "docs/target-capabilities.md",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/stop.go",
+            "internal/hooks/stop_test.go",
+            "internal/store/store.go",
+            "internal/testdata/parity/pre-tool-use-state-copy-deny.json",
+            "internal/testdata/parity/pre-tool-use-state-deny.json",
+            "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+            "internal/testdata/parity/pre-tool-use-turns-deny.json",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "openwiki/idd/flujo-idd.md",
+            "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+            "scripts/configure/cli.test.js",
+            "scripts/configure/validate-opencode.js",
+            "scripts/configure/validate-opencode.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/hooks/stop.js",
+            "scripts/hooks/stop.test.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-contract.test.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-store.js",
+            "scripts/lib/idd-workspace.js",
+            "scripts/lib/idd-workspace.test.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/target-profiles/opencode-plugin.js",
+            "scripts/lib/target-profiles/opencode-plugin.test.js",
+            "scripts/lib/turn-fence.js",
+            "scripts/lib/turn-fence.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js",
+            "skills/idd/SKILL.md",
+            "skills/idd/references/approvals.md"
+          ],
+          "diff_hash": "sha256:be175b9fe670696b1ce9f0092238851a722b0d062b0008160807943ba4dff227",
+          "paths_digest": "sha256:31ed1ffb6c6f81678a51b69ecff7d31da1e49d39dccd18fe6715d8219d53225b",
+          "authored_lines": 829,
+          "original_changed_lines": 871
+        },
+        "candidate_id": "sha256:a8599cb7764dd1026f1842d9cccd69d33923bab8dca1ba667c370634ac8772c7",
+        "paths": [
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/target-capabilities.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/stop.go",
+          "internal/hooks/stop_test.go",
+          "internal/store/store.go",
+          "internal/testdata/parity/pre-tool-use-state-copy-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+          "internal/testdata/parity/pre-tool-use-turns-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openwiki/idd/flujo-idd.md",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/validate-opencode.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-store.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "5f8535a441f393b45da1230e90cca5fc95594c2e",
+        "original_changed_lines": 871,
+        "authored_lines": 829
+      },
+      "current_candidate_id": "sha256:a8599cb7764dd1026f1842d9cccd69d33923bab8dca1ba667c370634ac8772c7",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "5415e07ade30094f009760d4160737e0e96f875e",
+        "candidate_tree": "5f8535a441f393b45da1230e90cca5fc95594c2e",
+        "paths": [
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/target-capabilities.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/stop.go",
+          "internal/hooks/stop_test.go",
+          "internal/store/store.go",
+          "internal/testdata/parity/pre-tool-use-state-copy-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+          "internal/testdata/parity/pre-tool-use-turns-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openwiki/idd/flujo-idd.md",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/validate-opencode.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-store.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md"
+        ],
+        "diff_hash": "sha256:be175b9fe670696b1ce9f0092238851a722b0d062b0008160807943ba4dff227",
+        "paths_digest": "sha256:31ed1ffb6c6f81678a51b69ecff7d31da1e49d39dccd18fe6715d8219d53225b",
+        "authored_lines": 829,
+        "original_changed_lines": 871
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "gate-turn-fence:lens-start:1:0",
+          "result_digest": "sha256:6cabb99b5a87059d0688439723bd569fe5d903249a8eaf98f8fa354ab81c141a",
+          "result": {
+            "findings": [
+              {
+                "severity": "SUGGESTION",
+                "summary": "The turn fence covers only gates (scripts/lib/turn-fence.js:66-90). `record retract --answer --source user` (scripts/lib/idd-record.js:398-441) stores an agent-declared user answer that withdraws the persistent-data migration-test obligation. It gets no fence, and `unverifiedGateWarnings` (turn-fence.js:93-97) reads only gates, so neither record nor close shows a warning. This is a deliberate exclusion (openspec/specs/idd/spec.md:373, 'record retract opens no gate and is not fenced'). The fence's purpose is to catch an agent answering for the user in the same turn, and the retract path has the same exposure. It is bounded to content-only persistent-data hits, and nothing blocks anywhere in this change.",
+                "acceptance_criteria": "Either (a) a `record retract --answer --source user` made without a turn end since the signal was recorded is stored with the declared source kept and `user-unverified`, and record and close warn about it; or (b) the spec, approvals.md and the SKILL state that an answered retraction is outside the fence and unwarned, and close lists the retractions that carry an answer. A test covers the chosen behavior."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "gate-turn-fence:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-b2f43afb76357d8c",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "The turn fence covers only gates (scripts/lib/turn-fence.js:66-90). `record retract --answer --source user` (scripts/lib/idd-record.js:398-441) stores an agent-declared user answer that withdraws the persistent-data migration-test obligation. It gets no fence, and `unverifiedGateWarnings` (turn-fence.js:93-97) reads only gates, so neither record nor close shows a warning. This is a deliberate exclusion (openspec/specs/idd/spec.md:373, 'record retract opens no gate and is not fenced'). The fence's purpose is to catch an agent answering for the user in the same turn, and the retract path has the same exposure. It is bounded to content-only persistent-data hits, and nothing blocks anywhere in this change.",
+          "acceptance_criteria": "Either (a) a `record retract --answer --source user` made without a turn end since the signal was recorded is stored with the declared source kept and `user-unverified`, and record and close warn about it; or (b) the spec, approvals.md and the SKILL state that an answered retraction is outside the fence and unwarned, and close lists the retractions that carry an answer. A test covers the chosen behavior.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:a0a9a526187e94373c52c1f08591c5980b32c4a6594b85f506b3a4237c1fe563",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:15b93e32dab61a7c713640616d28b355cbc389b2188bdfa9494ab09c29d496be",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:9245acecb1a4b16a81e5ad4b14f2ac73fa8377d87a311471d4905408f98f46e8",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "5415e07ade30094f009760d4160737e0e96f875e",
+          "candidate_tree": "64e774b2603efed2bfb106e695a3581c3ecd7842",
+          "paths": [
+            "docs/README.md",
+            "docs/en/README.md",
+            "docs/target-capabilities.md",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/stop.go",
+            "internal/hooks/stop_test.go",
+            "internal/store/store.go",
+            "internal/testdata/parity/pre-tool-use-state-copy-deny.json",
+            "internal/testdata/parity/pre-tool-use-state-deny.json",
+            "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+            "internal/testdata/parity/pre-tool-use-turns-deny.json",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "openwiki/idd/flujo-idd.md",
+            "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+            "scripts/configure/cli.test.js",
+            "scripts/configure/idd-protocol.test.js",
+            "scripts/configure/validate-opencode.js",
+            "scripts/configure/validate-opencode.test.js",
+            "scripts/fixtures/context-baseline.json",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/hooks/stop.js",
+            "scripts/hooks/stop.test.js",
+            "scripts/lib/idd-check.js",
+            "scripts/lib/idd-checks-config.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-contract.test.js",
+            "scripts/lib/idd-next.js",
+            "scripts/lib/idd-next.test.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-store.js",
+            "scripts/lib/idd-workspace.js",
+            "scripts/lib/idd-workspace.test.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/target-profiles/opencode-plugin.js",
+            "scripts/lib/target-profiles/opencode-plugin.test.js",
+            "scripts/lib/turn-fence.js",
+            "scripts/lib/turn-fence.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js",
+            "skills/idd/SKILL.md",
+            "skills/idd/references/approvals.md",
+            "skills/idd/references/checks.md"
+          ],
+          "diff_hash": "sha256:0fc45b26cdd4858ecebe4a5dfd30980d68b89549481db558eda5c80d171c7d93",
+          "paths_digest": "sha256:5b4931794492cb77537cca819e1ea3048404e4491f6270d4b1355845dd91d97a",
+          "authored_lines": 1012,
+          "original_changed_lines": 1132
+        },
+        "candidate_id": "sha256:43e38113836797fbc1f5155d2e4ace12b4ad112707f6aac90756de8aa94b91b8",
+        "paths": [
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/target-capabilities.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/stop.go",
+          "internal/hooks/stop_test.go",
+          "internal/store/store.go",
+          "internal/testdata/parity/pre-tool-use-state-copy-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+          "internal/testdata/parity/pre-tool-use-turns-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openwiki/idd/flujo-idd.md",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/configure/validate-opencode.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/fixtures/context-baseline.json",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-check.js",
+          "scripts/lib/idd-checks-config.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-store.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md",
+          "skills/idd/references/checks.md"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "64e774b2603efed2bfb106e695a3581c3ecd7842",
+        "original_changed_lines": 1132,
+        "authored_lines": 1012
+      },
+      "current_candidate_id": "sha256:43e38113836797fbc1f5155d2e4ace12b4ad112707f6aac90756de8aa94b91b8",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "5415e07ade30094f009760d4160737e0e96f875e",
+        "candidate_tree": "64e774b2603efed2bfb106e695a3581c3ecd7842",
+        "paths": [
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/target-capabilities.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/stop.go",
+          "internal/hooks/stop_test.go",
+          "internal/store/store.go",
+          "internal/testdata/parity/pre-tool-use-state-copy-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+          "internal/testdata/parity/pre-tool-use-turns-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openwiki/idd/flujo-idd.md",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/configure/validate-opencode.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/fixtures/context-baseline.json",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-check.js",
+          "scripts/lib/idd-checks-config.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-store.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md",
+          "skills/idd/references/checks.md"
+        ],
+        "diff_hash": "sha256:0fc45b26cdd4858ecebe4a5dfd30980d68b89549481db558eda5c80d171c7d93",
+        "paths_digest": "sha256:5b4931794492cb77537cca819e1ea3048404e4491f6270d4b1355845dd91d97a",
+        "authored_lines": 1012,
+        "original_changed_lines": 1132
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "gate-turn-fence:lens-start:2:0",
+          "result_digest": "sha256:47a7031ce5ea0787de4d4ef81a6dddc6cf9605b1c11d62a2632035d10525981f",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/lib/idd-check.js:180-183 (checksApproved) counts any resolved checks-changed entry as approval, whatever its source. An entry the fence recorded user-unverified (same-turn self-answer) still lets the next `ospec check` run commands from idd/config.yaml (scripts/ospec.js:767-776). Trigger: an unapproved command sits in config.yaml; `ospec check` opens the gate; the agent resolves it with --source user in the same turn; the fence downgrades it with a warning but does not block; the next check runs the command. The warning comes after the run. Spec.md:1211-1212 says such a command runs only after the user's answer, which the fence does not enforce. Counterevidence: nothing blocks by design, the CLI never verifies who answered (spec.md:350-353), and an agent with a shell can run commands directly. So the exposure is an honest or prompt-injected agent, not a new capability.",
+                "acceptance_criteria": "Either (a) a checks-changed entry recorded user-unverified by the fence (declared_source present) does not make `ospec check` run the commands or settings it lists, shown by a test where a same-turn self-answer leaves the command unrun; or (b) spec, approvals.md and checks.md state that a fenced or relayed checks-changed answer still approves and that the guarantee holds only for an honest agent, and a test pins that behavior."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "gate-turn-fence:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-2f3f984d8324eff0",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/lib/idd-check.js:180-183 (checksApproved) counts any resolved checks-changed entry as approval, whatever its source. An entry the fence recorded user-unverified (same-turn self-answer) still lets the next `ospec check` run commands from idd/config.yaml (scripts/ospec.js:767-776). Trigger: an unapproved command sits in config.yaml; `ospec check` opens the gate; the agent resolves it with --source user in the same turn; the fence downgrades it with a warning but does not block; the next check runs the command. The warning comes after the run. Spec.md:1211-1212 says such a command runs only after the user's answer, which the fence does not enforce. Counterevidence: nothing blocks by design, the CLI never verifies who answered (spec.md:350-353), and an agent with a shell can run commands directly. So the exposure is an honest or prompt-injected agent, not a new capability.",
+          "acceptance_criteria": "Either (a) a checks-changed entry recorded user-unverified by the fence (declared_source present) does not make `ospec check` run the commands or settings it lists, shown by a test where a same-turn self-answer leaves the command unrun; or (b) spec, approvals.md and checks.md state that a fenced or relayed checks-changed answer still approves and that the guarantee holds only for an honest agent, and a test pins that behavior.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:225e934493f8ee431c0925524f5fb960d6f9e7512bf216c41f29ebd4b3dd52ba",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:105d6c8b0ee3323e094feb08ac5f385ec54c6c4cc46b43cb3b61ff9dca69da84",
+      "generation": 3,
+      "predecessor_lineage_id": "sha256:15b93e32dab61a7c713640616d28b355cbc389b2188bdfa9494ab09c29d496be",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "5415e07ade30094f009760d4160737e0e96f875e",
+          "candidate_tree": "f6a4c3e27a95d4ddcfa43df399f94eb00cb8d58e",
+          "paths": [
+            "docs/README.md",
+            "docs/en/README.md",
+            "docs/target-capabilities.md",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/stop.go",
+            "internal/hooks/stop_test.go",
+            "internal/store/store.go",
+            "internal/testdata/parity/pre-tool-use-state-copy-deny.json",
+            "internal/testdata/parity/pre-tool-use-state-deny.json",
+            "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+            "internal/testdata/parity/pre-tool-use-turns-deny.json",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "openwiki/idd/flujo-idd.md",
+            "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+            "scripts/configure/cli.test.js",
+            "scripts/configure/idd-protocol.test.js",
+            "scripts/configure/validate-opencode.js",
+            "scripts/configure/validate-opencode.test.js",
+            "scripts/fixtures/context-baseline.json",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/hooks/stop.js",
+            "scripts/hooks/stop.test.js",
+            "scripts/lib/idd-check.js",
+            "scripts/lib/idd-checks-config.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-contract.test.js",
+            "scripts/lib/idd-next.js",
+            "scripts/lib/idd-next.test.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-store.js",
+            "scripts/lib/idd-workspace.js",
+            "scripts/lib/idd-workspace.test.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/target-profiles/opencode-plugin.js",
+            "scripts/lib/target-profiles/opencode-plugin.test.js",
+            "scripts/lib/turn-fence.js",
+            "scripts/lib/turn-fence.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js",
+            "skills/idd/SKILL.md",
+            "skills/idd/references/approvals.md",
+            "skills/idd/references/checks.md"
+          ],
+          "diff_hash": "sha256:e591d43ee085b2acb4edfc308d969a70efeac1edc9b44b92025e6c7cb6559064",
+          "paths_digest": "sha256:5b4931794492cb77537cca819e1ea3048404e4491f6270d4b1355845dd91d97a",
+          "authored_lines": 1053,
+          "original_changed_lines": 1173
+        },
+        "candidate_id": "sha256:0be0d21ed42c2cb2502bbcfa84fc82d839506bf02de665876137db642e79df97",
+        "paths": [
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/target-capabilities.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/stop.go",
+          "internal/hooks/stop_test.go",
+          "internal/store/store.go",
+          "internal/testdata/parity/pre-tool-use-state-copy-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+          "internal/testdata/parity/pre-tool-use-turns-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openwiki/idd/flujo-idd.md",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/configure/validate-opencode.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/fixtures/context-baseline.json",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-check.js",
+          "scripts/lib/idd-checks-config.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-store.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md",
+          "skills/idd/references/checks.md"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "f6a4c3e27a95d4ddcfa43df399f94eb00cb8d58e",
+        "original_changed_lines": 1173,
+        "authored_lines": 1053
+      },
+      "current_candidate_id": "sha256:0be0d21ed42c2cb2502bbcfa84fc82d839506bf02de665876137db642e79df97",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "5415e07ade30094f009760d4160737e0e96f875e",
+        "candidate_tree": "f6a4c3e27a95d4ddcfa43df399f94eb00cb8d58e",
+        "paths": [
+          "docs/README.md",
+          "docs/en/README.md",
+          "docs/target-capabilities.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/stop.go",
+          "internal/hooks/stop_test.go",
+          "internal/store/store.go",
+          "internal/testdata/parity/pre-tool-use-state-copy-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-deny.json",
+          "internal/testdata/parity/pre-tool-use-state-move-deny.json",
+          "internal/testdata/parity/pre-tool-use-turns-deny.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openwiki/idd/flujo-idd.md",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/configure/validate-opencode.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/fixtures/context-baseline.json",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-check.js",
+          "scripts/lib/idd-checks-config.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-store.js",
+          "scripts/lib/idd-workspace.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/idd/SKILL.md",
+          "skills/idd/references/approvals.md",
+          "skills/idd/references/checks.md"
+        ],
+        "diff_hash": "sha256:e591d43ee085b2acb4edfc308d969a70efeac1edc9b44b92025e6c7cb6559064",
+        "paths_digest": "sha256:5b4931794492cb77537cca819e1ea3048404e4491f6270d4b1355845dd91d97a",
+        "authored_lines": 1053,
+        "original_changed_lines": 1173
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "gate-turn-fence:lens-start:3:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "gate-turn-fence:lens-result:3:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-29T15:06:16.098Z"
+}
