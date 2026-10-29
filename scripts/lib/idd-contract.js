@@ -58,9 +58,10 @@ const GATE_STATUSES = Object.freeze(["open", "resolved"]);
 // Only new answers are checked; a stored state keeps the source it has.
 const GATE_SOURCES = Object.freeze(["user", "user-unverified"]);
 // What a CLI-observed run was for (REQ-idd-014): the declared checks, the test
-// command of a red → green pair, or a fitness check of an ADR or quality
-// scenario the change touches (REQ-idd-022).
-const RUN_PURPOSES = Object.freeze(["checks", "repro-test", "tdd-red-green", "migration-test", "fitness"]);
+// command of a red → green pair, a fitness check of an ADR or quality
+// scenario the change touches (REQ-idd-022), or the counterproof of a pair or
+// of boundary-tests on the change's base (E1.48).
+const RUN_PURPOSES = Object.freeze(["checks", "repro-test", "tdd-red-green", "migration-test", "fitness", "counterproof"]);
 // Evidence kinds proven by CLI-observed runs, and the run purpose behind each.
 const RUN_EVIDENCE = Object.freeze({
   "check-run": "checks",
@@ -327,6 +328,7 @@ function validateRunEvidence(entry, runs, runIndex, fail) {
       fail(`evidence ${entry.id} needs a passing check that executed at least one test, or a test in the diff when the output has no count`);
     }
     if (detail.tests !== undefined && !isTextList(detail.tests)) fail(`evidence ${entry.id} tests must list the test paths of the diff`);
+    validateCounterproof(entry, runOf, fail);
     return undefined;
   }
   if (entry.kind === "check-run") {
@@ -363,7 +365,28 @@ function validateRunEvidence(entry, runs, runIndex, fail) {
     red.tree !== green.tree &&
     runIndex.get(red.id) < runIndex.get(green.id);
   if (!paired) fail(`evidence ${entry.id} needs a failing run followed by a passing run of the same command on another tree`);
+  validateCounterproof(entry, runOf, fail);
   return undefined;
+}
+
+// A pair or boundary-tests recorded since E1.48 names its counterproof: runs
+// of the base among which one failed, or the reason it was skipped. Evidence
+// recorded before it names neither and stays valid.
+function validateCounterproof(entry, runOf, fail) {
+  const { counterproof, counterproof_skipped: skipped } = entry.detail || {};
+  if (counterproof === undefined && skipped === undefined) return;
+  if (counterproof !== undefined && skipped !== undefined) {
+    fail(`evidence ${entry.id} names a counterproof and the reason it was skipped`);
+    return;
+  }
+  if (skipped !== undefined) {
+    if (typeof skipped !== "string" || skipped.trim() === "") fail(`evidence ${entry.id} needs the reason its counterproof was skipped`);
+    return;
+  }
+  const runs = isTextList(counterproof) ? counterproof.map(runOf) : [];
+  if (runs.length === 0 || runs.some((run) => run?.purpose !== "counterproof") || !runs.some((run) => run.exit_code !== 0)) {
+    fail(`evidence ${entry.id} needs a counterproof run that failed on the change's base`);
+  }
 }
 
 // contract-spec-and-test needs a contract document and a test in the diff,

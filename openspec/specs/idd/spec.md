@@ -192,11 +192,14 @@ when the change declares the ADRs or quality scenarios it touches
 - `check-run`: an execution of each check the project declares, run by the CLI,
   with exit code and output digest.
 - `tdd-red-green`: a test failing before the code and passing after it, per
-  unit of work, both runs recorded by the CLI (REQ-idd-014).
+  unit of work, both runs recorded by the CLI, and failing again on the
+  change's base (its counterproof, REQ-idd-014).
 - `repro-run-pair`: the reproduction test failing before the fix and passing
-  after it, both runs recorded by the CLI.
+  after it, both runs recorded by the CLI, and failing again on the change's
+  base.
 - `tested-check`: a passing check run on the current tree that reports more
-  than zero tests, or whose diff touches a test when the output has no count.
+  than zero tests, or whose diff touches a test when the output has no count,
+  and whose counterproof fails on the change's base.
 - `living-doc-current`: `change.md` holds the template sections and is current
   at close.
 - `contract-spec-and-test`: a contract document and a test, both touched by
@@ -980,7 +983,7 @@ record each execution as a run. `ospec run` MUST run one test command for
 `migration-compat-and-test` (REQ-idd-015), and record it as a run; it MUST
 refuse any other obligation, an obligation the change does not have and an
 ambiguous intent. A run MUST hold `id`, `purpose` (`checks`, `repro-test`,
-`tdd-red-green`, `migration-test` or `fitness`), `command`, `exit_code`,
+`tdd-red-green`, `migration-test`, `fitness` or `counterproof`), `command`, `exit_code`,
 `output_sha256`, `tree`, `recorded_at` and, for a check, its `name`, and for a
 fitness check of REQ-idd-022, the `ref` (`adr:<id>` or `scenario:<id>`) it
 checks. `tree` MUST digest the
@@ -1010,7 +1013,33 @@ the test paths of the diff, and a state recorded before them MUST stay valid
 with `has_test`. `repro-run-pair` and `tdd-red-green`
 evidence MUST name a failing run and a later passing run of the same purpose,
 command and unit on a different tree, and `ospec run` MUST record it when such
-a passing run is recorded.
+a passing run is recorded while the diff adds code to a test, as
+`boundary-tests` reads it, and the counterproof of the passing run fails.
+
+The counterproof (E1.48) MUST show that the test detects the change. When a
+passing run would record a pair, and when a check would satisfy
+`boundary-tests`, the CLI MUST mount outside the state lock a temporary
+`git worktree` of the change's base, without running hooks or downloading LFS
+objects, that holds the test paths of the diff and the files under
+`testdata/`, `__snapshots__/`, `fixtures/` or `__fixtures__/` as the working
+tree holds them, absent where the diff deletes them, with the ignored
+`node_modules`, `.venv`, `venv` and `vendor` of the project and of the
+repository root linked in; every other path stays as the base holds it.
+There it MUST run the same command, or for `boundary-tests` each declared
+check in order until one fails, in the project root with a timeout of 10
+minutes, and remove the worktree. Each execution MUST be recorded as a
+`counterproof` run that also holds the `obligation`, the `base`, the `mount`
+(the digest of what it put on the base) and `timed_out` when the timeout
+killed it; a timeout counts as failing. A counterproof already recorded on
+the same base and mount for the same command MUST be reused instead of run
+again. The evidence MUST name its runs in `counterproof`, one of which failed.
+While none failed the obligation MUST stay `pending` with a reason saying
+that the test passes against the base product too, and the passing run of a
+pair names its counterproof runs. Without a base commit, or when the base
+cannot be mounted, the counterproof MUST be skipped: the evidence records the
+reason in `counterproof_skipped`, and `run`, `check` and `close` MUST warn
+about it, as `close` warns about a counterproof that timed out. Evidence
+recorded before E1.48 names neither and stays valid.
 
 When the project declares exactly one check and the `--command` of `ospec run`
 equals its command, apart from leading and trailing spaces, the run MUST also
@@ -1191,12 +1220,40 @@ It MUST still exit with 0, record no check runs and never write configuration.
 
 #### Scenario: Reproduction pair
 
-- GIVEN a bug change with `repro-test` pending
-- WHEN `ospec run --obligation repro-test --command "node verify.js"` fails,
+- GIVEN a bug change with `repro-test` pending and a reproduction test the
+  diff adds
+- WHEN `ospec run --obligation repro-test --command "node --test"` fails,
   the fix is applied and the same command passes
-- THEN `repro-run-pair` evidence MUST name both runs and `repro-test` MUST be
-  `satisfied`
+- THEN a `counterproof` run of the same command MUST fail on the change's base
+- AND `repro-run-pair` evidence MUST name both runs and that counterproof, and
+  `repro-test` MUST be `satisfied`
 - AND a passing run on the same tree as the failing one MUST NOT record it
+- AND a check on the same base and tests MUST reuse the counterproof without
+  running it again
+
+#### Scenario: A reproduction that runs no test of the diff does not close
+
+- GIVEN a bug change whose failing run is `test -f marker`
+- WHEN the fix is `touch marker` and the same command passes
+- THEN no pair MUST be recorded and `repro-test` MUST stay `pending` with a
+  reason saying that the diff adds no line to a test
+
+#### Scenario: A test that passes against the base product does not close
+
+- GIVEN a feature whose diff adds a test that already passes with the product
+  of the base
+- WHEN `ospec check` runs and its checks pass
+- THEN a `counterproof` run MUST be recorded and `boundary-tests` MUST stay
+  `pending` with a reason naming it
+- AND a reproduction test that passes on the base MUST leave `repro-test`
+  `pending` the same way
+
+#### Scenario: A change without a base commit skips the counterproof
+
+- GIVEN a change opened before the first commit of its repository
+- WHEN its reproduction test fails, the fix is applied and it passes
+- THEN the pair MUST be recorded with `counterproof_skipped` and its reason
+- AND `run` and `close` MUST warn that the counterproof was skipped
 
 ### Requirement: Contract And Migration Evidence {#REQ-idd-015}
 

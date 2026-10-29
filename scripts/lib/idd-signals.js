@@ -502,6 +502,7 @@ module.exports = {
   citesOutsidePlan,
   classifyPath,
   deriveSignals,
+  isTestPath,
   kindMismatch,
   persistentHits,
   requireDeclaredCeremony,

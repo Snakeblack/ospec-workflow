@@ -14,4 +14,4 @@ feature: Add a tdd unit.
 - None
 
 ## Next recommended action
-Satisfy `tdd-red-green` with tdd-red-green evidence: ospec run --change s-tdd --obligation tdd-red-green --command "<test>" [--unit <name>]: failing before the code, passing after it.
+Satisfy `tdd-red-green` with tdd-red-green evidence: ospec run --change s-tdd --obligation tdd-red-green --command "<test>" [--unit <name>]: failing before the code, passing after it, with the test in a test file of the diff; it must also fail against the base product.

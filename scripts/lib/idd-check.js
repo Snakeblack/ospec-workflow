@@ -5,10 +5,11 @@
 // Evidence comes only from runs the CLI observed: checks-pass holds while
 // every declared check passed on the current tree, repro-test or tdd-red-green
 // hold once a run failed and a later run of the same command passed on another
-// tree, the migration obligation holds while its test passed on the current
-// tree, and the contract obligation while the diff touches a contract document
-// and a test with every check passing. No filesystem access: idd-exec.js runs
-// the commands, idd-store.js persists.
+// tree, and its counterproof failed on the change's base with the tests of the
+// diff (E1.48), the migration obligation holds while its test passed on the
+// current tree, and the contract obligation while the diff touches a contract
+// document and a test with every check passing. No filesystem access:
+// idd-exec.js runs the commands, idd-store.js persists.
 
 const { DECISIONS_ROOT, GATED_IMPACTS, GATES, OBLIGATIONS, RECORDED_IMPACTS, RUN_EVIDENCE, isIntentAmbiguous } = require("./idd-contract.js");
 const { GATE_QUESTIONS, WORK_ORDER } = require("./idd-next.js");
@@ -22,6 +23,7 @@ const PAIR_OBLIGATIONS = Object.freeze(["repro-test", "tdd-red-green"]);
 const PAIR_MOMENT = Object.freeze({ "repro-test": "the fix", "tdd-red-green": "the code" });
 const MIGRATION = "migration-compat-and-test";
 const CONTRACT = "contract-spec-and-test";
+const COUNTERPROOF = "counterproof";
 const IMPACT = "adr-impact-declaration";
 // Obligations `ospec run` proves, and the run purpose it records for each.
 const RUN_OBLIGATIONS = Object.freeze({
@@ -90,9 +92,10 @@ function settleChecks(state, { tree, runIds, recordedAt }) {
  * paths with an added line) and a passing check on `tree` reports more than
  * zero tests, or no count. The suite that passed before the change is not
  * evidence (B3), nor is a deleted test; a recognized count of zero never is
- * (REQ-idd-014).
+ * (REQ-idd-014). The counterproof of the declared checks on the base with
+ * those tests must hold as well (E1.48).
  */
-function settleBoundary(state, { tree, runIds, recordedAt, tests = [] }) {
+function settleBoundary(state, { tree, runIds, recordedAt, tests = [], counterproof = null }) {
   requireOpen(state);
   const next = structuredClone(state);
   const target = next.obligations.find((entry) => entry.id === "boundary-tests");
@@ -100,14 +103,18 @@ function settleBoundary(state, { tree, runIds, recordedAt, tests = [] }) {
   const proof = tests.length > 0 && (next.runs || []).find(
     (run) => runIds.includes(run.id) && run.exit_code === 0 && run.tree === tree && (run.tests > 0 || run.tests == null),
   );
-  if (!proof) {
+  if (!proof || !counterproofHolds(next, counterproof)) {
     target.status = "pending";
     target.evidence = [];
-    const reason = tests.length === 0 ? `the diff adds no line to a test: write the test of the product code, then ospec check --change ${state.change}` : null;
+    let reason = null;
+    if (tests.length === 0) reason = `the diff adds no line to a test: write the test of the product code, then ospec check --change ${state.change}`;
+    else if (proof && counterproof?.runs?.length) {
+      reason = `the tests the diff adds pass against the base product too (counterproof ${counterproof.runs.join(", ")}): they do not detect the change; make them fail on the base, then ospec check --change ${state.change}`;
+    }
     return { state: next, evidence: null, reason };
   }
   const id = nextEvidenceId(next);
-  const detail = { tree, run: proof.id, tests: [...tests] };
+  const detail = { tree, run: proof.id, tests: [...tests], ...counterproofDetail(counterproof) };
   next.evidence.push({
     id,
     kind: "tested-check",
@@ -192,27 +199,54 @@ function samePairKey(left, right) {
 }
 
 /**
- * After a run of a pair obligation: a passing run closes the pair with the
- * latest earlier failing run of the same command (and unit) on another tree.
+ * The latest failing run a passing run of a pair would close: the same
+ * purpose, command and unit, before it in `runs`, on another tree.
  */
-function settlePair(state, { obligation: obligationId, runId, recordedAt }) {
+function pairRed(runs, green) {
+  const before = runs.includes(green) ? runs.slice(0, runs.indexOf(green)) : [...runs];
+  return before.reverse().find((run) => samePairKey(run, green) && run.exit_code !== 0 && run.tree !== green.tree) || null;
+}
+
+// The counterproof of E1.48 proves a pair or boundary-tests when one of its
+// runs failed on the base, or when it was skipped, which the evidence marks.
+function counterproofHolds(state, proof) {
+  if (proof?.skipped) return true;
+  const runs = (state.runs || []).filter((run) => proof?.runs?.includes(run.id));
+  return runs.some((run) => run.purpose === COUNTERPROOF && run.exit_code !== 0);
+}
+
+function counterproofDetail(proof) {
+  return proof.skipped ? { counterproof_skipped: proof.skipped } : { counterproof: [...proof.runs] };
+}
+
+/**
+ * The counterproof run already recorded for `command` on the same base with
+ * the same mount (E1.48): running it again would observe the same thing.
+ */
+function priorCounterproof(runs, { base, mount, command }) {
+  return (runs || []).filter((run) => run.purpose === COUNTERPROOF && run.base === base && run.mount === mount && run.command === command).at(-1) || null;
+}
+
+/**
+ * After a run of a pair obligation: a passing run closes the pair with the
+ * latest earlier failing run of the same command (and unit) on another tree,
+ * while the diff adds code to a test (`tests`) and the counterproof of the
+ * green run holds (E1.48).
+ */
+function settlePair(state, { obligation: obligationId, runId, recordedAt, tests = [], counterproof = null }) {
   requireOpen(state);
   const kind = EVIDENCE_BY_OBLIGATION.get(obligationId);
   const runs = state.runs || [];
-  const greenIndex = runs.findIndex((run) => run.id === runId);
-  const green = runs[greenIndex];
+  const green = runs.find((run) => run.id === runId);
   if (!green || RUN_EVIDENCE[kind] !== green.purpose || green.exit_code !== 0) return { state, evidence: null };
-  const red = runs
-    .slice(0, greenIndex)
-    .reverse()
-    .find((run) => samePairKey(run, green) && run.exit_code !== 0 && run.tree !== green.tree);
-  if (!red) return { state, evidence: null };
+  const red = pairRed(runs, green);
+  if (!red || tests.length === 0 || !counterproofHolds(state, counterproof)) return { state, evidence: null };
 
   const next = structuredClone(state);
   const target = next.obligations.find((entry) => entry.id === obligationId);
   if (!target || target.status === "withdrawn") return { state, evidence: null };
   const id = nextEvidenceId(next);
-  next.evidence.push({ id, kind, obligation: obligationId, recorded_at: recordedAt, detail: { red: red.id, green: green.id } });
+  next.evidence.push({ id, kind, obligation: obligationId, recorded_at: recordedAt, detail: { red: red.id, green: green.id, ...counterproofDetail(counterproof) } });
   target.status = "satisfied";
   target.evidence = [...target.evidence, id];
   return { state: next, evidence: id };
@@ -377,13 +411,42 @@ function deferImpacts(state, { tree }) {
   return { state: next, reason: `its fitness checks run only in ospec check: ospec check --change ${state.change}` };
 }
 
+// Why a pair is still pending. A passing run that had its failing run and
+// recorded no pair was refused by E1.48: its counterproof passed on the base,
+// or, without one, the diff added no line to a test.
 function pairReason(state, obligationId) {
-  const runs = (state.runs || []).filter((run) => run.purpose === obligationId);
+  const all = state.runs || [];
+  const runs = all.filter((run) => run.purpose === obligationId);
   const moment = PAIR_MOMENT[obligationId];
   if (!runs.some((run) => run.exit_code !== 0)) {
     return `no failing run recorded: run the test with ospec run --obligation ${obligationId} before ${moment}`;
   }
+  const refused = runs.filter((run) => run.exit_code === 0 && pairRed(all, run)).at(-1);
+  if (refused?.counterproof?.length) {
+    return `the test passes against the base product too (counterproof ${refused.counterproof.join(", ")}): it does not detect the change; make it fail on the base, then run the same command again`;
+  }
+  if (refused) {
+    return "the diff adds no line to a test: the counterproof runs the tests of the diff against the base product; write the test in a test file, then run the same command again";
+  }
   return `a failing run is recorded: run the same command again after ${moment}`;
+}
+
+/**
+ * What close warns about the counterproofs behind the current evidence
+ * (E1.48): one skipped, with its reason, and one that timed out on the base.
+ */
+function counterproofWarnings(state) {
+  const warnings = [];
+  const runs = new Map((state.runs || []).map((run) => [run.id, run]));
+  for (const target of state.obligations.filter((entry) => entry.status === "satisfied")) {
+    const entry = state.evidence.find((item) => item.id === target.evidence.at(-1));
+    const detail = entry?.detail || {};
+    if (detail.counterproof_skipped) warnings.push(`counterproof skipped for ${target.id} (${entry.id}): ${detail.counterproof_skipped}`);
+    for (const id of detail.counterproof || []) {
+      if (runs.get(id)?.timed_out) warnings.push(`counterproof ${id} of ${target.id} timed out on the base and counts as failing`);
+    }
+  }
+  return warnings;
 }
 
 function checksReason({ checks, results, treeChanged, candidateCommand }) {
@@ -435,11 +498,15 @@ function checkVerdict(state, { checks = [], results = [], treeChanged = false, r
 }
 
 module.exports = {
+  COUNTERPROOF,
   PAIR_OBLIGATIONS,
   RUN_OBLIGATIONS,
   ceremonyConfig,
   checkVerdict,
+  counterproofWarnings,
   deferImpacts,
+  pairRed,
+  priorCounterproof,
   recordRuns,
   settleBoundary,
   settleChecks,

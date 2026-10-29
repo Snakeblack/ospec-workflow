@@ -11,8 +11,8 @@ Cada obligación se satisface con un registro que hace el CLI al ejecutar el com
 | Obligación | Qué la satisface | Comando que la registra |
 | --- | --- | --- |
 | `checks-pass` | Todos los `checks:` de `idd/config.yaml` pasan sobre el mismo árbol | `ospec check` |
-| `boundary-tests` | Un check que pasa sobre el árbol actual y reporta más de cero tests | `ospec check` |
-| `repro-test` | Un test de reproducción que falla antes del arreglo y pasa después | `ospec run --obligation repro-test --command "<test>"` |
+| `boundary-tests` | Un check que pasa sobre el árbol actual, reporta más de cero tests y falla en la base con los tests del diff | `ospec check` |
+| `repro-test` | Un test de reproducción del diff que falla antes del arreglo, pasa después y falla en la base | `ospec run --obligation repro-test --command "<test>"` |
 | `tdd-red-green` | El mismo par rojo-verde, por unidad de trabajo | `ospec run --obligation tdd-red-green --command "<test>"`, con `--unit` si aplica |
 | `migration-compat-and-test` | Plan de compatibilidad o rollback y un test de migración que pasa | `ospec run --obligation migration-compat-and-test --command "<test>" --plan "<plan>"` |
 | `contract-spec-and-test` | Un documento de contrato y un test tocados por el cambio, con los checks en verde | `ospec check` |
@@ -44,6 +44,12 @@ pasa (VERDE)"]
 
 - **`repro-test` (bugs):** antes del arreglo, el test de reproducción se ejecuta con `ospec run` y debe fallar. Después del arreglo, el mismo comando debe pasar. El CLI registra el par solo si el run verde corre sobre un árbol distinto del rojo: un run verde sobre el mismo árbol no cuenta.
 - **`tdd-red-green` (Strict TDD):** el mismo par, por unidad de trabajo. Ambos runs deben compartir propósito, comando y unidad.
+- **Contraprueba en la base:** demuestra que el test detecta el cambio.
+  - Cuándo corre: al registrar el verde de una pareja, y antes de dar por cumplida `boundary-tests`.
+  - Qué monta: un worktree temporal de la base del cambio con los tests del diff encima, y con lo que haya bajo `testdata/`, `__snapshots__/`, `fixtures/` o `__fixtures__/`. Enlaza los `node_modules`, `.venv`, `venv` y `vendor` ignorados, y nada más de lo ignorado.
+  - Qué exige: el mismo comando, o los checks declarados, tiene que fallar ahí. Si pasa, la obligación sigue pendiente. La pareja exige además que el diff añada código a un test, así que `test -f marker` no cierra.
+  - Límites: corre con 10 minutos de timeout, y agotarlo cuenta como fallo. Se reutiliza mientras no cambien la base, el comando y los tests.
+  - Sin commit base, o si la base no se puede montar, se omite con un aviso en `run`, `check` y `close`.
 
 ---
 

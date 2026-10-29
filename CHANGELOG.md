@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Contraprueba en la base (E1.48): el verde de repro-test y tdd-red-green, y boundary-tests, solo se cumplen si el mismo comando falla con el producto de la base y los tests del candidato (base-counterproof)
+
 ### Changed
 - Registrar en el roadmap los ítems de #409 (abandonar un change IDD) y #423 (retirar public-contract derivado por contenido de una doc), los dos únicos issues abiertos sin ítem (e1-57-e1-58-roadmap)
 

@@ -26,10 +26,14 @@ const path = require("node:path");
 const { parseArgs } = require("node:util");
 
 const {
+  COUNTERPROOF,
   RUN_OBLIGATIONS,
   ceremonyConfig,
   checkVerdict,
+  counterproofWarnings,
   deferImpacts,
+  pairRed,
+  priorCounterproof,
   recordRuns,
   settleBoundary,
   settleChecks,
@@ -45,7 +49,7 @@ const { addEntry, changelogEntry, proposeRelease } = require("./lib/idd-changelo
 const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvidence, requireResumable, staleEvidence } = require("./lib/idd-close.js");
 const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
 const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
-const { runCommand } = require("./lib/idd-exec.js");
+const { TIMED_OUT_EXIT, runCommand } = require("./lib/idd-exec.js");
 const { CATEGORY_IDS, UI_CATEGORY_IDS, countTests, projectCategories, resolveFeatureCoverage } = require("./lib/idd-facts.js");
 const { fitnessPlan } = require("./lib/idd-fitness.js");
 const { memoryQuery, resolveReferences, touchedComponents } = require("./lib/idd-knowledge.js");
@@ -90,6 +94,9 @@ const {
   EMPTY_TREE,
   IddWorkspaceError,
   commitTree,
+  counterproofMount,
+  counterproofPaths,
+  mountCounterproof,
   readArchitecture,
   readBaseConfig,
   readCheckTreeFingerprint,
@@ -531,6 +538,68 @@ function runRecord(purpose, command, result, tree, recordedAt, extra = {}) {
   return record;
 }
 
+// --- counterproof (E1.48) ------------------------------------------------------
+
+const COUNTERPROOF_TIMEOUT_MS = 10 * 60 * 1000;
+
+/**
+ * Runs `commands` in order on a worktree of the change's base with the tests
+ * of the diff on top, until one fails (E1.48). A command already counterproved
+ * on the same base and mount reuses that run. It runs outside the state lock;
+ * without a base, or when the base cannot be mounted, it is skipped with the
+ * reason.
+ */
+function runCounterproof(root, state, { diff, commands }) {
+  if (!state.base) return { skipped: "the change has no base commit to run it on" };
+  const paths = counterproofPaths(diff);
+  const mount = counterproofMount(root, paths);
+  const results = [];
+  let mounted = null;
+  try {
+    for (const { command, name } of commands) {
+      const prior = priorCounterproof(state.runs, { base: state.base, mount, command });
+      if (!prior) mounted ??= mountCounterproof(root, { base: state.base, paths });
+      const result = prior
+        ? { id: prior.id, reused: true, command, exit_code: prior.exit_code, ...(prior.timed_out ? { timed_out: true } : {}) }
+        : { command, ...(name ? { name } : {}), ...runCommand(command, { cwd: mounted.cwd, timeoutMs: COUNTERPROOF_TIMEOUT_MS }) };
+      results.push(result);
+      if (result.exit_code !== 0) break;
+    }
+  } catch (error) {
+    if (error instanceof IddWorkspaceError) return { skipped: error.message };
+    throw error;
+  } finally {
+    mounted?.remove();
+  }
+  return { base: state.base, mount, results };
+}
+
+/**
+ * Records the new runs of a counterproof for `obligation` and returns the
+ * proof the settle reducers read: the runs that make it up, or why it was
+ * skipped. The outcome it returns carries the id of every run, so the same
+ * counterproof can prove another obligation of the same call.
+ */
+function recordCounterproof(state, outcome, { obligation, tree, recordedAt }) {
+  if (outcome.skipped) return { state, proof: { skipped: outcome.skipped }, outcome };
+  const fresh = outcome.results.filter((result) => !result.id);
+  const extra = (result) => ({ obligation, ...(result.name ? { name: result.name } : {}), base: outcome.base, mount: outcome.mount, ...(result.timed_out ? { timed_out: true } : {}) });
+  const recorded = recordRuns(state, fresh.map((result) => runRecord(COUNTERPROOF, result.command, result, tree, recordedAt, extra(result))));
+  const ids = [...recorded.ids];
+  const results = outcome.results.map((result) => (result.id ? result : { ...result, id: ids.shift() }));
+  return { state: recorded.state, proof: { runs: results.map((result) => result.id) }, outcome: { ...outcome, results } };
+}
+
+// What run and check report of a counterproof, and its warnings.
+function counterproofView(outcome) {
+  if (outcome.skipped) return { view: { skipped: outcome.skipped }, warnings: [`counterproof skipped: ${outcome.skipped}`] };
+  const runs = outcome.results.map(({ id, exit_code, timed_out, reused }) => ({ id, exit_code, ...(timed_out ? { timed_out } : {}), ...(reused ? { reused } : {}) }));
+  const warnings = runs
+    .filter((run) => run.timed_out)
+    .map((run) => `counterproof ${run.id} timed out after ${COUNTERPROOF_TIMEOUT_MS / 60000} minutes on the base (exit ${TIMED_OUT_EXIT}): it counts as failing`);
+  return { view: { base: outcome.base, runs }, warnings };
+}
+
 // What checks-changed contrasts (B7, E1.53): the checks and the ceremony
 // settings of idd/config.yaml against the ones it declared at `base`.
 function readConfigChange(root, base, context) {
@@ -569,11 +638,19 @@ function readCheckOutcome(root, values, current, context, diff) {
   };
 }
 
+// Whether a check whose checks returned `results` would satisfy
+// boundary-tests, so its counterproof has to run first (E1.48).
+function settlesBoundary(state, diff, results) {
+  const target = state.obligations.find((entry) => entry.id === "boundary-tests");
+  return Boolean(target && target.status !== "withdrawn" && addedTests(diff).length > 0 && results.some((result) => result.exit_code === 0 && result.tests !== 0));
+}
+
 // Settles on `stored` what a check observed: the signals of the diff, the
 // checks-changed gate, the check and fitness runs and every obligation they
-// prove. A run that counts as the check (E4.15) runs no fitness checks, so with
-// some to run the impact declaration keeps only evidence of this tree.
-function settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, checkTreeBefore, checkTree, tree, recordedAt, fitnessDeferred = false }) {
+// prove, with the counterproof of boundary-tests (E1.48). A run that counts as
+// the check (E4.15) runs no fitness checks, so with some to run the impact
+// declaration keeps only evidence of this tree.
+function settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, checkTreeBefore, checkTree, tree, recordedAt, fitnessDeferred = false, counterproof = null }) {
   const reasons = {};
   const derived = applyDerivation(
     stored,
@@ -584,8 +661,9 @@ function settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, ch
   const runs = checks.map((result) => runRecord("checks", result.command, result, checkTreeBefore, recordedAt, { name: result.name }));
   const recorded = recordRuns(gated, runs);
   const fitnessRecorded = recordRuns(recorded.state, fitnessRuns.map((result) => runRecord("fitness", result.command, result, checkTreeBefore, recordedAt, { ref: result.ref })));
-  const settled = settleChecks(fitnessRecorded.state, { tree: checkTree, runIds: recorded.ids, recordedAt });
-  const tested = settleBoundary(settled.state, { tree: checkTree, runIds: recorded.ids, recordedAt, tests: addedTests(inputs.diff) });
+  const counterproved = counterproof ? recordCounterproof(fitnessRecorded.state, counterproof, { obligation: "boundary-tests", tree, recordedAt }) : null;
+  const settled = settleChecks(counterproved?.state ?? fitnessRecorded.state, { tree: checkTree, runIds: recorded.ids, recordedAt });
+  const tested = settleBoundary(settled.state, { tree: checkTree, runIds: recorded.ids, recordedAt, tests: addedTests(inputs.diff), counterproof: counterproved?.proof ?? null });
   if (tested.reason) reasons["boundary-tests"] = tested.reason;
   const bound = settleTreeBound(tested.state, { tree });
   const contract = settleContract(bound, { tree: checkTree, checkEvidence: settled.evidence, ...outcome.contractPaths, recordedAt });
@@ -595,7 +673,7 @@ function settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, ch
     : settleImpacts(contract.state, { records: outcome.records, fitness: { tree: checkTree, runIds: fitnessRecorded.ids }, recordedAt });
   if (impacts.reason) reasons["adr-impact-declaration"] = impacts.reason;
   const fresh = settleReviewFreshness(impacts.state, { reviewedChanged: outcome.reviewedChanged });
-  return { state: fresh, added: derived.added, reasons, runIds: recorded.ids, evidence: settled.evidence };
+  return { state: fresh, added: derived.added, reasons, runIds: recorded.ids, evidence: settled.evidence, counterproof: counterproved?.outcome ?? null };
 }
 
 // Runs every declared check on the working tree, recomputes the signals from
@@ -619,6 +697,7 @@ async function check(root, values) {
     return result;
   });
   const fitnessRuns = inputs.fitness.checks.map(({ kind, id, command }) => ({ ref: `${kind}:${id}`, command, ...runCommand(command, { cwd: root }) }));
+  const counterproof = settlesBoundary(current, inputs.diff, checks) ? runCounterproof(root, current, { diff: inputs.diff, commands: context.checks }) : null;
   const tree = readTreeFingerprint(root);
   const checkTree = readCheckTreeFingerprint(root);
   const recordedAt = new Date().toISOString();
@@ -629,7 +708,7 @@ async function check(root, values) {
     root,
     values.change,
     existing((stored) => {
-      settled = settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, checkTreeBefore, checkTree, tree, recordedAt });
+      settled = settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, checkTreeBefore, checkTree, tree, recordedAt, counterproof });
       return { state: settled.state, changed: changedFrom(stored, settled.state) };
     }),
   );
@@ -644,7 +723,13 @@ async function check(root, values) {
   const result = { change: state.change, changed, added: settled.added, checks, tree: checkTree, ...verdict, next: nextAfterWrite(root, state) };
   const view = fitnessView(inputs.fitness, fitnessRuns);
   if (view) result.fitness = view;
-  if (inputs.warnings.length) result.warnings = inputs.warnings;
+  const warnings = [...inputs.warnings];
+  if (settled.counterproof) {
+    const counterproved = counterproofView(settled.counterproof);
+    result.counterproof = counterproved.view;
+    warnings.push(...counterproved.warnings);
+  }
+  if (warnings.length) result.warnings = warnings;
   return result;
 }
 
@@ -676,8 +761,9 @@ async function checkAndClose(root, values) {
 
 // Runs one test command for an obligation `ospec run` proves and records the
 // run: a passing run after a failing one on another tree records a red → green
-// pair, and a passing migration test records its evidence with the plan.
-// A command equal to the only declared check also counts as that check
+// pair once the diff adds a line to a test and its counterproof fails on the
+// base (E1.48), and a passing migration test records its evidence with the
+// plan. A command equal to the only declared check also counts as that check
 // (E4.15): it settles what ospec check settles, but runs no fitness check.
 async function runObligation(root, values) {
   const purpose = RUN_OBLIGATIONS[values.obligation];
@@ -717,23 +803,47 @@ async function runObligation(root, values) {
     : null;
   const checkResult = inputs ? { name: onlyCheck.name, command: onlyCheck.command, ...result } : null;
   if (checkResult && countTests(result.output_tail) != null) checkResult.tests = countTests(result.output_tail);
+  // E1.48: a passing run that would close its pair needs a test in the diff
+  // and its counterproof; as the only check, the same counterproof proves
+  // boundary-tests.
+  let tests = [];
+  let pairCounterproof = null;
+  if (!migration && result.exit_code === 0 && pairRed(current.runs || [], { purpose, command: values.command, unit: values.unit, tree })) {
+    const diff = inputs?.diff ?? readGitDiff(root, { base: diffBase(values, current) });
+    tests = addedTests(diff);
+    if (tests.length > 0) pairCounterproof = runCounterproof(root, current, { diff, commands: [{ command: values.command }] });
+  }
+  const boundaryCounterproof =
+    inputs && settlesBoundary(current, inputs.diff, [checkResult])
+      ? (pairCounterproof ?? runCounterproof(root, current, { diff: inputs.diff, commands: [{ command: onlyCheck.command, name: onlyCheck.name }] }))
+      : null;
 
   let runId;
   let evidence;
   let settledCheck = null;
+  let pairRecorded = null;
   const { state } = await mutateChange(
     root,
     values.change,
     existing((stored) => {
       const recorded = recordRuns(stored, [runRecord(purpose, values.command, result, tree, recordedAt, extra)]);
       [runId] = recorded.ids;
+      let pairState = recorded.state;
+      let proof = null;
+      if (pairCounterproof) {
+        const counterproved = recordCounterproof(pairState, pairCounterproof, { obligation: values.obligation, tree, recordedAt });
+        ({ state: pairState, proof, outcome: pairRecorded } = counterproved);
+        // The green run names its counterproof, so a refused pair says why.
+        if (proof.runs) pairState.runs.find((run) => run.id === runId).counterproof = [...proof.runs];
+      }
       const settled = migration
-        ? settleMigration(recorded.state, { runId, plan: values.plan.trim(), recordedAt })
-        : settlePair(recorded.state, { obligation: values.obligation, runId, recordedAt });
+        ? settleMigration(pairState, { runId, plan: values.plan.trim(), recordedAt })
+        : settlePair(pairState, { obligation: values.obligation, runId, recordedAt, tests, counterproof: proof });
       evidence = settled.evidence;
       if (!inputs) return { state: settled.state, changed: true };
       const fitnessDeferred = inputs.fitness.checks.length > 0;
-      settledCheck = settleCheck(settled.state, { context, inputs, outcome: after.outcome, checks: [checkResult], fitnessRuns: [], checkTreeBefore, checkTree: after.checkTree, tree: after.tree, recordedAt, fitnessDeferred });
+      const counterproof = boundaryCounterproof && boundaryCounterproof === pairCounterproof ? pairRecorded : boundaryCounterproof;
+      settledCheck = settleCheck(settled.state, { context, inputs, outcome: after.outcome, checks: [checkResult], fitnessRuns: [], checkTreeBefore, checkTree: after.checkTree, tree: after.tree, recordedAt, fitnessDeferred, counterproof });
       return { state: settledCheck.state, changed: true };
     }),
   );
@@ -743,6 +853,12 @@ async function runObligation(root, values) {
   const verdict = checkVerdict(state, { ...context, ...counted, livingDoc: readLivingDoc(root, state) });
   const output = { change: state.change, run: { id: runId, ...extra, ...result }, evidence };
   if (settledCheck) output.check = { name: onlyCheck.name, run: settledCheck.runIds[0], evidence: settledCheck.evidence, added: settledCheck.added };
+  const counterproved = pairRecorded ?? settledCheck?.counterproof;
+  if (counterproved) {
+    const view = counterproofView(counterproved);
+    output.counterproof = view.view;
+    warnings.push(...view.warnings);
+  }
   if (warnings.length) output.warnings = warnings;
   return { ...output, ...verdict, next: nextAfterWrite(root, state) };
 }
@@ -873,6 +989,7 @@ async function close(root, values) {
     }
     if (await fsp.stat(changeDir(root, state.change)).then(() => true, () => false)) writeEvidenceSection(root, state);
     const archive = await archiveChange(root, state);
+    const warnings = counterproofWarnings(state);
     return {
       change: state.change,
       status: state.status,
@@ -880,6 +997,7 @@ async function close(root, values) {
       archive,
       assumptions: state.assumptions || [],
       reviews: reviewAttestations(state),
+      ...(warnings.length ? { warnings } : {}),
       records: readKnowledgeRecords(root, state, archive.destination),
       ...(delivery ?? closeDelivery(root, state, { write: false })),
     };
@@ -1367,11 +1485,18 @@ function describeCheck(result) {
   if (runs.length) lines.push(`ran: ${runs.map((run) => `${run.label} exit ${run.exit_code}`).join(", ")}`);
   for (const run of runs.filter((entry) => entry.exit_code !== 0)) lines.push(`${run.label} \`${run.command}\`:`, ...run.output_tail.map((line) => `  ${line}`));
   lines.push(...describeFitness({ checks: [], manual: (result.fitness?.manual || []).filter((item) => !item.evidence) }));
+  lines.push(...describeCounterproof(result.counterproof));
   lines.push(...describeAdded(result.added));
   for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
   // check --close reports the close in place of the next step (E4.15).
   lines.push(...(result.close ? [describeClose(result.close)] : describeStep(result.next)));
   return lines.join("\n");
+}
+
+// One line per counterproof run (E1.48); a skipped one is a warning.
+function describeCounterproof(counterproof) {
+  if (!counterproof?.runs) return [];
+  return counterproof.runs.map((run) => `counterproof ${run.id}: exit ${run.exit_code} on base ${counterproof.base.slice(0, 12)}${run.reused ? " (recorded before)" : ""}`);
 }
 
 function describeAdded(added) {
@@ -1383,6 +1508,7 @@ function describeRunResult(result) {
   const evidence = result.evidence ? `recorded evidence ${result.evidence}` : "no evidence recorded by this run";
   const lines = [`${result.run.id}: exit ${result.run.exit_code}; ${evidence}`];
   if (result.run.exit_code !== 0) lines.push(...result.run.output_tail.map((line) => `  ${line}`));
+  lines.push(...describeCounterproof(result.counterproof));
   if (result.check) {
     const { name, run, evidence: checked, added } = result.check;
     lines.push(`counted as check ${name} (${run}): ${checked ? `recorded evidence ${checked}` : "no check evidence"}`, ...describeAdded(added));
@@ -1421,7 +1547,7 @@ function describeClose(result) {
   const reviews = (result.reviews || []).map((entry) => `\ntrust review ${entry.evidence}: ${entry.attestation ?? "not attested"}`).join("");
   const body = `${line}\nassumptions:\n${listed}${reviews}`;
   const records = result.records || [];
-  const lines = [body, ...describeCloseDelivery(result)];
+  const lines = [body, ...(result.warnings || []).map((warning) => `warning: ${warning}`), ...describeCloseDelivery(result)];
   // Each topic, since agents read the text (E1.47); --json adds the rest.
   if (records.length) {
     lines.push(`${records.length} knowledge record(s) to keep in cross-session memory under its topic; summary and provenance: ospec close --change ${result.change} --json`);

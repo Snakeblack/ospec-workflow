@@ -17,31 +17,39 @@ function tailOf(output) {
   return lines.length === 1 && lines[0] === "" ? [] : lines.slice(-OUTPUT_TAIL_LINES);
 }
 
+// The exit code of a command killed by its timeout, as timeout(1) reports it.
+const TIMED_OUT_EXIT = 124;
+
 /**
  * @param {string} command  shell command line
- * @param {{cwd: string}} options
- * @returns {{exit_code: number, output_sha256: string, output_tail: string[]}}
+ * @param {{cwd: string, timeoutMs?: number}} options
+ * @returns {{exit_code: number, output_sha256: string, output_tail: string[], timed_out?: true}}
  */
-function runCommand(command, { cwd }) {
+function runCommand(command, { cwd, timeoutMs }) {
   const result = spawnSync(command, {
     cwd,
     shell: true,
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: MAX_OUTPUT_BYTES,
     windowsHide: true,
+    ...(timeoutMs ? { timeout: timeoutMs } : {}),
   });
   const output = Buffer.concat([result.stdout || Buffer.alloc(0), result.stderr || Buffer.alloc(0)]);
-  // A command killed by a signal or unable to start never counts as passing.
+  // A command killed by a signal or its timeout, or unable to start, never
+  // counts as passing.
+  const timedOut = result.error?.code === "ETIMEDOUT";
   let exitCode = result.status;
-  if (exitCode == null) exitCode = result.error ? 127 : 128;
+  if (exitCode == null) exitCode = timedOut ? TIMED_OUT_EXIT : result.error ? 127 : 128;
   return {
     exit_code: exitCode,
     output_sha256: `sha256:${crypto.createHash("sha256").update(output).digest("hex")}`,
     output_tail: tailOf(output),
+    ...(timedOut ? { timed_out: true } : {}),
   };
 }
 
 module.exports = {
   OUTPUT_TAIL_LINES,
+  TIMED_OUT_EXIT,
   runCommand,
 };
