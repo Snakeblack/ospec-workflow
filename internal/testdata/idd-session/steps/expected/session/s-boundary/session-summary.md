@@ -14,4 +14,4 @@ feature: Add a mode.
 - None
 
 ## Next recommended action
-Satisfy `boundary-tests` with tested-check evidence: ospec check --change s-boundary after the diff adds a test for the product code; the output must report tests greater than 0.
+Satisfy `boundary-tests` with tested-check evidence: ospec check --change s-boundary after the diff adds a test for the product code; the output must report tests greater than 0, and the test must fail against the base product.

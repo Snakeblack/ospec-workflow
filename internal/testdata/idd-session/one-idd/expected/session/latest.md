@@ -8,4 +8,4 @@
 - Detailed summary: `.ospec/session/fix-a/session-summary.md`
 
 ## Next recommended action
-Satisfy `repro-test` with repro-run-pair evidence: ospec run --change fix-a --obligation repro-test --command "<test>": once failing before the fix, again passing after it.
+Satisfy `repro-test` with repro-run-pair evidence: ospec run --change fix-a --obligation repro-test --command "<test>": once failing before the fix, again passing after it, with the test in a test file of the diff; it must also fail against the base product.

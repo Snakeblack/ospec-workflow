@@ -7,8 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.166.0] - 2026-10-29
+
+### Added
+- **Contraprueba en la base (E1.48)** (base-counterproof). Un test que ya pasaba con el producto de la base cerraba `repro-test`, `tdd-red-green` o `boundary-tests`, y un repro con `test -f marker` cerraba si el arreglo no tocaba código. Ahora el verde de una pareja, y un check que cumpliría `boundary-tests`, exigen que el mismo comando falle sobre la base.
+  - El CLI monta fuera del lock un `git worktree` temporal de la base del cambio, sin hooks ni descargas de LFS, con los tests del diff y `testdata/`, `__snapshots__/`, `fixtures/` y `__fixtures__/` encima, y las dependencias ignoradas enlazadas. Ahí corre el mismo comando, o los checks declarados en orden, con 10 minutos de timeout; un timeout cuenta como fallo.
+  - Cada ejecución queda como run `counterproof` con su base y la huella de lo montado, y se reutiliza mientras no cambien. La pareja exige además que el diff añada código a un test.
+  - Sin commit base, o si la base no se puede montar, la contraprueba se omite con `counterproof_skipped` en la evidencia y un aviso en `run`, `check` y `close`. La evidencia anterior a E1.48 sigue valiendo.
+
 ### Changed
 - Registrar en el roadmap los ítems de #409 (abandonar un change IDD) y #423 (retirar public-contract derivado por contenido de una doc), los dos únicos issues abiertos sin ítem (e1-57-e1-58-roadmap)
+
+### Fixed
+Los tres límites que la demo de E1.48 verificó, corregidos antes de publicarla:
+- **Convenciones de test fuera de JS** (counterproof-test-conventions). `isTestPath` no reconocía `spec/`, `*_spec.rb`, `*_test.py` ni los tests inline de Rust, así que en esos proyectos la pareja ya no podía cerrar.
+  - Cuenta como test un fichero bajo `spec/` en cualquier nivel, como `test/`; uno con el sufijo `_test` o `_spec` y extensión de código (`_test.py`, `_spec.rb`, `_test.cc`…); y un módulo `tests` (`tests.py` de Django, `tests.rs` de Rust).
+  - Una línea añadida a un `.rs` que solo aparece dentro de un `mod` bajo `#[cfg(test)]` cuenta como código añadido a un test. Como comparte fichero con el producto, la contraprueba se omite con `counterproof_skipped` y un aviso.
+- **Control de la contraprueba** (counterproof-control). Un test de relleno junto a `test -f marker` cerraba la pareja: la contraprueba fallaba porque `marker` no existe en la base, no por el test.
+  - Cuando la contraprueba falla, el mismo comando corre como control en un worktree de la base sola, sin los tests del diff. Solo vale si el control pasó o falló con otro exit o con otra salida; la ruta de cada worktree se lee como `<worktree>` para poder compararlas.
+  - El control es un run `counterproof` con `control: true`, se reutiliza mientras no cambien la base ni el comando, y la evidencia lo nombra. Para `boundary-tests`, un check que falla igual que su control no corta.
+- **Rojo vacío** (counterproof-environment). Si los tests necesitaban un build (TS en `dist/`) o una dependencia sin enlazar, la base fallaba al importar y eso contaba como rojo.
+  - Cuando el control falla de otra forma, los checks declarados corren también como control sobre la base sola. Si alguno falla, o no hay checks, la contraprueba no es concluyente: sus runs se registran y la evidencia lleva `counterproof_skipped` con el check que falla, con aviso y sin bloquear.
+  - El worktree enlaza `node_modules`, `.venv`, `venv`, `.tox`, `.nox`, `vendor`, `deps`, `.dart_tool`, `Pods` y `bower_components` cuando git los ignora; nunca `dist`, `build` ni `target`.
+- **Contrato:** REQ-idd-005, REQ-idd-012 y REQ-idd-014 recogen las reglas con sus escenarios, y el openwiki de verificación las explica.
+- **Límites conocidos:** una trampa cuya salida cambia en cada ejecución se escapa del control, y el control de entorno supone que la base pasa sus propios checks. E4.14 medirá el coste de la contraprueba.
+
+Hecho con IDD (`idd/archive/2026-10-28-base-counterproof/` y `idd/archive/2026-10-29-counterproof-{test-conventions,control,environment}/`).
+
+**Verificación directa**: `node scripts/check.js` (4287 tests pasando, 0 fallos y 5 omitidos). La puerta de Go (`gofmt -l cmd internal`, `go vet ./...`, `go test ./...`) también pasa.
 
 ## [2.165.1] - 2026-10-28
 

@@ -22,7 +22,7 @@ const { validateComponentMap } = require("./component-map.js");
 const { COMPONENT_MAP_RELATIVE, GLOSSARY_RELATIVE, parseGlossaryTerms } = require("./idd-knowledge.js");
 const { evidenceProblem } = require("./repository-evidence.js");
 const { detectStacks, normalizePath, publishedPaths, resolvePatterns } = require("./idd-impact.js");
-const { classifyPath } = require("./idd-signals.js");
+const { classifyPath, isTestPath } = require("./idd-signals.js");
 
 const MAX_UNTRACKED_BYTES = 1024 * 1024;
 const GIT_MAX_BUFFER = 64 * 1024 * 1024;
@@ -628,6 +628,132 @@ function readFitnessSources(root, base) {
   return result;
 }
 
+// The test side of a counterproof (E1.48): the tests of the diff and the test
+// data beside them. Every other path stays as the change's base holds it.
+const TEST_DATA = /(?:^|\/)(?:testdata|__snapshots__|fixtures|__fixtures__)\//i;
+// Ignored dependency directories a counterproof links in from the project, so
+// a missing install never stands for a red: Node, Python virtualenvs, tox and
+// nox, PHP, Go and Ruby vendoring, Elixir, Dart, CocoaPods and Bower. Build
+// outputs (dist, build, target, _build) hold the candidate's product and are
+// never linked.
+const DEPENDENCY_DIRS = Object.freeze(["node_modules", ".venv", "venv", ".tox", ".nox", "vendor", "deps", ".dart_tool", "Pods", "bower_components"]);
+
+/** The paths of the diff a counterproof takes from the working tree. */
+function counterproofPaths(diff) {
+  return (diff.paths || []).filter((file) => isTestPath(file) || TEST_DATA.test(file));
+}
+
+/**
+ * Digest of what a counterproof puts on the base: each path's content, the
+ * target of a symlink, or its absence where the diff deletes it.
+ */
+function counterproofMount(root, paths) {
+  const hash = crypto.createHash("sha256");
+  for (const file of [...paths].sort()) {
+    const full = path.join(root, file);
+    let entry = "deleted";
+    try {
+      const stat = fs.lstatSync(full);
+      if (stat.isSymbolicLink()) entry = `symlink\0${fs.readlinkSync(full)}`;
+      else if (stat.isFile()) entry = `file\0${crypto.createHash("sha256").update(fs.readFileSync(full)).digest("hex")}`;
+      else entry = "other";
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    hash.update(`${file}\0${entry}\0`);
+  }
+  return `sha256:${hash.digest("hex")}`;
+}
+
+function isIgnored(top, full) {
+  try {
+    git(top, ["check-ignore", "-q", "--", full]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// A link or junction goes, never what it points to.
+function removeLink(link) {
+  try {
+    fs.unlinkSync(link);
+  } catch {
+    fs.rmdirSync(link);
+  }
+}
+
+/**
+ * A temporary worktree of `base` for a counterproof (E1.48): the counterproof
+ * paths as the working tree holds them, absent where the diff deletes them,
+ * and the ignored dependency directories of the project and of the repository
+ * root linked in. No hook runs and no LFS object is downloaded. `cwd` is the
+ * project root inside it; `mask` lists the spellings of the worktree a command
+ * may print, which runCommand masks so that two worktrees compare; `remove`
+ * deletes it and prunes its git entry.
+ */
+function mountCounterproof(root, { base, paths }) {
+  requireWorkTree(root);
+  if (typeof base !== "string" || base === "" || base.startsWith("-")) {
+    throw new IddWorkspaceError("counterproof-unmounted", `unknown counterproof base: ${JSON.stringify(base)}`);
+  }
+  const top = git(root, ["rev-parse", "--show-toplevel"]).trim();
+  const prefix = git(root, ["rev-parse", "--show-prefix"]).trim();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-counterproof-"));
+  const tree = path.join(dir, "tree");
+  const links = [];
+  const remove = () => {
+    for (const link of links.splice(0)) removeLink(link);
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
+    try {
+      git(top, ["worktree", "prune"]);
+    } catch {
+      // A stale entry only lists a missing worktree; the next prune drops it.
+    }
+  };
+  try {
+    const hooks = path.join(dir, "hooks");
+    fs.mkdirSync(hooks);
+    git(top, ["-c", `core.hooksPath=${hooks}`, "-c", "core.longpaths=true", "worktree", "add", "--detach", tree, base], { env: { GIT_LFS_SKIP_SMUDGE: "1" } });
+    // A project root the base lacks still runs the command, against nothing.
+    const cwd = path.join(tree, prefix);
+    fs.mkdirSync(cwd, { recursive: true });
+    for (const file of paths) {
+      const from = path.join(root, file);
+      const to = path.join(cwd, file);
+      fs.rmSync(to, { recursive: true, force: true });
+      let stat = null;
+      try {
+        stat = fs.lstatSync(from);
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+      if (!stat || !(stat.isFile() || stat.isSymbolicLink())) continue;
+      fs.mkdirSync(path.dirname(to), { recursive: true });
+      if (stat.isSymbolicLink()) fs.symlinkSync(fs.readlinkSync(from), to);
+      else fs.copyFileSync(from, to);
+    }
+    const places = [[root, cwd], [top, tree]];
+    for (const [from, to] of places) {
+      for (const name of DEPENDENCY_DIRS) {
+        const source = path.join(from, name);
+        const target = path.join(to, name);
+        if (!fs.statSync(source, { throwIfNoEntry: false })?.isDirectory() || fs.lstatSync(target, { throwIfNoEntry: false })) continue;
+        if (!isIgnored(top, source)) continue;
+        fs.symlinkSync(source, target, "junction");
+        links.push(target);
+      }
+    }
+    const real = fs.realpathSync(tree);
+    const mask = [...new Set([tree, real, tree.replace(/\\/g, "/"), real.replace(/\\/g, "/")])];
+    return { cwd, mask, remove };
+  } catch (error) {
+    remove();
+    const detail = String(error.stderr || error.message || error).trim().split("\n")[0];
+    throw new IddWorkspaceError("counterproof-unmounted", `the base ${base.slice(0, 12)} cannot be mounted: ${detail}`);
+  }
+}
+
 /** Changed paths between two trees with their added and deleted line counts. */
 function treeNumstat(root, from, to) {
   const fields = nulList(git(root, ["diff-tree", "-r", "--no-renames", "--numstat", "-z", from, to]));
@@ -643,9 +769,13 @@ function treeNumstat(root, from, to) {
 }
 
 module.exports = {
+  DEPENDENCY_DIRS,
   EMPTY_TREE,
   IddWorkspaceError,
   commitTree,
+  counterproofMount,
+  counterproofPaths,
+  mountCounterproof,
   readArchitecture,
   readBaseConfig,
   readCheckTreeFingerprint,

@@ -17,31 +17,52 @@ function tailOf(output) {
   return lines.length === 1 && lines[0] === "" ? [] : lines.slice(-OUTPUT_TAIL_LINES);
 }
 
+// The exit code of a command killed by its timeout, as timeout(1) reports it.
+const TIMED_OUT_EXIT = 124;
+
+// What a masked path reads as in the output (E1.48): a counterproof and its
+// control run in different worktrees and still compare.
+const MASKED_PATH = "<worktree>";
+
+// Each path of `mask` replaced by MASKED_PATH, the longest first, since one
+// may end another (/private/var/x and /var/x on macOS).
+function masked(output, mask) {
+  if (!mask?.length) return output;
+  let text = output.toString("utf8");
+  for (const entry of [...mask].filter(Boolean).sort((left, right) => right.length - left.length)) text = text.split(entry).join(MASKED_PATH);
+  return Buffer.from(text, "utf8");
+}
+
 /**
  * @param {string} command  shell command line
- * @param {{cwd: string}} options
- * @returns {{exit_code: number, output_sha256: string, output_tail: string[]}}
+ * @param {{cwd: string, timeoutMs?: number, mask?: string[]}} options
+ * @returns {{exit_code: number, output_sha256: string, output_tail: string[], timed_out?: true}}
  */
-function runCommand(command, { cwd }) {
+function runCommand(command, { cwd, timeoutMs, mask }) {
   const result = spawnSync(command, {
     cwd,
     shell: true,
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: MAX_OUTPUT_BYTES,
     windowsHide: true,
+    ...(timeoutMs ? { timeout: timeoutMs } : {}),
   });
-  const output = Buffer.concat([result.stdout || Buffer.alloc(0), result.stderr || Buffer.alloc(0)]);
-  // A command killed by a signal or unable to start never counts as passing.
+  const output = masked(Buffer.concat([result.stdout || Buffer.alloc(0), result.stderr || Buffer.alloc(0)]), mask);
+  // A command killed by a signal or its timeout, or unable to start, never
+  // counts as passing.
+  const timedOut = result.error?.code === "ETIMEDOUT";
   let exitCode = result.status;
-  if (exitCode == null) exitCode = result.error ? 127 : 128;
+  if (exitCode == null) exitCode = timedOut ? TIMED_OUT_EXIT : result.error ? 127 : 128;
   return {
     exit_code: exitCode,
     output_sha256: `sha256:${crypto.createHash("sha256").update(output).digest("hex")}`,
     output_tail: tailOf(output),
+    ...(timedOut ? { timed_out: true } : {}),
   };
 }
 
 module.exports = {
   OUTPUT_TAIL_LINES,
+  TIMED_OUT_EXIT,
   runCommand,
 };

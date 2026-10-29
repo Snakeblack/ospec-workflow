@@ -11,8 +11,8 @@ Cada obligación se satisface con un registro que hace el CLI al ejecutar el com
 | Obligación | Qué la satisface | Comando que la registra |
 | --- | --- | --- |
 | `checks-pass` | Todos los `checks:` de `idd/config.yaml` pasan sobre el mismo árbol | `ospec check` |
-| `boundary-tests` | Un check que pasa sobre el árbol actual y reporta más de cero tests | `ospec check` |
-| `repro-test` | Un test de reproducción que falla antes del arreglo y pasa después | `ospec run --obligation repro-test --command "<test>"` |
+| `boundary-tests` | Un check que pasa sobre el árbol actual, reporta más de cero tests y falla en la base con los tests del diff | `ospec check` |
+| `repro-test` | Un test de reproducción del diff que falla antes del arreglo, pasa después y falla en la base | `ospec run --obligation repro-test --command "<test>"` |
 | `tdd-red-green` | El mismo par rojo-verde, por unidad de trabajo | `ospec run --obligation tdd-red-green --command "<test>"`, con `--unit` si aplica |
 | `migration-compat-and-test` | Plan de compatibilidad o rollback y un test de migración que pasa | `ospec run --obligation migration-compat-and-test --command "<test>" --plan "<plan>"` |
 | `contract-spec-and-test` | Un documento de contrato y un test tocados por el cambio, con los checks en verde | `ospec check` |
@@ -44,6 +44,15 @@ pasa (VERDE)"]
 
 - **`repro-test` (bugs):** antes del arreglo, el test de reproducción se ejecuta con `ospec run` y debe fallar. Después del arreglo, el mismo comando debe pasar. El CLI registra el par solo si el run verde corre sobre un árbol distinto del rojo: un run verde sobre el mismo árbol no cuenta.
 - **`tdd-red-green` (Strict TDD):** el mismo par, por unidad de trabajo. Ambos runs deben compartir propósito, comando y unidad.
+- **Contraprueba en la base:** demuestra que el test detecta el cambio.
+  - Cuándo corre: al registrar el verde de una pareja, y antes de dar por cumplida `boundary-tests`.
+  - Qué monta: un worktree temporal de la base del cambio con los tests del diff encima, y con lo que haya bajo `testdata/`, `__snapshots__/`, `fixtures/` o `__fixtures__/`. Enlaza los `node_modules`, `.venv`, `venv`, `.tox`, `.nox`, `vendor`, `deps`, `.dart_tool`, `Pods` y `bower_components` ignorados, y nada más de lo ignorado: ni `dist`, ni `build`, ni `target`, que son el producto del candidato.
+  - Qué es un test: un fichero bajo `test/`, `tests/`, `__tests__/` o `spec/`, o con nombre de test: `*.test.*` y `*.spec.*` en JS y TS, el sufijo `_test` o `_spec` en cualquier lenguaje (`_test.go`, `_test.py`, `_spec.rb`…), un módulo `tests` (`tests.py` de Django, `tests.rs` de Rust), `test_*.py`, `*Test.java` y `*Tests.cs`.
+  - Qué exige: el mismo comando, o los checks declarados, tiene que fallar ahí. Si pasa, la obligación sigue pendiente. La pareja exige además que el diff añada código a un test, así que `test -f marker` no cierra.
+  - El control: cuando la contraprueba falla, el mismo comando corre también sobre la base sola, sin los tests del diff. La contraprueba solo vale si el control pasó, o falló con otro exit o con otra salida. Así, `test -f marker` con un test de relleno al lado no cierra: falla igual con el relleno que sin él. La ruta de cada worktree se lee como `<worktree>` en la salida, para que las dos se puedan comparar.
+  - Rojo vacío: si el control falla de otra forma, corren también los checks declarados sobre la base sola. Si alguno falla, al worktree le falta algo que los tests necesitan (un build en `dist/`, una dependencia que no enlaza) y la contraprueba no es concluyente: no bloquea, pero la evidencia lleva `counterproof_skipped` con el check que falla y `run`, `check` y `close` lo avisan. Lo mismo pasa sin checks declarados.
+  - Límites: corre con 10 minutos de timeout, y agotarlo cuenta como fallo. La contraprueba se reutiliza mientras no cambien la base, el comando y los tests, y el control mientras no cambien la base y el comando. Una trampa cuya salida cambia en cada ejecución (con tiempos, por ejemplo) se escapa del control.
+  - Se omite con un aviso en `run`, `check` y `close` cuando no hay commit base, cuando la base no se puede montar, y cuando el diff añade código a un test inline de Rust (dentro de un `mod` bajo `#[cfg(test)]`), porque comparte fichero con el producto y la base no lo puede correr sin el cambio.
 
 ---
 

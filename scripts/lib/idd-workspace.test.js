@@ -15,6 +15,9 @@ const {
   EMPTY_TREE,
   IddWorkspaceError,
   commitTree,
+  counterproofMount,
+  counterproofPaths,
+  mountCounterproof,
   readArchitecture,
   readCheckTreeFingerprint,
   readDecisionRecords,
@@ -530,4 +533,117 @@ test("[E1.53] a binary file brings no lines into the diff", (t) => {
   assert.deepStrictEqual(diff.paths, ["assets/logo.png"]);
   assert.deepStrictEqual(diff.addedLines["assets/logo.png"] ?? [], []);
   assert.deepStrictEqual(diff.removedLines["assets/logo.png"] ?? [], []);
+});
+
+// E1.48 base-counterproof: the worktree a counterproof runs on.
+
+test("[E1.48] the counterproof takes the tests of the diff and their test data, nothing else", () => {
+  const diff = {
+    paths: ["marker", "config/app.yaml", "src/pages.js", "test/pages.test.js", "src/pages.spec.ts", "pkg/testdata/golden.txt", "src/__snapshots__/a.snap", "tests/fixtures/package.json", "package.json", "README.md"],
+  };
+  assert.deepStrictEqual(counterproofPaths(diff), ["test/pages.test.js", "src/pages.spec.ts", "pkg/testdata/golden.txt", "src/__snapshots__/a.snap", "tests/fixtures/package.json"]);
+});
+
+test("[E1.48] the mount digest follows the tests put on the base, never the product", (t) => {
+  const root = tempDir(t);
+  write(root, "src/pages.js", "1");
+  write(root, "test/pages.test.js", "a");
+  const paths = ["test/pages.test.js", "test/gone.test.js"];
+  const first = counterproofMount(root, paths);
+  write(root, "src/pages.js", "2");
+  assert.strictEqual(counterproofMount(root, paths), first);
+  assert.strictEqual(counterproofMount(root, [...paths].reverse()), first, "the order of the paths decides nothing");
+  write(root, "test/pages.test.js", "b");
+  assert.notStrictEqual(counterproofMount(root, paths), first);
+});
+
+test("[E1.48] a counterproof worktree holds the base product, the tests of the working tree and the ignored dependencies", (t) => {
+  const repo = gitRepo(t);
+  const root = path.join(repo, "app");
+  write(repo, ".gitignore", "node_modules/\ndist/\n");
+  write(root, "src/pages.js", "floor");
+  write(root, "test/pages.test.js", "old test");
+  write(root, "test/gone.test.js", "deleted by the change");
+  write(root, "vendor/lib.js", "tracked vendor");
+  commitAll(repo, "base");
+  const base = git(repo, "rev-parse", "HEAD").trim();
+  // A hook that would run on checkout runs nowhere.
+  write(repo, ".git/hooks/post-checkout", "#!/bin/sh\ntouch \"$(git rev-parse --show-toplevel)/hook-ran\"\n");
+  fs.chmodSync(path.join(repo, ".git/hooks/post-checkout"), 0o755);
+
+  write(root, "src/pages.js", "ceil");
+  write(root, "test/pages.test.js", "new test");
+  write(root, "test/new.test.js", "added");
+  fs.rmSync(path.join(root, "test/gone.test.js"));
+  write(root, "node_modules/dep/index.js", "installed");
+  write(repo, "node_modules/hoisted/index.js", "hoisted");
+  write(root, "dist/pages.js", "built candidate");
+
+  const mounted = mountCounterproof(root, { base, paths: ["test/pages.test.js", "test/new.test.js", "test/gone.test.js"] });
+  const read = (rel) => fs.readFileSync(path.join(mounted.cwd, rel), "utf8");
+  try {
+    assert.strictEqual(read("src/pages.js"), "floor", "the product of the base");
+    assert.deepStrictEqual([read("test/pages.test.js"), read("test/new.test.js")], ["new test", "added"]);
+    assert.ok(!fs.existsSync(path.join(mounted.cwd, "test/gone.test.js")), "a test the diff deletes is absent");
+    assert.strictEqual(read("node_modules/dep/index.js"), "installed");
+    assert.ok(fs.lstatSync(path.join(mounted.cwd, "node_modules")).isSymbolicLink());
+    assert.strictEqual(fs.readFileSync(path.join(mounted.cwd, "..", "node_modules/hoisted/index.js"), "utf8"), "hoisted");
+    assert.ok(!fs.lstatSync(path.join(mounted.cwd, "vendor")).isSymbolicLink(), "a tracked vendor comes from the base");
+    assert.ok(!fs.existsSync(path.join(mounted.cwd, "dist")), "a build output is never linked");
+    assert.ok(!fs.existsSync(path.join(mounted.cwd, "..", "hook-ran")), "no hook runs");
+    assert.ok(mounted.mask.includes(path.dirname(mounted.cwd)), "the worktree reads the same in the output of every mount");
+  } finally {
+    mounted.remove();
+  }
+  assert.ok(!fs.existsSync(mounted.cwd));
+  assert.strictEqual(fs.readFileSync(path.join(root, "node_modules/dep/index.js"), "utf8"), "installed", "removing it never follows a link");
+  assert.strictEqual(git(repo, "worktree", "list", "--porcelain").match(/^worktree /gm).length, 1, "no worktree entry is left");
+  assert.strictEqual(fs.readFileSync(path.join(root, "src/pages.js"), "utf8"), "ceil", "the working tree is untouched");
+});
+
+test("[E1.48] a counterproof worktree links the ignored dependencies of Elixir, tox, nox, Dart, CocoaPods and Bower too", (t) => {
+  const root = gitRepo(t);
+  const dirs = ["deps", ".tox", ".nox", ".dart_tool", "Pods", "bower_components"];
+  write(root, ".gitignore", `${dirs.map((dir) => `${dir}/`).join("\n")}\n`);
+  write(root, "src/a.js", "1");
+  commitAll(root, "base");
+  const base = git(root, "rev-parse", "HEAD").trim();
+  for (const dir of dirs) write(root, `${dir}/installed.txt`, dir);
+  const mounted = mountCounterproof(root, { base, paths: [] });
+  try {
+    for (const dir of dirs) assert.strictEqual(fs.readFileSync(path.join(mounted.cwd, dir, "installed.txt"), "utf8"), dir, dir);
+  } finally {
+    mounted.remove();
+  }
+  for (const dir of dirs) assert.ok(fs.existsSync(path.join(root, dir, "installed.txt")), `removing it never follows ${dir}`);
+});
+
+test("[E1.48] a counterproof worktree takes a test whose path is longer than 260 characters", (t) => {
+  const root = gitRepo(t);
+  git(root, "config", "core.longpaths", "true");
+  const deep = `test/${["a", "b", "c", "d"].map((letter) => letter.repeat(60)).join("/")}/pages.test.js`;
+  write(root, deep, "base");
+  commitAll(root, "base");
+  const base = git(root, "rev-parse", "HEAD").trim();
+  write(root, deep, "candidate");
+  const mounted = mountCounterproof(root, { base, paths: [deep] });
+  try {
+    assert.ok(path.join(mounted.cwd, deep).length > 260);
+    assert.strictEqual(fs.readFileSync(path.join(mounted.cwd, deep), "utf8"), "candidate");
+  } finally {
+    mounted.remove();
+  }
+  assert.ok(!fs.existsSync(mounted.cwd));
+});
+
+test("[E1.48] a base that cannot be mounted is refused with counterproof-unmounted and leaves no worktree", (t) => {
+  const root = gitRepo(t);
+  write(root, "a.js", "1");
+  commitAll(root, "base");
+  assert.throws(
+    () => mountCounterproof(root, { base: "0".repeat(40), paths: [] }),
+    (error) => error instanceof IddWorkspaceError && error.code === "counterproof-unmounted" && /cannot be mounted/.test(error.message),
+  );
+  assert.throws(() => mountCounterproof(root, { base: "--orphan", paths: [] }), (error) => error.code === "counterproof-unmounted");
+  assert.strictEqual(git(root, "worktree", "list", "--porcelain").match(/^worktree /gm).length, 1);
 });

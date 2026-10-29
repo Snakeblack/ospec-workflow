@@ -1,0 +1,634 @@
+{
+  "schema": "idd-state/v1",
+  "change": "counterproof-test-conventions",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Límite 2 de E1.48: isTestPath no reconoce spec/, *_spec.rb, *_test.py ni los tests inline de Rust, así que en esos proyectos repro-test, tdd-red-green y boundary-tests ya no pueden cerrar",
+    "acceptance": "Un repro cuyo test está en spec/models/user_spec.rb o en app/pages_test.py cierra la pareja con su contraprueba, classifyPath los tiene por test y addedTests los cuenta; los tests inline de Rust siguen la regla que decida el usuario"
+  },
+  "facts": {
+    "open": [
+      "Tests inline de Rust (#[cfg(test)] en src/*.rs): ¿se reconocen como test añadido y la contraprueba se omite con marca visible (comparten fichero con el producto), se exige moverlos a tests/, o se monta solo la parte de test del fichero?",
+      "Alcance de las convenciones: ¿solo spec/, *_spec.rb y *_test.py, o spec/ en cualquier nivel más el sufijo _test/_spec con cualquier extensión de código (_test.rb, _test.exs, _test.cc, _spec.lua...)?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/idd/spec.md",
+      "openwiki/testing-quality/verification.md",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-signals.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Los tests inline de Rust se reconocen por contenido, sin posiciones: una línea añadida a un .rs cuenta como test si solo aparece dentro de un módulo bajo #[cfg(test)], desde el atributo hasta la llave que cierra el mod a su sangría (como lo deja rustfmt); si la misma línea aparece también fuera, no cuenta",
+      "Si el diff añade código a un test inline de Rust, la contraprueba se omite entera con counterproof_skipped, aunque haya también tests en ficheros aparte"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La regla de qué es un test y la omisión de la contraprueba para tests inline viven en el CLI (idd-signals.js y ospec.js) con sus tests en idd-signals.test.js y ospec.test.js; la skill no describe la regla"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "No añade señales ni obligaciones: amplía qué cuenta como test para untested-product, boundary-tests y las parejas, que ya derivan del impacto"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "La evidencia sigue saliendo de runs que el CLI observa; una contraprueba omitida por un test inline queda marcada con counterproof_skipped y avisada, nunca afirmada"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "Solo toca IDD: la clasificación de rutas, la contraprueba y su contrato; SDD y openspec/changes no cambian"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "Qué es un test sale de la ruta y del contenido del fichero en disco, sin estado de sesión; next da el mismo paso al reanudar"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo expresiones regulares y la biblioteca estándar de Node; ninguna dependencia nueva"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Clasificar rutas y leer el fichero .rs no usa red; la omisión de la contraprueba evita incluso montar el worktree"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "isTestPath, addedTests e inlineTests tienen sus tests [E1.48] en scripts/lib/idd-signals.test.js, y la omisión de la contraprueba por un test inline el suyo en scripts/ospec.test.js; la skill idd no describe la regla",
+      "recorded_at": "2026-10-29T00:34:01.490Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El cambio no añade llamadas de red: clasifica rutas con expresiones regulares y lee el .rs que readSources ya leía; con un test inline la contraprueba ni siquiera monta el worktree",
+      "recorded_at": "2026-10-29T00:34:01.644Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-12"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Rust inline: Reconocer y omitir (las líneas añadidas tras #[cfg(test)] en un .rs cuentan como test añadido y la contraprueba se omite con counterproof_skipped y aviso). Alcance: spec/ y sufijos (spec/ en cualquier nivel, como test/, y _test/_spec con cualquier extensión de código)",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-29T00:31:31.894Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-29T00:33:18.979Z",
+      "detail": {
+        "tree": "sha256:bf19662fd8c7c9b37c66de6bb6715096358776b3327f8bfe35764b9b4dba95fe",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-29T00:33:18.979Z",
+      "detail": {
+        "tree": "sha256:bf19662fd8c7c9b37c66de6bb6715096358776b3327f8bfe35764b9b4dba95fe",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-signals.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-29T00:33:36.825Z",
+      "detail": {
+        "run": "run-10",
+        "tree": "sha256:c067a0b947b7576fb24d20da954528a85c47b2b87eed7fa23dffb29dcaf4c05f",
+        "plan": "idd-state/v1 no cambia: un test inline de Rust registra counterproof_skipped, que E1.48 ya admite, y los tests de spec/, _test, _spec o tests.<ext> registran la misma evidencia que cualquier otro test. Los estados y la evidencia anteriores siguen valiendo sin migración; ningún CLI anterior encuentra un campo que no conozca."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-29T00:35:32.116Z",
+      "detail": {
+        "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-29T00:35:32.116Z",
+      "detail": {
+        "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+        "check": "ev-5",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-signals.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-29T00:35:32.116Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+        "fitness": [
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-29T00:35:37.754Z",
+      "detail": {
+        "run": "run-18",
+        "tree": "sha256:7f36efbc0d40151fa637a756ca8ae435852c40497bc3d3d81158ced20832454e",
+        "plan": "idd-state/v1 no cambia: un test inline de Rust registra counterproof_skipped, que E1.48 ya admite, y los tests de spec/, _test, _spec o tests.<ext> registran la misma evidencia que cualquier otro test. Los estados y la evidencia anteriores siguen valiendo sin migración; ningún CLI anterior encuentra un campo que no conozca."
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-29T00:36:42.038Z",
+      "detail": {
+        "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+        "runs": [
+          "run-19"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-29T00:36:42.038Z",
+      "detail": {
+        "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+        "check": "ev-9",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-signals.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-29T00:36:42.038Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+        "fitness": [
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25"
+        ]
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-29T00:36:42.177Z"
+    }
+  ],
+  "base": "3f42158ccd67d5cde2fc549f4e00233fc8b3133c",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"\\[E1\\.48\\]\" scripts/lib/idd-signals.test.js scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:e35ece4337949d629bceffa4e901724a21d273aa4622a88440e516b9a793f177",
+      "tree": "sha256:ec16ae30b075f0d01c3e8007aea440f97613f418d42764db2d91ba9ab5f21c57",
+      "recorded_at": "2026-10-29T00:30:06.157Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"\\[E1\\.48\\]\" scripts/lib/idd-signals.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7b7d6a9744f6a892d57695105e94393026f5647c98a2ba451083d2cf5075ec9e",
+      "tree": "sha256:fe32243fe5fa2b34c2b7376c374563ef9bda84c42ae11afd2652dd050665c7e4",
+      "recorded_at": "2026-10-29T00:31:31.894Z",
+      "tests": 8
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:23cec696bd41564623649fb59f174a2a0873779bc81e41e3aa85305399403a82",
+      "tree": "sha256:bf19662fd8c7c9b37c66de6bb6715096358776b3327f8bfe35764b9b4dba95fe",
+      "recorded_at": "2026-10-29T00:33:18.979Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:faace7ce9fed22b7ce61de1cc399242e50f4c3963de9ffe5c7d9ef07234e4f92",
+      "tree": "sha256:bf19662fd8c7c9b37c66de6bb6715096358776b3327f8bfe35764b9b4dba95fe",
+      "recorded_at": "2026-10-29T00:33:18.979Z",
+      "tests": 52
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:96ea9a281127603f5861672b3037351cee6e82c549915582ae7a187416561da6",
+      "tree": "sha256:bf19662fd8c7c9b37c66de6bb6715096358776b3327f8bfe35764b9b4dba95fe",
+      "recorded_at": "2026-10-29T00:33:18.979Z",
+      "tests": 18
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ce55f6307902731a9f1ac7e3d6085925baf1515b5fbac2055fd2854191bb886b",
+      "tree": "sha256:bf19662fd8c7c9b37c66de6bb6715096358776b3327f8bfe35764b9b4dba95fe",
+      "recorded_at": "2026-10-29T00:33:18.979Z",
+      "tests": 85
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8566bd6d1727d14205acc72f04ae73e2bcbc1a81127034b2ac00d39f6cb63506",
+      "tree": "sha256:bf19662fd8c7c9b37c66de6bb6715096358776b3327f8bfe35764b9b4dba95fe",
+      "recorded_at": "2026-10-29T00:33:18.979Z",
+      "tests": 52
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:bf19662fd8c7c9b37c66de6bb6715096358776b3327f8bfe35764b9b4dba95fe",
+      "recorded_at": "2026-10-29T00:33:18.979Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6a652d5628651746ed57fcea2aaa26a009bf57b93be875c67a9e43ded9cb46ff",
+      "tree": "sha256:bf19662fd8c7c9b37c66de6bb6715096358776b3327f8bfe35764b9b4dba95fe",
+      "recorded_at": "2026-10-29T00:33:18.979Z",
+      "tests": 21
+    },
+    {
+      "id": "run-10",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern E1.48 scripts/lib/idd-check.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e16668719cfd68bc87c45c17fdbcbf7c40d49c3469e0d737dc2a405ba06ccaeb",
+      "tree": "sha256:c067a0b947b7576fb24d20da954528a85c47b2b87eed7fa23dffb29dcaf4c05f",
+      "recorded_at": "2026-10-29T00:33:36.825Z",
+      "tests": 4
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6ca5fe737b506c38eb95c9d22cedb4d934f8ae80183a02ab92f1a9276ce061f7",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:35:32.116Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9cacec8cc9d42429aa6ad5a49d2c640cffb6dbacdb5b43e382f23693d3ff6be2",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:35:32.116Z",
+      "tests": 52
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:403c8eeb982a7d2a310b17bfadeeb374930a88e848ffb1a81ced728b5890759e",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:35:32.116Z",
+      "tests": 18
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ffd981e537aef0cee915c3a47c457efa33f8b192807f72d78867bc5c0661e5f1",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:35:32.116Z",
+      "tests": 85
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fd2117053f5e6dc5c0e4101ac59fa52e85a484a58a4c66a80739f8e9412dd015",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:35:32.116Z",
+      "tests": 52
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:35:32.116Z"
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4eb86261d9e1bfd13ccdfc771f28ff6a7bbfc723f72b4ce9a8ce77c69ddf096b",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:35:32.116Z",
+      "tests": 21
+    },
+    {
+      "id": "run-18",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern E1.48 scripts/lib/idd-check.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:27ab20f893171efd04c3505f8113221798e1a5c3b13a2aa72c2cf60ec43a3147",
+      "tree": "sha256:7f36efbc0d40151fa637a756ca8ae435852c40497bc3d3d81158ced20832454e",
+      "recorded_at": "2026-10-29T00:35:37.754Z",
+      "tests": 4
+    },
+    {
+      "id": "run-19",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:57751ddf616b6cce2e01a94d1bc3bb366f057fa20544837ee25dc785ce3ba5c5",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:36:42.038Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c0248110ef75a794553e36b5072ae2c9f01eae6929c00dc8fc021a9531d6086f",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:36:42.038Z",
+      "tests": 52
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:73c77dd17806e354a95cbc0ea363231070084561bbf537c5295067f609418e32",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:36:42.038Z",
+      "tests": 18
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:104df688c856a1e86f55dbada42dcdbc9bb02df3536e2e33d1d9cbd1c732f6a8",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:36:42.038Z",
+      "tests": 85
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2f5c547197e4b3860a3bb2c8bd02b2d77cceaefe0947aaf9be8cf04c40d2c5c9",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:36:42.038Z",
+      "tests": 52
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:36:42.038Z"
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2bb154ff09ff11c58162593a65d1b154404ddd8f12e8ebb6bfd02de24a82647c",
+      "tree": "sha256:8c62cc547f24ed82534e6ad3c607adcc67e09a718b22ead943391293d252d78c",
+      "recorded_at": "2026-10-29T00:36:42.038Z",
+      "tests": 21
+    }
+  ],
+  "assumptions": [
+    "Un módulo de tests con extensión de código, como el tests.py de Django o el tests.rs de Rust (mod tests; en fichero aparte), cuenta como test: es la misma convención de sufijos que aprobó el usuario y se puede montar en la contraprueba entero"
+  ],
+  "closed_at": "2026-10-29T00:36:42.177Z"
+}

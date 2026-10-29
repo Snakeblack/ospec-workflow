@@ -13,7 +13,10 @@ const { RUN_PURPOSES, validateState } = require("./idd-contract.js");
 const {
   ceremonyConfig,
   checkVerdict,
+  counterproofWarnings,
   deferImpacts,
+  priorControl,
+  priorCounterproof,
   recordRuns,
   settleBoundary,
   settleChecks,
@@ -50,6 +53,24 @@ function checkRun(overrides = {}) {
 function reproRun(overrides = {}) {
   return { purpose: "repro-test", command: "node --test test/paginate.test.js", exit_code: 1, output_sha256: DIGEST, tree: TREE_A, recorded_at: AT, ...overrides };
 }
+
+const BASE = "c".repeat(40);
+const MOUNT = `sha256:${"d".repeat(64)}`;
+
+// A counterproof run on the change's base (E1.48), failing by default.
+function counterproofRun(overrides = {}) {
+  return { purpose: "counterproof", obligation: "repro-test", command: "node --test test/paginate.test.js", exit_code: 1, output_sha256: DIGEST, tree: TREE_B, base: BASE, mount: MOUNT, recorded_at: AT, ...overrides };
+}
+
+// Its control (E1.48): the same command on the base without the tests of the
+// diff, passing by default.
+const OTHER_DIGEST = `sha256:${"9".repeat(64)}`;
+function controlRun(overrides = {}) {
+  return counterproofRun({ control: true, exit_code: 0, output_sha256: OTHER_DIGEST, mount: `sha256:${"e".repeat(64)}`, ...overrides });
+}
+
+// The test the diff adds, which a pair needs since E1.48.
+const PAIR_TESTS = Object.freeze(["test/paginate.test.js"]);
 
 function assertCode(fn, code) {
   assert.throws(fn, (error) => error instanceof IddRecordError && error.code === code);
@@ -95,13 +116,14 @@ test("zero tests are not evidence, and boundary-tests needs a test the diff adds
   const suiteOnly = settleBoundary(checked, { tree: TREE_A, runIds: ran.ids, recordedAt: AT });
   assert.strictEqual(obligation(suiteOnly.state, "boundary-tests").status, "pending", "the suite that already passed is not evidence");
   assert.match(suiteOnly.reason, /^the diff adds no line to a test: .*ospec check --change fix-pagination$/);
-  const settled = settleBoundary(checked, { tree: TREE_A, runIds: ran.ids, recordedAt: AT, tests });
+  const skipped = { skipped: "the change has no base commit to run it on" };
+  const settled = settleBoundary(checked, { tree: TREE_A, runIds: ran.ids, recordedAt: AT, tests, counterproof: skipped });
   assert.strictEqual(obligation(settled.state, "checks-pass").status, "satisfied");
   assert.strictEqual(obligation(settled.state, "boundary-tests").status, "satisfied");
   assert.strictEqual(settled.reason, null);
-  assert.deepStrictEqual(settled.state.evidence.at(-1).detail, { tree: TREE_A, run: "run-1", tests });
+  assert.deepStrictEqual(settled.state.evidence.at(-1).detail, { tree: TREE_A, run: "run-1", tests, counterproof_skipped: skipped.skipped });
   const unknown = recordRuns(state, [checkRun()]);
-  const byFile = settleBoundary(unknown.state, { tree: TREE_A, runIds: unknown.ids, recordedAt: AT, tests }).state;
+  const byFile = settleBoundary(unknown.state, { tree: TREE_A, runIds: unknown.ids, recordedAt: AT, tests, counterproof: skipped }).state;
   assert.strictEqual(obligation(byFile, "boundary-tests").status, "satisfied", "an uncounted run passes with a test in the diff");
   assert.ok(validateState(byFile).ok, validateState(byFile).errors.join("; "));
   assert.ok(validateState(settled.state).ok, validateState(settled.state).errors.join("; "));
@@ -144,10 +166,10 @@ test("a failing run then a passing run of the same command on another tree satis
   assert.strictEqual(afterRed.evidence, null);
   assert.strictEqual(obligation(afterRed.state, "repro-test").status, "pending");
 
-  const green = recordRuns(afterRed.state, [reproRun({ exit_code: 0, tree: TREE_B })]);
-  const paired = settlePair(green.state, { obligation: "repro-test", runId: green.ids[0], recordedAt: AT });
+  const green = recordRuns(afterRed.state, [reproRun({ exit_code: 0, tree: TREE_B }), counterproofRun(), controlRun()]);
+  const paired = settlePair(green.state, { obligation: "repro-test", runId: green.ids[0], recordedAt: AT, tests: PAIR_TESTS, counterproof: { runs: ["run-3", "run-4"] } });
   assert.strictEqual(paired.evidence, "ev-1");
-  assert.deepStrictEqual(paired.state.evidence[0].detail, { red: "run-1", green: "run-2" });
+  assert.deepStrictEqual(paired.state.evidence[0].detail, { red: "run-1", green: "run-2", counterproof: ["run-3", "run-4"] });
   assert.strictEqual(obligation(paired.state, "repro-test").status, "satisfied");
   assert.ok(validateState(paired.state).ok, validateState(paired.state).errors.join("; "));
 });
@@ -167,10 +189,175 @@ test("TDD pairs stay within their unit of work", () => {
   let state = openBug();
   ({ state } = recordSignal(state, { id: "strict-tdd", reason: "the project declares strict_tdd", source: "declaration" }));
   const tdd = (overrides) => ({ ...reproRun(overrides), purpose: "tdd-red-green" });
-  const runs = recordRuns(state, [tdd({ unit: "parser" }), tdd({ unit: "printer", exit_code: 0, tree: TREE_B })]);
-  assert.strictEqual(settlePair(runs.state, { obligation: "tdd-red-green", runId: "run-2", recordedAt: AT }).evidence, null);
+  const runs = recordRuns(state, [
+    tdd({ unit: "parser" }),
+    tdd({ unit: "printer", exit_code: 0, tree: TREE_B }),
+    counterproofRun({ obligation: "tdd-red-green" }),
+    controlRun({ obligation: "tdd-red-green" }),
+  ]);
+  const proven = { tests: PAIR_TESTS, counterproof: { runs: ["run-3", "run-4"] } };
+  assert.strictEqual(settlePair(runs.state, { obligation: "tdd-red-green", runId: "run-2", recordedAt: AT, ...proven }).evidence, null);
   const same = recordRuns(runs.state, [tdd({ unit: "parser", exit_code: 0, tree: TREE_B })]);
-  assert.strictEqual(settlePair(same.state, { obligation: "tdd-red-green", runId: "run-3", recordedAt: AT }).evidence, "ev-1");
+  assert.strictEqual(settlePair(same.state, { obligation: "tdd-red-green", runId: "run-5", recordedAt: AT, ...proven }).evidence, "ev-1");
+});
+
+// E1.48 base-counterproof: a pair and boundary-tests hold only when the same
+// command fails on the change's base with the tests of the diff.
+
+test("[E1.48] a pair needs a test in the diff and a counterproof that failed on the base", () => {
+  const runs = recordRuns(openBug(), [reproRun(), reproRun({ exit_code: 0, tree: TREE_B })]);
+  const settle = (state, extra) => settlePair(state, { obligation: "repro-test", runId: "run-2", recordedAt: AT, ...extra });
+  const marked = (state, proof) => {
+    const next = structuredClone(state);
+    next.runs.find((run) => run.id === "run-2").counterproof = proof;
+    return next;
+  };
+
+  const untested = settle(runs.state, { tests: [], counterproof: { skipped: "no base" } });
+  assert.strictEqual(untested.evidence, null, "test -f marker: the diff adds no test");
+  assert.match(checkVerdict(untested.state, { checks: [] }).missing[0].reason, /^the diff adds no line to a test: .*write the test in a test file, then run the same command again$/);
+
+  const passing = recordRuns(runs.state, [counterproofRun({ exit_code: 0 })]);
+  const refused = settle(marked(passing.state, ["run-3"]), { tests: PAIR_TESTS, counterproof: { runs: ["run-3"] } });
+  assert.strictEqual(refused.evidence, null, "the test passes against the base product too");
+  assert.strictEqual(obligation(refused.state, "repro-test").status, "pending");
+  assert.strictEqual(
+    checkVerdict(refused.state, { checks: [] }).missing[0].reason,
+    "the test passes against the base product too (counterproof run-3): it does not detect the change; make it fail on the base, then run the same command again",
+  );
+  assert.strictEqual(settle(passing.state, { tests: PAIR_TESTS, counterproof: null }).evidence, null, "no counterproof proves nothing");
+
+  const timedOut = recordRuns(runs.state, [counterproofRun({ exit_code: 124, timed_out: true }), controlRun()]);
+  const slow = settle(timedOut.state, { tests: PAIR_TESTS, counterproof: { runs: ["run-3", "run-4"] } });
+  assert.strictEqual(slow.evidence, "ev-1", "a timeout on the base counts as failing");
+  assert.ok(validateState(slow.state).ok, validateState(slow.state).errors.join("; "));
+  assert.deepStrictEqual(counterproofWarnings(slow.state), ["counterproof run-3 of repro-test timed out on the base and counts as failing"]);
+
+  const skipped = settle(runs.state, { tests: PAIR_TESTS, counterproof: { skipped: "the change has no base commit to run it on" } });
+  assert.deepStrictEqual(skipped.state.evidence[0].detail, { red: "run-1", green: "run-2", counterproof_skipped: "the change has no base commit to run it on" });
+  assert.ok(validateState(skipped.state).ok, validateState(skipped.state).errors.join("; "));
+  assert.deepStrictEqual(counterproofWarnings(skipped.state), ["counterproof skipped for repro-test (ev-1): the change has no base commit to run it on"]);
+});
+
+test("[E1.48] the state refuses a counterproof that never failed, and keeps evidence recorded before it", () => {
+  const proven = recordRuns(openBug(), [reproRun(), reproRun({ exit_code: 0, tree: TREE_B }), counterproofRun(), checkRun(), controlRun()]);
+  const paired = settlePair(proven.state, { obligation: "repro-test", runId: "run-2", recordedAt: AT, tests: PAIR_TESTS, counterproof: { runs: ["run-3", "run-5"] } }).state;
+  assert.ok(validateState(paired).ok, validateState(paired).errors.join("; "));
+  const forged = (detail, runs = paired.runs) => {
+    const next = structuredClone(paired);
+    next.runs = runs;
+    Object.assign(next.evidence[0].detail, detail);
+    return validateState(next);
+  };
+  const failing = /needs a counterproof run that failed on the change's base/;
+  assert.match(forged({}, paired.runs.map((run) => (run.id === "run-3" ? { ...run, exit_code: 0 } : run))).errors.join("; "), failing);
+  assert.match(forged({ counterproof: ["run-4"] }).errors.join("; "), failing, "a check run is no counterproof");
+  assert.match(forged({ counterproof: [] }).errors.join("; "), failing);
+  assert.match(forged({ counterproof_skipped: "no base" }).errors.join("; "), /names a counterproof and the reason it was skipped/);
+  assert.match(forged({ counterproof: undefined, counterproof_skipped: " " }).errors.join("; "), /needs the reason its counterproof was skipped/);
+
+  const legacy = structuredClone(paired);
+  legacy.evidence[0].detail = { red: "run-1", green: "run-2" };
+  assert.ok(validateState(legacy).ok, "a pair recorded before E1.48 stays valid");
+  assert.deepStrictEqual(counterproofWarnings(legacy), []);
+});
+
+test("[E1.48] boundary-tests holds only when the counterproof of the checks fails on the base", () => {
+  const state = recordSignal(openBug(), { id: "untested-product", reason: "product code without a test: touches index.html", source: "diff" }).state;
+  const tests = ["test/index.test.js"];
+  const passing = recordRuns(state, [checkRun({ tests: 2 }), counterproofRun({ obligation: "boundary-tests", command: "npm test", exit_code: 0, name: "test" })]);
+  const refused = settleBoundary(passing.state, { tree: TREE_A, runIds: ["run-1"], recordedAt: AT, tests, counterproof: { runs: ["run-2"] } });
+  assert.strictEqual(obligation(refused.state, "boundary-tests").status, "pending");
+  assert.strictEqual(
+    refused.reason,
+    "the tests the diff adds pass against the base product too (counterproof run-2): they do not detect the change; make them fail on the base, then ospec check --change fix-pagination",
+  );
+  const boundary = { obligation: "boundary-tests", command: "npm test", name: "test" };
+  const failing = recordRuns(state, [checkRun({ tests: 2 }), counterproofRun(boundary), controlRun(boundary)]);
+  const settled = settleBoundary(failing.state, { tree: TREE_A, runIds: ["run-1"], recordedAt: AT, tests, counterproof: { runs: ["run-2", "run-3"] } });
+  assert.strictEqual(obligation(settled.state, "boundary-tests").status, "satisfied");
+  assert.deepStrictEqual(settled.state.evidence.at(-1).detail, { tree: TREE_A, run: "run-1", tests, counterproof: ["run-2", "run-3"] });
+  assert.ok(validateState(settled.state).ok, validateState(settled.state).errors.join("; "));
+});
+
+test("[E1.48] a counterproof is reused only on the same base, mount and command", () => {
+  const runs = [counterproofRun({ id: "run-1" }), counterproofRun({ id: "run-2", exit_code: 0 }), reproRun({ id: "run-3", exit_code: 0 })];
+  const key = { base: BASE, mount: MOUNT, command: "node --test test/paginate.test.js" };
+  assert.strictEqual(priorCounterproof(runs, key).id, "run-2", "the latest one");
+  assert.strictEqual(priorCounterproof(runs, { ...key, mount: `sha256:${"e".repeat(64)}` }), null, "the tests changed");
+  assert.strictEqual(priorCounterproof(runs, { ...key, base: "f".repeat(40) }), null);
+  assert.strictEqual(priorCounterproof(runs, { ...key, command: "npm test" }), null);
+  assert.strictEqual(priorCounterproof(undefined, key), null);
+});
+
+test("[E1.48] a counterproof counts only when its control, without the tests of the diff, passed or failed another way", () => {
+  const runs = recordRuns(openBug(), [reproRun(), reproRun({ exit_code: 0, tree: TREE_B })]);
+  const settle = (control, ...checks) => {
+    const proof = recordRuns(runs.state, [counterproofRun(), controlRun(control), ...checks]);
+    const state = structuredClone(proof.state);
+    const ids = state.runs.slice(2).map((run) => run.id);
+    state.runs.find((run) => run.id === "run-2").counterproof = ids;
+    return settlePair(state, { obligation: "repro-test", runId: "run-2", recordedAt: AT, tests: PAIR_TESTS, counterproof: { runs: ids } });
+  };
+  const same = settle({ exit_code: 1, output_sha256: DIGEST });
+  assert.strictEqual(same.evidence, null, "test -f marker beside a filler test");
+  assert.strictEqual(
+    checkVerdict(same.state, { checks: [] }).missing[0].reason,
+    "the test fails the same way on the base without the tests of the diff (counterproof run-3, control run-4): the red does not come from them; make the command run the test the diff adds, then run the same command again",
+  );
+  // A control that failed another way needs the checks to pass on the base.
+  const check = controlRun({ command: "npm test" });
+  for (const [control, ...checks] of [[{}], [{ exit_code: 2, output_sha256: DIGEST }, check], [{ exit_code: 1 }, check]]) {
+    const settled = settle(control, ...checks);
+    assert.strictEqual(settled.evidence, "ev-1", JSON.stringify(control));
+    assert.ok(validateState(settled.state).ok, validateState(settled.state).errors.join("; "));
+  }
+
+  const settled = settle({}).state;
+  const apart = /needs a counterproof run that failed on the change's base where its control, without the tests of the diff, passed or failed another way/;
+  const forged = structuredClone(settled);
+  Object.assign(forged.runs.find((run) => run.id === "run-4"), { exit_code: 1, output_sha256: DIGEST });
+  assert.match(validateState(forged).errors.join("; "), apart);
+  const uncontrolled = structuredClone(settled);
+  uncontrolled.evidence[0].detail.counterproof = ["run-3"];
+  assert.match(validateState(uncontrolled).errors.join("; "), apart, "a counterproof without its control");
+
+  const state = recordSignal(openBug(), { id: "untested-product", reason: "product code without a test: touches index.html", source: "diff" }).state;
+  const boundary = { obligation: "boundary-tests", command: "npm test", name: "test" };
+  const checks = recordRuns(state, [checkRun({ tests: 2 }), counterproofRun(boundary), controlRun({ ...boundary, exit_code: 1, output_sha256: DIGEST })]);
+  const refused = settleBoundary(checks.state, { tree: TREE_A, runIds: ["run-1"], recordedAt: AT, tests: ["test/index.test.js"], counterproof: { runs: ["run-2", "run-3"] } });
+  assert.strictEqual(obligation(refused.state, "boundary-tests").status, "pending");
+  assert.strictEqual(
+    refused.reason,
+    "the checks fail the same way on the base without the tests the diff adds (counterproof run-2, control run-3): the red does not come from them; make the checks run them, then ospec check --change fix-pagination",
+  );
+});
+
+test("[E1.48] a counterproof whose control failed another way counts only while the controls of the checks passed", () => {
+  const runs = recordRuns(openBug(), [reproRun(), reproRun({ exit_code: 0, tree: TREE_B })]);
+  const settle = (...controls) => {
+    const proof = recordRuns(runs.state, [counterproofRun(), controlRun({ exit_code: 2 }), ...controls]);
+    const ids = proof.state.runs.slice(2).map((run) => run.id);
+    return settlePair(proof.state, { obligation: "repro-test", runId: "run-2", recordedAt: AT, tests: PAIR_TESTS, counterproof: { runs: ids } });
+  };
+  assert.strictEqual(settle().evidence, null, "nothing shows the base runs its own tests");
+  assert.strictEqual(settle(controlRun({ command: "npm test", exit_code: 1 })).evidence, null, "a check failing on the base");
+  const settled = settle(controlRun({ command: "npm test" }));
+  assert.strictEqual(settled.evidence, "ev-1");
+  assert.ok(validateState(settled.state).ok, validateState(settled.state).errors.join("; "));
+  const forged = structuredClone(settled.state);
+  forged.evidence[0].detail.counterproof = ["run-3", "run-4"];
+  assert.match(validateState(forged).errors.join("; "), /needs a counterproof run that failed on the change's base/);
+});
+
+test("[E1.48] a control is reused on the same base and command, and a counterproof never stands for one", () => {
+  const runs = [controlRun({ id: "run-1" }), controlRun({ id: "run-2", exit_code: 1 }), counterproofRun({ id: "run-3" })];
+  const key = { base: BASE, command: "node --test test/paginate.test.js" };
+  assert.strictEqual(priorControl(runs, key).id, "run-2", "the latest one");
+  assert.strictEqual(priorControl(runs, { ...key, base: "f".repeat(40) }), null);
+  assert.strictEqual(priorControl(runs, { ...key, command: "npm test" }), null);
+  assert.strictEqual(priorControl([counterproofRun()], key), null);
+  assert.strictEqual(priorCounterproof(runs, { ...key, mount: `sha256:${"e".repeat(64)}` }), null, "a control is no counterproof");
 });
 
 test("runs are refused for a closed change", () => {

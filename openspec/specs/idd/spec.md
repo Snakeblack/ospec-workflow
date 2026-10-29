@@ -192,11 +192,14 @@ when the change declares the ADRs or quality scenarios it touches
 - `check-run`: an execution of each check the project declares, run by the CLI,
   with exit code and output digest.
 - `tdd-red-green`: a test failing before the code and passing after it, per
-  unit of work, both runs recorded by the CLI (REQ-idd-014).
+  unit of work, both runs recorded by the CLI, and failing again on the
+  change's base (its counterproof, REQ-idd-014).
 - `repro-run-pair`: the reproduction test failing before the fix and passing
-  after it, both runs recorded by the CLI.
+  after it, both runs recorded by the CLI, and failing again on the change's
+  base.
 - `tested-check`: a passing check run on the current tree that reports more
-  than zero tests, or whose diff touches a test when the output has no count.
+  than zero tests, or whose diff touches a test when the output has no count,
+  and whose counterproof fails on the change's base.
 - `living-doc-current`: `change.md` holds the template sections and is current
   at close.
 - `contract-spec-and-test`: a contract document and a test, both touched by
@@ -826,7 +829,13 @@ and `<!-- -->`, MUST NOT count. For an intent of kind `feature` or `bug`, a
 diff that changes product code and adds no code to a test MUST derive
 `untested-product`. Code is a line that is neither blank nor only a comment, in
 a test with a source-file extension: a deleted or emptied test, a comment and a
-fixture or golden file are not one (E1.44, E1.53). The CLI cannot judge what a
+fixture or golden file are not one (E1.44, E1.53). A test is a file under a
+`test`, `tests`, `__tests__` or `spec` directory, or one named as a test:
+`*.test.*` and `*.spec.*` in JS and TS, a source file with the `_test` or
+`_spec` suffix or named `tests` (Django's `tests.py`, Rust's `tests.rs`),
+`test_*.py`, `*Test.java` and `*Tests.cs`. A line added to a Rust file that
+appears only inside a module under `#[cfg(test)]`, up to the brace that closes
+it at its indentation, is code added to a test as well (E1.48). The CLI cannot judge what a
 test asserts, so a trivial test is the trust review's to find. Product code is
 a source file by its extension, scripts included: besides JS/TS, Python, Go,
 JVM, .NET, Ruby, PHP, Rust and web files, C and C++, Objective-C, Swift, Scala,
@@ -980,7 +989,7 @@ record each execution as a run. `ospec run` MUST run one test command for
 `migration-compat-and-test` (REQ-idd-015), and record it as a run; it MUST
 refuse any other obligation, an obligation the change does not have and an
 ambiguous intent. A run MUST hold `id`, `purpose` (`checks`, `repro-test`,
-`tdd-red-green`, `migration-test` or `fitness`), `command`, `exit_code`,
+`tdd-red-green`, `migration-test`, `fitness` or `counterproof`), `command`, `exit_code`,
 `output_sha256`, `tree`, `recorded_at` and, for a check, its `name`, and for a
 fitness check of REQ-idd-022, the `ref` (`adr:<id>` or `scenario:<id>`) it
 checks. `tree` MUST digest the
@@ -1010,7 +1019,52 @@ the test paths of the diff, and a state recorded before them MUST stay valid
 with `has_test`. `repro-run-pair` and `tdd-red-green`
 evidence MUST name a failing run and a later passing run of the same purpose,
 command and unit on a different tree, and `ospec run` MUST record it when such
-a passing run is recorded.
+a passing run is recorded while the diff adds code to a test, as
+`boundary-tests` reads it, and the counterproof of the passing run fails.
+
+The counterproof (E1.48) MUST show that the test detects the change. When a
+passing run would record a pair, and when a check would satisfy
+`boundary-tests`, the CLI MUST mount outside the state lock a temporary
+`git worktree` of the change's base, without running hooks or downloading LFS
+objects, that holds the test paths of the diff and the files under
+`testdata/`, `__snapshots__/`, `fixtures/` or `__fixtures__/` as the working
+tree holds them, absent where the diff deletes them, with the ignored
+`node_modules`, `.venv`, `venv`, `.tox`, `.nox`, `vendor`, `deps`,
+`.dart_tool`, `Pods` and `bower_components` of the project and of the
+repository root linked in; every other path stays as the base holds it.
+There it MUST run the same command, or for `boundary-tests` each declared
+check in order until one fails and detects the change, in the project root
+with a timeout of 10 minutes, and remove the worktree. A failing command MUST
+then run as its control on a worktree of the base alone, without the tests of
+the diff, with the same timeout; in the output of both, the path of the
+worktree reads as `<worktree>`. The counterproof detects the change only when
+its control passed, or failed with another exit code or another output, so a
+command that fails on the base for a reason the tests of the diff do not
+touch, such as `test -f marker` beside a filler test, proves nothing. When the
+control failed another way, each declared check MUST run as a control as well,
+a check being its own control: the counterproof detects the change only while
+they all pass. When one fails, or no check is declared, the worktree cannot be
+shown to run the tests, for lack of a build or a dependency it does not link,
+and the counterproof is inconclusive: its runs are recorded and the evidence
+records the reason in `counterproof_skipped`, naming the check that fails. Each
+execution MUST be recorded as a `counterproof` run that also holds the
+`obligation`, the `base`, the `mount` (the digest of what it put on the base,
+nothing for a control), `control: true` for a control and `timed_out` when the
+timeout killed it; a timeout counts as failing. A counterproof already
+recorded on the same base and mount for the same command, and a control
+already recorded on the same base for the same command, MUST be reused
+instead of run again. The evidence MUST name its runs in `counterproof`: one
+that failed and detects the change, and its control, with the controls of the
+checks when that control failed. While none does the
+obligation MUST stay `pending` with a reason saying that the test passes
+against the base product too or, when it failed the same way as its control,
+that the red does not come from the tests of the diff; the passing run of a
+pair names its counterproof runs. Without a base commit, when the diff adds
+code to a Rust inline test, which shares its file with the product, or when
+the base cannot be mounted, the counterproof MUST be skipped: the evidence records the
+reason in `counterproof_skipped`, and `run`, `check` and `close` MUST warn
+about it, as `close` warns about a counterproof that timed out. Evidence
+recorded before E1.48 names neither and stays valid.
 
 When the project declares exactly one check and the `--command` of `ospec run`
 equals its command, apart from leading and trailing spaces, the run MUST also
@@ -1191,12 +1245,77 @@ It MUST still exit with 0, record no check runs and never write configuration.
 
 #### Scenario: Reproduction pair
 
-- GIVEN a bug change with `repro-test` pending
-- WHEN `ospec run --obligation repro-test --command "node verify.js"` fails,
+- GIVEN a bug change with `repro-test` pending and a reproduction test the
+  diff adds
+- WHEN `ospec run --obligation repro-test --command "node --test"` fails,
   the fix is applied and the same command passes
-- THEN `repro-run-pair` evidence MUST name both runs and `repro-test` MUST be
-  `satisfied`
+- THEN a `counterproof` run of the same command MUST fail on the change's base
+- AND its control, without the reproduction test, MUST pass or fail another way
+- AND `repro-run-pair` evidence MUST name both runs, that counterproof and its
+  control, and `repro-test` MUST be `satisfied`
 - AND a passing run on the same tree as the failing one MUST NOT record it
+- AND a check on the same base and tests MUST reuse the counterproof without
+  running it again
+
+#### Scenario: A reproduction that runs no test of the diff does not close
+
+- GIVEN a bug change whose failing run is `test -f marker`
+- WHEN the fix is `touch marker` and the same command passes
+- THEN no pair MUST be recorded and `repro-test` MUST stay `pending` with a
+  reason saying that the diff adds no line to a test
+
+#### Scenario: A filler test beside a reproduction that runs no test does not close
+
+- GIVEN a bug change whose failing run is `test -f marker` and whose diff adds
+  a test that asserts nothing about the product
+- WHEN the fix is `touch marker` and the same command passes
+- THEN a `counterproof` run and its control MUST be recorded, both failing the
+  same way on the base
+- AND no pair MUST be recorded, and `repro-test` MUST stay `pending` with a
+  reason naming both runs and saying that the red does not come from the tests
+  of the diff
+
+#### Scenario: A base that cannot run its own checks leaves the counterproof inconclusive
+
+- GIVEN a bug change whose tests import a build in an ignored `dist/` that the
+  worktree does not link
+- WHEN the reproduction test fails, the fix is applied and it passes, while
+  its control and the declared check fail on the base alone
+- THEN the counterproof runs and the controls MUST be recorded
+- AND the pair MUST be recorded with `counterproof_skipped` naming the check
+  that fails on the base, and `run` MUST warn about it
+
+#### Scenario: A test that passes against the base product does not close
+
+- GIVEN a feature whose diff adds a test that already passes with the product
+  of the base
+- WHEN `ospec check` runs and its checks pass
+- THEN a `counterproof` run MUST be recorded and `boundary-tests` MUST stay
+  `pending` with a reason naming it
+- AND a reproduction test that passes on the base MUST leave `repro-test`
+  `pending` the same way
+
+#### Scenario: A change without a base commit skips the counterproof
+
+- GIVEN a change opened before the first commit of its repository
+- WHEN its reproduction test fails, the fix is applied and it passes
+- THEN the pair MUST be recorded with `counterproof_skipped` and its reason
+- AND `run` and `close` MUST warn that the counterproof was skipped
+
+#### Scenario: Test conventions beyond JS close a pair
+
+- GIVEN a bug change whose reproduction test the diff adds under `spec/`, as
+  rspec lays it out, or as `app/pages_test.py`
+- WHEN the test fails, the fix is applied and it passes
+- THEN its counterproof MUST run and the pair MUST be recorded once it fails
+
+#### Scenario: A Rust inline test skips the counterproof
+
+- GIVEN a bug change whose reproduction test the diff adds inside the
+  `#[cfg(test)]` module of `src/lib.rs`
+- WHEN the test fails, the fix is applied and it passes
+- THEN the pair MUST be recorded with `counterproof_skipped` naming
+  `src/lib.rs`, and `run` MUST warn about it
 
 ### Requirement: Contract And Migration Evidence {#REQ-idd-015}
 

@@ -10,7 +10,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { OUTPUT_TAIL_LINES, runCommand } = require("./idd-exec.js");
+const { OUTPUT_TAIL_LINES, TIMED_OUT_EXIT, runCommand } = require("./idd-exec.js");
 
 const node = JSON.stringify(process.execPath);
 
@@ -39,4 +39,25 @@ test("the command runs in the project root and only the tail of a long output is
 test("a command that cannot start fails instead of passing", () => {
   const result = runCommand("ospec-no-such-command-xyz", { cwd: process.cwd() });
   assert.notStrictEqual(result.exit_code, 0);
+});
+
+test("a command past its timeout is killed and fails, marked timed_out (E1.48)", () => {
+  const started = Date.now();
+  const result = runCommand(`${node} -e "setTimeout(() => {}, 60000)"`, { cwd: process.cwd(), timeoutMs: 300 });
+  assert.ok(Date.now() - started < 30000, "it does not wait for the command");
+  assert.deepStrictEqual([result.exit_code, result.timed_out], [TIMED_OUT_EXIT, true]);
+  const quick = runCommand(`${node} -e 0`, { cwd: process.cwd(), timeoutMs: 30000 });
+  assert.deepStrictEqual([quick.exit_code, quick.timed_out], [0, undefined]);
+});
+
+test("[E1.48] a masked path reads as <worktree> in the digest and the tail, so runs in two worktrees compare", (t) => {
+  const run = () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "idd-exec-"));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    return runCommand(`${node} -e "console.log(process.cwd() + '/marker')"`, { cwd: root, mask: [root, fs.realpathSync(root)] });
+  };
+  const [first, second] = [run(), run()];
+  assert.deepStrictEqual(first.output_tail, ["<worktree>/marker"]);
+  assert.strictEqual(first.output_sha256, second.output_sha256);
+  assert.strictEqual(first.output_sha256, `sha256:${crypto.createHash("sha256").update("<worktree>/marker\n").digest("hex")}`);
 });

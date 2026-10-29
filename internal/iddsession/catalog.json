@@ -47,17 +47,17 @@
     {
       "id": "tdd-red-green",
       "evidence": "tdd-red-green",
-      "how": "ospec run --change {change} --obligation tdd-red-green --command \"<test>\" [--unit <name>]: failing before the code, passing after it"
+      "how": "ospec run --change {change} --obligation tdd-red-green --command \"<test>\" [--unit <name>]: failing before the code, passing after it, with the test in a test file of the diff; it must also fail against the base product"
     },
     {
       "id": "repro-test",
       "evidence": "repro-run-pair",
-      "how": "ospec run --change {change} --obligation repro-test --command \"<test>\": once failing before the fix, again passing after it"
+      "how": "ospec run --change {change} --obligation repro-test --command \"<test>\": once failing before the fix, again passing after it, with the test in a test file of the diff; it must also fail against the base product"
     },
     {
       "id": "boundary-tests",
       "evidence": "tested-check",
-      "how": "ospec check --change {change} after the diff adds a test for the product code; the output must report tests greater than 0"
+      "how": "ospec check --change {change} after the diff adds a test for the product code; the output must report tests greater than 0, and the test must fail against the base product"
     },
     {
       "id": "living-doc",

@@ -133,14 +133,17 @@ function isDocumentation(file) {
   return /^.+\/docs\//.test(file) && !PRODUCT_EXT.test(file);
 }
 
+// Besides the JS, Python, Java and .NET names, the _test and _spec suffixes of
+// any code (Go, pytest, rspec, ExUnit), a tests module (Django's tests.py,
+// Rust's tests.rs) and rspec's spec directory hold tests (E1.48).
 function isTestPath(file) {
   return (
     /\.(?:test|spec)\.(?:js|jsx|mjs|cjs|ts|tsx)$/i.test(file) ||
-    /_test\.go$/i.test(file) ||
+    (/(?:_(?:test|spec)|(?:^|\/)tests)\.[^./]+$/i.test(file) && PRODUCT_EXT.test(file)) ||
     /(?:^|\/)test_[^/]*\.py$/i.test(file) ||
     /Test\.java$/i.test(file) ||
     /Tests\.cs$/i.test(file) ||
-    /(?:^|\/)(?:test|tests|__tests__)(?:\/|$)/i.test(file)
+    /(?:^|\/)(?:test|tests|__tests__|spec)(?:\/|$)/i.test(file)
   );
 }
 
@@ -223,13 +226,52 @@ function contractHit(addedLines) {
   return null;
 }
 
+// The lines of a Rust file inside and outside its inline test modules: from
+// #[cfg(test)] before `mod <name> {` to the brace that closes it at the
+// module's indentation, as rustfmt lays it out (E1.48).
+function rustTestRegions(lines) {
+  const tests = new Set();
+  const product = new Set();
+  for (let index = 0; index < lines.length; index++) {
+    const attribute = /^\s*#\[cfg\(test\)\]\s*$/.test(lines[index]);
+    let next = index + 1;
+    while (attribute && next < lines.length && lines[next].trim() === "") next++;
+    const header = attribute && /^(\s*)(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*\{\s*$/.exec(lines[next] || "");
+    if (!header) {
+      product.add(lines[index]);
+      continue;
+    }
+    const close = lines.findIndex((line, at) => at > next && line === `${header[1]}}`);
+    const end = close === -1 ? lines.length : close + 1;
+    for (const line of lines.slice(index, end)) tests.add(line);
+    index = end - 1;
+  }
+  return { tests, product };
+}
+
+// A Rust product file whose added code includes a line found only inside its
+// inline test modules (E1.48). A line found outside them as well is product.
+function isInlineTest(diff, file) {
+  const lines = /\.rs$/i.test(file) && classifyPath(file) === "product" ? diff.sources?.[file]?.lines : null;
+  if (!lines) return false;
+  const { tests, product } = rustTestRegions(lines);
+  return (diff.addedLines?.[file] || []).some((line) => codePortion(line).trim() !== "" && tests.has(line) && !product.has(line));
+}
+
+/** The Rust files of the diff with code added to their inline tests (E1.48). */
+function inlineTests(diff) {
+  return (diff.paths || []).filter((file) => isInlineTest(diff, file));
+}
+
 // The tests the diff adds code to (B3): a line that is neither blank nor only
-// a comment, in a test with a code extension (E1.53). A deleted or emptied
-// test, a fixture or a golden file is not one, so it neither stands for a test
-// nor satisfies boundary-tests.
+// a comment, in a test with a code extension (E1.53) or in a Rust inline test
+// (E1.48). A deleted or emptied test, a fixture or a golden file is not one,
+// so it neither stands for a test nor satisfies boundary-tests.
 function addedTests(diff) {
   return (diff.paths || []).filter(
-    (file) => classifyPath(file) === "test" && PRODUCT_EXT.test(file) && (diff.addedLines?.[file] || []).some((line) => codePortion(line).trim() !== ""),
+    (file) =>
+      (classifyPath(file) === "test" && PRODUCT_EXT.test(file) && (diff.addedLines?.[file] || []).some((line) => codePortion(line).trim() !== "")) ||
+      isInlineTest(diff, file),
   );
 }
 
@@ -502,6 +544,8 @@ module.exports = {
   citesOutsidePlan,
   classifyPath,
   deriveSignals,
+  inlineTests,
+  isTestPath,
   kindMismatch,
   persistentHits,
   requireDeclaredCeremony,

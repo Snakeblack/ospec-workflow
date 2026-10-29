@@ -40,11 +40,11 @@ const EVIDENCE_BY_OBLIGATION = new Map(OBLIGATIONS.map((obligation) => [obligati
 const HOW = Object.freeze({
   "checks-pass": (change) => `ospec check --change ${change}; a run that reports tests 0 is not evidence`,
   "boundary-tests": (change) =>
-    `ospec check --change ${change} after the diff adds a test for the product code; the output must report tests greater than 0`,
+    `ospec check --change ${change} after the diff adds a test for the product code; the output must report tests greater than 0, and the test must fail against the base product`,
   "repro-test": (change) =>
-    `ospec run --change ${change} --obligation repro-test --command "<test>": once failing before the fix, again passing after it`,
+    `ospec run --change ${change} --obligation repro-test --command "<test>": once failing before the fix, again passing after it, with the test in a test file of the diff; it must also fail against the base product`,
   "tdd-red-green": (change) =>
-    `ospec run --change ${change} --obligation tdd-red-green --command "<test>" [--unit <name>]: failing before the code, passing after it`,
+    `ospec run --change ${change} --obligation tdd-red-green --command "<test>" [--unit <name>]: failing before the code, passing after it, with the test in a test file of the diff; it must also fail against the base product`,
   // The project's own patterns, so the agent need not read the CLI to learn
   // what counts as a contract document (#400).
   "contract-spec-and-test": (change, { contractPatterns } = {}) =>
