@@ -1,5 +1,5 @@
 {
   "description": "DENY: a move whose destination is the .bak that reading a change restores as idd/<change>/state.yaml (E1.43)",
   "stdin": "{\"tool_name\":\"mcp__filesystem__move_file\",\"tool_input\":{\"source\":\"forged.json\",\"destination\":\"idd/fix-pagination/state.yaml.bak\"}}",
-  "expectedStdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Bloqueado: este fichero es del CLI de ospec (el estado de un cambio IDD, su archivo o un recibo de review). Avanza con los comandos de ospec (record, run, check, review, close); no lo edites a mano.\"}}"
+  "expectedStdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Bloqueado: este fichero es del CLI de ospec (el estado de un cambio IDD, su archivo, un recibo de review o la cuenta de turnos). Avanza con los comandos de ospec (record, run, check, review, close); no lo edites a mano.\"}}"
 }

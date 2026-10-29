@@ -32,7 +32,9 @@ and archives it under `idd/archive/`.
   used up, checks changed from the base), and only an
   explicit answer from you resolves one. The agent declares who answered
   (`--source user`, or `user-unverified` for a relayed answer): the CLI
-  refuses any other source but cannot verify that the answer was yours.
+  refuses any other source but cannot verify that the answer was yours. A
+  `user` answer recorded before another turn ended after the gate opened is
+  kept as `user-unverified`, and `close` names it.
 - **Evidence over claims**: "tests pass" satisfies nothing; `ospec check` and
   `ospec run` record what actually ran on the current tree.
 - **Recoverable state**: `idd/<change>/state.yaml` is owned by the CLI and
@@ -48,10 +50,11 @@ claude plugin install ospec-workflow@ospec-tools
 ```
 
 Then declare your checks once in `idd/config.yaml` at the project root. If
-none are declared, `ospec next` offers `configure-checks`: the IDD skill asks
-you to approve a suggested command or provide one, and waits before creating
-or updating the file. It preserves existing settings. For an approved
-`npm test` command:
+none are declared, `ospec next` offers `configure-checks`: the IDD skill
+writes a suggested command, or the one you give, preserving existing settings,
+and runs `ospec check`. Until you approve it, `ospec check` runs nothing and
+asks you at the `checks-changed` gate; if you decline, the skill restores the
+file. For an approved `npm test` command:
 
 ```yaml
 checks:

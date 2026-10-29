@@ -173,20 +173,28 @@ function describeChange({ baseChecks, checks, baseConfig, config }) {
 }
 
 /**
- * During a check: checks or ceremony settings (ceremonyConfig) that differ
- * from the change's base need the user's answer (B7, E1.53). Each set gets its
- * own checks-changed entry with the checks and the settings it approves; an
- * entry recorded before E1.53 approves the base settings. Back to the base or
- * to an approved set, the entry nobody answered is dropped.
+ * Whether the checks and ceremony settings (ceremonyConfig) are the base's or
+ * a resolved checks-changed entry approves them. An entry recorded before
+ * E1.53 approves the base settings.
  */
-function settleChecksChange(state, { baseChecks, checks, baseConfig = NO_CEREMONY, config = baseConfig }) {
+function checksApproved(state, { baseChecks, checks, baseConfig = NO_CEREMONY, config = baseConfig }) {
+  const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+  const approves = (gate) => gate.id === CHECKS_GATE && gate.status === "resolved" && same(gate.checks, checks) && same(gate.config ?? baseConfig, config);
+  return (same(checks, baseChecks) && same(config, baseConfig)) || state.gates.some(approves);
+}
+
+/**
+ * During a check: checks or ceremony settings that differ from the change's
+ * base need the user's answer (B7, E1.53). Each set gets its own
+ * checks-changed entry with the checks and the settings it approves. Back to
+ * the base or to an approved set, the entry nobody answered is dropped.
+ */
+function settleChecksChange(state, configChange) {
   requireOpen(state);
   const next = structuredClone(state);
-  const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+  const { baseChecks, checks, baseConfig = NO_CEREMONY, config = baseConfig } = configChange;
   const open = next.gates.find((gate) => gate.id === CHECKS_GATE && gate.status === "open");
-  const approves = (gate) => gate.id === CHECKS_GATE && gate.status === "resolved" && same(gate.checks, checks) && same(gate.config ?? baseConfig, config);
-  const approved = (same(checks, baseChecks) && same(config, baseConfig)) || next.gates.some(approves);
-  if (approved) {
+  if (checksApproved(next, configChange)) {
     if (open) next.gates = next.gates.filter((gate) => gate !== open);
     return next;
   }
@@ -480,8 +488,9 @@ function counterproofWarnings(state) {
   return warnings;
 }
 
-function checksReason({ checks, results, treeChanged, candidateCommand }) {
+function checksReason({ checks, results, treeChanged, candidateCommand, unapproved }) {
   if (!checks || checks.length === 0) return `no checks declared in idd/config.yaml (checks:); ${configureChecksStep(candidateCommand).how}`;
+  if (unapproved) return "no check ran: the user has not approved the checks and settings of idd/config.yaml; once checks-changed is resolved, run ospec check again";
   if (treeChanged) return "the tree changed while the checks ran: run ospec check again";
   const failed = (results || []).find((result) => result.exit_code !== 0);
   if (failed) return `check ${failed.name} failed with exit code ${failed.exit_code}`;
@@ -503,7 +512,7 @@ const DEFAULT_REASONS = Object.freeze({
 
 // living-doc is satisfied by ospec close itself (REQ-idd-004): a current
 // change.md does not hold the verdict back, a stale one says what it lacks.
-function checkVerdict(state, { checks = [], results = [], treeChanged = false, reasons = {}, livingDoc = null, candidateCommand } = {}) {
+function checkVerdict(state, { checks = [], results = [], treeChanged = false, reasons = {}, livingDoc = null, candidateCommand, unapproved = false } = {}) {
   const openGates = state.gates
     .filter((gate) => gate.status === "open")
     .sort((left, right) => GATES.indexOf(left.id) - GATES.indexOf(right.id));
@@ -517,7 +526,7 @@ function checkVerdict(state, { checks = [], results = [], treeChanged = false, r
     .map((entry) => {
       const evidence = EVIDENCE_BY_OBLIGATION.get(entry.id);
       let reason = reasons[entry.id] || DEFAULT_REASONS[entry.id] || `needs ${evidence} evidence`;
-      if (entry.id === "checks-pass") reason = checksReason({ checks, results, treeChanged, candidateCommand });
+      if (entry.id === "checks-pass") reason = checksReason({ checks, results, treeChanged, candidateCommand, unapproved });
       else if (PAIR_OBLIGATIONS.includes(entry.id)) reason = pairReason(state, entry.id);
       else if (entry.id === "trust-review") reason = trustReason(state);
       else if (entry.id === "living-doc") reason = `${livingDoc?.reason || "change.md was not read"}: ospec close records it once change.md is current`;
@@ -534,6 +543,7 @@ module.exports = {
   RUN_OBLIGATIONS,
   ceremonyConfig,
   checkVerdict,
+  checksApproved,
   counterproofWarnings,
   deferImpacts,
   pairRed,

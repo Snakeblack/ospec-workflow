@@ -1,0 +1,5 @@
+{
+  "description": "DENY: a Write of .ospec/turns, the count of turn ends the Stop hook keeps for the gate fence (E1.49)",
+  "stdin": "{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\".ospec/turns\",\"content\":\"99\\n\"}}",
+  "expectedStdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Bloqueado: este fichero es del CLI de ospec (el estado de un cambio IDD, su archivo, un recibo de review o la cuenta de turnos). Avanza con los comandos de ospec (record, run, check, review, close); no lo edites a mano.\"}}"
+}

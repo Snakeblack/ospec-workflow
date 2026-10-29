@@ -271,7 +271,7 @@ function validateMcpResidualPlaceholders(root, errors) {
 
 // The plugin shim bridges opencode events to the ospec-hooks Go binary via
 // spawnSync. Validate that the plugin uses spawnSync, references the binary,
-// and wires both required subcommands.
+// and wires the required subcommands.
 function validatePlugin(root, errors) {
   const rel = ".opencode/plugins/ospec.js";
   if (pathType(root, rel) !== "file") {
@@ -292,6 +292,13 @@ function validatePlugin(root, errors) {
   }
   if (!text.includes("session-start")) {
     addError(errors, `${rel} must bridge the session-start subcommand`);
+  }
+  // E1.49: the end of a turn of the root session runs the Stop hook, which
+  // counts it for the gate fence: session.idle on 1.x and the end of the
+  // session's execution on 2.x. Without it every answer to a gate is recorded
+  // user-unverified.
+  if (!text.includes('runHook("stop"') || !text.includes('"session.idle"') || !text.includes('"session.execution.succeeded"') || !text.includes("parentID")) {
+    addError(errors, `${rel} must run the stop subcommand at the end of a turn of the root session (session.idle, session.execution.succeeded)`);
   }
   // session-start resolves skills/ from plugin_root; without it the binary
   // falls back to the plugin host's process cwd (the opencode server's) and

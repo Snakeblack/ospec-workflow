@@ -133,8 +133,9 @@ no coverage percentage replaces this choice.
 
 ## Gates
 
-Stop for the user at the gates and for project-check approval. Ask
-with the host's question tool, or without one end your turn with the questions.
+Stop for the user at the gates: end your turn with the questions, not a
+question tool. A `user` answer given before a turn ends is kept
+`user-unverified`.
 A skipped, empty or default answer is not the user's: end your turn with the
 questions and wait.
 
@@ -150,15 +151,15 @@ questions and wait.
   `ospec record gate --change <id> --gate adr-amend-or-contradict --open --reason "<ADR>: <how the change departs from it>"`.
   A change that conforms opens nothing.
 - `review-limit`: `ospec check` opens it when the trust reviews run out.
-- `checks-changed`: `ospec check` opens it when the checks or the ceremony
-  settings (`strict_tdd`, `impact`, `contracts`) differ from the change's base.
-  The user's approval of exactly those values answers it.
+- `checks-changed`: `ospec check` opens it, running nothing, when the checks
+  or the ceremony settings (`strict_tdd`, `impact`, `contracts`) differ from
+  the change's base. The user's approval of exactly those values answers it.
 
 Resolve each one with `ospec record gate --change <id> --gate <id> --resolve --answer "<their words>" --source user`,
 or `user-unverified` for a relayed answer. The CLI cannot verify who answered:
 read `references/approvals.md` first. Only an explicit answer from the user
-resolves a gate. Outside these gates and project-check approval, follow the
-code and the evidence without asking.
+resolves a gate. Outside these gates, follow the code and the evidence
+without asking.
 
 ## Delivery
 

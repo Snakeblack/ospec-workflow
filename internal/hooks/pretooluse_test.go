@@ -1333,6 +1333,9 @@ func TestPreToolUse_CLIOwnedWrites(t *testing.T) {
 		{"apply_patch", map[string]interface{}{"input": "*** Begin Patch\n  *** Update File: idd/fix-pagination/state.yaml\n*** End Patch"}},
 		{"apply_patch", map[string]interface{}{"input": "*** Begin Patch\n*** Update File: idd/fix-pagination/state.yaml\n@@\n-a\n+b\n*** End Patch"}},
 		{"apply_patch", map[string]interface{}{"command": "*** Begin Patch\r\n*** Update File: src/a.js\r\n*** Move to: idd/archive/x/a.js\r\n*** End Patch"}},
+		{"Write", map[string]interface{}{"file_path": ".ospec/turns", "content": "99\n"}},
+		{"Edit", map[string]interface{}{"file_path": filepath.Join(t.TempDir(), ".OSPEC", "Turns"), "old_string": "1", "new_string": "9"}},
+		{"delete_file", map[string]interface{}{"path": `pkg\.ospec\turns`}},
 	}
 	for _, c := range denied {
 		for _, mode := range []string{"default", "bypassPermissions"} {
@@ -1357,6 +1360,9 @@ func TestPreToolUse_CLIOwnedWrites(t *testing.T) {
 		{"Write", map[string]interface{}{"file_path": "notes.txt", "content": "*** Update File: idd/fix-pagination/state.yaml"}},
 		{"Bash", map[string]interface{}{"command": "cat idd/fix-pagination/state.yaml"}},
 		{"apply_patch", map[string]interface{}{"input": "*** Begin Patch\n*** Update File: src/a.js\n*** End Patch"}},
+		{"Write", map[string]interface{}{"file_path": ".ospec/turns.md", "content": "notes"}},
+		{"Write", map[string]interface{}{"file_path": ".ospec/turns/notes.md", "content": "notes"}},
+		{"Write", map[string]interface{}{"file_path": "docs/turns", "content": "notes"}},
 	}
 	for _, c := range passing {
 		stdin, _ := json.Marshal(map[string]interface{}{"tool_name": c.tool, "tool_input": c.input, "permission_mode": "default"})

@@ -283,6 +283,22 @@ function validateState(state) {
     if (gate.status === "resolved" && (!gate.answer || !gate.source)) {
       fail(`gate ${gate.id} is resolved without the user's answer and its source`);
     }
+    // E1.49: the turn count of its opening and of its answer, and the source
+    // an answer was declared with when no turn ended in between.
+    const isTurn = (value) => value === null || (Number.isSafeInteger(value) && value >= 0);
+    for (const key of ["opened_turn", "resolved_turn"]) {
+      if (gate[key] !== undefined && !isTurn(gate[key])) fail(`gate ${gate.id} ${key} must be a turn count or null`);
+    }
+    if (gate.resolved_turn !== undefined && (gate.status !== "resolved" || gate.opened_turn === undefined)) {
+      fail(`gate ${gate.id} has the turn of an answer without the turn it opened in`);
+    }
+    if ((gate.declared_source !== undefined || gate.unverified_reason !== undefined)
+      && (gate.declared_source !== "user" || gate.source !== "user-unverified" || typeof gate.unverified_reason !== "string" || gate.unverified_reason.trim() === "")) {
+      fail(`gate ${gate.id} declared user must be recorded user-unverified with the reason`);
+    }
+    if (gate.source === "user" && gate.resolved_turn !== undefined && !(gate.opened_turn !== null && gate.resolved_turn !== null && gate.resolved_turn > gate.opened_turn)) {
+      fail(`gate ${gate.id} is answered user without a turn end after it opened`);
+    }
     // checks-changed names the checks it approves (B7).
     const checks = gate.checks;
     if (gate.id === "checks-changed" && !(Array.isArray(checks) && checks.every((entry) => isTextList([entry?.name, entry?.command]) && Object.keys(entry).length === 2))) {

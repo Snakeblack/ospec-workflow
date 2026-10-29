@@ -185,13 +185,41 @@ function sessionStart(directory) {
   }
 }
 
+// E1.49: the end of a turn runs the Stop hook, which counts it in .ospec/turns
+// for the gate fence. Only the root session counts: a subagent's session has
+// a parent and ends inside the turn, and a session whose record cannot be read
+// does not count either, so a missed turn leaves an answer user-unverified.
+async function isRootSession(readSession) {
+  try {
+    const session = await readSession();
+    return Boolean(session && typeof session.id === "string" && !session.parentID);
+  } catch {
+    return false;
+  }
+}
+
+function turnEnd(directory, sessionID) {
+  try {
+    runHook("stop", { cwd: directory, session_id: sessionID }, { cwd: directory });
+  } catch {
+    // The count is best-effort, like the session trace the hook also writes.
+  }
+}
+
+// The events that end a turn on OpenCode 2.x.
+const TURN_ENDS = new Set(["session.execution.succeeded", "session.execution.failed", "session.execution.interrupted"]);
+
 // v1 entrypoint: OpenCode 1.x (>= 1.18.29) calls server() with the plugin
 // context and consumes the returned hooks object.
-export const OspecWorkflowPlugin = async ({ directory }) => {
+export const OspecWorkflowPlugin = async ({ directory, client }) => {
   return {
     event: async ({ event }) => {
       if (event && event.type === "session.created") {
         sessionStart(directory);
+      }
+      const sessionID = event && event.type === "session.idle" && event.properties && event.properties.sessionID;
+      if (sessionID && client && client.session && await isRootSession(async () => (await client.session.get({ path: { id: sessionID } })).data)) {
+        turnEnd(directory, sessionID);
       }
     },
     "tool.execute.before": async (input, output) => {
@@ -257,6 +285,10 @@ async function setupOspecWorkflow(ctx) {
       for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
         if (event && event.type === "session.created") {
           sessionStart(directory);
+        }
+        const sessionID = event && TURN_ENDS.has(event.type) && event.data && event.data.sessionID;
+        if (sessionID && ctx.session && typeof ctx.session.get === "function" && await isRootSession(() => ctx.session.get({ sessionID }))) {
+          turnEnd(directory, sessionID);
         }
       }
     } catch {

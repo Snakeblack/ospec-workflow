@@ -114,6 +114,9 @@ for (const target of Object.keys(ROUTERS)) {
     assert.match(protocol, /`resolve-gate` comes first/, `${target}: an open gate is asked before the work it decides`);
     // #399: agy without a UI answers ask_question with "User Skipped".
     assert.match(protocol, /skipped, empty or\s+default answer is not the user's: end your turn with the\s+questions/, `${target}: a skipped answer ends the turn`);
+    // E1.49: a question tool answers inside the turn, so the gates end it.
+    assert.match(protocol, /Stop for the user at the gates: end your turn with the questions, not a\s+question tool\. A `user` answer given before a turn ends is kept\s+`user-unverified`/, `${target}: a gate is asked by ending the turn`);
+    assert.match(protocol, /`checks-changed`: `ospec check` opens it, running nothing,/, `${target}: an unapproved check command does not run`);
     for (const section of ["## Build it simply", "## Tests by risk"]) {
       assert.ok(protocol.includes(section), `${target}: protocol must keep ${section}`);
     }
@@ -233,8 +236,11 @@ for (const target of Object.keys(ROUTERS)) {
     const checks = byPath.get(CHECKS);
     assert.ok(checks, `${target}: ${CHECKS} is not shipped`);
     assert.ok(checks.includes("configure-checks"), `${target}: missing checks must have an actionable step`);
-    assert.match(checks, /Ask for explicit approval and stop\s+until the user answers/, `${target}: configuration needs user approval`);
-    assert.match(checks, /preserve its other keys and\s+checks/, `${target}: an approved edit must retain existing configuration`);
+    assert.match(checks, /Ask for explicit approval by ending your turn with its question, and stop\s+until the user answers/, `${target}: configuration needs user approval`);
+    // E1.49: the proposed command runs only after the user approves it.
+    assert.match(checks, /it runs nothing and opens `checks-changed` naming them/, `${target}: check runs no unapproved command`);
+    assert.match(checks, /If the user declines, restore `idd\/config\.yaml` as it\s+was/, `${target}: a declined command leaves no configuration`);
+    assert.match(checks, /preserve its other keys and\s+checks/, `${target}: a written command must retain existing configuration`);
     assert.match(checks, /Do not infer\s+consent from a manifest, lockfile or passing test/, `${target}: consent is never inferred`);
     const repositories = byPath.get(REPOSITORY).replace(/\s+/g, " ");
     assert.match(repositories, /## Several services or repositories/, `${target}: the repository reference keeps the multi-repository rules`);

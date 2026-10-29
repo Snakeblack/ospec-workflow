@@ -30,6 +30,7 @@ const {
   RUN_OBLIGATIONS,
   ceremonyConfig,
   checkVerdict,
+  checksApproved,
   counterproofWarnings,
   deferImpacts,
   pairRed,
@@ -80,6 +81,7 @@ const {
 } = require("./lib/idd-review.js");
 const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
 const { readReceipt } = require("./lib/review-receipt.js");
+const { unverifiedGateWarnings } = require("./lib/turn-fence.js");
 const { DEFAULT_ROADMAP, SnapshotError, buildSnapshot } = require("./lib/progress-snapshot.js");
 const { DEFAULT_PROGRESS, buildSnapshotV2 } = require("./lib/progress-snapshot-v2.js");
 const { buildSnapshotV3 } = require("./lib/progress-snapshot-v3.js");
@@ -733,6 +735,23 @@ function settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, ch
   return { state: fresh, added: derived.added, reasons, runIds: recorded.ids, evidence: settled.evidence, counterproof: counterproved?.outcome ?? null };
 }
 
+// Checks or ceremony settings the user has not approved run nothing (E1.49):
+// the check opens checks-changed with them and stops, so a command written to
+// idd/config.yaml runs only after the user's answer.
+async function awaitChecksApproval(root, values, context, inputs) {
+  const { state, changed } = await mutateChange(
+    root,
+    values.change,
+    existing((stored) => {
+      const gated = settleChecksChange(stored, inputs.configChange);
+      return { state: gated, changed: changedFrom(stored, gated) };
+    }),
+  );
+  const verdict = checkVerdict(state, { checks: context.checks, candidateCommand: context.candidateCommand, unapproved: true, livingDoc: readLivingDoc(root, state) });
+  const warnings = [...inputs.warnings, "no check ran: checks-changed waits for the user's approval of the checks and settings of idd/config.yaml"];
+  return { change: state.change, changed, added: { signals: [], gates: [] }, checks: [], ...verdict, next: nextAfterWrite(root, state), warnings };
+}
+
 // Runs every declared check on the working tree, recomputes the signals from
 // the diff and settles checks-pass on the tree the checks finished on.
 async function check(root, values) {
@@ -745,6 +764,7 @@ async function check(root, values) {
 
   const context = readProjectContext(root);
   const inputs = readCheckInputs(root, values, current, context);
+  if (!checksApproved(current, inputs.configChange)) return awaitChecksApproval(root, values, context, inputs);
   const treeBefore = readTreeFingerprint(root);
   const checkTreeBefore = readCheckTreeFingerprint(root, context.checks);
   const checks = context.checks.map(({ name, command }) => {
@@ -1046,7 +1066,7 @@ async function close(root, values) {
     }
     if (await fsp.stat(changeDir(root, state.change)).then(() => true, () => false)) writeEvidenceSection(root, state);
     const archive = await archiveChange(root, state);
-    const warnings = counterproofWarnings(state);
+    const warnings = [...counterproofWarnings(state), ...unverifiedGateWarnings(state)];
     return {
       change: state.change,
       status: state.status,
@@ -1383,7 +1403,10 @@ async function run(command, positionals, values) {
     const query = type === "intent" ? intentMemoryQuery(root, state) : null;
     // The signals the plan of record intent derived, as signals reports them.
     const plan = recorded.derivation ? { plan: derivationView(recorded) } : {};
-    return { record: type, change: state.change, changed, ...(query ? { memory_query: query } : {}), ...plan, next: nextAfterWrite(root, state) };
+    // The answers the turn fence recorded user-unverified (E1.49).
+    const warnings = (recorded.unverified || []).map(({ gate, reason }) =>
+      `gate ${gate} recorded user-unverified: ${reason}; ask a gate by ending your turn with its questions, and record the answer once the user replies`);
+    return { record: type, change: state.change, changed, ...(query ? { memory_query: query } : {}), ...plan, ...(warnings.length ? { warnings } : {}), next: nextAfterWrite(root, state) };
   }
   throw new UsageError(`unknown command: ${command ?? "(none)"}`);
 }
@@ -1732,6 +1755,7 @@ function describe(command, result) {
     : `no change: ${result.record} already recorded on ${result.change}`;
   const lines = [result.plan ? `${head}; ${describeDerivation(result.plan, result.changed)}` : head];
   if (result.memory_query !== undefined) lines.push(`memory query: ${result.memory_query}`);
+  for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
   return [...lines, ...describeStep(result.next)].join("\n");
 }
 

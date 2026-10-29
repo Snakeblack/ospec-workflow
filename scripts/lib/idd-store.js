@@ -7,6 +7,8 @@
 // lock, validates the result and replaces the file atomically and durably; a
 // repeated record that changes nothing never touches the file, and a write
 // whose lock another process took over is refused with lock-lost (E1.46).
+// Every write also fences the gates it opens or answers with the turn count
+// of the Stop hook (E1.49).
 
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -26,6 +28,7 @@ const {
 } = require("./idd-contract.js");
 const { recoverOrphanBak, writeFileAtomic } = require("./atomic-write.js");
 const { withFileLock } = require("./ospec-state.js");
+const { fenceGates, readTurn } = require("./turn-fence.js");
 
 class IddStoreError extends Error {
   constructor(code, message) {
@@ -176,6 +179,8 @@ async function mutateChange(root, changeId, reducer, { writeFile = writeFileAtom
       throw new IddStoreError("change-mismatch", `state for ${result.state.change} does not match ${changeId}`);
     }
     if (result.changed) {
+      const unverified = fenceGates(current, result.state, readTurn(root));
+      if (unverified.length) result.unverified = unverified;
       const { ok, errors } = validateState(result.state);
       if (!ok) throw new IddStoreError("state-invalid", errors.join("; "));
       await assertOwned().catch((error) => {

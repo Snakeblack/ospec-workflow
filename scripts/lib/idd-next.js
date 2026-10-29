@@ -49,7 +49,7 @@ const HOW = Object.freeze({
   // what counts as a contract document (#400).
   "contract-spec-and-test": (change, { contractPatterns } = {}) =>
     contractPatterns
-      ? `in one diff, touch a contract document (${contractPatterns.documents.join(", ")}) and its test (${contractPatterns.tests.join(", ")}), then ospec check --change ${change}; if the project keeps its contract elsewhere, propose contracts.documents for idd/config.yaml to the user and edit it only after approval`
+      ? `in one diff, touch a contract document (${contractPatterns.documents.join(", ")}) and its test (${contractPatterns.tests.join(", ")}), then ospec check --change ${change}; if the project keeps its contract elsewhere, write contracts.documents to idd/config.yaml and run ospec check, which opens checks-changed for the user's approval`
       : `in one diff, touch a contract document and its test (contracts.documents and contracts.tests of idd/config.yaml), then ospec check --change ${change}`,
   "living-doc": (change) =>
     `the CLI writes the Plan of idd/${change}/change.md from --path and its Decisions from --decision "<text>"; add by hand what they leave out, then ospec close --change ${change}`,
@@ -257,8 +257,9 @@ function nextForChange(state, { checks, candidateCommand, contractPatterns, know
     if (HOW[pending[0].id]) nextStep.how = HOW[pending[0].id](state.change, { contractPatterns });
     nextStep.command = obligationCommand(state, pending[0].id, pending);
     if (checks?.length === 0 && CHECKS_REQUIRED.includes(pending[0].id)) {
-      // Once the user approved the checks and they are written, next goes on.
-      nextStep = { ...configureChecksStep(candidateCommand), command: `ospec next --change ${state.change} --json` };
+      // The written checks run once the user approves them at checks-changed,
+      // which this check opens (E1.49).
+      nextStep = { ...configureChecksStep(candidateCommand), command: `ospec check --change ${state.change}` };
     }
   } else {
     nextStep = { action: "close", command: `ospec close --change ${state.change}` };

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.167.0] - 2026-10-29
+
+### Added
+- **Valla de turnos en los gates (E1.49)** (gate-turn-fence, #399, #343). El agente podía resolver un gate con `--source user` en el mismo turno en que se abría, con respuestas que nadie había dado. Ahora una respuesta `user` sin un fin de turno de por medio queda `user-unverified`. Nada bloquea.
+  - El hook `Stop` (Go y su respaldo de Node) suma uno a `.ospec/turns` en cada fin de turno, antes de la traza y con escritura atómica. El guard de PreToolUse niega a las herramientas de escritura tocar ese fichero, como el estado y los recibos de review.
+  - Toda escritura del estado valla los gates en `mutateChange`. Un gate que se abre, o que cambia mientras está abierto, guarda `opened_turn`. Al resolverse guarda `resolved_turn`, y una respuesta `user` sin `resolved_turn > opened_turn` se guarda `user-unverified`, con `declared_source` y `unverified_reason`. Sin cuenta legible, toda respuesta `user` queda así.
+  - `record gate` y `record intent` avisan al degradar una respuesta, y `close` lista todos los gates respondidos `user-unverified`. Un gate abierto antes de E1.49 conserva su fuente, y `record retract --answer` queda fuera.
+  - `.ospec/turns` queda fuera de diffs, snapshots y huellas del árbol. Los campos nuevos son opcionales en `idd-state/v1`: un estado anterior sigue valiendo, y v2.166.0 valida uno que los lleva.
+  - OpenCode, sin hook `Stop`, llama al `stop` al terminar el turno de la sesión raíz: `session.idle` en 1.x y `session.execution.*` en 2.x, sin contar los subagentes. Está verificado en vivo en 1.18.35 y 2.0.32; en los otros seis targets el hook de fin de turno está cableado y probado, pero no verificado en vivo.
+  - La skill `idd` pide cada gate terminando el turno, nunca con la herramienta de pregunta del host, cuya respuesta llega dentro del mismo turno.
+
+### Changed
+- **Los checks se aprueban en `checks-changed`** (gate-turn-fence). `ospec check` ejecutaba un check que nadie había aprobado antes de abrir el gate. Ahora, con checks o ajustes de ceremonia distintos de la base y sin aprobar, abre `checks-changed` y para: no ejecuta checks, fitness ni contraprueba, y responde `missing` con `checks-pass` pendiente y un aviso. El siguiente `check`, ya aprobado, los ejecuta.
+  - El paso `configure-checks` pide escribir el comando propuesto y lanzar `ospec check`, y su `command` pasa a ser `ospec check`; con un no, el agente restaura `idd/config.yaml`. El `how` de `contract-spec-and-test` sigue el mismo camino para `contracts.documents`.
+  - Una respuesta vallada o reenviada sigue aprobando: el CLI no puede verificar quién respondió, así que la garantía vale para un agente que pregunta en el gate y espera.
+- **Contrato:** REQ-idd-003, REQ-idd-008 y REQ-idd-014 y REQ-hooks-028 a REQ-hooks-030 recogen las reglas con sus escenarios.
+
+Hecho con IDD (`idd/archive/2026-10-29-gate-turn-fence/`), con tres reviews de confianza aprobadas.
+
+**Verificación directa**: `node scripts/check.js` (4309 tests pasando, 0 fallos y 5 omitidos). La puerta de Go (`gofmt -l cmd internal`, `go vet ./...`, `go test ./...`) también pasa.
+
 ## [2.166.0] - 2026-10-29
 
 ### Added

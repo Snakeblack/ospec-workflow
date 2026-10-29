@@ -17,6 +17,7 @@ const { writeFileAtomic } = require("../lib/atomic-write.js");
 const { mkdirOspec } = require("../lib/ospec-gitignore.js");
 const { resolveWorkspaceCwd } = require("../lib/pathsafe.js");
 const { readIddSession } = require("./lib/idd-session.js");
+const { countTurnEnd } = require("../lib/turn-fence.js");
 
 const LATEST_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.latestSession;
 
@@ -268,18 +269,27 @@ async function readJsonInput(stream = process.stdin) {
   return input ? JSON.parse(input) : {};
 }
 
-async function main() {
+// E1.49: every turn end is counted in .ospec/turns, before the trace, so a
+// trace that cannot be written still counts it.
+async function countTurn(input, fallbackCwd = process.cwd()) {
   try {
-    await runStop({ input: await readJsonInput() });
-    process.stdout.write('{"continue":true}\n');
+    await countTurnEnd(resolveWorkspaceCwd(input?.cwd, fallbackCwd));
+    return null;
   } catch (error) {
-    process.stdout.write(
-      `${JSON.stringify({
-        continue: true,
-        systemMessage: `Stop hook could not write the session trace: ${error.message}`,
-      })}\n`,
-    );
+    return `Stop hook could not count the turn end: ${error.message}`;
   }
+}
+
+async function main() {
+  let failure = null;
+  try {
+    const input = await readJsonInput();
+    failure = await countTurn(input);
+    await runStop({ input });
+  } catch (error) {
+    failure = `Stop hook could not write the session trace: ${error.message}`;
+  }
+  process.stdout.write(failure ? `${JSON.stringify({ continue: true, systemMessage: failure })}\n` : '{"continue":true}\n');
 }
 
 if (require.main === module) {
@@ -288,6 +298,7 @@ if (require.main === module) {
 
 module.exports = {
   LATEST_RELATIVE_PATH,
+  countTurn,
   renderLatestSummary,
   runStop,
 };

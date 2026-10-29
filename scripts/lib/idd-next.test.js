@@ -335,7 +335,7 @@ test("the contract step names where the project's contract documents and tests l
   const context = { checks: [{ name: "test", command: "npm test" }], contractPatterns: { documents: ["docs/api/**", "**/*.d.ts"], tests: ["**/*.test.*"] } };
   assert.strictEqual(
     nextForChange(state, context).next_step.how,
-    "in one diff, touch a contract document (docs/api/**, **/*.d.ts) and its test (**/*.test.*), then ospec check --change orders-api; if the project keeps its contract elsewhere, propose contracts.documents for idd/config.yaml to the user and edit it only after approval",
+    "in one diff, touch a contract document (docs/api/**, **/*.d.ts) and its test (**/*.test.*), then ospec check --change orders-api; if the project keeps its contract elsewhere, write contracts.documents to idd/config.yaml and run ospec check, which opens checks-changed for the user's approval",
   );
 });
 
@@ -515,7 +515,7 @@ test("every next step of every reference fixture carries its literal command", (
   const context = { checks: [], candidateCommand: "pnpm test" };
   const unconfigured = nextForChange(planned({ change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }), context);
   assert.strictEqual(unconfigured.next_step.action, "configure-checks");
-  assert.strictEqual(unconfigured.next_step.command, "ospec next --change fix-it --json");
+  assert.strictEqual(unconfigured.next_step.command, "ospec check --change fix-it");
   for (const states of [[], [planned({ change: "a", kind: "docs", summary: "s", acceptance: "a", ...NO_OPEN_FACTS })]]) {
     assertCommand(nextForProject(states).next_step, `project of ${states.length}`);
   }

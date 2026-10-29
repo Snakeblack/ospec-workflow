@@ -27,17 +27,19 @@ function candidateCheckCommand(root) {
   return commands[managers[0] || "npm"];
 }
 
+// The user approves the command at checks-changed (E1.49): ospec check opens
+// it for a command written to the configuration and runs nothing until then.
 function configureChecksStep(candidateCommand = null) {
   const proposal = candidateCommand
-    ? `Proposed command: ${candidateCommand}; ask the user to approve it or provide another command.`
-    : "Ask the user which project check command to declare.";
+    ? `Proposed command: ${candidateCommand}.`
+    : "No command is known: ask the user which project check command to declare.";
   return {
     action: "configure-checks",
     obligation: "checks-pass",
     file: CONFIG_FILE,
     candidate_command: candidateCommand,
     requires_approval: true,
-    how: `Declare checks: in ${CONFIG_FILE} only after explicit user approval. ${proposal} Preserve the other configuration keys; then run ospec next again.`,
+    how: `${proposal} Write it under checks: in ${CONFIG_FILE}, preserving the other configuration keys, and run ospec check: it runs nothing and opens checks-changed for the user's explicit approval. If the user declines, restore ${CONFIG_FILE}.`,
   };
 }
 

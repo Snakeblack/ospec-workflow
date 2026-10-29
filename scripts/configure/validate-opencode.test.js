@@ -203,6 +203,21 @@ test("validate fails when the plugin collapses an ask verdict to a hard block", 
   assert.ok(result.errors.some((error) => error.includes("must escalate the ospec action to ask in the permission evaluate hook")));
 });
 
+test("validate fails when the plugin does not count the end of a turn (E1.49)", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
+  assert.equal(validate(out).errors.length, 0);
+
+  const file = path.join(out, ".opencode/plugins/ospec.js");
+  const plugin = fs.readFileSync(file, "utf8");
+  for (const dropped of ['runHook("stop"', '"session.idle"', '"session.execution.succeeded"', "parentID"]) {
+    assert.ok(plugin.includes(dropped), dropped);
+    fs.writeFileSync(file, plugin.split(dropped).join("dropped"));
+    const result = validate(out);
+    assert.ok(result.errors.some((error) => error.includes("must run the stop subcommand at the end of a turn of the root session")), dropped);
+  }
+});
+
 test("validate requires the skills tree so agent skill references resolve", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });

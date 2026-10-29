@@ -466,6 +466,35 @@ test("no signal or obligation exists while the intent is ambiguous", () => {
   assert.ok(errors.some((e) => e.includes("no obligation")));
 });
 
+test("[E1.49] a gate carries the turns of its opening and answer, and an answer before a turn end is user-unverified", () => {
+  const gate = (fields) => validState({ gates: [{ id: "irreversible-operation", ...fields }] });
+  const valid = [
+    { status: "open", opened_turn: 3 },
+    { status: "open", opened_turn: null },
+    { status: "resolved", answer: "yes", source: "user", opened_turn: 3, resolved_turn: 4 },
+    { status: "resolved", answer: "yes", source: "user", opened_turn: 3 },
+    { status: "resolved", answer: "yes", source: "user-unverified", declared_source: "user", unverified_reason: "no turn ended", opened_turn: 3, resolved_turn: 3 },
+    { status: "resolved", answer: "yes", source: "user-unverified", opened_turn: null, resolved_turn: null },
+  ];
+  for (const fields of valid) assert.deepStrictEqual(contract.validateState(gate(fields)), { ok: true, errors: [] }, JSON.stringify(fields));
+  const invalid = [
+    [{ status: "open", opened_turn: -1 }, /opened_turn must be a turn count/],
+    [{ status: "open", opened_turn: "3" }, /opened_turn must be a turn count/],
+    [{ status: "open", opened_turn: 3, resolved_turn: 4 }, /turn of an answer without/],
+    [{ status: "resolved", answer: "yes", source: "user", resolved_turn: 4 }, /turn of an answer without/],
+    [{ status: "resolved", answer: "yes", source: "user", opened_turn: 3, resolved_turn: 3 }, /answered user without a turn end/],
+    [{ status: "resolved", answer: "yes", source: "user", opened_turn: null, resolved_turn: 4 }, /answered user without a turn end/],
+    [{ status: "resolved", answer: "yes", source: "user", declared_source: "user", unverified_reason: "no turn ended" }, /declared user must be recorded user-unverified/],
+    [{ status: "resolved", answer: "yes", source: "user-unverified", declared_source: "user" }, /declared user must be recorded user-unverified/],
+    [{ status: "resolved", answer: "yes", source: "user-unverified", unverified_reason: "no turn ended" }, /declared user must be recorded user-unverified/],
+  ];
+  for (const [fields, error] of invalid) {
+    const { ok, errors } = contract.validateState(gate(fields));
+    assert.strictEqual(ok, false, JSON.stringify(fields));
+    assert.match(errors.join("; "), error);
+  }
+});
+
 test("a gate may carry a reason, which must be text", () => {
   const state = validState({ gates: [{ id: "irreversible-operation", status: "open", reason: "drops customers.fax_number" }] });
   assert.deepStrictEqual(contract.validateState(state), { ok: true, errors: [] });
