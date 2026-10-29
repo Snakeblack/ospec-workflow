@@ -13,6 +13,7 @@ const { execFileSync } = require("node:child_process");
 
 const { CHANGE_ROOT, DECISIONS_ROOT } = require("./idd-contract.js");
 const { RECEIPTS_DIR } = require("./review-receipt.js");
+const { TURNS_FILE } = require("./turn-fence.js");
 const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
 const { candidateCheckCommand } = require("./idd-checks-config.js");
 const { MAP_RELATIVE } = require("./decision-gap.js");
@@ -205,10 +206,10 @@ function nulList(output) {
   return output.split("\0").filter(Boolean);
 }
 
-// Never part of a change's diff: its own state under idd/ and the review
-// receipts the SubagentStop hook writes (REQ-hooks-027), even where .ospec/
-// is not ignored.
-const OWN_ROOTS = [CHANGE_ROOT, RECEIPTS_DIR];
+// Never part of a change's diff: its own state under idd/, the review
+// receipts the SubagentStop hook writes (REQ-hooks-027) and the turn count of
+// the Stop hook (E1.49), even where .ospec/ is not ignored.
+const OWN_ROOTS = [CHANGE_ROOT, RECEIPTS_DIR, TURNS_FILE];
 const OWN_EXCLUDES = OWN_ROOTS.map((own) => `:(exclude)${own}`);
 
 function isIddState(file) {
@@ -517,7 +518,7 @@ function readCheckTreeFingerprint(root, checks = parseIddConfig(readIddConfig(ro
 
 /**
  * The working tree as a git tree object (REQ-idd-016): tracked and untracked
- * files, never ignored ones, idd/ nor the review receipts. A throwaway index keeps the real index
+ * files, never ignored ones, idd/, the review receipts nor the turn count. A throwaway index keeps the real index
  * untouched; the tree lands in the object store, so a later diff can compare
  * the reviewed candidate with the current tree.
  */
@@ -530,8 +531,10 @@ function snapshotTree(root) {
     git(root, head ? ["read-tree", head] : ["read-tree", "--empty"], { env });
     git(root, ["add", "-A", "--", ".", `:(exclude)${CHANGE_ROOT}`], { env });
     // git add refuses an exclude pathspec that names an ignored path, so the
-    // receipts go back to their HEAD state in the throwaway index instead.
-    git(root, head ? ["reset", "-q", head, "--", RECEIPTS_DIR] : ["rm", "--cached", "-r", "-q", "--ignore-unmatch", "--", RECEIPTS_DIR], { env });
+    // receipts and the turn count go back to their HEAD state in the
+    // throwaway index instead.
+    const own = [RECEIPTS_DIR, TURNS_FILE];
+    git(root, head ? ["reset", "-q", head, "--", ...own] : ["rm", "--cached", "-r", "-q", "--ignore-unmatch", "--", ...own], { env });
     return git(root, ["write-tree"], { env }).trim();
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

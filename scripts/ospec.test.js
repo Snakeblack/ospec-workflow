@@ -2477,7 +2477,8 @@ test("[E1.44 B7] checks that differ from the base open checks-changed, and each 
 
   const changed = ospec(root, "check", "--change", "fix-readme", "--json");
   assert.strictEqual(changed.code, 0, changed.stdout);
-  assert.strictEqual(changed.json.verdict, "needs-decision", JSON.stringify(changed.json.missing));
+  // E1.49: the new command does not run before the answer, so checks-pass is still missing.
+  assert.deepStrictEqual([changed.json.verdict, changed.json.missing.map((entry) => entry.obligation), changed.json.checks], ["missing", ["checks-pass"], undefined]);
   assert.strictEqual(changed.json.decision.gate, "checks-changed");
   assert.match(changed.json.decision.reason, /test: node -e 0/);
   assert.match(changed.json.decision.reason, /test: node verify\.js/);
@@ -3197,7 +3198,8 @@ test("[REQ-idd-014] check --close closes a ready change in the same call and ref
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "idd/config.yaml", "checks:\n  test: node verify.js\n  smoke: node -e 0\n");
   const gated = ospec(root, "check", "--change", "fix-readme", "--close", "--json");
-  assert.deepStrictEqual([gated.code, gated.json.error.message], [1, "close refused: the check answered needs-decision (gate checks-changed)"]);
+  // E1.49: the checks nobody approved yet do not run, so checks-pass waits for the answer too.
+  assert.deepStrictEqual([gated.code, gated.json.error.message], [1, "close refused: the check answered missing (checks-pass, gate checks-changed)"]);
   const approved = ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "checks-changed", "--resolve", "--answer", "Yes, add smoke.", "--source", "user");
   assert.strictEqual(approved.code, 0, approved.stderr);
 
@@ -3375,4 +3377,147 @@ test("[REQ-idd-011] each command that writes prints a status line and its next w
       assert.match(outputs.check.stdout, /^ready: fix-pages can close\nran: check test exit 0\nnext \(close\): ospec close --change fix-pages\n/);
     }
   }
+});
+
+// E1.49 gate-turn-fence (REQ-idd-008): the Stop hook counts the turn ends in
+// .ospec/turns, which these tests write as the hook would.
+function writeTurns(root, turn) {
+  writeFile(root, ".ospec/turns", `${turn}\n`);
+}
+
+const OPEN_IRREVERSIBLE = ["record", "gate", "--change", "fix-readme", "--gate", "irreversible-operation", "--open", "--reason", "drop the old pages"];
+const RESOLVE_IRREVERSIBLE = ["record", "gate", "--change", "fix-readme", "--gate", "irreversible-operation", "--resolve", "--answer", "Go ahead.", "--source", "user"];
+
+test("[E1.49] an answer declared user before a turn ends after the gate opened is recorded user-unverified, and close names it", (t) => {
+  const { root } = project(t);
+  writeTurns(root, 3);
+  ospec(root, ...OPEN_DOCS);
+  ospec(root, ...OPEN_IRREVERSIBLE);
+  assert.strictEqual(stateOf(root, "fix-readme").gates[0].opened_turn, 3);
+
+  const resolved = ospec(root, ...RESOLVE_IRREVERSIBLE, "--json");
+  assert.strictEqual(resolved.code, 0, resolved.stderr);
+  assert.deepStrictEqual(resolved.json.warnings, [
+    "gate irreversible-operation recorded user-unverified: no turn ended between the gate's opening and the answer; ask a gate by ending your turn with its questions, and record the answer once the user replies",
+  ]);
+  assert.deepStrictEqual(stateOf(root, "fix-readme").gates[0], {
+    id: "irreversible-operation",
+    status: "resolved",
+    reason: "drop the old pages",
+    opened_turn: 3,
+    answer: "Go ahead.",
+    source: "user-unverified",
+    resolved_turn: 3,
+    declared_source: "user",
+    unverified_reason: "no turn ended between the gate's opening and the answer",
+  });
+  // The same answer again changes nothing, after a turn end too.
+  writeTurns(root, 4);
+  const again = ospec(root, ...RESOLVE_IRREVERSIBLE);
+  assert.strictEqual(again.code, 0, again.stderr);
+  assert.match(again.stdout, /^no change: gate already recorded on fix-readme$/m);
+
+  // The count is never part of the change: a turn end after the check
+  // leaves its evidence fresh.
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  writeTurns(root, 5);
+  const closed = ospec(root, "close", "--change", "fix-readme");
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  assert.match(closed.stdout, /^warning: gate irreversible-operation was answered user-unverified: no turn ended between the gate's opening and the answer$/m);
+});
+
+test("[E1.49] an answer after a turn end keeps user, and a gate opened before E1.49 keeps the source it is answered with", (t) => {
+  const { root } = project(t);
+  writeTurns(root, 3);
+  ospec(root, ...OPEN_DOCS);
+  ospec(root, ...OPEN_IRREVERSIBLE);
+  writeTurns(root, 4);
+  const resolved = ospec(root, ...RESOLVE_IRREVERSIBLE, "--json");
+  assert.strictEqual(resolved.code, 0, resolved.stderr);
+  assert.strictEqual(resolved.json.warnings, undefined);
+  const gate = stateOf(root, "fix-readme").gates[0];
+  assert.deepStrictEqual([gate.source, gate.opened_turn, gate.resolved_turn], ["user", 3, 4]);
+
+  // A gate an earlier CLI opened carries no turn.
+  ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "adr-amend-or-contradict", "--open", "--reason", "ADR 0003: the hook decides");
+  const file = path.join(root, "idd", "fix-readme", "state.yaml");
+  const state = JSON.parse(fs.readFileSync(file, "utf8"));
+  delete state.gates[1].opened_turn;
+  fs.writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`);
+  const legacy = ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "adr-amend-or-contradict", "--resolve", "--answer", "Amend it.", "--source", "user", "--json");
+  assert.strictEqual(legacy.code, 0, legacy.stderr);
+  assert.strictEqual(legacy.json.warnings, undefined);
+  assert.deepStrictEqual(stateOf(root, "fix-readme").gates[1], { id: "adr-amend-or-contradict", status: "resolved", reason: "ADR 0003: the hook decides", answer: "Amend it.", source: "user" });
+});
+
+test("[E1.49] without a turn count the ambiguous intent answered user is recorded user-unverified", (t) => {
+  const root = tempRoot(t);
+  ospec(root, "record", "intent", "--change", "improve-login", "--ambiguous", "--request", "Improve the login.");
+  const resolved = ospec(root, "record", "intent", "--change", "improve-login", "--kind", "bug", "--summary", "Fix the login redirect.", "--acceptance", "The login lands on the dashboard.", "--no-open-facts", "--basis", "The answer fixes every behavior.", "--answer", "The redirect after login.", "--source", "user");
+  assert.strictEqual(resolved.code, 0, resolved.stderr);
+  assert.match(resolved.stdout, /^warning: gate ambiguous-intent recorded user-unverified: no turn count in \.ospec\/turns: no end-of-turn hook ran in this workspace; /m);
+  const [gate] = stateOf(root, "improve-login").gates;
+  assert.deepStrictEqual([gate.source, gate.declared_source, gate.opened_turn, gate.resolved_turn], ["user-unverified", "user", null, null]);
+});
+
+test("[E1.49] check runs no check the user has not approved: it opens checks-changed, and the next check after the answer runs it", (t) => {
+  const { root } = project(t);
+  const marker = path.join(tempRoot(t), "ran");
+  const proposed = `checks:\n  test: node -e "require('fs').writeFileSync(process.argv[1], '1')" ${marker}\n`;
+  writeTurns(root, 3);
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "README.md", "# Pages\n");
+  writeFile(root, "idd/config.yaml", proposed);
+
+  const gated = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(gated.code, 0, gated.stderr);
+  assert.strictEqual(gated.json.decision?.gate, "checks-changed", JSON.stringify(gated.json));
+  assert.strictEqual(gated.json.checks, undefined, "no check ran");
+  assert.ok(gated.json.warnings.includes("no check ran: checks-changed waits for the user's approval of the checks and settings of idd/config.yaml"), JSON.stringify(gated.json.warnings));
+  assert.match(gated.json.missing.find((entry) => entry.obligation === "checks-pass").reason, /^no check ran: the user has not approved/);
+  assert.strictEqual(gated.json.next.next_step.action, "resolve-gate");
+  assert.ok(!fs.existsSync(marker), "the proposed check must not run before the user's answer");
+  assert.deepStrictEqual(stateOf(root, "fix-readme").runs ?? [], [], "no run is recorded");
+  assert.match(ospec(root, "check", "--change", "fix-readme").stdout, /^warning: no check ran: /m);
+
+  // Declined: back to the base checks, the unanswered gate is dropped and the base check runs.
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node verify.js\n");
+  const restored = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(restored.json.decision, undefined, JSON.stringify(restored.json));
+  assert.deepStrictEqual(restored.json.checks.map((run) => run.command), ["node verify.js"]);
+
+  // Approved after a turn end: the answer stays user and the next check runs the command.
+  writeFile(root, "idd/config.yaml", proposed);
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.decision?.gate, "checks-changed");
+  assert.ok(!fs.existsSync(marker));
+  writeTurns(root, 4);
+  const approved = ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "checks-changed", "--resolve", "--answer", "Yes, use it.", "--source", "user", "--json");
+  assert.strictEqual(approved.code, 0, approved.stderr);
+  assert.strictEqual(approved.json.warnings, undefined);
+  assert.strictEqual(stateOf(root, "fix-readme").gates.find((gate) => gate.id === "checks-changed").source, "user");
+  const ran = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(ran.json.verdict, "ready", JSON.stringify(ran.json));
+  assert.ok(fs.existsSync(marker), "the approved check runs");
+});
+
+test("[E1.49] a checks-changed answer the turn fence keeps user-unverified still approves the checks, with its warning", (t) => {
+  const { root } = project(t);
+  const marker = path.join(tempRoot(t), "ran");
+  writeTurns(root, 3);
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "README.md", "# Pages\n");
+  writeFile(root, "idd/config.yaml", `checks:\n  test: node -e "require('fs').writeFileSync(process.argv[1], '1')" ${marker}\n`);
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.decision?.gate, "checks-changed");
+
+  // Answered in the turn the gate opened: the fence warns, it does not stop the command.
+  const fenced = ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "checks-changed", "--resolve", "--answer", "Yes.", "--source", "user", "--json");
+  assert.strictEqual(fenced.code, 0, fenced.stderr);
+  assert.match(fenced.json.warnings[0], /^gate checks-changed recorded user-unverified: no turn ended between the gate's opening and the answer; /);
+  const ran = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(ran.json.verdict, "ready", JSON.stringify(ran.json));
+  assert.ok(fs.existsSync(marker), "a user-unverified answer approves the checks it lists");
+  const closed = ospec(root, "close", "--change", "fix-readme");
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  assert.match(closed.stdout, /^warning: gate checks-changed was answered user-unverified: no turn ended between the gate's opening and the answer$/m);
 });

@@ -302,7 +302,9 @@ function recordGate(state, { id, action, reason, answer, source } = {}) {
     requireGateSource(source);
     if (!existing) refuse("gate-not-open", `gate ${id} is not open`);
     if (existing.status === "resolved") {
-      if (existing.answer === answer && existing.source === source) return unchanged(state);
+      // An answer the turn fence recorded user-unverified keeps the source it
+      // was declared with (E1.49).
+      if (existing.answer === answer && (existing.declared_source ?? existing.source) === source) return unchanged(state);
       refuse("gate-conflict", `gate ${id} is already resolved with a different answer`);
     }
     const next = structuredClone(state);

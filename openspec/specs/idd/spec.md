@@ -84,7 +84,10 @@ withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
 `resolved`, an optional `reason`, when resolved, `answer` and `source` and, for
 `checks-changed`, the `checks` it approves, each with its `name` and `command`,
 and the `config` it approves, its `strict_tdd`, `impact` and `contracts`, which
-an entry recorded before E1.53 lacks) and
+an entry recorded before E1.53 lacks, and, since E1.49, the turn counts of its
+opening and answer, `opened_turn` and `resolved_turn`, and for an answer the
+turn fence kept as `user-unverified` the `declared_source` `user` and the
+`unverified_reason` (REQ-idd-008)) and
 `evidence` (each with `id`, `kind`, `obligation` and `recorded_at`, plus the
 `detail` that names the runs behind run evidence), and optionally `base` (the
 commit the change started from, or null outside git), `plan` (the plan
@@ -357,6 +360,43 @@ refused with `gate-managed-by-check`. Each set of checks and settings MUST get
 its own entry, holding the `checks` and the `config` it approves, so an answer
 approves only what it was asked about.
 
+Since E1.49 every write of the state MUST fence the gates with the count of
+turn ends the end-of-turn hook keeps in `.ospec/turns` (REQ-hooks-030), read
+as a whole number or else as no count. A gate the write opens, or changes while
+open (a `checks-changed` asked again about other checks), MUST keep the count
+as `opened_turn`, null without one; an open gate the write leaves as it was
+keeps its own. A gate the write resolves MUST keep the count as
+`resolved_turn` when it has an `opened_turn`, and an answer declared `user`
+MUST be recorded `user-unverified`, with `declared_source` `user` and an
+`unverified_reason`, unless both counts exist and `resolved_turn` is greater
+than `opened_turn`. A gate opened before E1.49 has no `opened_turn` and keeps
+the source it is answered with; `record retract` opens no gate and is not
+fenced. Resolving again with the same answer and declared source MUST change
+nothing. `record gate` and `record intent` MUST warn about each answer they
+recorded so, naming the gate and the reason, and `close` MUST warn about every
+gate answered `user-unverified`, with the reason of a fenced one. Nothing of
+this blocks. `validateState` MUST refuse a turn that is not a whole number or
+null, a `resolved_turn` without an `opened_turn` or on an open gate, a
+`declared_source` or `unverified_reason` that is not `user` on a
+`user-unverified` answer with its reason, and a `user` answer whose
+`resolved_turn` is not greater than its `opened_turn`. The count is shared by
+the sessions of the workspace and the agent can write the same file: it says
+that a turn ended, not who answered. The IDD workspace MUST leave
+`.ospec/turns` out of every diff, snapshot and tree fingerprint it reads, as it
+leaves the review receipts.
+
+#### Scenario: A gate answered before a turn ends is user-unverified
+
+- GIVEN `.ospec/turns` holds 3 when `irreversible-operation` opens
+- WHEN it is resolved with `--source user` while the count is still 3
+- THEN the gate MUST hold `source` `user-unverified`, `declared_source` `user`,
+  `opened_turn` 3, `resolved_turn` 3 and its reason, and `record gate` MUST
+  warn about it
+- AND resolving it again with the same answer and `--source user` MUST change
+  nothing, and `close` MUST warn that it was answered `user-unverified`
+- AND had the count been 4 at the answer, the gate MUST keep `source` `user`
+  with `resolved_turn` 4 and no warning
+
 #### Scenario: A gate answer names a known source
 
 - GIVEN an open `irreversible-operation` gate
@@ -597,7 +637,7 @@ Before the pending `checks-pass` or `contract-spec-and-test` step, if no checks
 are declared, `next` MUST instead return `next_step.action: configure-checks`,
 `obligation: checks-pass`, `file: idd/config.yaml`, `requires_approval: true`,
 `candidate_command` (a suggestion or null) and `how` naming the `checks:` edit
-and explicit user approval. This prerequisite MUST NOT override an open gate,
+and the user's explicit approval at `checks-changed`. This prerequisite MUST NOT override an open gate,
 earlier obligations, change selection or a closed change.
 It MUST NOT write configuration, execute a candidate or satisfy evidence.
 
@@ -1164,7 +1204,16 @@ reach the next change's base unapproved. An entry recorded before E1.53
 approves the base settings. An open entry nobody answered MUST follow the
 current checks and settings, and MUST be dropped when they return to the base
 or to an approved set. What the configuration declares therefore cannot lower
-the derived obligations without the user's answer.
+the derived obligations without the user's answer. While no resolved entry
+approves the current checks and settings, `check` MUST run nothing, no check,
+fitness check or counterproof, and record no run: it opens or updates the entry
+and stops, with `checks-pass` pending, a reason and a warning saying that no
+check ran (E1.49). A command written to `idd/config.yaml` therefore runs only
+after an answer resolves the entry, and the next `check` runs it. An answer
+the turn fence keeps `user-unverified` (REQ-idd-008), or a relayed one, still
+approves, with the fence's warning: the CLI cannot verify who answered, so the
+guarantee holds for an agent that asks at the gate and waits, not against one
+that answers for the user.
 
 With no declared checks, `check` MUST keep `checks-pass` pending, answer
 `missing` with a reason naming `checks:` in `idd/config.yaml` and explicit
@@ -1181,10 +1230,11 @@ It MUST still exit with 0, record no check runs and never write configuration.
   explicit approval and the configuration path, without creating that file
 - AND `check` MUST answer `missing`, exit with 0 and record no check run
 - AND `close` MUST refuse while the evidence is missing
-- WHEN the approved check command is written and `check` observes it passing
-- THEN `checks-changed` MUST open, since the base declares no checks
-- AND once the user's approval resolves it, `checks-pass` MUST be satisfied and
-  `close` MUST succeed
+- WHEN the proposed check command is written and `check` runs
+- THEN `checks-changed` MUST open, since the base declares no checks, and the
+  command MUST NOT run
+- AND once the user's approval resolves it, the next `check` MUST run it and
+  satisfy `checks-pass`, and `close` MUST succeed
 
 #### Scenario: A feature without a new test leaves boundary-tests pending
 
@@ -1199,10 +1249,30 @@ It MUST still exit with 0, record no check runs and never write configuration.
 
 - GIVEN a change whose base declares `test: node verify.js`
 - WHEN `idd/config.yaml` changes it to `test: node -e 0` and `ospec check` runs
-- THEN `checks-changed` MUST open naming both commands and the answer MUST be
-  `needs-decision`
-- AND once the user resolves it, another change of the checks MUST open a new
-  entry
+- THEN `checks-changed` MUST open naming both commands, `node -e 0` MUST NOT
+  run and `checks-pass` MUST stay pending
+- AND once the user resolves it, the next `check` MUST run `node -e 0`, and
+  another change of the checks MUST open a new entry
+
+#### Scenario: A check command the user declines never runs
+
+- GIVEN a change whose base declares `test: node verify.js`, and
+  `idd/config.yaml` changed to a command that writes a marker outside the
+  project
+- WHEN `check` runs
+- THEN the marker MUST NOT exist, no run MUST be recorded and the output MUST
+  warn that no check ran
+- AND once `idd/config.yaml` is restored, the next `check` MUST drop the
+  unanswered entry and run `node verify.js`
+
+#### Scenario: A checks-changed answer the turn fence keeps still approves
+
+- GIVEN `checks-changed` opened by `check` while `.ospec/turns` holds 3
+- WHEN it is resolved with `--source user` while the count is still 3
+- THEN the entry MUST be recorded `user-unverified` and `record gate` MUST
+  warn about it
+- AND the next `check` MUST run the checks it lists, and `close` MUST warn
+  that the gate was answered `user-unverified`
 
 #### Scenario: Ceremony settings changed against the base need the user's answer
 

@@ -337,7 +337,7 @@ test("the source tree ignores idd/ while check-tree identity tracks only effecti
   assert.throws(() => readTreeFingerprint(tempDir(t)), (error) => error.code === "not-a-git-repo");
 });
 
-test("a snapshot tree holds tracked and untracked files without touching the index or idd/", (t) => {
+test("a snapshot tree holds tracked and untracked files without touching the index, idd/, the receipts or the turn count", (t) => {
   const root = gitRepo(t);
   write(root, "src/app.js", "one\n");
   write(root, ".gitignore", "*.log\n");
@@ -349,6 +349,8 @@ test("a snapshot tree holds tracked and untracked files without touching the ind
   write(root, "src/new.js", "fresh\n");
   write(root, "debug.log", "ignored\n");
   write(root, "idd/fix/state.yaml", "{}\n");
+  write(root, ".ospec/review-receipts/abc.json", "{}\n");
+  write(root, ".ospec/turns", "7\n");
   const before = git(root, "status", "--porcelain");
   const tree = snapshotTree(root);
   assert.strictEqual(git(root, "status", "--porcelain"), before, "the real index is untouched");
@@ -356,7 +358,7 @@ test("a snapshot tree holds tracked and untracked files without touching the ind
   const blobs = treeBlobs(root, tree);
   assert.ok(blobs.has("src/new.js"));
   assert.ok(!blobs.has("debug.log"));
-  assert.ok(![...blobs.keys()].some((file) => file.startsWith("idd/")));
+  assert.ok(![...blobs.keys()].some((file) => file.startsWith("idd/") || file.startsWith(".ospec/")));
   assert.deepStrictEqual(treeNumstat(root, base, tree), [
     { path: "src/app.js", added: 1, deleted: 0 },
     { path: "src/new.js", added: 1, deleted: 0 },
