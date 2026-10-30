@@ -844,7 +844,7 @@ test("adaptCursorHookInput maps beforeShellExecution and beforeReadFile shapes",
     adaptCursorHookInput(
       "pre-tool-use",
       JSON.stringify({ command: "npm install", cwd: "/repo", sandbox: true }),
-    ),
+    ).input,
   );
   assert.equal(shell.tool_name, "Shell");
   assert.equal(shell.tool_input.command, "npm install");
@@ -853,7 +853,7 @@ test("adaptCursorHookInput maps beforeShellExecution and beforeReadFile shapes",
     adaptCursorHookInput(
       "pre-tool-use",
       JSON.stringify({ file_path: "/repo/.env", content: "SECRET=1" }),
-    ),
+    ).input,
   );
   assert.equal(read.tool_name, "Read");
   assert.equal(read.tool_input.file_path, "/repo/.env");
@@ -979,3 +979,36 @@ test("main passes OSPEC_PLUGIN_ROOT env var when spawning", (t) => {
 
 
 
+
+// Cursor runs user hooks from ~/.cursor and names the workspace only in
+// workspace_roots: every hook runs from the first root that exists, so the
+// end of a turn is counted in the repository (E1.49).
+test("cursor hooks run from the first workspace root that exists", (t) => {
+  const workspace = path.resolve(__dirname, "..", "..");
+  const missing = path.join(workspace, "no-such-dir");
+  const outcome = { status: 0, stdout: '{"continue":true}', stderr: "" };
+  const cursor = (fields) => JSON.stringify({ conversation_id: "c-1", cursor_version: "1.7", workspace_roots: [missing, workspace], ...fields });
+  for (const [sub, fields] of [["stop", { hook_event_name: "stop", status: "completed" }], ["session-start", { hook_event_name: "beforeSubmitPrompt" }], ["pre-compact", { hook_event_name: "afterFileEdit", file_path: path.join(workspace, "a.js") }]]) {
+    const { options } = runLauncher(t, { argv: [sub], stdin: cursor(fields), outcome, target: null });
+    assert.equal(options.cwd, workspace, sub);
+    assert.equal(JSON.parse(options.input).cwd, workspace, sub);
+  }
+
+  const allow = { status: 0, stdout: JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: "" } }), stderr: "" };
+  const read = runLauncher(t, { argv: ["pre-tool-use"], stdin: cursor({ hook_event_name: "beforeReadFile", file_path: path.join(workspace, "a.js"), content: "" }), outcome: allow, target: null });
+  assert.equal(read.options.cwd, workspace);
+  assert.equal(JSON.parse(read.options.input).tool_input.file_path, path.join(workspace, "a.js"));
+  const scripts = path.join(workspace, "scripts");
+  const shell = runLauncher(t, { argv: ["pre-tool-use"], stdin: cursor({ hook_event_name: "beforeShellExecution", command: "ls", cwd: scripts, sandbox: false }), outcome: allow, target: null });
+  assert.equal(shell.options.cwd, scripts, "a shell command keeps its own directory");
+  assert.equal(JSON.parse(shell.options.input).cwd, scripts);
+
+  // A path that exists but is not a directory is never a working directory.
+  const file = path.join(workspace, "package.json");
+  const fileShell = runLauncher(t, { argv: ["pre-tool-use"], stdin: JSON.stringify({ conversation_id: "c-1", cursor_version: "1.7", workspace_roots: [file, workspace], command: "ls", cwd: file, sandbox: false }), outcome: allow, target: null });
+  assert.equal(fileShell.options.cwd, workspace);
+  assert.equal(JSON.parse(fileShell.options.input).cwd, workspace);
+
+  const rootless = runLauncher(t, { argv: ["stop"], stdin: JSON.stringify({ conversation_id: "c-1", cursor_version: "1.7", workspace_roots: [missing, file] }), outcome, target: null });
+  assert.equal(rootless.options.cwd, undefined, "without a root that exists the hook keeps its own directory");
+});

@@ -368,44 +368,67 @@ function isCursorHost(scriptDir = __dirname, env = process.env, rawInput = "") {
   return false;
 }
 
+// A child spawned from a path that is not a directory fails, and on Cursor a
+// failed guard can only degrade to an advisory allow.
+function isExistingDirectory(dir) {
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 // Cursor hosts speak a different stdin shape than Claude:
 //   beforeShellExecution → { command, cwd, sandbox }
 //   beforeReadFile       → { file_path, content, ... }
 //   preToolUse           → { tool_name, tool_input, ... } (already Claude-like)
 // Map those into the shared PreToolUse contract so Go/Node policy stays shared.
-function adaptCursorHookInput(subcommand, rawInput) {
+// E1.49: user hooks run from ~/.cursor and most events name the workspace only
+// in workspace_roots, so every hook runs from the first root that exists, as
+// agy's do, and a shell command keeps its own directory.
+function adaptCursorHookInput(subcommand, rawInput, isDirectory = isExistingDirectory) {
   let parsed;
   try {
     parsed = JSON.parse(stripUtf8Bom(rawInput) || "{}");
   } catch {
-    return rawInput;
+    return { input: rawInput, cwd: undefined };
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return rawInput;
+  if (!isPlainObject(parsed)) {
+    return { input: rawInput, cwd: undefined };
   }
+  const isDir = (dir) => typeof dir === "string" && path.isAbsolute(dir) && isDirectory(dir);
+  const workspace = Array.isArray(parsed.workspace_roots) ? parsed.workspace_roots.find(isDir) : undefined;
+  const cwd = isDir(parsed.cwd) ? parsed.cwd : workspace;
+  const adapted = cwd ? { ...parsed, cwd } : parsed;
 
   if (subcommand === "pre-tool-use") {
     if (typeof parsed.command === "string" && !parsed.tool_input) {
-      return JSON.stringify({
-        ...parsed,
-        tool_name: parsed.tool_name || "Shell",
-        tool_input: { command: parsed.command },
-      });
+      return {
+        input: JSON.stringify({
+          ...adapted,
+          tool_name: parsed.tool_name || "Shell",
+          tool_input: { command: parsed.command },
+        }),
+        cwd,
+      };
     }
     if (typeof parsed.file_path === "string" && !parsed.tool_input) {
-      return JSON.stringify({
-        ...parsed,
-        tool_name: parsed.tool_name || "Read",
-        tool_input: {
-          path: parsed.file_path,
-          file_path: parsed.file_path,
-          filePath: parsed.file_path,
-        },
-      });
+      return {
+        input: JSON.stringify({
+          ...adapted,
+          tool_name: parsed.tool_name || "Read",
+          tool_input: {
+            path: parsed.file_path,
+            file_path: parsed.file_path,
+            filePath: parsed.file_path,
+          },
+        }),
+        cwd,
+      };
     }
   }
 
-  return rawInput;
+  return { input: adapted === parsed ? rawInput : JSON.stringify(adapted), cwd };
 }
 
 // Cursor's preToolUse / beforeReadFile / subagentStart contracts only accept
@@ -589,12 +612,16 @@ function launch(argv, scriptDir, seen = {}) {
   seen.rawInput = rawInput;
   const cursorHost = isCursorHost(scriptDir, process.env, rawInput);
   const antigravityHost = process.env.OSPEC_TARGET === "antigravity";
-  const adapted = antigravityHost ? adaptAntigravityHookInput(sub, rawInput) : { input: rawInput, cwd: undefined };
+  const adapted = antigravityHost
+    ? adaptAntigravityHookInput(sub, rawInput)
+    : cursorHost
+      ? adaptCursorHookInput(sub, rawInput)
+      : { input: rawInput, cwd: undefined };
   if (adapted.unreadable) {
     return launcherFailure(sub, "unrecognized agy tool call", cursorHost, rawInput);
   }
   const { command, args } = resolveInvocation(sub, scriptDir, undefined, undefined, undefined, undefined, adapted.cwd);
-  const input = cursorHost ? adaptCursorHookInput(sub, rawInput) : adapted.input;
+  const input = adapted.input;
   const pluginRoot = path.resolve(scriptDir, "../..");
   const env = {
     ...process.env,
