@@ -1117,6 +1117,9 @@ function closeDelivery(root, state, { write }) {
     const proposal = text == null ? (result.changelog ? null : { version: null, bump: null, tag: null, notes: null }) : proposeRelease(text);
     if (proposal) result.release = proposal;
   }
+  // With an integration branch the release waits for the promotion: close
+  // returns where the merge goes and when the version is proposed (#458).
+  if (team.integration) result.delivery = deliveryBlock(team);
   return result;
 }
 
@@ -1314,6 +1317,14 @@ function readTeam(root, mode = null) {
   });
 }
 
+// The delivery block of ospec next, and of ospec close with an integration
+// branch: the branching flattened, the changelog, the release and the
+// integration branch when declared.
+function deliveryBlock(team) {
+  const { value, ...branching } = team.branching;
+  return { branching: value, ...branching, changelog: team.changelog, release: team.release, ...(team.integration ? { integration: team.integration } : {}) };
+}
+
 // The team and delivery blocks of ospec next: team only for an IDD profile,
 // delivery for every IDD project. A configuration that does not parse leaves
 // both out, since the next step never depends on them.
@@ -1326,8 +1337,7 @@ function nextTeamContext(root) {
     throw error;
   }
   if (team.mode !== "idd") return {};
-  const { value, ...branching } = team.branching;
-  const delivery = { branching: value, ...branching, changelog: team.changelog, release: team.release };
+  const delivery = deliveryBlock(team);
   if (!team.profile) return { delivery };
   return {
     team: {
@@ -1495,10 +1505,11 @@ function describeOption(label, { value, source, reasons, how }) {
   return [`${label}: ${value} (${source}): ${reasons.join("; ")}`, `${label} rules: ${how}`];
 }
 
-function describeDelivery(branching, { changelog, release }) {
+function describeDelivery(branching, { changelog, release, integration }) {
   const lines = describeOption("branching", branching);
   if (changelog) lines.push(...describeOption("changelog", changelog));
   if (release) lines.push(...describeOption("release", release));
+  if (integration) lines.push(...describeOption("integration", integration));
   return lines;
 }
 
@@ -1638,7 +1649,7 @@ function describeClose(result) {
   return lines.join("\n");
 }
 
-function describeCloseDelivery({ changelog, release }) {
+function describeCloseDelivery({ changelog, release, delivery }) {
   const lines = [];
   if (changelog) {
     const how = changelog.written ? "added" : "already holds";
@@ -1649,6 +1660,8 @@ function describeCloseDelivery({ changelog, release }) {
     const notes = release.notes ? "the notes of [Unreleased]" : "notes the user approves";
     lines.push(`release: propose ${version} with ${notes}; ask whether it breaks compatibility (a major), and cut it only with the user's OK`);
   }
+  // The changelog line above already says what close wrote.
+  if (delivery) lines.push(...describeDelivery({ ...delivery, value: delivery.branching }, { release: delivery.release, integration: delivery.integration }));
   return lines;
 }
 

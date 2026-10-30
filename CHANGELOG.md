@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- delivery en idd/config.yaml puede declarar una rama de integración (dev) separada de producción (main): las ramas de trabajo salen de ella y sus PR van a ella, cada paso a producción es una versión con tag, release/x.y es una preproducción opcional que vuelve a la integración, y la versión se propone al promover, no en cada fusión (#458) (delivery-integration-branch)
+
 ## [2.167.0] - 2026-10-29
 
 ### Added

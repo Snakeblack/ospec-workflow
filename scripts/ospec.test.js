@@ -1536,6 +1536,7 @@ test("[REQ-idd-025] close writes the entry under [Unreleased] once and proposes 
   const text = fs.readFileSync(changelog, "utf8");
   assert.strictEqual(text, "# Changelog\n\n## [Unreleased]\n\n### Changed\n- Fix a typo. (fix-readme)\n\n## [1.4.2] - 2026-10-01\n\n### Added\n- Pages (pages)\n");
   assert.deepStrictEqual(closed.json.release, { version: "1.4.3", bump: "patch", tag: "v1.4.3", notes: "### Changed\n- Fix a typo. (fix-readme)" });
+  assert.ok(!("delivery" in closed.json), "without an integration branch close returns no delivery rules");
 
   // Closing again reports the same entry and release without writing it twice.
   const again = ospec(root, "close", "--change", "fix-readme");
@@ -1543,6 +1544,40 @@ test("[REQ-idd-025] close writes the entry under [Unreleased] once and proposes 
   assert.match(again.stdout, /\nchangelog: CHANGELOG.md already holds under \[Unreleased\] ### Changed: - Fix a typo\. \(fix-readme\)\n/);
   assert.match(again.stdout, /\nrelease: propose v1\.4\.3 \(patch\) with the notes of \[Unreleased\]; .* only with the user's OK/);
   assert.strictEqual(fs.readFileSync(changelog, "utf8"), text);
+});
+
+test("[REQ-idd-023] an integration branch gives its rules in next, close and team, and close waits for the promotion", (t) => {
+  const declared = "checks:\n  test: node verify.js\ndelivery:\n  branching: serial\n  integration_branch: dev\n  production_branch: main\n  changelog: CHANGELOG.md\n  release: batched\n";
+  const { root } = project(t, { checks: declared });
+  writeFile(root, "CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\n## [1.4.2] - 2026-10-01\n");
+  ospec(root, ...OPEN_DOCS);
+  const start = ospec(root, "next", "--change", "fix-readme", "--json").json;
+  assert.strictEqual(start.next_step.action, "declare-plan");
+  assert.deepStrictEqual([start.delivery.integration.value, start.delivery.integration.production], ["dev", "main"]);
+  assert.match(start.delivery.how, /branch from the up-to-date integration branch dev/);
+  const text = ospec(root, "next", "--change", "fix-readme").stdout;
+  assert.match(text, /\nintegration: dev \(idd\/config.yaml\): delivery.integration_branch is declared in idd\/config.yaml; /);
+  assert.match(text, /\nintegration rules: work branches start from the up-to-date dev and their pull requests target dev; /);
+
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  const closed = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  assert.strictEqual(closed.json.changelog.written, true);
+  // The version is proposed on the promotion to main, never on this merge into dev.
+  assert.ok(!("release" in closed.json));
+  assert.deepStrictEqual([closed.json.delivery.branching, closed.json.delivery.release.value, closed.json.delivery.integration.value], ["serial", "batched", "dev"]);
+  const again = ospec(root, "close", "--change", "fix-readme").stdout;
+  assert.match(again, /\nrelease rules: entries accumulate under \[Unreleased\] of dev; propose a release when dev is promoted to main/);
+  assert.match(again, /\nintegration rules: work branches start from the up-to-date dev/);
+  assert.ok(!/\nchangelog: CHANGELOG.md \(/.test(again), "the entry line already says what close wrote");
+
+  const team = ospec(root, "team", "--json").json;
+  assert.deepStrictEqual([team.integration.value, team.release.value], ["dev", "batched"]);
+  assert.match(ospec(root, "team").stdout, /\nintegration rules: /);
+  // Declaring per-change with it is refused when the configuration is read.
+  writeFile(root, "idd/config.yaml", declared.replace("batched", "per-change"));
+  assert.strictEqual(ospec(root, "team", "--json").json.error.code, "config-invalid");
 });
 
 test("[REQ-idd-025] close creates a missing changelog, and without a previous version the user chooses it", (t) => {
@@ -2339,6 +2374,7 @@ test("[REQ-idd-023] next suggests the branching when the work starts, and an exp
   assert.deepStrictEqual([declared.delivery.branching, declared.delivery.source], ["parallel", "idd/config.yaml"]);
   assert.deepStrictEqual(declared.suggestions.map((suggestion) => suggestion.id), ["changelog-undeclared", "release-undeclared"]);
   assert.strictEqual(ospec(root, "team", "--json").json.branching.value, "parallel");
+  assert.ok(!("integration" in declared.delivery) && !("integration" in ospec(root, "team", "--json").json), "only a declared integration branch adds its rules");
   ospec(root, "signals", "--change", "fix-it", "--path", "src/a.js");
   assert.ok(!("delivery" in ospec(root, "next", "--change", "fix-it", "--json").json), "building, the branching decides nothing");
 });
