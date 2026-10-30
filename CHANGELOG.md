@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- El binario ospec-hooks desfasado o que no se puede ejecutar deja de ensombrecer al hook Node: el instalador no copia un binario anterior al código Go si no puede recompilarlo, y el lanzador reintenta con el hook Node cuando el binario no arranca (EACCES, ENOEXEC, 126) (hooks-binary-fallback)
+
 ## [2.168.2] - 2026-10-30
 
 ### Fixed

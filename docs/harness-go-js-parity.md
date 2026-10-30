@@ -20,8 +20,10 @@ este describe la frontera de lenguajes y su mantenimiento.
 **Cómo coexisten en runtime.** `hooks/hooks.json` no invoca el binario directamente:
 invoca el launcher Node `scripts/hooks/ospec-hooks-launch.js <evento>`. El launcher
 **prefiere el binario Go y cae al hook JS `<evento>.js`** cuando no hay binario para la
-plataforma (`resolveInvocation`, `ospec-hooks-launch.js:78-84`). Para un evento dado
-corre **uno u otro**, nunca los dos.
+plataforma (`resolveInvocation`) y cuando el binario no arranca: `EACCES`, `ENOEXEC`,
+`ENOENT` o salida 126/127, con un aviso `[ospec warn]` en stderr (REQ-hooks-031). Para un
+evento dado corre **uno u otro**, nunca los dos: solo se reintenta cuando el binario no
+llegó a ejecutarse.
 
 - En la **capa de hooks**: JS es un fallback genuino (paridad de comportamiento exigida).
 - En **el resto** (incluida la federación): JS es la **única** implementación; no hay Go

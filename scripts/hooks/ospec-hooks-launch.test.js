@@ -121,6 +121,43 @@ test('launcher timeout terminates a real child and returns a visible inspection 
   assert.doesNotMatch(result.stdout, /completed/);
 });
 
+// REQ-hooks-031: a binary the system cannot start (no execute bit, another
+// architecture) gives way to the Node hook; one that ran and failed does not.
+test("a binary that cannot start falls back to the Node hook, and one that ran does not", { skip: process.platform === "win32" }, (t) => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const { spawnSync } = require("node:child_process");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-launch-broken-bin-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const allow = { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: "node hook" } };
+  fs.writeFileSync(path.join(root, "pre-tool-use.js"), `process.stdout.write(${JSON.stringify(JSON.stringify(allow))});`);
+  const binary = path.join(root, "ospec-hooks");
+  const launcherPath = require.resolve("./ospec-hooks-launch.js");
+  const run = () => spawnSync(process.execPath, ["-e", "process.exitCode = require(process.argv[1]).main([\"pre-tool-use\"], process.argv[2]);", launcherPath, root], {
+    input: "{}", encoding: "utf8", env: { ...process.env, OSPEC_TARGET: "claude" }, timeout: 10000, killSignal: "SIGKILL",
+  });
+
+  // An ELF header for a machine no system runs: the exec fails and the shell
+  // the spawn falls back to exits 126.
+  const foreign = Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0x99, 0x99]), Buffer.alloc(64)]);
+  for (const [label, content, mode] of [["no execute bit", "#!/bin/sh\nexit 0\n", 0o644], ["foreign architecture", foreign, 0o755]]) {
+    fs.writeFileSync(binary, content);
+    fs.chmodSync(binary, mode);
+    const result = run();
+    assert.equal(result.status, 0, label);
+    assert.deepEqual(JSON.parse(result.stdout), allow, label);
+    assert.match(result.stderr, /\[ospec warn\] the ospec-hooks binary could not start \((EACCES|exit 126)\); ran the Node hook/, label);
+  }
+
+  fs.writeFileSync(binary, "#!/bin/sh\nexit 3\n");
+  fs.chmodSync(binary, 0o755);
+  const failed = run();
+  const output = JSON.parse(failed.stdout);
+  assert.equal(output.hookSpecificOutput.permissionDecision, "ask", "a binary that ran and failed is not retried");
+  assert.match(output.hookSpecificOutput.permissionDecisionReason, /exit 3/);
+  assert.doesNotMatch(failed.stderr, /ospec warn/);
+});
+
 test("SUBCOMMANDS covers exactly the six hook events", () => {
   assert.deepEqual(
     [...SUBCOMMANDS].sort(),
