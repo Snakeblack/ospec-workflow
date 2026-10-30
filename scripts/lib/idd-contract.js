@@ -296,7 +296,7 @@ function validateState(state) {
       && (gate.declared_source !== "user" || gate.source !== "user-unverified" || typeof gate.unverified_reason !== "string" || gate.unverified_reason.trim() === "")) {
       fail(`gate ${gate.id} declared user must be recorded user-unverified with the reason`);
     }
-    if (gate.source === "user" && gate.resolved_turn !== undefined && !(gate.opened_turn !== null && gate.resolved_turn !== null && gate.resolved_turn > gate.opened_turn)) {
+    if (gate.source === "user" && gate.resolved_turn !== undefined && !(gate.opened_turn !== null && gate.resolved_turn !== null && gate.resolved_turn !== gate.opened_turn)) {
       fail(`gate ${gate.id} is answered user without a turn end after it opened`);
     }
     // checks-changed names the checks it approves (B7).

@@ -325,6 +325,9 @@ test("a gate opens once with its reason and resolves only with an answer and a s
   const repeat = { id: "irreversible-operation", action: "resolve", answer: "approve the data loss", source: "user" };
   assert.strictEqual(recordGate(resolved.state, repeat).changed, false);
   assertCode(() => recordGate(resolved.state, { ...repeat, answer: "reject" }), "gate-conflict");
+  // The refusal names what differs: the answer, or only its source.
+  assert.throws(() => recordGate(resolved.state, { ...repeat, answer: "reject" }), /already resolved with a different answer$/);
+  assert.throws(() => recordGate(resolved.state, { ...repeat, source: "user-unverified" }), /already resolved with the same answer from source user$/);
 });
 
 test("gate records reject unknown gates, unopened resolutions and the intent-owned gate", () => {

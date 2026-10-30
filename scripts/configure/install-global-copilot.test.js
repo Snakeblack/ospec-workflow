@@ -148,6 +148,8 @@ test("setup:copilot upgrades an install made without schemas/", (t) => {
 
 // --- the end of a turn reaches the repository (E1.49) ------------------------
 
+const LAUNCHER_DEADLINE = /\[ospec error\] Hook [\w-]+ failed: ETIMEDOUT/;
+
 // Copilot CLI runs personal hooks from the user's repository, so a hook
 // command must name the installed runtime by its absolute path.
 test("setup:copilot installs hooks that count the end of a turn in the repository they run from", (t) => {
@@ -171,9 +173,19 @@ test("setup:copilot installs hooks that count the end of a turn in the repositor
   const shell = process.platform === "win32"
     ? { program: "powershell.exe", args: ["-NoProfile", "-NonInteractive", "-Command", hook.powershell] }
     : { program: "/bin/sh", args: ["-c", hook.bash] };
-  const result = spawnSync(shell.program, shell.args, { cwd: repo, input: JSON.stringify({ cwd: repo }), encoding: "utf8" });
+  const runHook = () => spawnSync(shell.program, shell.args, { cwd: repo, input: JSON.stringify({ cwd: repo }), encoding: "utf8" });
+  const turns = path.join(repo, ".ospec", "turns");
+  let result = runHook();
+  // A slow Windows runner can pass the launcher's 4 s deadline: it exits 0,
+  // maybe without counting, so the hook runs once more, as
+  // codex-hook-shell.test.js does.
+  if (process.platform === "win32" && LAUNCHER_DEADLINE.test(`${result.stdout}${result.stderr}`) && !fs.existsSync(turns)) {
+    t.diagnostic(`retrying after the launcher deadline: ${`${result.stderr}${result.stdout}`.trim()}`);
+    result = runHook();
+  }
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(fs.readFileSync(path.join(repo, ".ospec", "turns"), "utf8"), "1\n");
+  assert.ok(fs.existsSync(turns), `no turn counted; stdout: ${result.stdout} stderr: ${result.stderr}`);
+  assert.equal(fs.readFileSync(turns, "utf8"), "1\n");
 });
 
 test("setup:copilot rewrites the repo-relative hooks an earlier install left", (t) => {

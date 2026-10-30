@@ -74,23 +74,33 @@ test("an answer declared user after a turn ended keeps its source", () => {
   assert.deepStrictEqual(after.gates[0], { id: "open-facts", status: "resolved", answer: "the recommended ones", source: "user", opened_turn: 3, resolved_turn: 4 });
 });
 
+// .ospec/turns lost after the gate opened (git clean -fdX, a new worktree):
+// the next Stop writes 1, and a turn did end.
+test("an answer declared user after a count that started again keeps its source", () => {
+  const before = state({ id: "open-facts", status: "open", opened_turn: 5 });
+  const after = state({ id: "open-facts", status: "resolved", answer: "the recommended ones", source: "user", opened_turn: 5 });
+  assert.deepStrictEqual(fenceGates(before, after, 1), []);
+  assert.deepStrictEqual([after.gates[0].source, after.gates[0].resolved_turn], ["user", 1]);
+});
+
 test("an answer declared user without a turn end after the opening is recorded user-unverified", () => {
   const cases = [
-    { opened: 3, turn: 3, reason: /^no turn ended between the gate's opening and the answer$/ },
-    { opened: 3, turn: null, reason: /^no turn count in \.ospec\/turns: no end-of-turn hook ran/ },
-    { opened: null, turn: 1, reason: /^no turn count in \.ospec\/turns when the gate opened$/ },
-    { opened: 5, turn: 2, reason: /^no turn ended/, label: "a count that started again" },
+    { opened: 3, turn: 3, reason: /^no turn ended between the gate's opening and the answer$/, remedy: /^ask the next gate by ending your turn/ },
+    { opened: 3, turn: null, reason: /^no turn count in \.ospec\/turns: no end-of-turn hook ran/, remedy: /^install or repair the host's ospec hooks/ },
+    { opened: null, turn: 1, reason: /^no turn count in \.ospec\/turns when the gate opened$/, remedy: /^the turns are counted now/ },
   ];
-  for (const { opened, turn, reason, label } of cases) {
+  for (const { opened, turn, reason, remedy } of cases) {
     const before = state({ id: "irreversible-operation", status: "open", opened_turn: opened });
     const after = state({ id: "irreversible-operation", status: "resolved", answer: "go ahead", source: "user", opened_turn: opened });
     const unverified = fenceGates(before, after, turn);
     const [gate] = after.gates;
-    assert.strictEqual(gate.source, "user-unverified", label ?? `${opened} → ${turn}`);
+    assert.strictEqual(gate.source, "user-unverified", `${opened} → ${turn}`);
     assert.strictEqual(gate.declared_source, "user");
     assert.strictEqual(gate.resolved_turn, turn);
     assert.match(gate.unverified_reason, reason);
-    assert.deepStrictEqual(unverified, [{ gate: "irreversible-operation", reason: gate.unverified_reason }]);
+    assert.strictEqual(unverified.length, 1);
+    assert.deepStrictEqual([unverified[0].gate, unverified[0].reason], ["irreversible-operation", gate.unverified_reason]);
+    assert.match(unverified[0].remedy, remedy, "the remedy fits the reason");
   }
 });
 

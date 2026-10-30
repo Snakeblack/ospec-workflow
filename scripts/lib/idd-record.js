@@ -304,8 +304,11 @@ function recordGate(state, { id, action, reason, answer, source } = {}) {
     if (existing.status === "resolved") {
       // An answer the turn fence recorded user-unverified keeps the source it
       // was declared with (E1.49).
-      if (existing.answer === answer && (existing.declared_source ?? existing.source) === source) return unchanged(state);
-      refuse("gate-conflict", `gate ${id} is already resolved with a different answer`);
+      const declared = existing.declared_source ?? existing.source;
+      if (existing.answer === answer && declared === source) return unchanged(state);
+      refuse("gate-conflict", existing.answer === answer
+        ? `gate ${id} is already resolved with the same answer from source ${declared}`
+        : `gate ${id} is already resolved with a different answer`);
     }
     const next = structuredClone(state);
     const gate = next.gates[index];

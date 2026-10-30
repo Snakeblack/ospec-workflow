@@ -17,7 +17,7 @@ const { writeFileAtomic } = require("../lib/atomic-write.js");
 const { mkdirOspec } = require("../lib/ospec-gitignore.js");
 const { resolveWorkspaceCwd } = require("../lib/pathsafe.js");
 const { readIddSession } = require("./lib/idd-session.js");
-const { countTurnEnd } = require("../lib/turn-fence.js");
+const { countTurnEnd, turnsRoot } = require("../lib/turn-fence.js");
 
 const LATEST_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.latestSession;
 
@@ -269,11 +269,11 @@ async function readJsonInput(stream = process.stdin) {
   return input ? JSON.parse(input) : {};
 }
 
-// E1.49: every turn end is counted in .ospec/turns, before the trace, so a
-// trace that cannot be written still counts it.
+// E1.49: every turn end is counted in .ospec/turns of the project, before the
+// trace, so a trace that cannot be written still counts it.
 async function countTurn(input, fallbackCwd = process.cwd()) {
   try {
-    await countTurnEnd(resolveWorkspaceCwd(input?.cwd, fallbackCwd));
+    await countTurnEnd(turnsRoot(resolveWorkspaceCwd(input?.cwd, fallbackCwd)));
     return null;
   } catch (error) {
     return `Stop hook could not count the turn end: ${error.message}`;

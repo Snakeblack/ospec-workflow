@@ -3434,7 +3434,7 @@ test("[E1.49] an answer declared user before a turn ends after the gate opened i
   const resolved = ospec(root, ...RESOLVE_IRREVERSIBLE, "--json");
   assert.strictEqual(resolved.code, 0, resolved.stderr);
   assert.deepStrictEqual(resolved.json.warnings, [
-    "gate irreversible-operation recorded user-unverified: no turn ended between the gate's opening and the answer; ask a gate by ending your turn with its questions, and record the answer once the user replies",
+    "gate irreversible-operation recorded user-unverified: no turn ended between the gate's opening and the answer; this answer stays user-unverified and close lists it; ask the next gate by ending your turn with its questions, and record its answer after the user replies",
   ]);
   assert.deepStrictEqual(stateOf(root, "fix-readme").gates[0], {
     id: "irreversible-operation",
@@ -3492,7 +3492,7 @@ test("[E1.49] without a turn count the ambiguous intent answered user is recorde
   ospec(root, "record", "intent", "--change", "improve-login", "--ambiguous", "--request", "Improve the login.");
   const resolved = ospec(root, "record", "intent", "--change", "improve-login", "--kind", "bug", "--summary", "Fix the login redirect.", "--acceptance", "The login lands on the dashboard.", "--no-open-facts", "--basis", "The answer fixes every behavior.", "--answer", "The redirect after login.", "--source", "user");
   assert.strictEqual(resolved.code, 0, resolved.stderr);
-  assert.match(resolved.stdout, /^warning: gate ambiguous-intent recorded user-unverified: no turn count in \.ospec\/turns: no end-of-turn hook ran in this workspace; /m);
+  assert.match(resolved.stdout, /^warning: gate ambiguous-intent recorded user-unverified: no turn count in \.ospec\/turns: no end-of-turn hook ran in this workspace; this answer stays user-unverified and close lists it; install or repair the host's ospec hooks so the next answers can be verified$/m);
   const [gate] = stateOf(root, "improve-login").gates;
   assert.deepStrictEqual([gate.source, gate.declared_source, gate.opened_turn, gate.resolved_turn], ["user-unverified", "user", null, null]);
 });

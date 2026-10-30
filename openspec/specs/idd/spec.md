@@ -368,18 +368,25 @@ as `opened_turn`, null without one; an open gate the write leaves as it was
 keeps its own. A gate the write resolves MUST keep the count as
 `resolved_turn` when it has an `opened_turn`, and an answer declared `user`
 MUST be recorded `user-unverified`, with `declared_source` `user` and an
-`unverified_reason`, unless both counts exist and `resolved_turn` is greater
-than `opened_turn`. A gate opened before E1.49 has no `opened_turn` and keeps
-the source it is answered with; `record retract` opens no gate and is not
-fenced. Resolving again with the same answer and declared source MUST change
-nothing. `record gate` and `record intent` MUST warn about each answer they
-recorded so, naming the gate and the reason, and `close` MUST warn about every
-gate answered `user-unverified`, with the reason of a fenced one. Nothing of
-this blocks. `validateState` MUST refuse a turn that is not a whole number or
-null, a `resolved_turn` without an `opened_turn` or on an open gate, a
+`unverified_reason`, unless both counts exist and differ. A count lower than
+`opened_turn` started again after `.ospec/turns` was lost, and a Stop has
+counted since, so it is a turn end too. A gate opened before E1.49 has no
+`opened_turn` and keeps the source it is answered with; `record retract` opens
+no gate and is not fenced. Resolving again with the same answer and declared
+source MUST change nothing; with another answer, or the same answer and another
+source, it MUST be refused with `gate-conflict`, whose message says which of
+the two differs. `record gate` and `record intent` MUST warn about each answer
+they recorded so, naming the gate, the reason, that the answer stays
+`user-unverified`, and the remedy for the next answers: without a count,
+installing or repairing the host's hooks; without a count at the opening,
+none, since the turns are counted now; without a turn end in between, ending
+the turn with the next gate's questions. `close` MUST warn about every gate
+answered `user-unverified`, with the reason of a fenced one. Nothing of this
+blocks. `validateState` MUST refuse a turn that is not a whole number or null,
+a `resolved_turn` without an `opened_turn` or on an open gate, a
 `declared_source` or `unverified_reason` that is not `user` on a
-`user-unverified` answer with its reason, and a `user` answer whose
-`resolved_turn` is not greater than its `opened_turn`. The count is shared by
+`user-unverified` answer with its reason, and a `user` answer without both
+counts or whose `resolved_turn` equals its `opened_turn`. The count is shared by
 the sessions of the workspace and the agent can write the same file: it says
 that a turn ended, not who answered. The IDD workspace MUST leave
 `.ospec/turns` out of every diff, snapshot and tree fingerprint it reads, as it
@@ -395,7 +402,8 @@ leaves the review receipts.
 - AND resolving it again with the same answer and `--source user` MUST change
   nothing, and `close` MUST warn that it was answered `user-unverified`
 - AND had the count been 4 at the answer, the gate MUST keep `source` `user`
-  with `resolved_turn` 4 and no warning
+  with `resolved_turn` 4 and no warning, and so had `.ospec/turns` been lost
+  and counted again to 1
 
 #### Scenario: A gate answer names a known source
 
