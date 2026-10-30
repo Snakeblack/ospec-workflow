@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- La valla de fin de turno (E1.49) da falsos user-unverified tras reiniciar .ospec/turns, el hook JS crea .ospec/turns en un cwd inexistente, una sesión en un subdirectorio cuenta fuera de la raíz que lee el CLI, el aviso de la valla propone un remedio que no funciona y gate-conflict confunde fuente con respuesta (turn-fence-robustness)
+
 ## [2.168.1] - 2026-10-30
 
 ### Fixed

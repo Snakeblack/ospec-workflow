@@ -1,0 +1,849 @@
+{
+  "schema": "idd-state/v1",
+  "change": "turn-fence-robustness",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "La valla de fin de turno (E1.49) da falsos user-unverified tras reiniciar .ospec/turns, el hook JS crea .ospec/turns en un cwd inexistente, una sesión en un subdirectorio cuenta fuera de la raíz que lee el CLI, el aviso de la valla propone un remedio que no funciona y gate-conflict confunde fuente con respuesta",
+    "acceptance": "Tras perderse .ospec/turns, una respuesta registrada después de otro fin de turno queda user; un Stop con cwd inexistente no crea directorios (Node y Go cuentan en el cwd del proceso) y Go escribe latest.md de forma atómica; el aviso user-unverified nombra el remedio según el motivo y no pide re-registrar; gate-conflict distingue otra respuesta de otra fuente; Antigravity no toma un fichero por directorio; la doc del Stop y del guard nombra .ospec/turns; el test de Copilot reintenta ante el plazo del lanzador"
+  },
+  "facts": {
+    "open": [
+      "Cuando el cwd de la sesión es un subdirectorio del proyecto, ¿dónde debe contar el Stop el turno: en la raíz del repositorio que lo contiene (subiendo hasta el primer .git, en Node y Go), o se deja en el cwd del payload como hoy?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/harness-runtime.md",
+      "internal/hooks/stop.go",
+      "internal/hooks/stop_test.go",
+      "openspec/specs/hooks/spec.md",
+      "openspec/specs/idd/spec.md",
+      "openwiki/hooks-runtime/lifecycle.md",
+      "openwiki/idd/flujo-idd.md",
+      "scripts/configure/install-global-copilot.test.js",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/ospec-hooks-launch.test.js",
+      "scripts/hooks/stop.js",
+      "scripts/hooks/stop.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/pathsafe.js",
+      "scripts/lib/turn-fence.js",
+      "scripts/lib/turn-fence.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 5,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Un turno distinto del de apertura cuenta como fin de turno (turn !== opened_turn): un contador reiniciado sigue verificando tras el siguiente Stop",
+      "resolveWorkspaceCwd de Node exige un directorio existente, como resolveCwd de Go, y si no cae al cwd del proceso",
+      "El binario desfasado (hallazgo 5 del lote) va en una PR propia (PR1c)",
+      "El Stop cuenta el turno en el primer ancestro del cwd que tiene .git (fichero o directorio), en Node y Go, sin lanzar git; sin ninguno, en el cwd. Solo el contador: latest.md y el resto del Stop siguen en el cwd"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 5 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.js and 3 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, generator, hooks, idd-engine: ADR 0001, 0003, 0004, 0005, 0008, 0010, 0011 and quality scenario deterministic-resume, guard-fail-closed, offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El cambio está en la fuente única (scripts/lib, scripts/hooks, internal/hooks); cada target recibe el mismo runtime por la generación, sin tocar ningún perfil de target"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La regla de la valla (turno distinto del de apertura) y el remedio de cada motivo se calculan en el CLI con tests; la skill no los repite en prosa"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia ninguna señal, patrón de impacto ni obligación: solo la regla de la valla de los gates y el sitio donde el Stop cuenta"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "La evidencia y el cierre no cambian: la valla solo decide la fuente de una respuesta, y close sigue negándose con un gate abierto"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "El guard no cambia y sigue fallando cerrado: en Antigravity un fichero ya no pasa por workspace, así que una llamada sin directorio queda ilegible y pide permiso en vez de lanzar el hijo en un fichero"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas ni red: el Stop busca la raíz con stat de .git hacia arriba, sin lanzar git, en Node y en Go"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "El contador .ospec/turns no es de ningún modo y la traza SDD del Stop sigue en el workspace; ningún modo lee el árbol del otro"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "La valla sigue leyendo solo .ospec/turns y el estado: el mismo estado y la misma cuenta dan la misma fuente, y una cuenta perdida ya no deja user-unverified las respuestas siguientes"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "El guard de .ospec/turns no cambia; el adaptador de Antigravity rechaza un fichero como directorio y una llamada sin directorio sigue pidiendo permiso"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Contar en la raíz del proyecto solo lee el sistema de ficheros local; no lanza git ni usa red"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Node y Go resuelven el workspace igual (directorio existente o el del proceso) y cuentan en la misma raíz; el adaptador de Antigravity resuelve directorios como el de Cursor"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 13,
+      "answer": "lo recomendado (A: contar en el primer ancestro con .git, en Node y Go, solo el contador; partir el lote: el binario desfasado va en PR1c)",
+      "source": "user",
+      "resolved_turn": 14
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-30T17:01:05.463Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-30T17:06:26.668Z",
+      "detail": {
+        "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-30T17:06:26.668Z",
+      "detail": {
+        "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/stop_test.go",
+          "scripts/configure/install-global-copilot.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-30T17:06:51.415Z",
+      "detail": {
+        "run": "run-16",
+        "tree": "sha256:742ae7d6469e443d6cffa6854691405c713a4225c4c784c6de980ce320729900",
+        "plan": "Compatible hacia delante: todo estado idd-state/v1 que validaba sigue validando, porque la regla solo deja de rechazar un gate user cuyo resolved_turn es menor que su opened_turn (una cuenta que volvió a empezar); ningún campo cambia de nombre ni de forma. Hacia atrás: un CLI anterior rechaza con state-invalid un estado con un gate así; la vuelta atrás es reinstalar una versión con esta regla, y ningún estado escrito antes de este cambio tiene ese gate"
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-30T17:09:55.886Z",
+      "detail": {
+        "lineage_id": "sha256:9a6164cbb4a8203216608aefef3d34bb4ec99f8867a3ff6779ed64d896bfbe44",
+        "candidate_id": "sha256:2f8ab4a103904e9b2755f9a02e3ee8a3b710ecf52dafe4dfe72f473ba6cd5726",
+        "candidate_tree": "04d230397203898aba0606153e7305998b6f00e7",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-30T17:09:42.086Z",
+          "result_digest": "sha256:ea55987c2fdce1142d3bb4803ea3d60827f51a8fd1a133d06a46bcd49cd5c0d7"
+        }
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-30T17:11:17.053Z",
+      "detail": {
+        "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+        "runs": [
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-30T17:11:17.053Z",
+      "detail": {
+        "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+        "check": "ev-6",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/stop_test.go",
+          "scripts/configure/install-global-copilot.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-30T17:11:17.053Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+        "fitness": [
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26",
+          "run-27"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-30T17:11:17.434Z"
+    }
+  ],
+  "base": "cc92313b161d7a86841710663ede595e61c65946",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"count that started again|turns of its opening and answer|subdirectory of a repository|cwd that does not exist|antigravity input reaches|resolves only with an answer and a source|is recorded user-unverified, and close names it|without a turn count the ambiguous intent|without a turn end after the opening\" scripts/lib/turn-fence.test.js scripts/lib/idd-contract.test.js scripts/hooks/stop.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/lib/idd-record.test.js scripts/ospec.test.js && go test ./internal/hooks/ -run \"TestStop_CountsInTheRepositoryRootFromASubdirectory|TestStop_ReplacesTheTraceAtomically\"",
+      "exit_code": 1,
+      "output_sha256": "sha256:055daaaa245faac3109b4b060f8c770e82c24ff12c0d4bb28bac2e96343c0a25",
+      "tree": "sha256:f0d6b5a5a7d3b89a838cc18421fad02b11c1a250d4bc74f13fe72980b2e0b17f",
+      "recorded_at": "2026-10-30T17:00:01.966Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"count that started again|turns of its opening and answer|subdirectory of a repository|cwd that does not exist|antigravity input reaches|resolves only with an answer and a source|is recorded user-unverified, and close names it|without a turn count the ambiguous intent|without a turn end after the opening\" scripts/lib/turn-fence.test.js scripts/lib/idd-contract.test.js scripts/hooks/stop.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/lib/idd-record.test.js scripts/ospec.test.js && go test ./internal/hooks/ -run \"TestStop_CountsInTheRepositoryRootFromASubdirectory|TestStop_ReplacesTheTraceAtomically\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:5c4a8ddbd31edcae39c2b7a46080ca23d3f0525a5c56625c0486a75475596afb",
+      "tree": "sha256:a7b6359ed94e3c1cf41f414034d0a4469c31598ac5c3e0b5bff219f5a1cfd064",
+      "recorded_at": "2026-10-30T17:01:05.463Z",
+      "tests": 9,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "cc92313b161d7a86841710663ede595e61c65946",
+      "mount": "sha256:9724ee276cb869a0f8e4b14e1a437792fd3f7d4f1a7dd94a8d7b9d54c138e7e5",
+      "command": "node --test --test-name-pattern=\"count that started again|turns of its opening and answer|subdirectory of a repository|cwd that does not exist|antigravity input reaches|resolves only with an answer and a source|is recorded user-unverified, and close names it|without a turn count the ambiguous intent|without a turn end after the opening\" scripts/lib/turn-fence.test.js scripts/lib/idd-contract.test.js scripts/hooks/stop.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/lib/idd-record.test.js scripts/ospec.test.js && go test ./internal/hooks/ -run \"TestStop_CountsInTheRepositoryRootFromASubdirectory|TestStop_ReplacesTheTraceAtomically\"",
+      "exit_code": 1,
+      "output_sha256": "sha256:21751fb0ffcde9485e1e0be9ce16e9e2269293932f01421c9470513bc7c24d7e",
+      "tree": "sha256:a7b6359ed94e3c1cf41f414034d0a4469c31598ac5c3e0b5bff219f5a1cfd064",
+      "recorded_at": "2026-10-30T17:01:05.463Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "cc92313b161d7a86841710663ede595e61c65946",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"count that started again|turns of its opening and answer|subdirectory of a repository|cwd that does not exist|antigravity input reaches|resolves only with an answer and a source|is recorded user-unverified, and close names it|without a turn count the ambiguous intent|without a turn end after the opening\" scripts/lib/turn-fence.test.js scripts/lib/idd-contract.test.js scripts/hooks/stop.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/lib/idd-record.test.js scripts/ospec.test.js && go test ./internal/hooks/ -run \"TestStop_CountsInTheRepositoryRootFromASubdirectory|TestStop_ReplacesTheTraceAtomically\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:16f8439ebf64b35d992dec954d40dbbe6396e9e6effb4d478e96fdc5749181a3",
+      "tree": "sha256:a7b6359ed94e3c1cf41f414034d0a4469c31598ac5c3e0b5bff219f5a1cfd064",
+      "recorded_at": "2026-10-30T17:01:05.463Z",
+      "tests": 7
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ea394bd0f3da92ec3bf7f2a7cdb4864627a6ea7dce408f70429bb4ed192121bb",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:06:26.668Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a820e98b973c7e30e28824fa765df94c752ae320da7aa12271eece7e06e0331d",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:06:26.668Z",
+      "tests": 48
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d8a4ede33f7afba84f74a9b00f579c1e6e403db1bbd3a964e1789b0225e9b377",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:06:26.668Z",
+      "tests": 52
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:799b3ea097383abad42acb4d530db7795ce605a1da7bd07dee77f2fa09146752",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:06:26.668Z",
+      "tests": 18
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ee9420d293d6aad2e4fa15160d3506dea302d2fc9d003209b11b99d3cc071d12",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:06:26.668Z",
+      "tests": 82
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:06:26.668Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6d62c72b06707689253406e2b673a427079347530534e353319786fe50115680",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:06:26.668Z",
+      "tests": 22
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9cde26c58a5c8a7b77ad35e21188450acd0238ff53c55f936ab48c8c09549c08",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:06:26.668Z",
+      "tests": 85
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:61c4c5be7e7267a5aa4a533e5fb48c1c3e8987005a24870efd1bbf2922f2e2b3",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:06:26.668Z",
+      "tests": 52
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c24aabf7a1f054eaa1d03c16314368a118ab70e2d0b5e0fc97e821b12c5ec464",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:06:26.668Z",
+      "tests": 82
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:46638cb692bb935beb026367ff8d398dd4489d003063c73f5d0ef8b7ba9ff141",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:06:26.668Z",
+      "tests": 48
+    },
+    {
+      "id": "run-16",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"carries the turns of its opening|count that started again|a relayed answer, an earlier answer\" scripts/lib/idd-contract.test.js scripts/lib/turn-fence.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e5b249887a4de03ef90c2a17afcad104b59ab5987ab40b46bdc42770be157d3c",
+      "tree": "sha256:742ae7d6469e443d6cffa6854691405c713a4225c4c784c6de980ce320729900",
+      "recorded_at": "2026-10-30T17:06:51.415Z",
+      "tests": 3
+    },
+    {
+      "id": "run-17",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2b40d80407db039dbc1e1177b058e95e1fc8bed09169871ed339c41ff1dd387d",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:11:17.053Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e386f93c729854844776ab63f0536ede1b8fabaca755ca07f798b66294b0da84",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:11:17.053Z",
+      "tests": 48
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b62a86677a672a937fdad7b9711b6a5c501f95d303edd894682c51c6de3efb0d",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:11:17.053Z",
+      "tests": 52
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:12ce685b03552ea6a051378132248457ac3f7e57f9cc9209698764e5280cab48",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:11:17.053Z",
+      "tests": 18
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2b6da9e4525e0a74b92217d0cd52ed9857e7d49fe0774f3652cc01b1a1715bce",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:11:17.053Z",
+      "tests": 82
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:11:17.053Z"
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bb3c0e24a1264b3032d1f3c7e27556298c7899525d94545c581389a72c3deab3",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:11:17.053Z",
+      "tests": 22
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ccdf6fa302be794fd34133a657300c42611e1c2b47ad37e48d7bdc60a37f5392",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:11:17.053Z",
+      "tests": 85
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:76f91db3b458fafe1f18c4f5a5d7955301fafe235a4f0e56710dc57a8543afde",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:11:17.053Z",
+      "tests": 52
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:39ed592a9738f9cd68a02368fcac95c0b158b8b5885223bcd03162e7d768629d",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:11:17.053Z",
+      "tests": 82
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c86e645c295e23b43f92a8e84b892aa32a0c91e003d4284135f25848df046986",
+      "tree": "sha256:f7c91d3116497bcb6297653f48a9dc36d542bfca35b1b50e371ca6d62d5c6c10",
+      "recorded_at": "2026-10-30T17:11:17.053Z",
+      "tests": 48
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:9a6164cbb4a8203216608aefef3d34bb4ec99f8867a3ff6779ed64d896bfbe44",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "005974c943f46e9193b361780d82c673370f7bc1",
+          "candidate_tree": "04d230397203898aba0606153e7305998b6f00e7",
+          "paths": [
+            "docs/harness-runtime.md",
+            "internal/hooks/stop.go",
+            "internal/hooks/stop_test.go",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "openwiki/hooks-runtime/lifecycle.md",
+            "openwiki/idd/flujo-idd.md",
+            "scripts/configure/install-global-copilot.test.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/hooks/stop.js",
+            "scripts/hooks/stop.test.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-contract.test.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-record.test.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/pathsafe.js",
+            "scripts/lib/turn-fence.js",
+            "scripts/lib/turn-fence.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js"
+          ],
+          "diff_hash": "sha256:d4e4058e90302a4d3cae81630594ad4c6fa27ffdad095f756baaf9a980142e12",
+          "paths_digest": "sha256:12e1b4020db4f697d028242340910ff1d5b95214f5d27e76a9401d65bade12bc",
+          "authored_lines": 261,
+          "original_changed_lines": 317
+        },
+        "candidate_id": "sha256:2f8ab4a103904e9b2755f9a02e3ee8a3b710ecf52dafe4dfe72f473ba6cd5726",
+        "paths": [
+          "docs/harness-runtime.md",
+          "internal/hooks/stop.go",
+          "internal/hooks/stop_test.go",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openwiki/hooks-runtime/lifecycle.md",
+          "openwiki/idd/flujo-idd.md",
+          "scripts/configure/install-global-copilot.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/pathsafe.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "04d230397203898aba0606153e7305998b6f00e7",
+        "original_changed_lines": 317,
+        "authored_lines": 261
+      },
+      "current_candidate_id": "sha256:2f8ab4a103904e9b2755f9a02e3ee8a3b710ecf52dafe4dfe72f473ba6cd5726",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "005974c943f46e9193b361780d82c673370f7bc1",
+        "candidate_tree": "04d230397203898aba0606153e7305998b6f00e7",
+        "paths": [
+          "docs/harness-runtime.md",
+          "internal/hooks/stop.go",
+          "internal/hooks/stop_test.go",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openwiki/hooks-runtime/lifecycle.md",
+          "openwiki/idd/flujo-idd.md",
+          "scripts/configure/install-global-copilot.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/pathsafe.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "diff_hash": "sha256:d4e4058e90302a4d3cae81630594ad4c6fa27ffdad095f756baaf9a980142e12",
+        "paths_digest": "sha256:12e1b4020db4f697d028242340910ff1d5b95214f5d27e76a9401d65bade12bc",
+        "authored_lines": 261,
+        "original_changed_lines": 317
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "turn-fence-robustness:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "turn-fence-robustness:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 159,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-30T17:11:17.434Z"
+}
