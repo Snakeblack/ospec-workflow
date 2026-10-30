@@ -397,7 +397,7 @@ Construye y sincroniza la carpeta del plugin directamente en la raíz de tu proy
 npm run install:opencode -- ../mi-proyecto
 ```
 
-Esto copiará el árbol `.opencode/`, `opencode.json`, `skills/` y `scripts/` (incluyendo los scripts de los hooks y el binario compiler hook `ospec-hooks.exe` o `ospec-hooks` si estuviera compilado en `release/dist/`).
+Esto copiará el árbol `.opencode/`, `opencode.json`, `skills/` y `scripts/` (incluyendo los scripts de los hooks y el binario compiler hook `ospec-hooks.exe` o `ospec-hooks` de `release/dist/`). El plugin solo ejecuta ese binario, así que sin él la instalación falla: ejecuta antes `npm run build:hooks`. Un `--dry-run` solo avisa.
 
 #### Instalación global (para cualquier proyecto)
 
@@ -411,7 +411,7 @@ npm run setup:opencode
 
 Este instalador idempotente realiza los siguientes pasos:
 1. Compila el target `opencode` en `dist/opencode/`.
-2. Copia el binario compiler hook `ospec-hooks` apropiado para la arquitectura en `release/dist/` (si existe).
+2. Copia el binario compiler hook `ospec-hooks` apropiado para la arquitectura en `release/dist/`; sin él la instalación falla.
 3. Copia todas las carpetas generadas (`agents/`, `commands/`, `instructions/`, `plugins/`, `skills/`, `scripts/`, y `release/`) al directorio global de configuración de OpenCode:
    - **Windows**: `C:\Users\<Usuario>\.config\opencode\`
    - **Linux/macOS**: `~/.config/opencode/`

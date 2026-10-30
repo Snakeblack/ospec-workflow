@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- La valla de fin de turno (E1.49) no cuenta los turnos en el proyecto en Copilot global, Cursor, Codex instalado en el repo y OpenCode de repo sin binario (turn-fence-hosts)
+
 ## [2.168.0] - 2026-10-30
 
 ### Added
