@@ -37,7 +37,7 @@ test("checks are named commands kept in their declared order", () => {
 });
 
 test("an absent or empty configuration yields the defaults", () => {
-  const defaults = { mode: null, strictTdd: false, team: null, delivery: { branching: null, changelog: null, release: null }, checks: [], impact: {}, contracts: {} };
+  const defaults = { mode: null, strictTdd: false, team: null, delivery: { branching: null, changelog: null, release: null, integration_branch: null, production_branch: null }, checks: [], impact: {}, contracts: {} };
   assert.deepStrictEqual(parseIddConfig(""), defaults);
   assert.deepStrictEqual(parseIddConfig("# only a comment\n\n"), defaults);
 });
@@ -63,7 +63,7 @@ test("mode, strict_tdd and the impact section are read", () => {
     mode: "idd",
     strictTdd: true,
     team: null,
-    delivery: { branching: null, changelog: null, release: null },
+    delivery: { branching: null, changelog: null, release: null, integration_branch: null, production_branch: null },
     checks: [],
     impact: {
       stack: ["node", "go"],
@@ -106,7 +106,7 @@ test("the team section declares the profile and decides strict_tdd unless it is 
 });
 
 test("[REQ-idd-023] the delivery section declares the branching and refuses any other key or value", () => {
-  const only = (branching) => ({ branching, changelog: null, release: null });
+  const only = (branching) => ({ branching, changelog: null, release: null, integration_branch: null, production_branch: null });
   assert.deepStrictEqual(parseIddConfig("delivery:\n  branching: serial   # one PR in flight\n").delivery, only("serial"));
   assert.deepStrictEqual(parseIddConfig("delivery:\n  branching: parallel\n").delivery, only("parallel"));
   assert.deepStrictEqual(parseIddConfig("delivery:\n").delivery, only(null));
@@ -120,9 +120,9 @@ test("[REQ-idd-023] the delivery section declares the branching and refuses any 
 
 test("[REQ-idd-025] the delivery section declares the changelog and the release cadence", () => {
   const delivery = (text) => parseIddConfig(`delivery:\n${text}`).delivery;
-  assert.deepStrictEqual(delivery("  changelog: CHANGELOG.md\n  release: per-change\n"), { branching: null, changelog: "CHANGELOG.md", release: "per-change" });
-  assert.deepStrictEqual(delivery('  changelog: "docs/release notes.md"\n  release: batched\n'), { branching: null, changelog: "docs/release notes.md", release: "batched" });
-  assert.deepStrictEqual(delivery("  changelog: none\n  release: none\n"), { branching: null, changelog: "none", release: "none" });
+  assert.deepStrictEqual(delivery("  changelog: CHANGELOG.md\n  release: per-change\n"), { branching: null, changelog: "CHANGELOG.md", release: "per-change", integration_branch: null, production_branch: null });
+  assert.deepStrictEqual(delivery('  changelog: "docs/release notes.md"\n  release: batched\n'), { branching: null, changelog: "docs/release notes.md", release: "batched", integration_branch: null, production_branch: null });
+  assert.deepStrictEqual(delivery("  changelog: none\n  release: none\n"), { branching: null, changelog: "none", release: "none", integration_branch: null, production_branch: null });
   // close writes the changelog, so it stays a relative path inside the project.
   for (const outside of ["/etc/CHANGELOG.md", "../CHANGELOG.md", "docs/../../CHANGELOG.md", "C:/CHANGELOG.md", "docs\\CHANGELOG.md", "./CHANGELOG.md", "docs/"]) {
     refused(`delivery:\n  changelog: ${outside}\n`, /delivery.changelog must be a relative path inside the project or none, got /);
@@ -130,6 +130,32 @@ test("[REQ-idd-025] the delivery section declares the changelog and the release 
   refused("delivery:\n  changelog: [a.md, b.md]\n", /delivery.changelog must be a relative path inside the project or none, got nothing/);
   refused("delivery:\n  release: weekly\n", /delivery.release must be per-change, batched, none, got weekly/);
   refused("delivery:\n  release:\n", /delivery.release must be per-change, batched, none, got nothing/);
+});
+
+test("[REQ-idd-023] the delivery section declares an integration branch apart from production", () => {
+  const delivery = (text) => parseIddConfig(`delivery:\n${text}`).delivery;
+  assert.deepStrictEqual(delivery("  branching: parallel\n  integration_branch: dev\n  production_branch: main\n  release: batched\n"), {
+    branching: "parallel",
+    changelog: null,
+    release: "batched",
+    integration_branch: "dev",
+    production_branch: "main",
+  });
+  // Without production_branch, production is the default branch, unnamed.
+  assert.deepStrictEqual([delivery("  integration_branch: feature/next.1\n").integration_branch, delivery("  integration_branch: dev\n").production_branch], ["feature/next.1", null]);
+  // A name git refuses (git check-ref-format --branch) is refused here, without running git.
+  for (const bad of ['""', "[dev, main]", '"my dev"', "-dev", "dev..next", "dev~1", "dev^", "a:b", "dev?", "dev*", "dev[1]", '"a\\\\b"', "dev@{1}", "@", "/dev", "dev/", "a//b", ".dev", "a/.b", "dev.lock", "dev."]) {
+    refused(`delivery:\n  integration_branch: ${bad}\n`, /delivery.integration_branch must be a branch name git accepts, got /);
+  }
+  refused("delivery:\n  integration_branch:\n", /delivery.integration_branch must be a branch name git accepts, got nothing/);
+  refused("delivery:\n  integration_branch: dev\n  production_branch: ma in\n", /delivery.production_branch must be a branch name git accepts/);
+  refused("delivery:\n  integration_branch: main\n  production_branch: main\n", /delivery.integration_branch must differ from delivery.production_branch, got main for both/);
+  refused("delivery:\n  production_branch: main\n", /delivery.production_branch needs delivery.integration_branch/);
+  // Each promotion to production is a version, never each merge into the integration branch.
+  refused("delivery:\n  integration_branch: dev\n  release: per-change\n", /delivery.release must be batched or none with delivery.integration_branch, got per-change/);
+  assert.strictEqual(delivery("  integration_branch: dev\n  release: none\n").release, "none");
+  // Branch names are case-sensitive, as in git.
+  assert.strictEqual(delivery("  integration_branch: Main\n  production_branch: main\n").integration_branch, "Main");
 });
 
 test("the contracts section lists documents and tests", () => {

@@ -168,3 +168,46 @@ test("[REQ-idd-025] delivery.changelog and delivery.release win over the profile
   const sdd = resolveTeam({ idd: parseIddConfig("mode: sdd\ndelivery:\n  release: none\n"), openspecText: "team:\n  size: solo\n" });
   assert.deepStrictEqual([sdd.release.value, sdd.release.source], ["per-change", "team profile"]);
 });
+
+test("[REQ-idd-023] an integration branch moves work branches to it and cuts a version on each promotion", () => {
+  const team = (delivery) => resolveTeam({ idd: parseIddConfig(`team:\n  size: solo\ndelivery:\n${delivery}`) });
+  const serial = team("  branching: serial\n  integration_branch: dev\n  production_branch: main\n");
+  assert.match(serial.branching.how, /branch from the up-to-date integration branch dev; if it moved/);
+  assert.match(serial.branching.reasons[2], /starts from the integration branch dev that already holds the previous merge/);
+  const parallel = team("  branching: parallel\n  integration_branch: dev\n");
+  assert.match(parallel.branching.how, /^branch from the up-to-date integration branch dev; before each merge, integrate the integration branch dev by merge/);
+  // The rules: work branches, pull request target, promotion, release/x.y and the merge back.
+  assert.deepStrictEqual([serial.integration.value, serial.integration.production, serial.integration.source], ["dev", "main", "idd/config.yaml"]);
+  assert.match(serial.integration.reasons[0], /delivery.integration_branch is declared in idd\/config.yaml/);
+  for (const rule of [
+    /work branches start from the up-to-date dev and their pull requests target dev/,
+    /its entry reaches \[Unreleased\] of dev with the merge/,
+    /holding only idd\/<change>\/, goes to dev/,
+    /main receives merges only from dev or a release\/x.y, each one a version with its tag/,
+    /it starts from dev, takes only fixes, may carry x.y.z-rc.N versions, merges into main with its tag and back into dev, and is then deleted/,
+    /reaches dev by merging main or the release\/x.y back into it/,
+    /never rewriting published history/,
+  ]) {
+    assert.match(serial.integration.how, rule);
+  }
+  // Without production_branch the rules name the default branch.
+  assert.strictEqual(parallel.integration.production, null);
+  assert.match(parallel.integration.how, /the default branch receives merges only from dev/);
+  // The solo profile recommends per-change, but only batched fits: the version is proposed on promotion.
+  assert.deepStrictEqual([serial.release.value, serial.release.source], ["batched", "recommended"]);
+  assert.match(serial.release.reasons[0], /delivery.integration_branch is declared, and batched cuts a version on each promotion/);
+  assert.match(serial.release.how, /propose a release when dev is promoted to main or a release\/x.y is cut from it/);
+  assert.match(serial.release.how, /user's OK/);
+  const declared = team("  integration_branch: dev\n  release: batched\n");
+  assert.deepStrictEqual([declared.release.value, declared.release.source], ["batched", "idd/config.yaml"]);
+  assert.match(declared.release.how, /when dev is promoted to the default branch/);
+  assert.strictEqual(team("  integration_branch: dev\n  release: none\n").release.how, "no release is proposed");
+  // Without it nothing changes: no integration block, and the rules name the default branch.
+  const plain = team("  branching: serial\n");
+  assert.ok(!("integration" in plain));
+  assert.match(plain.branching.how, /branch from the up-to-date default branch; if it moved/);
+  assert.match(plain.branching.reasons[2], /starts from a default branch that already holds/);
+  // SDD does not read it (ADR 0011).
+  const sdd = resolveTeam({ idd: parseIddConfig("mode: sdd\ndelivery:\n  integration_branch: dev\n"), openspecText: "team:\n  size: solo\n" });
+  assert.deepStrictEqual(["integration" in sdd, sdd.release.value], [false, "per-change"]);
+});
