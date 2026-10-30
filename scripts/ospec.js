@@ -1414,8 +1414,8 @@ async function run(command, positionals, values) {
     // The signals the plan of record intent derived, as signals reports them.
     const plan = recorded.derivation ? { plan: derivationView(recorded) } : {};
     // The answers the turn fence recorded user-unverified (E1.49).
-    const warnings = (recorded.unverified || []).map(({ gate, reason }) =>
-      `gate ${gate} recorded user-unverified: ${reason}; ask a gate by ending your turn with its questions, and record the answer once the user replies`);
+    const warnings = (recorded.unverified || []).map(({ gate, reason, remedy }) =>
+      `gate ${gate} recorded user-unverified: ${reason}; this answer stays user-unverified and close lists it; ${remedy}`);
     return { record: type, change: state.change, changed, ...(query ? { memory_query: query } : {}), ...plan, ...(warnings.length ? { warnings } : {}), next: nextAfterWrite(root, state) };
   }
   throw new UsageError(`unknown command: ${command ?? "(none)"}`);

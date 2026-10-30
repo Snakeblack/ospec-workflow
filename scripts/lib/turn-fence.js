@@ -56,12 +56,21 @@ function unverifiedReason(gate, turn) {
   return "no turn ended between the gate's opening and the answer";
 }
 
+// The answer stays user-unverified (resolving it again changes nothing), so
+// the remedy is for the next gates.
+function unverifiedRemedy(gate, turn) {
+  if (turn === null) return "install or repair the host's ospec hooks so the next answers can be verified";
+  if (gate.opened_turn === null) return "the turns are counted now, so the next answers can be verified";
+  return "ask the next gate by ending your turn with its questions, and record its answer after the user replies";
+}
+
 /**
  * Stamps, in `after`, the turn of each gate the command opened or changed
  * while open, and of each one it resolved. An answer declared `user` without
  * a turn end after the gate opened is recorded `user-unverified`, keeping the
  * declared source and the reason. A gate opened before E1.49 has no turn and
- * keeps the source it is answered with. Returns the gates it recorded so.
+ * keeps the source it is answered with. Returns the gates it recorded so,
+ * with the reason and its remedy.
  */
 function fenceGates(before, after, turn) {
   const previous = (before?.gates || []).map(gateKey);
@@ -78,12 +87,14 @@ function fenceGates(before, after, turn) {
     }
     if (!Object.hasOwn(gate, "opened_turn")) continue;
     gate.resolved_turn = turn;
-    const fenced = turn === null || gate.opened_turn === null || turn <= gate.opened_turn;
+    // Any other count is a turn end: one that started again (.ospec/turns
+    // lost) only counts up from 1 through Stop.
+    const fenced = turn === null || gate.opened_turn === null || turn === gate.opened_turn;
     if (gate.source === "user" && fenced) {
       gate.declared_source = gate.source;
       gate.source = "user-unverified";
       gate.unverified_reason = unverifiedReason(gate, turn);
-      unverified.push({ gate: gate.id, reason: gate.unverified_reason });
+      unverified.push({ gate: gate.id, reason: gate.unverified_reason, remedy: unverifiedRemedy(gate, turn) });
     }
   }
   return unverified;

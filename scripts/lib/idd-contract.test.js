@@ -472,6 +472,8 @@ test("[E1.49] a gate carries the turns of its opening and answer, and an answer 
     { status: "open", opened_turn: 3 },
     { status: "open", opened_turn: null },
     { status: "resolved", answer: "yes", source: "user", opened_turn: 3, resolved_turn: 4 },
+    // A count that started again after the gate opened.
+    { status: "resolved", answer: "yes", source: "user", opened_turn: 5, resolved_turn: 2 },
     { status: "resolved", answer: "yes", source: "user", opened_turn: 3 },
     { status: "resolved", answer: "yes", source: "user-unverified", declared_source: "user", unverified_reason: "no turn ended", opened_turn: 3, resolved_turn: 3 },
     { status: "resolved", answer: "yes", source: "user-unverified", opened_turn: null, resolved_turn: null },
