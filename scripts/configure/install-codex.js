@@ -262,11 +262,13 @@ function installCodexHooks(outDir, codexRoot, runtimeDir, deps = {}) {
     }
   }
 
-  const runtimePosix = path.resolve(runtimeDir).split(path.sep).join("/");
-  const runtimeWindows = path.resolve(runtimeDir).split(path.sep).join("\\");
+  const renderCommand = deps.renderCommand || ((value, key) => {
+    const runtime = path.resolve(runtimeDir).split(path.sep).join(key === "commandWindows" ? "\\" : "/");
+    return value.replaceAll("__OSPEC_RUNTIME__", runtime);
+  });
   const renderValue = (value, key) => {
     if (typeof value === "string") {
-      return value.replaceAll("__OSPEC_RUNTIME__", key === "commandWindows" ? runtimeWindows : runtimePosix);
+      return renderCommand(value, key);
     }
     if (Array.isArray(value)) {
       return value.map((entry) => renderValue(entry));
@@ -1115,6 +1117,22 @@ const REPO_SKILLS_DIR = ".agents/skills";
 const REPO_SKILLS = Object.freeze(["sdd-orchestrator", "idd", "review-trust", "review-correction"]);
 const REPO_RUNTIME_DIR = ".codex/ospec-workflow";
 
+// E1.49: Codex loads <repo>/.codex/hooks.json for a trusted project and runs
+// it from the session's directory, which may be a subdirectory. The file is
+// shared, so a hook finds the runtime from the git root, and it does so in
+// Node, the same way in every shell Codex may use (sh, cmd, PowerShell).
+const REPO_HOOK_LAUNCH =
+  `node -e "process.argv.splice(1,0,'');let root='.';try{root=require('child_process').execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim()}catch{}` +
+  `require(require('path').resolve(root,'${REPO_RUNTIME_DIR}/scripts/hooks/ospec-codex-hook.js'))"`;
+
+function renderRepoHookCommand(value) {
+  const command = value.replace(/node "__OSPEC_RUNTIME__[\\/]scripts[\\/]hooks[\\/]ospec-codex-hook\.js"/, REPO_HOOK_LAUNCH);
+  if (command.includes("__OSPEC_RUNTIME__")) {
+    throw new Error(`unexpected Codex hook command for a repository install: ${value}`);
+  }
+  return command;
+}
+
 function renderRepoMarkers(content) {
   const runtimeDir = runtimeDirValue(REPO_RUNTIME_DIR, { relative: true });
   return content
@@ -1153,6 +1171,7 @@ function preflightRepoInstall(outDir, repoRoot, fsImpl = fs) {
   if (fsImpl.existsSync(sharedSource)) preflightManagedTree(sharedSource, path.join(skillsRoot, "_shared"), repoRoot, fsImpl);
   const runtimeDir = path.join(repoRoot, ...REPO_RUNTIME_DIR.split("/"));
   assertManagedPathSafe(repoRoot, runtimeDir, "Codex repository runtime directory", fsImpl);
+  assertManagedPathSafe(repoRoot, path.join(repoRoot, ".codex", "hooks.json"), "Codex repository hooks", fsImpl);
   for (const tree of ["scripts", "schemas", "bin"]) {
     const source = path.join(outDir, tree);
     if (fsImpl.existsSync(source)) preflightManagedTree(source, path.join(runtimeDir, tree), repoRoot, fsImpl);
@@ -1375,6 +1394,7 @@ function install(argv, deps = {}) {
         const repoRoot = path.dirname(codexRoot);
         installRepoSkills(outDir, repoRoot, writeFs, fsImpl);
         installRepoRuntime(outDir, repoRoot, writeFs);
+        installCodexHooks(outDir, codexRoot, null, { fs: writeFs, renderCommand: renderRepoHookCommand });
         ensureOspecGitignore(repoRoot, writeFs);
       }
       if (!isRepoInstall) {

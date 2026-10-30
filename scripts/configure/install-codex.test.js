@@ -103,7 +103,7 @@ function writeGeneratedCodexTree(root) {
     path.join(root, "hooks.json"),
     JSON.stringify({
       hooks: {
-        SessionStart: [{ matcher: ".*", hooks: [{ type: "command", command: 'OSPEC_TARGET=codex OSPEC_CODEX_WRAPPER=1 node "__OSPEC_RUNTIME__/scripts/hooks/session-start.js"', commandWindows: 'set OSPEC_TARGET=codex&& set OSPEC_CODEX_WRAPPER=1&& node "__OSPEC_RUNTIME__\\scripts\\hooks\\session-start.js"', timeout: 10 }] }],
+        SessionStart: [{ matcher: ".*", hooks: [{ type: "command", command: 'node "__OSPEC_RUNTIME__/scripts/hooks/ospec-codex-hook.js" session-start', commandWindows: 'node "__OSPEC_RUNTIME__\\scripts\\hooks\\ospec-codex-hook.js" session-start', timeout: 10 }] }],
       },
     }, null, 2),
   );

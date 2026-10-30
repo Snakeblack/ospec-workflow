@@ -201,3 +201,44 @@ test("managed home preserves an AGENTS.md link to the regular global user file",
   assert.equal(main(["--no-engram", "--no-validate"], deps), 1);
   assert.equal(fs.readFileSync(foreign, "utf8"), "foreign bytes\n");
 });
+
+// E1.49: Codex loads <repo>/.codex/hooks.json and runs it from the session's
+// directory, which may be a subdirectory, so a repository install names its
+// runtime from the git root and counts the end of a turn in the repository.
+test("a repository install's hooks count the end of a turn in the repository from any of its directories", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex repo hooks-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const repo = path.join(root, "repo");
+  const home = path.join(root, "home");
+  fs.mkdirSync(path.join(repo, "src"), { recursive: true });
+  fs.mkdirSync(home);
+  spawnSync("git", ["init", "-q"], { cwd: repo });
+  const hooksPath = path.join(repo, ".codex", "hooks.json");
+  const user = { matcher: "Bash", hooks: [{ type: "command", command: "user-hook" }] };
+  fs.mkdirSync(path.dirname(hooksPath));
+  fs.writeFileSync(hooksPath, JSON.stringify({ hooks: { PreToolUse: [user] } }));
+  const install = () => main([repo, "--no-validate"], {
+    cwd: SOURCE, homedir: () => home, outDir: path.join(root, "out"),
+    findCodexBin: () => null, stdout: { write() {} }, stderr: { write() {} },
+    runConfigure({ outDir }) { fs.cpSync(generated, outDir, { recursive: true }); return { exitCode: 0, files: [] }; },
+  });
+  assert.equal(install(), 0);
+  const installed = fs.readFileSync(hooksPath, "utf8");
+  assert.equal(install(), 0);
+  assert.equal(fs.readFileSync(hooksPath, "utf8"), installed, "a second install converges");
+  const hooks = JSON.parse(installed).hooks;
+  assert.deepEqual(hooks.PreToolUse[0], user, "the repository's own hooks are kept");
+  assert.doesNotMatch(installed, new RegExp(`__OSPEC_|${repo.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")}`), "the shared file names no local path");
+
+  const hook = hooks.Stop[0].hooks[0];
+  const env = { ...process.env, HOME: home, USERPROFILE: home };
+  for (const name of ["OSPEC_TARGET", "OSPEC_CODEX_WRAPPER", "OSPEC_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT", "CURSOR_AGENT"]) delete env[name];
+  let turns = 0;
+  for (const shell of shells()) await t.test(shell.name, (st) => {
+    const command = process.platform === "win32" && !shell.posix ? hook.commandWindows : hook.command;
+    const result = runHookOnceMore(st, shell, command, { hook_event_name: "Stop", cwd: repo }, { workspace: path.join(repo, "src"), env });
+    assert.equal(result.status, 0, `${shell.name}: ${result.stderr || result.stdout}`);
+    turns += 1;
+    assert.equal(fs.readFileSync(path.join(repo, ".ospec", "turns"), "utf8"), `${turns}\n`);
+  });
+});
