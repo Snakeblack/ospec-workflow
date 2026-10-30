@@ -127,9 +127,9 @@ In Claude Code there are two different outputs:
 - **Claude Code temporary**: generate `dist/claude/` and load it with `claude --plugin-dir dist/claude`. This path applies only to the current session.
 - **Claude Code persistent**: generate `dist/claude-marketplace/`, register that local marketplace and then install `ospec-workflow@ospec-tools`.
 - **GitHub Copilot CLI (Local/Project)**: generate `dist/github-copilot/` and copy its contents (`.github/`, `.mcp.json`, and `scripts/`) into the destination repo root.
-- **GitHub Copilot CLI (Global)**: builds, copies, and registers all agents, prompts, instructions, hooks, and skills in the user's global directory (`~/.copilot/`), merging the MCP configuration into `mcp-config.json` automatically and permanently for any project.
+- **GitHub Copilot CLI (Global)**: builds, copies, and registers all agents, prompts, instructions, hooks, and skills in the user's global directory (`~/.copilot/`), merging the MCP configuration into `mcp-config.json` automatically and permanently for any project. Copilot CLI runs these personal hooks from the repository you work in, so the installed `hooks/hooks.json` names the runtime by its absolute path.
 - **Codex CLI (Global)**: builds `dist/codex/`, writes the router as a marked block in `~/.codex/AGENTS.md`, installs review agents, the IDD skill and runtime into `~/.codex/` and `~/.agents/skills/`, merges its native hooks into `~/.codex/hooks.json` and reuses equivalent MCPs or adds only the missing ones via `codex mcp`. With `--with-sdd`, also installs the phase agents and SDD skills, including `sdd-orchestrator`.
-- **Codex CLI (Local/Project)**: `npm run install:codex -- ../my-project` copies the generated TOML agents to `<repo>/.codex/agents/` and writes the router as a marked block into `<repo>/AGENTS.md`. It also installs the IDD protocol (`idd`) and the reviewers it dispatches (`review-trust`, `review-correction`) with their `_shared` files under `<repo>/.agents/skills/`, plus the orchestrator skill with `--with-sdd`, and its own `ospec` runtime in `<repo>/.codex/ospec-workflow/`, so the repository follows IDD without a global install. It preserves any existing `config.toml` and does not copy `.codex-plugin/plugin.json` into the destination repo.
+- **Codex CLI (Local/Project)**: `npm run install:codex -- ../my-project` copies the generated TOML agents to `<repo>/.codex/agents/` and writes the router as a marked block into `<repo>/AGENTS.md`. It also installs the IDD protocol (`idd`) and the reviewers it dispatches (`review-trust`, `review-correction`) with their `_shared` files under `<repo>/.agents/skills/`, plus the orchestrator skill with `--with-sdd`, and its own `ospec` runtime in `<repo>/.codex/ospec-workflow/`, so the repository follows IDD without a global install. It also adds ospec's hooks to `<repo>/.codex/hooks.json`, keeping the repository's own: each command finds the runtime from the git root, so the end of a turn is counted in the repository. Codex loads them only once the project is trusted and you trust them in `/hooks`; with the global install as well, both sets run. That approval covers the command, not the runtime under `<repo>/.codex/ospec-workflow/` it runs: review changes to that directory after pulling from a repository you do not control. It preserves any existing `config.toml` and does not copy `.codex-plugin/plugin.json` into the destination repo.
 - **opencode (Local/Project)**: generate `dist/opencode/` and copy its contents (`.opencode/`, `opencode.json`, `skills/`, and `scripts/`) into the destination repo root. opencode discovers agents/commands/instructions under `.opencode/` and reads `opencode.json` (MCP + instructions); the `.opencode/plugins/ospec.js` plugin bridges the hooks runtime.
 - **opencode (Global)**: builds, copies, and registers the generated agents, instructions, and plugins in the user's global directory (`~/.config/opencode/`), merging the MCP configuration into `opencode.json` automatically and permanently for any project. With `--with-sdd`, both installation modes also include commands and the main agent renamed to `ospec-workflow`.
 - **Cursor IDE (Global)**: `npm run build:cursor` generates `dist/cursor/`; `npm run setup:cursor` validates and syncs that tree into `~/.cursor`, expanding `__OSPEC_CURSOR_ROOT__` in `hooks.json` to the absolute path (quoted only if `$HOME` contains spaces) and copying the `ospec-hooks` binary to the managed runtime.
@@ -395,7 +395,7 @@ Build and sync the plugin folder directly into the root of your destination proj
 npm run install:opencode -- ../my-project
 ```
 
-This will copy the `.opencode/` tree, `opencode.json`, `skills/`, and `scripts/` (including the hook scripts and the compiler hook binary `ospec-hooks.exe` or `ospec-hooks` if it was compiled into `release/dist/`).
+This will copy the `.opencode/` tree, `opencode.json`, `skills/`, and `scripts/` (including the hook scripts and the compiler hook binary `ospec-hooks.exe` or `ospec-hooks` from `release/dist/`). The plugin runs only that binary, so the install fails without it: run `npm run build:hooks` first. A `--dry-run` only warns.
 
 #### Global installation (for any project)
 
@@ -409,7 +409,7 @@ npm run setup:opencode
 
 This idempotent installer performs the following steps:
 1. Builds the `opencode` target into `dist/opencode/`.
-2. Copies the compiler hook binary `ospec-hooks` appropriate for the architecture into `release/dist/` (if present).
+2. Copies the compiler hook binary `ospec-hooks` appropriate for the architecture into `release/dist/`; without it the install fails.
 3. Copies all generated folders (`agents/`, `commands/`, `instructions/`, `plugins/`, `skills/`, `scripts/`, and `release/`) to the global OpenCode configuration directory:
    - **Windows**: `C:\Users\<User>\.config\opencode\`
    - **Linux/macOS**: `~/.config/opencode/`

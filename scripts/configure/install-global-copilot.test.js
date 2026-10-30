@@ -145,3 +145,79 @@ test("setup:copilot upgrades an install made without schemas/", (t) => {
   const help = spawnSync(process.execPath, [path.join(dest, "scripts", "ospec.js"), "--help"], { cwd: os.tmpdir(), encoding: "utf8" });
   assert.equal(help.status, 0, help.stderr);
 });
+
+// --- the end of a turn reaches the repository (E1.49) ------------------------
+
+// Copilot CLI runs personal hooks from the user's repository, so a hook
+// command must name the installed runtime by its absolute path.
+test("setup:copilot installs hooks that count the end of a turn in the repository they run from", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "copilot hooks-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const source = path.join(root, "source");
+  // Quotes of both shells in the path: bash's ' and PowerShell's typographic ones.
+  const dest = path.join(root, "o'neil \u2019dest");
+  const repo = path.join(root, "repo");
+  fs.mkdirSync(source);
+  fs.mkdirSync(repo);
+  assert.equal(runInstall(source, dest, {
+    runConfigure: (options) => runConfigure({ ...options, sourceDir: ROOT, validate: false }),
+    spawnSync: () => ({ status: 0 }),
+    stderr: { write() {} },
+  }), 0);
+
+  const [hook] = JSON.parse(fs.readFileSync(path.join(dest, "hooks", "hooks.json"), "utf8")).hooks.agentStop;
+  const installed = path.resolve(dest).split(path.sep).join("/");
+  assert.equal(hook.powershell, `node '${installed.replace("'", "''").replace("\u2019", "\u2019\u2019")}/scripts/hooks/ospec-hooks-launch.js' stop`);
+  const shell = process.platform === "win32"
+    ? { program: "powershell.exe", args: ["-NoProfile", "-NonInteractive", "-Command", hook.powershell] }
+    : { program: "/bin/sh", args: ["-c", hook.bash] };
+  const result = spawnSync(shell.program, shell.args, { cwd: repo, input: JSON.stringify({ cwd: repo }), encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(fs.readFileSync(path.join(repo, ".ospec", "turns"), "utf8"), "1\n");
+});
+
+test("setup:copilot rewrites the repo-relative hooks an earlier install left", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-hooks-upgrade-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const source = path.join(root, "source");
+  const dest = path.join(root, "dest");
+  fs.mkdirSync(source);
+  const install = () => runInstall(source, dest, {
+    runConfigure: (options) => runConfigure({ ...options, sourceDir: ROOT, validate: false }),
+    spawnSync: () => ({ status: 0 }),
+    stderr: { write() {} },
+  });
+  assert.equal(install(), 0);
+  const hooksPath = path.join(dest, "hooks", "hooks.json");
+  const installed = fs.readFileSync(hooksPath, "utf8");
+
+  // The hooks an install before E1.49's fix copied as built.
+  fs.copyFileSync(path.join(source, "dist", "github-copilot", ".github", "hooks", "hooks.json"), hooksPath);
+  assert.match(fs.readFileSync(hooksPath, "utf8"), /node \\"scripts\/hooks\//);
+  assert.equal(install(), 0);
+  assert.equal(fs.readFileSync(hooksPath, "utf8"), installed);
+  assert.doesNotMatch(installed, /node \\"scripts\//);
+  assert.match(fs.readFileSync(path.join(source, "dist", "github-copilot", ".github", "hooks", "hooks.json"), "utf8"), /node \\"scripts\/hooks\//, "the build keeps its repo-relative hooks");
+});
+
+test("setup:copilot refuses a hook command it cannot make absolute", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-hooks-relative-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const source = path.join(root, "source");
+  const dest = path.join(root, "dest");
+  fs.mkdirSync(source);
+  const stderr = [];
+  const exitCode = runInstall(source, dest, {
+    runConfigure({ outDir }) {
+      const hooks = path.join(outDir, ".github", "hooks", "hooks.json");
+      fs.mkdirSync(path.dirname(hooks), { recursive: true });
+      fs.writeFileSync(hooks, JSON.stringify({ version: 1, hooks: { agentStop: [{ type: "command", bash: "node scripts/hooks/ospec-hooks-launch.js stop" }] } }));
+      return { files: [], summary: [], exitCode: 0, validation: null };
+    },
+    spawnSync: () => ({ status: 0 }),
+    stderr: { write: (chunk) => stderr.push(chunk) },
+  });
+  assert.equal(exitCode, 1);
+  assert.match(stderr.join(""), /repository-relative script/);
+  assert.equal(fs.existsSync(path.join(dest, "hooks", "hooks.json")), false);
+});

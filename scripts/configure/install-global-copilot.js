@@ -68,6 +68,45 @@ function parseArgs(argv) {
   return args;
 }
 
+// E1.49: Copilot CLI runs a personal hook from the user's repository, so the
+// installed hooks name the runtime by its absolute path instead of the
+// repo-relative one the build writes, quoted for each shell (PowerShell also
+// closes a string on the typographic single quotes). Rendered just before
+// syncing and restored afterwards, like the markers of shared-dir.js. A
+// command left relative would run the repository's own script: it fails.
+const HOOK_SHELL_QUOTES = {
+  bash: (value) => `'${value.split("'").join("'\\''")}'`,
+  powershell: (value) => `'${value.replace(/['\u2018\u2019\u201A\u201B]/g, "$&$&")}'`,
+};
+
+const RELATIVE_SCRIPT = /"(scripts\/[^"]+)"/g;
+
+function renderGlobalHooks(outDir, globalDir, fsImpl) {
+  const file = path.join(outDir, ".github", "hooks", "hooks.json");
+  if (!fsImpl.existsSync(file)) return { restore() {} };
+  const original = fsImpl.readFileSync(file, "utf8");
+  const root = path.resolve(globalDir).split(path.sep).join("/");
+  const doc = JSON.parse(original);
+  for (const hooks of Object.values(doc.hooks || {})) {
+    for (const hook of hooks) {
+      for (const [shell, quote] of Object.entries(HOOK_SHELL_QUOTES)) {
+        if (typeof hook[shell] === "string") {
+          if (/scripts[\\/]/.test(hook[shell].replace(RELATIVE_SCRIPT, ""))) {
+            throw new Error(`a Copilot hook command names a repository-relative script ospec cannot render: ${hook[shell]}`);
+          }
+          hook[shell] = hook[shell].replace(RELATIVE_SCRIPT, (_match, script) => quote(`${root}/${script}`));
+        }
+      }
+    }
+  }
+  fsImpl.writeFileSync(file, JSON.stringify(doc, null, 2));
+  return {
+    restore() {
+      fsImpl.writeFileSync(file, original);
+    },
+  };
+}
+
 function install(argv = process.argv.slice(2), deps = {}) {
   const args = parseArgs(argv);
   const cwd = deps.cwd || process.cwd();
@@ -155,6 +194,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
     const shared = renderSharedDir(outDir, sharedDirValue(path.join(globalDir, "skills")), fsImpl);
     // E1.6 (a): the IDD protocol names the installed ospec CLI.
     const runtime = renderRuntimeDir(outDir, runtimeDirValue(globalDir), fsImpl);
+    const hooks = renderGlobalHooks(outDir, globalDir, fsImpl);
     try {
       for (const remap of remappings) {
         if (fsImpl.existsSync(remap.src)) {
@@ -164,6 +204,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
     } finally {
       shared.restore();
       runtime.restore();
+      hooks.restore();
     }
 
     // Merge MCP configuration fail-closed

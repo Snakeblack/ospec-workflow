@@ -1,0 +1,866 @@
+{
+  "schema": "idd-state/v1",
+  "change": "turn-fence-hosts",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "La valla de fin de turno (E1.49) no cuenta los turnos en el proyecto en Copilot global, Cursor, Codex instalado en el repo y OpenCode de repo sin binario",
+    "acceptance": "Tras instalar en Copilot global, Cursor, Codex de repo y OpenCode de repo, el hook de fin de turno incrementa .ospec/turns del proyecto (no de ~/.copilot, ~/.cursor ni del cwd del proceso), y la matriz de docs/target-capabilities.md refleja qué host cuenta el turno"
+  },
+  "facts": {
+    "open": [
+      "Codex instalado solo en el repo: ¿escribir <repo>/.codex/hooks.json con rutas desde la raíz git (exige proyecto de confianza y revisar los hooks; con instalación global también, los hooks corren dos veces) o solo avisar en el doctor y corregir la doc?",
+      "Cursor con workspace multi-raíz: ¿contar el turno solo en la primera raíz existente de workspace_roots (como Antigravity) o en todas?",
+      "OpenCode instalado en el repo sin binario ospec-hooks: ¿fallar la instalación (required, como la global) o añadir al plugin un fallback a Node?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/target-capabilities.md",
+      "scripts/configure/install-codex.js",
+      "scripts/configure/install-global-copilot.js",
+      "scripts/configure/install-target.js",
+      "scripts/hooks/ospec-hooks-launch.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.js (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components generator, hooks: ADR 0001, 0008, 0010 and quality scenario guard-fail-closed, offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/install-global-copilot.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El árbol generado no cambia: los instaladores resuelven en la instalación la ruta del runtime de los hooks (Copilot global con ruta absoluta, Codex de repo desde la raíz git), como ya hacen los marcadores de shared-dir.js y los placeholders de Cursor y Antigravity"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "El guard sigue siendo el mismo y falla cerrado; ahora corre en Copilot global (antes MODULE_NOT_FOUND), en Codex de repo y en Cursor desde el workspace, y OpenCode de repo deja de instalarse sin el binario que su plugin necesita para decidir"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Instalar sigue sin red ni dependencias: el binario es el ya compilado y el hook de Codex de repo solo llama a git local. OpenCode no tenía respaldo interpretado ya antes (la instalación global ya exigía el binario); el usuario eligió exigirlo también en la de repo en vez de añadir un respaldo Node"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "La valla de turnos y el guard corren en el proyecto en Copilot global, Cursor, Codex de repo y OpenCode de repo; sin red: solo git local y el binario ya distribuido"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "La valla de turnos y el guard corren en el proyecto en Copilot global, Cursor, Codex de repo y OpenCode de repo; sin red: solo git local y el binario ya distribuido"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "La valla de turnos y el guard corren en el proyecto en Copilot global, Cursor, Codex de repo y OpenCode de repo; sin red: solo git local y el binario ya distribuido"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 3,
+      "answer": "lo recomendado: partir PR1 en 1a y 1b; Codex repo escribe <repo>/.codex/hooks.json con rutas desde la raíz git; Cursor cuenta en la primera raíz existente de workspace_roots; OpenCode de repo exige el binario (required)",
+      "source": "user",
+      "resolved_turn": 4
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-30T15:50:58.823Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-30T15:53:39.155Z",
+      "detail": {
+        "tree": "sha256:a3ef6052aa2b916114892654301b0bf0ff2c550a74c0d46a03ca1e532b8e72d3",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-30T15:53:39.155Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:a3ef6052aa2b916114892654301b0bf0ff2c550a74c0d46a03ca1e532b8e72d3",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-30T15:54:07.232Z",
+      "detail": {
+        "run": "run-12",
+        "tree": "sha256:cc9c8a2239a147feae2b5e394333b1d9187d7825e458140a04bedb12a94fa7c8",
+        "plan": "Compatibilidad: reinstalar Copilot global (npm run setup:copilot) reescribe el hooks/hooks.json relativo de una instalación anterior con rutas absolutas, y el árbol generado conserva las relativas para la instalación de repo. La instalación de Codex de repo fusiona sus hooks en un .codex/hooks.json existente sin tocar los del repositorio y converge al repetirse. Vuelta atrás: reinstalar la versión anterior de Copilot reescribe las rutas relativas; en Codex de repo, una versión anterior no borra los hooks gestionados de .codex/hooks.json, así que se quitan a mano (las entradas que nombran ospec-codex-hook.js)."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-30T15:59:07.661Z",
+      "detail": {
+        "lineage_id": "sha256:6b77548ed308db117df7998f075b16061645ba9b36e01f089dfdf62103fc6a55",
+        "candidate_id": "sha256:11a97a219c51b1c1d92ac544176df5ef45a3c878e101dbe11d0d0ce9ff54dc52",
+        "candidate_tree": "622c2e297867b32c415717f21bd5749446d39829",
+        "findings_digest": "sha256:de4a2cfabb671764ee964bcf9cb957cec6f7fd456a5d8d13cbbb74ee35494589",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-30T15:59:00.411Z",
+          "result_digest": "sha256:12c2850fa9a880ed8a1b4922bec843b9cc69f668350ed6df639112e76e315e75"
+        }
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-30T16:01:23.956Z",
+      "detail": {
+        "tree": "sha256:c19be6fb1ad06276083d94983ff492a18f1d208b21e762236bfdec14c8762459",
+        "runs": [
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-30T16:01:23.956Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:c19be6fb1ad06276083d94983ff492a18f1d208b21e762236bfdec14c8762459",
+        "fitness": [
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-30T16:01:32.067Z",
+      "detail": {
+        "run": "run-20",
+        "tree": "sha256:54e1b80106b992deaca758471c4c470f7c98c1bd5cfc5bb7b8a94f4b847ed5bd",
+        "plan": "Compatibilidad: reinstalar Copilot global (npm run setup:copilot) reescribe el hooks/hooks.json relativo de una instalación anterior con rutas absolutas, y el árbol generado conserva las relativas para la instalación de repo. La instalación de Codex de repo fusiona sus hooks en un .codex/hooks.json existente sin tocar los del repositorio y converge al repetirse. Vuelta atrás: reinstalar la versión anterior de Copilot reescribe las rutas relativas; en Codex de repo, una versión anterior no borra los hooks gestionados de .codex/hooks.json, así que se quitan a mano (las entradas que nombran ospec-codex-hook.js)."
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-30T16:05:30.109Z",
+      "detail": {
+        "lineage_id": "sha256:1d2763cd5417e45825d874627d566fbca9c26d33b546a468c2c54089ab332687",
+        "candidate_id": "sha256:9d2b7ac1dc85234c7c40a74babaef74e4bc89906d0cf28fea0b8fa8d2303a486",
+        "candidate_tree": "c8aa7e3a962dab2b199adfeaa54a6ea23a55fd4a",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-30T16:05:20.699Z",
+          "result_digest": "sha256:a0b8c3e4f748f892d9ab2d79c65900d09db29d2694a0497d9c99434962aaf220"
+        }
+      }
+    }
+  ],
+  "base": "3d823431becea560497ba7302a08d4c951641d4f",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"turn in the repository they run from|first workspace root that exists|repository install's hooks count|without the ospec-hooks binary fails\" scripts/configure/install-global-copilot.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/configure/codex-hook-shell.test.js scripts/configure/install-target.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:bebcdb1e8a0cebfbca9d5f7ef70759d5eb7d0bd0c171826bb293af98504229ed",
+      "tree": "sha256:14539cbdfc7dc64edb6bce9915daf36e5a0a4dedbf93adc8269230a88f3c9194",
+      "recorded_at": "2026-10-30T15:48:41.410Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"turn in the repository they run from|first workspace root that exists|repository install's hooks count|without the ospec-hooks binary fails\" scripts/configure/install-global-copilot.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/configure/codex-hook-shell.test.js scripts/configure/install-target.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ee772ae9ebcb963938990b1f912e40520e14f3d0623119650fe161b28666f55d",
+      "tree": "sha256:15e4e93c4352aeb7a55ce40c068fe43fb1d1157c4559be3f1cccb42b89a51385",
+      "recorded_at": "2026-10-30T15:50:58.823Z",
+      "tests": 6,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "3d823431becea560497ba7302a08d4c951641d4f",
+      "mount": "sha256:a93fe3aed5ddbf80eb00e23e6ce0712d462573ce1eeb0ca3160ff117ddad5456",
+      "command": "node --test --test-name-pattern=\"turn in the repository they run from|first workspace root that exists|repository install's hooks count|without the ospec-hooks binary fails\" scripts/configure/install-global-copilot.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/configure/codex-hook-shell.test.js scripts/configure/install-target.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:144102cf09be435a94965fc01cca615099309efb061926a940c2b50d317d9aac",
+      "tree": "sha256:15e4e93c4352aeb7a55ce40c068fe43fb1d1157c4559be3f1cccb42b89a51385",
+      "recorded_at": "2026-10-30T15:50:58.823Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "3d823431becea560497ba7302a08d4c951641d4f",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"turn in the repository they run from|first workspace root that exists|repository install's hooks count|without the ospec-hooks binary fails\" scripts/configure/install-global-copilot.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/configure/codex-hook-shell.test.js scripts/configure/install-target.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b7767674a6d517a423663eada74bfd4c62c628ae3439ac5f80759d33d1eedb87",
+      "tree": "sha256:15e4e93c4352aeb7a55ce40c068fe43fb1d1157c4559be3f1cccb42b89a51385",
+      "recorded_at": "2026-10-30T15:50:58.823Z",
+      "tests": 4
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:43660072d8481a0bf63d58f4607fb32dd7c7435c1815e93d9192610a5b37d662",
+      "tree": "sha256:a3ef6052aa2b916114892654301b0bf0ff2c550a74c0d46a03ca1e532b8e72d3",
+      "recorded_at": "2026-10-30T15:53:39.155Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:60ecfdee7589bfbf148a8ade1effb5f746f6a7833282b1cc7a729801f6a7b512",
+      "tree": "sha256:a3ef6052aa2b916114892654301b0bf0ff2c550a74c0d46a03ca1e532b8e72d3",
+      "recorded_at": "2026-10-30T15:53:39.155Z",
+      "tests": 48
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1c2bc0c438d411bba99e4ecb576052c1aedece8617e658b8794520fc08bebe1d",
+      "tree": "sha256:a3ef6052aa2b916114892654301b0bf0ff2c550a74c0d46a03ca1e532b8e72d3",
+      "recorded_at": "2026-10-30T15:53:39.155Z",
+      "tests": 82
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:a3ef6052aa2b916114892654301b0bf0ff2c550a74c0d46a03ca1e532b8e72d3",
+      "recorded_at": "2026-10-30T15:53:39.155Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0fbca5523812de4da9aa0fb062f55c2422f029ddcab932eafabd3c64cfd1f7dd",
+      "tree": "sha256:a3ef6052aa2b916114892654301b0bf0ff2c550a74c0d46a03ca1e532b8e72d3",
+      "recorded_at": "2026-10-30T15:53:39.155Z",
+      "tests": 22
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:03e5f74cd1bb46937670e181828545914dd873e2ae957517d3c0c06548eb7110",
+      "tree": "sha256:a3ef6052aa2b916114892654301b0bf0ff2c550a74c0d46a03ca1e532b8e72d3",
+      "recorded_at": "2026-10-30T15:53:39.155Z",
+      "tests": 82
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:62084b4e0f0bb96e7f376968f241ac652210d3b779b84603efd811b5d27cf573",
+      "tree": "sha256:a3ef6052aa2b916114892654301b0bf0ff2c550a74c0d46a03ca1e532b8e72d3",
+      "recorded_at": "2026-10-30T15:53:39.155Z",
+      "tests": 48
+    },
+    {
+      "id": "run-12",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"earlier install left|repository install's hooks count\" scripts/configure/install-global-copilot.test.js scripts/configure/codex-hook-shell.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c7115d73c11a4ea82ebfcfd3e1b323b4747534744c56102df5d72b0a55a54389",
+      "tree": "sha256:cc9c8a2239a147feae2b5e394333b1d9187d7825e458140a04bedb12a94fa7c8",
+      "recorded_at": "2026-10-30T15:54:07.232Z",
+      "tests": 4
+    },
+    {
+      "id": "run-13",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a469aa3c9621fea56872f5a8bf15392ffc1e9505622eeb89bc40e0a46496e8dc",
+      "tree": "sha256:c19be6fb1ad06276083d94983ff492a18f1d208b21e762236bfdec14c8762459",
+      "recorded_at": "2026-10-30T16:01:23.956Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0c5330a73a2078684e4c0fd18fcb0d7a888f673b3579ea56872ad25095b6f4b3",
+      "tree": "sha256:c19be6fb1ad06276083d94983ff492a18f1d208b21e762236bfdec14c8762459",
+      "recorded_at": "2026-10-30T16:01:23.956Z",
+      "tests": 48
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ad5b14d546707827efb3c9fc93b0db26fdc653c32ef83cfeec155d50787f588f",
+      "tree": "sha256:c19be6fb1ad06276083d94983ff492a18f1d208b21e762236bfdec14c8762459",
+      "recorded_at": "2026-10-30T16:01:23.956Z",
+      "tests": 82
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:c19be6fb1ad06276083d94983ff492a18f1d208b21e762236bfdec14c8762459",
+      "recorded_at": "2026-10-30T16:01:23.956Z"
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:323d71de937e596258527f2d33844e89fcf39c274167b93381b9492a3e0b2984",
+      "tree": "sha256:c19be6fb1ad06276083d94983ff492a18f1d208b21e762236bfdec14c8762459",
+      "recorded_at": "2026-10-30T16:01:23.956Z",
+      "tests": 22
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c55b5c89410526e3af5066d882923f6cb7d5a96a583189f8db51974740b48e7d",
+      "tree": "sha256:c19be6fb1ad06276083d94983ff492a18f1d208b21e762236bfdec14c8762459",
+      "recorded_at": "2026-10-30T16:01:23.956Z",
+      "tests": 82
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e353795cd8f0d0a8b034478c1d4f02a2e0920236144191b55b92f20f2ed727db",
+      "tree": "sha256:c19be6fb1ad06276083d94983ff492a18f1d208b21e762236bfdec14c8762459",
+      "recorded_at": "2026-10-30T16:01:23.956Z",
+      "tests": 48
+    },
+    {
+      "id": "run-20",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"earlier install left|repository install's hooks count\" scripts/configure/install-global-copilot.test.js scripts/configure/codex-hook-shell.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4188ca4889b54073748fbaa64d76ba955f597ef2927a0343f4500a2045db569e",
+      "tree": "sha256:54e1b80106b992deaca758471c4c470f7c98c1bd5cfc5bb7b8a94f4b847ed5bd",
+      "recorded_at": "2026-10-30T16:01:32.067Z",
+      "tests": 4
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:6b77548ed308db117df7998f075b16061645ba9b36e01f089dfdf62103fc6a55",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "b6985d3acaffafe0ad1289b82dc193a13d3e5120",
+          "candidate_tree": "622c2e297867b32c415717f21bd5749446d39829",
+          "paths": [
+            "README.es.md",
+            "README.md",
+            "docs/plugin-installation.es.md",
+            "docs/plugin-installation.md",
+            "docs/target-capabilities.md",
+            "scripts/configure/codex-hook-shell.test.js",
+            "scripts/configure/install-codex.js",
+            "scripts/configure/install-codex.test.js",
+            "scripts/configure/install-global-copilot.js",
+            "scripts/configure/install-global-copilot.test.js",
+            "scripts/configure/install-target.js",
+            "scripts/configure/install-target.test.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js"
+          ],
+          "diff_hash": "sha256:c01227b7b32d561e2aba32f51f70dc3b73b9ee40b1b784bc6c28f511a0f9b4e5",
+          "paths_digest": "sha256:859456eab08c6f7a7310d56f8dca5253b0c6350b686695781df20be2b935be27",
+          "authored_lines": 285,
+          "original_changed_lines": 329
+        },
+        "candidate_id": "sha256:11a97a219c51b1c1d92ac544176df5ef45a3c878e101dbe11d0d0ce9ff54dc52",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/plugin-installation.es.md",
+          "docs/plugin-installation.md",
+          "docs/target-capabilities.md",
+          "scripts/configure/codex-hook-shell.test.js",
+          "scripts/configure/install-codex.js",
+          "scripts/configure/install-codex.test.js",
+          "scripts/configure/install-global-copilot.js",
+          "scripts/configure/install-global-copilot.test.js",
+          "scripts/configure/install-target.js",
+          "scripts/configure/install-target.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "622c2e297867b32c415717f21bd5749446d39829",
+        "original_changed_lines": 329,
+        "authored_lines": 285
+      },
+      "current_candidate_id": "sha256:11a97a219c51b1c1d92ac544176df5ef45a3c878e101dbe11d0d0ce9ff54dc52",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "b6985d3acaffafe0ad1289b82dc193a13d3e5120",
+        "candidate_tree": "622c2e297867b32c415717f21bd5749446d39829",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/plugin-installation.es.md",
+          "docs/plugin-installation.md",
+          "docs/target-capabilities.md",
+          "scripts/configure/codex-hook-shell.test.js",
+          "scripts/configure/install-codex.js",
+          "scripts/configure/install-codex.test.js",
+          "scripts/configure/install-global-copilot.js",
+          "scripts/configure/install-global-copilot.test.js",
+          "scripts/configure/install-target.js",
+          "scripts/configure/install-target.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "diff_hash": "sha256:c01227b7b32d561e2aba32f51f70dc3b73b9ee40b1b784bc6c28f511a0f9b4e5",
+        "paths_digest": "sha256:859456eab08c6f7a7310d56f8dca5253b0c6350b686695781df20be2b935be27",
+        "authored_lines": 285,
+        "original_changed_lines": 329
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "turn-fence-hosts:lens-start:1:0",
+          "result_digest": "sha256:dba0d97850893ed8a84c9a3ea4dfff0d20b118a03cb568cd655d1c4ab775f7f5",
+          "result": {
+            "findings": [
+              {
+                "severity": "SUGGESTION",
+                "summary": "renderGlobalHooks (install-global-copilot.js:90) rewrites only double-quoted \"scripts/...\" tokens and never checks that nothing relative is left. If a future hook command takes another form (unquoted, a different prefix, a new shell key), the global ~/.copilot/hooks/hooks.json silently keeps a path relative to the user's repository. Copilot then runs that repository's scripts/hooks/ospec-hooks-launch.js as a personal hook, so a cloned malicious repository gets code execution. This change exists to close that exposure, and the Codex counterpart already throws on a leftover marker (install-codex.js:1130). Today all four events in dist/github-copilot/.github/hooks/hooks.json match, so this is a guard against regression, not a current exposure.",
+                "acceptance_criteria": "After rendering, the Copilot global install fails (or refuses to sync hooks/hooks.json) when any bash or powershell command still names a relative scripts/ path. A test with an unrecognised relative command form shows the install failing instead of writing it.",
+                "location": "scripts/configure/install-global-copilot.js:90"
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "The PowerShell quoting (install-global-copilot.js:77) doubles only the ASCII apostrophe. PowerShell also treats the typographic single quotes U+2018, U+2019, U+201A and U+201B as single-quote delimiters. A Windows profile or --dest path containing one (for example C:/Users/O’Neil/.copilot) ends the quoted path early. The hook command then fails to parse, or the rest of the path is read as PowerShell syntax. The bash quoting ('\\'' escape) is correct. The path comes from the installing user's own home or --dest, not from an attacker, so the effect is a broken hook, which includes the preToolUse guard.",
+                "acceptance_criteria": "For a destination path containing U+2018, U+2019, U+201A or U+201B, the rendered powershell command either runs node with the exact installed path or the install refuses with a clear error. It never emits a command that PowerShell parses differently from the intended path.",
+                "location": "scripts/configure/install-global-copilot.js:77"
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "adaptCursorHookInput accepts a cwd candidate with fs.existsSync (ospec-hooks-launch.js:389), so an existing non-directory path (a file) is accepted. The child is then spawned with cwd set to that path (line 622), spawnSync fails with ENOTDIR, and launch() returns launcherFailure (lines 624-628). On Cursor, normalizeCursorHookOutput turns the resulting 'ask' into permission:allow with an advisory (lines 449-456), so the PreToolUse guard is skipped for that call. Before this change the child always ran in a valid directory (~/.cursor), so the guard still evaluated the payload. The payload fields come from Cursor, which reports the real shell directory, so reaching this needs Cursor to pass a non-directory cwd. I did not find that it does, so this is a hardening gap, not a demonstrated bypass.",
+                "acceptance_criteria": "A Cursor pre-tool-use payload whose cwd exists but is not a directory (and a workspace_roots entry that is a file) does not cause a spawn failure. The launcher falls back to the next valid directory, or to its own directory, and the guard still evaluates the call. A unit test with an injected exists/isDirectory check covers it.",
+                "location": "scripts/hooks/ospec-hooks-launch.js:389"
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "The committed <repo>/.codex/hooks.json (install-codex.js:1124-1126) holds a fixed node -e one-liner that, from the git root, require()s the repository-tracked .codex/ospec-workflow/scripts/hooks/ospec-codex-hook.js and the runtime it loads. This adds no new capability: a repository can already ship any hooks.json, and Codex loads it only for a trusted project after /hooks approval. But the approved command text never changes while the code it runs is tracked content that changes with each pull. Assuming approval is bound to the command text (I could not verify Codex's rule), a hook approved once keeps running updated runtime code without a new prompt. The docs describe the approval as if it covered the hooks. Install-time guards are sound: preflightRepoInstall rejects a symlinked .codex/hooks.json or an escaping .codex symlink (install-codex.js:895-912, 1174).",
+                "acceptance_criteria": "The Codex local-install docs (EN and ES) state that approving the hooks in /hooks covers only the command, not the files under .codex/ospec-workflow/, and recommend reviewing changes to that directory after pulling from a repository you do not control.",
+                "location": "scripts/configure/install-codex.js:1124"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "turn-fence-hosts:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-0fd457ee17ab1c85",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "renderGlobalHooks (install-global-copilot.js:90) rewrites only double-quoted \"scripts/...\" tokens and never checks that nothing relative is left. If a future hook command takes another form (unquoted, a different prefix, a new shell key), the global ~/.copilot/hooks/hooks.json silently keeps a path relative to the user's repository. Copilot then runs that repository's scripts/hooks/ospec-hooks-launch.js as a personal hook, so a cloned malicious repository gets code execution. This change exists to close that exposure, and the Codex counterpart already throws on a leftover marker (install-codex.js:1130). Today all four events in dist/github-copilot/.github/hooks/hooks.json match, so this is a guard against regression, not a current exposure.",
+          "acceptance_criteria": "After rendering, the Copilot global install fails (or refuses to sync hooks/hooks.json) when any bash or powershell command still names a relative scripts/ path. A test with an unrecognised relative command form shows the install failing instead of writing it.",
+          "location": "scripts/configure/install-global-copilot.js:90",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-729945eaeb4de217",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "The PowerShell quoting (install-global-copilot.js:77) doubles only the ASCII apostrophe. PowerShell also treats the typographic single quotes U+2018, U+2019, U+201A and U+201B as single-quote delimiters. A Windows profile or --dest path containing one (for example C:/Users/O’Neil/.copilot) ends the quoted path early. The hook command then fails to parse, or the rest of the path is read as PowerShell syntax. The bash quoting ('\\'' escape) is correct. The path comes from the installing user's own home or --dest, not from an attacker, so the effect is a broken hook, which includes the preToolUse guard.",
+          "acceptance_criteria": "For a destination path containing U+2018, U+2019, U+201A or U+201B, the rendered powershell command either runs node with the exact installed path or the install refuses with a clear error. It never emits a command that PowerShell parses differently from the intended path.",
+          "location": "scripts/configure/install-global-copilot.js:77",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-a08c5eaf1f05bd84",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "adaptCursorHookInput accepts a cwd candidate with fs.existsSync (ospec-hooks-launch.js:389), so an existing non-directory path (a file) is accepted. The child is then spawned with cwd set to that path (line 622), spawnSync fails with ENOTDIR, and launch() returns launcherFailure (lines 624-628). On Cursor, normalizeCursorHookOutput turns the resulting 'ask' into permission:allow with an advisory (lines 449-456), so the PreToolUse guard is skipped for that call. Before this change the child always ran in a valid directory (~/.cursor), so the guard still evaluated the payload. The payload fields come from Cursor, which reports the real shell directory, so reaching this needs Cursor to pass a non-directory cwd. I did not find that it does, so this is a hardening gap, not a demonstrated bypass.",
+          "acceptance_criteria": "A Cursor pre-tool-use payload whose cwd exists but is not a directory (and a workspace_roots entry that is a file) does not cause a spawn failure. The launcher falls back to the next valid directory, or to its own directory, and the guard still evaluates the call. A unit test with an injected exists/isDirectory check covers it.",
+          "location": "scripts/hooks/ospec-hooks-launch.js:389",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-2d45c0c75a920190",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "The committed <repo>/.codex/hooks.json (install-codex.js:1124-1126) holds a fixed node -e one-liner that, from the git root, require()s the repository-tracked .codex/ospec-workflow/scripts/hooks/ospec-codex-hook.js and the runtime it loads. This adds no new capability: a repository can already ship any hooks.json, and Codex loads it only for a trusted project after /hooks approval. But the approved command text never changes while the code it runs is tracked content that changes with each pull. Assuming approval is bound to the command text (I could not verify Codex's rule), a hook approved once keeps running updated runtime code without a new prompt. The docs describe the approval as if it covered the hooks. Install-time guards are sound: preflightRepoInstall rejects a symlinked .codex/hooks.json or an escaping .codex symlink (install-codex.js:895-912, 1174).",
+          "acceptance_criteria": "The Codex local-install docs (EN and ES) state that approving the hooks in /hooks covers only the command, not the files under .codex/ospec-workflow/, and recommend reviewing changes to that directory after pulling from a repository you do not control.",
+          "location": "scripts/configure/install-codex.js:1124",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:de4a2cfabb671764ee964bcf9cb957cec6f7fd456a5d8d13cbbb74ee35494589",
+      "correction_budget": {
+        "limit_lines": 165,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:1d2763cd5417e45825d874627d566fbca9c26d33b546a468c2c54089ab332687",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:6b77548ed308db117df7998f075b16061645ba9b36e01f089dfdf62103fc6a55",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "b6985d3acaffafe0ad1289b82dc193a13d3e5120",
+          "candidate_tree": "c8aa7e3a962dab2b199adfeaa54a6ea23a55fd4a",
+          "paths": [
+            "README.es.md",
+            "README.md",
+            "docs/plugin-installation.es.md",
+            "docs/plugin-installation.md",
+            "docs/target-capabilities.md",
+            "scripts/configure/codex-hook-shell.test.js",
+            "scripts/configure/install-codex.js",
+            "scripts/configure/install-codex.test.js",
+            "scripts/configure/install-global-copilot.js",
+            "scripts/configure/install-global-copilot.test.js",
+            "scripts/configure/install-target.js",
+            "scripts/configure/install-target.test.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js"
+          ],
+          "diff_hash": "sha256:0ef6436cdec954bbca281bcd7029a4388bbe16a8478e1d06c768b0b980e2df10",
+          "paths_digest": "sha256:859456eab08c6f7a7310d56f8dca5253b0c6350b686695781df20be2b935be27",
+          "authored_lines": 333,
+          "original_changed_lines": 377
+        },
+        "candidate_id": "sha256:9d2b7ac1dc85234c7c40a74babaef74e4bc89906d0cf28fea0b8fa8d2303a486",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/plugin-installation.es.md",
+          "docs/plugin-installation.md",
+          "docs/target-capabilities.md",
+          "scripts/configure/codex-hook-shell.test.js",
+          "scripts/configure/install-codex.js",
+          "scripts/configure/install-codex.test.js",
+          "scripts/configure/install-global-copilot.js",
+          "scripts/configure/install-global-copilot.test.js",
+          "scripts/configure/install-target.js",
+          "scripts/configure/install-target.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "c8aa7e3a962dab2b199adfeaa54a6ea23a55fd4a",
+        "original_changed_lines": 377,
+        "authored_lines": 333
+      },
+      "current_candidate_id": "sha256:9d2b7ac1dc85234c7c40a74babaef74e4bc89906d0cf28fea0b8fa8d2303a486",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "b6985d3acaffafe0ad1289b82dc193a13d3e5120",
+        "candidate_tree": "c8aa7e3a962dab2b199adfeaa54a6ea23a55fd4a",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/plugin-installation.es.md",
+          "docs/plugin-installation.md",
+          "docs/target-capabilities.md",
+          "scripts/configure/codex-hook-shell.test.js",
+          "scripts/configure/install-codex.js",
+          "scripts/configure/install-codex.test.js",
+          "scripts/configure/install-global-copilot.js",
+          "scripts/configure/install-global-copilot.test.js",
+          "scripts/configure/install-target.js",
+          "scripts/configure/install-target.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "diff_hash": "sha256:0ef6436cdec954bbca281bcd7029a4388bbe16a8478e1d06c768b0b980e2df10",
+        "paths_digest": "sha256:859456eab08c6f7a7310d56f8dca5253b0c6350b686695781df20be2b935be27",
+        "authored_lines": 333,
+        "original_changed_lines": 377
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "turn-fence-hosts:lens-start:2:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "turn-fence-hosts:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 189,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-30T16:05:36.305Z"
+}

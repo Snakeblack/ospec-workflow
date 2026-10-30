@@ -337,7 +337,7 @@ Los hooks descargan del prompt tareas repetitivas del ciclo de vida y aplican po
 | `PostToolUse` | Censura los secretos de la salida de las herramientas antes de que la vea el modelo. |
 | `PreCompact` | Persiste un resumen recuperable antes de compactar contexto. |
 | `SubagentStop` | Registra telemetría (tokens y duración) por agente y, para los agentes `sdd-*` del cambio SDD activo, persiste su resultado en su `state.yaml`. Avisa si la resolución de skills se degrada y nunca bloquea el turno. |
-| `Stop` | Registra la continuidad mínima de la sesión. |
+| `Stop` | Cuenta el fin del turno en `.ospec/turns`, que sirve de valla a las respuestas de los gates IDD (E1.49), y registra la continuidad mínima de la sesión. |
 
 ### Variables de Entorno de Bypass (Harness Gates)
 

@@ -394,10 +394,18 @@ function main(argv, deps = {}) {
     return;
   }
 
-  // Copy the platform binary into the generated tree before syncing. This is
-  // best-effort: if the binary is absent (pre-CI dev), a warning is printed and
-  // the rest of the sync proceeds normally.
-  copyBinaryToTree(outDir, args.target, sourceDir, deps);
+  // Copy the platform binary into the generated tree before syncing. Copilot's
+  // hooks fall back to Node, so for it this is best-effort: an absent binary
+  // (pre-CI dev) only warns. OpenCode's plugin runs nothing but the binary:
+  // without it every tool is blocked and no turn end is counted (E1.49), so an
+  // install requires it, as the global one does; a dry run only warns.
+  try {
+    copyBinaryToTree(outDir, args.target, sourceDir, { ...deps, required: args.target === "opencode" && !args.dryRun });
+  } catch (error) {
+    stderr.write(`\n${error.message}\nnothing synced\n`);
+    exitCodeTarget.exitCode = 2;
+    return;
+  }
 
   // Copy each top-level generated entry (including dotfiles) into the dest root,
   // overwriting same-path files. force:true replaces; recursive walks dirs.
