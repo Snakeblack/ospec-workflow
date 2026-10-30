@@ -7,8 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.168.0] - 2026-10-30
+
 ### Added
-- delivery en idd/config.yaml puede declarar una rama de integración (dev) separada de producción (main): las ramas de trabajo salen de ella y sus PR van a ella, cada paso a producción es una versión con tag, release/x.y es una preproducción opcional que vuelve a la integración, y la versión se propone al promover, no en cada fusión (#458) (delivery-integration-branch)
+- **Rama de integración en la entrega** (delivery-integration-branch, #458). `delivery` en `idd/config.yaml` solo sabía de una rama: las ramas de trabajo salían de la rama por defecto y cada fusión proponía su versión. Un proyecto que integra en `dev` y solo lleva a producción lo que ya se puede usar declara ahora `integration_branch`, y si quiere `production_branch`, que por defecto es la rama por defecto del repositorio.
+  - Las ramas de trabajo salen de la rama de integración y sus PR van a ella, igual con `serial` que con `parallel`. Producción solo recibe fusiones de la integración o de una `release/x.y`, cada una una versión con su tag y sin reescribir la historia publicada. `release/x.y` es una preproducción opcional, con `x.y.z-rc.N`, que se fusiona en producción y de vuelta en la integración.
+  - La versión se propone al promover a producción o al cortar una `release/x.y`, no en cada fusión: `release` se resuelve a `batched`, lo recomendado si no se declara, y el commit de release llega a la integración fusionando de vuelta, así que el snapshot v3 ve la producción.
+  - `ospec next` y `ospec team` añaden `integration` con sus reglas, y `ospec close` devuelve el bloque `delivery` de `next` en lugar de proponer una versión. ospec sigue sin leer git: es solo guía.
+  - `config-invalid` rechaza una rama vacía o que `git check-ref-format --branch` no aceptaría (comprobado sin ejecutar git), la misma rama en integración y producción, `production_branch` sin `integration_branch` y `release: per-change` con rama de integración. Sin `integration_branch`, la salida de `next`, `close` y `team` no cambia.
+- **Contrato:** REQ-idd-013, REQ-idd-023 (con un escenario nuevo) y REQ-idd-025 recogen las claves, sus errores y la salida, y `docs/README.md` explica la estrategia.
+
+Hecho con IDD (`idd/archive/2026-10-30-delivery-integration-branch/`).
+
+**Verificación directa**: `node scripts/check.js` (4312 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.167.0] - 2026-10-29
 
