@@ -167,8 +167,8 @@ without asking.
 changelog `delivery.changelog` declares, and leaves the rest of the tree as it
 is. Branches, commits, pull requests and releases are the user's decision;
 propose the `team.delivery_strategy` of `next`, and the `delivery` it returns
-when the work starts and at close: its `branching`, `changelog` and `release`,
-why each fits (`reasons`) and the rules to follow (`how`). With a
+when the work starts and at close: each of its options, why it fits
+(`reasons`) and the rules to follow (`how`). With a
 `*-undeclared` suggestion, propose that value and its reasons once, and write
 it under `delivery` in `idd/config.yaml` only after approval, keeping the
 rest. Propose the `release` of `close` after the merge, ask whether it breaks

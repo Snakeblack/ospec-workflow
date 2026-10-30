@@ -76,10 +76,19 @@ function parseChecks(lines) {
   });
 }
 
-const DELIVERY_KEYS = Object.freeze(["branching", "changelog", "release"]);
+const DELIVERY_KEYS = Object.freeze(["branching", "changelog", "release", "integration_branch", "production_branch"]);
+const NO_DELIVERY = Object.freeze({ branching: null, changelog: null, release: null, integration_branch: null, production_branch: null });
 
 function describeGot(value) {
   return typeof value === "string" ? value : "nothing";
+}
+
+// A branch name git accepts (git check-ref-format --branch), checked without
+// running git: the delivery rules name it.
+function validBranch(value) {
+  if (typeof value !== "string" || value === "" || value === "@" || value.startsWith("-") || value.endsWith(".")) return false;
+  if (/[\x00-\x20\x7f~^:?*[\\]|\.\.|@\{/.test(value)) return false;
+  return value.split("/").every((part) => part !== "" && !part.startsWith(".") && !part.endsWith(".lock"));
 }
 
 // The changelog close writes to: `none`, or a relative path that stays inside
@@ -90,15 +99,29 @@ function validChangelog(value) {
   return !/^[\\/]|^[A-Za-z]:|\\/.test(value) && !value.split("/").some((part) => part === "" || part === "." || part === "..");
 }
 
-// How changes reach the default branch, what they leave in the changelog and
-// when a version is cut (REQ-idd-023): explicit choices that win over the team
-// profile.
+// How changes reach the default branch, or the integration branch that sits
+// apart from production, what they leave in the changelog and when a version
+// is cut (REQ-idd-023): explicit choices that win over the team profile.
 function parseDelivery(lines) {
   const section = parseSection("delivery", lines);
   for (const key of Object.keys(section)) {
     if (!DELIVERY_KEYS.includes(key)) throw new IddConfigError(`unknown delivery key: ${key}`);
   }
-  const { branching = null, changelog = null, release = null } = section;
+  const { branching = null, changelog = null, release = null, integration_branch = null, production_branch = null } = section;
+  for (const [key, value] of [["integration_branch", integration_branch], ["production_branch", production_branch]]) {
+    if (value !== null && !validBranch(value)) throw new IddConfigError(`delivery.${key} must be a branch name git accepts, got ${describeGot(value)}`);
+  }
+  if (production_branch !== null && integration_branch === null) {
+    throw new IddConfigError("delivery.production_branch needs delivery.integration_branch");
+  }
+  if (integration_branch !== null && integration_branch === production_branch) {
+    throw new IddConfigError(`delivery.integration_branch must differ from delivery.production_branch, got ${integration_branch} for both`);
+  }
+  // Each promotion to production is a version, never each merge into the
+  // integration branch.
+  if (integration_branch !== null && release === "per-change") {
+    throw new IddConfigError("delivery.release must be batched or none with delivery.integration_branch, got per-change");
+  }
   if (branching !== null && !BRANCHING_VALUES.includes(branching)) {
     throw new IddConfigError(`delivery.branching must be ${BRANCHING_VALUES.join(" or ")}, got ${describeGot(branching)}`);
   }
@@ -108,7 +131,7 @@ function parseDelivery(lines) {
   if (release !== null && !RELEASE_VALUES.includes(release)) {
     throw new IddConfigError(`delivery.release must be ${RELEASE_VALUES.join(", ")}, got ${describeGot(release)}`);
   }
-  return { branching, changelog, release };
+  return { branching, changelog, release, integration_branch, production_branch };
 }
 
 function parseBoolean(key, value) {
@@ -154,7 +177,7 @@ function parseIddConfig(text) {
   }
   // An explicit strict_tdd wins; without it the team profile decides (REQ-idd-023).
   const strictTdd = "strict_tdd" in raw ? parseBoolean("strict_tdd", raw.strict_tdd) : team ? teamDefaults(team).strict_tdd : false;
-  const delivery = raw.delivery ? parseDelivery(raw.delivery.lines) : { branching: null, changelog: null, release: null };
+  const delivery = raw.delivery ? parseDelivery(raw.delivery.lines) : { ...NO_DELIVERY };
   const checks = raw.checks ? parseChecks(raw.checks.lines) : [];
   const impact = raw.impact ? validateImpact(parseSection("impact", raw.impact.lines)) : {};
   let contracts = {};

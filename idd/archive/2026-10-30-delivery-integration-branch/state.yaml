@@ -1,0 +1,490 @@
+{
+  "schema": "idd-state/v1",
+  "change": "delivery-integration-branch",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "Issue #458 (Empiezo ya la #458 en IDD: A). Aceptar si: idd/config.yaml puede declarar la rama de integración, y ospec next y ospec close dan su guía: rama de trabajo, destino del PR, cuándo se propone la versión, release/x.y y la fusión de vuelta. Sin declararla, la salida de ospec next, ospec close y ospec team no cambia. Un valor no válido (una rama de integración igual a la de producción o vacía) se rechaza al leer la configuración, con su error. Tests del parser de configuración y de la guía de entrega, y la documentación (docs/README.md) con la estrategia.",
+    "kind": "feature",
+    "summary": "delivery en idd/config.yaml puede declarar una rama de integración (dev) separada de producción (main): las ramas de trabajo salen de ella y sus PR van a ella, cada paso a producción es una versión con tag, release/x.y es una preproducción opcional que vuelve a la integración, y la versión se propone al promover, no en cada fusión (#458)",
+    "acceptance": "Con la rama de integración declarada, ospec next y ospec close dan su guía (rama de trabajo, destino del PR, cuándo se propone la versión, release/x.y y la fusión de vuelta); sin declararla, la salida de ospec next, ospec close y ospec team no cambia; un valor no válido (vacío o igual a la rama de producción) se rechaza al leer idd/config.yaml con config-invalid; tests del parser y de la guía, y docs/README.md con la estrategia"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿La rama de integración se declara con una clave nueva `delivery.integration_branch: dev`, combinable con `branching: serial|parallel`, más `delivery.production_branch` opcional (sin ella, la rama por defecto del repositorio, sin nombrarla); con `production_branch` obligatoria junto a ella; o con un valor nuevo de `branching`?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿Qué nombres acepta `integration_branch` (y `production_branch`): solo no vacío y distinto de producción, comparado exacto (`Dev` distinto de `dev`, como git), o además las reglas de `git check-ref-format` sin ejecutar git (sin espacios, `..`, `~^:?*[\\`, `@{`, `/` inicial o final, ni `.lock` final)?"
+      },
+      {
+        "category": "persistence",
+        "question": "¿`ospec close` sigue sin leer git (la guía no lee estado de git ni de PR, REQ-idd-023), o lee la rama actual con `git rev-parse --abbrev-ref HEAD` y avisa si cierra en la rama de integración o en la de producción?"
+      },
+      {
+        "category": "copy",
+        "question": "¿`ospec close` devuelve un bloque `delivery` con la guía de la rama de integración (destino del PR, versión al promover, `release/x.y` y fusión de vuelta) solo cuando está declarada, o esa guía sale solo en `ospec next` en el paso `close`?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 2114
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 1494
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Con `integration_branch` declarada, ¿qué `release` vale: `batched`, que propone la versión al pasar a producción o a `release/x.y`, con `release: per-change` rechazado con `config-invalid` y `batched` como recomendado; o un valor nuevo `per-promotion`, válido solo con rama de integración?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/README.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/fixtures/context-baseline.json",
+      "scripts/lib/idd-config.js",
+      "scripts/lib/idd-config.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/team-profile.js",
+      "scripts/lib/team-profile.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "delivery.integration_branch es una clave nueva, combinable con branching serial o parallel, y delivery.production_branch es opcional: sin ella la guía habla de la rama por defecto sin nombrarla (respuesta del usuario: «todas las recomendadas»)",
+      "Un nombre de rama se acepta si no está vacío, es distinto de producción con comparación exacta y cumple las reglas de git check-ref-format, comprobadas sin ejecutar git",
+      "Con rama de integración, release vale batched: la versión se propone al promover a producción o a release/x.y; release per-change junto a integration_branch se rechaza con config-invalid, y sin release declarado se recomienda batched",
+      "ospec close no lee git; con integration_branch declarada devuelve el bloque delivery de ospec next (branching, changelog, release e integration) y sin ella su salida no cambia",
+      "El how del branching nombra la rama de la que salen las ramas de trabajo: la rama de integración declarada, o la rama por defecto como hasta ahora"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/lib/idd-config.js and 1 more (matches scripts/lib/idd-config.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine: ADR 0003, 0004, 0005, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La guía de la rama de integración (validación de nombres, release batched al promover, reglas de integration) la calcula el CLI en team-profile.js e idd-config.js, con tests; la skill solo remite al delivery que devuelve next y close"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia las señales ni las obligaciones que deriva el impacto"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "close sigue negándose con obligaciones o gates pendientes; solo añade el bloque delivery a su resultado"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo biblioteca estándar: los nombres de rama se validan con expresiones regulares, sin ejecutar git ni añadir dependencias"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "Solo IDD lee delivery.integration_branch y delivery.production_branch de idd/config.yaml; SDD no las lee, con test en team-profile.test.js"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "next, close y team derivan la guía solo de idd/config.yaml, sin estado de git ni de PR, así que reanudar da la misma respuesta"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "No añade llamadas de red ni de git: close sigue sin leer la rama actual"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones ni lo que decide"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "La validación de nombres y la guía de integration se calculan en scripts/lib/idd-config.js y scripts/lib/team-profile.js, con tests en scripts/lib/idd-config.test.js, team-profile.test.js y scripts/ospec.test.js; skills/idd/SKILL.md solo remite a las opciones del delivery que devuelven next y close, sin reimplementar la regla",
+      "recorded_at": "2026-10-30T12:12:43.635Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "git diff de scripts/ y skills/ no añade require, child_process, spawn, exec, fetch ni http; close sigue sin leer git y la guía sale solo de idd/config.yaml, así que next, check y close dan lo mismo sin red",
+      "recorded_at": "2026-10-30T12:12:43.792Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": null,
+      "answer": "todas las recomendadas",
+      "source": "user-unverified",
+      "resolved_turn": null,
+      "declared_source": "user",
+      "unverified_reason": "no turn count in .ospec/turns: no end-of-turn hook ran in this workspace"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-30T12:12:13.158Z",
+      "detail": {
+        "run": "run-9",
+        "tree": "sha256:35655eee7c15e5b2c2ef433736986deff2b9c8d206411944739fa20b992b74e8",
+        "plan": "Aditivo: idd/config.yaml gana delivery.integration_branch y delivery.production_branch, opcionales. Una configuración sin ellas se lee igual (las dos a null) y next, close y team devuelven lo mismo; un ospec anterior rechaza las claves nuevas con config-invalid (unknown delivery key), así que un proyecto que las declare necesita esta versión. Rollback: quitar las dos claves de idd/config.yaml."
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-30T12:14:06.927Z",
+      "detail": {
+        "tree": "sha256:3181d5b656fbb013206bc58eeb978ba18d139d28cc4c98bbf958b71c92861ba3",
+        "runs": [
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-30T12:14:06.927Z",
+      "detail": {
+        "tree": "sha256:3181d5b656fbb013206bc58eeb978ba18d139d28cc4c98bbf958b71c92861ba3",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-30T12:14:06.927Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "adr:0006 none"
+        ],
+        "records": [],
+        "tree": "sha256:3181d5b656fbb013206bc58eeb978ba18d139d28cc4c98bbf958b71c92861ba3",
+        "fitness": [
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-30T12:14:20.798Z"
+    }
+  ],
+  "base": "cae4c428f5fa6378a99b5758e9fff959dbbaa33f",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:25fbf58f4a0567e6ea99fb7edca79ecd0f520fb7778852bc0fa8925f0cf0731b",
+      "tree": "sha256:a40253daae10d503fa913d9a5d0fa66be3edf75715da4dd8df8580a37c10197f",
+      "recorded_at": "2026-10-30T12:11:40.580Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f309ff04b13f47f6e32db32569fd4a2781951072486e11065eba9e539a3977c2",
+      "tree": "sha256:a40253daae10d503fa913d9a5d0fa66be3edf75715da4dd8df8580a37c10197f",
+      "recorded_at": "2026-10-30T12:11:40.580Z",
+      "tests": 52
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:88370b2e9ba45f6de93ae57ee3a58aa3a985094d9f164ab88313dc04a0378c92",
+      "tree": "sha256:a40253daae10d503fa913d9a5d0fa66be3edf75715da4dd8df8580a37c10197f",
+      "recorded_at": "2026-10-30T12:11:40.580Z",
+      "tests": 18
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:a40253daae10d503fa913d9a5d0fa66be3edf75715da4dd8df8580a37c10197f",
+      "recorded_at": "2026-10-30T12:11:40.580Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:049b6fa0043d2c1e84eaa032015f22cd6021fe575defe13ae025706821951d4a",
+      "tree": "sha256:a40253daae10d503fa913d9a5d0fa66be3edf75715da4dd8df8580a37c10197f",
+      "recorded_at": "2026-10-30T12:11:40.580Z",
+      "tests": 22
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a750955b6e0cf033e93b49a412999a1241b479b883c6c127647408b4676cbd51",
+      "tree": "sha256:a40253daae10d503fa913d9a5d0fa66be3edf75715da4dd8df8580a37c10197f",
+      "recorded_at": "2026-10-30T12:11:40.580Z",
+      "tests": 85
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:96754b45ab442c9c74cfe9192c7e9c6265910b1ff3eecea89c8fd1916a41bce8",
+      "tree": "sha256:a40253daae10d503fa913d9a5d0fa66be3edf75715da4dd8df8580a37c10197f",
+      "recorded_at": "2026-10-30T12:11:40.580Z",
+      "tests": 52
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f8524b401c7d336556d9fbc7bef81fe440b94c977ef01cf0d8e7ee82601fac5d",
+      "tree": "sha256:a40253daae10d503fa913d9a5d0fa66be3edf75715da4dd8df8580a37c10197f",
+      "recorded_at": "2026-10-30T12:11:40.580Z",
+      "tests": 2
+    },
+    {
+      "id": "run-9",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-config.test.js scripts/lib/team-profile.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f64a6a8ad3000526f0c1fb39aa1ca7147c73e3540253e009f4a6e0eb729b9130",
+      "tree": "sha256:35655eee7c15e5b2c2ef433736986deff2b9c8d206411944739fa20b992b74e8",
+      "recorded_at": "2026-10-30T12:12:13.158Z",
+      "tests": 23
+    },
+    {
+      "id": "run-10",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8124366a48994897b153a44151000440008f68405412d4f8d1e392a7e4942847",
+      "tree": "sha256:3181d5b656fbb013206bc58eeb978ba18d139d28cc4c98bbf958b71c92861ba3",
+      "recorded_at": "2026-10-30T12:14:06.927Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e205965af204c9c094f190b1aed9d2d4590eaa2d05a0e63292dde6f3d55f2b81",
+      "tree": "sha256:3181d5b656fbb013206bc58eeb978ba18d139d28cc4c98bbf958b71c92861ba3",
+      "recorded_at": "2026-10-30T12:14:06.927Z",
+      "tests": 52
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8fa190291e8130c5029a346a992ca0ff41173b599a981ae07603f04b9139dcd4",
+      "tree": "sha256:3181d5b656fbb013206bc58eeb978ba18d139d28cc4c98bbf958b71c92861ba3",
+      "recorded_at": "2026-10-30T12:14:06.927Z",
+      "tests": 18
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:3181d5b656fbb013206bc58eeb978ba18d139d28cc4c98bbf958b71c92861ba3",
+      "recorded_at": "2026-10-30T12:14:06.927Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a14e51d979771db919ed04d6aab0371c36b2b8a1bd6fde168f97ee6558073130",
+      "tree": "sha256:3181d5b656fbb013206bc58eeb978ba18d139d28cc4c98bbf958b71c92861ba3",
+      "recorded_at": "2026-10-30T12:14:06.927Z",
+      "tests": 22
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:95917b1b4e43ada9ebf65091918e3b60561e049ced4489af80379f10ddb1a7b0",
+      "tree": "sha256:3181d5b656fbb013206bc58eeb978ba18d139d28cc4c98bbf958b71c92861ba3",
+      "recorded_at": "2026-10-30T12:14:06.927Z",
+      "tests": 85
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0d61dc47f0516a0e9892aa8d7da67ecc7fb52092546af56805eacc6b6fda2d12",
+      "tree": "sha256:3181d5b656fbb013206bc58eeb978ba18d139d28cc4c98bbf958b71c92861ba3",
+      "recorded_at": "2026-10-30T12:14:06.927Z",
+      "tests": 52
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:002dedd75d83691441c7681733f29ecf9c91549df7569a032d098fb8d15169b3",
+      "tree": "sha256:3181d5b656fbb013206bc58eeb978ba18d139d28cc4c98bbf958b71c92861ba3",
+      "recorded_at": "2026-10-30T12:14:06.927Z",
+      "tests": 2
+    }
+  ],
+  "assumptions": [
+    "delivery.production_branch sin delivery.integration_branch se rechaza con config-invalid: sin rama de integración no significa nada"
+  ],
+  "closed_at": "2026-10-30T12:14:20.798Z"
+}

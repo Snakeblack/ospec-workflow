@@ -22,23 +22,30 @@ const BY_SIZE = Object.freeze({
 const MENTORSHIP = Object.freeze({ junior: "mentor", mixed: "balanced", senior: "expert" });
 const REVIEW_BUDGET_LINES = 400;
 
-// How a change reaches the default branch: why each value fits and the rules
-// the agent follows. Guidance only: no git or pull request state is read.
+// The branch work branches start from and merge into: the default branch, or
+// the integration branch idd/config.yaml declares.
+function baseBranch(integration) {
+  if (!integration) return { name: "default branch", a: "a default branch" };
+  return { name: `integration branch ${integration}`, a: `the integration branch ${integration}` };
+}
+
+// How a change reaches its base branch: why each value fits and the rules the
+// agent follows. Guidance only: no git or pull request state is read.
 const BRANCHING = Object.freeze({
-  serial: {
+  serial: (base) => ({
     reasons: [
       "one pull request is in flight at a time, so the files every change touches (version, changelog) never conflict",
-      "each branch starts from a default branch that already holds the previous merge",
+      `each branch starts from ${base.a} that already holds the previous merge`,
     ],
-    how: "before a new branch, merge the open pull request, with its release when the project cuts one per change; branch from the up-to-date default branch; if it moved, integrate it by merge, never by rewriting pushed history; delete the branch after its merge",
-  },
-  parallel: {
+    how: `before a new branch, merge the open pull request, with its release when the project cuts one per change; branch from the up-to-date ${base.name}; if it moved, integrate it by merge, never by rewriting pushed history; delete the branch after its merge`,
+  }),
+  parallel: (base) => ({
     reasons: [
       "several people deliver at once, and a single queue of pull requests would block them",
-      "conflicts stay small because each branch integrates the default branch before its merge",
+      `conflicts stay small because each branch integrates the ${base.name} before its merge`,
     ],
-    how: "branch from the up-to-date default branch; before each merge, integrate the default branch by merge, never by rewriting pushed history; edit version and changelog last; delete the branch after its merge",
-  },
+    how: `branch from the up-to-date ${base.name}; before each merge, integrate the ${base.name} by merge, never by rewriting pushed history; edit version and changelog last; delete the branch after its merge`,
+  }),
 });
 const BRANCHING_VALUES = Object.freeze(Object.keys(BRANCHING));
 
@@ -65,6 +72,41 @@ const RELEASE = Object.freeze({
 });
 const RELEASE_VALUES = Object.freeze(Object.keys(RELEASE));
 
+// The production branch the rules name: the declared one, or the default
+// branch.
+function productionName(production) {
+  return production ?? "the default branch";
+}
+
+// With an integration branch a version is cut on each promotion to
+// production, never on each merge into it (#458).
+function promotedRelease({ integration, production }) {
+  const prod = productionName(production);
+  return {
+    reasons: [`${integration} gathers the merged changes, and each promotion to ${prod} cuts one version for them`],
+    how: `entries accumulate under [Unreleased] of ${integration}; propose a release when ${integration} is promoted to ${prod} or a release/x.y is cut from it, a minor when it holds an Added entry and else a patch; ask whether it breaks compatibility, which makes it a major, and cut it only with the user's OK`,
+  };
+}
+
+// How the integration branch, production and an optional release/x.y relate:
+// guidance only, like the branching.
+function integrationGuidance({ integration, production }) {
+  const prod = productionName(production);
+  return {
+    reasons: [
+      `${integration} gathers the merged work, and ${prod} receives only what is ready to use`,
+      `a version is cut on each promotion to ${prod}, not on each merge into ${integration}`,
+    ],
+    how: [
+      `work branches start from the up-to-date ${integration} and their pull requests target ${integration}; ospec close runs on the work branch, and its entry reaches [Unreleased] of ${integration} with the merge`,
+      `the commit that opens a change so its phase shows in progress, holding only idd/<change>/, goes to ${integration}`,
+      `${prod} receives merges only from ${integration} or a release/x.y, each one a version with its tag even with phases pending, never rewriting published history`,
+      `a release/x.y is optional pre-production: it starts from ${integration}, takes only fixes, may carry x.y.z-rc.N versions, merges into ${prod} with its tag and back into ${integration}, and is then deleted`,
+      `the release commit that moves [Unreleased] under the version reaches ${integration} by merging ${prod} or the release/x.y back into it`,
+    ].join("; "),
+  };
+}
+
 // The value without a profile or a declaration, and why it is recommended.
 const RECOMMENDED = Object.freeze({
   branching: { value: "serial", why: "serial cannot conflict" },
@@ -72,9 +114,9 @@ const RECOMMENDED = Object.freeze({
   release: { value: "per-change", why: "a release per change keeps each version to one change" },
 });
 const GUIDANCE = Object.freeze({
-  branching: (value) => BRANCHING[value],
+  branching: (value, context) => BRANCHING[value](baseBranch(context.integration)),
   changelog: changelogGuidance,
-  release: (value) => RELEASE[value],
+  release: (value, context) => (value === "batched" && context.integration ? promotedRelease(context) : RELEASE[value]),
 });
 
 class TeamProfileError extends Error {
@@ -147,19 +189,22 @@ function legacyScale(scale) {
 
 // One delivery key of a project (branching, changelog or release): an explicit
 // `delivery.<key>` wins over the profile, and without either the recommended
-// value applies. Each answer carries its reasons and its rules.
-function resolveDelivery(key, declared, profile) {
+// value applies; with an integration branch only batched fits the release.
+// Each answer carries its reasons and its rules.
+function resolveDelivery(key, declared, profile, context) {
   let { value } = RECOMMENDED[key];
   let source = "recommended";
   let why = `no team profile or delivery.${key} is declared, and ${RECOMMENDED[key].why}`;
   if (declared) [value, source, why] = [declared, "idd/config.yaml", `delivery.${key} is declared in idd/config.yaml`];
-  else if (profile) [value, source, why] = [BY_SIZE[profile.size][key], "team profile", `team.size ${profile.size} recommends it`];
-  const { reasons, how } = GUIDANCE[key](value);
+  else if (key === "release" && context.integration) {
+    [value, why] = ["batched", "delivery.integration_branch is declared, and batched cuts a version on each promotion"];
+  } else if (profile) [value, source, why] = [BY_SIZE[profile.size][key], "team profile", `team.size ${profile.size} recommends it`];
+  const { reasons, how } = GUIDANCE[key](value, context);
   return { value, source, reasons: [why, ...reasons], how };
 }
 
 /**
- * @param {{ idd?: { mode: string|null, team: object|null, delivery?: { branching: string|null, changelog: string|null, release: string|null } }|null, openspecText?: string|null, mode?: "idd"|"sdd"|null }} sources
+ * @param {{ idd?: { mode: string|null, team: object|null, delivery?: { branching: string|null, changelog: string|null, release: string|null, integration_branch?: string|null, production_branch?: string|null } }|null, openspecText?: string|null, mode?: "idd"|"sdd"|null }} sources
  * `idd` is the parsed idd/config.yaml; null means that file is absent, as a
  * null text does. `mode` reads one mode's declaration whatever mode is active.
  */
@@ -176,15 +221,28 @@ function resolveTeam({ idd = null, openspecText = null, mode: requested = null }
   }
   // Only IDD reads delivery: SDD keeps its own configuration.
   const declared = (key) => (mode === "idd" ? (idd?.delivery?.[key] ?? null) : null);
-  return {
+  const context = { integration: declared("integration_branch"), production: declared("production_branch") };
+  const result = {
     mode,
     profile,
     source,
     defaults: profile ? teamDefaults(profile) : null,
-    branching: resolveDelivery("branching", declared("branching"), profile),
-    changelog: resolveDelivery("changelog", declared("changelog"), profile),
-    release: resolveDelivery("release", declared("release"), profile),
+    branching: resolveDelivery("branching", declared("branching"), profile, context),
+    changelog: resolveDelivery("changelog", declared("changelog"), profile, context),
+    release: resolveDelivery("release", declared("release"), profile, context),
   };
+  // Only a declared integration branch adds its rules.
+  if (context.integration) {
+    const { reasons, how } = integrationGuidance(context);
+    result.integration = {
+      value: context.integration,
+      production: context.production,
+      source: "idd/config.yaml",
+      reasons: ["delivery.integration_branch is declared in idd/config.yaml", ...reasons],
+      how,
+    };
+  }
+  return result;
 }
 
 module.exports = {

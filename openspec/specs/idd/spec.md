@@ -979,8 +979,9 @@ absent every key takes its default. Its top-level keys MUST be only `mode`
 (`idd` or `sdd`, the project mode of REQ-idd-001; absent means none),
 `strict_tdd` (`true` or `false`; absent, the team profile decides it and,
 without a profile, `false`), `team` (the team profile of REQ-idd-023),
-`delivery` (the `branching` of REQ-idd-023 and the `changelog` and `release`
-of REQ-idd-025; absent, the profile decides or recommends them), `checks` (the checks
+`delivery` (the `branching`, `integration_branch` and `production_branch` of
+REQ-idd-023 and the `changelog` and `release` of REQ-idd-025; absent, the
+profile decides or recommends them), `checks` (the checks
 `ospec check` runs, as `name: command` in declared order, REQ-idd-014; absent
 means none), `impact` (the impact section of REQ-idd-012) and `contracts`
 (where contract documents and their tests live, REQ-idd-015). An unknown or repeated key, a value outside its
@@ -2101,7 +2102,37 @@ default branch before each merge. `delivery.branching` in `idd/config.yaml`
 (`serial` or `parallel`; another key under `delivery` or another value MUST be
 refused with `config-invalid`) MUST win over the profile, and without either
 the branching MUST be `serial` with source `recommended`. SDD MUST NOT read
-`delivery`. The resolved branching MUST carry its `source` (`idd/config.yaml`,
+`delivery`.
+
+A project that integrates apart from production MAY declare
+`delivery.integration_branch` (for example `dev`), with either branching, and
+`delivery.production_branch` (absent, production is the repository's default
+branch, which the rules do not name). Each MUST be a branch name git accepts
+(`git check-ref-format --branch`), checked without running git: not empty,
+without spaces, control characters, `..`, `~`, `^`, `:`, `?`, `*`, `[`, `\`
+or `@{`, not `@`, not starting with `-`, not ending with `.`, and with no
+empty component, component starting with `.` or component ending with
+`.lock`. An integration branch equal to the production branch, compared
+exactly, a `production_branch` without `integration_branch` and `release:
+per-change` with `integration_branch` MUST be refused with `config-invalid`.
+With an integration branch, the branching rules MUST name it where they named
+the default branch, the release MUST resolve to `batched` when
+`delivery.release` is not declared, with source `recommended`, and `batched`
+MUST propose the version when the integration branch is promoted to
+production or a `release/x.y` is cut from it. The resolved delivery MUST then
+add `integration`: its `value`, its `production` (null when not declared),
+its `source` (`idd/config.yaml`), its `reasons` and its `how`: work branches
+start from the integration branch and their pull requests target it; `ospec
+close` runs on the work branch; the commit that opens a change so its phase
+shows in progress goes to the integration branch; production receives merges
+only from the integration branch or a `release/x.y`, each one a version with
+its tag, without rewriting published history; a `release/x.y` is optional
+pre-production that starts from the integration branch, takes only fixes,
+may carry `x.y.z-rc.N` versions, merges into production with its tag and back
+into the integration branch, and is then deleted; and the release commit
+reaches the integration branch by merging production or the `release/x.y`
+back. Without `delivery.integration_branch` nothing here applies, and `ospec
+next`, `ospec close` and `ospec team` MUST return what they returned before. The resolved branching MUST carry its `source` (`idd/config.yaml`,
 `team profile` or `recommended`), its `reasons` (why it fits, the source first)
 and `how` (the rules the agent follows: none rewrites pushed history, and
 every value deletes the branch after its merge). It MUST be guidance only: no
@@ -2113,7 +2144,7 @@ makes `ospec close` act; the profile and the recommendation only advise.
 
 `ospec team [--mode <idd|sdd>] [--json]` MUST be read-only and MUST return
 the mode, the profile, its `source`, its `defaults`, the `branching`, the
-`changelog` and the `release`. Without `--mode` the
+`changelog`, the `release` and, when declared, the `integration`. Without `--mode` the
 mode is the active one: IDD when `idd/config.yaml` exists and its `mode` is
 not `sdd`, else SDD; `--mode` reads that mode's declaration whatever mode is
 active, and another value is a usage error. IDD MUST read only
@@ -2125,7 +2156,8 @@ the mentorship) for an IDD change when `idd/config.yaml` declares a profile,
 and MUST NOT let an unreadable configuration change its next step. For an IDD
 change whose next step is `declare-plan` or `close`, where the branching
 decides something, `ospec next` MUST return `delivery` (the `branching`, its
-`source`, `reasons` and `how`, plus the resolved `changelog` and `release`),
+`source`, `reasons` and `how`, plus the resolved `changelog` and `release`,
+and the `integration` when declared),
 and with source `recommended` also the suggestion `branching-undeclared`, which
 is never a step: the agent proposes the value to the user and writes
 `delivery.branching` only after approval. While `delivery.changelog` or
@@ -2148,6 +2180,20 @@ the suggestion `changelog-undeclared` or `release-undeclared` in the same way.
 - WHEN `ospec team` runs
 - THEN the branching MUST be `parallel` with source `idd/config.yaml`
 - AND `delivery: { branching: rebase }` MUST be refused with `config-invalid`
+
+#### Scenario: An integration branch sits apart from production
+
+- GIVEN `team: { size: solo }` and `delivery: { integration_branch: dev,
+  production_branch: main, changelog: CHANGELOG.md }`
+- WHEN `ospec team` and `ospec next` run, and a change closes
+- THEN the branching rules MUST branch from the integration branch `dev`, the
+  release MUST be `batched` with source `recommended`, proposed when `dev` is
+  promoted to `main`, and `integration` MUST give its rules
+- AND close MUST write the changelog entry, propose no release and return
+  that `delivery`
+- AND `integration_branch: main` with `production_branch: main`, an empty
+  `integration_branch` and `release: per-change` with it MUST be refused with
+  `config-invalid`
 
 #### Scenario: Two teams get different defaults without a question
 
@@ -2267,7 +2313,11 @@ the contents of `[Unreleased]`. A major MUST never be proposed, and without a
 plain `MAJOR.MINOR.PATCH` previous version, `version` and `tag` MUST be null.
 Without a declared changelog every field MUST be null, and with an empty
 `[Unreleased]` there is no `release`. With `batched` or `none`, close MUST NOT
-propose one. The CLI MUST NOT change versions, tags or releases: the agent
+propose one. With `delivery.integration_branch` declared (REQ-idd-023), close
+MUST NOT read git either: its result MUST add `delivery`, the block `ospec
+next` returns with its `integration`, so the agent knows that the merge goes
+to the integration branch and that the version is proposed on the promotion
+to production. The CLI MUST NOT change versions, tags or releases: the agent
 proposes the release to the user and cuts it only with an explicit OK. Without
 `delivery.changelog` or `delivery.release` declared, close MUST behave as
 before this requirement. SDD MUST NOT read them (ADR 0011).
