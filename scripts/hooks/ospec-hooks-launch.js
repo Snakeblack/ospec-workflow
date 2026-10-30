@@ -202,9 +202,9 @@ function normalizeCodexHookOutput(subcommand, output) {
 // agy (Antigravity 1.4.2) runs a hook from the directory holding hooks.json
 // and sends { toolCall: { name, args }, conversationId, workspacePaths }.
 // Rebuild the shared contract and the directory the policy must read from:
-// a shell command's own Cwd, else the first workspace that exists. A tool
-// call it cannot read is `unreadable`: the guard must not see it as empty.
-function adaptAntigravityHookInput(subcommand, rawInput, exists = fs.existsSync) {
+// a shell command's own Cwd, else the first workspace that is a directory. A
+// tool call it cannot read is `unreadable`: the guard must not see it as empty.
+function adaptAntigravityHookInput(subcommand, rawInput, isDirectory = isExistingDirectory) {
   const unreadable = { input: rawInput, cwd: undefined, unreadable: subcommand === "pre-tool-use" };
   let parsed;
   try {
@@ -215,7 +215,7 @@ function adaptAntigravityHookInput(subcommand, rawInput, exists = fs.existsSync)
   if (!isPlainObject(parsed)) {
     return unreadable;
   }
-  const isDir = (dir) => typeof dir === "string" && path.isAbsolute(dir) && exists(dir);
+  const isDir = (dir) => typeof dir === "string" && path.isAbsolute(dir) && isDirectory(dir);
   const workspace = Array.isArray(parsed.workspacePaths) ? parsed.workspacePaths.find(isDir) : undefined;
   const adapted = { ...parsed, session_id: parsed.conversationId, cwd: workspace };
   let cwd = workspace;

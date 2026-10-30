@@ -310,6 +310,22 @@ test("antigravity input reaches the shared PreToolUse contract from the workspac
     target: "antigravity",
   });
   assert.equal(stale.options.cwd, workspace, "the first workspace that exists wins");
+  // A path that exists but is not a directory is never a working directory.
+  const file = path.join(workspace, "package.json");
+  const fileWorkspace = runLauncher(t, {
+    argv: ["stop"],
+    stdin: JSON.stringify({ conversationId: "c-1", workspacePaths: [file, workspace] }),
+    outcome,
+    target: "antigravity",
+  });
+  assert.equal(fileWorkspace.options.cwd, workspace, "a file is not a workspace");
+  const fileCwd = runLauncher(t, {
+    argv: ["pre-tool-use"],
+    stdin: agyToolCall("run_command", { CommandLine: "cat x", Cwd: file }, workspace),
+    outcome,
+    target: "antigravity",
+  });
+  assert.equal(fileCwd.options.cwd, workspace, "a file is not a command's directory");
   const noWorkspace = runLauncher(t, {
     argv: ["pre-tool-use"],
     stdin: JSON.stringify({ toolCall: { name: "run_command", args: { CommandLine: "cat config", Cwd: scripts } } }),
