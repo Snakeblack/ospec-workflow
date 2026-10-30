@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.168.2] - 2026-10-30
+
 ### Fixed
-- La valla de fin de turno (E1.49) da falsos user-unverified tras reiniciar .ospec/turns, el hook JS crea .ospec/turns en un cwd inexistente, una sesión en un subdirectorio cuenta fuera de la raíz que lee el CLI, el aviso de la valla propone un remedio que no funciona y gate-conflict confunde fuente con respuesta (turn-fence-robustness)
+- **La valla de fin de turno deja de dar falsos `user-unverified` y cuenta en la raíz del proyecto** (turn-fence-robustness, lote PR1b de la review general del 2026-10-29).
+  - **Contador reiniciado:** si `.ospec/turns` se pierde (`git clean -fdX`, un worktree nuevo), la respuesta que llega tras el siguiente fin de turno vuelve a quedar `user`. Antes la cuenta tenía que superar la de apertura del gate, y toda respuesta quedaba `user-unverified` hasta rebasar el valor viejo. Ahora vale cualquier cuenta distinta de la de apertura.
+  - **Sesión en un subdirectorio:** el hook `Stop`, en Node y en el binario, cuenta en el primer directorio hacia arriba con `.git`, que es donde lee el CLI; antes contaba en `<subdir>/.ospec/turns`. No lanza git. La traza `latest.md` sigue en el cwd.
+  - **cwd inexistente:** el hook de Node ya no crea ese directorio con su `.ospec/turns`; usa el directorio del proceso, como el binario. El binario escribe `latest.md` de forma atómica.
+  - **Aviso de la valla:** dice que la respuesta se queda `user-unverified` y da el remedio de su motivo para los siguientes gates: instalar o reparar los hooks, o terminar el turno con las preguntas. Ya no pide volver a registrarla, que no cambiaba nada. `gate-conflict` distingue otra respuesta de la misma respuesta con otra fuente.
+  - **Antigravity:** un fichero en `workspacePaths` o en el `Cwd` de una orden ya no pasa por directorio.
+- **Tests:** el test del hook de Copilot global reintenta una vez si el lanzador agota su plazo en Windows sin contar, y muestra la salida del hook cuando falta la cuenta.
+- **Documentación:** REQ-idd-008, REQ-hooks-030, el ciclo de vida del `Stop` en `openwiki/` y la lista del guard en `docs/harness-runtime.md` nombran `.ospec/turns`.
+
+Hecho con IDD (`idd/archive/2026-10-30-turn-fence-robustness/`).
+
+**Verificación directa**: `node scripts/check.js` (4323 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.168.1] - 2026-10-30
 
