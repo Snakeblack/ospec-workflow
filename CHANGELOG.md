@@ -7,8 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.168.1] - 2026-10-30
+
 ### Fixed
-- La valla de fin de turno (E1.49) no cuenta los turnos en el proyecto en Copilot global, Cursor, Codex instalado en el repo y OpenCode de repo sin binario (turn-fence-hosts)
+- **La valla de fin de turno cuenta los turnos en el proyecto en cuatro hosts más** (turn-fence-hosts, lote PR1a de la review general del 2026-10-29). El hook de fin de turno de E1.49 no corría en el proyecto en Copilot global, Cursor, Codex instalado en el repo ni OpenCode de repo sin binario, así que toda respuesta a un gate quedaba `user-unverified`.
+  - **Copilot CLI global:** `hooks.json` nombra el runtime de `~/.copilot` con ruta absoluta, entrecomillada para bash y para PowerShell. Antes Copilot ejecutaba la ruta relativa del build desde el repositorio del usuario, y todos los hooks, también el guard de `preToolUse`, fallaban con `MODULE_NOT_FOUND`. El instalador rechaza una orden que no sabe hacer absoluta, y reinstalar migra una instalación anterior.
+  - **Cursor:** cada hook corre desde la primera raíz de `workspace_roots` que es un directorio y la recibe como `cwd`; antes corría desde `~/.cursor` y contaba allí el turno. Una orden de shell conserva su propio directorio.
+  - **Codex instalado en el repo:** escribe `<repo>/.codex/hooks.json` conservando los hooks del repositorio. Cada orden busca el runtime desde la raíz git con un arranque en Node que funciona igual en sh, cmd y PowerShell. Codex lo carga en un proyecto de confianza tras aprobarlo en `/hooks`, y esa aprobación no cubre el runtime de `.codex/ospec-workflow/`.
+  - **OpenCode instalado en el repo:** la instalación exige el binario `ospec-hooks`, como la global: sin él falla sin sincronizar nada, y `--dry-run` solo avisa. Antes avisaba y dejaba un plugin que bloqueaba todas las herramientas.
+- **Documentación:** `docs/target-capabilities.md` dice qué host cuenta el fin de turno y corrige los hooks de vscode, Copilot y OpenCode; la guía de instalación y el README describen el hook `Stop` y los cambios de instalación.
+
+Hecho con IDD (`idd/archive/2026-10-30-turn-fence-hosts/`).
+
+**Verificación directa**: `node scripts/check.js` (4320 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.168.0] - 2026-10-30
 
