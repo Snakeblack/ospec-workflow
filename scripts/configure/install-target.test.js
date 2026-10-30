@@ -631,19 +631,96 @@ test("E1.22: ensureRuntimeBinary reuses a binary newer than the Go sources", (t)
   assert.ok(!calls.includes("go build"), "a fresh binary must not be rebuilt");
 });
 
-test("E1.22: without Go a stale binary is used with a warning", (t) => {
+test("E1.22: without Go a stale binary is left out, unless the caller allows it", (t) => {
   const { ensureRuntimeBinary } = require("./install-target.js");
   const { tempDir, binPath } = staleBinaryFixture(t);
   const old = new Date(Date.now() - 3600 * 1000);
   fs.utimesSync(binPath, old, old);
 
-  const warnings = [];
-  const resolved = ensureRuntimeBinary(tempDir, {
-    spawnSync: () => ({ status: 1 }),
-    stdout: { write() {} },
-    stderr: { write: (text) => warnings.push(text) },
-  });
-  assert.equal(resolved, binPath);
+  const run = (deps) => {
+    const warnings = [];
+    const resolved = ensureRuntimeBinary(tempDir, {
+      spawnSync: () => ({ status: 1 }),
+      stdout: { write() {} },
+      stderr: { write: (text) => warnings.push(text) },
+      ...deps,
+    });
+    return { resolved, warnings: warnings.join("") };
+  };
+  const left = run({});
+  assert.equal(left.resolved, null);
+  assert.match(left.warnings, /desfasado.*no se usa: los hooks usan Node/s);
+  const allowed = run({ allowStale: true });
+  assert.equal(allowed.resolved, binPath);
+  assert.match(allowed.warnings, /desfasado.*se usa igualmente/s);
   assert.equal(fs.readFileSync(binPath, "utf8"), "old binary");
-  assert.match(warnings.join(""), /desfasado/);
+});
+
+// REQ-install-042: a target with a Node fallback runs on Node instead of a
+// stale binary; OpenCode, which runs nothing but the binary, still gets it.
+test("copyBinaryToTree leaves a stale binary out of a tree with a Node fallback and keeps it for opencode", (t) => {
+  const { tempDir, binPath } = staleBinaryFixture(t);
+  const old = new Date(Date.now() - 3600 * 1000);
+  fs.utimesSync(binPath, old, old);
+  const { ext } = hostBinarySuffix();
+  const run = (target, required) => {
+    const outDir = fs.mkdtempSync(path.join(tempDir, `out-${target}-`));
+    const warnings = [];
+    copyBinaryToTree(outDir, target, tempDir, {
+      spawnSync: () => ({ status: 1 }),
+      stdout: { write() {} },
+      stderr: { write: (text) => warnings.push(text) },
+      required,
+    });
+    return { outDir, warnings: warnings.join("") };
+  };
+
+  const copilot = run("github-copilot", false);
+  assert.equal(fs.existsSync(path.join(copilot.outDir, "scripts", "hooks", `ospec-hooks${ext}`)), false);
+  assert.match(copilot.warnings, /no se usa: los hooks usan Node/);
+  assert.doesNotMatch(copilot.warnings, /no se encontró/);
+  const opencode = run("opencode", true);
+  assert.equal(fs.readFileSync(path.join(opencode.outDir, "release", "dist", `ospec-hooks${ext}`), "utf8"), "old binary");
+  assert.match(opencode.warnings, /se usa igualmente/);
+});
+
+// REQ-install-042: the sync merges into the repository, so a binary an earlier
+// install left would still run ahead of the Node hooks.
+test("main: a repository install that ships no binary removes the one an earlier install left", (t) => {
+  const { tempDir: sourceDir, binPath } = staleBinaryFixture(t);
+  const old = new Date(Date.now() - 3600 * 1000);
+  fs.utimesSync(binPath, old, old);
+  const destination = fs.mkdtempSync(path.join(os.tmpdir(), "install-target-old-binary-"));
+  t.after(() => fs.rmSync(destination, { recursive: true, force: true }));
+  const { ext } = hostBinarySuffix();
+  const leftover = path.join(destination, "scripts", "hooks", `ospec-hooks${ext}`);
+  fs.mkdirSync(path.dirname(leftover), { recursive: true });
+  fs.writeFileSync(leftover, "binary of an earlier install");
+  fs.writeFileSync(path.join(destination, "scripts", "hooks", "user-note.md"), "mine\n");
+  const run = (args) => {
+    const out = [];
+    const exitObj = { exitCode: 0 };
+    main(["github-copilot", destination, "--source", sourceDir, ...args], {
+      runConfigure({ outDir }) {
+        fs.mkdirSync(path.join(outDir, "scripts", "hooks"), { recursive: true });
+        fs.writeFileSync(path.join(outDir, "scripts", "hooks", "stop.js"), "// stop\n");
+        return { exitCode: 0, validation: null };
+      },
+      spawnSync: () => ({ status: 1 }),
+      stdout: { write(chunk) { out.push(chunk); } },
+      stderr: { write() {} },
+      exitCodeTarget: exitObj,
+    });
+    return { exitCode: exitObj.exitCode, stdout: out.join("") };
+  };
+
+  const dryRun = run(["--dry-run"]);
+  assert.equal(dryRun.exitCode, 0);
+  assert.match(dryRun.stdout, new RegExp(`would remove scripts/hooks/ospec-hooks${ext.replace(".", "\\.")}`));
+  assert.equal(fs.existsSync(leftover), true, "a dry run removes nothing");
+  const install = run([]);
+  assert.equal(install.exitCode, 0);
+  assert.equal(fs.existsSync(leftover), false);
+  assert.equal(fs.readFileSync(path.join(destination, "scripts", "hooks", "stop.js"), "utf8"), "// stop\n");
+  assert.equal(fs.readFileSync(path.join(destination, "scripts", "hooks", "user-note.md"), "utf8"), "mine\n");
 });

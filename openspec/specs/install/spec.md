@@ -219,7 +219,7 @@ npm aliases:
 - Overwrite: existing same-path files are replaced after a pre-copy snapshot.
 - Preservation: files in `destDir` that have no counterpart in `dist/<target>/` are left untouched and are outside the rollback set.
 - Atomicity: a mid-sync failure MUST restore snapshotted destinations and remove newly created synced entries; a rollback failure MUST surface both the primary and rollback errors.
-- Idempotency: re-running replaces all generated files with fresh copies; nothing is deleted from `destDir` on success.
+- Idempotency: re-running replaces all generated files with fresh copies; on success nothing is deleted from `destDir` but the `ospec-hooks` binary an earlier install left where this tree ships none (REQ-install-042).
 
 ### 4.5 Binary Integration (`copyBinaryToTree`)
 
@@ -228,13 +228,13 @@ The installation process integrates the platform-appropriate pre-compiled Go bin
 - **Best-Effort Delivery (default)**: If the source binary is absent under `release/dist/` (e.g. pre-CI development environment), a warning is written to stderr and installation proceeds without failure unless callers set `required: true`.
 - **Required Delivery**: When `deps.required` is true, a missing source binary or copy failure MUST throw and abort the install path.
 - **Platform Detection**: Platform and architecture are resolved (`hostBinarySuffix()`) to locate the source binary `ospec-hooks-${goos}-${arch}${ext}`.
-- **Freshness (E1.22)**: `ensureRuntimeBinary` MUST treat the source binary as stale when its modification time is older than the newest file under `cmd/`, `internal/`, `go.mod` or `go.sum` of the source checkout. A missing or stale binary MUST be compiled with the local Go toolchain when `go` is available; a fresh one MUST be reused without compiling. Without Go, a stale binary MUST still be used and a warning naming it as possibly outdated MUST be written to stderr. If the modification time cannot be read, the binary is reused as before.
+- **Freshness (E1.22)**: `ensureRuntimeBinary` MUST treat the source binary as stale when its modification time is older than the newest file under `cmd/`, `internal/`, `go.mod` or `go.sum` of the source checkout. A missing or stale binary MUST be compiled with the local Go toolchain when `go` is available; a fresh one MUST be reused without compiling. Without Go, a stale binary MUST NOT be returned, so no tree gets it and the hooks run on Node, and a warning naming it as possibly outdated MUST be written to stderr; a caller that passes `allowStale` (OpenCode, REQ-install-042) gets it back with the warning. If the modification time cannot be read, the binary is reused as before.
 - **Target-Specific Destination**:
   - For target `opencode`, the binary is copied to `release/dist/ospec-hooks${ext}` in the output tree.
   - For all other targets (including `claude`, `vscode`, `github-copilot`), the binary is copied to `scripts/hooks/ospec-hooks${ext}`.
 - **Permissions**: On POSIX (non-win32) platforms, the copied binary's permissions are updated to `0755` (executable) using `chmodSync`.
 
-(Previously: an existing binary under `release/dist/` was always reused, so local installs kept shipping a Go hook compiled months earlier after the Go sources changed.)
+(Previously: an existing binary under `release/dist/` was always reused, so local installs kept shipping a Go hook compiled months earlier after the Go sources changed. Until REQ-install-042, a stale binary was still used without Go.)
 
 #### Scenario: Stale binary is rebuilt with Go
 
@@ -243,11 +243,12 @@ The installation process integrates the platform-appropriate pre-compiled Go bin
 - WHEN `ensureRuntimeBinary` runs
 - THEN it MUST run `go build` and return the rebuilt binary
 
-#### Scenario: Stale binary without Go is used with a warning
+#### Scenario: Stale binary without Go is left out with a warning
 
 - GIVEN a stale source binary AND `go` is unavailable
 - WHEN `ensureRuntimeBinary` runs
-- THEN it MUST return the existing binary AND write a warning that it may be outdated
+- THEN it MUST return `null` AND write a warning that it may be outdated and that the hooks use Node
+- AND with `allowStale` it MUST return the existing binary with that warning
 
 #### Scenario: Transactional sync rolls back on mid-copy failure
 
@@ -1409,3 +1410,20 @@ A filesystem mutation that still fails with `EPERM`, `EACCES` or `EBUSY` after i
 - WHEN `npm run install:codex -- <repo>` runs and the command the `idd` skill names, `.codex/ospec-workflow/bin/ospec next --json`, runs from the repository root
 - THEN it exits with 0 and returns the `open-change` step
 - AND `ospec doctor` reports `codex-repo` as `ok`
+
+### Requirement: A Stale Hooks Binary Stays Out Of Trees With A Node Fallback {#REQ-install-042}
+
+A hooks binary older than the Go sources that the installer cannot rebuild (section 4.5, E1.22) runs logic the hooks no longer have, ahead of the Node hooks that do. `copyBinaryToTree` MUST leave it out of the tree of every target whose hooks go through `ospec-hooks-launch.js` (Claude, VS Code, GitHub Copilot, Cursor and Antigravity), so they run on Node, even where the target requires the binary (`required: true`, which still fails when there is no binary at all). OpenCode's plugin runs nothing but the binary, so its tree MUST still get the stale binary, with the warning. Only that warning is written: the one for a missing binary is not. A repository install (`install-target`) merges its tree into the repository, so when the tree ships no binary it MUST delete the `ospec-hooks` binary an earlier install left at the same path (`scripts/hooks/ospec-hooks[.exe]`, or `release/dist/ospec-hooks[.exe]` for OpenCode), and nothing else, inside the transactional sync, so a rollback restores it. `--dry-run` MUST list the deletion and delete nothing. The global installers already prune it through their ownership manifest.
+
+#### Scenario: A repository install without Go drops the stale binary
+
+- GIVEN a stale source binary, no `go`, and `<repo>/scripts/hooks/ospec-hooks` from an earlier install
+- WHEN `install-target github-copilot <repo>` runs
+- THEN the generated tree MUST hold no binary, `<repo>/scripts/hooks/ospec-hooks` MUST not exist and every other file in `<repo>/scripts/hooks/` MUST stay
+- AND with `--dry-run` the output MUST name `scripts/hooks/ospec-hooks` as a deletion and the file MUST stay
+
+#### Scenario: OpenCode keeps the stale binary
+
+- GIVEN a stale source binary and no `go`
+- WHEN `copyBinaryToTree` runs for `opencode`
+- THEN the tree MUST hold `release/dist/ospec-hooks` AND the warning MUST say that it is used anyway

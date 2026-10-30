@@ -64,8 +64,9 @@ function newestGoSourceMtime(sourceDir, fsImpl) {
 }
 
 // Compile the ospec-hooks Go binary when it is missing or older than the Go
-// sources (E1.22) and go is installed. Without go, a stale binary is still
-// used, with a warning.
+// sources (E1.22) and go is installed. Without go, a stale binary is left out,
+// so the hooks run on Node (REQ-install-042); `allowStale` keeps it, with a
+// warning, for a target that has no Node fallback.
 function ensureRuntimeBinary(sourceDir, deps = {}) {
   const fsImpl = deps.fs || fs;
   const stdout = deps.stdout || process.stdout;
@@ -112,50 +113,56 @@ function ensureRuntimeBinary(sourceDir, deps = {}) {
   }
 
   if (exists) {
+    const use = deps.allowStale
+      ? "este target no tiene fallback Node, así que se usa igualmente"
+      : "no se usa: los hooks usan Node";
     stderr.write(
-      `aviso: el binario ospec-hooks de ${srcBin} es anterior al código Go y puede estar desfasado.\n` +
+      `aviso: el binario ospec-hooks de ${srcBin} es anterior al código Go y puede estar desfasado; ${use}.\n` +
         "  Instala Go o ejecuta 'npm run build:hooks' para recompilarlo.\n",
     );
-    return srcBin;
+    return deps.allowStale ? srcBin : null;
   }
   return null;
+}
+
+// Where copyBinaryToTree puts the binary in a target's tree, POSIX-relative:
+//   opencode   -> release/dist/ospec-hooks[.exe]  (plugin resolveBinary priority 1)
+//   everything -> scripts/hooks/ospec-hooks[.exe]  (CLAUDE_PLUGIN_ROOT-relative shell hook)
+function treeBinaryPath(target, ext = hostBinarySuffix().ext) {
+  return target === "opencode" ? `release/dist/ospec-hooks${ext}` : `scripts/hooks/ospec-hooks${ext}`;
 }
 
 // Copy the platform-appropriate ospec-hooks binary into the generated output
 // tree. For claude/vscode/github-copilot the binary lands in scripts/hooks/;
 // for opencode it lands in release/dist/ (where the plugin's resolveBinary()
 // looks first). If the source binary is absent (pre-CI dev environment),
-// attempt automatic compilation with local Go or print a warning / fail.
+// attempt automatic compilation with local Go or print a warning / fail. A
+// stale one that cannot be rebuilt stays out of every tree but OpenCode's,
+// whose plugin runs nothing but the binary; ensureRuntimeBinary warns.
 function copyBinaryToTree(outDir, target, sourceDir, deps = {}) {
   const fsImpl = deps.fs || fs;
   const stdout = deps.stdout || process.stdout;
   const stderr = deps.stderr || process.stderr;
   const required = Boolean(deps.required);
   const { os: goos, arch, ext } = hostBinarySuffix();
-  const srcBin =
-    ensureRuntimeBinary(sourceDir, deps) ||
-    path.join(sourceDir, "release", "dist", `ospec-hooks-${goos}-${arch}${ext}`);
+  const sourceBin = path.join(sourceDir, "release", "dist", `ospec-hooks-${goos}-${arch}${ext}`);
+  const srcBin = ensureRuntimeBinary(sourceDir, { ...deps, allowStale: target === "opencode" });
 
-  if (!fsImpl.existsSync(srcBin)) {
+  if (!srcBin) {
+    if (fsImpl.existsSync(sourceBin)) {
+      return;
+    }
     if (required) {
-      throw new Error(`no se encontró el binario ospec-hooks, obligatorio para este target, en ${srcBin}. Ejecuta 'npm run build:hooks' (o el build de CI build-hooks.yml) y reintenta.`);
+      throw new Error(`no se encontró el binario ospec-hooks, obligatorio para este target, en ${sourceBin}. Ejecuta 'npm run build:hooks' (o el build de CI build-hooks.yml) y reintenta.`);
     }
     stderr.write(
-      `aviso: no se encontró el binario ospec-hooks en ${srcBin}; se omite la copia.\n` +
+      `aviso: no se encontró el binario ospec-hooks en ${sourceBin}; se omite la copia.\n` +
         "  Ejecuta 'npm run build:hooks' (o el build de CI build-hooks.yml) y reintenta.\n",
     );
     return;
   }
 
-  // Destination paths differ per target:
-  //   opencode   -> release/dist/ospec-hooks[.exe]  (plugin resolveBinary priority 1)
-  //   everything -> scripts/hooks/ospec-hooks[.exe]  (CLAUDE_PLUGIN_ROOT-relative shell hook)
-  const destinations = [];
-  if (target === "opencode") {
-    destinations.push(path.join(outDir, "release", "dist", `ospec-hooks${ext}`));
-  } else {
-    destinations.push(path.join(outDir, "scripts", "hooks", `ospec-hooks${ext}`));
-  }
+  const destinations = [path.join(outDir, ...treeBinaryPath(target, ext).split("/"))];
 
   for (const dest of destinations) {
     try {
@@ -200,7 +207,9 @@ function parseArgs(argv) {
   return args;
 }
 
-function syncEntriesTransactional(outDir, destDir, entries, fsImpl, retryOptions = {}) {
+// `removals` are POSIX-relative destination files to delete after the copy;
+// their top-level entry is snapshotted too, so a rollback restores them.
+function syncEntriesTransactional(outDir, destDir, entries, fsImpl, retryOptions = {}, removals = []) {
   const backupRoot = fsImpl.mkdtempSync(path.join(os.tmpdir(), "ospec-target-sync-"));
   const manifest = [];
   let primaryError = null;
@@ -209,7 +218,7 @@ function syncEntriesTransactional(outDir, destDir, entries, fsImpl, retryOptions
   try {
     // Snapshot every destination entry before the first mutation. Unrelated
     // destination entries are deliberately absent from the manifest.
-    for (const entry of entries) {
+    for (const entry of new Set([...entries, ...removals.map((file) => file.split("/")[0])])) {
       const destination = path.join(destDir, entry);
       const existed = fsImpl.existsSync(destination);
       const backup = path.join(backupRoot, entry);
@@ -219,8 +228,13 @@ function syncEntriesTransactional(outDir, destDir, entries, fsImpl, retryOptions
       manifest.push({ entry, destination, backup, existed });
     }
 
-    for (const { entry, destination } of manifest) {
+    for (const entry of entries) {
+      const destination = path.join(destDir, entry);
       mutateFs("copy entry", destination, () => fsImpl.cpSync(path.join(outDir, entry), destination, { recursive: true, force: true }), retryOptions);
+    }
+    for (const file of removals) {
+      const destination = path.join(destDir, ...file.split("/"));
+      mutateFs("remove", destination, () => fsImpl.rmSync(destination, { force: true }), retryOptions);
     }
   } catch (error) {
     primaryError = error;
@@ -414,6 +428,15 @@ function main(argv, deps = {}) {
   for (const entry of entries) {
     stdout.write(`  ${args.dryRun ? "·" : "+"} ${entry}\n`);
   }
+  // The sync merges into the repository, so a binary an earlier install left
+  // would still run ahead of the Node hooks this tree ships (REQ-install-042).
+  const binary = treeBinaryPath(args.target);
+  const removals = !fsImpl.existsSync(path.join(outDir, ...binary.split("/"))) && fsImpl.existsSync(path.join(destDir, ...binary.split("/")))
+    ? [binary]
+    : [];
+  for (const file of removals) {
+    stdout.write(`  ${args.dryRun ? "[dry-run] would remove" : "- remove"} ${file}\n`);
+  }
   if (args.target === "opencode") warnGlobalPluginShadow(destDir, deps.homedir || os.homedir, fsImpl, stderr);
 
   if (args.dryRun) {
@@ -428,7 +451,7 @@ function main(argv, deps = {}) {
       syncEntriesTransactional(outDir, destDir, entries, fsImpl, {
         target: args.target,
         ...(deps.retryOptions || {}),
-      });
+      }, removals);
     } catch (error) {
       stderr.write(`\nsync failed: ${error.message}\n`);
       exitCodeTarget.exitCode = 2;
