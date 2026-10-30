@@ -222,6 +222,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E1.49 the turn count of the Stop hook and the fence on the gate answers (roadmap harness-evolution).
   "scripts/lib/turn-fence.js",
   "scripts/lib/turn-fence.test.js",
+  // The Node hooks take only an existing directory as their workspace, as the native binary does (turn-fence-robustness).
+  "scripts/lib/pathsafe.js",
   // E4.12 the user's tier -> model assignment per host (roadmap harness-evolution).
   "scripts/lib/user-models.js",
   "scripts/lib/user-models.test.js",

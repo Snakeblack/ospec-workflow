@@ -233,8 +233,8 @@ test("ignores terminal changes when creating the latest trace", async (t) => {
 
 // E1.49: the hook process counts each turn end in .ospec/turns, which the CLI
 // reads to fence the gates.
-function runStopProcess(input) {
-  return execFileSync(process.execPath, [path.join(__dirname, "stop.js")], { input: JSON.stringify(input), encoding: "utf8" });
+function runStopProcess(input, cwd) {
+  return execFileSync(process.execPath, [path.join(__dirname, "stop.js")], { input: JSON.stringify(input), encoding: "utf8", cwd });
 }
 
 test("each turn end adds one to the turn count, out of git", async (t) => {
@@ -268,4 +268,35 @@ test("a turn count that cannot be written still writes the trace and says why", 
   assert.equal(output.continue, true);
   assert.match(output.systemMessage, /^Stop hook could not count the turn end: /);
   assert.match(await readLatest(workspace), /blocked/);
+});
+
+// The CLI reads the count at the root of the project, so a session whose cwd
+// is a subdirectory counts there: the first directory up holding .git, a
+// directory or a worktree's file.
+test("a turn end in a subdirectory of a repository is counted at its root", async (t) => {
+  const workspace = await createWorkspace(t);
+  for (const marker of ["directory", "file"]) {
+    const repo = path.join(workspace, marker);
+    const deep = path.join(repo, "src", "deep");
+    await fs.mkdir(deep, { recursive: true });
+    if (marker === "directory") await fs.mkdir(path.join(repo, ".git"));
+    else await fs.writeFile(path.join(repo, ".git"), "gitdir: /elsewhere/.git/worktrees/x\n");
+
+    runStopProcess({ cwd: deep, sessionId: marker });
+
+    assert.equal(await fs.readFile(path.join(repo, ".ospec", "turns"), "utf8"), "1\n", marker);
+    await assert.rejects(fs.access(path.join(deep, ".ospec", "turns")), marker);
+  }
+});
+
+// Like the native hook, a cwd that is not a directory counts in the hook's
+// own directory and creates nothing.
+test("a turn end with a cwd that does not exist is counted in the hook's directory", async (t) => {
+  const workspace = await createWorkspace(t);
+  const ghost = path.join(workspace, "ghost", "deep");
+
+  runStopProcess({ cwd: ghost }, workspace);
+
+  assert.equal(await fs.readFile(path.join(workspace, ".ospec", "turns"), "utf8"), "1\n");
+  await assert.rejects(fs.access(path.join(workspace, "ghost")));
 });

@@ -34,6 +34,17 @@ function readTurn(root) {
   return COUNT.test(text) && Number.isSafeInteger(turn) ? turn : null;
 }
 
+/**
+ * The directory whose count a turn end in `cwd` adds to: the first one up
+ * holding .git (a worktree's is a file), where the CLI reads it, else `cwd`.
+ */
+function turnsRoot(cwd) {
+  for (let dir = path.resolve(cwd); ; dir = path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, ".git"))) return dir;
+    if (path.dirname(dir) === dir) return path.resolve(cwd);
+  }
+}
+
 /** Counts one more turn end in `workspace`; an unreadable count starts again. */
 async function countTurnEnd(workspace) {
   const file = turnsPath(workspace);
@@ -112,5 +123,6 @@ module.exports = {
   countTurnEnd,
   fenceGates,
   readTurn,
+  turnsRoot,
   unverifiedGateWarnings,
 };

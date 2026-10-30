@@ -7,6 +7,7 @@
 // segment, and never resolve to a filesystem or volume root (which would steer
 // .ospec/ writes outside the workspace).
 
+const fs = require("node:fs");
 const path = require("node:path");
 
 /**
@@ -49,8 +50,9 @@ function validatePath(candidate) {
 
 /**
  * Resolves the workspace directory from an untrusted cwd, mirroring
- * internal/hooks/precompact.go resolveCwd. A rejected cwd falls back to the
- * trusted fallback rather than being resolved verbatim.
+ * internal/hooks/precompact.go resolveCwd. A rejected cwd, or one that is not
+ * an existing directory, falls back to the trusted fallback rather than being
+ * resolved verbatim (or created by the writes under it).
  *
  * @param {unknown} cwd raw input.cwd value
  * @param {string} fallbackCwd trusted fallback (e.g. process.cwd())
@@ -58,7 +60,15 @@ function validatePath(candidate) {
  */
 function resolveWorkspaceCwd(cwd, fallbackCwd) {
   const { cleaned, ok } = validatePath(cwd);
-  return ok ? cleaned : path.resolve(fallbackCwd);
+  return ok && isDirectory(cleaned) ? cleaned : path.resolve(fallbackCwd);
+}
+
+function isDirectory(dir) {
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 module.exports = {

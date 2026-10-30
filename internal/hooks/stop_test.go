@@ -4,9 +4,11 @@ package hooks_test
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -377,5 +379,65 @@ func TestStop_UnwritableTurnCountStillWritesTheTrace(t *testing.T) {
 	}
 	if latest := readLatestSession(t, ws); !strings.Contains(latest, "blocked") {
 		t.Errorf("trace not written; got:\n%s", latest)
+	}
+}
+
+// TestStop_CountsInTheRepositoryRootFromASubdirectory mirrors the JS case: the
+// CLI reads the count at the project root, the first directory up holding
+// .git, a directory or a worktree's file.
+func TestStop_CountsInTheRepositoryRootFromASubdirectory(t *testing.T) {
+	for _, marker := range []string{"directory", "file"} {
+		repo := createStopWorkspace(t)
+		deep := filepath.Join(repo, "src", "deep")
+		if err := os.MkdirAll(deep, 0755); err != nil {
+			t.Fatal(err)
+		}
+		gitPath := filepath.Join(repo, ".git")
+		var err error
+		if marker == "directory" {
+			err = os.Mkdir(gitPath, 0755)
+		} else {
+			err = os.WriteFile(gitPath, []byte("gitdir: /elsewhere/.git/worktrees/x\n"), 0644)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		runStopHook(t, stopInput(deep, "", marker))
+
+		if got := readTurns(t, repo); got != "1\n" {
+			t.Errorf("%s: turns at the root: got %q, want %q", marker, got, "1\n")
+		}
+		if _, err := os.Stat(filepath.Join(deep, filepath.FromSlash(store.TurnsRelPath))); !os.IsNotExist(err) {
+			t.Errorf("%s: a count in the subdirectory: %v", marker, err)
+		}
+	}
+}
+
+// TestStop_ReplacesTheTraceAtomically: a reader that opened latest.md before
+// the Stop keeps reading the whole previous trace, never a truncated one.
+func TestStop_ReplacesTheTraceAtomically(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not replace a file another handle holds open")
+	}
+	ws := createStopWorkspace(t)
+	runStopHook(t, stopInput(ws, "", "first"))
+	reader, err := os.Open(filepath.Join(ws, filepath.FromSlash(store.LatestRelPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+
+	runStopHook(t, stopInput(ws, "", "second"))
+
+	previous, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(previous), "first") {
+		t.Errorf("the open trace changed under its reader; got:\n%s", previous)
+	}
+	if latest := readLatestSession(t, ws); !strings.Contains(latest, "second") {
+		t.Errorf("the new trace was not written; got:\n%s", latest)
 	}
 }

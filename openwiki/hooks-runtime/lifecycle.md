@@ -23,8 +23,8 @@ Registra su telemetría"]
 (Antes de podar la memoria)
 Guarda el estado en disco"]
     E5 --> E6["6. Stop
-(Al finalizar el trabajo)
-Genera resumen y telemetría"]
+(Al terminar cada turno)
+Cuenta el turno y deja la traza"]
 ```
 
 ---
@@ -55,5 +55,8 @@ Genera resumen y telemetría"]
 - Cuando la conversación con la IA se vuelve muy larga, los editores suelen borrar los primeros mensajes para ahorrar espacio en memoria.
 - Este hook escribe un resumen de sesión de cada cambio abierto (IDD y, en el modo SDD opcional, el cambio activo) en `.ospec/session/<cambio>/session-summary.md` antes de que la memoria se borre.
 
-### 6. `Stop` (Cierre de Sesión)
-- Registra la telemetría de costes, tiempo y tareas completadas para auditoría.
+### 6. `Stop` (Fin de Turno)
+- Se ejecuta al terminar cada turno del agente.
+- Suma uno a `.ospec/turns` en la raíz del proyecto, el primer directorio hacia arriba que tiene `.git`, aunque la sesión esté en un subdirectorio. Con esa cuenta el CLI valla las respuestas de los gates IDD (E1.49).
+- Escribe la traza de la sesión en `.ospec/session/latest.md`, con el cambio abierto y el siguiente paso.
+- No bloquea: si no puede contar el turno o escribir la traza, deja continuar con un aviso.

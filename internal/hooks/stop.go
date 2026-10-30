@@ -49,9 +49,9 @@ func (h *stopHandler) Run(stdin []byte) ([]byte, int) {
 		return continueWithError(fmt.Sprintf("Stop hook could not write the session trace: %s", err.Error())), 0
 	}
 
-	// E1.49: every turn end is counted before the trace, so a trace that
-	// cannot be written still counts it.
-	counted := countTurnEnd(resolveCwd(input.Cwd))
+	// E1.49: every turn end is counted in the project before the trace, so a
+	// trace that cannot be written still counts it.
+	counted := countTurnEnd(turnsRoot(resolveCwd(input.Cwd)))
 	if err := runStop(input); err != nil {
 		return continueWithError(fmt.Sprintf("Stop hook could not write the session trace: %s", err.Error())), 0
 	}
@@ -65,6 +65,24 @@ func (h *stopHandler) Run(stdin []byte) ([]byte, int) {
 
 // maxTurn is the largest count the CLI reads (Number.MAX_SAFE_INTEGER).
 const maxTurn = 1<<53 - 1
+
+// turnsRoot is the directory whose count a turn end in cwd adds to: the first
+// one up holding .git (a worktree's is a file), where the CLI reads it, else
+// cwd (turnsRoot of scripts/lib/turn-fence.js).
+func turnsRoot(cwd string) string {
+	start, err := filepath.Abs(cwd)
+	if err != nil {
+		return cwd
+	}
+	for dir := start; ; dir = filepath.Dir(dir) {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir
+		}
+		if filepath.Dir(dir) == dir {
+			return start
+		}
+	}
+}
 
 // countTurnEnd adds one turn end to .ospec/turns of the workspace, which the
 // CLI reads to fence the gates (countTurnEnd of scripts/lib/turn-fence.js); an
@@ -180,7 +198,7 @@ func writeLatest(s *store.Store, content string) error {
 	if err := ospecdir.MkdirAll(filepath.Dir(latestPath), 0755); err != nil {
 		return fmt.Errorf("stop: mkdir: %w", err)
 	}
-	return os.WriteFile(latestPath, []byte(content), 0644)
+	return store.WriteFileAtomic(latestPath, content)
 }
 
 // detailedSummaryPath is the portable path of a change's session summary, or
