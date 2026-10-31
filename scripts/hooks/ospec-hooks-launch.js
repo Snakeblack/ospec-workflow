@@ -545,12 +545,13 @@ function readBackendModeSync(configPath, readFileSync = fs.readFileSync) {
 
 // The exec errors of a binary the system could not start, and the exit codes
 // of the /bin/sh the spawn falls back to on ENOEXEC (126: not executable, 127:
-// not found). ospec-hooks itself exits only 0, 1 or 2. Returns the reason, or
-// null when the binary ran.
+// not found). ospec-hooks itself exits only 0, 1 or 2. That shell exits without
+// reading stdin, so an input larger than the pipe buffer adds EPIPE to its
+// exit code. Returns the reason, or null when the binary ran.
 const NOT_STARTED_ERRORS = new Set(["EACCES", "ENOEXEC", "ENOENT"]);
 
 function binaryDidNotStart(result) {
-  if (result.error) return NOT_STARTED_ERRORS.has(result.error.code) ? result.error.code : null;
+  if (result.error && result.error.code !== "EPIPE") return NOT_STARTED_ERRORS.has(result.error.code) ? result.error.code : null;
   return !result.signal && (result.status === 126 || result.status === 127) ? `exit ${result.status}` : null;
 }
 
