@@ -555,6 +555,17 @@ function binaryDidNotStart(result) {
   return !result.signal && (result.status === 126 || result.status === 127) ? `exit ${result.status}` : null;
 }
 
+// The reason of a failed child (REQ-hooks-025). EPIPE only says the child
+// exited before reading all of stdin, so its signal or nonzero exit names the
+// failure; after exit 0 EPIPE stays the reason, as the child decided without
+// reading the whole call.
+function childFailureDetail(result) {
+  const code = result.error?.code;
+  const exited = Boolean(result.signal) || (result.status != null && result.status !== 0);
+  if (code && !(code === "EPIPE" && exited)) return code;
+  return result.signal || `exit ${result.status}`;
+}
+
 function resolveBinary(scriptDir, suffix = hostBinarySuffix(), exists = fs.existsSync) {
   for (const candidate of binaryCandidates(scriptDir, suffix)) {
     if (exists(candidate)) {
@@ -655,8 +666,7 @@ function launch(argv, scriptDir, seen = {}) {
 
   if (result.error || result.signal || result.status !== 0) {
     // Never forward partial stdout from a failed child as a permission decision.
-    const detail = result.error?.code || result.signal || `exit ${result.status}`;
-    return launcherFailure(sub, detail, cursorHost, rawInput);
+    return launcherFailure(sub, childFailureDetail(result), cursorHost, rawInput);
   }
   if (result.stderr) {
     process.stderr.write(result.stderr);

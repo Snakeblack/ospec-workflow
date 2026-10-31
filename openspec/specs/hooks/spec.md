@@ -1767,11 +1767,13 @@ Hard command denials MUST be evaluated before advisories. All filename denials i
 
 The portable launcher MUST impose a 4000 ms timeout on its direct runtime child, below the 5 s baseline host timeout, and use `SIGKILL` so a child handling `SIGTERM` cannot extend the wait. This bounds the direct child; it is not a process-tree containment guarantee. Spawn errors, termination signals, nonzero exit and invalid nonempty PreToolUse output MUST discard partial child stdout and produce a visible inspection failure, never a neutral successful decision. Empty successful PreToolUse output remains neutral.
 
-PreToolUse failures MUST return `ask` with an inspection-error reason on the baseline protocol. When a valid input declares bypass, that ASK MUST degrade to `allow` plus advisory. Codex MUST surface additional context without unsupported ASK; Cursor MUST surface an allow advisory. Other events MUST continue with an error diagnostic; stderr MUST retain a safe error frame even where a host adapter omits event context. Launcher diagnostics MUST use the error code/signal/exit status, without echoing tool input or partial child output. Input read/evaluation exceptions MUST use the same failure path (unknown permission mode preserves ASK).
+PreToolUse failures MUST return `ask` with an inspection-error reason on the baseline protocol. When a valid input declares bypass, that ASK MUST degrade to `allow` plus advisory. Codex MUST surface additional context without unsupported ASK; Cursor MUST surface an allow advisory. Other events MUST continue with an error diagnostic; stderr MUST retain a safe error frame even where a host adapter omits event context. Launcher diagnostics MUST use the error code/signal/exit status, without echoing tool input or partial child output. An `EPIPE` error only says the child exited before reading all of its input: with a termination signal or a nonzero exit the diagnostic MUST name that signal or exit instead, and after exit 0 it MUST stay `EPIPE` with the inspection failure, because the child decided without reading the whole call. Input read/evaluation exceptions MUST use the same failure path (unknown permission mode preserves ASK).
 
 - GIVEN a child takes 8 s or handles SIGTERM THEN the launcher MUST terminate that direct child at its own deadline and return an inspection-error response.
 - GIVEN a child emits an allow decision but exits nonzero THEN that partial decision MUST NOT be forwarded.
 - GIVEN a malformed response, spawn failure or timeout THEN each adapter MUST retain a visible diagnostic and its supported decision format; Codex/Cursor remain advisory, not fail-closed.
+- GIVEN a child that exits 1, or is killed by a signal, before reading an input larger than the pipe buffer THEN the inspection failure MUST name `exit 1` or the signal, not `EPIPE`.
+- GIVEN a child that writes an allow decision and exits 0 without reading an input larger than the pipe buffer THEN that decision MUST NOT be forwarded and the inspection failure MUST name `EPIPE`.
 
 ### Requirement: Antigravity Host Adaptation In Hook Launcher {#REQ-hooks-026}
 
@@ -1841,4 +1843,4 @@ The Stop hook, in the Node hook and the native binary alike, MUST add one to the
 - GIVEN `scripts/hooks/ospec-hooks` holding an ELF header for an unknown machine THEN the call MUST answer with the Node hook's decision and stderr MUST name the system's reason: `ENOEXEC` on macOS, and on Linux the exit of `/bin/sh`, `exit 126` under bash or `exit 127` under dash.
 - GIVEN that binary and a hook input larger than the pipe buffer THEN the call MUST answer with the Node hook's decision and stderr MUST name the same reason, not `EPIPE`.
 - GIVEN `scripts/hooks/ospec-hooks` that runs and exits 3 THEN the decision MUST be `ask` naming `exit 3`, and the Node hook MUST not run.
-- GIVEN that binary and a hook input larger than the pipe buffer THEN the decision MUST be `ask`, and the Node hook MUST not run.
+- GIVEN that binary and a hook input larger than the pipe buffer THEN the decision MUST be `ask` naming `exit 3`, and the Node hook MUST not run.

@@ -1,0 +1,418 @@
+{
+  "schema": "idd-state/v1",
+  "change": "launcher-epipe-reason",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El fallo de inspección del lanzador nombra la salida o la señal del hijo, y no EPIPE, cuando el hijo sale sin leer todo el stdin",
+    "acceptance": "Un hook que sale con un código distinto de 0 sin leer una entrada mayor que el buffer de la tubería responde con el fallo de inspección nombrando exit N, también tras el reintento con Node; con una señal nombra la señal"
+  },
+  "facts": {
+    "open": [
+      "Con EPIPE y una salida distinta de 0 (el hijo cae antes de leer todo el stdin, por ejemplo un hook Node que no carga), ¿el motivo nombra exit N, y con una señal nombra la señal?",
+      "Con EPIPE y salida 0 (el hijo termina sin leer toda la entrada; ningún hook de ospec lo hace), ¿sigue siendo un fallo de inspección que falla cerrado con motivo EPIPE, o se acepta su salida?",
+      "¿La regla del motivo entra en REQ-hooks-025, que rige todos los fallos de inspección, y el escenario de exit 3 con entrada grande de REQ-hooks-031 pasa a exigir que el motivo nombre exit 3?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/hooks/spec.md",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/ospec-hooks-launch.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Con EPIPE y una señal o una salida distinta de 0, el fallo de inspección nombra la señal o exit N: EPIPE solo dice que el hijo salió sin leer todo el stdin; vale también para el hijo Node del reintento",
+      "EPIPE con salida 0 sigue siendo un fallo de inspección con motivo EPIPE, que falla cerrado: el hijo decidió sin leer la llamada entera (ADR 0008, REQ-hooks-025)",
+      "La regla del motivo vive en childFailureDetail y en REQ-hooks-025, que rige todos los fallos de inspección; binaryDidNotStart sigue decidiendo solo el reintento"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "Solo cambia el texto del motivo; todo hijo que falla sigue dando el fallo de inspección, y EPIPE con salida 0 también falla cerrado en vez de reenviar una decisión tomada sin leer la llamada"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "No cambia qué runtime corre ni añade dependencias; solo el motivo del fallo"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Las decisiones de un hijo que falla, o que sale con 0 sin leer la entrada, no se reenvían; el diagnóstico nombra la causa real"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 53,
+      "answer": "lo recomendado: 1 con EPIPE y otro código el motivo nombra exit N o la señal, también en el hijo Node del reintento; 2a EPIPE con salida 0 sigue siendo un fallo de inspección que falla cerrado con motivo EPIPE; 3 la regla del motivo entra en REQ-hooks-025 y el escenario de exit 3 con entrada grande de REQ-hooks-031 exige nombrar exit 3; 4A cerrar la #464 y rehacer la entrega en una rama nueva desde main con un único chore(release) al final",
+      "source": "user",
+      "resolved_turn": 54
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-31T17:04:00.658Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-31T17:05:38.230Z",
+      "detail": {
+        "tree": "sha256:696c72f904db78bb67d0d80436bd174346b123e49a0272ec463c3069a8d4dbc9",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-31T17:05:38.230Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 none",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:696c72f904db78bb67d0d80436bd174346b123e49a0272ec463c3069a8d4dbc9",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-31T17:06:26.835Z",
+      "detail": {
+        "lineage_id": "sha256:e18432971ed70e9dd8063346b41ecc9f5984634e59d7b54448589f599a0dcda0",
+        "candidate_id": "sha256:3a818b258c74bab309ad5ce2691b9af4dbaf7b1e34d648dde904d7a9329792d8",
+        "candidate_tree": "ac12ab7a5da71a324e101d5d8dda059050d6ace5",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-31T17:06:10.618Z",
+          "result_digest": "sha256:1357c0a607466e6dde997ee2ee0393e64f99fb8f638fc4ddf5fe07714c44bfb8"
+        }
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-31T17:06:27.039Z"
+    }
+  ],
+  "base": "13edac61680ab29a3a0c2ff37cec2ed4541dbf0e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"without reading a large input|a binary that cannot start\" scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:89c5a6578a99d49ccf00ca32175e9c5b4c30f65d617b356685f3689bc3452ef9",
+      "tree": "sha256:d38160714082a5603b413195db2a257bb42344a0dc9c9b2871111aa03a6ab291",
+      "recorded_at": "2026-10-31T17:03:40.339Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"without reading a large input|a binary that cannot start\" scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dfd0e98d39aec14f6a7508b25076a0ac8cb04c32317d6be47961c5a57fd67240",
+      "tree": "sha256:98981bda243fd8983b2776a89ef925846c95c204241b8645b61cf71286c24367",
+      "recorded_at": "2026-10-31T17:04:00.658Z",
+      "tests": 2,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "13edac61680ab29a3a0c2ff37cec2ed4541dbf0e",
+      "mount": "sha256:dd5deecb7658ad5acb6602c2672781befb5ba90f5dd2df4aa2a3d1d9a7a5e07c",
+      "command": "node --test --test-name-pattern=\"without reading a large input|a binary that cannot start\" scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:11d602fa60441e7af64bab0a8d9d995e3ecfb31d0065351ac2ba274e750fd19c",
+      "tree": "sha256:98981bda243fd8983b2776a89ef925846c95c204241b8645b61cf71286c24367",
+      "recorded_at": "2026-10-31T17:04:00.658Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "13edac61680ab29a3a0c2ff37cec2ed4541dbf0e",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"without reading a large input|a binary that cannot start\" scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9dbf00733b4611a65c6f7bac9473e12edc67c5cf19ac60685fd42056807416d6",
+      "tree": "sha256:98981bda243fd8983b2776a89ef925846c95c204241b8645b61cf71286c24367",
+      "recorded_at": "2026-10-31T17:04:00.658Z",
+      "tests": 1
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:69ea6f3588a62b765e86e05439d9063ef887b846bfa58faacaf0841477fa130b",
+      "tree": "sha256:696c72f904db78bb67d0d80436bd174346b123e49a0272ec463c3069a8d4dbc9",
+      "recorded_at": "2026-10-31T17:05:38.230Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:269e97eedbf1426f19f85e95d34f38f2b8ad4e4c79c69dc644ab0884ee96a9db",
+      "tree": "sha256:696c72f904db78bb67d0d80436bd174346b123e49a0272ec463c3069a8d4dbc9",
+      "recorded_at": "2026-10-31T17:05:38.230Z",
+      "tests": 82
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:696c72f904db78bb67d0d80436bd174346b123e49a0272ec463c3069a8d4dbc9",
+      "recorded_at": "2026-10-31T17:05:38.230Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bdfa65ad401ddc81f9def78a90fb31a70e5859adb8e9de84002628fe55080894",
+      "tree": "sha256:696c72f904db78bb67d0d80436bd174346b123e49a0272ec463c3069a8d4dbc9",
+      "recorded_at": "2026-10-31T17:05:38.230Z",
+      "tests": 22
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5b106c0f833b1cd9b729dc9fe056c120ff9428a6c3a008c88503eb0dd9b0d025",
+      "tree": "sha256:696c72f904db78bb67d0d80436bd174346b123e49a0272ec463c3069a8d4dbc9",
+      "recorded_at": "2026-10-31T17:05:38.230Z",
+      "tests": 82
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:e18432971ed70e9dd8063346b41ecc9f5984634e59d7b54448589f599a0dcda0",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "0104288393e3aabe6f5d51f650c174e267922667",
+          "candidate_tree": "ac12ab7a5da71a324e101d5d8dda059050d6ace5",
+          "paths": [
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js"
+          ],
+          "diff_hash": "sha256:d676eedebd42f1f28bd26fb81b30ffd4a01b658a1faa21140357a8d13c47532b",
+          "paths_digest": "sha256:2f0ec25383bd2624baa5f263c26e244dd1434c4d99aa5f3edef1ee24ddafb694",
+          "authored_lines": 55,
+          "original_changed_lines": 60
+        },
+        "candidate_id": "sha256:3a818b258c74bab309ad5ce2691b9af4dbaf7b1e34d648dde904d7a9329792d8",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "ac12ab7a5da71a324e101d5d8dda059050d6ace5",
+        "original_changed_lines": 60,
+        "authored_lines": 55
+      },
+      "current_candidate_id": "sha256:3a818b258c74bab309ad5ce2691b9af4dbaf7b1e34d648dde904d7a9329792d8",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "0104288393e3aabe6f5d51f650c174e267922667",
+        "candidate_tree": "ac12ab7a5da71a324e101d5d8dda059050d6ace5",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "diff_hash": "sha256:d676eedebd42f1f28bd26fb81b30ffd4a01b658a1faa21140357a8d13c47532b",
+        "paths_digest": "sha256:2f0ec25383bd2624baa5f263c26e244dd1434c4d99aa5f3edef1ee24ddafb694",
+        "authored_lines": 55,
+        "original_changed_lines": 60
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "launcher-epipe-reason:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "launcher-epipe-reason:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 30,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-31T17:06:27.039Z"
+}

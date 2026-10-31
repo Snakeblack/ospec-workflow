@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - El lanzador reintenta con el hook Node cuando el binario ospec-hooks no arranca aunque spawnSync devuelva EPIPE junto con la salida 126/127 del /bin/sh de respaldo (launcher-epipe-retry)
+- El fallo de inspección del lanzador nombra la salida o la señal del hijo, y no EPIPE, cuando el hijo sale sin leer todo el stdin (launcher-epipe-reason)
 
 ## [2.168.4] - 2026-10-31
 
