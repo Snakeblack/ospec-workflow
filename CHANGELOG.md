@@ -7,8 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.168.3] - 2026-10-31
+
 ### Fixed
-- El binario ospec-hooks desfasado o que no se puede ejecutar deja de ensombrecer al hook Node: el instalador no copia un binario anterior al código Go si no puede recompilarlo, y el lanzador reintenta con el hook Node cuando el binario no arranca (EACCES, ENOEXEC, 126) (hooks-binary-fallback)
+- **Un binario `ospec-hooks` desfasado o que no arranca ya no ensombrece a los hooks Node** (hooks-binary-fallback, lote PR1c de la review general del 2026-10-29).
+  - **Instalador:** si el binario de `release/dist/` es más viejo que el código Go y no hay Go para recompilarlo, ya no se copia y los hooks corren en Node, con un aviso. Antes se copiaba igualmente y el lanzador lo prefería. OpenCode, cuyo plugin solo ejecuta el binario, lo sigue recibiendo con el aviso. `npm run build:hooks` sale ahora con 1 en ese caso.
+  - **Instalación en un repo:** `install-target` fusiona el árbol, así que borra el `scripts/hooks/ospec-hooks` que dejó una instalación anterior cuando el árbol nuevo no lleva binario. Lo hace dentro de la sincronización transaccional, que lo restaura si algo falla, y `--dry-run` lo lista sin borrar. Los instaladores globales ya lo quitaban con su manifiesto.
+  - **Lanzador:** si el binario no arranca (`EACCES`, `ENOEXEC`, `ENOENT` o salida 126/127, como un binario sin permiso de ejecución o de otra arquitectura), ejecuta el hook Node equivalente dentro del mismo plazo y deja un aviso `[ospec warn]` en stderr. Antes cada hook respondía `ask` o `[ospec error]`. Un timeout, una señal u otro código no se reintentan, porque el binario pudo llegar a ejecutarse.
+  - La versión no se embebe en el binario: el desfase se sigue detectando por fecha de modificación (E1.22).
+- **Documentación:** REQ-hooks-031, REQ-install-042 y las secciones 4.4 y 4.5 de `openspec/specs/install/spec.md`; `docs/harness-go-js-parity.md` y `openwiki/hooks-runtime/go-implementation.md` describen el reintento.
+
+Hecho con IDD (`idd/archive/2026-10-30-hooks-binary-fallback/`).
+
+**Verificación directa**: `node scripts/check.js` (4326 tests pasando, 0 fallos y 5 omitidos).
 
 ## [2.168.2] - 2026-10-30
 
