@@ -545,13 +545,25 @@ function readBackendModeSync(configPath, readFileSync = fs.readFileSync) {
 
 // The exec errors of a binary the system could not start, and the exit codes
 // of the /bin/sh the spawn falls back to on ENOEXEC (126: not executable, 127:
-// not found). ospec-hooks itself exits only 0, 1 or 2. Returns the reason, or
-// null when the binary ran.
+// not found). ospec-hooks itself exits only 0, 1 or 2. That shell exits without
+// reading stdin, so an input larger than the pipe buffer adds EPIPE to its
+// exit code. Returns the reason, or null when the binary ran.
 const NOT_STARTED_ERRORS = new Set(["EACCES", "ENOEXEC", "ENOENT"]);
 
 function binaryDidNotStart(result) {
-  if (result.error) return NOT_STARTED_ERRORS.has(result.error.code) ? result.error.code : null;
+  if (result.error && result.error.code !== "EPIPE") return NOT_STARTED_ERRORS.has(result.error.code) ? result.error.code : null;
   return !result.signal && (result.status === 126 || result.status === 127) ? `exit ${result.status}` : null;
+}
+
+// The reason of a failed child (REQ-hooks-025). EPIPE only says the child
+// exited before reading all of stdin, so its signal or nonzero exit names the
+// failure; after exit 0 EPIPE stays the reason, as the child decided without
+// reading the whole call.
+function childFailureDetail(result) {
+  const code = result.error?.code;
+  const exited = Boolean(result.signal) || (result.status != null && result.status !== 0);
+  if (code && !(code === "EPIPE" && exited)) return code;
+  return result.signal || `exit ${result.status}`;
 }
 
 function resolveBinary(scriptDir, suffix = hostBinarySuffix(), exists = fs.existsSync) {
@@ -654,8 +666,7 @@ function launch(argv, scriptDir, seen = {}) {
 
   if (result.error || result.signal || result.status !== 0) {
     // Never forward partial stdout from a failed child as a permission decision.
-    const detail = result.error?.code || result.signal || `exit ${result.status}`;
-    return launcherFailure(sub, detail, cursorHost, rawInput);
+    return launcherFailure(sub, childFailureDetail(result), cursorHost, rawInput);
   }
   if (result.stderr) {
     process.stderr.write(result.stderr);

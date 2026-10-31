@@ -121,6 +121,34 @@ test('launcher timeout terminates a real child and returns a visible inspection 
   assert.doesNotMatch(result.stdout, /completed/);
 });
 
+// REQ-hooks-025: a child that exits before reading an input larger than the
+// pipe buffer also comes back as EPIPE. Its exit code or signal names the
+// failure; after exit 0 EPIPE stays the reason, since the child decided
+// without reading the whole call.
+test("a child that exits without reading a large input names its exit or signal, and EPIPE only after exit 0", { skip: process.platform === "win32" }, (t) => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const { spawnSync } = require("node:child_process");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-launch-unread-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const allow = JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: "unread" } });
+  const launcherPath = require.resolve("./ospec-hooks-launch.js");
+  const large = JSON.stringify({ padding: "x".repeat(1 << 20) });
+  for (const [label, hook, reason] of [
+    ["exit 1", "process.exit(1);", "exit 1"],
+    ["signal", "process.kill(process.pid, 'SIGKILL');", "SIGKILL"],
+    ["exit 0", `process.stdout.write(${JSON.stringify(allow)});`, "EPIPE"],
+  ]) {
+    fs.writeFileSync(path.join(root, "pre-tool-use.js"), hook);
+    const result = spawnSync(process.execPath, ["-e", "process.exitCode = require(process.argv[1]).main([\"pre-tool-use\"], process.argv[2]);", launcherPath, root], {
+      input: large, encoding: "utf8", env: { ...process.env, OSPEC_TARGET: "claude" }, timeout: 10000, killSignal: "SIGKILL",
+    });
+    const output = JSON.parse(result.stdout).hookSpecificOutput;
+    assert.equal(output.permissionDecision, "ask", label);
+    assert.equal(output.permissionDecisionReason, `The safety hook could not inspect this tool call: ${reason}`, label);
+  }
+});
+
 // REQ-hooks-031: a binary the system cannot start (no execute bit, another
 // architecture) gives way to the Node hook; one that ran and failed does not.
 test("a binary that cannot start falls back to the Node hook, and one that ran does not", { skip: process.platform === "win32" }, (t) => {
@@ -130,23 +158,27 @@ test("a binary that cannot start falls back to the Node hook, and one that ran d
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-launch-broken-bin-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const allow = { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: "node hook" } };
-  fs.writeFileSync(path.join(root, "pre-tool-use.js"), `process.stdout.write(${JSON.stringify(JSON.stringify(allow))});`);
+  fs.writeFileSync(path.join(root, "pre-tool-use.js"), `require("node:fs").readFileSync(0); process.stdout.write(${JSON.stringify(JSON.stringify(allow))});`);
   const binary = path.join(root, "ospec-hooks");
   const launcherPath = require.resolve("./ospec-hooks-launch.js");
-  const run = () => spawnSync(process.execPath, ["-e", "process.exitCode = require(process.argv[1]).main([\"pre-tool-use\"], process.argv[2]);", launcherPath, root], {
-    input: "{}", encoding: "utf8", env: { ...process.env, OSPEC_TARGET: "claude" }, timeout: 10000, killSignal: "SIGKILL",
+  const run = (input = "{}") => spawnSync(process.execPath, ["-e", "process.exitCode = require(process.argv[1]).main([\"pre-tool-use\"], process.argv[2]);", launcherPath, root], {
+    input, encoding: "utf8", env: { ...process.env, OSPEC_TARGET: "claude" }, timeout: 10000, killSignal: "SIGKILL",
   });
 
   // An ELF header for a machine no system runs. macOS reports ENOEXEC; Linux
-  // hands it to /bin/sh, which exits 126 under bash and 127 under dash.
+  // hands it to /bin/sh, which exits 126 under bash and 127 under dash. That
+  // shell exits without reading stdin, so an input larger than the pipe
+  // buffer also comes back as EPIPE.
   const foreign = Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0x99, 0x99]), Buffer.alloc(64)]);
-  for (const [label, content, mode, reason] of [
+  const large = JSON.stringify({ padding: "x".repeat(1 << 20) });
+  for (const [label, content, mode, reason, input] of [
     ["no execute bit", "#!/bin/sh\nexit 0\n", 0o644, "EACCES"],
     ["foreign architecture", foreign, 0o755, "ENOEXEC|exit 126|exit 127"],
+    ["foreign architecture, stdin larger than the pipe buffer", foreign, 0o755, "ENOEXEC|exit 126|exit 127", large],
   ]) {
     fs.writeFileSync(binary, content);
     fs.chmodSync(binary, mode);
-    const result = run();
+    const result = run(input);
     assert.equal(result.status, 0, label);
     assert.deepEqual(JSON.parse(result.stdout), allow, label);
     assert.match(result.stderr, new RegExp(`\\[ospec warn\\] the ospec-hooks binary could not start \\((${reason})\\); ran the Node hook`), label);
@@ -159,6 +191,19 @@ test("a binary that cannot start falls back to the Node hook, and one that ran d
   assert.equal(output.hookSpecificOutput.permissionDecision, "ask", "a binary that ran and failed is not retried");
   assert.match(output.hookSpecificOutput.permissionDecisionReason, /exit 3/);
   assert.doesNotMatch(failed.stderr, /ospec warn/);
+  const unread = run(large);
+  const unreadOutput = JSON.parse(unread.stdout).hookSpecificOutput;
+  assert.equal(unreadOutput.permissionDecision, "ask", "EPIPE with another exit code is not retried");
+  assert.match(unreadOutput.permissionDecisionReason, /: exit 3$/);
+  assert.doesNotMatch(unread.stderr, /ospec warn/);
+
+  // The Node hook of the retry fails the same way: its exit names the failure.
+  fs.writeFileSync(binary, foreign);
+  fs.chmodSync(binary, 0o755);
+  fs.writeFileSync(path.join(root, "pre-tool-use.js"), "process.exit(1);");
+  const retried = run(large);
+  assert.match(retried.stderr, /\[ospec warn\] the ospec-hooks binary could not start/);
+  assert.match(JSON.parse(retried.stdout).hookSpecificOutput.permissionDecisionReason, /: exit 1$/);
 });
 
 test("SUBCOMMANDS covers exactly the six hook events", () => {

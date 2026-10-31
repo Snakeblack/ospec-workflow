@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.168.5] - 2026-10-31
+
+### Fixed
+- **El lanzador vuelve a correr el hook Node cuando el binario no arranca y la entrada del hook es grande** (launcher-epipe-retry, pendiente (h) de PR1c en la review general del 2026-10-29).
+  - Con un binario `ospec-hooks` de otra arquitectura, el `/bin/sh` de respaldo sale con 126 o 127 sin leer el stdin. Si la entrada no cabe en el buffer de la tubería, `spawnSync` devuelve también `EPIPE`, y `binaryDidNotStart` miraba primero el error: el lanzador respondía `ask` («could not inspect this tool call: EPIPE») en vez de correr el guard en Node. Con 1 MiB de entrada pasaba siempre; con `{}` era la carrera que hizo fallar de forma intermitente el Validate Harness de main en ubuntu tras la PR #463.
+  - `binaryDidNotStart` ignora `EPIPE` y decide por la salida: con 126 o 127 y sin señal reintenta con Node, y el aviso `[ospec warn]` nombra `exit 126` o `exit 127`. Con otro código o con señal no reintenta, porque el binario pudo llegar a correr.
+- **El fallo de inspección nombra la salida o la señal del hijo, y no `EPIPE`** (launcher-epipe-reason).
+  - Un hijo que sale sin leer una entrada mayor que el buffer de la tubería, como un hook Node que no llega a cargar, hacía que el `ask` dijera `EPIPE` en vez de la causa. Ahora nombra `exit N` o la señal, también en el hijo Node del reintento.
+  - Con salida 0, `EPIPE` sigue siendo el motivo y el fallo de inspección se mantiene: el hijo decidió sin leer la llamada entera, así que su decisión no se reenvía.
+- **Documentación:** REQ-hooks-031 recoge el reintento con `EPIPE` y gana dos escenarios con una entrada mayor que el buffer de la tubería; REQ-hooks-025 recoge la regla del motivo con otros dos.
+- **Tests:** el test del reintento añade una entrada de 1 MiB, que fija la carrera de forma determinista, y comprueba que `EPIPE` con otro código no reintenta y nombra `exit 3`, y que el hijo Node del reintento nombra su salida. Un test nuevo cubre `exit 1`, `SIGKILL` y la salida 0 de un hijo que no lee la entrada.
+
+Hecho con IDD (`idd/archive/2026-10-31-launcher-epipe-retry/` e `idd/archive/2026-10-31-launcher-epipe-reason/`).
+
+**Verificación directa**: `node scripts/check.js` (4327 tests pasando, 0 fallos y 5 omitidos); los tests del reintento y del motivo fallan en la base con el `ask` por `EPIPE` y pasan con el arreglo.
+
 ## [2.168.4] - 2026-10-31
 
 ### Changed
