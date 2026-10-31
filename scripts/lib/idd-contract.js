@@ -299,6 +299,13 @@ function validateState(state) {
     if (gate.source === "user" && gate.resolved_turn !== undefined && !(gate.opened_turn !== null && gate.resolved_turn !== null && gate.resolved_turn !== gate.opened_turn)) {
       fail(`gate ${gate.id} is answered user without a turn end after it opened`);
     }
+    // irreversible-operation lists the operations it asks about, and its
+    // answer approves only those; an entry recorded before asks about the
+    // operation of its reason.
+    if (gate.operations !== undefined) {
+      if (gate.id !== "irreversible-operation") fail(`gate ${gate.id}: only irreversible-operation lists operations`);
+      else if (!(isTextList(gate.operations) && gate.operations.length > 0)) fail("gate irreversible-operation must list the operations it asks about, each as text");
+    }
     // checks-changed names the checks it approves (B7).
     const checks = gate.checks;
     if (gate.id === "checks-changed" && !(Array.isArray(checks) && checks.every((entry) => isTextList([entry?.name, entry?.command]) && Object.keys(entry).length === 2))) {

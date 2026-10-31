@@ -67,6 +67,14 @@ test("a checks-changed asked again about other checks opens again at the new tur
   assert.strictEqual(after.gates[0].opened_turn, 6);
 });
 
+test("an irreversible-operation that takes in another operation opens again at the new turn", () => {
+  const before = state({ id: "irreversible-operation", status: "open", reason: "drop column", operations: ["drop column"], opened_turn: 3 });
+  const after = structuredClone(before);
+  Object.assign(after.gates[0], { reason: "irreversible operation: drop column; rewrite history", operations: ["drop column", "rewrite history"] });
+  fenceGates(before, after, 6);
+  assert.strictEqual(after.gates[0].opened_turn, 6);
+});
+
 test("an answer declared user after a turn ended keeps its source", () => {
   const before = state({ id: "open-facts", status: "open", opened_turn: 3 });
   const after = state({ id: "open-facts", status: "resolved", answer: "the recommended ones", source: "user", opened_turn: 3 });

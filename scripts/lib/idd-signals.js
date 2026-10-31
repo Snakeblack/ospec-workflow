@@ -11,7 +11,7 @@ const { classifyChange } = require("./change-classification.js");
 const { SIGNALS, isIntentAmbiguous } = require("./idd-contract.js");
 const { classifyContractPaths } = require("./idd-contracts.js");
 const { IMPACT_SIGNALS, isBuildScript, isExcluded, matchImpact, normalizePath } = require("./idd-impact.js");
-const { IddRecordError, recordGate, recordPlan, recordReferences, recordSignal } = require("./idd-record.js");
+const { IRREVERSIBLE_PREFIX, IddRecordError, recordGate, recordPlan, recordReferences, recordSignal } = require("./idd-record.js");
 const { derivedReferences, resolveReferences } = require("./idd-knowledge.js");
 
 // K1 hard-floor evidence key → IDD signal. mechanical_no_behavior has no
@@ -39,7 +39,8 @@ const IRREVERSIBLE_OPERATIONS = Object.freeze([
   "rewrite-history",
 ]);
 
-// Read only from added lines of persistent-data files; first match wins.
+// Read only from added lines of persistent-data files; first match wins on
+// each line.
 const DESTRUCTIVE_STATEMENTS = Object.freeze([
   { label: "DROP TABLE", pattern: /\bDROP\s+TABLE\b|\bdrop_?table/i },
   { label: "DROP SCHEMA", pattern: /\bDROP\s+SCHEMA\b/i },
@@ -367,18 +368,20 @@ function impactReason(signal, { pattern, paths }, patterns) {
   return `${IMPACT_LABELS[signal]}: touches ${paths[0]}${more} (${why})`;
 }
 
-function destructiveStatement(diff, patterns) {
+// Every destructive statement the diff adds to a persistent-data file, once
+// per statement and file: each one is an operation the user approves apart.
+function destructiveStatements(diff, patterns) {
   const addedLines = diff.addedLines || {};
+  const reasons = [];
   for (const file of sortedPaths(diff.paths)) {
     if (!matchImpact(file, patterns).some((hit) => hit.signal === "persistent-data")) continue;
-    const lines = addedLines[file] || [];
-    for (const { label, pattern } of DESTRUCTIVE_STATEMENTS) {
-      if (lines.some((line) => !COMMENT_LINE.test(line) && pattern.test(line))) {
-        return `irreversible operation: ${label} in ${file}`;
-      }
+    const lines = (addedLines[file] || []).filter((line) => !COMMENT_LINE.test(line));
+    const found = new Set(lines.map((line) => DESTRUCTIVE_STATEMENTS.find(({ pattern }) => pattern.test(line))?.label));
+    for (const { label } of DESTRUCTIVE_STATEMENTS) {
+      if (found.has(label)) reasons.push(`${IRREVERSIBLE_PREFIX}${label} in ${file}`);
     }
   }
-  return null;
+  return reasons;
 }
 
 // The ADRs and quality scenarios the declaration names (E3.1).
@@ -492,10 +495,11 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
   }
   references.sort(byReference);
 
-  const gates = [];
-  const operation = (declaration.operations || []).find((op) => IRREVERSIBLE_OPERATIONS.includes(op));
-  const gateReason = operation ? `irreversible operation: declared ${operation}` : destructiveStatement(diff, patterns);
-  if (gateReason) gates.push({ id: "irreversible-operation", reason: gateReason });
+  // One gate reason per irreversible operation: recording joins the new ones
+  // in a single entry (REQ-idd-008).
+  const operations = IRREVERSIBLE_OPERATIONS.filter((op) => (declaration.operations || []).includes(op));
+  const gates = [...operations.map((op) => `${IRREVERSIBLE_PREFIX}declared ${op}`), ...destructiveStatements(diff, patterns)]
+    .map((reason) => ({ id: "irreversible-operation", reason }));
 
   const signals = [...found.values()].sort((a, b) => SIGNAL_ORDER.indexOf(a.id) - SIGNAL_ORDER.indexOf(b.id));
   const risk = floorOf(intent, new Set(found.keys()));

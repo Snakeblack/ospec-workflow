@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Los gates de IDD dejan de poder saltarse: irreversible-operation pregunta por cada operación nueva, --operation rechaza ids desconocidos, la review de confianza ve lo commiteado con base null y check --base no se salta checks-changed (idd-gate-bypasses)
+
 ## [2.168.5] - 2026-10-31
 
 ### Fixed
