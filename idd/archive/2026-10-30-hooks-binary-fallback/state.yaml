@@ -1,0 +1,527 @@
+{
+  "schema": "idd-state/v1",
+  "change": "hooks-binary-fallback",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El binario ospec-hooks desfasado o que no se puede ejecutar deja de ensombrecer al hook Node: el instalador no copia un binario anterior al código Go si no puede recompilarlo, y el lanzador reintenta con el hook Node cuando el binario no arranca (EACCES, ENOEXEC, 126)",
+    "acceptance": "Sin Go y con release/dist/ospec-hooks-<os>-<arch> más viejo que cmd/ e internal/, copyBinaryToTree no lo copia al árbol de un target con fallback Node y avisa; con un binario sin +x o de otra arquitectura, ospec-hooks-launch.js ejecuta <sub>.js y devuelve su salida en vez de ask/[ospec error]"
+  },
+  "facts": {
+    "open": [
+      "OpenCode no tiene fallback Node: con un binario desfasado y sin Go, ¿la instalación falla como cuando falta el binario, o lo copia con aviso como hoy?",
+      "¿Qué fallos del binario reintentan con Node: EACCES, ENOEXEC, ENOENT y salida 126/127 (el /bin/sh de respaldo de libuv ante ENOEXEC), y el reintento deja un aviso en stderr?",
+      "¿Se embebe la versión en el binario (-ldflags y --version) y dónde se compara (doctor o lanzador), o el desfase sigue detectándose solo por mtime?",
+      "Si el instalador no copia el binario, ¿borra el ospec-hooks que dejó una instalación anterior en el destino (install-target fusiona el árbol en el repo y lo conservaría)?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/harness-go-js-parity.md",
+      "openspec/specs/hooks/spec.md",
+      "openspec/specs/install/spec.md",
+      "openwiki/hooks-runtime/go-implementation.md",
+      "openwiki/hooks-runtime/lifecycle.md",
+      "scripts/configure/install-target.js",
+      "scripts/configure/install-target.test.js",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/ospec-hooks-launch.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "ensureRuntimeBinary devuelve null ante un binario desfasado sin Go, salvo con allowStale; copyBinaryToTree lo pide solo para opencode, cuyo plugin no tiene fallback Node",
+      "Un binario desfasado descartado no aborta aunque el target lo marque required (Cursor, Copilot global): sus hooks pasan por el lanzador y corren en Node; un binario ausente sigue abortando como antes",
+      "install-target borra el binario genérico de una instalación anterior dentro de syncEntriesTransactional (parámetro removals), que también hace snapshot de su entrada, así que un rollback lo restaura; los instaladores globales ya lo podan con su manifiesto",
+      "El lanzador reintenta con Node solo ante EACCES, ENOEXEC, ENOENT y salida 126/127, dentro del mismo plazo de 4 s, con un aviso [ospec warn] en stderr; timeout, señal u otro código no se reintentan",
+      "No se embebe la versión en el binario: el desfase sigue detectándose por mtime (E1.22), porque la versión solo cambia en los commits de release"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components generator, hooks: ADR 0001, 0008, 0010 and quality scenario guard-fail-closed, offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/install-target.js imports scripts/configure/cli.js, which uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Los árboles siguen saliendo de la generación; un binario desfasado que no se puede recompilar se queda fuera del árbol y el target degrada de forma declarada a sus hooks Node"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "Un binario que no arranca da paso al hook Node equivalente, que también falla cerrado; un binario que arrancó y falló sigue devolviendo ask, y un timeout o una señal no se reintentan"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Extiende la regla de la ADR: sin un binario utilizable para la plataforma (ausente, desfasado sin Go o que no arranca) corre el hook interpretado equivalente; no añade dependencias ni descargas"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "El guard corre en Node cuando el binario no arranca en lugar de pedir permiso por un fallo de lanzamiento; cualquier otro fallo del hijo sigue en ask"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "El instalador y el lanzador no añaden llamadas de red; sin Go el binario desfasado se descarta en local"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "No cambia ninguna transformación ni fixture golden; el binario se copia aparte del árbol generado"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 30,
+      "answer": "todas las recomendadas: 1b OpenCode copia el binario desfasado con aviso; 2 reintento Node ante EACCES, ENOEXEC, ENOENT y salidas 126/127, con aviso [ospec warn] en stderr; 3a no se embebe la versión, el desfase sigue por mtime; 4a la instalación en repo borra el scripts/hooks/ospec-hooks[.exe] previo del destino cuando no copia el binario",
+      "source": "user",
+      "resolved_turn": 31
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-30T19:12:27.852Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof_skipped": "check test fails on the base without the tests of the diff (counterproof run-5): the worktree lacks something the tests need, such as a build or a dependency it does not link, so the red proves nothing"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-30T19:16:40.678Z",
+      "detail": {
+        "tree": "sha256:50f8112223dc79e3108796ea05d369b9108e4b02907f9deceb62400fc1da92ce",
+        "runs": [
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-30T19:16:40.678Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:50f8112223dc79e3108796ea05d369b9108e4b02907f9deceb62400fc1da92ce",
+        "fitness": [
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-30T19:17:02.013Z",
+      "detail": {
+        "run": "run-13",
+        "tree": "sha256:3a993caa5bce82e8d3375d684d6acf95ba6c935bf098bcedab1d19396253628c",
+        "plan": "Compatible con instalaciones previas: install-target solo borra scripts/hooks/ospec-hooks[.exe] (release/dist/ospec-hooks[.exe] en OpenCode) cuando el árbol nuevo no lleva binario, dentro de la sincronización transaccional que hace snapshot de su entrada, así que un fallo lo restaura; --dry-run no borra nada; los instaladores globales y el build de Claude no cambian. Vuelta atrás: reinstalar con Go o tras npm run build:hooks copia de nuevo el binario."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-30T19:18:48.902Z",
+      "detail": {
+        "lineage_id": "sha256:2894b1b772fa371a1ab5db6e5e82903ae450037f7fe85b561fe1bd303c1d3ec5",
+        "candidate_id": "sha256:d7625312cbec876c06dd7347deae55e2c6bb15b2724b26dfe50fc66152041be2",
+        "candidate_tree": "533956be35e3562dd97271c3b004f8bd5619ef18",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-30T19:18:40.650Z",
+          "result_digest": "sha256:a2524d48896c4e38760b6a4e169e761b373725cac856566efdb15590355bb736"
+        }
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-30T19:19:01.531Z"
+    }
+  ],
+  "base": "d4714628230cfc7114087c098caa39787fabf4a0",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js scripts/configure/install-target.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:98009eca356e588c65d41ed5a7638fac06f7abe73956e91b49e0cc7b928706ac",
+      "tree": "sha256:43e761622194adc5a1a0fbef336d0c2ab833c2d85a88fc53942bca9e0fc50130",
+      "recorded_at": "2026-10-30T19:10:29.109Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js scripts/configure/install-target.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0814d55aaa998a63fecce93a83b48a32eaf9249af0dd71e1a69a482d7335a122",
+      "tree": "sha256:94af7971b7a2768f0339ac620cdc8b12c2c3923219fd7b840d6bad7153d9596b",
+      "recorded_at": "2026-10-30T19:12:27.852Z",
+      "tests": 76
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "d4714628230cfc7114087c098caa39787fabf4a0",
+      "mount": "sha256:89da9e2663b9aa9629fa2d1090450168763fe580a0f8a76ae71a304dde747ac1",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js scripts/configure/install-target.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:5402bacb482d7e4967b649db47c13fb42b35eb116bd504c1f4bacb9311070438",
+      "tree": "sha256:94af7971b7a2768f0339ac620cdc8b12c2c3923219fd7b840d6bad7153d9596b",
+      "recorded_at": "2026-10-30T19:12:27.852Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "d4714628230cfc7114087c098caa39787fabf4a0",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js scripts/configure/install-target.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:1a0fa75386a0b4f463a3582f55d7b660cdce96ed255e4fec2adde704afbe8a8c",
+      "tree": "sha256:94af7971b7a2768f0339ac620cdc8b12c2c3923219fd7b840d6bad7153d9596b",
+      "recorded_at": "2026-10-30T19:12:27.852Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "name": "test",
+      "base": "d4714628230cfc7114087c098caa39787fabf4a0",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d5a939a61a0a43b1c82fea1418f3e89e34afb6c4deb5fb1f8a947017bb3c74e8",
+      "tree": "sha256:94af7971b7a2768f0339ac620cdc8b12c2c3923219fd7b840d6bad7153d9596b",
+      "recorded_at": "2026-10-30T19:12:27.852Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e42bc11c5794bef9a1562b38d196203414f5afb69686af57478d883c466620e9",
+      "tree": "sha256:50f8112223dc79e3108796ea05d369b9108e4b02907f9deceb62400fc1da92ce",
+      "recorded_at": "2026-10-30T19:16:40.678Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5dc7171d157340f99a400ab34ebc87beff0df271d07cf49b2917122f24f351a3",
+      "tree": "sha256:50f8112223dc79e3108796ea05d369b9108e4b02907f9deceb62400fc1da92ce",
+      "recorded_at": "2026-10-30T19:16:40.678Z",
+      "tests": 48
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3aca19284dc57a5ce3ffa525f142becdc713b4608a2fbb286529aff55df5799f",
+      "tree": "sha256:50f8112223dc79e3108796ea05d369b9108e4b02907f9deceb62400fc1da92ce",
+      "recorded_at": "2026-10-30T19:16:40.678Z",
+      "tests": 82
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:50f8112223dc79e3108796ea05d369b9108e4b02907f9deceb62400fc1da92ce",
+      "recorded_at": "2026-10-30T19:16:40.678Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f22e6e8354346dd25d350094370b405bc8d67fe006fa0224b812a9408000229a",
+      "tree": "sha256:50f8112223dc79e3108796ea05d369b9108e4b02907f9deceb62400fc1da92ce",
+      "recorded_at": "2026-10-30T19:16:40.678Z",
+      "tests": 22
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:aafaeca496066b595a9e4c116c817c90d1b6d671730058c08e8564f4d68a4bec",
+      "tree": "sha256:50f8112223dc79e3108796ea05d369b9108e4b02907f9deceb62400fc1da92ce",
+      "recorded_at": "2026-10-30T19:16:40.678Z",
+      "tests": 82
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:646bb29809c4e38abf0658edc2558ae021793ba24daa98d874564688667dac6b",
+      "tree": "sha256:50f8112223dc79e3108796ea05d369b9108e4b02907f9deceb62400fc1da92ce",
+      "recorded_at": "2026-10-30T19:16:40.678Z",
+      "tests": 48
+    },
+    {
+      "id": "run-13",
+      "purpose": "migration-test",
+      "command": "node --test scripts/configure/install-target.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bc59ec321836c4ffe4334bf938e64d0ad3d567037e771a6de35bd8cf3368036f",
+      "tree": "sha256:3a993caa5bce82e8d3375d684d6acf95ba6c935bf098bcedab1d19396253628c",
+      "recorded_at": "2026-10-30T19:17:02.013Z",
+      "tests": 33
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:2894b1b772fa371a1ab5db6e5e82903ae450037f7fe85b561fe1bd303c1d3ec5",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "018c02a4aceb86b27bee52a01491c279afee12d9",
+          "candidate_tree": "533956be35e3562dd97271c3b004f8bd5619ef18",
+          "paths": [
+            "docs/harness-go-js-parity.md",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/install/spec.md",
+            "openwiki/hooks-runtime/go-implementation.md",
+            "scripts/configure/install-target.js",
+            "scripts/configure/install-target.test.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js"
+          ],
+          "diff_hash": "sha256:be5ef91aa154a0dc8fc76e47faa53536bdbef4a3a6fa2a928f8a1c86cfe9afe4",
+          "paths_digest": "sha256:bb9fc4f7086982cf722a7ee149326bbed8fa8969230d5f82e9dcbe28c07b3c49",
+          "authored_lines": 229,
+          "original_changed_lines": 272
+        },
+        "candidate_id": "sha256:d7625312cbec876c06dd7347deae55e2c6bb15b2724b26dfe50fc66152041be2",
+        "paths": [
+          "docs/harness-go-js-parity.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/install/spec.md",
+          "openwiki/hooks-runtime/go-implementation.md",
+          "scripts/configure/install-target.js",
+          "scripts/configure/install-target.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "533956be35e3562dd97271c3b004f8bd5619ef18",
+        "original_changed_lines": 272,
+        "authored_lines": 229
+      },
+      "current_candidate_id": "sha256:d7625312cbec876c06dd7347deae55e2c6bb15b2724b26dfe50fc66152041be2",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "018c02a4aceb86b27bee52a01491c279afee12d9",
+        "candidate_tree": "533956be35e3562dd97271c3b004f8bd5619ef18",
+        "paths": [
+          "docs/harness-go-js-parity.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/install/spec.md",
+          "openwiki/hooks-runtime/go-implementation.md",
+          "scripts/configure/install-target.js",
+          "scripts/configure/install-target.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "diff_hash": "sha256:be5ef91aa154a0dc8fc76e47faa53536bdbef4a3a6fa2a928f8a1c86cfe9afe4",
+        "paths_digest": "sha256:bb9fc4f7086982cf722a7ee149326bbed8fa8969230d5f82e9dcbe28c07b3c49",
+        "authored_lines": 229,
+        "original_changed_lines": 272
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "hooks-binary-fallback:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "hooks-binary-fallback:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 136,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-30T19:19:01.531Z"
+}

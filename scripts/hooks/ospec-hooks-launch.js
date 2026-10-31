@@ -543,6 +543,17 @@ function readBackendModeSync(configPath, readFileSync = fs.readFileSync) {
   return "openspec";
 }
 
+// The exec errors of a binary the system could not start, and the exit codes
+// of the /bin/sh the spawn falls back to on ENOEXEC (126: not executable, 127:
+// not found). ospec-hooks itself exits only 0, 1 or 2. Returns the reason, or
+// null when the binary ran.
+const NOT_STARTED_ERRORS = new Set(["EACCES", "ENOEXEC", "ENOENT"]);
+
+function binaryDidNotStart(result) {
+  if (result.error) return NOT_STARTED_ERRORS.has(result.error.code) ? result.error.code : null;
+  return !result.signal && (result.status === 126 || result.status === 127) ? `exit ${result.status}` : null;
+}
+
 function resolveBinary(scriptDir, suffix = hostBinarySuffix(), exists = fs.existsSync) {
   for (const candidate of binaryCandidates(scriptDir, suffix)) {
     if (exists(candidate)) {
@@ -629,7 +640,17 @@ function launch(argv, scriptDir, seen = {}) {
     OSPEC_OUTPUT_REDACTION: argv.includes(OUTPUT_REDACTION_FLAG) ? "1" : "",
     ...(cursorHost ? { OSPEC_TARGET: process.env.OSPEC_TARGET || "cursor" } : {}),
   };
-  const result = spawnSync(command, args, { input, env, cwd: adapted.cwd, encoding: "utf8", timeout: CHILD_TIMEOUT_MS, killSignal: "SIGKILL" });
+  const started = Date.now();
+  const spawnChild = (file, fileArgs, timeout) => spawnSync(file, fileArgs, { input, env, cwd: adapted.cwd, encoding: "utf8", timeout, killSignal: "SIGKILL" });
+  let result = spawnChild(command, args, CHILD_TIMEOUT_MS);
+  // REQ-hooks-031: a binary that never started (no execute bit, missing
+  // loader, another architecture) gives way to the Node hook of the same
+  // name, within the same deadline. One that ran and failed is not retried.
+  const notStarted = command !== process.execPath && binaryDidNotStart(result);
+  if (notStarted) {
+    process.stderr.write(`[ospec warn] the ospec-hooks binary could not start (${notStarted}); ran the Node hook\n`);
+    result = spawnChild(process.execPath, [path.join(scriptDir, `${sub}.js`)], Math.max(1, CHILD_TIMEOUT_MS - (Date.now() - started)));
+  }
 
   if (result.error || result.signal || result.status !== 0) {
     // Never forward partial stdout from a failed child as a permission decision.

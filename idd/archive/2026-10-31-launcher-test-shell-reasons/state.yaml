@@ -1,0 +1,323 @@
+{
+  "schema": "idd-state/v1",
+  "change": "launcher-test-shell-reasons",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "El escenario de REQ-hooks-031 y su test aceptan el motivo de cada sistema para un ELF de otra arquitectura (ENOEXEC en macOS, salida 126 con bash y 127 con dash como /bin/sh); el producto no cambia",
+    "acceptance": "El test 'a binary that cannot start falls back to the Node hook' pasa con /bin/sh de bash, con un /bin/sh que sale con 127 como dash y con ENOEXEC; REQ-hooks-031 nombra los tres motivos; el CI de la PR #462 queda en verde en ubuntu, macOS y Windows"
+  },
+  "facts": {
+    "basis": "Los logs de CI de la PR #462 fijan el motivo por sistema (Ubuntu: exit 127; macOS: ENOEXEC) y el lanzador ya los trata como binario que no arranca; solo cambian el escenario de la spec y su test"
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/hooks/spec.md",
+      "scripts/hooks/ospec-hooks-launch.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El cambio se declara docs porque no toca código de producto: como bug, repro-test no puede fallar contra el producto base, y como refactor el diff cambia una línea de contrato"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.test.js (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "none",
+      "reason": "Solo cambian el escenario de la spec y la aserción del motivo en el test; el guard y su reintento no cambian"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "No cambia el runtime ni sus dependencias; el test acepta el motivo que da cada sistema al no arrancar el binario"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "none",
+      "reason": "El comportamiento ante un fallo del guard no cambia; un binario que arrancó y falló sigue en ask"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-31T13:46:48.565Z",
+      "detail": {
+        "tree": "sha256:5ae150b7ebc8a3a07f0b485b56913851c08e5155dbc11952ae74921b44885c9d",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-31T13:46:48.565Z",
+      "detail": {
+        "refs": [
+          "adr:0008 none",
+          "adr:0010 none",
+          "scenario:guard-fail-closed none"
+        ],
+        "records": [],
+        "tree": "sha256:5ae150b7ebc8a3a07f0b485b56913851c08e5155dbc11952ae74921b44885c9d",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-31T13:47:21.058Z",
+      "detail": {
+        "lineage_id": "sha256:f996ccfea7a9fd4d2500eacf09598907ce7ae5c1bc23eacb0ce609acc311dae6",
+        "candidate_id": "sha256:87711530fabd81f3008329759eb9f892a036279b6c62c9da3db1a20ddab60915",
+        "candidate_tree": "3dc7c6099887f09d73a1df12e1e5e823ccf1b4de",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-31T13:47:14.090Z",
+          "result_digest": "sha256:a31e1f85b30ebc832d4302ae40ee334e357c5478adc0bc03519b8f81772a8377"
+        }
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-31T13:47:29.208Z"
+    }
+  ],
+  "base": "b66857f538ca23d9fedfd930ade91569d61d25a3",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:92749e3130d18cabc73ebf48651166eda966cd139fcedcf599b3d2b2d63a32e8",
+      "tree": "sha256:5ae150b7ebc8a3a07f0b485b56913851c08e5155dbc11952ae74921b44885c9d",
+      "recorded_at": "2026-10-31T13:46:48.565Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d69b48b64297aed68755448aa4de36fe9a26da864d34acd14540e909745b7398",
+      "tree": "sha256:5ae150b7ebc8a3a07f0b485b56913851c08e5155dbc11952ae74921b44885c9d",
+      "recorded_at": "2026-10-31T13:46:48.565Z",
+      "tests": 82
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:5ae150b7ebc8a3a07f0b485b56913851c08e5155dbc11952ae74921b44885c9d",
+      "recorded_at": "2026-10-31T13:46:48.565Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:98bfa6cd1871736b8c517a1ec3eac366ebd2accc0853bfd699550d8e1ff298c6",
+      "tree": "sha256:5ae150b7ebc8a3a07f0b485b56913851c08e5155dbc11952ae74921b44885c9d",
+      "recorded_at": "2026-10-31T13:46:48.565Z",
+      "tests": 22
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c86645be622b71c848362fa4d3cd9edc36c495da61570d438e915dfa09d78b2d",
+      "tree": "sha256:5ae150b7ebc8a3a07f0b485b56913851c08e5155dbc11952ae74921b44885c9d",
+      "recorded_at": "2026-10-31T13:46:48.565Z",
+      "tests": 82
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:f996ccfea7a9fd4d2500eacf09598907ce7ae5c1bc23eacb0ce609acc311dae6",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "654d2d0e0e7d571d20a7628ba81db5447868f12d",
+          "candidate_tree": "3dc7c6099887f09d73a1df12e1e5e823ccf1b4de",
+          "paths": [
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/ospec-hooks-launch.test.js"
+          ],
+          "diff_hash": "sha256:4a4a20ed6e35295f15f3b57462d24430d11bd2ac74ff96ac34fad627294daaed",
+          "paths_digest": "sha256:8280e5039ea90a61b6a6f4e1477956e43288005a7b7f198cda1eefeb6dd4def9",
+          "authored_lines": 8,
+          "original_changed_lines": 13
+        },
+        "candidate_id": "sha256:87711530fabd81f3008329759eb9f892a036279b6c62c9da3db1a20ddab60915",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "3dc7c6099887f09d73a1df12e1e5e823ccf1b4de",
+        "original_changed_lines": 13,
+        "authored_lines": 8
+      },
+      "current_candidate_id": "sha256:87711530fabd81f3008329759eb9f892a036279b6c62c9da3db1a20ddab60915",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "654d2d0e0e7d571d20a7628ba81db5447868f12d",
+        "candidate_tree": "3dc7c6099887f09d73a1df12e1e5e823ccf1b4de",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "diff_hash": "sha256:4a4a20ed6e35295f15f3b57462d24430d11bd2ac74ff96ac34fad627294daaed",
+        "paths_digest": "sha256:8280e5039ea90a61b6a6f4e1477956e43288005a7b7f198cda1eefeb6dd4def9",
+        "authored_lines": 8,
+        "original_changed_lines": 13
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "launcher-test-shell-reasons:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "launcher-test-shell-reasons:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 7,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-31T13:47:29.208Z"
+}

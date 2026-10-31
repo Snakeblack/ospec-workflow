@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.168.3] - 2026-10-31
+
+### Fixed
+- **Un binario `ospec-hooks` desfasado o que no arranca ya no ensombrece a los hooks Node** (hooks-binary-fallback, lote PR1c de la review general del 2026-10-29).
+  - **Instalador:** si el binario de `release/dist/` es más viejo que el código Go y no hay Go para recompilarlo, ya no se copia y los hooks corren en Node, con un aviso. Antes se copiaba igualmente y el lanzador lo prefería. OpenCode, cuyo plugin solo ejecuta el binario, lo sigue recibiendo con el aviso. `npm run build:hooks` sale ahora con 1 en ese caso.
+  - **Instalación en un repo:** `install-target` fusiona el árbol, así que borra el `scripts/hooks/ospec-hooks` que dejó una instalación anterior cuando el árbol nuevo no lleva binario. Lo hace dentro de la sincronización transaccional, que lo restaura si algo falla, y `--dry-run` lo lista sin borrar. Los instaladores globales ya lo quitaban con su manifiesto.
+  - **Lanzador:** si el binario no arranca (`EACCES`, `ENOEXEC`, `ENOENT` o salida 126/127, como un binario sin permiso de ejecución o de otra arquitectura), ejecuta el hook Node equivalente dentro del mismo plazo y deja un aviso `[ospec warn]` en stderr. Antes cada hook respondía `ask` o `[ospec error]`. Un timeout, una señal u otro código no se reintentan, porque el binario pudo llegar a ejecutarse.
+  - La versión no se embebe en el binario: el desfase se sigue detectando por fecha de modificación (E1.22).
+- **Documentación:** REQ-hooks-031, REQ-install-042 y las secciones 4.4 y 4.5 de `openspec/specs/install/spec.md`; `docs/harness-go-js-parity.md` y `openwiki/hooks-runtime/go-implementation.md` describen el reintento.
+- **Tests:** el test del reintento y el escenario de REQ-hooks-031 aceptan el motivo que da cada sistema para un binario de otra arquitectura: `ENOEXEC` en macOS, y en Linux la salida de `/bin/sh`, 126 con bash o 127 con dash (launcher-test-shell-reasons). El producto no cambia.
+
+Hecho con IDD (`idd/archive/2026-10-30-hooks-binary-fallback/` e `idd/archive/2026-10-31-launcher-test-shell-reasons/`).
+
+**Verificación directa**: `node scripts/check.js` (4326 tests pasando, 0 fallos y 5 omitidos).
+
 ## [2.168.2] - 2026-10-30
 
 ### Fixed

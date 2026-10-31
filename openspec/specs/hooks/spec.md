@@ -1832,3 +1832,11 @@ The Stop hook, in the Node hook and the native binary alike, MUST add one to the
 - GIVEN a Stop whose `cwd` does not exist THEN the count MUST rise in the hook's own directory and nothing MUST be created at that `cwd`.
 - GIVEN `.ospec/turns` is a directory THEN the trace MUST still be written and the `systemMessage` MUST name the count.
 - GIVEN OpenCode ends a turn in which a subagent ran THEN the count MUST rise by one (verified live on 1.18.35 and 2.0.32).
+
+### Requirement: The Launcher Runs The Node Hook When The Binary Cannot Start {#REQ-hooks-031}
+
+`scripts/hooks/ospec-hooks-launch.js` prefers the native binary (ADR 0010), and a binary the system cannot start would otherwise turn every hook into an `ask` or an `[ospec error]`. When the launcher resolved the binary and the spawn fails with `EACCES`, `ENOEXEC` or `ENOENT` (no execute bit, no loader, removed), or the binary exits with 126 or 127 (the `/bin/sh` the spawn falls back to on `ENOEXEC`, such as a binary for another architecture), the launcher MUST run the Node hook of the same subcommand with the same input, environment and working directory, within what is left of the same deadline, and MUST write `[ospec warn] the ospec-hooks binary could not start (<reason>); ran the Node hook` to stderr. The Node hook's result is then handled as the binary's would be. Any other failure (a timeout, a signal, another exit code) MUST NOT be retried: the binary may have run and left effects, so it keeps today's inspection failure. ospec-hooks exits only with 0, 1 or 2. OpenCode's plugin runs the binary without the launcher and ships no Node hooks, so it is outside this requirement.
+
+- GIVEN `scripts/hooks/ospec-hooks` without the execute bit THEN a `pre-tool-use` call MUST answer with the Node hook's decision and stderr MUST name `EACCES`.
+- GIVEN `scripts/hooks/ospec-hooks` holding an ELF header for an unknown machine THEN the call MUST answer with the Node hook's decision and stderr MUST name the system's reason: `ENOEXEC` on macOS, and on Linux the exit of `/bin/sh`, `exit 126` under bash or `exit 127` under dash.
+- GIVEN `scripts/hooks/ospec-hooks` that runs and exits 3 THEN the decision MUST be `ask` naming `exit 3`, and the Node hook MUST not run.
