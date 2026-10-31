@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.168.7] - 2026-11-01
+
 ### Fixed
-- Cerrar la fricción del CLI de IDD: flags aceptados y descartados, bucle del intent ambiguo, isTestPath que toma producto por test, signals registradas sin listado de solo lectura, review sin candidateCommand, CHANGELOG escrito antes de guardar el estado en close, salida obsoleta de idd-next y configure-checks, y el arreglo que solo toca tests sin kind que le encaje (idd-cli-friction)
+- **El CLI de IDD deja de descartar argumentos y de atascar los arreglos que solo tocan tests** (idd-cli-friction, lote PR2b de la review general del 2026-10-29).
+  - **Un flag que el comando no toma es error de uso.** `status --kind`, `check --path --unit --plan`, `record gate --open --answer --source` o `record intent --answer --source` sin intent ambiguo salían con exit 0 y descartaban lo que sobraba. Ahora cada comando acepta solo los flags de sus líneas de uso, más `--root`, `--json` y `--help`. También es error de uso `record gate --resolve --reason`, y todos salen con exit 2 sin escribir nada. Repetir la resolución de un intent ambiguo sigue siendo idempotente.
+  - **El intent ambiguo ya no entra en bucle.** La skill decía que se resolvía con el mismo comando y los campos, pero con `--ambiguous` el CLI respondía «no change» y dejaba el gate abierto. Ahora `--ambiguous` solo toma `--request`, y el error remite al `record intent` que imprime `ospec next`, que es lo que dice ahora la regla 3 de la skill `idd`.
+  - **`Latest.java`, `Contests.cs` y `src/spec/openapi.js` son producto.** Los nombres de test de Java y .NET distinguen mayúsculas, `*Tests.java` (Spring) cuenta como test, y `spec/` bajo la raíz solo lo es para ficheros Ruby. Antes esos ficheros no derivaban `untested-product` y la contraprueba los montaba como tests.
+  - **Un bug que está en el propio test puede cerrar.** Si el diff solo cambia tests, datos de test y documentación, la contraprueba se omite con aviso, porque la base correría el mismo producto. Si después el diff cambia código de producto, `check` reabre `repro-test` o `tdd-red-green` para correr la pareja otra vez con contraprueba. Así un test que ya pasa en la base, registrado antes del arreglo, sigue sin cerrar.
+  - **`close` escribe el CHANGELOG después de guardar el estado cerrado.** Si el estado no se guardaba, quedaba la entrada con el cambio abierto y el siguiente `close` daba `evidence-stale`. Un `close` que reanuda un cambio cerrado sin su entrada la escribe antes de archivar.
+  - **Salida coherente.** `ospec status` lista las signals de cada cambio, y el remedio de `signal-not-recorded` remite a él. `ospec review` propone el comando de check del proyecto, como `next` y `check`. `next` imprime la forma vigente `(--open-fact "<question>")...`.
+- **Documentación:** REQ-idd-011, REQ-idd-012, REQ-idd-014 y REQ-idd-025 recogen las reglas, con cinco escenarios nuevos. La spec dice ya que `configure-checks` apunta a `ospec check`, como hace desde E1.49, y `references/checks.md` aclara que se ejecuta una vez escrita la configuración. El openwiki de verificación y el onboarding de desarrollo están al día. La skill `idd` baja 7 B y el ratchet de E4.3 baja sus techos.
+
+Hecho con IDD (`idd/archive/2026-10-31-idd-cli-friction/`).
+
+**Verificación directa**: `node scripts/check.js` (4345 tests pasando, 0 fallos y 5 omitidos); los diez tests de reproducción fallan en la base y pasan con el arreglo, y la contraprueba los detecta en la base.
 
 ## [2.168.6] - 2026-10-31
 
