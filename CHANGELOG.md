@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- El test 'assertSafeDest: allows safe unrelated directories' usa como destino un directorio temporal propio en vez de os.tmpdir(), para no fallar cuando el repo vive bajo el directorio temporal; el producto no cambia (safe-dest-test-tmpdir)
+
 ## [2.168.3] - 2026-10-31
 
 ### Fixed
