@@ -7,8 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.168.4] - 2026-10-31
+
 ### Changed
-- El test 'assertSafeDest: allows safe unrelated directories' usa como destino un directorio temporal propio en vez de os.tmpdir(), para no fallar cuando el repo vive bajo el directorio temporal; el producto no cambia (safe-dest-test-tmpdir)
+- **La contraprueba de IDD ya no se salta por un test que dependía de dónde vive el repo** (safe-dest-test-tmpdir, pendiente de PR1c en la review general del 2026-10-29).
+  - El test `assertSafeDest: allows safe unrelated directories` usaba `os.tmpdir()` como destino. Cuando el repo vive bajo el directorio temporal, como el worktree de la contraprueba, ese destino contiene el repo y `assertSafeDest` lo rechaza con razón: el control de la contraprueba fallaba y IDD se la saltaba.
+  - Ahora el test crea su propio directorio con `mkdtempSync` y lo borra al terminar. El producto no cambia.
+
+Hecho con IDD (`idd/archive/2026-10-31-safe-dest-test-tmpdir/`).
+
+**Verificación directa**: `node scripts/check.js` (4326 tests pasando, 0 fallos y 5 omitidos), también desde un worktree bajo `/tmp`; el test pasa con `TMPDIR` apuntando al directorio padre del repo, que antes lo hacía fallar.
 
 ## [2.168.3] - 2026-10-31
 
