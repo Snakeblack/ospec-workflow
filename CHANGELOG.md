@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.168.5] - 2026-10-31
+
 ### Fixed
-- El lanzador reintenta con el hook Node cuando el binario ospec-hooks no arranca aunque spawnSync devuelva EPIPE junto con la salida 126/127 del /bin/sh de respaldo (launcher-epipe-retry)
+- **El lanzador vuelve a correr el hook Node cuando el binario no arranca y la entrada del hook es grande** (launcher-epipe-retry, pendiente (h) de PR1c en la review general del 2026-10-29).
+  - Con un binario `ospec-hooks` de otra arquitectura, el `/bin/sh` de respaldo sale con 126 o 127 sin leer el stdin. Si la entrada no cabe en el buffer de la tubería, `spawnSync` devuelve también `EPIPE`, y `binaryDidNotStart` miraba primero el error: el lanzador respondía `ask` («could not inspect this tool call: EPIPE») en vez de correr el guard en Node. Con 1 MiB de entrada pasaba siempre; con `{}` era la carrera que hizo fallar de forma intermitente el Validate Harness de main en ubuntu tras la PR #463.
+  - `binaryDidNotStart` ignora `EPIPE` y decide por la salida: con 126 o 127 y sin señal reintenta con Node, y el aviso `[ospec warn]` nombra `exit 126` o `exit 127`. Con otro código o con señal no reintenta, porque el binario pudo llegar a correr.
+- **Documentación:** REQ-hooks-031 recoge el caso y gana dos escenarios con una entrada mayor que el buffer de la tubería.
+- **Tests:** el test del reintento añade una entrada de 1 MiB, que fija la carrera de forma determinista, y comprueba que `EPIPE` con otro código no reintenta.
+
+Hecho con IDD (`idd/archive/2026-10-31-launcher-epipe-retry/`).
+
+**Verificación directa**: `node scripts/check.js` (4326 tests pasando, 0 fallos y 5 omitidos); el test del reintento falla en la base con el `ask` por `EPIPE` y pasa con el arreglo.
 
 ## [2.168.4] - 2026-10-31
 
