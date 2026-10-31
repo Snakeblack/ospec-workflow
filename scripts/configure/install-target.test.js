@@ -90,8 +90,11 @@ test("assertSafeDest: resolves and blocks symlinked source repositories", (t) =>
   );
 });
 
-test("assertSafeDest: allows safe unrelated directories", () => {
-  const tempDir = os.tmpdir();
+test("assertSafeDest: allows safe unrelated directories", (t) => {
+  // A directory of its own: os.tmpdir() itself contains the repo when the
+  // repo lives under it, as the IDD counterproof worktree does.
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-safe-dest-"));
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }));
   const source = process.cwd();
   assertSafeDest(tempDir, source);
 });

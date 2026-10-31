@@ -1,0 +1,194 @@
+{
+  "schema": "idd-state/v1",
+  "change": "safe-dest-test-tmpdir",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "El test 'assertSafeDest: allows safe unrelated directories' usa como destino un directorio temporal propio en vez de os.tmpdir(), para no fallar cuando el repo vive bajo el directorio temporal; el producto no cambia",
+    "acceptance": "El test pasa con el repo en su sitio y con TMPDIR apuntando al directorio padre del repo (como en el worktree de la contraprueba); assertSafeDest no cambia"
+  },
+  "facts": {
+    "basis": "assertSafeDest rechaza con razón un destino que contiene el repo; el defecto es del test, que elige os.tmpdir() como destino. Solo cambia el destino del test"
+  },
+  "plan": {
+    "paths": [
+      "scripts/configure/install-target.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El cambio se declara docs porque no toca código de producto, como launcher-test-shell-reasons: como bug, repro-test no puede fallar contra el producto base"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "none",
+      "reason": "Solo cambia el destino de un test de assertSafeDest; la generación multi-target no cambia"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "No cambia el runtime ni sus dependencias; el test usa node:fs y node:os como ya hacía"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "El test sigue sin red; crea y borra un directorio temporal local"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "none",
+      "reason": "No cambia ningún artefacto generado por target; solo el test"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-31T14:37:04.807Z",
+      "detail": {
+        "tree": "sha256:ece73885d3987475c83786faed7b7fa338412f88330fa9033ea96bed19f1c115",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-31T14:37:04.807Z",
+      "detail": {
+        "refs": [
+          "adr:0001 none",
+          "adr:0010 none",
+          "scenario:offline-operation none",
+          "scenario:target-parity none"
+        ],
+        "records": [],
+        "tree": "sha256:ece73885d3987475c83786faed7b7fa338412f88330fa9033ea96bed19f1c115",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-31T14:37:04.906Z"
+    }
+  ],
+  "base": "d52daf0e2f02daec4ac67f13d6cdd5a08cb3ceec",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:137876b2c8ad0500aa6792a728e01218046e36fdf5846c241a1a344432090bfb",
+      "tree": "sha256:ece73885d3987475c83786faed7b7fa338412f88330fa9033ea96bed19f1c115",
+      "recorded_at": "2026-10-31T14:37:04.807Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bf963e76c692296786c4590e0f63c836b266ac6c0a7528a1d6cbd00576479f76",
+      "tree": "sha256:ece73885d3987475c83786faed7b7fa338412f88330fa9033ea96bed19f1c115",
+      "recorded_at": "2026-10-31T14:37:04.807Z",
+      "tests": 48
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:ece73885d3987475c83786faed7b7fa338412f88330fa9033ea96bed19f1c115",
+      "recorded_at": "2026-10-31T14:37:04.807Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0c195ca2d38716ff474133e772a67294aaa9571a03f5c3bca19411345f35317e",
+      "tree": "sha256:ece73885d3987475c83786faed7b7fa338412f88330fa9033ea96bed19f1c115",
+      "recorded_at": "2026-10-31T14:37:04.807Z",
+      "tests": 22
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8cf153a23174eeab5961122b6e8e9f914197d1145be3c66827e7450a333218c0",
+      "tree": "sha256:ece73885d3987475c83786faed7b7fa338412f88330fa9033ea96bed19f1c115",
+      "recorded_at": "2026-10-31T14:37:04.807Z",
+      "tests": 48
+    }
+  ],
+  "closed_at": "2026-10-31T14:37:04.906Z"
+}
