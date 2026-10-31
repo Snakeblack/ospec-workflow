@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "artifacts": [
+    "openspec/changes/foo/design.md"
+  ],
+  "next_recommended": "sdd-tasks",
+  "risks": "None",
+  "skill_resolution": "injected"
+}

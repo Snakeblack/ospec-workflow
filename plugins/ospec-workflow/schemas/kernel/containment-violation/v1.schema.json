@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/containment-violation/v1",
+  "title": "ContainmentViolationV1",
+  "description": "Containment Violation Descriptor Schema v1 for fail-closed security boundary violations.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "violation_id",
+    "workspace_id",
+    "work_order_id",
+    "attempted_path",
+    "allowed_paths",
+    "violation_type",
+    "timestamp"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "violation_id": {
+      "type": "string"
+    },
+    "workspace_id": {
+      "type": "string"
+    },
+    "work_order_id": {
+      "type": "string"
+    },
+    "attempted_path": {
+      "type": "string"
+    },
+    "allowed_paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "violation_type": {
+      "type": "string",
+      "enum": [
+        "traversal",
+        "symlink_escape",
+        "undeclared_write",
+        "permission_denied"
+      ]
+    },
+    "timestamp": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

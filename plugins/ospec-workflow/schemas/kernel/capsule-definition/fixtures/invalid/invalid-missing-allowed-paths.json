@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "capsule_id": "capsule-missing-allowed",
+  "fingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "source_snapshot_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "dependencies": [
+    "src/index.js"
+  ],
+  "environment": {}
+}

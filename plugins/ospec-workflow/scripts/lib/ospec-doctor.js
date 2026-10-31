@@ -1,0 +1,830 @@
+"use strict";
+
+// `ospec doctor` (openspec/specs/idd/spec.md, REQ-idd-019): a read-only
+// diagnosis of the installed hosts and the project. Every check reports a
+// status (ok, info, warn, error); warnings and errors carry their cause and the
+// action that fixes them. Nothing here writes: state files are parsed, never
+// read through the store (which recovers interrupted writes), and the only
+// processes spawned are `git ls-files`, `git check-ignore`, `claude --version`,
+// the read-only Engram probes and the installed PreToolUse hook, run on a
+// harmless Read outside the project. The one exception is `--repair`, which
+// moves an unreadable IDD state aside so its change can resume (E1.46).
+//
+// The Claude Code checks live here; the other six hosts, in ospec-doctor-hosts.js.
+
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
+
+const { DEFAULT_MODE, STATE_FILE, resolveMode, validateState } = require("./idd-contract.js");
+const { CONFIG_FILE, CONFIG_KEYS, IddConfigError, parseIddConfig } = require("./idd-config.js");
+const { statusOf } = require("./idd-next.js");
+const { candidateCheckCommand, configureChecksStep } = require("./idd-checks-config.js");
+const { readPrecommitStrict } = require("./precommit-strict.js");
+const { TARGETS: ENGRAM_TARGETS, isConfigured, isUnknown, detectEngram, parseJsonc } = require("./engram-detect.js");
+const { binaryCandidates, hostBinarySuffix } = require("../hooks/ospec-hooks-launch.js");
+const hosts = require("./ospec-doctor-hosts.js");
+
+const DOCTOR_TARGETS = ["claude", ...hosts.HOST_TARGETS];
+const ROUTER_BEGIN = "<!-- ospec-workflow:router:begin -->";
+const ROUTER_END = "<!-- ospec-workflow:router:end -->";
+// E0.4: what a host loads before any work starts must fit in 4 KB per target.
+const ALWAYS_ON_BUDGET_BYTES = 4000;
+const HOOK_GUARDS = [
+  "DISABLE_AGENT_SHIELD",
+  "DISABLE_GIT_COLLABORATION_GUARD",
+  "DISABLE_OSPEC_ATTRIBUTION_CHECK",
+  "DISABLE_OSPEC_PRECOMMIT",
+  "DISABLE_SPEC_DRIFT_GUARD",
+  "DISABLE_TOKEN_ADVISOR",
+];
+const SKILL_REFERENCE = /ospec-workflow:(?:sdd-orchestrator|idd)\b/;
+const SDD_AGENT = /^sdd-[a-z0-9-]+\.md$/;
+const ENGRAM_TIMEOUT_MS = 30000;
+// The PreToolUse timeout of hooks/hooks.json; the launcher stops its child at 4 s.
+const HOOK_PROBE_TIMEOUT_MS = 5000;
+// Claude Code applies a PostToolUse `updatedToolOutput` to every tool since
+// 2.1.121; before it, the secret a redacted Read exempts reaches the model.
+const OUTPUT_REDACTION_MIN_CLAUDE = [2, 1, 121];
+
+class DoctorUsageError extends Error {
+  constructor(message) {
+    super(message);
+    this.code = "usage";
+  }
+}
+
+function readText(file) {
+  try {
+    return fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+  } catch {
+    return null;
+  }
+}
+
+function readJson(file) {
+  const text = readText(file);
+  if (text === null) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function listDirs(dir) {
+  try {
+    return fs.readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  } catch {
+    return [];
+  }
+}
+
+function defaultSpawn(bin, args, options = {}) {
+  return spawnSync(bin, args, { encoding: "utf8", shell: false, ...options });
+}
+
+// The version of the plugin or checkout the running CLI belongs to.
+function runtimeVersion(runtimeRoot) {
+  const plugin = readJson(path.join(runtimeRoot, ".claude-plugin", "plugin.json"));
+  if (plugin?.version) return plugin.version;
+  const pkg = readJson(path.join(runtimeRoot, "package.json"));
+  return pkg?.name === "ospec-workflow" ? pkg.version : null;
+}
+
+function checkoutVersion(root) {
+  const pkg = readJson(path.join(root, "package.json"));
+  if (pkg?.name !== "ospec-workflow" || !fs.existsSync(path.join(root, "scripts", "configure", "cli.js"))) return null;
+  return pkg.version;
+}
+
+function findRouterBlock(text) {
+  const start = text.indexOf(ROUTER_BEGIN);
+  if (start === -1) return null;
+  const end = text.indexOf(ROUTER_END, start);
+  if (end === -1) return null;
+  const stop = end + ROUTER_END.length;
+  return {
+    body: text.slice(start + ROUTER_BEGIN.length, end).trim(),
+    bytes: Buffer.byteLength(`${text.slice(start, stop)}\n`),
+    outside: text.slice(0, start) + text.slice(stop),
+  };
+}
+
+// --- Claude Code --------------------------------------------------------------
+
+function detectClaude(home) {
+  const file = path.join(home, ".claude", "plugins", "installed_plugins.json");
+  if (!fs.existsSync(file)) return null;
+  const doc = readJson(file);
+  if (!doc || typeof doc.plugins !== "object") return { file, installs: [], unreadable: true };
+  const installs = [];
+  for (const [id, entries] of Object.entries(doc.plugins)) {
+    if (!id.startsWith("ospec-workflow@") || !Array.isArray(entries)) continue;
+    for (const entry of entries) installs.push({ id, scope: entry.scope, version: entry.version, installPath: entry.installPath });
+  }
+  if (installs.length === 0) return null;
+  for (const install of installs) {
+    const manifest = install.installPath ? readJson(path.join(install.installPath, ".claude-plugin", "plugin.json")) : null;
+    install.valid = Boolean(manifest);
+    if (manifest?.version) install.version = manifest.version;
+  }
+  return { file, installs, primary: installs.find((install) => install.valid) || null };
+}
+
+function hasSddPackage(installPath) {
+  try {
+    return fs.readdirSync(path.join(installPath, "agents")).some((name) => SDD_AGENT.test(name));
+  } catch {
+    return false;
+  }
+}
+
+// The same lookup as setup:claude: an npm `.cmd` shim cannot be spawned without
+// a shell, so on Windows the WinGet package's claude.exe is the fallback.
+function resolveClaudeCli({ spawn, env, platform }) {
+  const candidates = ["claude", "claude.exe", "claude.cmd"];
+  if (platform === "win32" && env.LOCALAPPDATA) {
+    const packages = path.join(env.LOCALAPPDATA, "Microsoft", "WinGet", "Packages");
+    for (const entry of listDirs(packages).filter((name) => name.startsWith("Anthropic.ClaudeCode"))) {
+      candidates.push(path.join(packages, entry, "claude.exe"));
+    }
+  }
+  for (const bin of candidates) {
+    const result = spawn(bin, ["--version"], { timeout: 10000 }) || {};
+    if (!result.error && result.status === 0) {
+      const match = /(\d+)\.(\d+)\.(\d+)/.exec(result.stdout || "");
+      return { bin, version: match ? match.slice(1).map(Number) : null };
+    }
+  }
+  return null;
+}
+
+function claudePluginChecks(claude, add) {
+  const label = (install) => `${install.id} (${install.scope || "?"}, ${install.version || "?"})`;
+  const broken = claude.installs.filter((install) => !install.valid);
+  if (claude.unreadable || broken.length) {
+    add({
+      id: "plugin",
+      status: "error",
+      cause: claude.unreadable
+        ? `${claude.file} is not readable JSON`
+        : broken.map((install) => `${label(install)} points to ${install.installPath}, which has no .claude-plugin/plugin.json`).join("; "),
+      action: "Reinstall the plugin: `npm run setup:claude` in the ospec-workflow checkout, or `claude plugin install ospec-workflow@<marketplace>`.",
+    });
+  } else if (claude.installs.length > 1) {
+    add({
+      id: "plugin",
+      status: "warn",
+      detail: claude.primary.version,
+      cause: `${claude.installs.length} installations: ${claude.installs.map(label).join(", ")}; Claude Code may load the outdated one`,
+      action: "Keep one: `claude plugin uninstall <id> --scope <scope>` for the others.",
+    });
+  } else {
+    add({ id: "plugin", status: "ok", detail: claude.primary.version });
+  }
+}
+
+// The launcher answers a failed child with exit 0 and a fail-closed `ask`
+// (ADR 0008), so only its `[ospec error]` line tells a broken hook apart.
+function hookProbeFailure(result) {
+  if (result.error) return String(result.error.code || result.error.message);
+  if (result.signal) return result.signal;
+  if (result.status !== 0) return `exit ${result.status}${result.stderr ? `: ${result.stderr.trim().slice(0, 200)}` : ""}`;
+  const reported = /\[ospec error\][^\r\n]*/.exec(result.stderr || "");
+  return reported ? reported[0] : null;
+}
+
+function claudeHookProbe(launcher, { spawn, env, execPath }, add) {
+  const cwd = os.tmpdir();
+  const input = JSON.stringify({
+    session_id: "ospec-doctor-probe",
+    hook_event_name: "PreToolUse",
+    tool_name: "Read",
+    tool_input: { file_path: path.join(cwd, "ospec-doctor-probe") },
+    cwd,
+  });
+  const started = Date.now();
+  const result = spawn(execPath, [launcher, "pre-tool-use"], {
+    input,
+    cwd,
+    env: { ...env, OSPEC_TARGET: "" },
+    timeout: HOOK_PROBE_TIMEOUT_MS,
+    killSignal: "SIGKILL",
+  }) || {};
+  const failure = hookProbeFailure(result);
+  add(failure === null
+    ? { id: "hook-responds", status: "ok", detail: `${Date.now() - started} ms` }
+    : {
+        id: "hook-responds",
+        status: "error",
+        cause: `the installed PreToolUse hook does not answer a harmless Read: ${failure}`,
+        action: "Reinstall the plugin (`npm run setup:claude`), or check that Node and the ospec-hooks binary run on this machine; until then every tool call asks for permission.",
+      });
+}
+
+function claudeRedactionCheck(hooksJson, cli, add) {
+  if (!hooksJson.includes("--output-redaction")) return;
+  const minimum = OUTPUT_REDACTION_MIN_CLAUDE.join(".");
+  const version = cli?.version;
+  const differs = version ? version.findIndex((part, index) => part !== OUTPUT_REDACTION_MIN_CLAUDE[index]) : -1;
+  if (version && (differs === -1 || version[differs] > OUTPUT_REDACTION_MIN_CLAUDE[differs])) {
+    add({ id: "output-redaction", status: "ok", detail: `Claude Code ${version.join(".")}` });
+    return;
+  }
+  add({
+    id: "output-redaction",
+    status: "warn",
+    cause: version
+      ? `Claude Code ${version.join(".")} predates ${minimum}, which applies the PostToolUse redaction; a Read of a sensitive file runs without a prompt and its secret reaches the model`
+      : `the version of the claude CLI could not be read; the hooks skip the prompt for a Read of a sensitive file because Claude Code ${minimum} or later redacts its output`,
+    action: version
+      ? `Update Claude Code to ${minimum} or later (\`claude update\`).`
+      : `Make sure \`claude --version\` runs on PATH and reports ${minimum} or later, then run \`ospec doctor\` again.`,
+  });
+}
+
+function claudeHookChecks(primary, { platform, arch, spawn, env, execPath, cli }, add) {
+  const hooksJson = readText(path.join(primary.installPath, "hooks", "hooks.json"));
+  const hooksDir = path.join(primary.installPath, "scripts", "hooks");
+  if (!hooksJson || !hooksJson.includes("ospec-hooks-launch.js") || !fs.existsSync(path.join(hooksDir, "ospec-hooks-launch.js"))) {
+    add({
+      id: "hooks",
+      status: "error",
+      cause: `the installed plugin has no hooks/hooks.json wired to scripts/hooks/ospec-hooks-launch.js (${primary.installPath})`,
+      action: "Reinstall the plugin (`npm run setup:claude`); without hooks there is no session memory, guard or token advisor.",
+    });
+    return;
+  }
+  const native = binaryCandidates(hooksDir, hostBinarySuffix(platform, arch)).some((file) => fs.existsSync(file));
+  add(native
+    ? { id: "hooks", status: "ok" }
+    : {
+        id: "hooks",
+        status: "info",
+        detail: `no native ospec-hooks binary for ${platform}/${arch}; hooks run on the Node fallback`,
+        action: "Install from the marketplace release, or copy a built ospec-hooks binary into scripts/hooks/, for faster hooks.",
+      });
+  claudeHookProbe(path.join(hooksDir, "ospec-hooks-launch.js"), { spawn, env, execPath }, add);
+  claudeRedactionCheck(hooksJson, cli, add);
+}
+
+function claudeRouterChecks(primary, home, add) {
+  const claudeMd = path.join(home, ".claude", "CLAUDE.md");
+  const text = readText(claudeMd) || "";
+  const block = findRouterBlock(text);
+  const source = readText(path.join(primary.installPath, "global-instructions", "CLAUDE.md"));
+  if (!block) {
+    add({
+      id: "router",
+      status: "warn",
+      cause: `${claudeMd} has no ospec router block, so IDD is not the default flow in Claude Code`,
+      action: "Run `npm run setup:claude` in the ospec-workflow checkout; it writes the block (`--no-router` removes it).",
+    });
+  } else if (source !== null && block.body !== source.trim()) {
+    add({
+      id: "router",
+      status: "warn",
+      cause: `the router block in ${claudeMd} differs from the router of the installed plugin (${primary.version})`,
+      action: "Run `npm run setup:claude` to rewrite the block from the installed plugin.",
+    });
+  } else {
+    add({ id: "router", status: "ok" });
+  }
+  const outside = block ? block.outside : text;
+  const reference = SKILL_REFERENCE.exec(outside);
+  add(reference
+    ? {
+        id: "router-duplicate",
+        status: "warn",
+        cause: `text outside the router block in ${claudeMd} also loads ospec skills (${reference[0]}), duplicating the router`,
+        action: "Remove that section from ~/.claude/CLAUDE.md; the router block already routes IDD and SDD.",
+      }
+    : { id: "router-duplicate", status: "ok" });
+  add(block && block.bytes > ALWAYS_ON_BUDGET_BYTES
+    ? {
+        id: "budget",
+        status: "warn",
+        detail: `${block.bytes} B`,
+        cause: `the router block is ${block.bytes} B, over the ${ALWAYS_ON_BUDGET_BYTES} B always-on budget of E0.4`,
+        action: "Reinstall the current router (`npm run setup:claude`); if it is still over budget, report it.",
+      }
+    : { id: "budget", status: "ok", detail: `${block ? block.bytes : 0} B` });
+}
+
+function claudeEngramCheck({ spawn, home, env, platform, cli }, add) {
+  const detection = detectEngram({
+    target: "claude",
+    spawn,
+    hostBin: cli?.bin || null,
+    homedir: () => home,
+    env,
+    platform,
+    timeoutMs: ENGRAM_TIMEOUT_MS,
+  });
+  if (!detection.binary.found) {
+    add({
+      id: "engram",
+      status: "info",
+      detail: "engram binary not found; session memory is optional",
+      action: "To enable it, install Engram and run `npm run setup:claude` again.",
+    });
+  } else if (isUnknown(detection)) {
+    add({
+      id: "engram",
+      status: "warn",
+      cause: "the Claude Code plugin or MCP list could not be read",
+      action: "Make sure the `claude` CLI is on PATH and run `ospec doctor` again.",
+    });
+  } else if (!isConfigured(detection)) {
+    const missing = [detection.protocol !== "registered" ? "engram@engram plugin" : null, detection.mcp !== "registered" ? "MCP server" : null].filter(Boolean);
+    add({
+      id: "engram",
+      status: "warn",
+      cause: `Engram ${detection.binary.version || ""} is installed but Claude Code lacks: ${missing.join(", ")}`.replace("  ", " "),
+      action: "Run `engram setup claude-code`.",
+    });
+  } else if (detection.doctor === "warn" || detection.doctor === "error") {
+    add({ id: "engram", status: "warn", cause: `\`engram doctor\` reports ${detection.doctor}`, action: "Run `engram doctor` and follow its advice." });
+  } else {
+    add({ id: "engram", status: "ok", detail: detection.binary.version || "" });
+  }
+}
+
+// --- Engram on the other hosts ------------------------------------------------
+
+// Engram binaries are probed once for every host: `engram version` and
+// `engram doctor` answer the same whichever host asks.
+function sharedEngramSpawn(spawn) {
+  const cache = new Map();
+  return (bin, args, options) => {
+    if (!/^engram(?:\.exe)?$/i.test(path.basename(String(bin))) || args[0] === "hook") return spawn(bin, args, options);
+    const key = [bin, ...args].join("\0");
+    if (!cache.has(key)) cache.set(key, spawn(bin, args, options));
+    return cache.get(key);
+  };
+}
+
+// The Codex CLI lists its plugins (the Engram protocol). On Windows npm installs
+// a `.cmd` shim that cannot be spawned without a shell: run its JS entry instead.
+function resolveCodexBin({ spawn, env, platform, execPath }) {
+  const candidates = ["codex"];
+  if (platform === "win32") {
+    for (const dir of String(env.PATH || env.Path || "").split(";").filter(Boolean)) {
+      const exe = path.join(dir, "codex.exe");
+      if (fs.existsSync(exe)) candidates.push(exe);
+      const entry = path.join(dir, "node_modules", "@openai", "codex", "bin", "codex.js");
+      if (fs.existsSync(path.join(dir, "codex.cmd")) && fs.existsSync(entry)) candidates.push({ command: execPath, args: [entry] });
+    }
+  }
+  for (const bin of candidates) {
+    const [command, prefix] = typeof bin === "string" ? [bin, []] : [bin.command, bin.args];
+    const result = spawn(command, [...prefix, "--version"], { timeout: 10000 }) || {};
+    if (!result.error && result.status === 0) return bin;
+  }
+  return null;
+}
+
+function hostEngramCheck(target, context, add) {
+  const spec = ENGRAM_TARGETS[target];
+  const detection = detectEngram({
+    target,
+    spawn: context.engramSpawn,
+    hostBin: target === "codex" ? resolveCodexBin(context) : null,
+    homedir: () => context.home,
+    env: context.env,
+    platform: context.platform,
+    timeoutMs: context.engramTimeoutMs,
+  });
+  const setup = spec.agent ? `\`engram setup ${spec.agent}\`` : `\`npm run ${spec.script}\` in the ospec-workflow checkout`;
+  if (!detection.binary.found) {
+    add({
+      id: "engram",
+      status: "info",
+      detail: "engram binary not found; session memory is optional",
+      action: `To enable it, install Engram and run \`npm run ${spec.script}\` again.`,
+    });
+  } else if (isUnknown(detection)) {
+    add({
+      id: "engram",
+      status: "warn",
+      cause: `the ${spec.label} Engram configuration could not be read`,
+      action: target === "codex" ? "Make sure the `codex` CLI is on PATH and run `ospec doctor` again." : `Check the ${spec.label} configuration files, then run ${setup}.`,
+    });
+  } else if (!isConfigured(detection)) {
+    const missing = [
+      detection.protocol === "absent" ? spec.protocol : null,
+      detection.mcp !== "registered" ? "MCP server" : null,
+    ].filter(Boolean);
+    add({
+      id: "engram",
+      status: "warn",
+      cause: `Engram ${detection.binary.version || ""} is installed but ${spec.label} lacks: ${missing.join(", ")}`.replace("  ", " "),
+      action: `Run ${setup}.`,
+    });
+  } else if (target === "codex" && detection.lifecycle === "unsupported") {
+    add({
+      id: "engram",
+      status: "warn",
+      cause: "the Engram binary does not support the Codex session hooks (`engram hook codex-*`)",
+      action: "Update Engram, then run `engram setup codex`.",
+    });
+  } else if (detection.doctor === "warn" || detection.doctor === "error") {
+    add({ id: "engram", status: "warn", cause: `\`engram doctor\` reports ${detection.doctor}`, action: "Run `engram doctor` and follow its advice." });
+  } else {
+    add({ id: "engram", status: "ok", detail: detection.binary.version || "" });
+  }
+}
+
+// --- project ----------------------------------------------------------------
+
+function readConfig(root, add) {
+  const file = path.join(root, ...CONFIG_FILE.split("/"));
+  const text = readText(file);
+  if (text === null) {
+    add({ id: "idd-config", status: "ok", detail: `no ${CONFIG_FILE}; defaults apply` });
+    return {};
+  }
+  try {
+    const config = parseIddConfig(text);
+    add({ id: "idd-config", status: "ok" });
+    return config;
+  } catch (error) {
+    if (!(error instanceof IddConfigError)) throw error;
+    add({
+      id: "idd-config",
+      status: "error",
+      cause: `${CONFIG_FILE}: ${error.message}`,
+      action: `Fix ${CONFIG_FILE}: its keys are ${CONFIG_KEYS.join(", ")} (REQ-idd-013).`,
+    });
+    return null;
+  }
+}
+
+// --repair moves an unreadable state aside, only from its whitelist:
+// idd/<id>/state.yaml outside the archive, a regular file in a real
+// directory, renamed to state.yaml.corrupt-<time> and never over an earlier
+// copy. The change resumes from its .bak, which reading it restores, or from a
+// new intent with the same id; change.md stays.
+function quarantineState(root, id, rel, problem) {
+  const dir = path.join(root, "idd", id);
+  const file = path.join(dir, STATE_FILE);
+  const subject = { id: "idd-change", subject: id };
+  let regular = false;
+  try {
+    regular = fs.lstatSync(dir).isDirectory() && fs.lstatSync(file).isFile();
+  } catch {}
+  if (!regular) {
+    return {
+      ...subject,
+      status: "error",
+      cause: `${rel}: ${problem}; it is not a regular file, and --repair moves only a regular state`,
+      action: `Restore ${rel} by hand from version control; only the ospec CLI writes it.`,
+    };
+  }
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+  let aside = `${file}.corrupt-${stamp}`;
+  for (let copy = 2; fs.existsSync(aside); copy += 1) aside = `${file}.corrupt-${stamp}-${copy}`;
+  const relAside = `idd/${id}/${path.basename(aside)}`;
+  try {
+    fs.renameSync(file, aside);
+  } catch (error) {
+    return {
+      ...subject,
+      status: "error",
+      cause: `${rel}: ${problem}; moving it to ${relAside} failed (${error.message})`,
+      action: `Restore ${rel} from version control; only the ospec CLI writes it.`,
+    };
+  }
+  return {
+    ...subject,
+    status: "warn",
+    cause: `${rel}: ${problem}; moved aside to ${relAside}`,
+    action: fs.existsSync(`${file}.bak`)
+      ? `Resume with \`ospec status --change ${id}\`; the CLI restores the last committed state from ${rel}.bak.`
+      : `Resume with \`ospec record intent --change ${id} …\` (change.md stays), or restore the committed state with \`git checkout -- ${rel}\` if git tracks it.`,
+  };
+}
+
+function iddChangeChecks(root, add, { repair = false } = {}) {
+  const base = path.join(root, "idd");
+  let openChanges = 0;
+  for (const id of listDirs(base).filter((name) => name !== "archive")) {
+    const file = path.join(base, id, STATE_FILE);
+    const text = readText(file);
+    const rel = `idd/${id}/${STATE_FILE}`;
+    if (text === null) {
+      add(fs.existsSync(`${file}.bak`)
+        ? {
+            id: "idd-change",
+            subject: id,
+            status: "warn",
+            cause: `an interrupted write left only ${rel}.bak`,
+            action: `Run \`ospec status --change ${id}\`; the CLI restores the last committed state.`,
+          }
+        : {
+            id: "idd-change",
+            subject: id,
+            status: "warn",
+            cause: `idd/${id}/ has no ${STATE_FILE}`,
+            action: `Open it with \`ospec record intent --change ${id} …\`, or remove the directory if it is not a change.`,
+          });
+      continue;
+    }
+    let state = null;
+    let problem = null;
+    try {
+      state = JSON.parse(text);
+      const { ok, errors } = validateState(state);
+      if (!ok) problem = errors.join("; ");
+      else if (state.change !== id) problem = `declares change ${state.change}`;
+    } catch (error) {
+      problem = `not readable idd-state (${error.message})`;
+    }
+    if (problem) {
+      add(repair
+        ? quarantineState(root, id, rel, problem)
+        : {
+            id: "idd-change",
+            subject: id,
+            status: "error",
+            cause: `${rel}: ${problem}`,
+            action: `Move it aside with \`ospec doctor --repair\` and resume the change, or restore ${rel} from version control; only the ospec CLI writes it.`,
+          });
+    } else if (state.status === "closed") {
+      add({
+        id: "idd-change",
+        subject: id,
+        status: "warn",
+        cause: `closed at ${state.closed_at} but still outside idd/archive/: the close was interrupted`,
+        action: `Run \`ospec close --change ${id}\`; it finishes the move.`,
+      });
+    } else {
+      openChanges += 1;
+      const [summary] = statusOf([state]).changes;
+      const pending = summary.obligations.pending.join(", ") || "none";
+      const gates = summary.open_gates.join(", ") || "none";
+      add({
+        id: "idd-change",
+        subject: id,
+        status: "info",
+        detail: `open; pending: ${pending}; open gates: ${gates}`,
+        action: `Continue with \`ospec next --change ${id}\`.`,
+      });
+    }
+  }
+  return openChanges;
+}
+
+function sddChanges(root) {
+  const base = path.join(root, "openspec", "changes");
+  return listDirs(base)
+    .filter((name) => name !== "archive")
+    .map((name) => {
+      const status = /^status:\s*(.+)$/m.exec(readText(path.join(base, name, "state.yaml")) || "");
+      return { name, status: status ? status[1].trim().replace(/^["']|["']$/g, "") : null };
+    });
+}
+
+function sddPackageCheck({ mode, changes, hostsWithoutSdd }, add) {
+  if (mode !== "sdd" && changes.length === 0) return;
+  if (hostsWithoutSdd.length === 0) {
+    add({ id: "sdd-package", status: "ok" });
+    return;
+  }
+  const action = "Reinstall ospec-workflow with `--with-sdd` (for example `npm run setup:claude -- --with-sdd` in the ospec-workflow checkout).";
+  const hosts = hostsWithoutSdd.join(", ");
+  add(mode === "sdd"
+    ? { id: "sdd-package", status: "error", cause: `mode: sdd, but ${hosts} has no SDD package installed`, action }
+    : { id: "sdd-package", status: "warn", cause: `openspec/changes/ holds SDD changes, but ${hosts} has no SDD package to continue them`, action });
+}
+
+function gitHookText(root, name) {
+  return readText(path.join(root, ".git", "hooks", name)) || "";
+}
+
+function strictTddCheck(root, add) {
+  const decision = readPrecommitStrict(root);
+  const hookInstalled = gitHookText(root, "pre-commit").includes("pre-commit-hook.js");
+  if (!hookInstalled) {
+    if (decision.activeStrict) {
+      add({ id: "strict-tdd-hook", status: "ok", detail: "no ospec pre-commit hook installed" });
+    }
+    return;
+  }
+  if (!decision.activeStrict && !decision.contradiction) return;
+  if (decision.contradiction) {
+    const followed = decision.active === "idd" ? "`strict_tdd` in idd/config.yaml" : "`testing.tdd_mode` in openspec/config.yaml";
+    const other = decision.active === "idd" ? "`testing.tdd_mode` in openspec/config.yaml" : "`strict_tdd` in idd/config.yaml";
+    add({
+      id: "strict-tdd-hook",
+      status: "warn",
+      cause: `the pre-commit hook follows ${followed} and the other source, ${other}, says the opposite`,
+      action: "Make the two declarations agree, or set `mode: sdd` when OpenSpec should decide the hook and leave `mode` unset when IDD should.",
+    });
+    return;
+  }
+  add({ id: "strict-tdd-hook", status: "ok" });
+}
+
+// The hooks make .ospec/ ignore itself (.ospec/.gitignore), which ignores its
+// contents, not the directory: the probe is a file inside it. Ignoring never
+// untracks what a commit already holds, so tracked files are named first.
+function sessionDirCheck(root, spawn, add) {
+  if (!fs.existsSync(path.join(root, ".ospec"))) return;
+  const tracked = spawn("git", ["ls-files", "--", ".ospec"], { cwd: root, timeout: 10000 }) || {};
+  if (tracked.error || tracked.status !== 0) return; // not a git work tree
+  if (String(tracked.stdout || "").trim() !== "") {
+    add({
+      id: "session-dir",
+      status: "warn",
+      cause: "git tracks files under .ospec/, so every hook run leaves the tree dirty",
+      action: "Run `git rm -r --cached .ospec` and commit.",
+    });
+    return;
+  }
+  const result = spawn("git", ["check-ignore", "-q", ".ospec/session/latest.md"], { cwd: root, timeout: 10000 }) || {};
+  if (result.error || (result.status !== 0 && result.status !== 1)) return;
+  add(result.status === 0
+    ? { id: "session-dir", status: "ok" }
+    : {
+        id: "session-dir",
+        status: "warn",
+        cause: "the ospec hooks write session data to .ospec/, which git does not ignore",
+        action: "Add `.ospec/` to .gitignore.",
+      });
+}
+
+function hookGuardCheck(env, add) {
+  const off = HOOK_GUARDS.filter((name) => env[name] === "true");
+  add(off.length
+    ? {
+        id: "hook-guards",
+        status: "warn",
+        detail: off.join(", "),
+        cause: `${off.join(", ")} switch off ospec guards for every hook run from this environment`,
+        action: `Unset them (for example \`unset ${off[0]}\`) unless they are off on purpose.`,
+      }
+    : { id: "hook-guards", status: "ok" });
+}
+
+// --- checkout -----------------------------------------------------------------
+
+function checkoutChecks(root, version, claude, others, add) {
+  const dist = readJson(path.join(root, "dist", "claude-marketplace", "plugins", "ospec-workflow", ".claude-plugin", "plugin.json"));
+  if (dist?.version) {
+    add(dist.version === version
+      ? { id: "dist-drift", subject: "claude", status: "ok", detail: version }
+      : {
+          id: "dist-drift",
+          subject: "claude",
+          status: "warn",
+          cause: `dist/claude-marketplace was built from ${dist.version}; the checkout is ${version}`,
+          action: "Run `npm run setup:claude`; it rebuilds dist/ and reinstalls.",
+        });
+  }
+  if (claude?.primary) {
+    add(claude.primary.version === version
+      ? { id: "install-drift", subject: "claude", status: "ok", detail: version }
+      : {
+          id: "install-drift",
+          subject: "claude",
+          status: "warn",
+          cause: `Claude Code runs ospec-workflow ${claude.primary.version}; the checkout is ${version}`,
+          action: "Run `npm run setup:claude`, then /reload-plugins or restart Claude Code.",
+        });
+  }
+  hosts.installDriftChecks(version, others, add);
+  if (!fs.existsSync(path.join(root, ".git", "hooks"))) return;
+  const missing = [
+    gitHookText(root, "pre-commit").includes("pre-commit-hook.js") ? null : "pre-commit",
+    gitHookText(root, "commit-msg").includes("commit-msg-hook.js") ? null : "commit-msg",
+  ].filter(Boolean);
+  add(missing.length
+    ? {
+        id: "git-hooks",
+        status: "warn",
+        cause: `the repository's ${missing.join(" and ")} hook is not installed`,
+        action: "Run `npm run setup:git-hooks`.",
+      }
+    : { id: "git-hooks", status: "ok" });
+}
+
+// --- entry ------------------------------------------------------------------
+
+async function runDoctor({
+  root = process.cwd(),
+  home = os.homedir(),
+  env = process.env,
+  platform = process.platform,
+  arch = process.arch,
+  spawn = defaultSpawn,
+  target = null,
+  repair = false,
+  runtimeRoot = path.resolve(__dirname, "..", ".."),
+  execPath = process.execPath,
+} = {}) {
+  if (target && !DOCTOR_TARGETS.includes(target)) {
+    throw new DoctorUsageError(`unknown target: ${target} (one of ${DOCTOR_TARGETS.join(", ")})`);
+  }
+  const checks = [];
+  const adder = (scope) => (check) => checks.push({ scope, ...check });
+
+  const version = runtimeVersion(runtimeRoot);
+  adder("runtime")({ id: "runtime", status: "info", detail: `${version || "unknown version"} at ${runtimeRoot}` });
+
+  const claude = detectClaude(home);
+  const others = hosts.detectHosts({ home, env, platform, parseJsonc });
+  const checkout = checkoutVersion(root);
+  if (checkout) checkoutChecks(root, checkout, claude, others, adder("checkout"));
+
+  const project = adder("project");
+  const config = readConfig(root, project);
+  const mode = config ? resolveMode({ projectMode: config.mode }) : DEFAULT_MODE;
+  project({ id: "mode", status: "info", detail: mode });
+  const changes = sddChanges(root);
+  const hostsWithoutSdd = [
+    ...(claude?.primary && !hasSddPackage(claude.primary.installPath) ? ["claude"] : []),
+    ...hosts.hostsWithoutSdd(others),
+  ];
+  sddPackageCheck({ mode, changes, hostsWithoutSdd }, project);
+  const openIddChanges = iddChangeChecks(root, project, { repair });
+  if (config && openIddChanges > 0 && !config.checks?.length) {
+    project({
+      id: "idd-checks",
+      status: "warn",
+      cause: `no checks declared in ${CONFIG_FILE}; open IDD changes cannot close without check evidence`,
+      action: configureChecksStep(candidateCheckCommand(root)).how,
+    });
+  }
+  for (const change of changes) {
+    project({
+      id: "sdd-change",
+      subject: change.name,
+      status: "info",
+      detail: `status ${change.status || "unknown"}`,
+      action: `Continue with \`/sdd-continue ${change.name}\`.`,
+    });
+  }
+  strictTddCheck(root, project);
+  sessionDirCheck(root, spawn, project);
+  hookGuardCheck(env, project);
+  hosts.codexRepoCheck(root, others, project);
+  hosts.opencodeRepoCheck(root, others, { home, env, platform }, project);
+
+  const engramSpawn = sharedEngramSpawn(spawn);
+  if (target ? target === "claude" : claude) {
+    const add = adder("claude");
+    if (!claude) {
+      add({
+        id: "plugin",
+        status: "error",
+        cause: `no ospec-workflow plugin in ${path.join(home, ".claude", "plugins", "installed_plugins.json")}`,
+        action: "Install it: `npm run setup:claude` in the ospec-workflow checkout, or `/plugin install` from its marketplace.",
+      });
+    } else {
+      claudePluginChecks(claude, add);
+      if (claude.primary) {
+        const cli = resolveClaudeCli({ spawn: engramSpawn, env, platform });
+        claudeHookChecks(claude.primary, { platform, arch, spawn, env, execPath, cli }, add);
+        claudeRouterChecks(claude.primary, home, add);
+        claudeEngramCheck({ spawn: engramSpawn, home, env, platform, cli }, add);
+      }
+    }
+  }
+
+  const engramContext = { home, env, platform, execPath, spawn, engramSpawn, engramTimeoutMs: ENGRAM_TIMEOUT_MS };
+  const context = {
+    home,
+    env,
+    platform,
+    budgetBytes: ALWAYS_ON_BUDGET_BYTES,
+    memoryCheck: (host, add) => hostEngramCheck(host, engramContext, add),
+  };
+  for (const host of hosts.HOST_TARGETS) {
+    if (target ? target === host : others[host]) hosts.hostChecks(host, others[host], context, adder(host));
+  }
+
+  const errors = checks.filter((check) => check.status === "error").length;
+  const warnings = checks.filter((check) => check.status === "warn").length;
+  return { checks, summary: { errors, warnings }, exit_code: errors ? 1 : 0 };
+}
+
+function plural(count, word) {
+  return `${count} ${word}${count === 1 ? "" : "s"}`;
+}
+
+function renderDoctor(result) {
+  const lines = [];
+  for (const check of result.checks) {
+    const name = `${check.scope}/${check.id}${check.subject ? ` ${check.subject}` : ""}`;
+    lines.push(`${check.status.padEnd(5)}  ${name}${check.detail ? `: ${check.detail}` : ""}`);
+    if (check.cause) lines.push(`       cause: ${check.cause}`);
+    if (check.action && check.status !== "ok") lines.push(`       action: ${check.action}`);
+  }
+  lines.push("", `${plural(result.summary.errors, "error")}, ${plural(result.summary.warnings, "warning")}`);
+  return lines.join("\n");
+}
+
+module.exports = { DOCTOR_TARGETS, DoctorUsageError, renderDoctor, runDoctor };

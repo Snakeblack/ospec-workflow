@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "status": "success",
+  "executive_summary": "Successfully designed the result-envelope v1 schema and fixtures.",
+  "artifacts": [
+    "schemas/kernel/result-envelope/v1/envelope.schema.json"
+  ],
+  "next_recommended": "sdd-apply",
+  "risks": "None",
+  "skill_resolution": "injected",
+  "key_decisions": [
+    "Pinned result-envelope schema at version 1",
+    "Preserved legacy adapter compatibility"
+  ],
+  "assumptions": [
+    {
+      "id": "sdd-design-001",
+      "phase": "sdd-design",
+      "statement": "Use JSON Schema draft 2020-12 for result envelope",
+      "reversibility": "high",
+      "basis": "Consistent with existing kernel contract schemas"
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+# Per-agent model policy for the multi-target generator.
+#
+# Two tables:
+#   agents: which tier each agent needs. THIS is the only agent→tier policy.
+#   tiers:  what each tier carries per target that does not age: Claude's
+#           aliases (the host resolves them to its latest model) and Codex's
+#           reasoning effort.
+#
+# ospec ships no model names (E4.12). On Codex, OpenCode, Cursor, VS Code and
+# GitHub Copilot the user assigns a model to each tier with an installer's
+# `--model <tier>=<model>` or the TUI; the assignment lives in the user's
+# config (scripts/lib/user-models.js) and can also replace a Claude alias.
+# A tier without a model leaves `model` out, so the agent inherits the
+# session model. The validator checks roster completeness and known tiers.
+
+agents:
+  # Premium:
+  # Infrequent decisions with high blast radius.
+  # A weak result here can invalidate the complete implementation direction.
+  sdd-propose: premium
+  sdd-design: premium
+  sdd-verify: premium
+  foundation: premium
+  sdd-workspace: premium
+
+  # Default:
+  # Frequent semantic work requiring solid reasoning, but not Sol-level spend.
+  sdd-orchestrator: default
+  sdd-spec: default
+  sdd-clarify: default
+  sdd-apply: default
+  sdd-reconcile: default
+  sdd-baseline: default
+
+  # Cheap:
+  # Bounded or mostly mechanical work.
+  sdd-init: cheap
+  sdd-explore: cheap
+  sdd-tasks: cheap
+  sdd-archive: cheap
+  sdd-onboard: cheap
+  sdd-document: cheap
+
+  # Reviewers:
+  # Each reviewer can use any known tier.
+  review-change: premium
+  review-correction: default
+  review-trust: default
+  review-runtime: default
+  review-evolution: default
+  review-efficiency: default
+
+  _default: premium
+
+tiers:
+  # Premium:
+  # Infrequent, high-blast-radius decisions.
+  premium:
+    claude: opus
+    codex:
+      model_reasoning_effort: high
+      model_verbosity: medium
+
+  # Default:
+  # Frequent semantic work.
+  default:
+    claude: sonnet
+    codex:
+      model_reasoning_effort: high
+      model_verbosity: medium
+
+  # Cheap:
+  # Bounded or mechanical work.
+  cheap:
+    claude: haiku
+    codex:
+      model_reasoning_effort: low
+      model_verbosity: low

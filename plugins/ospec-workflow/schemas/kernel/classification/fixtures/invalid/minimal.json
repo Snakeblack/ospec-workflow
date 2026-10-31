@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "risk": {},
+  "uncertainty": {},
+  "execution": {},
+  "route": "critical",
+  "reasons": [
+    "hard_floor.auth_security"
+  ]
+}

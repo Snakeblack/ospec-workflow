@@ -1,0 +1,184 @@
+---
+name: idd
+description: "Impact-driven development protocol: run a code change through the ospec CLI, which derives its obligations and decides when it is done. Trigger: a code change, unless SDD is requested or mode: sdd."
+license: Apache-2.0
+metadata:
+  author: manuel-retamozo-garcia
+  version: "1.0"
+---
+
+## When to Use
+
+Load this skill once, when the router sends a code change here (IDD is the
+default). It is the whole protocol — no phases, proposal or specs first.
+Questions, explanations and read-only work need no change and do not use it.
+
+Outside a git work tree `ospec` opens no change (`not-a-git-repo`,
+`git-not-found`): set up the repository first, as `references/repository.md`
+says. It also covers a change across several services or repositories.
+
+## The CLI decides
+
+`ospec` below means `${CLAUDE_SKILL_DIR}/../../bin/ospec`, run from the project root. Add
+`--json` to read its answer; every change command takes `--change <id>`. The
+CLI owns `idd/<change>/state.yaml`: never write that file, and never move or
+delete anything under `idd/` by hand.
+
+- Every command that writes a change prints its next step; `ospec next
+  --change <id>` gives it in full when you resume. Its `next_step.how` tells
+  how to proceed: run the command that records the evidence or, for
+  `configure-checks`, propose a check command as `references/checks.md` says;
+  without one no IDD change can close. Follow it.
+- An obligation is satisfied only by evidence the CLI records from a run it
+  observes (`ospec run`, `ospec check`, `ospec review`). Saying that tests
+  pass satisfies nothing.
+- The change is done when `ospec close` succeeds, and only then. Never report
+  it done, verified or archived before that.
+
+## Rules
+
+1. Read the code the request touches, then list its open facts: each behavior
+   that neither the request nor the code settles and that a careful engineer
+   would ask about. Look for defaults, invalid or edge input, error versus
+   silent handling, normalization (case, rounding, order), who may do it, and
+   whether existing behavior, output or a published API may change. Do not
+   decide them yourself.
+2. Open the change: pick a short kebab-case id from the request and record
+   the intent with `ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>"`
+   plus the open facts, one `--open-fact "<question>"` each, or
+   `--no-open-facts --basis "<what settles every behavior>"` when there are
+   none. A `feature` covers the categories of the template `ospec next`
+   prints, as `references/open-facts.md` says. Assumptions: `ospec record assumption --text`
+   (close lists them). With cross-session memory tools, recall prior
+   decisions with the `memory_query` it returns, as
+   `references/memory-loop.md` says. Open `open-facts`: then ask all at once
+   before editing anything.
+3. If the request is materially ambiguous (no acceptance can be stated), record
+   `ospec record intent --change <id> --ambiguous --request "<request>"`, ask
+   the user the question `next` returns, and resolve it with the same command
+   plus `--kind --summary --acceptance --answer "<their words>" --source user`
+   and the open-facts declaration of rule 2.
+4. Declare the plan before editing, on `record intent` or later with
+   `ospec signals --change <id>`: `--path <file>` once per file you
+   expect to touch; add `--work-units <n>` when the work
+   splits into several units, `--decision "<text>"` per design decision,
+   and `--operation <op>` for a destructive or irreversible operation. With
+   `docs/architecture/`, declare the ADRs and quality scenarios the change
+   bears on (`--adr <id>`, `--quality <id>`) as `references/architecture.md`
+   says. If the plan overstated a signal, retract
+   it with `ospec record retract --change <id> --signal <id> --reason "<why>"`;
+   the CLI refuses while the diff confirms it. When its `how` offers the
+   user's answer, ask the user; never answer for them.
+5. Loop: do what the `next_step` of the last command says, repeat.
+   `resolve-gate` comes first while any gate is open: ask its
+   `pending_decision` (see Gates) and build nothing it decides until the user
+   answers. Work the obligations in the order `next` gives them:
+   - `repro-test`: write the reproduction test first and run it with
+     `ospec run --obligation repro-test --command "<test>"` while it fails;
+     fix the code; run the same command again so it passes.
+   - `tdd-red-green`: the same red-then-green pair, per unit (`--unit <name>`).
+   - `contract-spec-and-test`: update the contract document and its test.
+   - `migration-compat-and-test`: run the migration test with
+     `--plan "<compatibility or rollback plan>"`.
+   - `adr-impact-declaration`: `ospec record impact` for each declared ADR or
+     scenario, and their fitness checks, as `references/architecture.md` says.
+   - `trust-review`: `ospec review start`, hand the whole returned request to
+     the read-only `review-trust` reviewer, and pass its JSON unchanged to
+     `ospec review record --result @<file>`. Fix what it blocks on, run
+     `ospec review correct`, hand its request to the read-only
+     `review-correction` validator and pass its result to
+     `ospec review validate --result @<file>`.
+   - `checks-pass`: `ospec check` on the current tree, or a run whose command
+     is the only check; a `tests 0` summary is not evidence. `--close`, when
+     its command has it, closes the change once ready.
+   - `living-doc`: the CLI writes the Plan and Decisions of `change.md` from
+     `--path` and `--decision`; add only what they miss. A development
+     decision stays there; it is never an ADR.
+
+   For the `suggestions`, `references` and `warnings` of `next`, read
+   `references/architecture.md`; tell the user each warning.
+6. `ospec check` recomputes the signals from the real diff. New obligations can
+   appear: work them like the rest. One leaves `pending` only through evidence,
+   or through `ospec record withdraw --reason` when no active signal derives it.
+7. Edit text files keeping their encoding and line endings: never rewrite a
+   file through a tool or script that changes them (for example Python
+   `open()` without `encoding=` and `newline=`).
+8. When `next_step.action` is `close`, run `ospec close --change <id>`. A
+   refusal names what is still pending: settle it and close again.
+
+## Build it simply
+
+Make the smallest change that meets the acceptance. Reuse what the code
+already has and follow its conventions. Add a layer, abstraction, dependency
+or configuration switch only for a need present in this change, and record
+the choice with `--decision "<text>"` when it is not obvious. Leave unrelated code as
+it is: report a defect outside the change instead of fixing it in passing.
+
+## Tests by risk
+
+Test what would cost something if it broke: business rules, validation,
+non-trivial transformations and mappers, algorithms, contracts, and their
+error, edge and regression paths. Code with nothing to get wrong (plain
+accessors, wiring without logic, declarations) needs no test of its own, and
+no coverage percentage replaces this choice.
+
+- A test must fail when the behavior is wrong: assert observable results, not
+  the calls the code makes, and check that the red run fails for the reason
+  you expect.
+- Unit tests are deterministic and offline: replace databases, external APIs
+  and infrastructure with test doubles at the boundary, and inject time and
+  randomness. An integration test, kept apart, proves the wiring.
+- A refactor writes no new test: run `ospec check` before the first edit, so
+  a recorded run shows the behavior it preserves was tested.
+
+## Gates
+
+Stop for the user at the gates: end your turn with the questions, not a
+question tool. A `user` answer given before a turn ends is kept
+`user-unverified`.
+A skipped, empty or default answer is not the user's: end your turn with the
+questions and wait.
+
+- `ambiguous-intent`: rule 3.
+- `open-facts`: rule 2; ask all of `pending_decision.questions` at once.
+- `irreversible-operation`: `--operation` in rule 4 or a destructive
+  statement in the diff opens it. Before any other destructive or
+  irreversible step (deleting data, rewriting published history), open it
+  yourself: `ospec record gate --change <id> --gate irreversible-operation --open --reason "<operation>"`.
+- `adr-amend-or-contradict`: an impact `amends`, `supersedes` or
+  `contradicts` opens it. Declare every one before asking, since the gate is
+  answered once. For a departure no declared reference covers, open it with
+  `ospec record gate --change <id> --gate adr-amend-or-contradict --open --reason "<ADR>: <how the change departs from it>"`.
+  A change that conforms opens nothing.
+- `review-limit`: `ospec check` opens it when the trust reviews run out.
+- `checks-changed`: `ospec check` opens it, running nothing, when the checks
+  or the ceremony settings (`strict_tdd`, `impact`, `contracts`) differ from
+  the change's base. The user's approval of exactly those values answers it.
+
+Resolve each one with `ospec record gate --change <id> --gate <id> --resolve --answer "<their words>" --source user`,
+or `user-unverified` for a relayed answer. The CLI cannot verify who answered:
+read `references/approvals.md` first. Only an explicit answer from the user
+resolves a gate. Outside these gates, follow the code and the evidence
+without asking.
+
+## Delivery
+
+`ospec close` archives the change under `idd/archive/`, adds its entry to the
+changelog `delivery.changelog` declares, and leaves the rest of the tree as it
+is. Branches, commits, pull requests and releases are the user's decision;
+propose the `team.delivery_strategy` of `next`, and the `delivery` it returns
+when the work starts and at close: each of its options, why it fits
+(`reasons`) and the rules to follow (`how`). With a
+`*-undeclared` suggestion, propose that value and its reasons once, and write
+it under `delivery` in `idd/config.yaml` only after approval, keeping the
+rest. Propose the `release` of `close` after the merge, ask whether it breaks
+compatibility (a major), and cut it only with the user's OK. When they ask, use
+`work-unit-commits` to split commits, `branch-pr` to open the PR, and
+`chained-pr` when the diff exceeds the review budget. Pitch your replies at
+`team.mentorship`: `mentor` explains why, `expert` stays terse.
+
+## Memory and roadmap hand-off
+
+After `ospec close`, and after the delivery the user asks for, follow
+`references/memory-loop.md`: save the `records` of `close` when memory tools
+exist, and propose the next roadmap item in any case.
