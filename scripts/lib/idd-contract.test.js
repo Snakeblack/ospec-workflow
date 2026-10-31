@@ -504,6 +504,18 @@ test("a gate may carry a reason, which must be text", () => {
   assert.strictEqual(contract.validateState(state).ok, false);
 });
 
+test("an irreversible-operation entry lists the operations it asks about as text (gate bypass)", () => {
+  const gate = (operations) => validState({ gates: [{ id: "irreversible-operation", status: "open", reason: "irreversible operation: declared drop-table", operations }] });
+  assert.deepStrictEqual(contract.validateState(gate(["declared drop-table"])), { ok: true, errors: [] });
+  for (const operations of [[], "declared drop-table", ["declared drop-table", 3], [""]]) {
+    const { ok, errors } = contract.validateState(gate(operations));
+    assert.strictEqual(ok, false, JSON.stringify(operations));
+    assert.match(errors.join("; "), /irreversible-operation must list the operations it asks about/);
+  }
+  const other = validState({ gates: [{ id: "adr-amend-or-contradict", status: "open", operations: ["x"] }] });
+  assert.match(contract.validateState(other).errors.join("; "), /only irreversible-operation lists operations/);
+});
+
 // ---------------------------------------------------------------------------
 // Withdrawal and close (REQ-idd-006, REQ-idd-009)
 // ---------------------------------------------------------------------------

@@ -445,16 +445,66 @@ test("applyDerivation never drops a recorded signal the new derivation misses", 
 
 test("applyDerivation leaves a resolved irreversible gate resolved", () => {
   let state = openChange("refactor");
-  state = recordGate(state, { id: "irreversible-operation", action: "open" }).state;
-  state = recordGate(state, { id: "irreversible-operation", action: "resolve", answer: "approved", source: "user" }).state;
-  const derivation = deriveSignals({
+  const derive = (operations) => deriveSignals({
     intent: { kind: "refactor", summary: "s", acceptance: "a" },
-    declaration: { paths: [], operations: ["drop-column"] },
+    declaration: { paths: [], operations },
     patterns: patternsFor(),
   });
-  const result = applyDerivation(state, derivation);
+  state = applyDerivation(state, derive(["drop-column"])).state;
+  state = recordGate(state, { id: "irreversible-operation", action: "resolve", answer: "approved", source: "user" }).state;
+  const result = applyDerivation(state, derive(["drop-column"]));
   assert.strictEqual(result.state.gates.find((g) => g.id === "irreversible-operation").status, "resolved");
   assert.deepStrictEqual(result.added.gates, []);
+});
+
+test("every declared irreversible operation and every destructive statement per file derives the gate (gate bypass)", () => {
+  const derivation = deriveSignals({
+    intent: { kind: "refactor", summary: "s", acceptance: "a" },
+    declaration: { paths: [], operations: ["rewrite-history", "drop-table", "drop-table", "add-nullable-column"] },
+    diff: {
+      paths: ["db/migrations/b.sql", "db/migrations/a.sql"],
+      addedLines: {
+        "db/migrations/a.sql": ["ALTER TABLE t DROP fax;", "DROP TABLE legacy;", "ALTER TABLE t DROP phone;"],
+        "db/migrations/b.sql": ["ALTER TABLE u DROP fax;"],
+      },
+    },
+    patterns: patternsFor(),
+  });
+  assert.deepStrictEqual(derivation.gates.map((gate) => gate.reason), [
+    "irreversible operation: declared drop-table",
+    "irreversible operation: declared rewrite-history",
+    "irreversible operation: DROP TABLE in db/migrations/a.sql",
+    "irreversible operation: DROP COLUMN in db/migrations/a.sql",
+    "irreversible operation: DROP COLUMN in db/migrations/b.sql",
+  ]);
+  assert.ok(derivation.gates.every((gate) => gate.id === "irreversible-operation"));
+});
+
+test("applyDerivation asks every new irreversible operation in one entry, and an approved one never again (gate bypass)", () => {
+  const derive = (operations, addedLines = {}) => deriveSignals({
+    intent: { kind: "refactor", summary: "s", acceptance: "a" },
+    declaration: { paths: [], operations },
+    diff: { paths: Object.keys(addedLines), addedLines },
+    patterns: patternsFor(),
+  });
+  const first = applyDerivation(openChange("refactor"), derive(["drop-table", "rewrite-history"]));
+  assert.deepStrictEqual(first.state.gates, [{
+    id: "irreversible-operation",
+    status: "open",
+    reason: "irreversible operation: declared drop-table; declared rewrite-history",
+    operations: ["declared drop-table", "declared rewrite-history"],
+  }]);
+  const answered = recordGate(first.state, { id: "irreversible-operation", action: "resolve", answer: "Approved.", source: "user" }).state;
+
+  const same = applyDerivation(answered, derive(["rewrite-history"]));
+  assert.strictEqual(same.changed, false);
+
+  const statement = applyDerivation(answered, derive(["drop-table"], { "db/migrations/b.sql": ["DROP TABLE legacy;"] }));
+  assert.deepStrictEqual(statement.added.gates, ["irreversible-operation"]);
+  assert.deepStrictEqual(statement.state.gates.map(({ status, reason }) => [status, reason]), [
+    ["resolved", "irreversible operation: declared drop-table; declared rewrite-history"],
+    ["open", "irreversible operation: DROP TABLE in db/migrations/b.sql"],
+  ]);
 });
 
 // ---------------------------------------------------------------------------

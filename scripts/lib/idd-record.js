@@ -32,6 +32,9 @@ const { normalizePath } = require("./idd-impact.js");
 const SIGNAL_BY_ID = new Map(SIGNALS.map((signal) => [signal.id, signal]));
 const OBLIGATION_BY_ID = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation]));
 const ALWAYS_REASON = "every change with a resolved intent";
+const IRREVERSIBLE_GATE = "irreversible-operation";
+// The prefix of the reasons the derivation gives irreversible-operation.
+const IRREVERSIBLE_PREFIX = "irreversible operation: ";
 
 class IddRecordError extends Error {
   constructor(code, message) {
@@ -278,14 +281,15 @@ function recordGate(state, { id, action, reason, answer, source } = {}) {
   if (id === "checks-changed" && action === "open") {
     refuse("gate-managed-by-check", "checks-changed is opened by ospec check when the checks in idd/config.yaml differ from the change's base");
   }
-  // review-limit and checks-changed repeat, one entry per authorized review
-  // (REQ-idd-016) or approved set of checks: the open entry is the one to
-  // answer, else the latest.
+  // review-limit, checks-changed and irreversible-operation repeat, one entry
+  // per authorized review (REQ-idd-016), approved set of checks or set of
+  // operations: the open entry is the one to answer, else the latest.
   let index = state.gates.findIndex((gate) => gate.id === id && gate.status === "open");
   if (index === -1) index = state.gates.findLastIndex((gate) => gate.id === id);
   const existing = index === -1 ? null : state.gates[index];
 
   if (action === "open") {
+    if (id === IRREVERSIBLE_GATE) return openIrreversible(state, reason);
     if (existing) return unchanged(state);
     const next = structuredClone(state);
     const gate = { id, status: "open" };
@@ -319,6 +323,47 @@ function recordGate(state, { id, action, reason, answer, source } = {}) {
   }
 
   return refuse("invalid-action", `gate action must be open or resolve, got ${JSON.stringify(action)}`);
+}
+
+// The operation a reason of irreversible-operation names: the reason without
+// the prefix the derivation gives it.
+function operationOf(reason) {
+  return reason.startsWith(IRREVERSIBLE_PREFIX) ? reason.slice(IRREVERSIBLE_PREFIX.length) : reason;
+}
+
+// The operations an irreversible-operation entry asks about; an entry recorded
+// before they were listed asks about the operation of its reason.
+function gateOperations(gate) {
+  if (gate.operations) return gate.operations;
+  return gate.reason == null ? [] : [operationOf(gate.reason)];
+}
+
+// irreversible-operation asks about each operation once (REQ-idd-008): its
+// answer approves only the operations its entry lists. An operation no entry
+// lists joins the open entry, which is asked again with all of them, or opens
+// a new one. Without a reason the operation is unnamed: an open entry already
+// asks, and an unnamed entry asked about it before.
+function openIrreversible(state, reason) {
+  const entries = state.gates.filter((gate) => gate.id === IRREVERSIBLE_GATE);
+  const open = entries.find((gate) => gate.status === "open");
+  const next = structuredClone(state);
+  if (reason == null) {
+    if (open || entries.some((gate) => gate.reason == null)) return unchanged(state);
+    next.gates.push({ id: IRREVERSIBLE_GATE, status: "open" });
+    return { state: next, changed: true };
+  }
+  requireText(reason, "reason-required", `gate ${IRREVERSIBLE_GATE} reason must be text`);
+  const operation = operationOf(reason);
+  requireText(operation, "reason-required", `gate ${IRREVERSIBLE_GATE} reason must name the operation`);
+  if (entries.some((gate) => gateOperations(gate).includes(operation))) return unchanged(state);
+  if (open) {
+    const gate = next.gates[state.gates.indexOf(open)];
+    gate.operations = [...gateOperations(open), operation];
+    gate.reason = `${IRREVERSIBLE_PREFIX}${gate.operations.join("; ")}`;
+  } else {
+    next.gates.push({ id: IRREVERSIBLE_GATE, status: "open", reason, operations: [operation] });
+  }
+  return { state: next, changed: true };
 }
 
 function recordWithdraw(state, { obligation: obligationId, reason } = {}) {
@@ -595,6 +640,7 @@ function recordAssumption(state, { text } = {}) {
 }
 
 module.exports = {
+  IRREVERSIBLE_PREFIX,
   IddRecordError,
   recordAssumption,
   recordAttestation,

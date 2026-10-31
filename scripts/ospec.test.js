@@ -412,6 +412,55 @@ test("signals --diff adds diff signals and opens the irreversible gate", (t) => 
   assert.match(result.json.next.pending_decision.reason, /DROP COLUMN in db\/migrations\/003_drop_fax\.sql/);
 });
 
+test("an approved irreversible operation does not approve the next one, declared, opened by hand or in the diff (gate bypass)", (t) => {
+  const root = tempRoot(t);
+  const git = gitInit(root);
+  writeFile(root, "src/customers/profile.js", "module.exports = {};\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "base");
+  const approve = () => ospec(root, "record", "gate", "--change", "drop-fax", "--gate", "irreversible-operation", "--resolve", "--answer", "Approved.", "--source", "user-unverified", "--json");
+  const pending = (result) => result.json.next.pending_decision;
+
+  const opened = ospec(root, "record", "intent", "--change", "drop-fax", "--kind", "refactor", "--summary", "Drop fax.", "--acceptance", "No fax reads.", "--no-open-facts", "--basis", "The request fixes every behavior.", "--operation", "drop-column", "--operation", "rewrite-history", "--json");
+  assert.strictEqual(opened.code, 0, opened.stdout);
+  assert.strictEqual(pending(opened).reason, "irreversible operation: declared drop-column; declared rewrite-history");
+  approve();
+
+  const declared = ospec(root, "signals", "--change", "drop-fax", "--operation", "drop-database", "--json");
+  assert.deepStrictEqual([pending(declared)?.gate, pending(declared)?.reason], ["irreversible-operation", "irreversible operation: declared drop-database"]);
+  approve();
+
+  const manual = ospec(root, "record", "gate", "--change", "drop-fax", "--gate", "irreversible-operation", "--open", "--reason", "rewrite published history", "--json");
+  assert.deepStrictEqual([manual.json.changed, pending(manual)?.reason], [true, "rewrite published history"]);
+  approve();
+
+  writeFile(root, "db/migrations/003_drop_fax.sql", "ALTER TABLE customers DROP COLUMN fax_number;\n");
+  const diff = ospec(root, "signals", "--change", "drop-fax", "--diff", "--json");
+  assert.strictEqual(pending(diff)?.reason, "irreversible operation: DROP COLUMN in db/migrations/003_drop_fax.sql");
+  approve();
+  const again = ospec(root, "signals", "--change", "drop-fax", "--diff", "--operation", "drop-column", "--json");
+  assert.deepStrictEqual([again.json.changed, pending(again) ?? null], [false, null]);
+  assert.deepStrictEqual(stateOf(root, "drop-fax").gates.map((gate) => gate.status), ["resolved", "resolved", "resolved", "resolved"]);
+});
+
+test("an --operation outside the irreversible ids is a usage error that lists them and writes nothing (gate bypass)", (t) => {
+  const root = tempRoot(t);
+  const refused = ospec(root, ...OPEN_BUG, "--operation", "delete user data");
+  assert.strictEqual(refused.code, 2, refused.stdout);
+  assert.strictEqual(refused.json.error.code, "usage");
+  assert.match(refused.json.error.message, /unknown --operation "delete user data": the irreversible operations are drop-table, drop-column, drop-schema, drop-database, truncate-table, delete-data, rewrite-history/);
+  assert.match(refused.json.error.how, /ospec record gate --change fix-pagination --gate irreversible-operation --open --reason "<operation>"/);
+  assert.strictEqual(fs.existsSync(path.join(root, "idd", "fix-pagination")), false);
+
+  ospec(root, ...OPEN_BUG);
+  const before = fs.readFileSync(path.join(root, "idd", "fix-pagination", "state.yaml"), "utf8");
+  const signals = ospec(root, "signals", "--change", "fix-pagination", "--path", "src/a.js", "--operation", "drop-table", "--operation", "drop-users");
+  assert.strictEqual(signals.code, 2, signals.stdout);
+  assert.match(signals.stderr, /unknown --operation "drop-users"/);
+  assert.strictEqual(fs.readFileSync(path.join(root, "idd", "fix-pagination", "state.yaml"), "utf8"), before);
+  assert.match(ospec(root, "--help").stdout, /operations: drop-table, drop-column, drop-schema, drop-database, truncate-table, delete-data, rewrite-history/);
+});
+
 test("signals refuses an ambiguous intent, an unknown change and bad input", (t) => {
   const root = tempRoot(t);
   ospec(root, "record", "intent", "--change", "improve-login", "--ambiguous", "--request", "Improve the login.");
@@ -1413,6 +1462,30 @@ test("a deleted reviewed path is cited in the base tree", (t) => {
   const recorded = recordAnswer(root);
   assert.strictEqual(recorded.code, 0, recorded.stdout);
   assert.strictEqual(recorded.json.review.status, "approved");
+});
+
+test("a change opened before the first commit reviews what it commits too (gate bypass)", (t) => {
+  const root = tempRoot(t);
+  const git = gitInit(root);
+  ospec(root, ...OPEN_BUG, "--path", "src/auth/login.js");
+  writeFile(root, "src/auth/login.js", "module.exports = 1;\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "login");
+  writeFile(root, "src/other.js", "module.exports = 2;\n");
+
+  const started = ospec(root, "review", "start", "--change", "fix-pagination", "--json");
+  assert.strictEqual(started.code, 0, started.stdout);
+  const { request } = started.json.review;
+  assert.deepStrictEqual(request.paths, ["src/auth/login.js", "src/other.js"]);
+  const result = JSON.stringify({ request_digest: request.request_digest, reviewed: request.paths.map((file) => ({ path: file, cites: [`${file}:1`] })), findings: [] });
+  assert.strictEqual(ospec(root, "review", "record", "--change", "fix-pagination", "--result", result, "--json").json.review.status, "approved");
+
+  // A security file committed after the review is a reviewed path that changed.
+  writeFile(root, "src/auth/session.js", "module.exports = 3;\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "session");
+  const checked = ospec(root, "check", "--change", "fix-pagination", "--json");
+  assert.match(checked.json.missing.find((entry) => entry.obligation === "trust-review")?.reason ?? "", /reviewed paths changed after the review/);
 });
 
 test("review refuses bad results, a change without the obligation and an unknown action", (t) => {
@@ -2531,6 +2604,22 @@ test("[E1.44 B7] checks that differ from the base open checks-changed, and each 
   assert.deepStrictEqual(stateOf(root, "fix-readme").gates.filter((gate) => gate.id === "checks-changed").map((gate) => gate.status), ["resolved", "open"]);
 });
 
+test("a check with --base still contrasts the checks with the change's base and runs nothing unapproved (gate bypass)", (t) => {
+  const { root, git } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "README.md", "# Pages\n");
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node -e \"require('fs').writeFileSync('ran', '')\"\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "new checks");
+
+  const checked = ospec(root, "check", "--change", "fix-readme", "--base", "HEAD", "--json");
+  assert.strictEqual(checked.code, 0, checked.stdout);
+  assert.strictEqual(checked.json.decision?.gate, "checks-changed", JSON.stringify(checked.json));
+  assert.strictEqual(checked.json.checks, undefined);
+  assert.strictEqual(fs.existsSync(path.join(root, "ran")), false, "the new command must not run before the answer");
+  assert.deepStrictEqual(stateOf(root, "fix-readme").gates.map((gate) => [gate.id, gate.status]), [["checks-changed", "open"]]);
+});
+
 test("[E1.44 B7] the first checks of a project also need the user's answer", (t) => {
   const root = tempRoot(t);
   ospec(root, ...OPEN_DOCS);
@@ -3440,6 +3529,7 @@ test("[E1.49] an answer declared user before a turn ends after the gate opened i
     id: "irreversible-operation",
     status: "resolved",
     reason: "drop the old pages",
+    operations: ["drop the old pages"],
     opened_turn: 3,
     answer: "Go ahead.",
     source: "user-unverified",

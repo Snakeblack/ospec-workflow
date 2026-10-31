@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.168.6] - 2026-10-31
+
+### Fixed
+- **Los gates de IDD dejan de poder saltarse** (idd-gate-bypasses, lote PR2a de la review general del 2026-10-29).
+  - **`irreversible-operation` pregunta por cada operación nueva.** Antes se preguntaba una sola vez por cambio. Resuelta la primera operación, ni otra declarada (`signals --operation drop-database`), ni una abierta a mano (`record gate --open --reason "rewrite published history"`), ni otra sentencia destructiva del diff abrían nada: respondían «gate already recorded». Ahora cada entrada lista en `operations` las operaciones por las que pregunta, y su respuesta aprueba solo esas. Una operación nueva se une a la entrada abierta, que se vuelve a preguntar con todas, o abre otra. Cuentan todas las operaciones declaradas y todas las sentencias destructivas, una por tipo y fichero; antes solo contaba la primera.
+  - **Un `--operation` desconocido es error de uso.** `--operation "delete user data"` se aceptaba y no abría ningún gate. Ahora sale con exit 2, lista los siete ids (`drop-table`, `drop-column`, `drop-schema`, `drop-database`, `truncate-table`, `delete-data`, `rewrite-history`), remite a `record gate --open --reason` para cualquier otra operación y no escribe nada. El uso de `ospec signals` también los lista.
+  - **La review de confianza ve lo commiteado con base null.** Un cambio abierto antes del primer commit revisaba contra `HEAD`, y lo que commiteaba durante el cambio quedaba fuera de la review y de la detección de rutas revisadas que cambian. Ahora usa el árbol vacío, como el diff.
+  - **`check --base` ya no se salta `checks-changed`.** `check --base <ref>` comparaba los checks de `idd/config.yaml` con esa base, y ejecutaba checks cambiados y commiteados sin la aprobación del usuario. Ahora los compara siempre con la base del cambio; `--base` solo elige la base del diff.
+- **Estado:** las entradas de `irreversible-operation` ganan el campo opcional `operations`. Un `state.yaml` anterior sigue siendo válido sin migrar: su entrada pregunta por la operación de su motivo.
+- **Documentación:** REQ-idd-008, REQ-idd-012, REQ-idd-014 y REQ-idd-016 recogen las reglas, con cuatro escenarios nuevos. La wiki del flujo IDD lista los ids de `--operation`. La skill `idd` no cambia, porque su techo de contexto es su tamaño actual.
+
+Hecho con IDD (`idd/archive/2026-10-31-idd-gate-bypasses/`).
+
+**Verificación directa**: `node scripts/check.js` (4337 tests pasando, 0 fallos y 5 omitidos); los nueve tests de reproducción fallan en la base y pasan con el arreglo.
+
 ## [2.168.5] - 2026-10-31
 
 ### Fixed

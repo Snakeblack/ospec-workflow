@@ -358,12 +358,22 @@ open it with `record gate --open` and a reason naming the ADR before it asks.
 Only `ospec check` MAY open `checks-changed`, and `record gate --open` MUST be
 refused with `gate-managed-by-check`. Each set of checks and settings MUST get
 its own entry, holding the `checks` and the `config` it approves, so an answer
-approves only what it was asked about.
+approves only what it was asked about. `irreversible-operation` MUST ask about
+each operation once: its entry MUST list in `operations` the operations it
+asks about, and its answer approves only those. An operation no entry lists,
+declared, found in the diff or named by the reason of `record gate --open`
+(without the `irreversible operation: ` prefix the derivation gives it), MUST
+join the open entry, whose reason then names all of them and which is asked
+again, or else open a new entry. An entry recorded without `operations` asks
+about the operation of its reason, and one without a reason about an unnamed
+operation, which an open entry already asks. `validateState` MUST refuse
+`operations` that is not a non-empty list of text, or on another gate.
 
 Since E1.49 every write of the state MUST fence the gates with the count of
 turn ends the end-of-turn hook keeps in `.ospec/turns` (REQ-hooks-030), read
 as a whole number or else as no count. A gate the write opens, or changes while
-open (a `checks-changed` asked again about other checks), MUST keep the count
+open (a `checks-changed` asked again about other checks, an
+`irreversible-operation` that takes in another operation), MUST keep the count
 as `opened_turn`, null without one; an open gate the write leaves as it was
 keeps its own. A gate the write resolves MUST keep the count as
 `resolved_turn` when it has an `opened_turn`, and an answer declared `user`
@@ -411,6 +421,19 @@ leaves the review receipts.
 - WHEN it is resolved with `--source banana`
 - THEN it MUST be refused with `invalid-source`
 - AND `--source user` or `--source user-unverified` MUST resolve it
+
+#### Scenario: An approved irreversible operation does not approve the next one
+
+- GIVEN a change opened with `--operation drop-column --operation
+  rewrite-history`, whose single `irreversible-operation` entry names both and
+  is resolved
+- WHEN `signals --operation drop-database` runs, `record gate --open --reason
+  "rewrite published history"` runs, or the diff adds a `DROP COLUMN` to a
+  migration and `signals --diff` runs, each after the previous entry is resolved
+- THEN each MUST open a new `irreversible-operation` entry whose reason names
+  only its new operation
+- AND declaring `drop-column` again, or deriving the same `DROP COLUMN` in the
+  same file, MUST change nothing
 
 #### Scenario: Ambiguous intent stops before signals
 
@@ -851,12 +874,16 @@ detected stacks, `impact.defaults: false` MUST drop the base and stack patterns,
 and paths matching `impact.exclude` or the default exclusions
 (documentation: `**/*.md`, `**/*.mdx`, `docs/**`) MUST NOT derive any signal.
 An unknown `impact:` key or stack MUST be refused. Matching MUST ignore case.
-The `irreversible-operation` gate MUST open for a declared irreversible
+The `irreversible-operation` gate MUST open for each declared irreversible
 operation (`drop-table`, `drop-column`, `drop-schema`, `drop-database`,
-`truncate-table`, `delete-data`, `rewrite-history`) or for a destructive
+`truncate-table`, `delete-data`, `rewrite-history`) and for each destructive
 statement (drop of a table, schema, database or column, truncate, or a complete
-`DELETE` without `WHERE`) in a line the diff adds to a `persistent-data` file;
-comment lines MUST NOT count. A changed product file outside `impact.exclude`
+`DELETE` without `WHERE`) in a line the diff adds to a `persistent-data` file,
+once per kind of statement and file, recorded as REQ-idd-008 says; comment
+lines MUST NOT count. Any other `--operation` MUST be a usage error that lists
+the irreversible operations and writes nothing, with a `how` naming `record
+gate --open --reason` for any other destructive or irreversible step, and the
+usage MUST list them too. A changed product file outside `impact.exclude`
 MUST also derive `persistent-data` when it uses `localStorage`, `indexedDB` or a
 disk write (`writeFile`, `appendFile`, `createWriteStream`, `os.WriteFile`,
 `ioutil.WriteFile`, `File.WriteAllText`, `Deno.writeFile`) in a line the diff
@@ -898,7 +925,8 @@ path-driven signals and `bug-fix` MUST map one to one onto the K1 hard floors
 (`public_api`, `data_migration`, `auth_security`,
 `localized_reproducible_bug`), and the result MUST report the K1 floor they
 yield. Recording MUST be idempotent and MUST NOT drop a recorded signal the new
-derivation misses, nor reopen a resolved gate (REQ-idd-006). While
+derivation misses, nor reopen a resolved gate entry (REQ-idd-006); an
+irreversible operation no entry lists opens its own (REQ-idd-008). While
 `ambiguous-intent` is open, `signals` MUST be refused.
 
 #### Scenario: Two changed lines in a public contract add its obligation
@@ -924,6 +952,15 @@ derivation misses, nor reopen a resolved gate (REQ-idd-006). While
 - THEN `persistent-data` MUST be recorded with `source: diff`
 - AND `irreversible-operation` MUST be open with a reason naming `DROP COLUMN`
   and the file
+
+#### Scenario: An operation the CLI does not know is refused
+
+- GIVEN a project
+- WHEN `record intent` opens a change, or `signals` declares on an open one,
+  with `--operation "delete user data"`
+- THEN it MUST exit with 2, naming the seven irreversible operations, and its
+  `how` MUST name `record gate --open --reason`
+- AND no change MUST open, and the open one MUST keep its state
 
 #### Scenario: A disk write outside product code derives nothing
 
@@ -1199,9 +1236,9 @@ anything, `check` MUST contrast the declaration with the diff and refuse:
   is neither in the plan nor in the diff (REQ-idd-018); its `how` MUST name the
   `ospec signals --path` that declares it.
 
-When `idd/config.yaml` differs from the one at the change's base (the empty
-configuration at a null base, without the file or when it cannot be parsed)
-in its checks (name, command or order) or in its ceremony settings, `check`
+When `idd/config.yaml` differs from the one at the change's base, whatever
+`--base` the check takes for its diff (the empty configuration at a null base,
+without the file or when it cannot be parsed) in its checks (name, command or order) or in its ceremony settings, `check`
 MUST open `checks-changed` with a reason naming what differs on each side,
 unless a resolved entry already approves the current checks and settings
 (E1.44, E1.53). The ceremony settings are `strict_tdd` as the team profile
@@ -1273,6 +1310,13 @@ It MUST still exit with 0, record no check runs and never write configuration.
   warn that no check ran
 - AND once `idd/config.yaml` is restored, the next `check` MUST drop the
   unanswered entry and run `node verify.js`
+
+#### Scenario: A check with another base still asks for new checks
+
+- GIVEN a change whose base declares `test: node verify.js`, and a commit made
+  after it that changes the checks of `idd/config.yaml`
+- WHEN `check --base HEAD` runs
+- THEN `checks-changed` MUST open and the new command MUST NOT run
 
 #### Scenario: A checks-changed answer the turn fence keeps still approves
 
@@ -1445,7 +1489,8 @@ current tree MUST return the obligation to `pending`.
 (schema v2) with exactly the `trust` lens: the selective gate gives a change
 one lens per obligation that asks for a review, and none when no obligation
 does. `ospec review start` MUST freeze the candidate (the paths the diff
-changes against the change's base, a digest of their content on both sides and
+changes against the change's base, the empty tree at a null base so that what
+the change commits stays in it, a digest of their content on both sides and
 the changed line counts, from a snapshot of the working tree that excludes
 `idd/`) and return the request for the independent `review-trust` reviewer;
 while a review is in progress it MUST return that review instead.
@@ -1547,6 +1592,15 @@ predecessor.
 - THEN `trust-review` MUST stay `satisfied`
 - AND when `src/auth/tokens.js` changes, the next check MUST return it to
   `pending` and `ospec review start` MUST open review 2
+
+#### Scenario: A change without a base commit reviews what it commits
+
+- GIVEN a change opened before the first commit, which commits
+  `src/auth/login.js` and leaves `src/other.js` uncommitted
+- WHEN `ospec review start` runs
+- THEN the candidate MUST hold both paths
+- AND once approved, a security-boundary file committed afterwards MUST return
+  `trust-review` to `pending` on the next check
 
 #### Scenario: One bounded correction
 

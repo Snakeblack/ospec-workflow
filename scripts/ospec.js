@@ -88,7 +88,7 @@ const { buildSnapshotV3 } = require("./lib/progress-snapshot-v3.js");
 const { buildSnapshotV4 } = require("./lib/progress-snapshot-v4.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
-const { addedTests, applyDerivation, classifyPath, deriveSignals, inlineTests, persistentHits, requireDeclaredCeremony } = require("./lib/idd-signals.js");
+const { IRREVERSIBLE_OPERATIONS, addedTests, applyDerivation, classifyPath, deriveSignals, inlineTests, persistentHits, requireDeclaredCeremony } = require("./lib/idd-signals.js");
 const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { writeFileAtomic } = require("./lib/atomic-write.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange, serializeState } = require("./lib/idd-store.js");
@@ -141,6 +141,8 @@ const USAGE = `Usage:
   ospec record fitness --change <id> (--adr <id> | --quality <id>) --evidence <text>
   ospec signals --change <id> [--path <file>]... [--work-units <n>] [--decision <text>]...
                 [--operation <op>]... [--adr <id>]... [--quality <id>]... [--diff] [--base <ref>]
+                operations: ${IRREVERSIBLE_OPERATIONS.join(", ")}; open irreversible-operation
+                with ospec record gate for any other destructive or irreversible step
   ospec check --change <id> [--base <ref>] [--close]
   ospec run --change <id> --obligation <repro-test|tdd-red-green|migration-compat-and-test> --command <cmd>
             [--unit <name>] [--plan <compatibility or rollback plan>]
@@ -407,6 +409,14 @@ function planContext(root, values) {
   // of change.md (E4.16).
   const decisions = (values.decision || []).map((text) => text.trim());
   if (decisions.includes("")) throw new UsageError('--decision needs the text of the decision: --decision "<text>"');
+  // Only an operation the CLI knows opens irreversible-operation; any other
+  // would be declared and ignored (REQ-idd-012).
+  const unknown = (values.operation || []).find((op) => !IRREVERSIBLE_OPERATIONS.includes(op));
+  if (unknown !== undefined) {
+    const error = new UsageError(`unknown --operation ${JSON.stringify(unknown)}: the irreversible operations are ${IRREVERSIBLE_OPERATIONS.join(", ")}`);
+    error.how = `for any other destructive or irreversible step: ospec record gate --change ${values.change ?? "<id>"} --gate irreversible-operation --open --reason "<operation>"`;
+    throw error;
+  }
   const declaration = {
     paths: values.path || [],
     workUnits: parseWorkUnits(values["work-units"]),
@@ -672,7 +682,9 @@ function readConfigChange(root, base, context) {
 function readCheckInputs(root, values, current, context) {
   const diff = readGitDiff(root, { base: diffBase(values, current) });
   requireDeclaredCeremony(current, { diff, contractPatterns: context.contractPatterns });
-  const configChange = readConfigChange(root, diffBase(values, current), context);
+  // The checks are contrasted with the change's base, whatever --base the
+  // diff takes, so no --base runs checks the user has not approved.
+  const configChange = readConfigChange(root, diffBase({}, current), context);
   const { map, sources, warnings } = readKnowledgeSources(root);
   // The fitness checks follow the references this check's diff derives.
   const preview = applyDerivation(current, deriveSignals({ intent: current.intent, strictTdd: context.strictTdd, diff, patterns: context.patterns, knowledge: { map, sources }, retracted: current.retracted })).state;
@@ -1176,8 +1188,10 @@ function reviewedPathsChanged(root, lineage, tree, numstat, patterns) {
   return [...paths].some((file) => reviewed.get(file) !== current.get(file));
 }
 
+// A change opened before the first commit (base null) reviews against the
+// empty tree, as its diff does, so what it commits stays in the review.
 function reviewTrees(root, values, state) {
-  const baseTree = commitTree(root, values.base || state.base || readHead(root));
+  const baseTree = commitTree(root, values.base || (state.base === null ? null : state.base || readHead(root)));
   const tree = snapshotTree(root);
   return { baseTree, tree, numstat: treeNumstat(root, baseTree, tree) };
 }

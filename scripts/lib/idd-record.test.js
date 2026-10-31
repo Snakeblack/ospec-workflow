@@ -303,8 +303,8 @@ test("a returning signal reopens its withdrawn obligation", () => {
 test("a gate opens once with its reason and resolves only with an answer and a source", () => {
   const open = recordGate(opened(), { id: "irreversible-operation", action: "open", reason: "drops fax_number" });
   assertValid(open.state);
-  assert.deepStrictEqual(open.state.gates, [{ id: "irreversible-operation", status: "open", reason: "drops fax_number" }]);
-  assert.strictEqual(recordGate(open.state, { id: "irreversible-operation", action: "open", reason: "x" }).changed, false);
+  assert.deepStrictEqual(open.state.gates, [{ id: "irreversible-operation", status: "open", reason: "drops fax_number", operations: ["drops fax_number"] }]);
+  assert.strictEqual(recordGate(open.state, { id: "irreversible-operation", action: "open", reason: "drops fax_number" }).changed, false);
 
   assertCode(() => recordGate(open.state, { id: "irreversible-operation", action: "resolve" }), "gate-answer-required");
   const resolved = recordGate(open.state, {
@@ -318,6 +318,7 @@ test("a gate opens once with its reason and resolves only with an answer and a s
     id: "irreversible-operation",
     status: "resolved",
     reason: "drops fax_number",
+    operations: ["drops fax_number"],
     answer: "approve the data loss",
     source: "user",
   });
@@ -328,6 +329,44 @@ test("a gate opens once with its reason and resolves only with an answer and a s
   // The refusal names what differs: the answer, or only its source.
   assert.throws(() => recordGate(resolved.state, { ...repeat, answer: "reject" }), /already resolved with a different answer$/);
   assert.throws(() => recordGate(resolved.state, { ...repeat, source: "user-unverified" }), /already resolved with the same answer from source user$/);
+});
+
+test("an answered irreversible operation approves only the operations it was asked about (gate bypass)", () => {
+  const gate = (reason) => ({ id: "irreversible-operation", action: "open", reason });
+  const open = recordGate(opened(), gate("drops fax_number")).state;
+  // Another operation while the entry waits joins it, asked again with both.
+  const joined = recordGate(open, gate("purges the cache"));
+  assert.strictEqual(joined.changed, true);
+  assertValid(joined.state);
+  assert.deepStrictEqual(joined.state.gates, [{
+    id: "irreversible-operation",
+    status: "open",
+    reason: "irreversible operation: drops fax_number; purges the cache",
+    operations: ["drops fax_number", "purges the cache"],
+  }]);
+  assert.strictEqual(recordGate(joined.state, gate("purges the cache")).changed, false);
+
+  const resolved = recordGate(joined.state, { id: "irreversible-operation", action: "resolve", answer: "Approve both.", source: "user" }).state;
+  // An approved operation changes nothing, with or without the reason prefix.
+  assert.strictEqual(recordGate(resolved, gate("purges the cache")).changed, false);
+  assert.strictEqual(recordGate(resolved, gate("irreversible operation: purges the cache")).changed, false);
+  // Any other one opens its own entry.
+  const again = recordGate(resolved, gate("rewrite published history"));
+  assert.strictEqual(again.changed, true);
+  assertValid(again.state);
+  assert.deepStrictEqual(again.state.gates.map(({ status, reason }) => [status, reason]), [
+    ["resolved", "irreversible operation: drops fax_number; purges the cache"],
+    ["open", "rewrite published history"],
+  ]);
+});
+
+test("an irreversible entry recorded before the operations list approves the operation of its reason (gate bypass)", () => {
+  const state = opened();
+  state.gates.push({ id: "irreversible-operation", status: "resolved", reason: "irreversible operation: declared drop-table", answer: "Yes.", source: "user" });
+  assertValid(state);
+  assert.strictEqual(recordGate(state, { id: "irreversible-operation", action: "open", reason: "irreversible operation: declared drop-table" }).changed, false);
+  const other = recordGate(state, { id: "irreversible-operation", action: "open", reason: "irreversible operation: declared drop-column" });
+  assert.deepStrictEqual(other.state.gates.map((entry) => entry.status), ["resolved", "open"]);
 });
 
 test("gate records reject unknown gates, unopened resolutions and the intent-owned gate", () => {

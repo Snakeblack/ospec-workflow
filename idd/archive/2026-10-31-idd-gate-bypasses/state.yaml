@@ -1,0 +1,528 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-gate-bypasses",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Los gates de IDD dejan de poder saltarse: irreversible-operation pregunta por cada operación nueva, --operation rechaza ids desconocidos, la review de confianza ve lo commiteado con base null y check --base no se salta checks-changed",
+    "acceptance": "Tras aprobar una operación irreversible, otra distinta (declarada, abierta a mano o en el diff) vuelve a abrir el gate; un --operation fuera de los ids es error de uso que los lista; review start de un cambio con base null revisa también lo commiteado; check --base <ref> con config cambiada abre checks-changed sin ejecutar nada"
+  },
+  "facts": {
+    "open": [
+      "Un --operation fuera de los 7 ids (drop-table, drop-column, drop-schema, drop-database, truncate-table, delete-data, rewrite-history): ¿error de uso (exit 2) que lista los ids y remite a record gate --open --reason para otras operaciones, o se acepta cualquier texto y abre el gate con él?",
+      "Varias operaciones irreversibles nuevas en una misma derivación (dos --operation o dos sentencias destructivas en el diff): ¿una sola entrada del gate cuyo motivo las nombra todas y se responde una vez, o una entrada por operación que se pregunta de una en una?",
+      "Si aparece una operación nueva mientras el gate sigue abierto sin responder: ¿se añade a esa entrada abierta, que se vuelve a preguntar con todas, o queda en otra entrada que se pregunta después?",
+      "Sentencias destructivas del diff: hoy cuenta solo la primera. Aprobado un DROP COLUMN en la migración A, ¿un DROP TABLE en la migración B, o el mismo tipo de sentencia en otro fichero, vuelve a preguntar (una operación = tipo de sentencia + fichero), o basta la primera aprobación?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/idd/spec.md",
+      "openwiki/idd/flujo-idd.md",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-signals.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Una entrada de irreversible-operation lista en operations las operaciones por las que pregunta y su respuesta aprueba solo esas; una operación que ninguna entrada lista se une a la entrada abierta, que se vuelve a preguntar con todas, o abre otra (open facts 2A y 3A)",
+      "Una operación es el motivo sin el prefijo irreversible operation: (las declaradas, cada sentencia destructiva por tipo y fichero, y el motivo de record gate --open), así que una entrada anterior sin operations pregunta por la operación de su motivo",
+      "La skill idd no lista los ids de --operation: el techo de contexto es su tamaño actual en los 7 targets, y el error de uso, --help, el spec y la wiki ya los dan",
+      "check contrasta idd/config.yaml siempre con la base del cambio; --base solo elige la base del diff"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Las reglas viven en el CLI con sus tests: openIrreversible en idd-record.js, destructiveStatements en idd-signals.js, el rechazo de --operation en planContext, reviewTrees y readCheckInputs en ospec.js; la skill no cambia"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "No añade señales ni obligaciones: irreversible-operation pregunta por cada operación nueva y la ceremonia sigue derivándose del impacto"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "close sigue ligado a evidencia observada; ahora la review de confianza ve lo commiteado con base null y check --base ya no ejecuta checks sin aprobar"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "No toca la memoria entre sesiones ni lo que la skill dice de ella"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo biblioteca estándar de Node y git; ninguna dependencia nueva"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "Solo toca IDD: sus gates, el estado bajo idd/ y su contrato; SDD no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "Las operaciones que aprueba cada entrada quedan en operations del state.yaml, así que next y check dan lo mismo al reanudar"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Solo cambia lógica local del CLI y lecturas de git; no hay llamadas de red"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "openIrreversible y operations tienen tests en idd-record.test.js e idd-contract.test.js; destructiveStatements, en idd-signals.test.js; el rechazo de --operation, reviewTrees con base null y check --base, en ospec.test.js; la skill idd no describe ninguna de estas reglas",
+      "recorded_at": "2026-10-31T17:58:06.071Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El cambio no añade llamadas de red: compara operaciones en memoria, lee el diff local y usa commitTree sobre el árbol vacío; next, check y close leen lo mismo del disco",
+      "recorded_at": "2026-10-31T17:58:06.230Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 59,
+      "answer": "quise decir los 4 recomendados: 1A --operation desconocido es error de uso que lista los ids y remite a record gate --open --reason; 2A una sola entrada cuyo motivo nombra todas las operaciones nuevas y guarda la lista que aprueba; 3A una operación nueva con el gate abierto se añade a esa entrada y se vuelve a preguntar; 4A cuentan todas las sentencias destructivas del diff, una operación = tipo de sentencia + fichero",
+      "source": "user",
+      "resolved_turn": 61
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-31T17:50:44.441Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-31T17:57:45.757Z",
+      "detail": {
+        "run": "run-13",
+        "tree": "sha256:be3746b59bdfe2d964bb7340c840adc10aab8fa95d6566a041a1fa2d18cba56b",
+        "plan": "El estado solo gana el campo opcional operations en las entradas de irreversible-operation; un state.yaml anterior sigue siendo válido sin migrar, y su entrada pregunta por la operación de su motivo. Rollback: una versión anterior valida y lee las entradas nuevas, porque validateState no rechaza claves desconocidas en un gate, e ignora operations"
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-31T17:59:37.836Z",
+      "detail": {
+        "tree": "sha256:1c891fa3bfb4a7d703b090a87b5b1d150136d590b46e155d7caffc08d7bdc78d",
+        "runs": [
+          "run-14"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-31T17:59:37.836Z",
+      "detail": {
+        "tree": "sha256:1c891fa3bfb4a7d703b090a87b5b1d150136d590b46e155d7caffc08d7bdc78d",
+        "check": "ev-3",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-31T17:59:37.836Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:1c891fa3bfb4a7d703b090a87b5b1d150136d590b46e155d7caffc08d7bdc78d",
+        "fitness": [
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-31T17:59:54.274Z"
+    }
+  ],
+  "base": "2d678d43f54970c589efa9f589c815074f575790",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"gate bypass\" scripts/lib/idd-record.test.js scripts/lib/idd-signals.test.js scripts/lib/idd-contract.test.js scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:4e86095c4a20965469154aa2a70cf711d74fe871e9f8f54a753903d627161c05",
+      "tree": "sha256:a34908dc9eafc19b2711016a82058fa5a7b88febd48df0a760971367f7c42a44",
+      "recorded_at": "2026-10-31T17:48:46.798Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"gate bypass\" scripts/lib/idd-record.test.js scripts/lib/idd-signals.test.js scripts/lib/idd-contract.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:948dc04758f8c2fbf1e19814c8b614504d9f6329a58a4ce725216cb9a6172cd6",
+      "tree": "sha256:a4bcfc89c92dd3148d829c2baa1a3cc1dee858a3e11865bf60907f7aa2167b1e",
+      "recorded_at": "2026-10-31T17:50:44.441Z",
+      "tests": 9,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "2d678d43f54970c589efa9f589c815074f575790",
+      "mount": "sha256:76194139abc7580a93767664985c15302744b32fdc324967b0301da45a06f026",
+      "command": "node --test --test-name-pattern=\"gate bypass\" scripts/lib/idd-record.test.js scripts/lib/idd-signals.test.js scripts/lib/idd-contract.test.js scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:511be86bfaca2c6c94142bc64bf313c87762fdfdc7b8498385fef8d83af3a5f9",
+      "tree": "sha256:a4bcfc89c92dd3148d829c2baa1a3cc1dee858a3e11865bf60907f7aa2167b1e",
+      "recorded_at": "2026-10-31T17:50:44.441Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "2d678d43f54970c589efa9f589c815074f575790",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"gate bypass\" scripts/lib/idd-record.test.js scripts/lib/idd-signals.test.js scripts/lib/idd-contract.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c3900eac96628616c7af0e51e14552d13133c5cbba1f8c163b066cd99b7a9061",
+      "tree": "sha256:a4bcfc89c92dd3148d829c2baa1a3cc1dee858a3e11865bf60907f7aa2167b1e",
+      "recorded_at": "2026-10-31T17:50:44.441Z",
+      "tests": 4
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:91eeb996af4587c612a21abda57ae747017ba2a37e972891075b2b1c450e66c6",
+      "tree": "sha256:a38358d1db5353f00b1993b8a5eb1d2098a061fb362ab65612c9c952f8d5714b",
+      "recorded_at": "2026-10-31T17:56:49.821Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bd8251bbdab9e98670862276ffeff2e43a3dc6abd9cd2bb68483d9d9898a09b5",
+      "tree": "sha256:a38358d1db5353f00b1993b8a5eb1d2098a061fb362ab65612c9c952f8d5714b",
+      "recorded_at": "2026-10-31T17:56:49.821Z",
+      "tests": 54
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9f031aaddfab56bd58feaacefeded34c6ab03c3b7037af3680a2c80445399d74",
+      "tree": "sha256:a38358d1db5353f00b1993b8a5eb1d2098a061fb362ab65612c9c952f8d5714b",
+      "recorded_at": "2026-10-31T17:56:49.821Z",
+      "tests": 18
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fa18b7560faf4b1b4c1dfeb8cc94283687bfaf33ea4169e4595e78a0ce9bc71a",
+      "tree": "sha256:a38358d1db5353f00b1993b8a5eb1d2098a061fb362ab65612c9c952f8d5714b",
+      "recorded_at": "2026-10-31T17:56:49.821Z",
+      "tests": 2
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:a38358d1db5353f00b1993b8a5eb1d2098a061fb362ab65612c9c952f8d5714b",
+      "recorded_at": "2026-10-31T17:56:49.821Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9dfc09de2664a429c0856aea2649f4c3967b265058a6f7b085964c047d03f832",
+      "tree": "sha256:a38358d1db5353f00b1993b8a5eb1d2098a061fb362ab65612c9c952f8d5714b",
+      "recorded_at": "2026-10-31T17:56:49.821Z",
+      "tests": 22
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7adfa6d70047d7275ab9d6c28733d6ed4dfd51c049f8cb6d53387017d0669d09",
+      "tree": "sha256:a38358d1db5353f00b1993b8a5eb1d2098a061fb362ab65612c9c952f8d5714b",
+      "recorded_at": "2026-10-31T17:56:49.821Z",
+      "tests": 85
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6bd10504e75351298877d8f2f457ce1fb516b3477fb3175e854489dd6022e1fa",
+      "tree": "sha256:a38358d1db5353f00b1993b8a5eb1d2098a061fb362ab65612c9c952f8d5714b",
+      "recorded_at": "2026-10-31T17:56:49.821Z",
+      "tests": 52
+    },
+    {
+      "id": "run-13",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"recorded before the operations list|lists the operations it asks about\" scripts/lib/idd-record.test.js scripts/lib/idd-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b100306a9f82a77081ea6c374b1a2e2bd52566ef4f4e93663c0f750ccc17513c",
+      "tree": "sha256:be3746b59bdfe2d964bb7340c840adc10aab8fa95d6566a041a1fa2d18cba56b",
+      "recorded_at": "2026-10-31T17:57:45.757Z",
+      "tests": 2
+    },
+    {
+      "id": "run-14",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4ddb4e5d7ef200c830cf2ad17413cfe223cc9f905811e157c219b71ab42d528f",
+      "tree": "sha256:1c891fa3bfb4a7d703b090a87b5b1d150136d590b46e155d7caffc08d7bdc78d",
+      "recorded_at": "2026-10-31T17:59:37.836Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3fb8db4827579ee6ca9c6181330e9006c5819695058396eaf9a00e97b9c01240",
+      "tree": "sha256:1c891fa3bfb4a7d703b090a87b5b1d150136d590b46e155d7caffc08d7bdc78d",
+      "recorded_at": "2026-10-31T17:59:37.836Z",
+      "tests": 54
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:de8acb312e2f0255b098c98f23f957ca3fd33e59f9546b1d068a9d5dc4dad8ea",
+      "tree": "sha256:1c891fa3bfb4a7d703b090a87b5b1d150136d590b46e155d7caffc08d7bdc78d",
+      "recorded_at": "2026-10-31T17:59:37.836Z",
+      "tests": 18
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6bf3b82ffef7d8881dd9d1530a1590f03bb7d405f45d5b4b83aa02c3d30e84c4",
+      "tree": "sha256:1c891fa3bfb4a7d703b090a87b5b1d150136d590b46e155d7caffc08d7bdc78d",
+      "recorded_at": "2026-10-31T17:59:37.836Z",
+      "tests": 2
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:1c891fa3bfb4a7d703b090a87b5b1d150136d590b46e155d7caffc08d7bdc78d",
+      "recorded_at": "2026-10-31T17:59:37.836Z"
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cf7e7a60e9443bbc6c493d702d74db59354eb77af720ee2856bb3851a5a437a6",
+      "tree": "sha256:1c891fa3bfb4a7d703b090a87b5b1d150136d590b46e155d7caffc08d7bdc78d",
+      "recorded_at": "2026-10-31T17:59:37.836Z",
+      "tests": 22
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6a49e1951236da0b924aec11a20cbace07d2da862366b4bca4f582dc55a967a4",
+      "tree": "sha256:1c891fa3bfb4a7d703b090a87b5b1d150136d590b46e155d7caffc08d7bdc78d",
+      "recorded_at": "2026-10-31T17:59:37.836Z",
+      "tests": 85
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:72f755564ac8ca723d84f3c1615a732c25f4513e198028abbcb031ab34234a71",
+      "tree": "sha256:1c891fa3bfb4a7d703b090a87b5b1d150136d590b46e155d7caffc08d7bdc78d",
+      "recorded_at": "2026-10-31T17:59:37.836Z",
+      "tests": 52
+    }
+  ],
+  "closed_at": "2026-10-31T17:59:54.274Z"
+}
