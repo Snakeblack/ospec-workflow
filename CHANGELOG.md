@@ -16,8 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Lanzador:** si el binario no arranca (`EACCES`, `ENOEXEC`, `ENOENT` o salida 126/127, como un binario sin permiso de ejecución o de otra arquitectura), ejecuta el hook Node equivalente dentro del mismo plazo y deja un aviso `[ospec warn]` en stderr. Antes cada hook respondía `ask` o `[ospec error]`. Un timeout, una señal u otro código no se reintentan, porque el binario pudo llegar a ejecutarse.
   - La versión no se embebe en el binario: el desfase se sigue detectando por fecha de modificación (E1.22).
 - **Documentación:** REQ-hooks-031, REQ-install-042 y las secciones 4.4 y 4.5 de `openspec/specs/install/spec.md`; `docs/harness-go-js-parity.md` y `openwiki/hooks-runtime/go-implementation.md` describen el reintento.
+- **Tests:** el test del reintento y el escenario de REQ-hooks-031 aceptan el motivo que da cada sistema para un binario de otra arquitectura: `ENOEXEC` en macOS, y en Linux la salida de `/bin/sh`, 126 con bash o 127 con dash (launcher-test-shell-reasons). El producto no cambia.
 
-Hecho con IDD (`idd/archive/2026-10-30-hooks-binary-fallback/`).
+Hecho con IDD (`idd/archive/2026-10-30-hooks-binary-fallback/` e `idd/archive/2026-10-31-launcher-test-shell-reasons/`).
 
 **Verificación directa**: `node scripts/check.js` (4326 tests pasando, 0 fallos y 5 omitidos).
 

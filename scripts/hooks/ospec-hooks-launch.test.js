@@ -137,16 +137,19 @@ test("a binary that cannot start falls back to the Node hook, and one that ran d
     input: "{}", encoding: "utf8", env: { ...process.env, OSPEC_TARGET: "claude" }, timeout: 10000, killSignal: "SIGKILL",
   });
 
-  // An ELF header for a machine no system runs: the exec fails and the shell
-  // the spawn falls back to exits 126.
+  // An ELF header for a machine no system runs. macOS reports ENOEXEC; Linux
+  // hands it to /bin/sh, which exits 126 under bash and 127 under dash.
   const foreign = Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0x99, 0x99]), Buffer.alloc(64)]);
-  for (const [label, content, mode] of [["no execute bit", "#!/bin/sh\nexit 0\n", 0o644], ["foreign architecture", foreign, 0o755]]) {
+  for (const [label, content, mode, reason] of [
+    ["no execute bit", "#!/bin/sh\nexit 0\n", 0o644, "EACCES"],
+    ["foreign architecture", foreign, 0o755, "ENOEXEC|exit 126|exit 127"],
+  ]) {
     fs.writeFileSync(binary, content);
     fs.chmodSync(binary, mode);
     const result = run();
     assert.equal(result.status, 0, label);
     assert.deepEqual(JSON.parse(result.stdout), allow, label);
-    assert.match(result.stderr, /\[ospec warn\] the ospec-hooks binary could not start \((EACCES|exit 126)\); ran the Node hook/, label);
+    assert.match(result.stderr, new RegExp(`\\[ospec warn\\] the ospec-hooks binary could not start \\((${reason})\\); ran the Node hook`), label);
   }
 
   fs.writeFileSync(binary, "#!/bin/sh\nexit 3\n");
