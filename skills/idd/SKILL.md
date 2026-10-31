@@ -55,8 +55,8 @@ delete anything under `idd/` by hand.
    before editing anything.
 3. If the request is materially ambiguous (no acceptance can be stated), record
    `ospec record intent --change <id> --ambiguous --request "<request>"`, ask
-   the user the question `next` returns, and resolve it with the same command
-   plus `--kind --summary --acceptance --answer "<their words>" --source user`
+   the user the question `next` returns, and resolve it with the `record
+   intent` that `next` prints, without `--ambiguous`, filling in their words
    and the open-facts declaration of rule 2.
 4. Declare the plan before editing, on `record intent` or later with
    `ospec signals --change <id>`: `--path <file>` once per file you

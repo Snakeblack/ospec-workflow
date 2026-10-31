@@ -89,7 +89,7 @@ const REFUSALS = Object.freeze({
   "roadmap-missing": "pass --roadmap <path> to read another roadmap",
   "roadmap-unrecognized": "give the roadmap a phase table whose rows start with '<ID>. <title>', or pass --roadmap <path>",
   "signal-confirmed-by-diff": "the diff confirms the signal: satisfy the obligation it derives, or change the diff",
-  "signal-not-recorded": "retract only a signal the change has: ospec signals --change <id> --json lists them",
+  "signal-not-recorded": "retract only a signal the change has: ospec status --change <id> lists them",
   "signal-not-retractable": 'satisfy the obligation it derives, or withdraw that obligation with ospec record withdraw --change <id> --obligation <obligation> --reason "<why>" once no active signal derives it',
   "snapshot-invalid": "shorten or fix the roadmap or progress file text the message names, or pass --roadmap <path>",
   "snapshot-limit": "keep the roadmap and the progress file within the limit the message names, or pass --roadmap <path>",

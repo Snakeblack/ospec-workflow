@@ -647,6 +647,15 @@ function counterproofPaths(diff) {
 }
 
 /**
+ * Whether the diff changes only tests, test data and documentation: on the
+ * base, a counterproof would run the candidate's own product.
+ */
+function onlyTestsAndDocs(diff) {
+  const tests = new Set(counterproofPaths(diff));
+  return tests.size > 0 && (diff.paths || []).every((file) => tests.has(file) || classifyPath(file) === "docs");
+}
+
+/**
  * Digest of what a counterproof puts on the base: each path's content, the
  * target of a symlink, or its absence where the diff deletes it.
  */
@@ -778,6 +787,7 @@ module.exports = {
   commitTree,
   counterproofMount,
   counterproofPaths,
+  onlyTestsAndDocs,
   mountCounterproof,
   readArchitecture,
   readBaseConfig,

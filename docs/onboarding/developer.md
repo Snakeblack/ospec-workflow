@@ -17,7 +17,7 @@ Un gate solo se resuelve con tu respuesta explícita.
 
 | Qué buscas | Dónde |
 |---|---|
-| Changes abiertos, obligaciones pendientes y gates abiertos | `ospec status` |
+| Changes abiertos, obligaciones pendientes, gates abiertos y señales registradas | `ospec status` |
 | El siguiente paso de un change | `ospec next --change <id>` |
 | El plan, las decisiones y la evidencia de un change | `idd/<change>/change.md` (existe cuando el cambio tiene varias unidades de trabajo o una decisión de diseño) |
 | Changes ya cerrados | `idd/archive/` |

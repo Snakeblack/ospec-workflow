@@ -119,7 +119,7 @@ test("an ambiguous intent blocks on its gate with the original request", () => {
     action: "resolve-gate",
     gate: "ambiguous-intent",
     command:
-      'ospec record intent --change ambiguous-intent --request "Improve the login." --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>" (--open-fact "<question>"... | --no-open-facts --basis "<why>") --answer "<the user\'s words>" --source user',
+      'ospec record intent --change ambiguous-intent --request "Improve the login." --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>" ((--open-fact "<question>")... | --no-open-facts --basis "<why>") --answer "<the user\'s words>" --source user',
   });
   assert.strictEqual(result.pending_decision.gate, "ambiguous-intent");
   assert.ok(result.pending_decision.question.length > 0);
@@ -211,7 +211,7 @@ test("project next picks the only open change, asks to choose among several, or 
   assert.deepStrictEqual(nextForProject([]).next_step, {
     action: "open-change",
     command:
-      'ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>" (--open-fact "<question>"... | --no-open-facts --basis "<why>")',
+      'ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>" ((--open-fact "<question>")... | --no-open-facts --basis "<why>")',
     feature: { command: featureCommand(), how: COVERAGE_RULES, categories: ["inputs", "uniqueness", "persistence", "copy", "url-state", "accessibility", "errors"] },
   });
   // E4.16: a project with code and no UI file gets the five core categories.
@@ -248,6 +248,7 @@ test("status summarizes each change in id order", () => {
         status: "open",
         kind: "bug",
         summary: "Fix it.",
+        signals: ["always", "bug-fix"],
         obligations: { pending: ["repro-test"], satisfied: ["checks-pass"], withdrawn: [] },
         open_gates: [],
       },
@@ -256,6 +257,7 @@ test("status summarizes each change in id order", () => {
         status: "open",
         kind: null,
         summary: null,
+        signals: [],
         obligations: { pending: [], satisfied: [], withdrawn: [] },
         open_gates: ["ambiguous-intent"],
       },

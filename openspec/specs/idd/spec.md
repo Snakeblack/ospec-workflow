@@ -552,7 +552,8 @@ reproduce these expectations.
 ### Requirement: CLI Core Status Next And Record {#REQ-idd-011}
 
 The `ospec` CLI MUST expose `status`, `next` and `record`, each with a `--json`
-output. `record` MUST accept the types `intent`, `signal`, `gate`, `withdraw`,
+output. `status` MUST list each change with its kind, its open gates, its
+obligations by status and the ids of its recorded signals, read-only. `record` MUST accept the types `intent`, `signal`, `gate`, `withdraw`,
 `retract` (REQ-idd-006) and `impact` (REQ-idd-020), and MUST NOT accept evidence: evidence is recorded only by the CLI
 commands that observe the execution it proves (REQ-idd-007). Every `record`
 MUST be idempotent: repeating it MUST leave `state.yaml` byte-identical, and
@@ -619,8 +620,9 @@ pending obligation is one `check` settles (`boundary-tests`,
 recorded, and `checks-pass`) or `living-doc` (E4.15), `trust-review` names
 `ospec review start`, `adr-impact-declaration` names `record impact` for the
 first declared reference without its impact, and `living-doc` and `close`
-name `ospec close`. `configure-checks` names `ospec next --change <id> --json`,
-to run once the approved checks are written; `open-change` names the
+name `ospec close`. `configure-checks` names `ospec check --change <id>`, to
+run once the proposed checks are written, when it opens `checks-changed` for
+their approval (E1.49); `open-change` names the
 `record intent` template and carries `feature`, the `record intent` of a
 feature with one `--open-fact <category>:"<question>"` per category its
 project covers (REQ-idd-018), the rules of the categories and, when
@@ -662,7 +664,16 @@ commands for an unknown one, and `--json` MUST carry the same lines in
 `error.how`; `--help` still prints the whole usage. The CLI MUST NOT drop an
 argument: a word beyond the command and its subcommand (`--path a b`, an
 unquoted `--summary`) and a single-value option given twice MUST be a usage
-error that names it and writes nothing. A repeated boolean drops nothing.
+error that names it and writes nothing. A repeated boolean drops nothing. So
+MUST be a flag that no usage line of the command and its subcommand names,
+apart from `--root`, `--json` and `--help` (`status --kind`, `check --path`),
+`record gate --open` with `--answer` or `--source`, `record gate --resolve`
+with `--reason`, and `record intent` with `--answer` or `--source` on a change
+without `ambiguous-intent`, since nothing would take the answer; a replay of
+the resolution stays idempotent. `--ambiguous` takes only `--request`: with
+`--kind`, `--summary`, `--acceptance`, `--answer`, `--source` or the open facts
+it MUST be a usage error whose `how` names the `record intent` that `next`
+prints, which resolves the gate.
 
 Before the pending `checks-pass` or `contract-spec-and-test` step, if no checks
 are declared, `next` MUST instead return `next_step.action: configure-checks`,
@@ -814,6 +825,24 @@ there MUST be no suggestion and no error.
 - THEN it MUST exit with 2, name `src/b.js` or `--work-units` and write nothing
 - AND `--path src/a.js --path src/b.js` MUST declare both files
 
+#### Scenario: The CLI drops no flag
+
+- GIVEN an open change without `ambiguous-intent`
+- WHEN `status --kind feature`, `check --change <id> --path zzz`,
+  `record gate --open --answer yes --source user` or `record intent` with
+  `--answer` and `--source` runs
+- THEN it MUST exit with 2, name what it does not take and write nothing
+- AND `--json` and `--root` MUST still go with any command
+
+#### Scenario: An ambiguous intent resolves with the command next prints
+
+- GIVEN a change opened with `--ambiguous`
+- WHEN `record intent --ambiguous` runs again with `--kind`, `--summary`,
+  `--acceptance`, `--answer` and `--source`
+- THEN it MUST exit with 2 and write nothing, with a `how` that names the
+  `record intent` that `ospec next --change <id>` prints
+- AND that command, without `--ambiguous`, MUST resolve `ambiguous-intent`
+
 #### Scenario: A refusal says how to get past it
 
 - GIVEN an open change
@@ -905,10 +934,13 @@ diff that changes product code and adds no code to a test MUST derive
 `untested-product`. Code is a line that is neither blank nor only a comment, in
 a test with a source-file extension: a deleted or emptied test, a comment and a
 fixture or golden file are not one (E1.44, E1.53). A test is a file under a
-`test`, `tests`, `__tests__` or `spec` directory, or one named as a test:
-`*.test.*` and `*.spec.*` in JS and TS, a source file with the `_test` or
-`_spec` suffix or named `tests` (Django's `tests.py`, Rust's `tests.rs`),
-`test_*.py`, `*Test.java` and `*Tests.cs`. A line added to a Rust file that
+`test`, `tests` or `__tests__` directory, under the root's `spec` directory,
+or a Ruby file under a `spec` directory at any depth (`src/spec/openapi.js` is
+product), or one named as a test: `*.test.*` and `*.spec.*` in JS and TS, a
+source file with the `_test` or `_spec` suffix or named `tests` (Django's
+`tests.py`, Rust's `tests.rs`), `test_*.py`, `*Test.java`, `*Tests.java` and
+`*Tests.cs`, these three in their case (`Latest.java` and `Contests.cs` are
+product). A line added to a Rust file that
 appears only inside a module under `#[cfg(test)]`, up to the brace that closes
 it at its indentation, is code added to a test as well (E1.48). The CLI cannot judge what a
 test asserts, so a trivial test is the trust review's to find. Product code is
@@ -1007,6 +1039,15 @@ irreversible operation no entry lists opens its own (REQ-idd-008). While
 - WHEN a change plans to touch `index.d.ts` and its signals are derived
 - THEN `public-contract` MUST be recorded with the reason
   "public contract: touches index.d.ts (published by package.json)"
+
+#### Scenario: A product file whose name only resembles a test stays product
+
+- GIVEN a bug change whose diff changes `src/Latest.java`, `src/Contests.cs`
+  or `src/spec/openapi.js` and adds no code to a test
+- WHEN signals are derived
+- THEN each file MUST count as product code and `untested-product` MUST derive
+- AND `src/PageTests.java`, `spec/support/helpers.js` and
+  `engines/billing/spec/support/factories.rb` MUST count as tests
 
 #### Scenario: Reference fixtures derive from their declaration
 
@@ -1146,10 +1187,16 @@ obligation MUST stay `pending` with a reason saying that the test passes
 against the base product too or, when it failed the same way as its control,
 that the red does not come from the tests of the diff; the passing run of a
 pair names its counterproof runs. Without a base commit, when the diff adds
-code to a Rust inline test, which shares its file with the product, or when
-the base cannot be mounted, the counterproof MUST be skipped: the evidence records the
-reason in `counterproof_skipped`, and `run`, `check` and `close` MUST warn
-about it, as `close` warns about a counterproof that timed out. Evidence
+code to a Rust inline test, which shares its file with the product, when the
+diff changes only tests, test data and documentation, so the base runs the
+candidate's own product, or when the base cannot be mounted, the counterproof
+MUST be skipped: the evidence records the reason in `counterproof_skipped`,
+and `run`, `check` and `close` MUST warn about it, as `close` warns about a
+counterproof that timed out. A pair skipped for a diff without product code
+says nothing of product code the diff changes later: once it does, `check`
+MUST reopen the obligation, with a reason that asks to run the same command
+again, so a test the base already passes, recorded before the fix, does not
+close the pair. Each unit counts by its latest pair. Evidence
 recorded before E1.48 names neither and stays valid.
 
 When the project declares exactly one check and the `--command` of `ospec run`
@@ -1266,6 +1313,8 @@ With no declared checks, `check` MUST keep `checks-pass` pending, answer
 approval, include a command suggestion when known, and return the same
 configuration prerequisite as `next` when check evidence is the next step.
 It MUST still exit with 0, record no check runs and never write configuration.
+Every verdict MUST give that reason with the same suggestion, including the
+one `ospec review` returns.
 
 #### Scenario: Missing checks become an approved configuration step
 
@@ -1439,6 +1488,16 @@ It MUST still exit with 0, record no check runs and never write configuration.
 - WHEN the test fails, the fix is applied and it passes
 - THEN the pair MUST be recorded with `counterproof_skipped` naming
   `src/lib.rs`, and `run` MUST warn about it
+
+#### Scenario: A bug fixed in its test alone skips the counterproof
+
+- GIVEN a bug change whose defect is in a test, so its diff changes only that
+  test and documentation
+- WHEN the test fails, it is fixed and it passes
+- THEN the pair MUST be recorded with `counterproof_skipped`, and `run` MUST
+  warn about it
+- AND once the diff changes product code, `check` MUST reopen `repro-test`
+  with a reason naming that pair
 
 ### Requirement: Contract And Migration Evidence {#REQ-idd-015}
 
@@ -2352,9 +2411,11 @@ or not an agent keeps its records (ADR 0006).
 with `/` separators and no empty, `.` or `..` segment, and `delivery.release`
 MUST be `per-change`, `batched` or `none`; another value MUST be refused with
 `config-invalid`. When `delivery.changelog` declares a path, `ospec close`
-MUST, after every refusal of REQ-idd-017 and before it records
+MUST, after every refusal of REQ-idd-017 and once it has recorded
 `status: closed`, add the change's entry to that file in the Keep a Changelog
-format:
+format, so a closed state that fails to be written leaves the file as it was
+and the change's evidence fresh; a close that resumes a change recorded
+closed without its entry MUST add it before archiving:
 under `## [Unreleased]`, in the section its kind gives (`feature` → `Added`,
 `bug` → `Fixed`, `refactor` and `docs` → `Changed`), as the line `- <summary>
 (<change-id>)` with the summary on one line. A missing section MUST be added
@@ -2395,6 +2456,15 @@ before this requirement. SDD MUST NOT read them (ADR 0011).
 - AND `release` MUST propose `1.4.3`, the tag `v1.4.3` and that section as
   notes
 - AND closing again MUST NOT add the line twice
+
+#### Scenario: The entry follows the closed state
+
+- GIVEN a ready change with a declared changelog
+- WHEN its close fails to write `state.yaml`
+- THEN the change MUST stay open and the changelog as it was, and the next
+  close MUST close it and add the entry
+- AND when a close records `status: closed` but fails to write the entry, the
+  close that resumes it MUST add the entry before archiving
 
 #### Scenario: Nothing is written until the changelog is declared
 

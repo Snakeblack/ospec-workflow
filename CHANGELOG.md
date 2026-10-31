@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Cerrar la fricción del CLI de IDD: flags aceptados y descartados, bucle del intent ambiguo, isTestPath que toma producto por test, signals registradas sin listado de solo lectura, review sin candidateCommand, CHANGELOG escrito antes de guardar el estado en close, salida obsoleta de idd-next y configure-checks, y el arreglo que solo toca tests sin kind que le encaje (idd-cli-friction)
+
 ## [2.168.6] - 2026-10-31
 
 ### Fixed

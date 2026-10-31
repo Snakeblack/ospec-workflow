@@ -3,9 +3,9 @@
 Read on demand from `skills/idd/SKILL.md` when `next_step.action` is
 `configure-checks`. `idd/config.yaml` is optional, but without at least one
 `checks:` command no IDD change can close. `ospec next` returns
-`configure-checks` when checks are needed and none are declared; `ospec check`
-names the missing configuration. Do not repeat `check` while that
-configuration is missing.
+`configure-checks` when checks are needed and none are declared. Its command,
+`ospec check`, runs once you have written the configuration below; until then
+`check` only names what is missing, so do not repeat it.
 
 ## Propose it
 

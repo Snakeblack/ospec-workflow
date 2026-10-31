@@ -21,6 +21,9 @@ const { trustReason } = require("./idd-review.js");
 const EVIDENCE_BY_OBLIGATION = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation.evidence]));
 const PAIR_OBLIGATIONS = Object.freeze(["repro-test", "tdd-red-green"]);
 const PAIR_MOMENT = Object.freeze({ "repro-test": "the fix", "tdd-red-green": "the code" });
+// Why a pair skips its counterproof while its diff changes only tests, test
+// data and documentation (E1.48).
+const PRODUCT_FREE_SKIP = "the diff changes no product code, only tests, test data or documentation, so the base runs the same product and its red would prove nothing";
 const MIGRATION = "migration-compat-and-test";
 const CONTRACT = "contract-spec-and-test";
 const COUNTERPROOF = "counterproof";
@@ -317,6 +320,28 @@ function settleMigration(state, { runId, plan, recordedAt }) {
   return { state: next, evidence: id };
 }
 
+/**
+ * A pair that skipped its counterproof because its diff changed no product
+ * code says nothing of the product code the diff changes later: once it does,
+ * the obligation reopens and its pair runs again with a counterproof (E1.48).
+ * Each unit counts by its latest pair.
+ */
+function settleProductFreePairs(state, { productFree }) {
+  if (productFree) return state;
+  const next = structuredClone(state);
+  const runs = new Map((next.runs || []).map((run) => [run.id, run]));
+  for (const target of next.obligations) {
+    if (!PAIR_OBLIGATIONS.includes(target.id) || target.status !== "satisfied") continue;
+    const latest = new Map();
+    for (const id of target.evidence) {
+      const entry = next.evidence.find((item) => item.id === id);
+      latest.set(runs.get(entry?.detail?.green)?.unit ?? null, entry);
+    }
+    if ([...latest.values()].some((entry) => entry?.detail?.counterproof_skipped === PRODUCT_FREE_SKIP)) reopen(target);
+  }
+  return next;
+}
+
 /** Tree-bound evidence proves only the tree it ran on: a newer tree reopens it. */
 function settleTreeBound(state, { tree }) {
   const next = structuredClone(state);
@@ -457,6 +482,10 @@ function pairReason(state, obligationId) {
     return `no failing run recorded: run the test with ospec run --obligation ${obligationId} before ${moment}`;
   }
   const refused = runs.filter((run) => run.exit_code === 0 && pairRed(all, run)).at(-1);
+  const reopened = state.evidence.filter((entry) => entry.obligation === obligationId && entry.detail?.green === refused?.id).at(-1);
+  if (reopened?.detail?.counterproof_skipped === PRODUCT_FREE_SKIP) {
+    return `its pair ${reopened.id} ran while the diff changed no product code, and the diff changes product code now: run the same command again so its counterproof runs on the base`;
+  }
   const same = refused?.counterproof?.length ? sameRed(state, refused.counterproof) : null;
   if (same) {
     return `the test fails the same way on the base without the tests of the diff (${same}): the red does not come from them; make the command run the test the diff adds, then run the same command again`;
@@ -540,6 +569,7 @@ function checkVerdict(state, { checks = [], results = [], treeChanged = false, r
 module.exports = {
   COUNTERPROOF,
   PAIR_OBLIGATIONS,
+  PRODUCT_FREE_SKIP,
   RUN_OBLIGATIONS,
   ceremonyConfig,
   checkVerdict,
@@ -557,5 +587,6 @@ module.exports = {
   settleImpacts,
   settleMigration,
   settlePair,
+  settleProductFreePairs,
   settleTreeBound,
 };
