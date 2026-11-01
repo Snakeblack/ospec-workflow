@@ -14,6 +14,7 @@ const { execFileSync, spawnSync } = require("node:child_process");
 const { buildReceipt, receiptPath } = require("./lib/review-receipt.js");
 
 const CLI = path.join(__dirname, "ospec.js");
+const { PRODUCT_FREE_SKIP } = require("./lib/idd-check.js");
 
 // A directory outside any git work tree.
 function plainRoot(t) {
@@ -217,6 +218,19 @@ test("next and status are stable across runs and readable without --json", (t) =
   assert.match(ospec(root, "status").stdout, /fix-pagination/);
 });
 
+// The remedy of signal-not-recorded sent the agent to ospec signals, which
+// writes, and neither status nor next listed the recorded signals.
+test("status lists the signals of each change, and a retraction of one it lacks points there", (t) => {
+  const root = tempRoot(t);
+  ospec(root, ...OPEN_BUG);
+  ospec(root, "signals", "--change", "fix-pagination", "--path", "src/lib/paginate.js");
+  assert.deepStrictEqual(ospec(root, "status", "--change", "fix-pagination", "--json").json.changes[0].signals, ["always", "bug-fix"]);
+  assert.match(ospec(root, "status").stdout, /^fix-pagination {2}open {2}bug {2}pending: repro-test, checks-pass {2}gates: - {2}signals: always, bug-fix$/m);
+  const refused = ospec(root, "record", "retract", "--change", "fix-pagination", "--signal", "security-boundary", "--reason", "r", "--json");
+  assert.strictEqual(refused.json.error.code, "signal-not-recorded");
+  assert.strictEqual(refused.json.error.how, "retract only a signal the change has: ospec status --change fix-pagination lists them");
+});
+
 test("evidence cannot be recorded from the CLI and usage errors exit 2", (t) => {
   const root = tempRoot(t);
   ospec(root, ...OPEN_BUG);
@@ -304,6 +318,69 @@ test("a stray word or a repeated single-value flag is a usage error that writes 
   const paths = ospec(root, "signals", "--change", "fix-pagination", "--path", "src/a.js", "--path", "src/b.js", "--json");
   assert.strictEqual(paths.code, 0);
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(state, "utf8")).plan.paths, ["src/a.js", "src/b.js"]);
+});
+
+// A flag no usage line of the command names, or an answer with nothing to
+// resolve, was accepted and dropped with exit 0.
+test("a flag the command does not take, or an answer with nothing to resolve, is a usage error that writes nothing", (t) => {
+  const root = tempRoot(t);
+  ospec(root, ...OPEN_BUG);
+  const state = path.join(root, "idd", "fix-pagination", "state.yaml");
+  const before = fs.readFileSync(state, "utf8");
+
+  const status = ospec(root, "status", "--kind", "feature", "--json");
+  assert.strictEqual(status.code, 2);
+  assert.match(status.json.error.message, /^status does not take --kind/);
+  assert.match(status.json.error.how, /^ {2}ospec status \[--change <id>\] \[--json\]/);
+  const check = ospec(root, "check", "--change", "fix-pagination", "--path", "zzz", "--unit", "foo", "--plan", "bar", "--json");
+  assert.strictEqual(check.code, 2);
+  assert.match(check.json.error.message, /^check does not take --path, --unit, --plan/);
+
+  const gate = ["record", "gate", "--change", "fix-pagination", "--gate", "irreversible-operation"];
+  const opened = ospec(root, ...gate, "--open", "--reason", "purges cache", "--answer", "yes", "--source", "user", "--json");
+  assert.strictEqual(opened.code, 2);
+  assert.match(opened.json.error.message, /--open takes no --answer or --source/);
+  assert.strictEqual(fs.readFileSync(state, "utf8"), before);
+  assert.strictEqual(ospec(root, ...gate, "--open", "--reason", "purges cache").code, 0);
+  const resolved = ospec(root, ...gate, "--resolve", "--answer", "yes", "--source", "user", "--reason", "why", "--json");
+  assert.strictEqual(resolved.code, 2);
+  assert.match(resolved.json.error.message, /--resolve takes no --reason/);
+  const opening = fs.readFileSync(state, "utf8");
+
+  const intent = ospec(root, ...OPEN_BUG, "--answer", "yes", "--source", "user");
+  assert.strictEqual(intent.code, 2);
+  assert.match(intent.json.error.message, /--answer and --source resolve an ambiguous intent: change fix-pagination has none/);
+  const fresh = ospec(root, ...OPEN_BUG.map((word) => (word === "fix-pagination" ? "fix-sorting" : word)), "--answer", "yes", "--source", "user");
+  assert.strictEqual(fresh.code, 2);
+  assert.ok(!fs.existsSync(path.join(root, "idd", "fix-sorting", "state.yaml")), "a refused intent opens nothing");
+  assert.strictEqual(fs.readFileSync(state, "utf8"), opening);
+
+  // The global flags go with any command.
+  assert.strictEqual(ospec(root, "status", "--json").code, 0);
+});
+
+// The skill told the agent to resolve an ambiguous intent with the same
+// command plus the fields: with --ambiguous it answered "no change", exit 0,
+// and the gate stayed open.
+test("--ambiguous with the fields that resolve it is a usage error, and next prints the record intent that does", (t) => {
+  const root = tempRoot(t);
+  const open = ["record", "intent", "--change", "improve-login", "--ambiguous", "--request", "Improve the login."];
+  assert.strictEqual(ospec(root, ...open).code, 0);
+  const state = path.join(root, "idd", "improve-login", "state.yaml");
+  const before = fs.readFileSync(state, "utf8");
+  const fields = ["--kind", "bug", "--summary", "Fix the login.", "--acceptance", "It logs in.", "--no-open-facts", "--basis", "b", "--answer", "a bug", "--source", "user"];
+  const looped = ospec(root, ...open, ...fields, "--json");
+  assert.strictEqual(looped.code, 2);
+  assert.match(looped.json.error.message, /--ambiguous takes only --request/);
+  assert.strictEqual(looped.json.error.how, "resolve it with the record intent that ospec next --change improve-login prints, without --ambiguous");
+  assert.strictEqual(fs.readFileSync(state, "utf8"), before);
+  assert.strictEqual(ospec(root, "record", "intent", "--change", "other", "--ambiguous", "--request", "r", "--kind", "bug").code, 2);
+
+  const command = ospec(root, "next", "--change", "improve-login", "--json").json.next_step.command;
+  assert.ok(!command.includes("--ambiguous"), command);
+  const resolved = ospec(root, "record", "intent", "--change", "improve-login", ...fields, "--json");
+  assert.strictEqual(resolved.code, 0, resolved.stdout);
+  assert.strictEqual(stateOf(root, "improve-login").gates.find((gate) => gate.id === "ambiguous-intent").status, "resolved");
 });
 
 // E1.45 (B5): a refusal that names no way out of its own takes the one its
@@ -688,6 +765,67 @@ test("close refuses a state.yaml rewritten while it validates, before the change
   assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").code, 0);
 });
 
+// Makes one write fail with EIO: the rename that replaces the file
+// OSPEC_TEST_FAIL_RENAME names, or the writeFileSync of OSPEC_TEST_FAIL_WRITE.
+const WRITE_FAILS_PRELOAD = `
+const fs = require("node:fs");
+const fsp = require("node:fs/promises");
+const eio = () => Object.assign(new Error("EIO: i/o error"), { code: "EIO" });
+const rename = fsp.rename;
+fsp.rename = function (from, to, ...rest) {
+  if (process.env.OSPEC_TEST_FAIL_RENAME && String(to).endsWith(process.env.OSPEC_TEST_FAIL_RENAME)) return Promise.reject(eio());
+  return rename.call(this, from, to, ...rest);
+};
+const writeFileSync = fs.writeFileSync;
+fs.writeFileSync = function (file, ...rest) {
+  if (process.env.OSPEC_TEST_FAIL_WRITE && String(file).endsWith(process.env.OSPEC_TEST_FAIL_WRITE)) throw eio();
+  return writeFileSync.call(this, file, ...rest);
+};
+`;
+
+function failingWrites(t, root, failure) {
+  const preload = path.join(root, "..", `${path.basename(root)}-write-fails.js`);
+  fs.writeFileSync(preload, WRITE_FAILS_PRELOAD);
+  t.after(() => fs.rmSync(preload, { force: true }));
+  return { ...process.env, NODE_OPTIONS: `--require ${JSON.stringify(preload)}`, ...failure };
+}
+
+// close wrote the changelog inside the reducer: a state write that failed
+// after it left the entry with the change open, and the next close found
+// its evidence stale.
+test("a close whose state write fails leaves the changelog as it was, and the next close writes it", (t) => {
+  const { root } = project(t, { checks: DECLARED_DELIVERY });
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  const failed = ospecWith(failingWrites(t, root, { OSPEC_TEST_FAIL_RENAME: path.join("fix-readme", "state.yaml") }), root, "close", "--change", "fix-readme");
+  assert.strictEqual(failed.code, 1, failed.stdout);
+  assert.match(failed.stderr, /EIO/);
+  assert.strictEqual(stateOf(root, "fix-readme").status, "open");
+  assert.ok(!fs.existsSync(path.join(root, "CHANGELOG.md")), "the changelog waits for the closed state");
+  const closed = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(closed.code, 0, closed.stdout);
+  assert.strictEqual(closed.json.changelog.written, true);
+  assert.match(fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8"), /\n- Fix a typo\. \(fix-readme\)\n/);
+});
+
+test("a close that saved the closed state but not the changelog writes the entry when it resumes", (t) => {
+  const { root } = project(t, { checks: DECLARED_DELIVERY });
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  const failed = ospecWith(failingWrites(t, root, { OSPEC_TEST_FAIL_WRITE: "CHANGELOG.md" }), root, "close", "--change", "fix-readme");
+  assert.strictEqual(failed.code, 1, failed.stdout);
+  assert.strictEqual(stateOf(root, "fix-readme").status, "closed");
+  assert.ok(!fs.existsSync(path.join(root, "CHANGELOG.md")));
+  const resumed = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(resumed.code, 0, resumed.stdout);
+  assert.strictEqual(resumed.json.changelog.written, true);
+  assert.ok(fs.existsSync(path.join(root, ...resumed.json.archive.destination.split("/"), "state.yaml")));
+  const again = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(again.json.changelog.written, false, "an archived change reports the entry it wrote");
+});
+
 test("close never archives outside idd/archive from an archived state with a forged close time (B2)", (t) => {
   const { root } = project(t);
   ospec(root, ...OPEN_DOCS);
@@ -877,10 +1015,17 @@ test("[E1.48] a reproduction test that passes against the base product does not 
   // Another command than the check, so only the pair is settled.
   const command = "node --test test/pages.test.js";
   const run = (...extra) => chain(root, "run", "--change", "fix-pages", "--obligation", "repro-test", "--command", command, ...extra);
-  // A red that fails on its own (a typo), then a test the base already passes.
+  // A red that fails on its own (a typo), then a test the base already passes:
+  // with no product code in the diff its pair skips the counterproof, and the
+  // check after the fix reopens it.
   fs.appendFileSync(path.join(root, "test/pages.test.js"), "test('twenty items fill two pages', () => assert.strictEqual(pagez(20), 2));\n");
   assert.strictEqual(run("--json").json.run.exit_code, 1);
   writeFile(root, "test/pages.test.js", `${PAGES_TEST}\ntest('twenty items fill two pages', () => assert.strictEqual(pages(20), 2));\n`);
+  const early = run("--json").json;
+  assert.deepStrictEqual([early.evidence, early.counterproof.skipped], ["ev-1", PRODUCT_FREE_SKIP]);
+  writeFile(root, "src/pages.js", "module.exports = (items) => Math.floor(items / 10) + (items % 10 && items > 10 ? 1 : 0);\n");
+  const reopened = chain(root, "check", "--change", "fix-pages", "--json").json;
+  assert.match(reopened.missing.find((entry) => entry.obligation === "repro-test").reason, /^its pair ev-1 ran while the diff changed no product code/);
   const weak = run("--json").json;
   assert.deepStrictEqual([weak.run.exit_code, weak.evidence, weak.counterproof.runs.map((entry) => entry.exit_code)], [0, undefined, [0]]);
   const id = weak.counterproof.runs[0].id;
@@ -1026,6 +1171,37 @@ test("[E1.48] a reproduction in an inline Rust test closes its pair with the cou
   const state = stateOf(root, "fix-pagination");
   assert.strictEqual(state.evidence[0].detail.counterproof_skipped, reason);
   assert.ok(!state.runs.some((entry) => entry.purpose === "counterproof"), "nothing ran on the base");
+});
+
+// A bug whose diff changes only tests and documentation could not close: the
+// base runs the same product, so its counterproof passed.
+test("[E1.48] a bug fixed in its test alone closes its pair with the counterproof skipped, until the diff changes product code", (t) => {
+  const { root, git } = project(t, { checks: "checks:\n  test: node test/pages.js\n" });
+  // The test expects two pages where the product rightly has one.
+  writeFile(root, "test/pages.js", `${VERIFY}\n`);
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "a wrong test");
+  ospec(root, ...OPEN_BUG);
+  ospec(root, "signals", "--change", "fix-pagination", "--path", "test/pages.js", "--path", "README.md");
+  const run = () => ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", "node test/pages.js", "--json");
+  writeFile(root, "README.md", "One page.\n");
+  assert.strictEqual(run().json.run.exit_code, 1);
+  writeFile(root, "test/pages.js", `${VERIFY.replace("pages !== 2", "pages !== 1")}\n`);
+  const green = run().json;
+  const reason = "the diff changes no product code, only tests, test data or documentation, so the base runs the same product and its red would prove nothing";
+  assert.strictEqual(green.evidence, "ev-1", JSON.stringify(green.missing));
+  assert.deepStrictEqual(green.counterproof, { skipped: reason });
+  assert.ok(green.warnings.includes(`counterproof skipped: ${reason}`), JSON.stringify(green.warnings));
+  assert.ok(!stateOf(root, "fix-pagination").runs.some((entry) => entry.purpose === "counterproof"), "nothing ran on the base");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-pagination", "--json").json.verdict, "ready");
+
+  // Product code in the diff reopens the pair, which says nothing of it.
+  writeFile(root, "src/pages.js", "module.exports = 1;\n");
+  const reopened = ospec(root, "check", "--change", "fix-pagination", "--json").json;
+  assert.strictEqual(
+    reopened.missing.find((entry) => entry.obligation === "repro-test").reason,
+    "its pair ev-1 ran while the diff changed no product code, and the diff changes product code now: run the same command again so its counterproof runs on the base",
+  );
 });
 
 test("run is refused for an obligation it cannot prove and needs a command", (t) => {
@@ -1486,6 +1662,21 @@ test("a change opened before the first commit reviews what it commits too (gate 
   git("commit", "-q", "--no-verify", "-m", "session");
   const checked = ospec(root, "check", "--change", "fix-pagination", "--json");
   assert.match(checked.json.missing.find((entry) => entry.obligation === "trust-review")?.reason ?? "", /reviewed paths changed after the review/);
+});
+
+// review computed its verdict without the command suggestion and said no
+// command was known while next and check proposed one.
+test("review proposes the project's check command while no check is declared, as check does", (t) => {
+  const { root } = project(t, { checks: null });
+  writeFile(root, "package.json", `${JSON.stringify({ scripts: { test: "node verify.js" } })}\n`);
+  openFeature(root, "record", "intent", "--change", "rotate-tokens", "--kind", "feature", "--summary", "Rotate tokens.", "--acceptance", "Old tokens expire.", ...FEATURE_COVER);
+  ospec(root, "signals", "--change", "rotate-tokens", "--path", "src/auth/tokens.js");
+  writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 3600 };\n");
+  const started = review(root, "start");
+  assert.strictEqual(started.code, 0, started.stdout);
+  const reason = (result) => result.json.missing.find((entry) => entry.obligation === "checks-pass").reason;
+  assert.match(reason(started), /Proposed command: npm test\./);
+  assert.strictEqual(reason(started), reason(ospec(root, "check", "--change", "rotate-tokens", "--json")));
 });
 
 test("review refuses bad results, a change without the obligation and an unknown action", (t) => {

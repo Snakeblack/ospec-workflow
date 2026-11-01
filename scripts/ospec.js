@@ -27,6 +27,7 @@ const { parseArgs } = require("node:util");
 
 const {
   COUNTERPROOF,
+  PRODUCT_FREE_SKIP,
   RUN_OBLIGATIONS,
   ceremonyConfig,
   checkVerdict,
@@ -44,6 +45,7 @@ const {
   settleImpacts,
   settleMigration,
   settlePair,
+  settleProductFreePairs,
   settleTreeBound,
 } = require("./lib/idd-check.js");
 const { classifyContractPaths } = require("./lib/idd-contracts.js");
@@ -99,6 +101,7 @@ const {
   commitTree,
   counterproofMount,
   counterproofPaths,
+  onlyTestsAndDocs,
   mountCounterproof,
   readArchitecture,
   readBaseConfig,
@@ -271,7 +274,21 @@ function reducerFor(type, values, root) {
       // neither when the intent is refused.
       const plan = declaresPlan(values) || declaredReferences(values).length > 0 ? planContext(root, values) : null;
       if (plan && values.ambiguous) throw new UsageError("an ambiguous intent declares no plan: declare it with the record intent that resolves it");
+      // Run again with --ambiguous, the fields that resolve the intent were
+      // dropped and the gate stayed open.
+      const resolving = ["kind", "summary", "acceptance", "answer", "source", "open-fact", "no-open-facts", "basis", "cite", "quote"].filter((flag) => values[flag] !== undefined);
+      if (values.ambiguous && resolving.length > 0) {
+        const error = new UsageError(`--ambiguous takes only --request, not ${resolving.map((flag) => `--${flag}`).join(", ")}`);
+        error.how = `resolve it with the record intent that ospec next --change ${values.change ?? "<id>"} prints, without --ambiguous`;
+        throw error;
+      }
+      const answered = values.answer !== undefined || values.source !== undefined;
       return (state) => {
+        // The user's answer resolves only an ambiguous intent; a replay of
+        // that resolution stays idempotent.
+        if (answered && !state?.gates.some((gate) => gate.id === "ambiguous-intent")) {
+          throw new UsageError(`--answer and --source resolve an ambiguous intent: change ${values.change} has none`);
+        }
         const recorded = recordIntent(state, {
           base: state ? undefined : readHead(root),
           change: values.change,
@@ -301,6 +318,10 @@ function reducerFor(type, values, root) {
       );
     case "gate": {
       if (values.open === values.resolve) throw new UsageError("record gate needs exactly one of --open or --resolve");
+      if (values.open && (values.answer !== undefined || values.source !== undefined)) {
+        throw new UsageError("record gate --open takes no --answer or --source: resolve the gate with --resolve once the user answers");
+      }
+      if (values.resolve && values.reason !== undefined) throw new UsageError("record gate --resolve takes no --reason: the gate keeps the reason it was opened with");
       const action = values.open ? "open" : "resolve";
       return existing((state) =>
         recordGate(state, { id: values.gate, action, reason: values.reason, answer: values.answer, source: values.source }),
@@ -563,13 +584,18 @@ const COUNTERPROOF_TIMEOUT_MS = 10 * 60 * 1000;
  * failing means the worktree cannot run the tests, so the counterproof is
  * inconclusive. A command already counterproved on the same base and mount,
  * or controlled on the same base, reuses that run. It runs outside the state
- * lock; without a base, when the diff adds code to a Rust inline test, or when
- * the base cannot be mounted, it is skipped with the reason.
+ * lock; without a base, when the diff adds code to a Rust inline test or
+ * changes no product code, or when the base cannot be mounted, it is skipped
+ * with the reason.
  */
 function runCounterproof(root, state, { diff, commands, checks = [] }) {
   if (!state.base) return { skipped: "the change has no base commit to run it on" };
   const inline = inlineTests(diff);
   if (inline.length > 0) return { skipped: `the inline tests of ${inline.join(", ")} share the file with the product, so the base cannot run them without the change` };
+  // A fix confined to its tests leaves the base product as the candidate's,
+  // so nothing tells the two apart; check reopens the pair once the diff
+  // changes product code.
+  if (onlyTestsAndDocs(diff)) return { skipped: PRODUCT_FREE_SKIP };
   const paths = counterproofPaths(diff);
   const mount = counterproofMount(root, paths);
   const controlMount = counterproofMount(root, []);
@@ -736,7 +762,7 @@ function settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, ch
   const settled = settleChecks(counterproved?.state ?? fitnessRecorded.state, { tree: checkTree, runIds: recorded.ids, recordedAt });
   const tested = settleBoundary(settled.state, { tree: checkTree, runIds: recorded.ids, recordedAt, tests: addedTests(inputs.diff), counterproof: counterproved?.proof ?? null });
   if (tested.reason) reasons["boundary-tests"] = tested.reason;
-  const bound = settleTreeBound(tested.state, { tree });
+  const bound = settleTreeBound(settleProductFreePairs(tested.state, { productFree: onlyTestsAndDocs(inputs.diff) }), { tree });
   const contract = settleContract(bound, { tree: checkTree, checkEvidence: settled.evidence, ...outcome.contractPaths, recordedAt });
   if (contract.reason) reasons["contract-spec-and-test"] = contract.reason;
   const impacts = fitnessDeferred
@@ -1059,9 +1085,11 @@ async function close(root, values) {
       requireFreshEvidence(root, state);
       const livingDoc = readLivingDoc(root, state);
       const closedAt = new Date().toISOString();
-      // A refused close leaves the changelog as it was, so it is refused first.
+      // A refused close leaves the changelog as it was, so it is refused first,
+      // and so is an unreadable delivery configuration.
       closeChange(state, { closedAt, livingDoc });
       requireDerived(root, state);
+      readTeam(root, "idd");
       const validated = serializeState(state);
       ({ state } = await mutateChange(root, values.change, existing((stored) => {
         // The state closed is the one validated above (B2): git runs outside
@@ -1069,12 +1097,15 @@ async function close(root, values) {
         if (serializeState(stored) !== validated) {
           throw new IddRecordError("state-changed", "state.yaml changed while close validated it: run ospec close again");
         }
-        const closed = closeChange(stored, { closedAt, livingDoc });
-        delivery = closeDelivery(root, stored, { write: true });
-        return { ...closed, changed: true };
+        return { ...closeChange(stored, { closedAt, livingDoc }), changed: true };
       })));
+      // The entry follows the closed state: a state that fails to save leaves
+      // the changelog as it was, so the tree keeps the evidence fresh.
+      delivery = closeDelivery(root, state, { write: true });
     } else {
       requireResumable(state);
+      // A close that saved the state but not its entry writes it now.
+      delivery = closeDelivery(root, state, { write: true, strict: false });
     }
     if (await fsp.stat(changeDir(root, state.change)).then(() => true, () => false)) writeEvidenceSection(root, state);
     const archive = await archiveChange(root, state);
@@ -1095,14 +1126,15 @@ async function close(root, values) {
 
 // The changelog entry and the release of a closing change (REQ-idd-025), only
 // for what idd/config.yaml declares: the profile recommends, never writes.
-// Closing writes the entry once; closing again reads the file and reports it.
-// An unreadable configuration refuses the first close and is skipped after it.
-function closeDelivery(root, state, { write }) {
+// Closing writes the entry once, and a resumed close writes it if it is
+// missing; closing an archived change reads the file and reports it. An
+// unreadable configuration refuses the first close and is skipped after it.
+function closeDelivery(root, state, { write, strict = write }) {
   let team;
   try {
     team = readTeam(root, "idd");
   } catch (error) {
-    if (!write && (error instanceof IddConfigError || error instanceof TeamProfileError)) return {};
+    if (!strict && (error instanceof IddConfigError || error instanceof TeamProfileError)) return {};
     throw error;
   }
   const declared = (option) => (option.source === CONFIG_FILE ? option.value : null);
@@ -1252,6 +1284,7 @@ async function review(root, positionals, values) {
     }),
   );
   const lineage = currentReview(state);
+  const verdictContext = context || readProjectContext(root);
   const summary = { lineage_id: lineage.lineage_id, generation: lineage.generation, status: lineage.status };
   if (outcome.request) summary.request = outcome.request;
   if (outcome.validate) summary.validate = outcome.validate;
@@ -1262,7 +1295,7 @@ async function review(root, positionals, values) {
     review: summary,
     evidence: outcome.evidence ?? null,
     ...(outcome.warnings?.length ? { warnings: outcome.warnings } : {}),
-    ...checkVerdict(state, { checks: (context || readProjectContext(root)).checks, livingDoc: readLivingDoc(root, state) }),
+    ...checkVerdict(state, { checks: verdictContext.checks, candidateCommand: verdictContext.candidateCommand, livingDoc: readLivingDoc(root, state) }),
     next: nextAfterWrite(root, state),
   };
 }
@@ -1773,7 +1806,8 @@ function describe(command, result) {
       .map((c) => {
         const pending = c.obligations.pending.join(", ") || "-";
         const gates = c.open_gates.join(", ") || "-";
-        return `${c.change}  ${c.status}  ${c.kind ?? "ambiguous"}  pending: ${pending}  gates: ${gates}`;
+        const signals = c.signals.join(", ") || "-";
+        return `${c.change}  ${c.status}  ${c.kind ?? "ambiguous"}  pending: ${pending}  gates: ${gates}  signals: ${signals}`;
       })
       .join("\n");
   }
@@ -1809,20 +1843,31 @@ function jsonOf(command, payload) {
   return `${JSON.stringify(COMPACT_JSON.includes(command) ? compact(payload) : payload, null, 2)}\n`;
 }
 
+// The flags every command takes, besides those its usage lines name.
+const GLOBAL_FLAGS = new Set(["root", "json", "help"]);
+
 // parseArgs drops what no option takes: `--path a b` keeps only `a`, and a
 // single-value flag given twice keeps its last value. Such a call is refused
 // instead. How many words a command takes comes from its usage lines: the
 // command, and its subcommand when it has one. A repeated boolean drops
-// nothing.
+// nothing. A flag the usage lines of the command and subcommand do not name
+// would be dropped too, so it is refused as well.
 function requireEveryArgument(positionals, tokens) {
   const [command] = positionals;
   const entries = USAGE_ENTRIES.filter((entry) => entry.command === command);
   if (entries.length === 0) return;
   const words = entries.some((entry) => entry.sub.length > 0) ? 2 : 1;
+  const takes = positionals.slice(0, words).join(" ");
   const stray = positionals.slice(words);
   if (stray.length > 0) {
-    const takes = positionals.slice(0, words).join(" ");
     throw new UsageError(`${takes} does not take ${stray.map((word) => JSON.stringify(word)).join(", ")}: each value needs its own flag (--path a --path b), and a value with spaces needs quotes`);
+  }
+  // An unknown subcommand is refused by the command itself, with its list.
+  const named = entries.filter((entry) => words === 1 || entry.sub.includes(positionals[1]));
+  const flags = new Set(named.flatMap((entry) => [...entry.lines.join(" ").matchAll(/--([a-z][a-z-]*)/g)].map((match) => match[1])));
+  const foreign = [...new Set(tokens.filter((token) => token.kind === "option" && !GLOBAL_FLAGS.has(token.name) && !flags.has(token.name)).map((token) => token.name))];
+  if (named.length > 0 && foreign.length > 0) {
+    throw new UsageError(`${takes} does not take ${foreign.map((name) => `--${name}`).join(", ")}`);
   }
   const seen = new Set();
   for (const token of tokens) {

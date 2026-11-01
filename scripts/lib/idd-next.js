@@ -64,7 +64,7 @@ const HOW = Object.freeze({
 // The literal command of each step (E1.45, B5): the agent runs it as written,
 // filling in only the <placeholders> the CLI cannot know. After a red run, the
 // command of that run replaces "<test>", so the green run repeats it exactly.
-const INTENT_FACTS = '(--open-fact "<question>"... | --no-open-facts --basis "<why>")';
+const INTENT_FACTS = '((--open-fact "<question>")... | --no-open-facts --basis "<why>")';
 const INTENT_FIELDS = `--kind <${INTENT_KINDS.join("|")}> --summary "<what>" --acceptance "<observable result>" ${INTENT_FACTS}`;
 const USER_ANSWER = '--answer "<the user\'s words>" --source user';
 
@@ -338,6 +338,7 @@ function statusOf(states) {
       status: state.status,
       kind: state.intent.kind,
       summary: state.intent.summary,
+      signals: state.signals.map((signal) => signal.id),
       obligations: {
         pending: idsWithStatus(state, "pending"),
         satisfied: idsWithStatus(state, "satisfied"),

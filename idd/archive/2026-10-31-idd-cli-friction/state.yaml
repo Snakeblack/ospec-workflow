@@ -1,0 +1,447 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-cli-friction",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua (PR2b del plan de la review general del 2026-10-29: hallazgos 5-11 de #1482 y pendiente (f) de PR1c)",
+    "kind": "bug",
+    "summary": "Cerrar la fricción del CLI de IDD: flags aceptados y descartados, bucle del intent ambiguo, isTestPath que toma producto por test, signals registradas sin listado de solo lectura, review sin candidateCommand, CHANGELOG escrito antes de guardar el estado en close, salida obsoleta de idd-next y configure-checks, y el arreglo que solo toca tests sin kind que le encaje",
+    "acceptance": "Cada caso de los hallazgos 5-11 de la review (engram #1482) y del pendiente (f) de PR1c tiene un test que fallaba en la base y pasa: un flag que el comando no toma da exit 2; --ambiguous con campos de resolución da exit 2 y la skill remite al record intent de next; Latest.java, Contest.java, Contests.cs y src/spec/openapi.js son producto; las signals registradas se listan sin escribir; review propone el candidateCommand; un close cuyo estado no se guarda deja el CHANGELOG intacto; next imprime la forma vigente de --open-fact; un bug que solo toca tests puede cerrar"
+  },
+  "facts": {
+    "open": [
+      "Hallazgo 5: ¿se rechaza con exit 2 todo flag que las líneas de uso del comando o subcomando no nombran (globales --root, --json, --help), y además record gate --open con --answer/--source, --resolve con --reason, y record intent con --answer/--source sin intent ambiguo que resolver?",
+      "Hallazgo 6: ¿--ambiguous junto a --kind, --summary, --acceptance, --answer, --source o la declaración de open facts es error de uso (exit 2), y la regla 3 de la skill pasa a decir que se resuelve con el record intent que imprime next?",
+      "Hallazgo 7: ¿Test.java, Tests.java y Tests.cs pasan a distinguir mayúsculas (y se añade Tests.java, la convención de Spring hoy tomada por producto), y spec/ cuenta como test solo en la raíz para cualquier fichero y a cualquier profundidad para .rb?",
+      "Hallazgo 8: signals --change <id> --json sin flags ya lista las registradas pero pasa por el lock de escritura; ¿status (texto y JSON) lista las signals de cada cambio y el remedio de signal-not-recorded remite a ospec status --change <id>?",
+      "Hallazgo 10: si close cierra el estado pero falla al escribir el CHANGELOG, ¿el close siguiente (reanudación) escribe la entrada que falta antes de archivar?",
+      "Hallazgo 11: ¿configure-checks deja de traer command (ospec check), como dice references/checks.md, en vez de mantenerlo como el paso que sigue a escribir la configuración?",
+      "Pendiente (f): ¿un bug cuyo diff no cambia código de producto (solo tests, datos de test o documentación) omite la contraprueba con aviso, en vez de permitir bajar el kind con la respuesta del usuario o solo documentar que se declara docs? Abandonar un cambio sigue en E1.57",
+      "Entrega: ¿una sola PR (fix/idd-cli-friction, release patch 2.168.7) o partir PR2b en 2b y 2c si pasa de ~400 líneas?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-check.js",
+      "scripts/lib/idd-checks-config.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-signals.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md",
+      "skills/idd/references/checks.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Pendiente (f), opción A' (respuesta del usuario «si», que sustituye la omisión incondicional): un par cuyo diff no cambia código de producto omite la contraprueba, y check reabre repro-test o tdd-red-green si el diff cambia producto después, porque sin esa regla un test débil registrado antes del arreglo de producto cerraría el par (el agujero de E1.48)",
+      "Hallazgo 11, opción 6A (respuesta del usuario «si», que sustituye quitar command): configure-checks mantiene command ospec check --change <id>, como exige REQ-idd-011 y eligió E1.49; se corrige el texto obsoleto de la spec y references/checks.md dice que se ejecuta una vez escrita la configuración",
+      "record intent rechaza --answer y --source solo cuando el cambio no tiene gate ambiguous-intent: repetir la resolución sigue siendo idempotente",
+      "close comprueba la configuración de entrega antes de guardar el estado, así que una configuración ilegible sigue rechazando el primer close sin escribir nada"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Las reglas viven en el CLI con sus tests: requireEveryArgument y reducerFor en ospec.js, isTestPath en idd-signals.js, settleProductFreePairs y pairReason en idd-check.js, onlyTestsAndDocs en idd-workspace.js; la skill solo remite al record intent que imprime next"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "No añade señales ni obligaciones: la contraprueba se omite cuando el diff no cambia producto, porque no puede distinguir nada, y el par se reabre en cuanto lo cambia"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "close sigue ligado a evidencia observada: el CHANGELOG se escribe después de guardar el estado cerrado, y un par sin contraprueba deja de valer cuando el diff cambia producto"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "No toca la memoria entre sesiones ni lo que la skill dice de ella"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo biblioteca estándar de Node y git; ninguna dependencia nueva"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "Solo toca IDD: su CLI, su estado bajo idd/ y su contrato; SDD no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "status lee las signals del state.yaml, y un close que reanuda escribe la entrada que falte con addEntry, que no la repite: next, check y close dan lo mismo al reanudar"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Solo cambia lógica local del CLI y lecturas del diff; no hay llamadas de red"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "requireEveryArgument, las comprobaciones de record intent y record gate, la contraprueba omitida y su reapertura, status con signals, review con candidateCommand y el orden del CHANGELOG en close tienen tests en ospec.test.js; isTestPath en idd-signals.test.js; statusOf e INTENT_FACTS en idd-next.test.js; la regla 3 de la skill solo remite al record intent que imprime next, sin describir el cálculo",
+      "recorded_at": "2026-10-31T23:11:44.469Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El cambio no añade llamadas de red: compara flags con las líneas de uso, clasifica rutas del diff local y reordena escrituras locales; next, check y close leen lo mismo del disco",
+      "recorded_at": "2026-10-31T23:11:44.626Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 67,
+      "answer": "todo lo recomendado",
+      "source": "user",
+      "resolved_turn": 68
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-31T23:13:44.429Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-31T23:17:01.503Z",
+      "detail": {
+        "tree": "sha256:26497eeb53c03aa16598b639a5d89583a7565b73bc7e3832af137c6e75ea4734",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-31T23:17:01.503Z",
+      "detail": {
+        "tree": "sha256:26497eeb53c03aa16598b639a5d89583a7565b73bc7e3832af137c6e75ea4734",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-31T23:17:01.503Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:26497eeb53c03aa16598b639a5d89583a7565b73bc7e3832af137c6e75ea4734",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-31T23:18:52.206Z",
+      "detail": {
+        "run": "run-13",
+        "tree": "sha256:d77ff5df26d9c56bd95e4f4373b0f63e5dc26bd456c9530c61e83cfd8c7ed38a",
+        "plan": "state.yaml no cambia de esquema: status solo lee las signals que ya guarda. close escribe la entrada del CHANGELOG después de guardar el estado cerrado, y un close que reanuda escribe la que falte con addEntry, que no repite una línea; un cambio que un CLI anterior dejó cerrado con su entrada escrita se reanuda sin duplicarla. Rollback: una versión anterior lee el mismo state.yaml y el mismo CHANGELOG"
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-31T23:19:13.664Z"
+    }
+  ],
+  "base": "abf89bc1a81d8af9b217bef20a42c52354c6bb60",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/ospec.test.js scripts/lib/idd-signals.test.js scripts/lib/idd-next.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:c9ba42f07b81e89c50125bc0edb0040b423abfe7a4df5a35d8d6863877761556",
+      "tree": "sha256:d330dea2acd0c115d40d4408a54c0815f8be2a20351f58bf417305b6d116ce24",
+      "recorded_at": "2026-10-31T22:52:54.996Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/ospec.test.js scripts/lib/idd-signals.test.js scripts/lib/idd-next.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:605196bf3d9b3d4c9ab6b861597387bfa6e0d09e5178e1bfcfbd229253c89845",
+      "tree": "sha256:d77ff5df26d9c56bd95e4f4373b0f63e5dc26bd456c9530c61e83cfd8c7ed38a",
+      "recorded_at": "2026-10-31T23:13:44.429Z",
+      "tests": 237,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "abf89bc1a81d8af9b217bef20a42c52354c6bb60",
+      "mount": "sha256:722365db44287265a2c472613ee8297d0b9b188323d2b44dc7e07d04d77b83a1",
+      "command": "node --test scripts/ospec.test.js scripts/lib/idd-signals.test.js scripts/lib/idd-next.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:8ab87ed89292c74b337a0b72e2b974a25f4a0950c9da5e5dc4ddf2d9e103b094",
+      "tree": "sha256:d77ff5df26d9c56bd95e4f4373b0f63e5dc26bd456c9530c61e83cfd8c7ed38a",
+      "recorded_at": "2026-10-31T23:13:44.429Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "abf89bc1a81d8af9b217bef20a42c52354c6bb60",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/ospec.test.js scripts/lib/idd-signals.test.js scripts/lib/idd-next.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1b12538a9600e1b48ff5a405eed8331a00e68a7d94e065d06e1686f9f4944efa",
+      "tree": "sha256:d77ff5df26d9c56bd95e4f4373b0f63e5dc26bd456c9530c61e83cfd8c7ed38a",
+      "recorded_at": "2026-10-31T23:13:44.429Z",
+      "tests": 229
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1066c0db067233e0970c427365b287a964ddff49c27a60b4688826cd160f98bf",
+      "tree": "sha256:26497eeb53c03aa16598b639a5d89583a7565b73bc7e3832af137c6e75ea4734",
+      "recorded_at": "2026-10-31T23:17:01.503Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2c4a8d41855e9d8abdc62a740882478cb9330fb245566e54faf66c5d82b9d9cf",
+      "tree": "sha256:26497eeb53c03aa16598b639a5d89583a7565b73bc7e3832af137c6e75ea4734",
+      "recorded_at": "2026-10-31T23:17:01.503Z",
+      "tests": 55
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fc19b9cb8f8e9e073406bbb2b5f165ad005359fa155e89d77117c12cf4b2e4f5",
+      "tree": "sha256:26497eeb53c03aa16598b639a5d89583a7565b73bc7e3832af137c6e75ea4734",
+      "recorded_at": "2026-10-31T23:17:01.503Z",
+      "tests": 18
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:86ca1c95c308a4bc90284b710ba1f413fa363179f3418c83c1745b9296eabff2",
+      "tree": "sha256:26497eeb53c03aa16598b639a5d89583a7565b73bc7e3832af137c6e75ea4734",
+      "recorded_at": "2026-10-31T23:17:01.503Z",
+      "tests": 2
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:26497eeb53c03aa16598b639a5d89583a7565b73bc7e3832af137c6e75ea4734",
+      "recorded_at": "2026-10-31T23:17:01.503Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c307f5468c71a0cc7c35a96a120ca5b2e5b64382cbbc47d5c862b0e11f6ea8ba",
+      "tree": "sha256:26497eeb53c03aa16598b639a5d89583a7565b73bc7e3832af137c6e75ea4734",
+      "recorded_at": "2026-10-31T23:17:01.503Z",
+      "tests": 22
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0798c30e0f01451edcba3d1538732234b09230f0acc5910a9ed529bf6c0f7b25",
+      "tree": "sha256:26497eeb53c03aa16598b639a5d89583a7565b73bc7e3832af137c6e75ea4734",
+      "recorded_at": "2026-10-31T23:17:01.503Z",
+      "tests": 85
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:90bec56c1be136cede064d92e4fc94bca8cf4b1e1609d4bbb4791a6697d29f78",
+      "tree": "sha256:26497eeb53c03aa16598b639a5d89583a7565b73bc7e3832af137c6e75ea4734",
+      "recorded_at": "2026-10-31T23:17:01.503Z",
+      "tests": 52
+    },
+    {
+      "id": "run-13",
+      "purpose": "migration-test",
+      "command": "node --test scripts/ospec.test.js scripts/lib/idd-store.test.js scripts/lib/idd-changelog.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:59ba7fb629d9f68014a853f5b4e0fb8b520da5d8f8d642f522d2a2ea288a47b4",
+      "tree": "sha256:d77ff5df26d9c56bd95e4f4373b0f63e5dc26bd456c9530c61e83cfd8c7ed38a",
+      "recorded_at": "2026-10-31T23:18:52.206Z",
+      "tests": 162
+    }
+  ],
+  "closed_at": "2026-10-31T23:19:13.664Z"
+}

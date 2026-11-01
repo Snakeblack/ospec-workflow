@@ -744,6 +744,17 @@ test("[E1.48] classifyPath knows spec/, the _test and _spec suffixes of any code
   }
 });
 
+// The Java and C# names matched in any case, so Latest.java and Contests.cs
+// were tests, and spec/ at any depth made src/spec/openapi.js one: none
+// derived untested-product, and the counterproof mounted them as tests.
+test("classifyPath reads the Java and C# test names in their case, and spec/ below the root only for Ruby", () => {
+  const tests = ["src/LatestTest.java", "src/PageTests.java", "src/ApplicationTests.java", "src/PageTests.cs", "spec/support/helpers.js", "spec/spec_helper.rb", "engines/billing/spec/support/factories.rb"];
+  for (const file of tests) assert.strictEqual(classifyPath(file), "test", file);
+  for (const file of ["src/Latest.java", "src/Contest.java", "src/Contests.cs", "src/spec/openapi.js", "lib/spec/parser.ts"]) {
+    assert.strictEqual(classifyPath(file), "product", file);
+  }
+});
+
 test("[E1.48] code added inside a Rust #[cfg(test)] module is a test the diff adds, and code added outside it is not", () => {
   const lines = [
     "pub fn page(n: u32) -> u32 {",

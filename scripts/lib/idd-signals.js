@@ -136,15 +136,20 @@ function isDocumentation(file) {
 
 // Besides the JS, Python, Java and .NET names, the _test and _spec suffixes of
 // any code (Go, pytest, rspec, ExUnit), a tests module (Django's tests.py,
-// Rust's tests.rs) and rspec's spec directory hold tests (E1.48).
+// Rust's tests.rs) and rspec's spec directory hold tests (E1.48). The Java and
+// .NET names keep their case, so Latest.java and Contests.cs stay product, and
+// a spec directory below the root holds tests only for Ruby, so
+// src/spec/openapi.js stays product too.
 function isTestPath(file) {
   return (
     /\.(?:test|spec)\.(?:js|jsx|mjs|cjs|ts|tsx)$/i.test(file) ||
     (/(?:_(?:test|spec)|(?:^|\/)tests)\.[^./]+$/i.test(file) && PRODUCT_EXT.test(file)) ||
     /(?:^|\/)test_[^/]*\.py$/i.test(file) ||
-    /Test\.java$/i.test(file) ||
-    /Tests\.cs$/i.test(file) ||
-    /(?:^|\/)(?:test|tests|__tests__|spec)(?:\/|$)/i.test(file)
+    /Tests?\.java$/.test(file) ||
+    /Tests\.cs$/.test(file) ||
+    /(?:^|\/)(?:test|tests|__tests__)(?:\/|$)/i.test(file) ||
+    /^spec(?:\/|$)/i.test(file) ||
+    /(?:^|\/)spec\/.*\.rb$/i.test(file)
   );
 }
 
