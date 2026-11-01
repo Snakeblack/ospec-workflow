@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.168.8] - 2026-11-01
+
 ### Fixed
 - **El CI deja de dar por buenas roturas que no ejecutaba** (ci-coverage-gaps, lote PR3a de la review general del 2026-10-29).
   - **Los tests Go corren en cada PR y en `main`.** `build-hooks.yml` solo se lanzaba al cambiar `cmd/`, `internal/` o `go.*`, pero los tests Go también leen `hooks/hooks.json`, `scripts/hooks/session-start.js`, `scripts/lib/ospec-state.js`, el registro de skills y `schemas/kernel/`. Una rotura de paridad en esos ficheros pasaba en verde. Ahora el workflow no tiene filtro de rutas, instala Node para los tests de paridad y, como Validate Harness, nunca cancela un run de `main`.
@@ -20,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Hecho con IDD (`idd/archive/2026-11-01-ci-coverage-gaps/`).
 
-**Verificación directa**: `node scripts/check.js` (4349 tests pasando, 0 fallos y 5 omitidos; 10 tests de Python OK; los siete targets generados y validados, claude incluido), `gofmt`, `go vet ./...` y `go test ./...` con Go 1.27.3, y `govulncheck` sin vulnerabilidades alcanzables. El test de reproducción falla en la base y pasa con el arreglo.
+**Verificación directa**: `node scripts/check.js` (4349 tests pasando, 0 fallos y 5 omitidos), con 10 tests de Python OK y los siete targets generados y validados, claude incluido; `gofmt`, `go vet ./...` y `go test ./...` con Go 1.27.3, y `govulncheck` sin vulnerabilidades alcanzables. El test de reproducción falla en la base y pasa con el arreglo.
 
 ## [2.168.7] - 2026-11-01
 
