@@ -72,8 +72,8 @@ tree — are unchanged.)
 
 - The Go binary MUST compile to a standalone native executable with no Node.js
   runtime dependency.
-- The minimum Go toolchain version is **Go 1.23**. All CI pipelines and contributor environments MUST use Go 1.23 or later.
-- The binary MUST be cross-compiled for the full platform matrix: **Windows amd64, macOS arm64, macOS amd64, Linux amd64**. Binaries MUST NOT be committed to the repo; the CI build step compiles them and archives them under `release/dist/`.
+- The minimum Go toolchain version is **Go 1.26**, the `go` directive of `go.mod`. All CI pipelines read it from `go.mod` (`go-version-file`), and contributor environments MUST use Go 1.26 or later.
+- The binary MUST be cross-compiled for the full platform matrix: **Windows amd64, macOS arm64, macOS amd64, Linux amd64**. Binaries MUST NOT be committed to the repo; the CI build step cross-compiles the matrix on every pull request and on `main`, and the publish workflow compiles the binaries it bundles into the `release` branch.
 - The binary MUST complete within 5 seconds. All five hooks (SessionStart,
   PreToolUse, PreCompact, SubagentStop, and Stop) share the same 5-second budget.
 - The binary MUST be non-blocking: it MUST write its response and exit within the

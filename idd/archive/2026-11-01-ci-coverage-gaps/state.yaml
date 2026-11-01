@@ -1,0 +1,508 @@
+{
+  "schema": "idd-state/v1",
+  "change": "ci-coverage-gaps",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "CI deja pasar roturas: los tests Go no corren cuando cambian sus entradas JS/YAML y publish no espera a Build ospec-hooks; Go 1.23 sin soporte; el target claude no se valida; artefactos sin uso; test_caveman.py sin ejecutar; npm test con HOME real; test de Copilot intermitente en Windows",
+    "acceptance": "build-hooks corre en todas las PRs y en main sin cancelar main, con Node; publish espera a Validate Harness y a Build ospec-hooks del mismo SHA; go.mod declara go 1.26 y los workflows usan go-version-file con govulncheck; el CI valida el target claude con la CLI real; build-hooks no sube artefactos; test_caveman.py se ejecuta; ningún test lanza npm con el HOME real; el test de Copilot tolera un runner lento"
+  },
+  "facts": {
+    "open": [
+      "¿Dónde se ejecutan los tests de caveman-compress (test_caveman.py): un paso propio en el job ubuntu de Validate Harness, o dentro de check.js cuando python3 está disponible (como la CLI de claude)?",
+      "test-repo-writes.test.js re-ejecuta 3 ficheros de test ya en la suite (~3 s): ¿se reestructura en esta PR o se deja tal cual para PR8 (rendimiento)?",
+      "Test de Copilot (j) que agota el plazo de 4 s del lanzador en Windows: ¿más reintentos en el test (hasta 3 intentos) o un plazo configurable del lanzador por variable de entorno que el test amplíe?",
+      "CLI de Claude en CI: ¿versión fijada (npm @anthropic-ai/claude-code@2.1.309, dist-tag stable) o latest en cada run? ¿Solo en el job ubuntu de Validate Harness, dejando publish con --no-validate porque espera a Validate del mismo SHA?",
+      "govulncheck (v1.9.0 fijada, job ubuntu de build-hooks): ¿falla el job solo con vulnerabilidades en código que se llama (modo por defecto) o también con las de módulos requeridos que no se llaman?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      ".github/workflows/build-hooks.yml",
+      ".github/workflows/publish-marketplace.yml",
+      ".github/workflows/validate-harness.yml",
+      "CONTRIBUTING.md",
+      "README.es.md",
+      "README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "go.mod",
+      "internal/hooks/subagentstop_test.go",
+      "openspec/specs/hooks-runtime/spec.md",
+      "scripts/check.js",
+      "scripts/check.test.js",
+      "scripts/ci/wait-for-ci.js",
+      "scripts/ci/wait-for-ci.test.js",
+      "scripts/ci/wait-for-validate-harness.js",
+      "scripts/ci/wait-for-validate-harness.test.js",
+      "scripts/configure/install-global-copilot.test.js",
+      "scripts/ospec.test.js",
+      "skills/caveman-compress/scripts/test_caveman.py"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "publish espera a Validate Harness y a Build ospec-hooks del mismo SHA con un único script, scripts/ci/wait-for-ci.js (renombrado desde wait-for-validate-harness.js), que espera los workflows en orden",
+      "build-hooks.yml sin filtro paths; como Validate Harness, solo cancela runs de PR y nunca los de main, que publish necesita"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/check.js imports scripts/configure/cli.js, which uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "La generación multi-target no cambia; el CI valida ahora también el target claude con su CLI real, como ya hacían los demás targets con sus validadores"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "No se añade ninguna dependencia de runtime: la CLI de Claude, Python y govulncheck solo los usan el CI y check.js; go.mod sube la directiva go sin tocar los módulos requeridos"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "Solo cambian workflows, check.js y tests; el CLI, los hooks y las skills no ganan llamadas de red"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El target claude pasa por claude plugin validate --strict en CI; ningún target cambia su salida"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "none",
+      "reason": "El único cambio bajo skills/ es una línea del docstring de test_caveman.py; ningún algoritmo pasa del CLI a las skills ni al revés"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones ni su autoridad"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "git diff solo toca .github/workflows, scripts/ci, scripts/check.js, tests, go.mod y docs; ni scripts/ospec.js, ni scripts/lib, ni scripts/hooks de producto, ni skills/idd cambian, así que next, check y close no ganan llamadas de red",
+      "recorded_at": "2026-11-01T09:04:14.383Z"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "El cambio no añade ni modifica órdenes de ospec ni reglas de cálculo en skills: solo un docstring de skills/caveman-compress/scripts/test_caveman.py",
+      "recorded_at": "2026-11-01T09:08:26.853Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 80,
+      "answer": "todas las recomendadas: (1) test_caveman.py dentro de check.js cuando python3 está disponible, con nota si falta; (2) test-repo-writes se deja para PR8; (3) más reintentos en el test de Copilot, hasta 3 intentos; (4) CLI de Claude fijada a 2.1.309 solo en el job ubuntu de Validate Harness, publish sigue con --no-validate y se corrige su comentario; (5) govulncheck en modo por defecto",
+      "source": "user",
+      "resolved_turn": 81
+    },
+    {
+      "id": "irreversible-operation",
+      "status": "resolved",
+      "reason": "Borrar con gh api los ~1452 artefactos ospec-hooks-* (unos 3,7 GB) que build-hooks.yml subió y nadie descarga",
+      "operations": [
+        "Borrar con gh api los ~1452 artefactos ospec-hooks-* (unos 3,7 GB) que build-hooks.yml subió y nadie descarga"
+      ],
+      "opened_turn": 81,
+      "answer": "si me confirmas que no sirven para absolutamente nada, si (confirmado: ningún workflow ni script de main o de las ramas remotas los descarga, publish compila sus binarios, las releases no tienen assets y build:hooks compila en local)",
+      "source": "user",
+      "resolved_turn": 83
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-01T09:02:35.262Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4",
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-01T09:08:05.840Z",
+      "detail": {
+        "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+        "runs": [
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-01T09:08:05.840Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms",
+          "adr:0003 none",
+          "adr:0006 none"
+        ],
+        "records": [],
+        "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+        "fitness": [
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-01T09:08:26.698Z",
+      "detail": {
+        "run": "run-12",
+        "tree": "sha256:4c7bc9848d8ee18f4d071c8bf3a940fba780621bf9f48419685e9c33c560f9ec",
+        "plan": "Sin migración: check.js no lee ni escribe datos persistidos nuevos; solo añade un paso que ejecuta los tests de Python cuando hay python3, y runStep conserva su firma (command y cwd opcionales, por defecto node y la raíz). Rollback: revertir el commit."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-01T09:09:42.242Z",
+      "detail": {
+        "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+        "runs": [
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-01T09:09:42.242Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms",
+          "adr:0003 none",
+          "adr:0006 none"
+        ],
+        "records": [],
+        "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+        "fitness": [
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-01T09:09:42.386Z"
+    }
+  ],
+  "base": "72d3615ba36953b1faa7d7b95b4d97b747ab10a0",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/ci/wait-for-ci.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:db57ef3bdb60821ffebc332b7b13aa863360c1c965be86c086ccf6a73cc80503",
+      "tree": "sha256:3b9ad3843adab09a231fa0bac8bf5e31d6fa304c4a41f658e598b0dd194e9831",
+      "recorded_at": "2026-11-01T08:59:37.213Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/ci/wait-for-ci.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5c94c26fd293c1142d0452ef3b149eea894d02eba1ce3ffc212d79b683124234",
+      "tree": "sha256:4c7bc9848d8ee18f4d071c8bf3a940fba780621bf9f48419685e9c33c560f9ec",
+      "recorded_at": "2026-11-01T09:02:35.262Z",
+      "tests": 4,
+      "counterproof": [
+        "run-3",
+        "run-4",
+        "run-5"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "72d3615ba36953b1faa7d7b95b4d97b747ab10a0",
+      "mount": "sha256:84737258b51c1bbd6b100d139ea71fb76698c7e2320d4ecd9bde8e2fbeafe53c",
+      "command": "node --test scripts/ci/wait-for-ci.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:f4ad26c03c67dabc00e8062572c39234209311874f26526d63b00eac434775eb",
+      "tree": "sha256:4c7bc9848d8ee18f4d071c8bf3a940fba780621bf9f48419685e9c33c560f9ec",
+      "recorded_at": "2026-11-01T09:02:35.262Z",
+      "tests": 1
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "72d3615ba36953b1faa7d7b95b4d97b747ab10a0",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/ci/wait-for-ci.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:f2e17f7ba8541c2f045550e78337c86df727cee433ad131710e2543c8fe0a709",
+      "tree": "sha256:4c7bc9848d8ee18f4d071c8bf3a940fba780621bf9f48419685e9c33c560f9ec",
+      "recorded_at": "2026-11-01T09:02:35.262Z",
+      "tests": 0
+    },
+    {
+      "id": "run-5",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "name": "test",
+      "base": "72d3615ba36953b1faa7d7b95b4d97b747ab10a0",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2820a66c0ffec882e0548ac352338c2fb10a09e13c6319ab263d2d7feb98262d",
+      "tree": "sha256:4c7bc9848d8ee18f4d071c8bf3a940fba780621bf9f48419685e9c33c560f9ec",
+      "recorded_at": "2026-11-01T09:02:35.262Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:159667397ad15f2f85f74f48e0e0db4f7ad25f383c8f5cfcd41c3a3767095a81",
+      "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+      "recorded_at": "2026-11-01T09:08:05.840Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1b5e0baacccbacc3cb50a5a03e28f05340afa4f7e6d53ef6f7fd7143196d28ed",
+      "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+      "recorded_at": "2026-11-01T09:08:05.840Z",
+      "tests": 48
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+      "recorded_at": "2026-11-01T09:08:05.840Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0417e62e1acf0a7214d9446b42b0c053d0328cc80e9d5f7ef2c35d5e473c5638",
+      "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+      "recorded_at": "2026-11-01T09:08:05.840Z",
+      "tests": 22
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:21dd7131c9f39b7d93d3e226597b5194ca262bc034840091d5218d4b4d149faa",
+      "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+      "recorded_at": "2026-11-01T09:08:05.840Z",
+      "tests": 48
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c9474f40e5a861e6086268478aebc97083c8019e70db9f56a32648fc3b75ef25",
+      "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+      "recorded_at": "2026-11-01T09:08:05.840Z",
+      "tests": 2
+    },
+    {
+      "id": "run-12",
+      "purpose": "migration-test",
+      "command": "node --test scripts/check.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c7539bd212c3d1a6ada8076aecca4b549b3b5a2a4dfd1cf0ec5ff0de8d3884a5",
+      "tree": "sha256:4c7bc9848d8ee18f4d071c8bf3a940fba780621bf9f48419685e9c33c560f9ec",
+      "recorded_at": "2026-11-01T09:08:26.698Z",
+      "tests": 27
+    },
+    {
+      "id": "run-13",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ba1be3308f3aaaa6f88f838765fa77fab56e153d83833a7093e822af4ebb4633",
+      "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+      "recorded_at": "2026-11-01T09:09:42.242Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9cf151389802eafe6d69f7acbc7f8266e252ee64b7d7faec13c32f18f1e30f1a",
+      "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+      "recorded_at": "2026-11-01T09:09:42.242Z",
+      "tests": 48
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+      "recorded_at": "2026-11-01T09:09:42.242Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fb4d3c3dfbd09b328f5147e7d2c936be7bfe5d5d8ce11b5caee293cc898dfcd7",
+      "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+      "recorded_at": "2026-11-01T09:09:42.242Z",
+      "tests": 22
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:baba462d68d45f2df6fbffc17469a22129ecd22795cdaaaa8672d8c0aaa7e46f",
+      "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+      "recorded_at": "2026-11-01T09:09:42.242Z",
+      "tests": 48
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:46c966cfac17e3c63f4853bd6b3288d447045e67697d5d94b42ce15570805537",
+      "tree": "sha256:dedc34c375f2d1437d7e856a5e66c3075a9f4de6a9430dd8b14f0cc494fe5eed",
+      "recorded_at": "2026-11-01T09:09:42.242Z",
+      "tests": 2
+    }
+  ],
+  "closed_at": "2026-11-01T09:09:42.386Z"
+}

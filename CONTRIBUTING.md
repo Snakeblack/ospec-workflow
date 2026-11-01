@@ -35,7 +35,8 @@ node scripts/check.js
 ```
 
 A change to `cmd/` or `internal/` also runs the Go gate of the `build-hooks`
-workflow, which `ospec check` does not run:
+workflow, which `ospec check` does not run. CI runs that gate on every pull
+request, because the Go tests also read JS and YAML sources:
 
 ```powershell
 gofmt -l cmd internal

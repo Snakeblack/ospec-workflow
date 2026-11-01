@@ -5,6 +5,8 @@ Run from skills/caveman-compress/:
 
     python -m unittest scripts.test_caveman
 
+scripts/check.js runs it this way whenever a Python 3 is on PATH.
+
 Covers the error and recovery paths the 4R reliability/resilience review flagged:
 backup-guard, retry-restore, atomic-write data-loss window, validate() input
 validation, call_claude SDK fallback, and detect config/code classification.

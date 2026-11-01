@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **El CI deja de dar por buenas roturas que no ejecutaba** (ci-coverage-gaps, lote PR3a de la review general del 2026-10-29).
+  - **Los tests Go corren en cada PR y en `main`.** `build-hooks.yml` solo se lanzaba al cambiar `cmd/`, `internal/` o `go.*`, pero los tests Go también leen `hooks/hooks.json`, `scripts/hooks/session-start.js`, `scripts/lib/ospec-state.js`, el registro de skills y `schemas/kernel/`. Una rotura de paridad en esos ficheros pasaba en verde. Ahora el workflow no tiene filtro de rutas, instala Node para los tests de paridad y, como Validate Harness, nunca cancela un run de `main`.
+  - **La publicación espera también a Build ospec-hooks.** `scripts/ci/wait-for-ci.js` (antes `wait-for-validate-harness.js`) espera a Validate Harness y a Build ospec-hooks del mismo SHA antes de mover la rama `release`.
+  - **Go 1.26.** `go.mod` declaraba Go 1.23, que ya no tiene soporte. Ahora declara 1.26, los tres workflows leen la versión con `go-version-file` y `build-hooks.yml` pasa `govulncheck` (v1.9.0, falla solo con vulnerabilidades alcanzables). `setup-go` y `setup-node` suben a v7.
+  - **El target claude se valida en CI.** El job ubuntu de Validate Harness instala la CLI de Claude (2.1.309), así que `check.js` valida el target claude y el e2e ejecuta `claude plugin validate --strict`. No necesita login.
+  - **`build-hooks.yml` ya no sube artefactos.** Nadie los descargaba, porque la publicación compila sus binarios, y se habían acumulado 1460 (3,9 GB).
+  - **`check.js` ejecuta los tests de Python de `caveman-compress`** cuando hay un Python 3 en el PATH. Si no lo hay, deja una nota, como con la CLI de claude.
+  - **Tests más fiables.** El test de `ospec.test.js` que ejecuta `npm test` usa un HOME y una caché aislados, y ya no deja logs en `~/.npm/_logs`. El test de Copilot que cuenta el fin de turno hace hasta tres intentos en Windows, porque con un solo reintento seguía agotando el plazo de 4 s del lanzador.
+- **Documentación:** el spec `hooks-runtime` fija el mínimo de Go en 1.26 y dice que el CI compila la matriz en cada PR. Los README y CONTRIBUTING piden Go 1.26+, y CONTRIBUTING explica por qué el gate Go corre en cada PR. E1.28 anota lo que esta PR adelanta (Go 1.26, `go-version-file`, la espera a Build ospec-hooks). Los tests Go usan `t.Chdir` en vez del helper que suplía su falta en Go 1.23.
+
+Hecho con IDD (`idd/archive/2026-11-01-ci-coverage-gaps/`).
+
+**Verificación directa**: `node scripts/check.js` (4349 tests pasando, 0 fallos y 5 omitidos; 10 tests de Python OK; los siete targets generados y validados, claude incluido), `gofmt`, `go vet ./...` y `go test ./...` con Go 1.27.3, y `govulncheck` sin vulnerabilidades alcanzables. El test de reproducción falla en la base y pasa con el arreglo.
+
 ## [2.168.7] - 2026-11-01
 
 ### Fixed

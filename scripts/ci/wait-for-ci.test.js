@@ -1,8 +1,12 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const test = require("node:test");
-const { decide, waitForValidateHarness } = require("./wait-for-validate-harness.js");
+const { WORKFLOWS, decide, waitForCi, waitForWorkflow } = require("./wait-for-ci.js");
+
+const ROOT = path.resolve(__dirname, "..", "..");
 
 test("decide ignores tag runs and waits until the branch run succeeds", () => {
   const tagFailure = { headBranch: "v2.119.1", status: "completed", conclusion: "failure" };
@@ -21,10 +25,11 @@ test("decide ignores tag runs and waits until the branch run succeeds", () => {
   ], "main"), "fail");
 });
 
-test("waitForValidateHarness fails when the deadline passes without a branch run", async () => {
+test("waitForWorkflow fails when the deadline passes without a branch run", async () => {
   let now = 0;
   await assert.rejects(
-    () => waitForValidateHarness({
+    () => waitForWorkflow({
+      name: "Validate Harness",
       branch: "main",
       list: async () => [],
       sleep: async () => {},
@@ -36,7 +41,8 @@ test("waitForValidateHarness fails when the deadline passes without a branch run
   );
   now = 10;
   await assert.rejects(
-    () => waitForValidateHarness({
+    () => waitForWorkflow({
+      name: "Build ospec-hooks",
       branch: "feat",
       list: async () => [{ headBranch: "feat", status: "in_progress", conclusion: null }],
       sleep: async () => { now = 100; },
@@ -44,13 +50,14 @@ test("waitForValidateHarness fails when the deadline passes without a branch run
       deadline: 50,
       intervalMs: 30,
     }),
-    /timed out/,
+    /timed out waiting for Build ospec-hooks/,
   );
 });
 
-test("waitForValidateHarness returns once the branch run is green", async () => {
+test("waitForWorkflow returns once the branch run is green", async () => {
   const runs = [{ headBranch: "main", status: "completed", conclusion: "success" }];
-  await waitForValidateHarness({
+  await waitForWorkflow({
+    name: "Validate Harness",
     branch: "main",
     list: async () => runs,
     sleep: async () => { throw new Error("should not sleep"); },
@@ -58,4 +65,22 @@ test("waitForValidateHarness returns once the branch run is green", async () => 
     deadline: 1000,
     intervalMs: 30,
   });
+});
+
+// The Go tests read JS and YAML inputs too (hooks.json, session-start.js, the
+// skill registry), so a release needs Build ospec-hooks green as well.
+test("publish waits for Validate Harness and Build ospec-hooks of the same SHA", async () => {
+  assert.deepEqual(WORKFLOWS, [
+    { file: "validate-harness.yml", name: "Validate Harness" },
+    { file: "build-hooks.yml", name: "Build ospec-hooks" },
+  ]);
+  const runsOf = (conclusions) => async (file) => [{ headBranch: "main", status: "completed", conclusion: conclusions[file] }];
+  const options = { branch: "main", sleep: async () => {}, now: () => 0, deadline: 1000, intervalMs: 30 };
+  await waitForCi({ ...options, list: runsOf({ "validate-harness.yml": "success", "build-hooks.yml": "success" }) });
+  await assert.rejects(
+    () => waitForCi({ ...options, list: runsOf({ "validate-harness.yml": "success", "build-hooks.yml": "failure" }) }),
+    /Build ospec-hooks for main finished without success/,
+  );
+  const publish = fs.readFileSync(path.join(ROOT, ".github", "workflows", "publish-marketplace.yml"), "utf8");
+  assert.match(publish, /run: node scripts\/ci\/wait-for-ci\.js\n/);
 });
