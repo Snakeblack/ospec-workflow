@@ -20,7 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Tests más fiables.** El test de `ospec.test.js` que ejecuta `npm test` usa un HOME y una caché aislados, y ya no deja logs en `~/.npm/_logs`. El test de Copilot que cuenta el fin de turno hace hasta tres intentos en Windows, porque con un solo reintento seguía agotando el plazo de 4 s del lanzador.
 - **Documentación:** el spec `hooks-runtime` fija el mínimo de Go en 1.26 y dice que el CI compila la matriz en cada PR. Los README y CONTRIBUTING piden Go 1.26+, y CONTRIBUTING explica por qué el gate Go corre en cada PR. E1.28 anota lo que esta PR adelanta (Go 1.26, `go-version-file`, la espera a Build ospec-hooks). Los tests Go usan `t.Chdir` en vez del helper que suplía su falta en Go 1.23.
 
-Hecho con IDD (`idd/archive/2026-11-01-ci-coverage-gaps/`).
+- **Tests:** el test de `wait-for-ci.js` acepta LF y CRLF al buscar el paso de espera en `publish-marketplace.yml`, porque el checkout de Windows trae CRLF (wait-for-ci-crlf). El producto no cambia.
+
+Hecho con IDD (`idd/archive/2026-11-01-ci-coverage-gaps/` e `idd/archive/2026-11-01-wait-for-ci-crlf/`).
 
 **Verificación directa**: `node scripts/check.js` (4349 tests pasando, 0 fallos y 5 omitidos), con 10 tests de Python OK y los siete targets generados y validados, claude incluido; `gofmt`, `go vet ./...` y `go test ./...` con Go 1.27.3, y `govulncheck` sin vulnerabilidades alcanzables. El test de reproducción falla en la base y pasa con el arreglo.
 

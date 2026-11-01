@@ -82,5 +82,6 @@ test("publish waits for Validate Harness and Build ospec-hooks of the same SHA",
     /Build ospec-hooks for main finished without success/,
   );
   const publish = fs.readFileSync(path.join(ROOT, ".github", "workflows", "publish-marketplace.yml"), "utf8");
-  assert.match(publish, /run: node scripts\/ci\/wait-for-ci\.js\n/);
+  // A Windows checkout may carry CRLF.
+  assert.match(publish, /run: node scripts\/ci\/wait-for-ci\.js\r?$/m);
 });
