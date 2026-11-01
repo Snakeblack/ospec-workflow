@@ -102,7 +102,7 @@ En Claude Code también puedes entrar en IDD de forma explícita con `/ospec-wor
 
 ### Instalador guiado TUI
 
-Desde un checkout del repositorio, usa Node.js 22+ y Go 1.23+:
+Desde un checkout del repositorio, usa Node.js 22+ y Go 1.26+:
 
 ```powershell
 npm run setup:tui

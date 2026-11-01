@@ -254,7 +254,7 @@ func TestStop_TraversalCwdNonBlocking(t *testing.T) {
 	// Isolate with t.Chdir so the "." fallback writes .ospec/ into a temp dir,
 	// not into the package source directory (internal/hooks/).
 	// Without this isolation the traversal-cwd test contaminates the source tree.
-	chdirT(t, t.TempDir())
+	t.Chdir(t.TempDir())
 
 	stdin, _ := json.Marshal(map[string]any{"cwd": "../../etc"})
 	r, code := runStopHook(t, stdin)

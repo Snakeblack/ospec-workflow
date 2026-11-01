@@ -177,9 +177,10 @@ test("setup:copilot installs hooks that count the end of a turn in the repositor
   const turns = path.join(repo, ".ospec", "turns");
   let result = runHook();
   // A slow Windows runner can pass the launcher's 4 s deadline: it exits 0,
-  // maybe without counting, so the hook runs once more, as
-  // codex-hook-shell.test.js does.
-  if (process.platform === "win32" && LAUNCHER_DEADLINE.test(`${result.stdout}${result.stderr}`) && !fs.existsSync(turns)) {
+  // maybe without counting, so the hook runs again, up to three runs in all.
+  // One retry, as codex-hook-shell.test.js does, still timed out twice on
+  // windows-latest.
+  for (let run = 1; run < 3 && process.platform === "win32" && LAUNCHER_DEADLINE.test(`${result.stdout}${result.stderr}`) && !fs.existsSync(turns); run += 1) {
     t.diagnostic(`retrying after the launcher deadline: ${`${result.stderr}${result.stdout}`.trim()}`);
     result = runHook();
   }

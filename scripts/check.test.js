@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const test = require("node:test");
 
-const { main, generateTarget, runStep, claudeCliAvailable } = require("./check.js");
+const { main, generateTarget, runStep, claudeCliAvailable, findPython } = require("./check.js");
 
 test("runStep throws a clear error when spawnSync cannot start", () => {
   const stdout = [];
@@ -20,6 +20,20 @@ test("runStep throws a clear error when spawnSync cannot start", () => {
   );
 
   assert.match(stderr.join(""), /failed to start: boom/);
+});
+
+test("runStep runs another program in another directory when asked", () => {
+  const calls = [];
+  runStep("Python tests", ["-m", "unittest"], {
+    spawnSync: (file, args, options) => {
+      calls.push({ file, args, cwd: options.cwd });
+      return { status: 0 };
+    },
+    stdout: { write: () => {} },
+    command: "python3",
+    cwd: "/tmp/skill",
+  });
+  assert.deepEqual(calls, [{ file: "python3", args: ["-m", "unittest"], cwd: "/tmp/skill" }]);
 });
 
 test("runStep throws a clear error when the child exits non-zero", () => {
@@ -69,6 +83,7 @@ test("main includes cursor and skips claude validation when the claude CLI is un
   main({
     runStep: (name, args) => steps.push({ name, args }),
     claudeCliAvailable: () => false,
+    findPython: () => null,
     generateTarget: (target, validate) => generated.push({ target, validate }),
     process: {
       stdout: { write: (text) => stdout.push(text) },
@@ -94,6 +109,43 @@ test("main includes cursor and skips claude validation when the claude CLI is un
     { target: "antigravity", validate: true },
   ]);
   assert.match(stdout.join(""), /claude CLI not found/);
+  assert.match(stdout.join(""), /Python 3 not found — skipping the caveman-compress tests/);
+});
+
+// The caveman-compress skill ships Python code with its own unittest suite.
+test("main runs the caveman-compress Python tests when Python 3 is available", () => {
+  const steps = [];
+  let exitCode;
+  main({
+    runStep: (name, args, options) => steps.push({ name, args, options }),
+    claudeCliAvailable: () => true,
+    findPython: () => "python3",
+    generateTarget: () => {},
+    process: {
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      exit: (code) => {
+        exitCode = code;
+      },
+    },
+  });
+  assert.equal(exitCode, undefined);
+  assert.deepEqual(steps.slice(1), [{
+    name: "Python tests (caveman-compress)",
+    args: ["-B", "-m", "unittest", "scripts.test_caveman"],
+    options: { command: "python3", cwd: path.join(__dirname, "..", "skills", "caveman-compress") },
+  }]);
+});
+
+test("findPython takes the first Python 3 on PATH and skips a failing probe", () => {
+  const probed = [];
+  const spawn = (bin) => {
+    probed.push(bin);
+    return bin === "python3" ? { status: 9009 } : { status: 0 };
+  };
+  assert.equal(findPython({ spawnSync: spawn }), "python");
+  assert.deepEqual(probed, ["python3", "python"]);
+  assert.equal(findPython({ spawnSync: () => ({ error: new Error("ENOENT") }) }), null);
 });
 
 function runSharded(argv) {
@@ -106,6 +158,7 @@ function runSharded(argv) {
     argv,
     runStep: (name, args) => steps.push({ name, args }),
     claudeCliAvailable: () => false,
+    findPython: () => null,
     generateTarget: (target) => generated.push(target),
     process: {
       stdout: { write: (text) => stdout.push(text) },
@@ -151,6 +204,7 @@ test("main reports generation failures and exits with status 1", () => {
   main({
     runStep: () => {},
     claudeCliAvailable: () => true,
+    findPython: () => null,
     generateTarget: (target) => {
       if (target === "codex") {
         throw new Error("codex exploded");

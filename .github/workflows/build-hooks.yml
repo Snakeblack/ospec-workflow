@@ -2,32 +2,23 @@ name: Build ospec-hooks
 
 on:
   # Same as Validate Harness: a PR branch builds once, through pull_request,
-  # and push builds only main.
+  # and push builds only main. No path filter: the Go tests also read JS and
+  # YAML inputs (hooks/hooks.json, scripts/hooks/session-start.js, the skill
+  # registry, schemas/kernel), and publish-marketplace.yml waits for this run.
   push:
     branches:
       - main
-    paths:
-      - 'cmd/**'
-      - 'internal/**'
-      - 'go.mod'
-      - 'go.sum'
-      - '.github/workflows/build-hooks.yml'
   pull_request:
-    paths:
-      - 'cmd/**'
-      - 'internal/**'
-      - 'go.mod'
-      - 'go.sum'
-      - '.github/workflows/build-hooks.yml'
 
 # Least privilege: the build only reads the checkout, never writes to the repo.
 permissions:
   contents: read
 
-# Supersede in-flight runs for the same ref so pushes don't pile up duplicate work.
+# A new push to a PR supersedes its in-flight run. A main run is never
+# cancelled: publish-marketplace.yml needs the run of its own SHA to succeed.
 concurrency:
   group: build-hooks-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -44,9 +35,15 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.23'
+          go-version-file: go.mod
+
+      # The parity tests run the JS sources they mirror with node.
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
 
       # A Windows checkout may carry CRLF, which gofmt reports as unformatted.
       - name: gofmt
@@ -59,6 +56,11 @@ jobs:
 
       - name: go test
         run: go test ./...
+
+      # Fails only on a vulnerability the code can reach.
+      - name: govulncheck
+        if: runner.os == 'Linux'
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
   build:
     name: Cross-compile (${{ matrix.goos }}/${{ matrix.goarch }})
@@ -87,10 +89,12 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.23'
+          go-version-file: go.mod
 
+      # Only proves the matrix compiles: publish-marketplace.yml builds the
+      # binaries it ships, so nothing is uploaded.
       - name: Cross-compile ospec-hooks
         env:
           GOOS: ${{ matrix.goos }}
@@ -99,10 +103,3 @@ jobs:
         run: |
           mkdir -p release/dist
           go build -o release/dist/ospec-hooks-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./cmd/ospec-hooks
-
-      - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ospec-hooks-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: release/dist/**
-          if-no-files-found: error

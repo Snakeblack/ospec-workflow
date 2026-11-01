@@ -4,6 +4,13 @@ const { spawnSync } = require("node:child_process");
 
 const FATAL = new Set(["failure", "timed_out", "startup_failure"]);
 
+// Publish waits for each of these on the SHA it publishes, in order: the Node
+// harness, and the Go tests and cross-compile, which read JS and YAML inputs too.
+const WORKFLOWS = [
+  { file: "validate-harness.yml", name: "Validate Harness" },
+  { file: "build-hooks.yml", name: "Build ospec-hooks" },
+];
+
 function decide(runs, branch) {
   const relevant = (runs || []).filter((run) => run.headBranch === branch);
   if (relevant.length === 0) return "wait";
@@ -13,29 +20,36 @@ function decide(runs, branch) {
   return "fail";
 }
 
-async function waitForValidateHarness({ branch, list, sleep, now, deadline, intervalMs }) {
+async function waitForWorkflow({ name, branch, list, sleep, now, deadline, intervalMs }) {
   let last = [];
   for (;;) {
     last = await list();
     const decision = decide(last, branch);
     if (decision === "ok") return;
     if (decision === "fail") {
-      throw new Error(`Validate Harness for ${branch} finished without success`);
+      throw new Error(`${name} for ${branch} finished without success`);
     }
     if (now() >= deadline) {
       if (last.some((run) => run.headBranch === branch)) {
-        throw new Error(`timed out waiting for Validate Harness on ${branch}`);
+        throw new Error(`timed out waiting for ${name} on ${branch}`);
       }
-      throw new Error(`no Validate Harness run for ${branch}`);
+      throw new Error(`no ${name} run for ${branch}`);
     }
     await sleep(intervalMs);
   }
 }
 
-function listValidateRuns(sha, spawn = spawnSync) {
+// `list(file)` returns the runs of one workflow; the deadline covers them all.
+async function waitForCi({ list, ...options }) {
+  for (const workflow of WORKFLOWS) {
+    await waitForWorkflow({ ...options, name: workflow.name, list: () => list(workflow.file) });
+  }
+}
+
+function listRuns(workflow, sha, spawn = spawnSync) {
   const result = spawn("gh", [
     "run", "list",
-    "--workflow", "validate-harness.yml",
+    "--workflow", workflow,
     "--commit", sha,
     "--limit", "50",
     "--json", "databaseId,headBranch,status,conclusion,event",
@@ -57,9 +71,9 @@ async function main() {
   const intervalMs = Number(process.env.WAIT_INTERVAL_MS || 30 * 1000);
   const started = Date.now();
   try {
-    await waitForValidateHarness({
+    await waitForCi({
       branch,
-      list: () => Promise.resolve(listValidateRuns(sha)),
+      list: (workflow) => Promise.resolve(listRuns(workflow, sha)),
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       now: () => Date.now(),
       deadline: started + timeoutMs,
@@ -71,7 +85,7 @@ async function main() {
   }
 }
 
-module.exports = { decide, listValidateRuns, waitForValidateHarness };
+module.exports = { WORKFLOWS, decide, listRuns, waitForCi, waitForWorkflow };
 
 if (require.main === module) {
   void main();

@@ -1,6 +1,6 @@
 module github.com/snakeblack/ospec-workflow
 
-go 1.23
+go 1.26
 
 require (
 	github.com/charmbracelet/bubbletea v1.3.4

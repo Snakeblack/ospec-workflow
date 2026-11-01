@@ -102,7 +102,7 @@ On Claude Code you can also enter IDD explicitly with `/ospec-workflow:idd <requ
 
 ### Guided installer TUI
 
-From a repository checkout, use Node.js 22+ and Go 1.23+:
+From a repository checkout, use Node.js 22+ and Go 1.26+:
 
 ```powershell
 npm run setup:tui

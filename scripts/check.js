@@ -6,6 +6,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const ROOT = path.resolve(__dirname, "..");
+const CAVEMAN_DIR = path.join(ROOT, "skills", "caveman-compress");
 
 const { isWindowsInteropPath, resolveClaudeBin, spawnCliSync } = require("./configure/cli.js");
 const { runStagedChecks } = require("./hooks/lib/staged-validator.js");
@@ -16,8 +17,8 @@ function runStep(name, args, deps = {}) {
   const stderr = deps.stderr || process.stderr;
 
   stdout.write(`\n==> ${name}\n`);
-  const result = spawn(process.execPath, args, {
-    cwd: ROOT,
+  const result = spawn(deps.command || process.execPath, args, {
+    cwd: deps.cwd || ROOT,
     stdio: "inherit",
     shell: false,
   });
@@ -49,6 +50,21 @@ function claudeCliAvailable(deps = {}) {
   }
   const probe = spawnCli(resolved, ["--version"], { stdio: "ignore" });
   return !probe.error && probe.status === 0;
+}
+
+// The caveman-compress skill ships Python code with its own unittest suite.
+// Like the claude CLI, Python is optional: without a Python 3 on PATH the
+// suite is skipped with a note. On Windows "python3" may be a store stub that
+// fails the probe, so "python" is tried next.
+function findPython(deps = {}) {
+  const spawn = deps.spawnSync || spawnSync;
+  for (const bin of ["python3", "python"]) {
+    const probe = spawn(bin, ["-c", "import sys; sys.exit(sys.version_info[0] != 3)"], { stdio: "ignore" });
+    if (!probe.error && probe.status === 0) {
+      return bin;
+    }
+  }
+  return null;
 }
 
 function generateTarget(target, validate, deps = {}) {
@@ -91,6 +107,7 @@ function main(deps = {}) {
   const proc = deps.process || process;
   const run = deps.runStep || runStep;
   const hasClaudeCli = deps.claudeCliAvailable || claudeCliAvailable;
+  const python = deps.findPython || findPython;
   const generate = deps.generateTarget || generateTarget;
   const runStaged = deps.runStagedChecks || runStagedChecks;
 
@@ -123,6 +140,13 @@ function main(deps = {}) {
       }
     } else {
       run("Native Node tests", ["--test", ...tests]);
+    }
+
+    const pythonBin = python();
+    if (pythonBin) {
+      run("Python tests (caveman-compress)", ["-B", "-m", "unittest", "scripts.test_caveman"], { command: pythonBin, cwd: CAVEMAN_DIR });
+    } else {
+      proc.stdout.write("\n(note) Python 3 not found — skipping the caveman-compress tests.\n");
     }
 
     const claudeOk = hasClaudeCli();
@@ -158,4 +182,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { main, runStep, claudeCliAvailable, generateTarget, runStagedChecks };
+module.exports = { main, runStep, claudeCliAvailable, findPython, generateTarget, runStagedChecks };

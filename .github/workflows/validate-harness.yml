@@ -46,17 +46,24 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
       # A test that installs from the checkout compiles ospec-hooks, which is
       # not committed: the cached build makes that compilation incremental.
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.23'
+          go-version-file: go.mod
           cache: true
+
+      # With the claude CLI, check.js validates the generated claude target and
+      # the e2e runs `claude plugin validate --strict`; it needs no login. One
+      # job is enough: the target is the same on every runner.
+      - name: Claude CLI
+        if: runner.os == 'Linux'
+        run: npm install --global @anthropic-ai/claude-code@2.1.309
 
       # The tests write many small files under the temp directory, which NTFS
       # makes slow: a ReFS Dev Drive cut the Windows test time by 40 %. If the

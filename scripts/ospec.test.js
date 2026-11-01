@@ -891,8 +891,12 @@ test("missing checks guide next and check to approved configuration, then allow 
   // The base declares no checks, so the approval is recorded in checks-changed (E1.44).
   assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.decision?.gate, "checks-changed");
   ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "checks-changed", "--resolve", "--answer", "Yes, npm test.", "--source", "user");
-  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
-  assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").code, 0);
+  // check runs npm, which writes its logs under the user's home and cache.
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-npm-home-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const npmEnv = { ...process.env, HOME: home, USERPROFILE: home, npm_config_cache: path.join(home, "npm-cache") };
+  assert.strictEqual(ospecWith(npmEnv, root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  assert.strictEqual(ospecWith(npmEnv, root, "close", "--change", "fix-readme", "--json").code, 0);
 });
 
 test("empty checks keep configuration and require a user command when no candidate is known", (t) => {

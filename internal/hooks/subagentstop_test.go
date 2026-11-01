@@ -378,7 +378,7 @@ func TestSubagentStop_TranscriptPathTraversal(t *testing.T) {
 		//   findResolutionInJsonLines would return "fallback-registry",
 		//   IsDegradedResolution → event written → evPath exists → assertion below FAILS.
 		//   This confirms the gate, not file absence, is the cause.
-		chdirT(t, workspace)
+		t.Chdir(workspace)
 
 		traversalPath := filepath.Join("..", "secret", "transcript.jsonl")
 		stdin, _ := json.Marshal(map[string]any{
@@ -437,23 +437,6 @@ func TestSubagentStop_TranscriptPathTraversal(t *testing.T) {
 
 // ── triangulation ──────────────────────────────────────────────────────────────
 
-// chdirT changes the working directory to dir for the duration of the test and
-// restores it on cleanup. Equivalent to testing.T.Chdir but compatible with the
-// module's declared Go 1.23 minimum (T.Chdir requires Go 1.24). The restore is
-// registered after t.TempDir's removal cleanup, so it runs first (LIFO) and the
-// temp dir is no longer the working directory when it is removed.
-func chdirT(t *testing.T, dir string) {
-	t.Helper()
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir %s: %v", dir, err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(orig) })
-}
-
 // ── traversal-cwd regression guard ────────────────────────────────────────────
 
 func TestSubagentStop_TraversalCwdNonBlocking(t *testing.T) {
@@ -461,7 +444,7 @@ func TestSubagentStop_TraversalCwdNonBlocking(t *testing.T) {
 	// not into the package source directory (internal/hooks/).
 	// Without this isolation the traversal-cwd test contaminates the source tree.
 	tmpDir := t.TempDir()
-	chdirT(t, tmpDir)
+	t.Chdir(tmpDir)
 
 	stdin, _ := json.Marshal(map[string]any{
 		"cwd":        "../../etc",
@@ -508,7 +491,7 @@ func TestSubagentStop_DriveRootCwdFallback(t *testing.T) {
 	// Use hermetic CWD so the "." fallback lands in a temp dir,
 	// not in the package source directory.
 	tmpDir := t.TempDir()
-	chdirT(t, tmpDir)
+	t.Chdir(tmpDir)
 
 	stdin, _ := json.Marshal(map[string]any{
 		"cwd":        `C:\`,
