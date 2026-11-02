@@ -1,0 +1,631 @@
+{
+  "schema": "idd-state/v1",
+  "change": "copilot-stop-deadline",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El test del hook Stop de Copilot global falla en Windows cuando el hijo Node pasa el plazo de 4 s del lanzador; stop.js carga 38 módulos antes de contar el turno",
+    "acceptance": "stop.js cuenta el turno antes de cargar los módulos de la traza, y el test de Copilot global deja de depender del plazo del lanzador sin reintentos a ciegas"
+  },
+  "facts": {
+    "open": [
+      "¿Qué enfoque: (A) stop.js cuenta primero con un grafo mínimo y el test, si el lanzador da su plazo, verifica el conteo ejecutando el stop.js instalado sin plazo; (B) solo contar primero y quitar los reintentos; (C) un env que alargue el plazo del lanzador en los tests?",
+      "¿El mismo arreglo se aplica al reintento de codex-hook-shell.test.js (runHookOnceMore, #321) o se deja como está?",
+      "Si un módulo de la traza no carga, ¿vale que stop.js cuente el turno y avise con systemMessage en vez de fallar antes de contar?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "scripts/configure/install-global-copilot.test.js",
+      "scripts/hooks/stop.js",
+      "scripts/hooks/stop.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "stop.js carga al inicio solo los módulos del conteo (atomic-write, ospec-gitignore, pathsafe, turn-fence); pre-compact, artifact-store e idd-session se cargan después del conteo con trace(), con require literales que el generador sigue empaquetando",
+      "El test de Copilot global no reintenta: si el lanzador informa de su plazo y no hay conteo, ejecuta el stop.js instalado sin plazo desde el repo",
+      "runHookOnceMore de codex-hook-shell.test.js queda igual: en los logs revisados sus reintentos fueron de session-start (13 módulos), no de Stop, y su salida se comprueba, así que ejecutar el hook sin plazo no aplica"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/stop.js (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components generator, hooks: ADR 0001, 0008, 0010 and quality scenario guard-fail-closed, offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/stop.js imports scripts/lib/atomic-write.js, which uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Los require diferidos de stop.js son literales: gatherRuntimeScripts sigue empaquetando pre-compact, artifact-store e idd-session en cada target"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "none",
+      "reason": "Stop no es un guard; el fallo del lanzador y de PreToolUse no cambian"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; solo cambia el orden de carga de módulos propios"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "none",
+      "reason": "Ningún guard cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Sin red ni dependencias nuevas"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El Stop de Node cuenta antes de la traza como internal/hooks/stop.go:54, ahora también ante un módulo de la traza que no carga"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 94,
+      "answer": "1. A. 2. esto debes analizarlo segun el resultado, si mejora o no el harness. 3. si",
+      "source": "user",
+      "resolved_turn": 96
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-02T20:44:02.014Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-02T20:46:50.170Z",
+      "detail": {
+        "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-02T20:46:50.170Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 none",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed none",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-02T20:47:08.392Z",
+      "detail": {
+        "run": "run-12",
+        "tree": "sha256:ce6156fa7caec4017764521a17d323f95c04e76b32ceb077adf9bf109e2c9a04",
+        "plan": "Sin migración: .ospec/turns y .ospec/sessions/latest.md conservan su formato; solo cambia cuándo carga stop.js los módulos de la traza. Los tests leen y continúan una cuenta existente. Rollback: revertir el commit, sin datos que convertir."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-02T20:47:23.388Z",
+      "detail": {
+        "run": "run-13",
+        "tree": "sha256:ce6156fa7caec4017764521a17d323f95c04e76b32ceb077adf9bf109e2c9a04",
+        "plan": "Sin migración: .ospec/turns y .ospec/session/latest.md conservan su formato; solo cambia cuándo carga stop.js los módulos de la traza. Los tests leen y continúan una cuenta existente. Rollback: revertir el commit, sin datos que convertir."
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-02T20:47:49.178Z",
+      "detail": {
+        "lineage_id": "sha256:f05d138bde9b23089d3cf2e50afb513f4df52ec785597a29d595cfa3164e4136",
+        "candidate_id": "sha256:4f2304cf500ed25dc6f94236174fe40128d39b0b308b430d442ad03b664019fb",
+        "candidate_tree": "6bfe661753d34c7883a71433b5e62cf7043ba4b4",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-02T20:47:41.416Z",
+          "result_digest": "sha256:1dc4c1243320c87ed1ad0fb3987356fcea5492ee695b6852d549eb9eae6804d5"
+        }
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-02T20:49:24.700Z",
+      "detail": {
+        "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+        "runs": [
+          "run-14"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-02T20:49:24.700Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 none",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed none",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+        "fitness": [
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-02T20:49:30.091Z"
+    }
+  ],
+  "base": "82934e9a4f397095519e87ac4a362df1d876e56e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"a trace module that cannot load\" scripts/hooks/stop.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:cbb225fab7ef2a03cd602074173aba3cffb7f2e8b8d92c99e244085d5948eb30",
+      "tree": "sha256:3650be98fa3494257a593a18957bdcdcce9318d40af8f947c17f71c706fef48d",
+      "recorded_at": "2026-11-02T20:42:50.256Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"a trace module that cannot load\" scripts/hooks/stop.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4fadaeef82e76e933899bf8c344208c7d19798000ba4eeab35cef9738e5c159f",
+      "tree": "sha256:00f02fd2c3b61ccd3d5b3bb12278ff5b2081d6f82e9ade5e6976ad2efd349b3d",
+      "recorded_at": "2026-11-02T20:44:02.014Z",
+      "tests": 1,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "82934e9a4f397095519e87ac4a362df1d876e56e",
+      "mount": "sha256:62d57d45ecdf344fc3e3a2863e2c3e92e8b72f719f1134161eb40ba2f72ff977",
+      "command": "node --test --test-name-pattern=\"a trace module that cannot load\" scripts/hooks/stop.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:30a9f0709c2a0c691fcd66699884fc8233dcd4263ce96ccf04c855eb6126251a",
+      "tree": "sha256:00f02fd2c3b61ccd3d5b3bb12278ff5b2081d6f82e9ade5e6976ad2efd349b3d",
+      "recorded_at": "2026-11-02T20:44:02.014Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "82934e9a4f397095519e87ac4a362df1d876e56e",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"a trace module that cannot load\" scripts/hooks/stop.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:16848df5121b5f0e9a90237e3f2a4efdb44e4e1294a1224ec094dcbf6e25b55b",
+      "tree": "sha256:00f02fd2c3b61ccd3d5b3bb12278ff5b2081d6f82e9ade5e6976ad2efd349b3d",
+      "recorded_at": "2026-11-02T20:44:02.014Z",
+      "tests": 1
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:30f0e94043260ff0c34474ffa7d4aacf8b362f3ebd2437f672825d45bfa73139",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:46:50.170Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0e6c284296a017d67aae6316c4b27611567f8cbd04fe53d390d8b8d09cb9b72d",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:46:50.170Z",
+      "tests": 48
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e8600e6efb995b253bd2ebca6d2594bf89a6ca899251bd9bf85c17efd1f7ba15",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:46:50.170Z",
+      "tests": 82
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:46:50.170Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:99872bde4f7f44a013d26268d3524fc6de906bba0b8059901d6473b32ccb19e9",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:46:50.170Z",
+      "tests": 22
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5256950c425664c88b6ac9a11de776998465ab08e0a53e1eadfa655587bd3bfa",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:46:50.170Z",
+      "tests": 82
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9238925aeedd794d8d9fde7fc76461aad573323badabf55a1cc98aeeeafda57e",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:46:50.170Z",
+      "tests": 48
+    },
+    {
+      "id": "run-12",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"turn count|turn end|latest trace\" scripts/hooks/stop.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1616a619c3e3181b4eb29a46f5f261f84068a718f81895cd323c9754c92722ad",
+      "tree": "sha256:ce6156fa7caec4017764521a17d323f95c04e76b32ceb077adf9bf109e2c9a04",
+      "recorded_at": "2026-11-02T20:47:08.392Z",
+      "tests": 8
+    },
+    {
+      "id": "run-13",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"turn count|turn end|latest trace\" scripts/hooks/stop.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3bb7731f6967afa76c43d704cf198055df8fa370e718cf8b12ce22d96b554bdb",
+      "tree": "sha256:ce6156fa7caec4017764521a17d323f95c04e76b32ceb077adf9bf109e2c9a04",
+      "recorded_at": "2026-11-02T20:47:23.388Z",
+      "tests": 8
+    },
+    {
+      "id": "run-14",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9ea833317a952f44789768d3a6a1ea4de0104b4317f28d0db1fdb7f22eb32031",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:49:24.700Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7419dcdc08d865548d7ae52b7ca2f592b5fdfdff2cfbb8f07b6d8f72a58f6ac5",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:49:24.700Z",
+      "tests": 48
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4ce328ec034b0a609376149efab63b7c583c598846d5263f904223b6fcb1fd11",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:49:24.700Z",
+      "tests": 82
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:49:24.700Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:977aafa06b1028329457589a2a478892f6fbd3da61cd306cea58b1f80e3aa82a",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:49:24.700Z",
+      "tests": 22
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:14756fabeb95e5ba9ff8ae25a127a660df70d687b9e6045cf3e5bbefce5e3591",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:49:24.700Z",
+      "tests": 82
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1e9e60818677b4cb558c7b9daf31ddaa154f36b3d73a4ed269f82cb1d830329a",
+      "tree": "sha256:ea03fede99550e85946e5a0f7858f0bc7a44596f902d0cf5198d89e74879244e",
+      "recorded_at": "2026-11-02T20:49:24.700Z",
+      "tests": 48
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:f05d138bde9b23089d3cf2e50afb513f4df52ec785597a29d595cfa3164e4136",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "54c831dcc54a21c617f91f4287718faf4b0b5e37",
+          "candidate_tree": "6bfe661753d34c7883a71433b5e62cf7043ba4b4",
+          "paths": [
+            "scripts/configure/install-global-copilot.test.js",
+            "scripts/hooks/stop.js",
+            "scripts/hooks/stop.test.js"
+          ],
+          "diff_hash": "sha256:54f12e052cdf1f4f1463e0b2f695dfa936084bb46991a26c5bedd4e779808a16",
+          "paths_digest": "sha256:124b51529d45a34f3b777db0108a22e79f358177c41ba8b452bce0ac93a03c4e",
+          "authored_lines": 76,
+          "original_changed_lines": 99
+        },
+        "candidate_id": "sha256:4f2304cf500ed25dc6f94236174fe40128d39b0b308b430d442ad03b664019fb",
+        "paths": [
+          "scripts/configure/install-global-copilot.test.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "6bfe661753d34c7883a71433b5e62cf7043ba4b4",
+        "original_changed_lines": 99,
+        "authored_lines": 76
+      },
+      "current_candidate_id": "sha256:4f2304cf500ed25dc6f94236174fe40128d39b0b308b430d442ad03b664019fb",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "54c831dcc54a21c617f91f4287718faf4b0b5e37",
+        "candidate_tree": "6bfe661753d34c7883a71433b5e62cf7043ba4b4",
+        "paths": [
+          "scripts/configure/install-global-copilot.test.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js"
+        ],
+        "diff_hash": "sha256:54f12e052cdf1f4f1463e0b2f695dfa936084bb46991a26c5bedd4e779808a16",
+        "paths_digest": "sha256:124b51529d45a34f3b777db0108a22e79f358177c41ba8b452bce0ac93a03c4e",
+        "authored_lines": 76,
+        "original_changed_lines": 99
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "copilot-stop-deadline:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "copilot-stop-deadline:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 50,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-11-02T20:49:30.091Z"
+}
