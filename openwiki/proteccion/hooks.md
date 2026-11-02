@@ -1,6 +1,11 @@
-# Ciclo de Vida y Runtime de Hooks
+---
+sidebar:
+  order: 1
+---
 
-> **En pocas palabras:** Los hooks son los **sensores y frenos automáticos** de `ospec-workflow`. Se disparan de forma transparente en momentos clave de tu sesión de trabajo (cuando inicias la herramienta, antes de que la IA ejecute un comando o al guardar un cambio) para proteger tu código, evitar fugas de secretos y mantener todo en orden.
+# Hooks del ciclo de vida
+
+> **En pocas palabras:** los hooks son programas que tu herramienta ejecuta sola en momentos fijos de la sesión: al abrirla, antes y después de cada herramienta, cuando termina un subagente, antes de compactar el contexto y al terminar cada turno. No dependen de que el asistente se acuerde de nada: bloquean secretos y comandos destructivos, cuentan los turnos que dan validez a tus respuestas en los gates y dejan en disco la traza de la sesión. Se ejecutan con un binario en Go, `ospec-hooks`, y si no arranca, con su versión en Node.js.
 
 ---
 
@@ -38,7 +43,8 @@ Cuenta el turno y deja la traza"]
 
 ### 2. `PreToolUse` (Control Previo de Herramientas)
 - Se ejecuta cada vez que la IA quiere escribir un archivo o ejecutar un comando en la terminal.
-- **AgentShield:** Analiza los comandos para evitar que se ejecuten instrucciones destructivas (como borrar el disco o alterar credenciales).
+- **Bloqueos:** impide comandos destructivos (borrar la raíz del disco, forzar un push, descargar y ejecutar), commits con atribución a la IA y la edición a mano del estado de IDD. Ver [Guardrails](/openwiki/proteccion/guardrails.md).
+- **AgentShield:** bloquea o pide confirmación al leer o escribir secretos.
 - **Token Budget:** Estima los tokens de los ficheros que la herramienta va a leer y pide confirmación si una petición supera 50.000 tokens o si el acumulado de un cambio SDD activo supera 150.000. No bloquea.
 
 ### 3. `PostToolUse` (Censura de Salida)
@@ -57,6 +63,6 @@ Cuenta el turno y deja la traza"]
 
 ### 6. `Stop` (Fin de Turno)
 - Se ejecuta al terminar cada turno del agente.
-- Suma uno a `.ospec/turns` en la raíz del proyecto, el primer directorio hacia arriba que tiene `.git`, aunque la sesión esté en un subdirectorio. Con esa cuenta el CLI valla las respuestas de los gates IDD (E1.49).
+- Suma uno a `.ospec/turns` en la raíz del proyecto, el primer directorio hacia arriba que tiene `.git`, aunque la sesión esté en un subdirectorio. Con esa cuenta el CLI comprueba que una respuesta a un gate llegó en un turno posterior a la pregunta ([Los seis gates](/openwiki/idd/flujo-idd.md#quién-responde)).
 - Escribe la traza de la sesión en `.ospec/session/latest.md`, con el cambio abierto y el siguiente paso.
 - No bloquea: si no puede contar el turno o escribir la traza, deja continuar con un aviso.

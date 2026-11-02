@@ -3,7 +3,7 @@ sidebar:
   order: 3
 ---
 
-# Agentes de fase SDD (modo opcional)
+# Agentes de fase
 
 > **En pocas palabras:** En SDD, un **orquestador** (`sdd-orchestrator`) coordina el cambio y delega cada fase del ciclo en un **agente de fase** (`sdd-spec`, `sdd-apply`, `sdd-verify`...) que solo hace esa fase. El orquestador no implementa: decide, pregunta y reparte el trabajo.
 
@@ -113,7 +113,7 @@ Cada agente de fase trabaja sobre el cambio que le asigna el orquestador. Las he
 
 ### Revisores en la puerta de calidad
 
-Tras un `sdd-verify` correcto, el orquestador lanza la puerta de calidad con los revisores de solo lectura `review-trust`, `review-runtime`, `review-evolution`, `review-efficiency`, `review-change` y `review-correction`. El catálogo completo y la diferencia con IDD están en [Agentes y Habilidades](/openwiki/agents-skills/agents-and-skills.md).
+Tras un `sdd-verify` correcto, el orquestador lanza la puerta de calidad con los revisores de solo lectura `review-trust`, `review-runtime`, `review-evolution`, `review-efficiency`, `review-change` y `review-correction`. El catálogo completo y la diferencia con IDD están en [Agentes y Habilidades](/openwiki/agentes/catalogo.md).
 
 ### Flujo del ciclo
 

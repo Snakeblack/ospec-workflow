@@ -1,3 +1,8 @@
+---
+sidebar:
+  order: 3
+---
+
 # El kernel K1–K12 (histórico)
 
 > **Histórico.** Esta página describe un diseño que ya no existe en el código. La dirección vigente es IDD, descrita en el [roadmap único](https://github.com/snakeblack/ospec-workflow/blob/main/docs/roadmaps/harness-evolution.md).
@@ -13,7 +18,7 @@
 - **OperationReceipt:** recibo con la salida y el código de retorno de cada acción.
 - **Budgets (K5):** descuento de tokens, tiempo y reintentos, con parada limpia al agotarse.
 
-Contexto del programa completo: [Evolución del harness](/openwiki/evolution/harness-evolution.md).
+Contexto del programa completo: [Evolución del harness](/openwiki/historia/evolucion.md).
 
 ## Por qué se retiró
 

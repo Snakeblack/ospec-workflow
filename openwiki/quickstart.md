@@ -1,107 +1,125 @@
-# Guía Rápida: ospec-workflow
+# Guía rápida: cómo funciona ospec-workflow
 
-> **En pocas palabras:** `ospec-workflow` ayuda a los asistentes de Inteligencia Artificial a cambiar código con pruebas reales en lugar de promesas. Por defecto usa **IDD** (desarrollo guiado por impacto): cada cambio cumple lo que su impacto exige, y solo está hecho cuando el CLI `ospec` lo cierra con evidencia de ejecuciones reales. El desarrollo guiado por especificación (**SDD**) sigue disponible como modo opcional. Funciona igual en 7 herramientas (como Claude Code, Cursor, Copilot o VS Code).
+> **En pocas palabras:** `ospec-workflow` es un harness para asistentes de IA que programan (Claude Code, Copilot, Cursor y cuatro más). Le pides un cambio con tus palabras, como siempre. La diferencia es que el asistente no puede darlo por terminado porque sí: el CLI `ospec` decide qué pruebas y revisiones exige ese cambio según su impacto, y solo lo cierra cuando ve ejecutarse esa evidencia sobre el código actual. A esto se le llama **IDD** (desarrollo guiado por impacto) y es el flujo por defecto. SDD, el desarrollo guiado por especificación, es un modo opcional.
 
 ---
 
-## ¿Cómo funciona el flujo de trabajo?
-
-Pides el cambio con tus palabras y el router lo manda a [IDD](/openwiki/idd/flujo-idd.md). No hay fases ni documentos que escribir antes:
+## La idea en un diagrama
 
 ```mermaid
-flowchart LR
-    A["1. Intención\n(qué y cómo se acepta)"] --> B["2. Hechos abiertos\n(preguntas en un lote)"]
-    B --> C["3. Señales\n(qué toca el cambio)"]
-    C --> D["4. Obligaciones\n(ospec next)"]
-    D --> E["5. Evidencia\n(ospec run / check / review)"]
-    E --> F["6. Cierre\n(ospec close)"]
+flowchart TD
+    U["Pides un cambio"] e1@--> R{"Router"}
+    R e2@-->|"proyecto nuevo"| F["foundation\nfija la arquitectura\ny los ADR"]
+    F e3@--> I
+    R e4@-->|"cambio de código"| I["IDD\nel impacto decide\nlas obligaciones"]
+    R -->|"pregunta o lectura"| D["Respuesta directa"]
+    I e5@--> E["Evidencia observada\ntests, checks, revisión"]
+    E e6@--> C["ospec close\narchiva el cambio"]
+    C e7@--> T["Tú decides\ncommit, PR y versión"]
+    e1@{ animate: true }
+    e2@{ animate: true }
+    e3@{ animate: true }
+    e4@{ animate: true }
+    e5@{ animate: true }
+    e6@{ animate: true }
+    e7@{ animate: true }
 ```
 
-1. **Intención (`ospec record intent`):** el agente registra qué quieres y cómo se comprueba que está hecho.
-2. **Hechos abiertos:** enumera los comportamientos que ni la petición ni el código fijan y te los pregunta todos juntos antes de editar.
-3. **Señales (`ospec signals`):** declara los ficheros que va a tocar; el CLI deriva señales de impacto (contrato público, datos persistentes, frontera de seguridad, bug, Strict TDD).
-4. **Obligaciones (`ospec next`):** cada señal añade una obligación, como un test de reproducción para un bug o una revisión de confianza para un cambio de autenticación.
-5. **Evidencia:** solo cuenta lo que el CLI ve ejecutarse sobre el árbol actual. Decir «los tests pasan» no satisface nada.
-6. **Cierre (`ospec close`):** con todo satisfecho, archiva el cambio en `idd/archive/`. Ramas, commits y PRs siguen siendo decisión tuya.
-
-El agente solo se detiene en cinco *gates*: intención ambigua, hechos abiertos, ADR enmendado o contradicho, operación irreversible y límite de revisiones de confianza. Solo una respuesta explícita tuya los resuelve.
-
-### Modo SDD opcional
-
-Si prefieres escribir y aprobar el contrato antes del código, instala el paquete SDD con `--with-sdd` y usa un comando `/sdd-*`. SDD recorre siete fases (propuesta, especificación, diseño, tareas, aplicación con TDD, verificación y archivo) con artefactos OpenSpec. Detalle en la sección «Modo SDD (opcional)» del mapa de esta página.
+1. **El router.** El instalador añade unas instrucciones cortas que el asistente lee siempre. Mandan cada cambio de código a IDD, dejan directas las preguntas y entran en SDD solo si lo pides.
+2. **Foundation, si el proyecto es nuevo.** Antes del primer cambio, la skill `foundation` te pregunta por objetivos, restricciones y calidad, y registra cada decisión de arquitectura como un ADR. IDD hace cumplir esos ADR en cada cambio.
+3. **IDD.** El agente registra qué pides y cómo se comprueba, te pregunta de una vez lo que la petición deja abierto y declara qué ficheros va a tocar. De ahí salen las **obligaciones**: un bug exige un test que lo reproduzca, una migración exige un plan de vuelta atrás, un cambio de autenticación exige una revisión de seguridad.
+4. **La evidencia.** Solo cuenta lo que el CLI ve ejecutarse. Decir «los tests pasan» no satisface nada.
+5. **El cierre.** `ospec close` archiva el cambio cuando no queda nada pendiente y, si lo configuras, escribe su línea en el CHANGELOG y te propone la versión.
+6. **Tú decides.** Commits, ramas, PRs y versiones siguen siendo decisión tuya.
 
 ---
 
-## ¿Qué ventajas ofrece a tu equipo?
+## Qué haces tú y qué hace el agente
 
-- **Cero alucinaciones sin pruebas:** La IA no puede dar un cambio por bueno si no aporta un recibo de consola real con las pruebas en verde.
-- **Ceremonia proporcional:** Un arreglo de una línea solo debe pasar los checks; una migración de esquema debe además su test de migración y su plan de vuelta atrás.
-- **La memoria vive en archivos:** Todo el progreso y las decisiones se guardan en `idd/` (o en `openspec/` en modo SDD) dentro de tu repositorio, no en el chat efímero. Si cierras la ventana, no pierdes nada.
-- **Un solo código para 7 plataformas:** Escribes tus agentes y reglas una sola vez y el generador los distribuye a Claude Code, VS Code, GitHub Copilot, OpenCode, Codex, Cursor y Antigravity.
-- **Seguridad y ahorro:** Filtra automáticamente credenciales secretas y controla el consumo de tokens para evitar gastos imprevistos.
+| Tú | El agente | El CLI `ospec` |
+| --- | --- | --- |
+| Pides el cambio con tus palabras. | Registra la intención y el criterio de aceptación. | Guarda el estado en `idd/<cambio>/state.yaml`. |
+| Respondes las preguntas abiertas, todas en un lote. | Enumera lo que ni la petición ni el código fijan. | Abre el gate `open-facts` y no deja avanzar sin tu respuesta. |
+| Apruebas los checks del proyecto la primera vez. | Propone el comando de tests. | No ejecuta un check que no hayas aprobado. |
+| Respondes cuando el cambio se aparta de un ADR o va a borrar datos. | Para y te pregunta. | Abre el gate correspondiente. |
+| Haces commit, PR y versión cuando quieras. | Escribe el código y los tests y ejecuta los comandos. | Deriva las obligaciones, observa la evidencia y cierra. |
+
+El agente solo se detiene en seis *gates*: intención ambigua, hechos abiertos, ADR enmendado o contradicho, operación irreversible, límite de revisiones de confianza y checks cambiados. Solo una respuesta explícita tuya los resuelve.
 
 ---
 
-## Mapa de la Documentación
+## Qué ganas
 
-Empieza por IDD, el flujo por defecto. Después, el resto de temas, organizados de menor a mayor profundidad técnica:
+- **Nada se da por hecho sin pruebas.** Un cambio no se cierra sin la salida real de sus tests en verde sobre el código actual.
+- **Ceremonia proporcional.** Una errata solo pasa los checks; una migración de esquema necesita además su test de migración y su plan de vuelta atrás.
+- **La arquitectura se respeta.** Los ADR que registra foundation no son documentos olvidados: cada cambio declara su impacto sobre ellos y sus checks se ejecutan.
+- **El estado vive en el repositorio.** Todo queda en `idd/`, no en el chat. Si cierras la ventana, no pierdes nada.
+- **Un mismo harness para 7 herramientas:** Claude Code, VS Code, GitHub Copilot, OpenCode, Codex, Cursor y Antigravity.
+- **Protecciones en cada herramienta:** bloqueo de secretos y de comandos destructivos antes de que se ejecuten.
 
-### 1. IDD: el flujo por defecto
-- [IDD paso a paso](/openwiki/idd/flujo-idd.md) — El router, el ciclo de obligaciones con el CLI `ospec`, los gates, la evidencia que cuenta y dónde vive el estado de cada cambio.
+---
 
-### 2. Primeros Pasos
-- [Instalación por Asistente o IDE](/openwiki/installation/target-installation.md) — Cómo instalar y sincronizar el plugin en tu herramienta favorita.
+## Cómo leer esta web
 
-### 3. Arquitectura y Funcionamiento
-- [Visión General de Arquitectura](/openwiki/architecture/overview.md) — Cómo se distribuye un árbol fuente único a 7 plataformas sin duplicar trabajo.
-- [Orquestación: del router a la ceremonia proporcional](/openwiki/orchestration/routing.md) — Cómo el router elige el flujo y cómo las señales de impacto de IDD deciden la ceremonia de cada cambio. SDD, opcional, tiene su propia ruta.
+Las secciones siguen el orden en que te vas a encontrar las cosas.
 
-### 4. Agentes y Habilidades
-- [Catálogo de Agentes y Skills](/openwiki/agents-skills/agents-and-skills.md) — La skill `idd` y los revisores `review-*` de IDD. El orquestador y los agentes de fase son del modo SDD.
-- [Sistema de Reglas de Comportamiento](/openwiki/rules-system/agent-rules.md) — Restricciones obligatorias para que la IA nunca cometa abusos.
-- [Ruteo Inteligente de Modelos](/openwiki/model-routing/routing-profiles.md) — Usar modelos rápidos y económicos para tareas simples y avanzados para arquitectura.
+### 1. Empezar
+- [Instalación](/openwiki/empezar/instalacion.md) — Cómo instalar el harness en tu herramienta y qué necesita tu proyecto.
+- [Un cambio de principio a fin](/openwiki/empezar/primer-cambio.md) — Un ejemplo real: qué pides, qué te pregunta, qué ves al cerrar.
 
-### 5. Ciclo de Vida y Seguridad
-- [Ciclo de Vida de los Hooks](/openwiki/hooks-runtime/lifecycle.md) — Qué ocurre al iniciar sesión, antes de usar herramientas o al hacer commit.
-- [Implementación de Hooks en Go](/openwiki/hooks-runtime/go-implementation.md) — Ejecución instantánea y paridad total con Node.js.
-- [Guardrails de Seguridad y Costes](/openwiki/security/guardrails.md) — Detección de secretos, control de tokens y protección de Git.
-- [Validación de Contratos y Lint](/openwiki/contract-lint/validation-rules.md) — Reglas automáticas para que nadie rompa la estructura del proyecto.
+### 2. Cómo funciona IDD
+- [El router: qué flujo sigue cada petición](/openwiki/idd/router.md) — IDD, trabajo directo o SDD.
+- [Foundation: las decisiones que IDD hace cumplir](/openwiki/idd/foundation.md) — La arquitectura antes del primer cambio y cómo IDD trabaja con el impacto de cada cambio sobre los ADR.
+- [El ciclo de un cambio](/openwiki/idd/flujo-idd.md) — Intención, hechos abiertos, señales, obligaciones, evidencia y cierre, con la configuración de `idd/config.yaml`.
+- [Evidencia y tests](/openwiki/idd/evidencia.md) — Qué evidencia cuenta, el rojo-verde, la contraprueba y Strict TDD.
+- [Revisión en IDD](/openwiki/idd/revision.md) — Qué se revisa, cuándo y qué no.
+- [Entrega: ramas, changelog y versiones](/openwiki/idd/entrega.md) — Qué hace `ospec close` al cerrar, cómo se declara la entrega y el snapshot de avance.
+- [El estado en disco](/openwiki/idd/estado.md) — Qué guarda `idd/` y cómo se recupera un cambio en otra sesión.
 
-### 6. Calidad, Estado y Distribución
-- [Persistencia y Gestión del Estado](/openwiki/state-management/persistence.md) — El estado de IDD vive en `idd/` y solo lo escribe el CLI. El de SDD está en `openspec/` (modo opcional).
-- [Testing, evidencia y Strict TDD](/openwiki/testing-quality/verification.md) — Qué evidencia cuenta en IDD y cómo funciona Strict TDD. La verificación `sdd-verify` es solo del modo SDD.
-- [Generador Multi-Target](/openwiki/generator/multi-target-generator.md) — El motor que traduce el código a cada asistente de IA.
-- [Federación Multi-Repositorio](/openwiki/workspace-federation/multi-repo.md) — Un cambio que cruza repositorios es un cambio IDD por cada repositorio.
+### 3. Protección
+- [Hooks del ciclo de vida](/openwiki/proteccion/hooks.md) — Qué se ejecuta al abrir la sesión, antes y después de cada herramienta y al terminar el turno.
+- [Guardrails: secretos, comandos y presupuesto](/openwiki/proteccion/guardrails.md) — Qué se bloquea y qué te pide confirmación.
+- [Reglas de comportamiento](/openwiki/proteccion/reglas.md) — Las reglas que el asistente sigue siempre.
 
-### 7. Visión y Futuro (histórico)
-- [Evolución del Harness](/openwiki/evolution/harness-evolution.md) — Histórico: el programa del kernel determinista con grafos de evidencia.
-- [Roadmap de Hitos K1 a K12](/openwiki/evolution/roadmap.md) — Histórico: las etapas K1–K12. La dirección vigente (IDD por defecto) está en el roadmap único del repositorio.
-- [El kernel K1–K12 (histórico)](/openwiki/kernel-runtime/kernel-runtime.md) — Histórico: Authority Store, permits y budgets del kernel, retirados en E1.5.
+### 4. Agentes, skills y modelos
+- [Catálogo de agentes y skills](/openwiki/agentes/catalogo.md) — La skill `idd`, los revisores y el resto de skills.
+- [Ruteo de modelos](/openwiki/agentes/modelos.md) — Qué modelo usa cada agente.
 
-### 8. Modo SDD (opcional)
-Estas páginas describen SDD. Solo aplican si instalaste el paquete con `--with-sdd` y pediste un cambio SDD de forma explícita.
-- [Qué es SDD y cuándo entra](/openwiki/sdd/modo-sdd.md) — Qué es SDD, cuándo entra y cómo no confundirlo con IDD.
+### 5. Modo SDD (opcional)
+Solo aplica si instalaste el paquete con `--with-sdd` y pides un cambio SDD de forma explícita.
+- [Qué es SDD y cuándo entra](/openwiki/sdd/modo-sdd.md) — Cómo no confundirlo con IDD.
 - [Ciclo y rutas](/openwiki/sdd/ciclo-y-rutas.md) — Las siete fases, las rutas y los gates del orquestador.
 - [Agentes de fase](/openwiki/sdd/agentes-de-fase.md) — El orquestador y los agentes `sdd-*`.
-- [Persistencia en OpenSpec](/openwiki/sdd/persistencia-openspec.md) — `openspec/changes/`, `state.yaml` y los artefactos de cada cambio SDD.
-- [Verificación en SDD](/openwiki/sdd/verificacion-sdd.md) — `sdd-verify`, `apply-progress` y el TDD dentro de SDD.
+- [Persistencia en OpenSpec](/openwiki/sdd/persistencia-openspec.md) — `openspec/changes/` y los artefactos de cada cambio.
+- [Verificación en SDD](/openwiki/sdd/verificacion-sdd.md) — `sdd-verify`, `apply-progress` y el TDD de SDD.
+- [Federación multi-repositorio](/openwiki/sdd/federacion.md) — El atlas que coordina cambios SDD entre repositorios.
 
-### 9. Licencia
+### 6. Cómo está hecho
+Para quien desarrolla o extiende ospec-workflow; no hace falta para usarlo.
+- [Arquitectura multi-target](/openwiki/interno/arquitectura.md) — Un árbol fuente único compilado para 7 herramientas.
+- [El generador](/openwiki/interno/generador.md) — Cómo se transforma cada agente y skill.
+- [Hooks en Go](/openwiki/interno/hooks-go.md) — El binario `ospec-hooks` y su paridad con Node.js.
+- [Lint de contratos](/openwiki/interno/lint-contratos.md) — Las comprobaciones que mantienen el repositorio coherente.
+
+### 7. Historia
+Diseños anteriores, ya archivados. No describen el estado actual.
+- [Evolución del harness](/openwiki/historia/evolucion.md) — El programa del kernel determinista.
+- [Roadmap K1–K12](/openwiki/historia/roadmap.md) — Las etapas de aquel programa.
+- [El kernel K1–K12](/openwiki/historia/kernel.md) — Authority Store, permits y budgets, retirados.
+
+### 8. Licencia
 - [Licencia](/openwiki/legal/license.md) — MIT con Commons Clause: uso, modificación y redistribución libres; no se puede vender el software ni servicios de pago sobre él sin permiso.
 
 ---
 
-## Archivos Clave del Repositorio
+## Ficheros que verás en tu proyecto
 
-| Archivo | ¿Para qué sirve? | Modo |
+| Fichero | Para qué sirve | Modo |
 | --- | --- | --- |
-| `idd/config.yaml` | Configuración de IDD: `checks:` (sin ellos ningún cambio cierra), `strict_tdd`, `impact:`, `contracts:` y `team:`. `mode: sdd` apaga IDD. | IDD |
-| `idd/<cambio>/` e `idd/archive/` | Estado de cada cambio IDD (`state.yaml`, `change.md`) y los cambios cerrados. El CLI escribe el estado. | IDD |
-| `scripts/ospec.js` | El CLI `ospec`: `status`, `next`, `record`, `signals`, `check`, `run`, `review`, `close`, `doctor` y `team`. | IDD |
-| `openspec/config.yaml` | Configuración del modo SDD: rutas, reglas, herramientas activas y `team:` de SDD. | SDD |
-| `openspec/changes/` | Cambios SDD en curso, con su `state.yaml` y sus artefactos. | SDD |
-| `agents/` | Revisores `review-*` que usa IDD (por ejemplo `review-trust`), y los agentes `sdd-*` con el orquestador del modo SDD. | Ambos |
-| `skills/` | Guías paso a paso. `idd` es la de IDD; las `sdd-*` son de SDD. | Ambos |
-| `scripts/configure/cli.js` | Generador que compila el código fuente para los 7 asistentes de IA. | Ambos |
-| `scripts/hooks/` e `internal/hooks/` | Hooks de ciclo de vida en JavaScript y Go para máxima velocidad. | Ambos |
-| `scripts/check.js` | Suite de pruebas y validación del repositorio (`npm test`). | Ambos |
+| `idd/config.yaml` | Configuración de IDD: `checks` (sin ellos ningún cambio cierra), `strict_tdd`, `team`, `delivery`, `impact` y `contracts`. `mode: sdd` apaga IDD. | IDD |
+| `idd/<cambio>/` e `idd/archive/` | El estado de cada cambio (`state.yaml`, `change.md`) y los cambios cerrados. Solo el CLI escribe el estado. | IDD |
+| `docs/architecture/decisions/` | Los ADR que registra foundation y que cada cambio debe respetar. | Ambos |
+| `.ospec/` | Datos locales del harness: la cuenta de turnos, las trazas de sesión y las cachés. | Ambos |
+| `openspec/` | Configuración, specs y cambios del modo SDD. IDD no lo lee ni lo escribe. | SDD |
+
+El CLI `ospec` tiene estos comandos: `status`, `next`, `record`, `signals`, `check`, `run`, `review`, `close`, `doctor`, `team`, `snapshot` y `foundation`. Normalmente los ejecuta el agente, no tú.

@@ -1,4 +1,9 @@
-# Agentes y Habilidades (Skills)
+---
+sidebar:
+  order: 1
+---
+
+# Catálogo de agentes y skills
 
 > **En pocas palabras:** Un **agente** es un rol con herramientas y responsabilidad acotadas: en IDD el asistente principal cambia el código, y los revisores `review-*` solo leen y aportan evidencia. Una **skill** es el manual paso a paso que le indica cómo hacer una tarea concreta. El flujo por defecto es IDD; los agentes de fase de SDD son un paquete opcional.
 
@@ -21,21 +26,27 @@ En IDD no hay agentes de fase. El instalador añade un router a las instruccione
 
 ```mermaid
 flowchart TD
-    Router["Router del instalador"] -->|"cambio de código"| IDD["Skill idd + CLI ospec"]
+    Router["Router del instalador"] e1@-->|"cambio de código"| IDD["Skill idd + CLI ospec"]
+    Router -->|"proyecto nuevo"| F["Skill foundation"]
+    F -.->|"ADR y configuración"| IDD
     Router -->|"pregunta o solo lectura"| Directo["Respuesta directa"]
-    IDD -->|"obligación trust-review"| RT["review-trust (solo lectura)"]
-    RT -->|"hallazgos"| IDD
-    IDD -->|"una corrección acotada"| RC["review-correction (solo lectura)"]
+    IDD e2@-->|"obligación trust-review"| RT["review-trust (solo lectura)"]
+    RT e3@-->|"hallazgos"| IDD
+    IDD e4@-->|"una corrección acotada"| RC["review-correction (solo lectura)"]
+    e1@{ animate: true }
+    e2@{ animate: true }
+    e3@{ animate: true }
+    e4@{ animate: true }
 ```
 
-La revisión de confianza solo aparece cuando el cambio cruza una frontera de seguridad, según sus señales. El ciclo es:
+La revisión de confianza solo aparece cuando el cambio cruza una frontera de seguridad, según sus señales ([Revisión en IDD](/openwiki/idd/revision.md)). El ciclo es:
 
 1. `ospec review start` abre la revisión y devuelve la petición.
 2. `review-trust` devuelve sus hallazgos, que el asistente pasa sin modificar a `ospec review record` y después corrige lo bloqueante.
 3. `ospec review correct` pide la validación: `review-correction` comprueba la corrección contra los hallazgos congelados, sin buscar problemas nuevos.
 4. `ospec review validate` registra el resultado.
 
-Un cambio admite como máximo 3 revisiones de confianza. Cuando se agotan, `ospec check` abre la puerta `review-limit` (una de las seis puertas de IDD): solo la respuesta explícita de la persona autoriza una revisión más. Una nueva revisión exige código cambiado.
+Un cambio admite como máximo 3 revisiones de confianza. Cuando se agotan, `ospec check` abre el gate `review-limit` (uno de los seis gates de IDD): solo la respuesta explícita de la persona autoriza una revisión más. Una nueva revisión exige código cambiado.
 
 ---
 
@@ -44,13 +55,13 @@ Un cambio admite como máximo 3 revisiones de confianza. Cuando se agotan, `ospe
 | Agente | Lo usa | Qué revisa |
 |---|---|---|
 | `review-trust` | IDD (obligación `trust-review`) y la puerta de calidad de SDD | Fronteras de autenticación, credenciales, secretos y riesgos de permisos. |
-| `review-correction` | IDD y la puerta de calidad de SDD | Valida los hallazgos inmutables de un linaje de revisión. |
+| `review-correction` | IDD y la puerta de calidad de SDD | Comprueba que una corrección resuelve los hallazgos congelados de una revisión, sin buscar otros. |
 | `review-runtime` | La puerta de calidad de SDD | Riesgos de red, errores, reintentos, concurrencia y fallos parciales. |
 | `review-evolution` | La puerta de calidad de SDD | Complejidad estructural, mantenibilidad y deriva de contratos. |
 | `review-efficiency` | La puerta de calidad de SDD | Rutas sensibles al rendimiento, siempre con evidencia. |
 | `review-change` | La puerta de calidad de SDD | Clasificación residual cuando la puerta no puede asignar el cambio a un dominio. |
 
-Los revisores no se invocan directamente (`user-invocable: false`). Las lentes de la v1 (`review-risk`, `review-readability`, `review-reliability`, `review-resilience`) se retiraron en la v2.91.0; los linajes `schema_version: 1` antiguos siguen legibles durante una versión menor y después migran a v2.
+Los revisores no se invocan directamente (`user-invocable: false`): los lanza el flujo cuando una obligación o la puerta de calidad lo pide.
 
 ---
 
@@ -63,7 +74,7 @@ Cada grupo indica en qué instalaciones aparece.
 | Grupo | Skills | Para qué |
 |---|---|---|
 | Flujo IDD | `idd` | Lleva cada cambio de código a través del CLI `ospec`. |
-| Arquitectura | `foundation` | Fija la arquitectura de un proyecto nuevo antes del primer cambio; IDD construye sobre sus decisiones. |
+| Arquitectura | `foundation` | Fija la arquitectura de un proyecto nuevo antes del primer cambio y registra cada decisión estructural como un ADR; IDD hace cumplir esos ADR en cada cambio ([detalle](/openwiki/idd/foundation.md)). |
 | Ramas y entrega | `branch-pr`, `chained-pr`, `work-unit-commits` | Procedimientos para PR, PR encadenados y commits por unidad de revisión. Las ramas, commits y PR siguen siendo decisión del usuario. |
 | Diseño y calidad | `api-design`, `accessibility`, `design-system`, `hexagonal-architecture`, `cognitive-doc-design`, `cncf-landscape` | Guías de diseño y revisión de dominio. |
 | Revisión | `review-trust`, `review-correction`, `review-change`, `review-runtime`, `review-evolution`, `review-efficiency` | Las skills de los revisores de la tabla anterior. |

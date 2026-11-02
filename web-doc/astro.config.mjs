@@ -93,6 +93,25 @@ export default defineConfig({
   site: SITE,
   redirects: {
     "/": "/quickstart",
+    // Pages moved when the wiki was reordered for reading (2026-11): keep the
+    // old public URLs working for external links and bookmarks.
+    "/installation/target-installation": "/empezar/instalacion",
+    "/orchestration/routing": "/idd/router",
+    "/testing-quality/verification": "/idd/evidencia",
+    "/state-management/persistence": "/idd/estado",
+    "/hooks-runtime/lifecycle": "/proteccion/hooks",
+    "/security/guardrails": "/proteccion/guardrails",
+    "/rules-system/agent-rules": "/proteccion/reglas",
+    "/agents-skills/agents-and-skills": "/agentes/catalogo",
+    "/model-routing/routing-profiles": "/agentes/modelos",
+    "/workspace-federation/multi-repo": "/sdd/federacion",
+    "/architecture/overview": "/interno/arquitectura",
+    "/generator/multi-target-generator": "/interno/generador",
+    "/hooks-runtime/go-implementation": "/interno/hooks-go",
+    "/contract-lint/validation-rules": "/interno/lint-contratos",
+    "/evolution/harness-evolution": "/historia/evolucion",
+    "/evolution/roadmap": "/historia/roadmap",
+    "/kernel-runtime/kernel-runtime": "/historia/kernel",
   },
   integrations: [
     mermaid(),

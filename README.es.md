@@ -53,7 +53,7 @@ El agente construye el cambio mínimo que cumple la aceptación y elige los test
 
 ### Foundation: arquitectura antes del primer cambio
 
-Un proyecto nuevo, o una petición para definir la arquitectura de un sistema, empieza con la skill `foundation` en cualquier modo. Pregunta en rondas de cuatro preguntas como máximo, cada una con una respuesta recomendada, y trabaja como un arquitecto: atributos de calidad como escenarios medibles, la estructura más simple que los cumple (servicios solo por un motivo con nombre) y decisiones aplazadas hasta su último momento responsable. Registra los documentos de producto, un ADR por decisión estructural en `docs/architecture/decisions/` y, con tu aprobación, el `idd/config.yaml` que necesita IDD (checks, Strict TDD, rutas de impacto, documentos de contrato). Un cambio posterior que se aparta de un ADR se detiene en `adr-amend-or-contradict`. Nunca escribe código de aplicación.
+Un proyecto nuevo, o una petición para definir la arquitectura de un sistema, empieza con la skill `foundation` en cualquier modo. En IDD, mientras el proyecto no tiene código fuente ni nada bajo `docs/product/` o `docs/architecture/`, `ospec next` y `record intent` la sugieren antes de construir el primer cambio, sin bloquear. Pregunta en rondas de cuatro preguntas como máximo, cada una con una respuesta recomendada, y trabaja como un arquitecto: atributos de calidad como escenarios medibles, la estructura más simple que los cumple (servicios solo por un motivo con nombre) y decisiones aplazadas hasta su último momento responsable. Registra los documentos de producto, un ADR por decisión estructural en `docs/architecture/decisions/` y, con tu aprobación, el `idd/config.yaml` que necesita IDD (checks, Strict TDD, rutas de impacto, documentos de contrato). Un cambio posterior que se aparta de un ADR se detiene en `adr-amend-or-contradict`. Nunca escribe código de aplicación.
 
 ---
 
@@ -413,7 +413,11 @@ Los servidores adicionales deben activarse explícitamente. Consulta [mcp-policy
 | Documento | Contenido |
 | --- | --- |
 | [ospec-workflow.mretamozo.com](https://ospec-workflow.mretamozo.com) | Web de documentación: portada y guía rápida. |
+| [Un cambio de principio a fin](https://ospec-workflow.mretamozo.com/empezar/primer-cambio/) | Un ejemplo real de IDD: qué pides, qué te pregunta y qué ves al cerrar. |
 | [Guía IDD](https://ospec-workflow.mretamozo.com/idd/flujo-idd/) | IDD, el flujo por defecto: obligaciones, evidencia, gates y cierre. |
+| [Foundation](https://ospec-workflow.mretamozo.com/idd/foundation/) | La arquitectura antes del primer cambio: los ADR y cómo IDD trabaja con el impacto de cada cambio sobre ellos. |
+| [Revisión en IDD](https://ospec-workflow.mretamozo.com/idd/revision/) | Qué se revisa en IDD, cuándo y qué no. |
+| [Entrega](https://ospec-workflow.mretamozo.com/idd/entrega/) | CHANGELOG, versiones, ramas y snapshot de avance. |
 | [Modo SDD (opcional)](https://ospec-workflow.mretamozo.com/sdd/modo-sdd/) | Qué es SDD, cuándo entra y en qué se diferencia de IDD. |
 | [docs/README.md](docs/README.md) | Índice y recorrido recomendado. |
 | [openspec/specs/idd/spec.md](openspec/specs/idd/spec.md) | Contrato IDD: señales, obligaciones, gates y el CLI `ospec`. |

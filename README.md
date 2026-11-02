@@ -412,7 +412,11 @@ Additional servers must be activated explicitly. See [mcp-policy.md](docs/mcp-po
 | Document | Content |
 | --- | --- |
 | [ospec-workflow.mretamozo.com](https://ospec-workflow.mretamozo.com) | Web documentation: start page and quick start. |
+| [A change from start to finish](https://ospec-workflow.mretamozo.com/empezar/primer-cambio/) | A real IDD example: what you ask, what it asks you and what you see at close (Spanish). |
 | [IDD guide](https://ospec-workflow.mretamozo.com/idd/flujo-idd/) | IDD, the default flow: obligations, evidence, gates and closing. |
+| [Foundation](https://ospec-workflow.mretamozo.com/idd/foundation/) | Architecture before the first change: the ADRs and how IDD works with each change's impact on them (Spanish). |
+| [Review in IDD](https://ospec-workflow.mretamozo.com/idd/revision/) | What IDD reviews, when, and what it does not (Spanish). |
+| [Delivery](https://ospec-workflow.mretamozo.com/idd/entrega/) | Changelog, versions, branches and the progress snapshot (Spanish). |
 | [SDD mode (optional)](https://ospec-workflow.mretamozo.com/sdd/modo-sdd/) | What SDD is, when it enters and how it differs from IDD. |
 | [docs/README.md](docs/README.md) | Index and recommended reading path. |
 | [openspec/specs/idd/spec.md](openspec/specs/idd/spec.md) | IDD contract: signals, obligations, gates and the `ospec` CLI. |
