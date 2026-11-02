@@ -7,8 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.168.9] - 2026-11-02
+
 ### Fixed
-- El test del hook Stop de Copilot global falla en Windows cuando el hijo Node pasa el plazo de 4 s del lanzador; stop.js carga 38 módulos antes de contar el turno (copilot-stop-deadline)
+- **El hook Stop cuenta el fin de turno antes de cargar la traza** (copilot-stop-deadline, pendiente (j) de la PR3a de la review general del 2026-10-29).
+  - **`stop.js` carga al arrancar solo lo que el conteo necesita.** Antes cargaba 38 módulos (artifact-store, idd-session y los esquemas JSON) antes de contar el turno en `.ospec/turns`. En un runner de Windows saturado eso agotaba el plazo de 4 s del lanzador sin contar. Ahora arranca con 5 módulos y carga los de la traza después del conteo. Si uno de ellos no carga, el turno queda contado y un `systemMessage` lo explica, como ya hacía el hook Go. El binario, que es lo que corre Copilot global en producción, no cambia.
+  - **El test de Copilot global ya no reintenta.** Los tres intentos seguidos caían en la misma saturación. Si el lanzador informa de su plazo y el turno no se contó, el test comprueba el conteo con el `stop.js` instalado, sin plazo. El reintento de `codex-hook-shell.test.js` queda igual: en las runs revisadas sus reintentos fueron de session-start, no de Stop.
+
+Hecho con IDD (`idd/archive/2026-11-02-copilot-stop-deadline/`).
+
+**Verificación directa**: `node scripts/check.js` (4350 tests pasando, 0 fallos y 5 omitidos), con 10 tests de Python OK y los siete targets generados y validados, claude incluido. El test de reproducción falla en la base y pasa con el arreglo, y la rama del plazo del test de Copilot se forzó en local retrasando el hook 5 s.
 
 ## [2.168.8] - 2026-11-01
 
