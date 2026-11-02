@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- El test del hook Stop de Copilot global falla en Windows cuando el hijo Node pasa el plazo de 4 s del lanzador; stop.js carga 38 módulos antes de contar el turno (copilot-stop-deadline)
+
 ## [2.168.8] - 2026-11-01
 
 ### Fixed
