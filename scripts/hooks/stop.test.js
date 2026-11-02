@@ -270,6 +270,40 @@ test("a turn count that cannot be written still writes the trace and says why", 
   assert.match(await readLatest(workspace), /blocked/);
 });
 
+// The count needs four small modules and the trace the rest of the hook's
+// graph: on a loaded Windows host loading that graph first used up the
+// launcher's deadline before the turn was counted. A trace module that cannot
+// load still counts the turn and says why.
+test("a trace module that cannot load still counts the turn end and says why", async (t) => {
+  const workspace = await createWorkspace(t);
+  const preload = path.join(workspace, "broken-module.js");
+  await fs.writeFile(preload, [
+    '"use strict";',
+    'const Module = require("node:module");',
+    'const path = require("node:path");',
+    "const load = Module._load;",
+    "Module._load = function (request, ...rest) {",
+    "  if (path.basename(request) === process.env.OSPEC_TEST_BROKEN_MODULE) throw new Error(`cannot load ${request}`);",
+    "  return load.call(this, request, ...rest);",
+    "};",
+    "",
+  ].join("\n"));
+
+  for (const broken of ["pre-compact.js", "artifact-store.js", "idd-session.js"]) {
+    await fs.rm(path.join(workspace, ".ospec"), { recursive: true, force: true });
+    const stdout = execFileSync(process.execPath, ["--require", preload, path.join(__dirname, "stop.js")], {
+      input: JSON.stringify({ cwd: workspace }),
+      encoding: "utf8",
+      env: { ...process.env, OSPEC_TEST_BROKEN_MODULE: broken },
+    });
+
+    const output = JSON.parse(stdout);
+    assert.equal(output.continue, true, broken);
+    assert.match(output.systemMessage, new RegExp(`^Stop hook could not write the session trace: cannot load .*${broken.replace(".", "\\.")}$`), broken);
+    assert.equal(await fs.readFile(path.join(workspace, ".ospec", "turns"), "utf8"), "1\n", broken);
+  }
+});
+
 // The CLI reads the count at the root of the project, so a session whose cwd
 // is a subdirectory counts there: the first directory up holding .git, a
 // directory or a worktree's file.
