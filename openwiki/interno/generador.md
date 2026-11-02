@@ -1,4 +1,11 @@
-# Generador Multi-Target en Profundidad
+---
+sidebar:
+  order: 2
+---
+
+# El generador
+
+> **Para quien desarrolla ospec-workflow.** Esta página explica cómo está construido el harness por dentro. Para usarlo no hace falta: empieza por la [Guía rápida](/openwiki/quickstart.md).
 
 > **En pocas palabras:** El generador multi-target es el compilador que transforma las definiciones universales de agentes y habilidades en los formatos específicos que demandan las **7 plataformas de IA soportadas**, sin duplicación de código.
 

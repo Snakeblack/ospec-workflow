@@ -1,4 +1,11 @@
-# Arquitectura y Generador Multi-Target
+---
+sidebar:
+  order: 1
+---
+
+# Arquitectura multi-target
+
+> **Para quien desarrolla ospec-workflow.** Esta página explica cómo está construido el harness por dentro. Para usarlo no hace falta: empieza por la [Guía rápida](/openwiki/quickstart.md).
 
 > **En pocas palabras:** Mantener agentes, prompts y reglas para múltiples asistentes de IA (Claude, Copilot, Cursor, etc.) suele significar copiar y pegar archivos en carpetas distintas. `ospec-workflow` soluciona esto con una **fuente única de verdad**: escribes tus agentes una sola vez en formato canónico y un generador automático los adapta y empaqueta para **7 plataformas distintas** de forma instantánea y sin errores.
 

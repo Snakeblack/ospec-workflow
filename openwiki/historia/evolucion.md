@@ -1,4 +1,9 @@
-# Evolución del Harness: Kernel, Grafos y Evidencia
+---
+sidebar:
+  order: 1
+---
+
+# Evolución del harness (histórico)
 
 > **Histórico.** Esta página describe el programa K1–K12, ya archivado. La dirección vigente es el [roadmap único](https://github.com/snakeblack/ospec-workflow/blob/main/docs/roadmaps/harness-evolution.md), que desde la v2.112.0 hace de IDD el flujo por defecto y de SDD un modo opcional.
 

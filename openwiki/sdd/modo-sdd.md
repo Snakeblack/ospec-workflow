@@ -3,7 +3,7 @@ sidebar:
   order: 1
 ---
 
-# Modo SDD (opcional): contrato aprobado antes del código
+# Qué es SDD y cuándo entra
 
 > **En pocas palabras:** SDD (desarrollo guiado por especificación, con OpenSpec) es un modo **opcional**. Sirve cuando quieres aprobar por escrito qué se va a construir y cómo antes de tocar código. No es el flujo por defecto: el flujo por defecto es [IDD](/openwiki/idd/flujo-idd.md), y SDD solo entra cuando lo pides.
 
@@ -81,4 +81,4 @@ Lo que es común a los dos modos: el router, los hooks y guards, el generador mu
 - [Persistencia en OpenSpec](/openwiki/sdd/persistencia-openspec.md): `openspec/changes/`, `state.yaml` y la recuperación.
 - [Verificación en SDD](/openwiki/sdd/verificacion-sdd.md): `sdd-verify`, el progreso de apply y el TDD en SDD.
 
-Para el flujo por defecto, ver [Flujo IDD](/openwiki/idd/flujo-idd.md) y [Orquestación: del router a la ceremonia proporcional](/openwiki/orchestration/routing.md).
+Para el flujo por defecto, ver [Flujo IDD](/openwiki/idd/flujo-idd.md) y [Orquestación: del router a la ceremonia proporcional](/openwiki/idd/router.md).

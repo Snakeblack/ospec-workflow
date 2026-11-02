@@ -1,4 +1,11 @@
-# Lint de Contratos y Reglas de Validación
+---
+sidebar:
+  order: 4
+---
+
+# Lint de contratos
+
+> **Para quien desarrolla ospec-workflow.** Esta página explica cómo está construido el harness por dentro. Para usarlo no hace falta: empieza por la [Guía rápida](/openwiki/quickstart.md).
 
 > **En pocas palabras:** Así como un linter de código (como ESLint) revisa que no haya errores de sintaxis en tus programas, el **Contract Lint** de `ospec-workflow` comprueba que todos los agentes, habilidades, rutas y reglas del sistema estén perfectamente sincronizados y no contengan enlaces rotos ni directivas contradictorias.
 

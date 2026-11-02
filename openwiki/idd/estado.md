@@ -1,4 +1,9 @@
-# Persistencia y Estado: el disco como fuente de verdad
+---
+sidebar:
+  order: 7
+---
+
+# El estado en disco
 
 > **En pocas palabras:** Las ventanas de chat de los asistentes de IA son temporales y se borran. En `ospec-workflow`, **el chat nunca es la fuente de la verdad**. En el flujo por defecto, IDD, el estado de cada cambio vive en `idd/<cambio>/`: `state.yaml` lo escribe solo el CLI `ospec` y `change.md` guarda el plan y las decisiones. Al cerrar el cambio con `ospec close`, su carpeta pasa a `idd/archive/`.
 
@@ -8,7 +13,7 @@
 
 ```text
 idd/
-├── config.yaml                 # Configuración IDD: checks, impact, contracts, team, strict_tdd, mode
+├── config.yaml                 # Configuración IDD: checks, strict_tdd, team, delivery, impact, contracts, mode
 ├── <cambio>/                   # Cambio abierto
 │   ├── state.yaml              # Estado del CLI: intención, señales, obligaciones, gates y evidencia
 │   └── change.md               # Plan y decisiones vivas (solo si el cambio tiene living-doc)
@@ -47,19 +52,19 @@ flowchart LR
 
 ## idd/config.yaml: configuración, no estado
 
-- Claves permitidas: `mode`, `strict_tdd`, `team`, `checks`, `impact`, `contracts`. Cualquier otra clave se rechaza con `config-invalid`.
+- Claves permitidas: `mode`, `strict_tdd`, `team`, `delivery`, `checks`, `impact` y `contracts`. Cualquier otra clave se rechaza con `config-invalid`. Qué decide cada una: [El ciclo de un cambio](/openwiki/idd/flujo-idd.md#la-configuración-iddconfigyaml).
 - Es opcional, pero sin al menos un `checks:` ningún cambio IDD puede cerrarse. `ospec next` propone el paso `configure-checks` y el agente pide aprobación antes de escribir el comando. Ni `record`, `next`, `check` ni `doctor` crean este fichero.
-- Ejemplo real de este repositorio:
+- El mínimo para que un cambio pueda cerrar:
 
 ```yaml
 checks:
-  test: node scripts/check.js
+  test: npm test
 ```
 
 ## Conocimiento del proyecto fuera de idd/
 
 - `idd/` guarda configuración y estado del cambio. Nunca guarda specs canónicas ni conocimiento del proyecto.
-- Las decisiones de arquitectura viven como ADR en `docs/architecture/decisions/`. Si un cambio enmienda o sustituye uno, se escribe un ADR nuevo con la plantilla de la skill `foundation`; un ADR aceptado no se reescribe.
+- Las decisiones de arquitectura viven como ADR en `docs/architecture/decisions/`. Si un cambio enmienda o sustituye uno, se escribe un ADR nuevo con la plantilla de la skill `foundation`; un ADR aceptado no se reescribe. Cómo los usa IDD: [Foundation](/openwiki/idd/foundation.md).
 - Los documentos de contrato se declaran en `contracts:` de `idd/config.yaml`.
 - Al cerrar, `ospec close` devuelve `records` con el conocimiento del cambio para una memoria entre sesiones, si el agente tiene una. El CLI no lee ni escribe esa memoria.
 

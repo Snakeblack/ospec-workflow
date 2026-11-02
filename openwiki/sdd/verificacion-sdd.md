@@ -3,9 +3,9 @@ sidebar:
   order: 5
 ---
 
-# Verificación en modo SDD (opcional)
+# Verificación en SDD
 
-> **Solo modo SDD (opcional).** Esta página describe cómo verifica el modo SDD: el ciclo Strict TDD de la fase `sdd-apply`, su tabla de evidencias en `apply-progress.md` y el agente `sdd-verify`. Estos artefactos no existen en IDD. IDD registra su evidencia con el CLI `ospec`; ver [Testing, calidad y Strict TDD](/openwiki/testing-quality/verification.md).
+> **Solo modo SDD (opcional).** Esta página describe cómo verifica el modo SDD: el ciclo Strict TDD de la fase `sdd-apply`, su tabla de evidencias en `apply-progress.md` y el agente `sdd-verify`. Estos artefactos no existen en IDD. IDD registra su evidencia con el CLI `ospec`; ver [Testing, calidad y Strict TDD](/openwiki/idd/evidencia.md).
 
 ---
 
@@ -159,7 +159,7 @@ Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending
 400-line budget risk: Low|Medium|High
 ```
 
-El presupuesto base de 400 líneas cambiadas es el mismo que en IDD (ver [Testing, calidad y Strict TDD](/openwiki/testing-quality/verification.md)).
+El presupuesto base de 400 líneas cambiadas es el mismo que en IDD (ver [Testing, calidad y Strict TDD](/openwiki/idd/evidencia.md)).
 
 | Estrategia | Uso |
 | --- | --- |

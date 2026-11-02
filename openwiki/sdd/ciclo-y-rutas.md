@@ -3,9 +3,9 @@ sidebar:
   order: 2
 ---
 
-# Ciclo y rutas SDD: fases, comandos y gates
+# Ciclo y rutas
 
-> **En pocas palabras:** Esta página describe **solo el modo SDD (opcional)**. Un cambio SDD recorre siete fases, cada una con su artefacto. El orquestador elige la ruta que corresponde al cambio según la tabla `routing:` de `openspec/config.yaml`, y se detiene en gates concretos para preguntar o revisar. IDD, el flujo por defecto, no tiene fases ni rutas: ver [Orquestación](/openwiki/orchestration/routing.md).
+> **En pocas palabras:** Esta página describe **solo el modo SDD (opcional)**. Un cambio SDD recorre siete fases, cada una con su artefacto. El orquestador elige la ruta que corresponde al cambio según la tabla `routing:` de `openspec/config.yaml`, y se detiene en gates concretos para preguntar o revisar. IDD, el flujo por defecto, no tiene fases ni rutas: ver [El ciclo de un cambio](/openwiki/idd/flujo-idd.md).
 
 ---
 

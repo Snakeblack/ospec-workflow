@@ -3,9 +3,9 @@ sidebar:
   order: 4
 ---
 
-# Persistencia en modo SDD (openspec)
+# Persistencia en OpenSpec
 
-> **Solo modo SDD (opcional).** Esta página describe `openspec/`, donde el modo SDD guarda sus cambios, sus specs y su configuración. IDD no escribe ni lee nada ahí: su estado vive en `idd/` (ver [Persistencia y estado](/openwiki/state-management/persistence.md)). Esta página no aplica a un proyecto que no use SDD.
+> **Solo modo SDD (opcional).** Esta página describe `openspec/`, donde el modo SDD guarda sus cambios, sus specs y su configuración. IDD no escribe ni lee nada ahí: su estado vive en `idd/` (ver [Persistencia y estado](/openwiki/idd/estado.md)). Esta página no aplica a un proyecto que no use SDD.
 
 En SDD, `openspec/` es la memoria compartible del flujo. Sin ella, todo depende de la conversación; con ella, el estado vive en archivos versionables del repositorio.
 
