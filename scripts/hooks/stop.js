@@ -5,21 +5,32 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
-const {
-  extractFirstScalar,
-  formatNextAction,
-} = require("./pre-compact.js");
-const {
-  ARTIFACT_STORE_RELATIVE_PATHS,
-  createArtifactStoreFromConfig,
-} = require("../lib/artifact-store.js");
+// E1.49: counting the turn end loads only these modules. The trace loads the
+// rest of the hook's graph (some forty files) after the count, so a loaded
+// host counts the turn within the launcher's deadline and a trace module that
+// cannot load still counts it.
 const { writeFileAtomic } = require("../lib/atomic-write.js");
 const { mkdirOspec } = require("../lib/ospec-gitignore.js");
 const { resolveWorkspaceCwd } = require("../lib/pathsafe.js");
-const { readIddSession } = require("./lib/idd-session.js");
 const { countTurnEnd, turnsRoot } = require("../lib/turn-fence.js");
 
-const LATEST_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.latestSession;
+let traceModules = null;
+
+function trace() {
+  if (!traceModules) {
+    const { extractFirstScalar, formatNextAction } = require("./pre-compact.js");
+    const { ARTIFACT_STORE_RELATIVE_PATHS, createArtifactStoreFromConfig } = require("../lib/artifact-store.js");
+    const { readIddSession } = require("./lib/idd-session.js");
+    traceModules = {
+      createArtifactStoreFromConfig,
+      extractFirstScalar,
+      formatNextAction,
+      latestRelativePath: ARTIFACT_STORE_RELATIVE_PATHS.latestSession,
+      readIddSession,
+    };
+  }
+  return traceModules;
+}
 
 function toPortablePath(filePath) {
   return filePath.split(path.sep).join("/");
@@ -131,6 +142,7 @@ function renderOpenChanges({ endedAt, sessionId, openChanges }) {
 }
 
 function sddChangeName(change) {
+  const { extractFirstScalar } = trace();
   return (
     extractFirstScalar(change.content, [["change", "name"]]) ||
     change.directoryName
@@ -150,6 +162,7 @@ async function runStop({
   mode,
   now = () => new Date(),
 } = {}) {
+  const { createArtifactStoreFromConfig, extractFirstScalar, formatNextAction, latestRelativePath, readIddSession } = trace();
   const workspace = resolveWorkspaceCwd(input.cwd, fallbackCwd);
   const store = await createArtifactStoreFromConfig({ mode, workspace });
   const sddChanges = await store.findActiveChanges();
@@ -198,7 +211,7 @@ async function runStop({
 
   return {
     status: "written",
-    path: LATEST_RELATIVE_PATH,
+    path: latestRelativePath,
     activeChange: changeName || null,
   };
 }
@@ -206,6 +219,7 @@ async function runStop({
 // E1.12 (§6.4): with open IDD changes, one change in total is the active
 // change; several are listed, SDD first and then IDD by id.
 async function writeWithIdd({ input, now, store, sddChanges, iddSession }) {
+  const { extractFirstScalar, formatNextAction, latestRelativePath } = trace();
   const endedAt = resolveTimestamp(input, now);
   const sessionId = resolveSessionId(input);
   const openChanges = [
@@ -255,7 +269,7 @@ async function writeWithIdd({ input, now, store, sddChanges, iddSession }) {
 
   await writeLatestTrace(store.latestSessionPath(), content);
 
-  return { status: "written", path: LATEST_RELATIVE_PATH, ...result };
+  return { status: "written", path: latestRelativePath, ...result };
 }
 
 async function readJsonInput(stream = process.stdin) {
@@ -297,7 +311,9 @@ if (require.main === module) {
 }
 
 module.exports = {
-  LATEST_RELATIVE_PATH,
+  get LATEST_RELATIVE_PATH() {
+    return trace().latestRelativePath;
+  },
   countTurn,
   renderLatestSummary,
   runStop,
