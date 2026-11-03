@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Router de Claude Code para quien instala desde el marketplace: fichero ~/.claude/rules/ospec-workflow.md, CLI ospec router, aviso en SessionStart y refresco tras actualizar el plugin (claude-router)
+
 ## [2.169.0] - 2026-11-03
 
 ### Added

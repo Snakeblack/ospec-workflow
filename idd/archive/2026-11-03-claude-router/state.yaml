@@ -1,0 +1,1319 @@
+{
+  "schema": "idd-state/v1",
+  "change": "claude-router",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "actualmente si alguien instala el plugin desde \"claude plugin marketplace add https://github.com/snakeblack/ospec-workflow.git#release\" como podria obtener un CLAUDE.md o AGENTS.md actualizado? / lo recomendado / continua",
+    "kind": "feature",
+    "summary": "Router de Claude Code para quien instala desde el marketplace: fichero ~/.claude/rules/ospec-workflow.md, CLI ospec router, aviso en SessionStart y refresco tras actualizar el plugin",
+    "acceptance": "Con el plugin instalado desde el marketplace y sin router, el primer arranque muestra un aviso; ospec router install escribe ~/.claude/rules/ospec-workflow.md (o .claude/rules/ con --scope project), off/remove lo quitan, status lo informa; tras subir la versión del plugin el hook refresca el fichero que escribió ospec; setup:claude migra el bloque de ~/.claude/CLAUDE.md; ospec doctor apunta a ospec router; node scripts/check.js en verde"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "ospec router install --scope project escribe el marketplace ospec-tools en .claude/settings.json: ¿qué source? Recomiendo copiar el registrado en known_marketplaces.json si es remoto (github, git o url) y, si es local (directory o file, instalación desde un checkout), escribir el público {source: git, url: https://github.com/snakeblack/ospec-workflow.git, ref: release}; un settings.json que no sea JSON válido hace fallar el comando sin tocar nada"
+      },
+      {
+        "category": "uniqueness",
+        "question": "Con el bloque antiguo en ~/.claude/CLAUDE.md, recomiendo que ospec router install y setup:claude escriban ~/.claude/rules/ospec-workflow.md y quiten el bloque (migración), y que el hook nunca migre y cuente el bloque como router presente (sin aviso); el aviso router-duplicate del doctor pasa a mirar también el fichero de reglas"
+      },
+      {
+        "category": "persistence",
+        "question": "(a) Recomiendo que off quite el router y guarde el no (lo que hoy hace --no-router) y que remove lo quite y borre el estado (para antes de desinstalar; el aviso volvería); el estado vive en <config>/plugins/data/ospec-workflow-ospec-tools/router.json y el CLI, que no recibe CLAUDE_PLUGIN_DATA, lo calcula desde el directorio de configuración. (b) Hoy ospec doctor mira siempre ~/.claude aunque CLAUDE_CONFIG_DIR apunte a otro sitio; recomiendo que todas sus comprobaciones de Claude usen el mismo resolvedor que el router, para que no discrepen. ¿De acuerdo con ambas?"
+      },
+      {
+        "category": "copy",
+        "question": "(a) Recomiendo una línea en inglés, como los demás mensajes de hooks y del CLI, en cada arranque (source startup) mientras falte el router y no se haya dicho no, nada en resume, clear ni compact: 'ospec-workflow: the router is not installed, so IDD is not the default flow. Run ! ospec router install, or ! ospec router off to stop this notice.' (b) Recomiendo quitar del plan la skill router, porque ! ospec ya funciona en la sesión (Fase 0, S5) y Claude puede ejecutar ospec router por Bash si se lo pide el usuario, mientras que una skill solo de Claude exige un mecanismo nuevo para excluirla de los otros seis destinos. ¿Valen ambas?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 156
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/ospec-doctor.js",
+          "line": 4
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Fichero de reglas editado a mano (el hash no coincide con lo que escribió ospec): recomiendo que el hook ni lo refresque ni avise, que el doctor dé warn (modified locally) y que install se niegue sin --force; y que ospec router install desde un checkout, sin global-instructions/, se niegue y remita a npm run setup:claude"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "docs/target-capabilities.md",
+      "handbook/empezar/instalacion.md",
+      "handbook/proteccion/reglas.md",
+      "openspec/specs/generator/spec.md",
+      "openspec/specs/hooks-runtime/spec.md",
+      "openspec/specs/hooks/spec.md",
+      "openspec/specs/idd/spec.md",
+      "openspec/specs/install/spec.md",
+      "rules/ospec-router.instructions.md",
+      "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+      "scripts/configure/install-claude.js",
+      "scripts/configure/install-claude.test.js",
+      "scripts/configure/instruction-block.js",
+      "scripts/fixtures/context-baseline.json",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/ospec-hooks-launch.test.js",
+      "scripts/lib/claude-router.js",
+      "scripts/lib/claude-router.test.js",
+      "scripts/lib/context-baseline.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/lib/idd-refusals.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/ospec-doctor.js",
+      "scripts/lib/ospec-doctor.test.js",
+      "scripts/lib/router-block.js",
+      "scripts/lib/target-profiles/claude.js",
+      "scripts/lib/target-transform.js",
+      "scripts/lib/target-transform.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 4,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El router de Claude pasa a ~/.claude/rules/ospec-workflow.md en vez del bloque de ~/.claude/CLAUDE.md: la Fase 0 comprobó que se carga como memoria User, en el mismo bloque y con la misma etiqueta",
+      "Un único módulo scripts/lib/claude-router.js resuelve el directorio (CLAUDE_CONFIG_DIR o ~/.claude) y escribe, refresca y quita con escritura atómica; lo usan setup:claude, ospec router, ospec doctor y el hook",
+      "El aviso sale de ospec-hooks-launch.js antes del hijo Go/Node, como systemMessage (lo ve el usuario, no el modelo), solo con source startup y solo en la build de Claude, que añade un flag en nestHooks",
+      "El hook solo refresca el fichero que escribió ospec cuando la versión instalada es mayor y el hash coincide, nunca escribe en el repo, y DISABLE_ROUTER_NOTICE lo apaga",
+      "ospec doctor sigue siendo de solo lectura (REQ-idd-019); la escritura va en ospec router install|off|remove|status",
+      "El alcance de proyecto escribe .claude/rules/ospec-workflow.md y extraKnownMarketplaces/enabledPlugins en .claude/settings.json; cada compañero sigue instalando el plugin",
+      "Las funciones puras del bloque del router pasan a scripts/lib/router-block.js, porque scripts/configure no se publica con el plugin y claude-router.js migra el bloque antiguo",
+      "El estado del router vive en <config>/plugins/data/ospec-workflow-ospec-tools/router.json y todos lo calculan desde el directorio de configuración, porque el CLI no recibe CLAUDE_PLUGIN_DATA",
+      "off quita el router y guarda el no; remove lo quita y borra el estado; quitar el router de equipo deja .claude/settings.json como está",
+      "Un fichero de reglas que no es el router instalado ni lo que escribió ospec, y un router de equipo distinto, se rechazan con router-modified salvo --force",
+      "Se quita la skill router del plan: ! ospec router funciona en la sesión y una skill solo de Claude pediría un mecanismo nuevo de exclusión por destino",
+      "El CLI acepta OSPEC_PLUGIN_ROOT para nombrar la raíz del plugin, como ya hace el lanzador con los hooks; así las pruebas usan un plugin falso",
+      "El doctor resuelve el directorio de Claude con CLAUDE_CONFIG_DIR en todas sus comprobaciones de Claude, igual que el router",
+      "La URL del marketplace copiada al settings.json del equipo pierde la contraseña (cualquier esquema), el usuario de http(s) y la query string; el usuario ssh se conserva (hallazgo WARNING de la primera revisión de confianza)",
+      "El mensaje de ospec router install dice que el router carga al siguiente arranque o tras /clear, comprobado en la prueba real"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, generator, hooks: ADR 0001, 0003, 0008, 0010 and quality scenario deterministic-resume, guard-fail-closed, offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/claude-router.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El router instalado se copia byte a byte de global-instructions/CLAUDE.md, que genera el perfil de Claude desde rules/ospec-router.instructions.md; el flag --claude-router lo añade nestHooks en la transformación, no a mano"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Toda la lógica del router (rutas, estado, hash, versión, migración, settings) está en scripts/lib/claude-router.js con tests; el CLI, el doctor, setup:claude y el lanzador solo la llaman"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "El paso del router solo informa y refresca: falla abierto (pierde el aviso, nunca la sesión) y corre solo en session-start, sin tocar las decisiones de pre-tool-use ni de los guards"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "claude-router.js y router-block.js usan solo node:crypto, fs, os y path, y van en scripts/lib para que el runtime publicado los lleve; scripts/configure no se publica"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "El cambio no toca el estado IDD ni next; el estado del router vive en su propio fichero y no afecta a la reanudación de cambios"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "none",
+      "reason": "Los guards de pre-tool-use y del pre-commit no cambian; el paso nuevo solo corre en session-start"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "El router se escribe y se refresca desde ficheros locales, sin red; el aviso no depende de la memoria entre sesiones"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El texto del router es el mismo en los 7 targets y su golden de Claude se regenera con el flag; los demás targets no reciben --claude-router"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "Solo se añaden a idd-refusals.js los cómo de los cuatro rechazos de ospec router; la derivación de señales y obligaciones no cambia"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "Solo se añaden a idd-refusals.js los cómo de los rechazos de ospec router; la evidencia y el cierre no cambian"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "Solo se añaden a idd-refusals.js los cómo de los rechazos de ospec router; el estado IDD y su forma no cambian"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Revisado el diff: claude-router.js y router-block.js solo requieren node:crypto, fs, os y path; el paso del lanzador no abre red ni procesos; la URL pública del marketplace es un literal que se escribe en settings.json, nunca se descarga",
+      "recorded_at": "2026-11-03T12:21:54.511Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 138,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_turn": 139
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-03T12:23:12.785Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:deterministic-resume none",
+          "scenario:guard-fail-closed none",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:a5ecd0358b957832617f519c325d6d99b2981d40a828d0bd8d2e8f2cc288d979",
+        "fitness": [
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-03T12:25:14.355Z",
+      "detail": {
+        "tree": "sha256:cf1f242c449a2d829f97d407c855b04a83c29ece5305e6c3ffcc4f3cc59ad0d6",
+        "runs": [
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-03T12:25:14.355Z",
+      "detail": {
+        "tree": "sha256:cf1f242c449a2d829f97d407c855b04a83c29ece5305e6c3ffcc4f3cc59ad0d6",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/install/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/install-claude.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/claude-router.test.js",
+          "scripts/lib/idd-refusals.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/target-transform.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-03T12:25:33.962Z",
+      "detail": {
+        "run": "run-28",
+        "tree": "sha256:8d6d281849c0d6f0dfb23a03e2fca6275f81868123a32ac6c2d29b8666d166a9",
+        "plan": "Compatibilidad: un bloque del router en CLAUDE.md de versiones anteriores sigue valiendo (el hook lo cuenta como router y no avisa ni lo toca; el doctor da ok si coincide); ospec router install y setup:claude lo mueven a rules/ospec-workflow.md conservando el texto del usuario y borran CLAUDE.md solo si queda vacío; un begin sin end se rechaza antes de escribir; un router.json corrupto se lee como ninguno. Vuelta atrás: ospec router remove borra el fichero de reglas y el estado, y el setup:claude de una versión anterior vuelve a escribir el bloque."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-03T12:32:23.661Z",
+      "detail": {
+        "lineage_id": "sha256:a7ed25776b40c2c14449c79da095a69ed8767027734df5b57713deb822a563f3",
+        "candidate_id": "sha256:6eeee49eb8ec0710420b3dbd4625e9635e7ae452b08efbf1dd736f6cc99989c7",
+        "candidate_tree": "5732760cf428192c100848a28e3ab0797839bb85",
+        "findings_digest": "sha256:02a47eb16aad6eec0ca8dd6bde620efdb6641aaa2d8b8f9fee4a57c669dff76d",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-03T12:32:05.797Z",
+          "result_digest": "sha256:ec72194536dc3b1cafb46d850c9f05a48dde3cf0c24edb1ba957b902a8fa879b"
+        }
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-03T12:34:13.113Z",
+      "detail": {
+        "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+        "runs": [
+          "run-29"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-03T12:34:13.113Z",
+      "detail": {
+        "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+        "check": "ev-6",
+        "documents": [
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/install/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/install-claude.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/claude-router.test.js",
+          "scripts/lib/idd-refusals.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/target-transform.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-03T12:34:13.113Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:deterministic-resume none",
+          "scenario:guard-fail-closed none",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0011 none"
+        ],
+        "records": [],
+        "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+        "fitness": [
+          "run-30",
+          "run-31",
+          "run-32",
+          "run-33",
+          "run-34",
+          "run-35",
+          "run-36",
+          "run-37",
+          "run-38",
+          "run-39"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-03T12:34:22.529Z",
+      "detail": {
+        "run": "run-40",
+        "tree": "sha256:ced55043772ee12b553d8d02275a0af03a7ba47b4678b5229999c80f723e0333",
+        "plan": "Compatibilidad: un bloque del router en CLAUDE.md de versiones anteriores sigue valiendo (el hook lo cuenta como router y no avisa ni lo toca; el doctor da ok si coincide); ospec router install y setup:claude lo mueven a rules/ospec-workflow.md conservando el texto del usuario y borran CLAUDE.md solo si queda vacío; un begin sin end se rechaza antes de escribir; un router.json corrupto se lee como ninguno. Vuelta atrás: ospec router remove borra el fichero de reglas y el estado, y el setup:claude de una versión anterior vuelve a escribir el bloque."
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-03T12:37:43.117Z",
+      "detail": {
+        "lineage_id": "sha256:96e626da343739fdc33b881ced65b99e834069665583c505e1c1eed487eb154c",
+        "candidate_id": "sha256:1d5fdd5b99ff5cc9b5b9f8a278e66a0b0cfe1499c301ea8f1d2c66787c1a60e7",
+        "candidate_tree": "6a512802adddc88477b7a722d4a1c3e188f7d32e",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-03T12:37:25.563Z",
+          "result_digest": "sha256:bcceeff85a9dbfb7d2a3d476263aad52bc3bc29e55e37402761972bce8951aca"
+        }
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-03T12:38:33.901Z"
+    }
+  ],
+  "base": "7e18aed8bd22de83a8e8b21dcfe855d71bc0ee26",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d646a06c0fea2cd5475bdff52ddbdfa4f354812c139838d96eb6135d887995f6",
+      "tree": "sha256:4df8bcb0aebf045ae4c37c1c48afc521b219af1f4f99b49ad40c6acb2a736adf",
+      "recorded_at": "2026-11-03T12:19:39.110Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:dc6a4a90149e9117ece3393b0840013d1e128cf46c62d3ec8d457a5465b15db5",
+      "tree": "sha256:4df8bcb0aebf045ae4c37c1c48afc521b219af1f4f99b49ad40c6acb2a736adf",
+      "recorded_at": "2026-11-03T12:19:39.110Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:96b585eddb3c0e29bbe054e75272fd3263fa9ebac44143956e36406b7f8c0b14",
+      "tree": "sha256:4df8bcb0aebf045ae4c37c1c48afc521b219af1f4f99b49ad40c6acb2a736adf",
+      "recorded_at": "2026-11-03T12:19:39.110Z",
+      "tests": 82
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4df8bcb0aebf045ae4c37c1c48afc521b219af1f4f99b49ad40c6acb2a736adf",
+      "recorded_at": "2026-11-03T12:19:39.110Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b59b84b58c0843321473328f832dc21e17407c9acec303ba12a445be53885063",
+      "tree": "sha256:4df8bcb0aebf045ae4c37c1c48afc521b219af1f4f99b49ad40c6acb2a736adf",
+      "recorded_at": "2026-11-03T12:19:39.110Z",
+      "tests": 22
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:464e68a5d29bc42883d52eac82e55150d4ba15cc7776f15cdcd9e911f5018462",
+      "tree": "sha256:4df8bcb0aebf045ae4c37c1c48afc521b219af1f4f99b49ad40c6acb2a736adf",
+      "recorded_at": "2026-11-03T12:19:39.110Z",
+      "tests": 52
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:215101bfea2df523077328175c9c8b27e75ecfd0f29424701ea080cdf3dbe29c",
+      "tree": "sha256:4df8bcb0aebf045ae4c37c1c48afc521b219af1f4f99b49ad40c6acb2a736adf",
+      "recorded_at": "2026-11-03T12:19:39.110Z",
+      "tests": 82
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:1cb02fd05269000e6443e53d529351863d90000b3a5e62ca35799fcf1ca02ad5",
+      "tree": "sha256:4df8bcb0aebf045ae4c37c1c48afc521b219af1f4f99b49ad40c6acb2a736adf",
+      "recorded_at": "2026-11-03T12:19:39.110Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d05a2796c1c7f81c6dd2ae8b4c1ed9972c051a60e223e0b1d2b04a0501afa361",
+      "tree": "sha256:a5ecd0358b957832617f519c325d6d99b2981d40a828d0bd8d2e8f2cc288d979",
+      "recorded_at": "2026-11-03T12:23:12.785Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:069a1f4523c54f9e0491ad95083cc1adebb8a1dc68adbcc05a3ac774e7ea38f5",
+      "tree": "sha256:a5ecd0358b957832617f519c325d6d99b2981d40a828d0bd8d2e8f2cc288d979",
+      "recorded_at": "2026-11-03T12:23:12.785Z",
+      "tests": 48
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b578910561118ed6310f1d1af6c1e3c2c0587596ab2bf1ddb7c029ce0e0579f2",
+      "tree": "sha256:a5ecd0358b957832617f519c325d6d99b2981d40a828d0bd8d2e8f2cc288d979",
+      "recorded_at": "2026-11-03T12:23:12.785Z",
+      "tests": 82
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:a5ecd0358b957832617f519c325d6d99b2981d40a828d0bd8d2e8f2cc288d979",
+      "recorded_at": "2026-11-03T12:23:12.785Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:91ab942f0a51d1d3981e21337fd8e371de69e70849d8834bbb9da8c7494986db",
+      "tree": "sha256:a5ecd0358b957832617f519c325d6d99b2981d40a828d0bd8d2e8f2cc288d979",
+      "recorded_at": "2026-11-03T12:23:12.785Z",
+      "tests": 22
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0c183e5a57685bb35a846ac78899f1842d9f3c382b5e547af8a5e4c9c9e95032",
+      "tree": "sha256:a5ecd0358b957832617f519c325d6d99b2981d40a828d0bd8d2e8f2cc288d979",
+      "recorded_at": "2026-11-03T12:23:12.785Z",
+      "tests": 52
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:070038f5661a468d4a146eb1da6af078db50ae52627277a7a6bac7a19f7cdff5",
+      "tree": "sha256:a5ecd0358b957832617f519c325d6d99b2981d40a828d0bd8d2e8f2cc288d979",
+      "recorded_at": "2026-11-03T12:23:12.785Z",
+      "tests": 82
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9335a25dd23ba60d25680acb391fc0aaaf2b1ef9a151a2be41bf8da31c0c9c2d",
+      "tree": "sha256:a5ecd0358b957832617f519c325d6d99b2981d40a828d0bd8d2e8f2cc288d979",
+      "recorded_at": "2026-11-03T12:23:12.785Z",
+      "tests": 48
+    },
+    {
+      "id": "run-17",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b701df1333bead57b4159c69a1a6b16b86c71570deb0a46b96274b8b231b89ba",
+      "tree": "sha256:cf1f242c449a2d829f97d407c855b04a83c29ece5305e6c3ffcc4f3cc59ad0d6",
+      "recorded_at": "2026-11-03T12:25:14.355Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c8bd5190a1be66e56ddf0af52e3a8217784ae2351896b7f056fdf8eb4de9017b",
+      "tree": "sha256:cf1f242c449a2d829f97d407c855b04a83c29ece5305e6c3ffcc4f3cc59ad0d6",
+      "recorded_at": "2026-11-03T12:25:14.355Z",
+      "tests": 48
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2e333d1c0f10645c8b2048a378d3fddb877c5f2bef9b0bfe4a2e4881a8ad0775",
+      "tree": "sha256:cf1f242c449a2d829f97d407c855b04a83c29ece5305e6c3ffcc4f3cc59ad0d6",
+      "recorded_at": "2026-11-03T12:25:14.355Z",
+      "tests": 82
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:cf1f242c449a2d829f97d407c855b04a83c29ece5305e6c3ffcc4f3cc59ad0d6",
+      "recorded_at": "2026-11-03T12:25:14.355Z"
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:36c431249d18b4e5795c373ff3686ae30a869750b6d25ed7342c36a13cec6fb9",
+      "tree": "sha256:cf1f242c449a2d829f97d407c855b04a83c29ece5305e6c3ffcc4f3cc59ad0d6",
+      "recorded_at": "2026-11-03T12:25:14.355Z",
+      "tests": 22
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3d59dde8c0c05797faa2f2cd2b8eeb490f8a98f1b7836ec34b0f88dd646b1023",
+      "tree": "sha256:cf1f242c449a2d829f97d407c855b04a83c29ece5305e6c3ffcc4f3cc59ad0d6",
+      "recorded_at": "2026-11-03T12:25:14.355Z",
+      "tests": 52
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ad159b10ef2fc09b373e9a987fde464cd5daec0365e24d528ac39d4ba1c34080",
+      "tree": "sha256:cf1f242c449a2d829f97d407c855b04a83c29ece5305e6c3ffcc4f3cc59ad0d6",
+      "recorded_at": "2026-11-03T12:25:14.355Z",
+      "tests": 82
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:91071bb5523e7b98a8d410cba5aa73984ffa69de1a334bcb12e597fc8f989b87",
+      "tree": "sha256:cf1f242c449a2d829f97d407c855b04a83c29ece5305e6c3ffcc4f3cc59ad0d6",
+      "recorded_at": "2026-11-03T12:25:14.355Z",
+      "tests": 48
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:58667171c1822e98f0c402a07bec449820df7545c1231d717ab33a8b90b3f5ce",
+      "tree": "sha256:cf1f242c449a2d829f97d407c855b04a83c29ece5305e6c3ffcc4f3cc59ad0d6",
+      "recorded_at": "2026-11-03T12:25:14.355Z",
+      "tests": 55
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f4c496534149f1bbb892789ecee091be6f2639e5fea1ba87edbb080cfdae9f35",
+      "tree": "sha256:cf1f242c449a2d829f97d407c855b04a83c29ece5305e6c3ffcc4f3cc59ad0d6",
+      "recorded_at": "2026-11-03T12:25:14.355Z",
+      "tests": 18
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ea6e9c066f20853ded566a4272add9620338d451ebf93b6eca6ba2e9850fab13",
+      "tree": "sha256:cf1f242c449a2d829f97d407c855b04a83c29ece5305e6c3ffcc4f3cc59ad0d6",
+      "recorded_at": "2026-11-03T12:25:14.355Z",
+      "tests": 85
+    },
+    {
+      "id": "run-28",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/claude-router.test.js scripts/configure/install-claude.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3b1d39a94f9390bd3a5034f1a9cbce84386f0679b880cacd7e04ac4df31a515a",
+      "tree": "sha256:8d6d281849c0d6f0dfb23a03e2fca6275f81868123a32ac6c2d29b8666d166a9",
+      "recorded_at": "2026-11-03T12:25:33.962Z",
+      "tests": 31
+    },
+    {
+      "id": "run-29",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7aac04b26e2969be664a81ddc5fa0778bb14d223ed67e73d28e2567f3c263aa9",
+      "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+      "recorded_at": "2026-11-03T12:34:13.113Z"
+    },
+    {
+      "id": "run-30",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4430cf8ce0fc0db6645492bf5ee1b2036e6f389c9ba99181fc6f80a9bb87c105",
+      "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+      "recorded_at": "2026-11-03T12:34:13.113Z",
+      "tests": 48
+    },
+    {
+      "id": "run-31",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0d550eb3831896332d8d71c92351575127a0c14c14f8444c743abb981f91ccbb",
+      "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+      "recorded_at": "2026-11-03T12:34:13.113Z",
+      "tests": 82
+    },
+    {
+      "id": "run-32",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+      "recorded_at": "2026-11-03T12:34:13.113Z"
+    },
+    {
+      "id": "run-33",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:808d2f5b7a3a202bdd8200fa275a566082e6df3ec1661ac04bef4761eba9c84a",
+      "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+      "recorded_at": "2026-11-03T12:34:13.113Z",
+      "tests": 22
+    },
+    {
+      "id": "run-34",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4cc93b5d082f2ac2f46e6c4d0744a4cc28e019e373f1b45824f7554328960e55",
+      "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+      "recorded_at": "2026-11-03T12:34:13.113Z",
+      "tests": 52
+    },
+    {
+      "id": "run-35",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:82e5bc630c6e2d99ae9b676bfd834c7a588f6aa5782bfebae96f74c1ab2756f8",
+      "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+      "recorded_at": "2026-11-03T12:34:13.113Z",
+      "tests": 82
+    },
+    {
+      "id": "run-36",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:52b8f37ecc545fbaacf2226584e3e1cebdb4549501ffdec4228699cc7147e987",
+      "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+      "recorded_at": "2026-11-03T12:34:13.113Z",
+      "tests": 48
+    },
+    {
+      "id": "run-37",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7c8b6677c450721318c7371a69b5df0825725d758eaec8daf857397cd30d37e5",
+      "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+      "recorded_at": "2026-11-03T12:34:13.113Z",
+      "tests": 55
+    },
+    {
+      "id": "run-38",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cea6e9d787ec4fddbc285bb042bbb3126093fcf897ac81ebe2c42fb1a471fa28",
+      "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+      "recorded_at": "2026-11-03T12:34:13.113Z",
+      "tests": 18
+    },
+    {
+      "id": "run-39",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:75ece029128820d245353f9b5fccda42d62f2330f5186f0cf946dc4804fe1655",
+      "tree": "sha256:14c391c0869bf0edcdd15e945532034a63c38f644c2f0ad44285881feafb582e",
+      "recorded_at": "2026-11-03T12:34:13.113Z",
+      "tests": 85
+    },
+    {
+      "id": "run-40",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/claude-router.test.js scripts/configure/install-claude.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9a7aa4f8d16606a60fc8ecfb366dab91ee443b60b666564f2555fca06b41d046",
+      "tree": "sha256:ced55043772ee12b553d8d02275a0af03a7ba47b4678b5229999c80f723e0333",
+      "recorded_at": "2026-11-03T12:34:22.529Z",
+      "tests": 32
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:a7ed25776b40c2c14449c79da095a69ed8767027734df5b57713deb822a563f3",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "493cf761288d8237f4481821729eed632feb0bf1",
+          "candidate_tree": "5732760cf428192c100848a28e3ab0797839bb85",
+          "paths": [
+            "README.es.md",
+            "README.md",
+            "docs/target-capabilities.md",
+            "handbook/empezar/instalacion.md",
+            "handbook/proteccion/reglas.md",
+            "openspec/specs/generator/spec.md",
+            "openspec/specs/hooks-runtime/spec.md",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "openspec/specs/install/spec.md",
+            "rules/ospec-router.instructions.md",
+            "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+            "scripts/configure/install-claude.js",
+            "scripts/configure/install-claude.test.js",
+            "scripts/configure/instruction-block.js",
+            "scripts/fixtures/context-baseline.json",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/lib/claude-router.js",
+            "scripts/lib/claude-router.test.js",
+            "scripts/lib/context-baseline.js",
+            "scripts/lib/idd-refusals.js",
+            "scripts/lib/idd-refusals.test.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/ospec-doctor.js",
+            "scripts/lib/ospec-doctor.test.js",
+            "scripts/lib/router-block.js",
+            "scripts/lib/target-profiles/claude.js",
+            "scripts/lib/target-transform.js",
+            "scripts/lib/target-transform.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js"
+          ],
+          "diff_hash": "sha256:a17c7b09c6bf52266c63f12a2e2ba74588299e4e32cd7dcecce6314ef6c29ac2",
+          "paths_digest": "sha256:9064ae196e911b763b10a951509c8ab3a5662f58ff5f7a3694fdfdb24a554c72",
+          "authored_lines": 1501,
+          "original_changed_lines": 1675
+        },
+        "candidate_id": "sha256:6eeee49eb8ec0710420b3dbd4625e9635e7ae452b08efbf1dd736f6cc99989c7",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/target-capabilities.md",
+          "handbook/empezar/instalacion.md",
+          "handbook/proteccion/reglas.md",
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/install/spec.md",
+          "rules/ospec-router.instructions.md",
+          "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+          "scripts/configure/install-claude.js",
+          "scripts/configure/install-claude.test.js",
+          "scripts/configure/instruction-block.js",
+          "scripts/fixtures/context-baseline.json",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/claude-router.js",
+          "scripts/lib/claude-router.test.js",
+          "scripts/lib/context-baseline.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/idd-refusals.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/router-block.js",
+          "scripts/lib/target-profiles/claude.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "5732760cf428192c100848a28e3ab0797839bb85",
+        "original_changed_lines": 1675,
+        "authored_lines": 1501
+      },
+      "current_candidate_id": "sha256:6eeee49eb8ec0710420b3dbd4625e9635e7ae452b08efbf1dd736f6cc99989c7",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "493cf761288d8237f4481821729eed632feb0bf1",
+        "candidate_tree": "5732760cf428192c100848a28e3ab0797839bb85",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/target-capabilities.md",
+          "handbook/empezar/instalacion.md",
+          "handbook/proteccion/reglas.md",
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/install/spec.md",
+          "rules/ospec-router.instructions.md",
+          "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+          "scripts/configure/install-claude.js",
+          "scripts/configure/install-claude.test.js",
+          "scripts/configure/instruction-block.js",
+          "scripts/fixtures/context-baseline.json",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/claude-router.js",
+          "scripts/lib/claude-router.test.js",
+          "scripts/lib/context-baseline.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/idd-refusals.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/router-block.js",
+          "scripts/lib/target-profiles/claude.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "diff_hash": "sha256:a17c7b09c6bf52266c63f12a2e2ba74588299e4e32cd7dcecce6314ef6c29ac2",
+        "paths_digest": "sha256:9064ae196e911b763b10a951509c8ab3a5662f58ff5f7a3694fdfdb24a554c72",
+        "authored_lines": 1501,
+        "original_changed_lines": 1675
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "claude-router:lens-start:1:0",
+          "result_digest": "sha256:cc01d5bb136ada30c32dffe122b507f39fb2b4595c37aa581e7ccb9886e980ab",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/lib/claude-router.js:269-279 (withoutCredentials), used by marketplaceSource at :264, is the only guard keeping credentials out of the committed .claude/settings.json (comment at :33). It strips userinfo only for http(s) URLs. A copied `url` from the user's known_marketplaces.json passes through unchanged when its protocol is not http(s) (for example `ssh://user:token@host/repo.git`) or when the secret is in the query string (for example `https://host/repo.git?access_token=...`). installProject then writes it to the repository and prints it from the CLI. The only test (claude-router.test.js:187) covers https userinfo, so these cases are unprotected. Conditional: it needs a user marketplace entry of that shape.",
+                "acceptance_criteria": "With a user known_marketplaces.json whose ospec-tools git/url source has (a) a non-http(s) URL with a password in the userinfo, or (b) an http(s) URL with a credential-bearing query parameter, `ospec router install --scope project` writes no secret to .claude/settings.json or to its output. Either the secret part is removed, or the source falls back to PUBLIC_MARKETPLACE. Tests cover both cases, and the existing https userinfo case still passes."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "claude-router:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-381f5d2c7060dc63",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/lib/claude-router.js:269-279 (withoutCredentials), used by marketplaceSource at :264, is the only guard keeping credentials out of the committed .claude/settings.json (comment at :33). It strips userinfo only for http(s) URLs. A copied `url` from the user's known_marketplaces.json passes through unchanged when its protocol is not http(s) (for example `ssh://user:token@host/repo.git`) or when the secret is in the query string (for example `https://host/repo.git?access_token=...`). installProject then writes it to the repository and prints it from the CLI. The only test (claude-router.test.js:187) covers https userinfo, so these cases are unprotected. Conditional: it needs a user marketplace entry of that shape.",
+          "acceptance_criteria": "With a user known_marketplaces.json whose ospec-tools git/url source has (a) a non-http(s) URL with a password in the userinfo, or (b) an http(s) URL with a credential-bearing query parameter, `ospec router install --scope project` writes no secret to .claude/settings.json or to its output. Either the secret part is removed, or the source falls back to PUBLIC_MARKETPLACE. Tests cover both cases, and the existing https userinfo case still passes.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:02a47eb16aad6eec0ca8dd6bde620efdb6641aaa2d8b8f9fee4a57c669dff76d",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:96e626da343739fdc33b881ced65b99e834069665583c505e1c1eed487eb154c",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:a7ed25776b40c2c14449c79da095a69ed8767027734df5b57713deb822a563f3",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "493cf761288d8237f4481821729eed632feb0bf1",
+          "candidate_tree": "6a512802adddc88477b7a722d4a1c3e188f7d32e",
+          "paths": [
+            "README.es.md",
+            "README.md",
+            "docs/target-capabilities.md",
+            "handbook/empezar/instalacion.md",
+            "handbook/proteccion/reglas.md",
+            "openspec/specs/generator/spec.md",
+            "openspec/specs/hooks-runtime/spec.md",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "openspec/specs/install/spec.md",
+            "rules/ospec-router.instructions.md",
+            "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+            "scripts/configure/install-claude.js",
+            "scripts/configure/install-claude.test.js",
+            "scripts/configure/instruction-block.js",
+            "scripts/fixtures/context-baseline.json",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/lib/claude-router.js",
+            "scripts/lib/claude-router.test.js",
+            "scripts/lib/context-baseline.js",
+            "scripts/lib/idd-refusals.js",
+            "scripts/lib/idd-refusals.test.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/ospec-doctor.js",
+            "scripts/lib/ospec-doctor.test.js",
+            "scripts/lib/router-block.js",
+            "scripts/lib/target-profiles/claude.js",
+            "scripts/lib/target-transform.js",
+            "scripts/lib/target-transform.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js"
+          ],
+          "diff_hash": "sha256:5ede66f0982ae7b8da1c480c5749cd38e697770ef4ec2ad91a4d3c417ee23b59",
+          "paths_digest": "sha256:9064ae196e911b763b10a951509c8ab3a5662f58ff5f7a3694fdfdb24a554c72",
+          "authored_lines": 1524,
+          "original_changed_lines": 1698
+        },
+        "candidate_id": "sha256:1d5fdd5b99ff5cc9b5b9f8a278e66a0b0cfe1499c301ea8f1d2c66787c1a60e7",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/target-capabilities.md",
+          "handbook/empezar/instalacion.md",
+          "handbook/proteccion/reglas.md",
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/install/spec.md",
+          "rules/ospec-router.instructions.md",
+          "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+          "scripts/configure/install-claude.js",
+          "scripts/configure/install-claude.test.js",
+          "scripts/configure/instruction-block.js",
+          "scripts/fixtures/context-baseline.json",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/claude-router.js",
+          "scripts/lib/claude-router.test.js",
+          "scripts/lib/context-baseline.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/idd-refusals.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/router-block.js",
+          "scripts/lib/target-profiles/claude.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "6a512802adddc88477b7a722d4a1c3e188f7d32e",
+        "original_changed_lines": 1698,
+        "authored_lines": 1524
+      },
+      "current_candidate_id": "sha256:1d5fdd5b99ff5cc9b5b9f8a278e66a0b0cfe1499c301ea8f1d2c66787c1a60e7",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "493cf761288d8237f4481821729eed632feb0bf1",
+        "candidate_tree": "6a512802adddc88477b7a722d4a1c3e188f7d32e",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/target-capabilities.md",
+          "handbook/empezar/instalacion.md",
+          "handbook/proteccion/reglas.md",
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/install/spec.md",
+          "rules/ospec-router.instructions.md",
+          "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+          "scripts/configure/install-claude.js",
+          "scripts/configure/install-claude.test.js",
+          "scripts/configure/instruction-block.js",
+          "scripts/fixtures/context-baseline.json",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/claude-router.js",
+          "scripts/lib/claude-router.test.js",
+          "scripts/lib/context-baseline.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/idd-refusals.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/router-block.js",
+          "scripts/lib/target-profiles/claude.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js"
+        ],
+        "diff_hash": "sha256:5ede66f0982ae7b8da1c480c5749cd38e697770ef4ec2ad91a4d3c417ee23b59",
+        "paths_digest": "sha256:9064ae196e911b763b10a951509c8ab3a5662f58ff5f7a3694fdfdb24a554c72",
+        "authored_lines": 1524,
+        "original_changed_lines": 1698
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "claude-router:lens-start:2:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "claude-router:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-11-03T12:38:33.901Z"
+}
