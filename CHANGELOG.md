@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Sustituir sdd-document por la skill handbook (dos modos como foundation): fuente en handbook/ con manifiesto handbook.json y web Starlight opcional (handbook)
+
 ## [2.168.9] - 2026-11-02
 
 ### Fixed
