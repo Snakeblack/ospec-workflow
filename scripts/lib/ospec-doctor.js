@@ -23,6 +23,7 @@ const { statusOf } = require("./idd-next.js");
 const { candidateCheckCommand, configureChecksStep } = require("./idd-checks-config.js");
 const { readPrecommitStrict } = require("./precommit-strict.js");
 const { TARGETS: ENGRAM_TARGETS, isConfigured, isUnknown, detectEngram, parseJsonc } = require("./engram-detect.js");
+const { missingEngramAllowRules } = require("./engram-claude-allow.js");
 const { binaryCandidates, hostBinarySuffix } = require("../hooks/ospec-hooks-launch.js");
 const { claudeConfigDir, status: routerStatus } = require("./claude-router.js");
 const hosts = require("./ospec-doctor-hosts.js");
@@ -382,7 +383,37 @@ function claudeRouterChecks(primary, { claudeDir, root }, add) {
     : { id: "budget", status: "ok", detail: `${bytes} B` });
 }
 
-function claudeEngramCheck({ spawn, home, env, platform, cli }, add) {
+// #475: the engram@engram hook rewrites the input of its write tools, and Claude
+// Code's auto mode can deny such a call unless an allow rule resolves it first.
+function engramAllowRulesIssue(claudeDir) {
+  const file = path.join(claudeDir, "settings.json");
+  const text = readText(file);
+  let settings = {};
+  let result;
+  if (text !== null) {
+    try {
+      settings = JSON.parse(text);
+    } catch {
+      result = { ok: false, reason: "invalid JSON" };
+    }
+  }
+  result ||= settings && typeof settings === "object" && !Array.isArray(settings)
+    ? missingEngramAllowRules(settings)
+    : { ok: false, reason: "not a JSON object" };
+  if (!result.ok) {
+    return {
+      cause: `${file} cannot be read (${result.reason}), so the Engram allow rules for auto mode cannot be checked`,
+      action: "Fix the file and run `npm run setup:claude` again.",
+    };
+  }
+  if (result.missing.length === 0) return null;
+  return {
+    cause: `${file} lacks ${result.missing.length} allow rule(s) for Engram write tools, so Claude Code's auto mode can deny memory writes (the engram hook rewrites their input)`,
+    action: "Run `npm run setup:claude` from the ospec-workflow checkout, or add the allow rules listed in the Engram section of docs/plugin-installation.md; list a tool under permissions.ask or deny to keep it reviewed.",
+  };
+}
+
+function claudeEngramCheck({ spawn, home, env, platform, cli, claudeDir }, add) {
   const detection = detectEngram({
     target: "claude",
     spawn,
@@ -414,10 +445,16 @@ function claudeEngramCheck({ spawn, home, env, platform, cli }, add) {
       cause: `Engram ${detection.binary.version || ""} is installed but Claude Code lacks: ${missing.join(", ")}`.replace("  ", " "),
       action: "Run `engram setup claude-code`.",
     });
-  } else if (detection.doctor === "warn" || detection.doctor === "error") {
-    add({ id: "engram", status: "warn", cause: `\`engram doctor\` reports ${detection.doctor}`, action: "Run `engram doctor` and follow its advice." });
   } else {
-    add({ id: "engram", status: "ok", detail: detection.binary.version || "" });
+    const issues = [
+      detection.doctor === "warn" || detection.doctor === "error"
+        ? { cause: `\`engram doctor\` reports ${detection.doctor}`, action: "Run `engram doctor` and follow its advice." }
+        : null,
+      engramAllowRulesIssue(claudeDir),
+    ].filter(Boolean);
+    add(issues.length > 0
+      ? { id: "engram", status: "warn", cause: issues.map((issue) => issue.cause).join("; "), action: issues.map((issue) => issue.action).join(" ") }
+      : { id: "engram", status: "ok", detail: detection.binary.version || "" });
   }
 }
 
@@ -859,7 +896,7 @@ async function runDoctor({
         const cli = resolveClaudeCli({ spawn: engramSpawn, env, platform });
         claudeHookChecks(claude.primary, { platform, arch, spawn, env, execPath, cli }, add);
         claudeRouterChecks(claude.primary, { claudeDir, root }, add);
-        claudeEngramCheck({ spawn: engramSpawn, home, env, platform, cli }, add);
+        claudeEngramCheck({ spawn: engramSpawn, home, env, platform, cli, claudeDir }, add);
       }
     }
   }

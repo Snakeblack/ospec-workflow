@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Con Engram configurado por ospec, las escrituras de memoria (mem_save, mem_session_summary...) se deniegan en el modo auto de Claude Code (#475): el hook PreToolUse de engram@engram reescribe la entrada con updatedInput y la revisión del clasificador queda sin veredicto. setup:claude añadirá reglas permissions.allow para las herramientas de escritura no destructivas de engram, y ospec doctor avisará si faltan. (engram-auto-mode-allow)
+
 ## [2.170.2] - 2026-11-03
 
 ### Fixed

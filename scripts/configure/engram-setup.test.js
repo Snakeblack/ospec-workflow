@@ -595,6 +595,86 @@ test("run: --no-engram does not project the Cursor rule", () => {
   assert.equal(files.store.has(path.resolve(home(".cursor", "rules", "engram-memory-protocol.mdc"))), false);
 });
 
+// --- Claude Code auto mode (#475) -----------------------------------------------
+// engram@engram's PreToolUse hook rewrites the input of every session-bound tool,
+// and auto mode can deny a rewritten call without a verdict. An allow rule
+// resolves the call before the classifier reviews it.
+
+const ENGRAM_WRITE_TOOLS = [
+  "mem_save", "mem_update", "mem_review", "mem_save_prompt", "mem_pin", "mem_unpin",
+  "mem_session_summary", "mem_session_start", "mem_session_end", "mem_capture_passive",
+  "mem_judge", "mem_compare",
+];
+const ENGRAM_ALLOW_RULES = ["mcp__engram__", "mcp__plugin_engram_engram__"]
+  .flatMap((prefix) => ENGRAM_WRITE_TOOLS.map((tool) => `${prefix}${tool}`));
+const CLAUDE_CONFIGURED = { "claude plugin list": ok("  > engram@engram\n"), "claude mcp list": ok("engram: x\n") };
+
+function autoModeRun({ settings, settingsFile = home(".claude", "settings.json"), ...options } = {}) {
+  const files = makeFs(settings === undefined ? {} : { [settingsFile]: settings });
+  const spawn = makeSpawn({ ...ENGRAM, ...CLAUDE_CONFIGURED });
+  const out = run({ spawn, hostBin: CLAUDE, fs: files, ...options });
+  const raw = files.store.get(path.resolve(settingsFile));
+  let parsed = raw;
+  try { parsed = raw === undefined ? undefined : JSON.parse(raw); } catch { /* keep the raw text */ }
+  return { ...out, files, settings: parsed };
+}
+
+test("claude auto mode: a configured Engram gets allow rules for its non-destructive write tools, once", () => {
+  const settings = JSON.stringify({
+    theme: "dark",
+    permissions: { allow: ["Bash(npm test)"], deny: ["mcp__engram__mem_pin"], defaultMode: "auto" },
+  });
+  const first = autoModeRun({ settings });
+  const allow = first.settings.permissions.allow;
+  assert.equal(allow[0], "Bash(npm test)");
+  assert.deepEqual(allow.slice(1), ENGRAM_ALLOW_RULES.filter((rule) => rule !== "mcp__engram__mem_pin"));
+  assert.ok(!allow.some((rule) => /mem_delete|mem_merge_projects/.test(rule)), "destructive tools keep the classifier");
+  assert.deepEqual(first.settings.permissions.deny, ["mcp__engram__mem_pin"]);
+  assert.equal(first.settings.permissions.defaultMode, "auto");
+  assert.equal(first.settings.theme, "dark");
+  assert.match(first.stdout, /23 regla\(s\) allow/);
+  assert.equal(first.stderr, "");
+
+  const files = makeFs({ [home(".claude", "settings.json")]: `${JSON.stringify(first.settings, null, 2)}\n` });
+  run({ spawn: makeSpawn({ ...ENGRAM, ...CLAUDE_CONFIGURED }), hostBin: CLAUDE, fs: files });
+  assert.deepEqual(files.writes, [], "a second run does not rewrite the file");
+});
+
+test("claude auto mode: server rules and tool globs the user already has count as present", () => {
+  const { settings } = autoModeRun({
+    settings: JSON.stringify({ permissions: { allow: ["mcp__engram"], ask: ["mcp__plugin_engram_engram__mem_s*"] } }),
+  });
+  assert.deepEqual(settings.permissions.allow, [
+    "mcp__engram",
+    ...ENGRAM_ALLOW_RULES.filter((rule) => rule.startsWith("mcp__plugin_engram_engram__") && !/__mem_s/.test(rule)),
+  ]);
+  assert.deepEqual(settings.permissions.ask, ["mcp__plugin_engram_engram__mem_s*"]);
+});
+
+test("claude auto mode: a missing settings.json is created under CLAUDE_CONFIG_DIR", () => {
+  const configDir = path.resolve("/cfg/claude");
+  const { settings } = autoModeRun({ settingsFile: path.join(configDir, "settings.json"), env: { CLAUDE_CONFIG_DIR: configDir } });
+  assert.deepEqual(settings, { permissions: { allow: ENGRAM_ALLOW_RULES } });
+});
+
+test("claude auto mode: an unparseable settings file or rule list is left untouched with a warning", () => {
+  for (const settings of ["{oops", JSON.stringify({ permissions: { allow: "mcp__engram" } }), JSON.stringify({ permissions: [] })]) {
+    const out = autoModeRun({ settings });
+    assert.deepEqual(out.files.writes, [], settings);
+    assert.match(out.stderr, /no se puede leer .*settings\.json .*el modo auto de Claude Code puede denegarlas/);
+  }
+});
+
+test("claude auto mode: --no-engram, an unconfigured Engram and other targets write no rules", () => {
+  assert.deepEqual(autoModeRun({ argv: ["--no-engram"] }).files.writes, []);
+  const files = makeFs();
+  run({ spawn: makeSpawn({ ...ENGRAM, ...CLAUDE_ABSENT, "engram setup claude-code": ok() }), hostBin: CLAUDE, fs: files });
+  assert.deepEqual(files.writes, [], "setup left Engram incomplete");
+  const cursor = makeFs();
+  run({ target: "cursor", spawn: makeSpawn({ ...ENGRAM }), fs: cursor });
+  assert.ok(!cursor.writes.some((file) => file.endsWith("settings.json")));
+});
+
 // --- Windows safe mode of the upstream Claude hook --------------------------------
 
 const BASH = path.resolve("/git/bin/bash.exe");
@@ -630,10 +710,10 @@ test("windows: a missing settings.json is created", () => {
 
 test("windows: slow or failing forks keep the safe mode and write nothing", () => {
   const slow = windowsRun({ settings: "{}", elapsed: 4000 });
-  assert.deepEqual(slow.settings, {});
+  assert.equal(slow.settings.env, undefined);
   assert.match(slow.stdout, /modo seguro de Windows: los fork son lentos \(4000 ms\)/);
   const failing = windowsRun({ settings: "{}", forkResult: fail(127, "jq: not found") });
-  assert.deepEqual(failing.settings, {});
+  assert.equal(failing.settings.env, undefined);
   assert.match(failing.stdout, /falló la sonda de fork/);
 });
 
@@ -643,7 +723,7 @@ test("windows: a value the user already set is never overwritten", () => {
   assert.match(set.stdout, /ya está definido; se deja igual/);
   assert.ok(!set.spawn.calls.some((call) => call.startsWith(BASH)), "no probe when the user decided");
   const fromEnv = windowsRun({ settings: "{}", env: { [SAFE_MODE_VAR]: "auto" } });
-  assert.deepEqual(fromEnv.settings, {});
+  assert.equal(fromEnv.settings.env, undefined);
 });
 
 test("windows: an unparseable settings.json is left untouched with a warning", () => {

@@ -1942,8 +1942,11 @@ The checks MUST cover at least:
   rules file and the team router both load),
   `budget` (`warn` when the router exceeds the 4 KB always-on budget of
   E0.4) and `engram` (read-only Engram detection; `info` when the binary is
-  absent, because Engram is optional). Writing the router is `ospec router`'s
-  job (REQ-install-045), never the doctor's.
+  absent, because Engram is optional; with Engram configured, `warn` when
+  `<config>/settings.json` cannot be read or lacks an allow rule of
+  REQ-install-046 for a tool the user does not list under `ask` or `deny`,
+  since auto mode can deny those memory writes). Writing the router is
+  `ospec router`'s job (REQ-install-045), never the doctor's.
 - `codex`, `cursor`, `antigravity`, `opencode` and `github-copilot`, each found
   by the `.ospec-workflow-install.json` its global installer writes (Codex
   under `CODEX_HOME` when set): `install` (`error` when the manifest is not
@@ -1957,7 +1960,8 @@ The checks MUST cover at least:
   missing, when that `AGENTS.md` still holds the pre-E0.4 orchestrator, or when
   `opencode.json` does not list `instructions/*.md`), `budget` (as for
   `claude`), `hooks` (`error` when the host's hook file is missing) and
-  `engram` (as for `claude`, with that host's `engram setup` action).
+  `engram` (as for `claude`, with that host's `engram setup` action and
+  without the allow rules, which only Claude Code's auto mode needs).
 - `vscode`, found by the `ospec-workflow` plugins named in
   `chat.pluginLocations` of the user settings of VS Code and VS Code Insiders,
   read as an array or as a `{ path: enabled }` map: `plugin-locations`

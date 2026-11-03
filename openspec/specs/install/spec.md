@@ -1255,6 +1255,24 @@ The step MUST run even when registration is skipped because Engram is already co
 - WHEN `setup:claude` runs
 - THEN the file is left unchanged and the install still succeeds
 
+### Requirement: Claude Code Auto Mode Allows The Engram Write Tools {#REQ-install-046}
+
+To bind the session, the `PreToolUse` hook of `engram@engram` rewrites the input of every tool its matcher names (`updatedInput`), and Claude Code's auto mode can deny a call whose input changed after the classifier reviewed it (#475). A `permissions.allow` rule resolves the call before that review. On every platform, once Engram is configured for Claude Code, `setup:claude` MUST merge into `permissions.allow` of `<config>/settings.json` (`<config>` is `CLAUDE_CONFIG_DIR`, else `~/.claude`) a rule for each non-destructive write tool of that matcher (`mem_save`, `mem_update`, `mem_review`, `mem_save_prompt`, `mem_pin`, `mem_unpin`, `mem_session_summary`, `mem_session_start`, `mem_session_end`, `mem_capture_passive`, `mem_judge`, `mem_compare`) under both of its prefixes, `mcp__engram__` and `mcp__plugin_engram_engram__`. `mem_delete` and `mem_merge_projects` MUST NOT get a rule, so they keep going through the classifier.
+
+A tool that a rule already covers (the tool itself, its server such as `mcp__engram`, or a tool-name glob after the server prefix such as `mcp__engram__*`) under `allow`, `ask` or `deny` MUST NOT get a rule: an `ask` or `deny` entry is the user's decision. The step MUST preserve every other setting, MUST create a missing settings file, MUST NOT rewrite the file when no rule is missing, and MUST NOT rewrite a file that is not a JSON object or whose `permissions` is not an object or whose rule lists are not arrays; those cases warn without failing the install. It MUST NOT run with `--no-engram`, when Engram is not configured, or on other targets, and `--no-engram` MUST NOT remove rules an earlier install wrote.
+
+#### Scenario: Engram configured
+
+- GIVEN Engram configured for Claude Code and a settings file with other settings, one allow rule of the user and `mcp__engram__mem_pin` under `deny`
+- WHEN `setup:claude` runs twice
+- THEN the first run appends the 23 missing rules after the user's rule and keeps everything else, and the second run does not rewrite the file
+
+#### Scenario: Unparseable settings
+
+- GIVEN a settings file that is not valid JSON, or whose `permissions.allow` is not an array
+- WHEN `setup:claude` runs
+- THEN the file is left unchanged, a warning says that auto mode can deny the Engram writes, and the install still succeeds
+
 ### Requirement: Installers Accept The Extras Package Flag {#REQ-install-032}
 
 Every target installer (`setup:claude`, `setup:vscode`, `setup:copilot`, `setup:opencode`, `setup:codex`, `setup:cursor`, `setup:antigravity`) and the repo-local `install-target` MUST accept `--with-extras` and forward it to the build (REQ-generator-021). Without the flag they MUST install the default package. Because installs prune files of the previous install that the new build no longer has, re-running an installer without the flag removes extras installed earlier.
