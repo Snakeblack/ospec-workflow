@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Un renombre puro deriva señales de contenido: readGitDiff lee el diff con --no-renames, así que el fichero movido llega como borrado más añadido completo y todo su contenido cuenta como líneas añadidas (public-contract por un `#hex` en un Markdown archivado, persistent-data por un módulo movido que ya escribe) (pure-rename-signals)
+
 ## [2.170.0] - 2026-11-03
 
 ### Added

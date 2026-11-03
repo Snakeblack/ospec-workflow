@@ -537,6 +537,82 @@ test("[E1.53] a binary file brings no lines into the diff", (t) => {
   assert.deepStrictEqual(diff.removedLines["assets/logo.png"] ?? [], []);
 });
 
+// A rename counts by both its paths, but only the lines it changes are added or
+// removed: moving a file that holds a selector or a write derives nothing by
+// content, whether the move is staged, committed or left as a deleted file and
+// an untracked copy of it, and whatever diff.renames says.
+test("a rename brings only the lines it changes, and a pure one derives no content signal", (t) => {
+  const { deriveSignals } = require("./idd-signals.js");
+  const moves = [
+    ["old/a.md", "new/a.md"],
+    ["src/store.js", "lib/store.js"],
+    ["src/keep.js", "lib/keep.js"],
+  ];
+  const repo = (configure) => {
+    const root = gitRepo(t);
+    configure?.(root);
+    write(root, "old/a.md", "# Notas\n\nNo inline `#hex` color literals are permitted.\n");
+    write(root, "src/store.js", 'localStorage.setItem("k", 1);\n');
+    write(root, "src/keep.js", "a\nb\nc\nd\ne\nf\ng\nh\n");
+    commitAll(root, "base");
+    fs.mkdirSync(path.join(root, "new"));
+    fs.mkdirSync(path.join(root, "lib"));
+    return root;
+  };
+  const moveStaged = (root) => {
+    for (const [from, to] of moves) git(root, "mv", from, to);
+    write(root, "lib/keep.js", "a\nb\nc\nd\nE\nf\ng\nh\n");
+  };
+  const signalsOf = (root, diff) =>
+    deriveSignals({ intent: { kind: "refactor" }, diff, patterns: readProjectContext(root).patterns }).signals.map((signal) => signal.id);
+  const paths = ["lib/keep.js", "lib/store.js", "new/a.md", "old/a.md", "src/keep.js", "src/store.js"];
+
+  const cases = {
+    staged: () => {
+      const root = repo();
+      moveStaged(root);
+      return { root, diff: readGitDiff(root) };
+    },
+    committed: () => {
+      const root = repo();
+      moveStaged(root);
+      commitAll(root, "move");
+      return { root, diff: readGitDiff(root, { base: "HEAD~1" }) };
+    },
+    "diff.renames false": () => {
+      const root = repo((r) => git(r, "config", "diff.renames", "false"));
+      moveStaged(root);
+      return { root, diff: readGitDiff(root) };
+    },
+  };
+  for (const [name, run] of Object.entries(cases)) {
+    const { root, diff } = run();
+    assert.deepStrictEqual(diff.paths, paths, name);
+    assert.deepStrictEqual(diff.addedLines, { "lib/keep.js": ["E"] }, name);
+    assert.deepStrictEqual(diff.removedLines, { "src/keep.js": ["e"] }, name);
+    assert.deepStrictEqual(Object.keys(diff.sources), ["lib/keep.js"], name);
+    assert.deepStrictEqual(signalsOf(root, diff), ["always"], name);
+  }
+
+  // Moved without git add: an untracked file with the content of a deleted
+  // one is its rename, one file each; an edited one still counts whole.
+  const root = repo();
+  for (const [from, to] of moves) fs.renameSync(path.join(root, from), path.join(root, to));
+  write(root, "lib/keep.js", "a\nb\nc\nd\nE\nf\ng\nh\n");
+  let diff = readGitDiff(root);
+  assert.deepStrictEqual(diff.paths, paths);
+  assert.deepStrictEqual(diff.addedLines, { "lib/keep.js": ["a", "b", "c", "d", "E", "f", "g", "h"] });
+  assert.deepStrictEqual(diff.removedLines, { "src/keep.js": ["a", "b", "c", "d", "e", "f", "g", "h"] });
+  assert.deepStrictEqual(Object.keys(diff.sources), ["lib/keep.js"]);
+  assert.deepStrictEqual(signalsOf(root, diff), ["always"]);
+
+  write(root, "copy/a.md", fs.readFileSync(path.join(root, "new/a.md")));
+  diff = readGitDiff(root);
+  const copies = ["copy/a.md", "new/a.md"].filter((file) => file in diff.addedLines);
+  assert.strictEqual(copies.length, 1, "one deleted file pairs with one untracked file");
+  assert.deepStrictEqual(signalsOf(root, diff), ["always", "public-contract"]);
+});
+
 // E1.48 base-counterproof: the worktree a counterproof runs on.
 
 test("[E1.48] the counterproof takes the tests of the diff and their test data, nothing else", () => {
