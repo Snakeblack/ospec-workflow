@@ -1573,7 +1573,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 
 - **E5.1 — `target-capability-matrix`:** matriz honesta de capacidades por target (7), revalidada con la documentación oficial; absorbe [`targets/`](targets/).
 - **E5.2 — paquetes de conocimiento bajo demanda:** consulta curada de fuentes externas (incluido el catálogo CNCF) con fuentes y vigencia (antes R2.3/R2.6).
-- **E5.3 — documentación y wiki:** `sdd-document` y la web Starlight consumen el mapa de conocimiento y los ADR (antes R2.7). Regenera `openwiki/`, que aún describe la dirección del kernel.
+- **E5.3 — documentación y wiki:** la skill `handbook` (que sustituyó a `sdd-document` el 2026-11-03) y la web Starlight consumen el mapa de conocimiento y los ADR (antes R2.7).
 - **E5.4 — federación y workspace:** evolución de R4 cuando haya un caso real multi-repositorio.
 - **E5.5 — `change-program`:** objetivos grandes gestionados como programa, con cambios hijos y un cursor que retoma el siguiente. Insumo: [proporcionalidad y Change Program](archive/2026-10-03-arquitectura/research/proportional-process-and-change-program.md).
 - **E5.6 — deuda diferida H1–H7:** remediación del backlog de archive y runtime al terminar el roadmap (decisión del usuario del 2026-10-02).

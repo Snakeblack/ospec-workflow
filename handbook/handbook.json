@@ -1,0 +1,14 @@
+{
+  "language": "es",
+  "web": true,
+  "groups": [
+    { "directory": "empezar", "label": "Empezar", "audience": "Usuarios" },
+    { "directory": "idd", "label": "Cómo funciona IDD", "audience": "Usuarios" },
+    { "directory": "proteccion", "label": "Protección", "audience": "Usuarios" },
+    { "directory": "agentes", "label": "Agentes, skills y modelos", "audience": "Usuarios" },
+    { "directory": "sdd", "label": "Modo SDD (opcional)", "audience": "Usuarios de SDD" },
+    { "directory": "interno", "label": "Cómo está hecho", "audience": "Contribuidores" },
+    { "directory": "historia", "label": "Historia", "audience": "Contribuidores" },
+    { "directory": "legal", "label": "Licencia", "audience": "Todos" }
+  ]
+}

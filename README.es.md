@@ -55,6 +55,8 @@ El agente construye el cambio mínimo que cumple la aceptación y elige los test
 
 Un proyecto nuevo, o una petición para definir la arquitectura de un sistema, empieza con la skill `foundation` en cualquier modo. En IDD, mientras el proyecto no tiene código fuente ni nada bajo `docs/product/` o `docs/architecture/`, `ospec next` y `record intent` la sugieren antes de construir el primer cambio, sin bloquear. Pregunta en rondas de cuatro preguntas como máximo, cada una con una respuesta recomendada, y trabaja como un arquitecto: atributos de calidad como escenarios medibles, la estructura más simple que los cumple (servicios solo por un motivo con nombre) y decisiones aplazadas hasta su último momento responsable. Registra los documentos de producto, un ADR por decisión estructural en `docs/architecture/decisions/` y, con tu aprobación, el `idd/config.yaml` que necesita IDD (checks, Strict TDD, rutas de impacto, documentos de contrato). Un cambio posterior que se aparta de un ADR se detiene en `adr-amend-or-contradict`. Nunca escribe código de aplicación.
 
+La documentación del repositorio sale de la skill `handbook`, también en cualquier modo. Escribe `handbook/`: una guía rápida y una carpeta por grupo de páginas, ordenadas por el manifiesto `handbook/handbook.json` (la etiqueta y el público de cada grupo). Si lo pides, construye también la web Starlight de `web-doc/` a partir de ella. La primera vez pregunta el idioma y si quieres la web; las siguientes actualizan solo las páginas cuyo código cambió.
+
 ---
 
 ## IDD frente a gentle-ai: bench
@@ -264,10 +266,9 @@ SDD es un **modo opcional**. IDD es el flujo por defecto y no usa sus fases ni s
 | `/sdd-apply` | Implementa tareas en tandas revisables. |
 | `/sdd-verify` | Comprueba specs, diseño, tareas y evidencia de tests. |
 | `/sdd-archive` | Consolida y archiva un cambio verificado. |
-| `/sdd-document` | Genera páginas de wiki con la arquitectura, las especificaciones y el estado del repositorio. |
 | `/sdd-onboard` | Guía un ciclo SDD real sobre el repositorio actual. |
 
-En SDD, la ruta `foundation` delega en el agente `foundation` cuando el proyecto está vacío. Los agentes de fase no deben invocarse como un equipo descoordinado: el orquestador conserva el orden y los contratos.
+En SDD, la ruta `foundation` delega en el agente `foundation` cuando el proyecto está vacío, y una petición de documentar el repositorio delega en el agente `handbook` (no tiene comando). Los agentes de fase no deben invocarse como un equipo descoordinado: el orquestador conserva el orden y los contratos.
 
 ### Flujos SDD
 
