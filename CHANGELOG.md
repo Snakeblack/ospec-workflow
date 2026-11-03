@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.170.2] - 2026-11-03
+
 ### Fixed
-- Una doc que solo cita una ruta o un selector existente (POST /api/…, `#hex`) deriva public-contract por contenido con source diff, y no hay salida honrada: record retract la rechaza con signal-confirmed-by-diff y la retirada con la respuesta del usuario de #416 solo cubre persistent-data (#423, E1.58) (contract-content-retract)
+- **Una doc que solo cita un contrato existente ya tiene salida** (contract-content-retract, #423). Una línea de documentación con una ruta o un selector que ya existen (`POST /api/contact/`, `` `#hex` ``) derivaba `public-contract` por contenido, y `record retract` la rechazaba con `signal-confirmed-by-diff`: la retirada con la respuesta del usuario de #416 solo cubría `persistent-data`, así que había que reescribir el texto o tocar un contrato ajeno.
+  - **La respuesta del usuario retira `public-contract`** cuando solo la deriva el contenido de la documentación: `ospec record retract --signal public-contract --reason … --answer "<sus palabras>" --source user`. El rechazo de la retirada sin respuesta dice cómo darla.
+  - **La respuesta queda atada a las líneas que vio**, cada una como `<fichero> adds <API|selector>: <línea>`, igual que las escrituras de `persistent-data`. Una línea de contrato nueva o cambiada, o una ruta que deriva la señal, la devuelve.
+  - **Un documento de contrato no admite la respuesta.** Una línea en `contracts.documents` o en sus patrones base (`docs/api/**`, OpenAPI y demás) es el contrato mismo, así que la retirada se rechaza con `retract-answer-refused` nombrando el documento, y la obligación se cumple con la doc y un test.
+
+Hecho con IDD (`idd/archive/2026-11-03-contract-content-retract/`), E1.58 del roadmap. REQ-idd-006 recoge la regla y un escenario. Un `state.yaml` anterior sigue valiendo sin migrar; una versión anterior no valida un cambio abierto que ya tenga una retirada de `public-contract` con respuesta.
+
+**Verificación directa**: `node scripts/check.js` (4385 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
 
 ## [2.170.1] - 2026-11-03
 
