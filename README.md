@@ -74,7 +74,7 @@ Full tables, models, personas, who wins and why: [docs/benchs/bench-idd-vs-gentl
 ## Quick Start in 3 Steps
 
 ### 1. Nothing to copy: the installer adds a small router
-Every installer adds a small router to the instructions your host loads on every request ([`rules/ospec-router.instructions.md`](rules/ospec-router.instructions.md)). It sends code changes through IDD by default, keeps questions and read-only work direct, keeps IDD inside a project (a git work tree whose top level is neither `$HOME` nor `/`, so a system fix elsewhere is done directly and a new project first gets `git init -b main`), and enters SDD **only** when you run a `/sdd-*` command or ask for spec-driven work. Claude Code and Codex get it as a marked block in `~/.claude/CLAUDE.md` and `AGENTS.md`, next to your own text; pass `--no-router` to leave it out or remove it.
+Every installer adds a small router to the instructions your host loads on every request ([`rules/ospec-router.instructions.md`](rules/ospec-router.instructions.md)). It sends code changes through IDD by default, keeps questions and read-only work direct, keeps IDD inside a project (a git work tree whose top level is neither `$HOME` nor `/`, so a system fix elsewhere is done directly and a new project first gets `git init -b main`), and enters SDD **only** when you run a `/sdd-*` command or ask for spec-driven work. Claude Code gets it as a file of its own, `~/.claude/rules/ospec-workflow.md`, and Codex as a marked block in `AGENTS.md`, next to your own text; pass `--no-router` to leave it out or remove it. The Claude Code marketplace runs no installer, so there `! ospec router install` writes it ([Claude Code](#-claude-code-persistent-plugin-and-marketplace)).
 
 ### 2. Install the Plugin in Your Tool
 Choose your target and run its automatic configurator:
@@ -130,6 +130,7 @@ It builds `dist/vscode` and adds it to `chat.pluginLocations`. To update after p
   claude plugin install ospec-workflow@ospec-tools
   ```
   The marketplace build is the default one: IDD without the SDD package. For SDD, install from a checkout with `npm run setup:claude -- --with-sdd`.
+- **The router** (the always-on instructions that make IDD the default flow): the marketplace runs no installer, so every session start shows a notice until you type `! ospec router install` in Claude Code. It writes `~/.claude/rules/ospec-workflow.md` (`CLAUDE_CONFIG_DIR` moves it), and later plugin updates refresh it at session start unless you edited it. `! ospec router off` takes it out and stops the notice, `! ospec router remove` takes it out before `claude plugin uninstall`, and `! ospec router status` shows where it stands. For a team, `ospec router install --scope project` writes `.claude/rules/ospec-workflow.md` and declares the marketplace and the plugin in `.claude/settings.json`: commit both; each teammate still installs the plugin. `npm run setup:claude` writes the router itself and moves the block of `~/.claude/CLAUDE.md` that earlier releases wrote.
 - **For plugin development** (idempotent local installation):
   ```powershell
   npm run setup:claude

@@ -106,7 +106,7 @@ test("an ospec install failure still exits 1 and skips the Engram step", () => {
   assert.equal(called, false);
 });
 
-// --- E0.4: the router goes to ~/.claude/CLAUDE.md as a marked block ---------
+// --- E0.4 / claude-router: the router goes to ~/.claude/rules/ospec-workflow.md
 
 const fs = require("node:fs");
 const os = require("node:os");
@@ -122,37 +122,64 @@ function routerFixture(t) {
   fs.writeFileSync(path.join(pluginDir, "global-instructions", "CLAUDE.md"), "# ospec-workflow\n\nrouter\n");
   fs.mkdirSync(path.join(home, ".claude"), { recursive: true });
   const claudeMd = path.join(home, ".claude", "CLAUDE.md");
+  const rules = path.join(home, ".claude", "rules", "ospec-workflow.md");
+  const state = path.join(home, ".claude", "plugins", "data", "ospec-workflow-ospec-tools", "router.json");
   fs.writeFileSync(claudeMd, "# Mine\n");
   const deps = (overrides = {}) => baseDeps({
     homedir: () => home,
     buildClaudeMarketplace: () => ({ outDir: "/out", pluginDir, exitCode: 0, validation: null }),
     ...overrides,
   });
-  return { claudeMd, deps };
+  return { root, claudeMd, rules, state, deps };
 }
 
-test("setup:claude writes the built router as a block in ~/.claude/CLAUDE.md and keeps the user's text", (t) => {
-  const { claudeMd, deps } = routerFixture(t);
-  const block = `${BEGIN}\n# ospec-workflow\n\nrouter\n${END}\n`;
+test("setup:claude writes the built router to ~/.claude/rules and moves an old block out of CLAUDE.md", (t) => {
+  const { claudeMd, rules, state, deps } = routerFixture(t);
+  fs.writeFileSync(claudeMd, `# Mine\n\n${BEGIN}\n# old router\n${END}\n`);
+  const stdout = writer();
+  assert.equal(main([], deps({ stdout })), 0);
+  assert.equal(fs.readFileSync(rules, "utf8"), "# ospec-workflow\n\nrouter\n");
+  assert.equal(fs.readFileSync(claudeMd, "utf8"), "# Mine\n", "the old block goes, the user's text stays");
+  assert.match(stdout.value, /movido desde/);
   assert.equal(main([], deps()), 0);
-  assert.equal(fs.readFileSync(claudeMd, "utf8"), `# Mine\n\n${block}`);
-  assert.equal(main([], deps()), 0);
-  assert.equal(fs.readFileSync(claudeMd, "utf8"), `# Mine\n\n${block}`, "a reinstall replaces only the block");
+  assert.equal(fs.readFileSync(rules, "utf8"), "# ospec-workflow\n\nrouter\n", "a reinstall rewrites nothing else");
   assert.equal(main(["--no-router"], deps()), 0);
-  assert.equal(fs.readFileSync(claudeMd, "utf8"), "# Mine\n", "--no-router takes the block out");
+  assert.equal(fs.existsSync(rules), false, "--no-router takes the router out");
+  assert.equal(JSON.parse(fs.readFileSync(state, "utf8")).declined, true, "and records the no that silences the notice");
+  assert.equal(fs.readFileSync(claudeMd, "utf8"), "# Mine\n");
 });
 
-test("--build-only and a missing claude CLI leave ~/.claude/CLAUDE.md alone", (t) => {
-  const { claudeMd, deps } = routerFixture(t);
+test("setup:claude reports a router edited by hand and still installs", (t) => {
+  const { rules, deps } = routerFixture(t);
+  fs.mkdirSync(path.dirname(rules), { recursive: true });
+  fs.writeFileSync(rules, "# my router\n");
+  const stderr = writer();
+  assert.equal(main([], deps({ stderr })), 0);
+  assert.equal(fs.readFileSync(rules, "utf8"), "# my router\n");
+  assert.match(stderr.value, /router-modified|edited by hand/);
+  assert.match(stderr.value, /--force/);
+});
+
+test("setup:claude writes the router where CLAUDE_CONFIG_DIR points", (t) => {
+  const { root, rules, deps } = routerFixture(t);
+  const custom = path.join(root, "custom");
+  assert.equal(main([], deps({ env: { CLAUDE_CONFIG_DIR: custom } })), 0);
+  assert.ok(fs.existsSync(path.join(custom, "rules", "ospec-workflow.md")));
+  assert.equal(fs.existsSync(rules), false);
+});
+
+test("--build-only and a missing claude CLI leave the router alone", (t) => {
+  const { claudeMd, rules, deps } = routerFixture(t);
   assert.equal(main(["--build-only"], deps()), 0);
   assert.equal(main([], deps({ resolveClaudeBin: () => null })), 0);
   assert.equal(fs.readFileSync(claudeMd, "utf8"), "# Mine\n");
+  assert.equal(fs.existsSync(rules), false);
 });
 
 // --- E1.24: --dry-run simulates, it never installs ---------------------------
 
 test("--dry-run builds in a temporary directory and registers, installs and writes nothing", (t) => {
-  const { claudeMd, deps } = routerFixture(t);
+  const { claudeMd, rules, deps } = routerFixture(t);
   const stdout = writer();
   const calls = [];
   let engram = false;
@@ -171,7 +198,8 @@ test("--dry-run builds in a temporary directory and registers, installs and writ
   }));
   assert.equal(exitCode, 0);
   assert.deepEqual(calls, [], "the claude CLI is not touched");
-  assert.equal(fs.readFileSync(claudeMd, "utf8"), "# Mine\n", "the router block is not written");
+  assert.equal(fs.readFileSync(claudeMd, "utf8"), "# Mine\n");
+  assert.equal(fs.existsSync(rules), false, "the router is not written");
   assert.equal(engram, false, "the Engram step is skipped");
   assert.equal(copied, false);
   assert.ok(path.isAbsolute(buildOut) && path.relative(os.tmpdir(), buildOut).startsWith("ospec-claude-dry-run-"), `built under the OS temp dir, got ${buildOut}`);

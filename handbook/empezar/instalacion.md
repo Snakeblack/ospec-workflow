@@ -20,6 +20,23 @@ claude plugin install ospec-workflow@ospec-tools
 
 Esta build trae IDD sin el paquete SDD. Para SDD, instala desde una copia del repositorio (siguiente apartado) con `--with-sdd`.
 
+El marketplace no ejecuta ningún instalador, así que falta el router: las instrucciones que hacen de IDD el flujo por defecto. Hasta que lo instales, cada sesión nueva arranca con un aviso. Escribe esto en Claude Code:
+
+```text
+! ospec router install
+```
+
+Queda en `~/.claude/rules/ospec-workflow.md` (o bajo `CLAUDE_CONFIG_DIR`, si lo usas) y se carga al arrancar la siguiente sesión o tras `/clear`. Cuando actualices el plugin, el router se refresca solo al arrancar la sesión, salvo que lo hayas editado a mano.
+
+| Orden | Qué hace |
+| --- | --- |
+| `ospec router status` | Dice si hay router, de qué versión y si lo editaste. |
+| `ospec router off` | Lo quita y calla el aviso. |
+| `ospec router remove` | Lo quita y olvida el «no»; úsalo antes de `claude plugin uninstall`. |
+| `ospec router install --scope project` | Escribe el router del equipo en `.claude/rules/ospec-workflow.md` y declara el marketplace y el plugin en `.claude/settings.json`. Commitea ambos; cada compañero sigue instalando el plugin. |
+
+Si editaste el router, `install`, `off` y `remove` se niegan a tocarlo; `--force` lo permite.
+
 ---
 
 ## Cualquier herramienta, desde una copia del repositorio
@@ -51,7 +68,7 @@ Volver a ejecutar un instalador es seguro: deja el mismo resultado y quita lo qu
 | --- | --- |
 | `--with-sdd` | Añade el modo SDD: el orquestador, los agentes `sdd-*` y los comandos `/sdd-*`. Una reinstalación sin la opción lo conserva y lo avisa; `--no-sdd` lo quita. |
 | `--with-extras` | Añade skills de nicho (`issue-creation`, `comment-writer`, `gh-release-notes`, `judgment-day`, `caveman-compress`, `stack-webmcp`). |
-| `--no-router` | No instala el router, o lo quita. Sin router, IDD solo entra si lo invocas. |
+| `--no-router` | No instala el router, o lo quita. Sin router, IDD solo entra si lo invocas. En Claude Code equivale a `ospec router off`. |
 | `--no-engram` | No configura la memoria entre sesiones de [Engram](https://github.com/Gentleman-Programming/engram), que se configura sola si el binario `engram` está en el `PATH`. |
 
 Con npm, las opciones van detrás de `--`: `npm run setup:claude -- --with-sdd`.
@@ -74,7 +91,7 @@ flowchart LR
     e5@{ animate: true }
 ```
 
-- **El router.** Unas instrucciones cortas que tu herramienta carga en cada petición. En Claude Code y Codex es un bloque con marcadores dentro de `~/.claude/CLAUDE.md` o `AGENTS.md`, junto a tu propio texto.
+- **El router.** Unas instrucciones cortas que tu herramienta carga en cada petición. En Claude Code es el fichero `~/.claude/rules/ospec-workflow.md`; en Codex, un bloque con marcadores dentro de `AGENTS.md`, junto a tu propio texto.
 - **Las skills.** `idd` lleva cada cambio; `foundation` fija la arquitectura de un proyecto nuevo. Además hay skills de diseño, de entrega y de stacks.
 - **Los revisores.** Agentes de solo lectura que aportan evidencia, como la revisión de seguridad.
 - **El CLI `ospec`.** Viaja con la instalación y el agente lo ejecuta por su ruta instalada. No tienes que añadirlo a tu proyecto ni ejecutarlo tú.

@@ -1,58 +1,14 @@
 "use strict";
 
 // Router block (roadmap E0.4). The always-on router lands in files the user
-// also owns (~/.codex/AGENTS.md, a repository's AGENTS.md, ~/.claude/CLAUDE.md),
-// so ospec writes it between markers: a reinstall replaces only that block and
-// a removal leaves the user's text as it was.
+// also owns (~/.codex/AGENTS.md, a repository's AGENTS.md), so ospec writes it
+// between markers: a reinstall replaces only that block and a removal leaves
+// the user's text as it was. The markers and the pure edits live in
+// scripts/lib/router-block.js; this module adds the file operations.
 
 const fs = require("node:fs");
 const path = require("node:path");
-
-const BEGIN = "<!-- ospec-workflow:router:begin -->";
-const END = "<!-- ospec-workflow:router:end -->";
-// Before E0.4, setup:codex copied the whole orchestrator over AGENTS.md.
-const LEGACY_HEADING = /^# SDD Orchestrator$/m;
-
-function findBlock(text) {
-  const start = text.indexOf(BEGIN);
-  if (start === -1) return null;
-  const end = text.indexOf(END, start);
-  if (end === -1) {
-    throw new Error(`the ospec router block has "${BEGIN}" but no end marker; fix the file by hand`);
-  }
-  return { start, end: end + END.length };
-}
-
-function renderBlock(body) {
-  return `${BEGIN}\n${String(body).trim()}\n${END}\n`;
-}
-
-function upsertBlock(existing, body) {
-  const text = String(existing ?? "");
-  const block = renderBlock(body);
-  const found = findBlock(text);
-  if (found) {
-    return text.slice(0, found.start) + block + text.slice(found.end).replace(/^\r?\n/, "");
-  }
-  if (text.trim() === "") return block;
-  return text.replace(/\s*$/, "\n\n") + block;
-}
-
-function removeBlock(existing) {
-  const text = String(existing ?? "");
-  const found = findBlock(text);
-  if (!found) return text;
-  const before = text.slice(0, found.start).replace(/\s*$/, "");
-  const after = text.slice(found.end).replace(/^\s*/, "");
-  if (!before) return after;
-  if (!after) return `${before}\n`;
-  return `${before}\n\n${after}`;
-}
-
-function isLegacyOrchestratorFile(text) {
-  const content = String(text ?? "");
-  return !content.includes(BEGIN) && LEGACY_HEADING.test(content);
-}
+const { BEGIN, END, isLegacyOrchestratorFile, removeBlock, upsertBlock } = require("../lib/router-block.js");
 
 function readIfExists(filePath, fsImpl) {
   return fsImpl.existsSync(filePath) ? fsImpl.readFileSync(filePath, "utf8") : "";

@@ -13,7 +13,7 @@
 //   node scripts/configure/install-claude.js --no-engram   # skip the automatic Engram session-memory step
 //   node scripts/configure/install-claude.js --with-extras # also install the optional extras package
 //   node scripts/configure/install-claude.js --with-sdd    # also install the SDD mode (kept on reinstall; --no-sdd removes it)
-//   node scripts/configure/install-claude.js --no-router   # leave ~/.claude/CLAUDE.md without the ospec router
+//   node scripts/configure/install-claude.js --no-router   # take the ospec router out and stop its SessionStart notice
 //   node scripts/configure/install-claude.js --verbose     # also print the build detail and the claude CLI output
 //
 // Why a wrapper: the README dance was five manual commands (build, two validate
@@ -28,7 +28,7 @@ const { spawnSync } = require("node:child_process");
 const { buildClaudeMarketplace } = require("./claude-marketplace.js");
 const { copyBinaryToTree } = require("./install-target.js");
 const { ENGRAM_PHASE, runEngramStep } = require("./engram-setup.js");
-const { removeRouterBlock, writeRouterBlock } = require("./instruction-block.js");
+const { RouterError, claudeConfigDir, install: installRouter, off: routerOff } = require("../lib/claude-router.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
 const { PHASE_BUILD, createReporter, packagesRow, reportBuildFailure, reportModels, splitVerbose } = require("./install-output.js");
 const { prepareUserModels } = require("../lib/user-models.js");
@@ -97,17 +97,25 @@ function listOutput(bin, args) {
 }
 
 // E0.4: a plugin cannot carry always-on text, so the router built into the
-// plugin tree goes to ~/.claude/CLAUDE.md as a marked block. `--no-router`
-// takes out a block an earlier install wrote.
-function syncRouter(pluginDir, argv, homedir) {
-  const claudeMd = path.join(homedir(), ".claude", "CLAUDE.md");
-  if (argv.includes("--no-router")) {
-    return removeRouterBlock(claudeMd) ? `quitado de ${claudeMd}` : "";
+// plugin tree goes to <config>/rules/ospec-workflow.md (claude-router.js),
+// moving a block an earlier install wrote in CLAUDE.md. `--no-router` takes it
+// out and records the "no", as `ospec router off` does. A router the user
+// edited is reported, never overwritten: the install itself goes on.
+function syncRouter(pluginDir, argv, { homedir, env, stderr }) {
+  const configDir = claudeConfigDir({ env, homedir });
+  try {
+    if (argv.includes("--no-router")) {
+      const { removed } = routerOff({ pluginRoot: pluginDir, configDir });
+      return removed.length ? `quitado de ${removed.join(" y ")}; sin aviso al arrancar` : "desactivado; sin aviso al arrancar";
+    }
+    if (!fs.existsSync(path.join(pluginDir, "global-instructions", "CLAUDE.md"))) return "";
+    const result = installRouter({ pluginRoot: pluginDir, configDir });
+    return result.migrated ? `${result.path} (movido desde ${result.migrated})` : result.path;
+  } catch (error) {
+    if (!(error instanceof RouterError)) throw error;
+    stderr.write(`aviso: no se ha tocado el router: ${error.message}. ${error.how}\n`);
+    return "";
   }
-  const source = path.join(pluginDir, "global-instructions", "CLAUDE.md");
-  if (!fs.existsSync(source)) return "";
-  writeRouterBlock(claudeMd, fs.readFileSync(source, "utf8"));
-  return `${claudeMd} (entre los marcadores ospec-workflow:router)`;
 }
 
 function main(rawArgv = process.argv.slice(2), deps = {}) {
@@ -187,7 +195,7 @@ function main(rawArgv = process.argv.slice(2), deps = {}) {
     reporter.set("Paquetes", packagesRow({ withSdd: sddArgs.withSdd, withExtras: argv.includes("--with-extras") }, withSdd));
 
     if (dryRun) {
-      reporter.set("Modo", "simulación (--dry-run): build validada en un directorio temporal; no se ha registrado el marketplace ni el plugin ni se ha tocado ~/.claude/CLAUDE.md");
+      reporter.set("Modo", "simulación (--dry-run): build validada en un directorio temporal; no se ha registrado el marketplace ni el plugin ni se ha tocado el router");
       return 0;
     }
 
@@ -241,7 +249,12 @@ function main(rawArgv = process.argv.slice(2), deps = {}) {
       reporter.set("Plugin", pluginId);
 
       reporter.begin(PHASE_ROUTER);
-      const router = syncRouter(build.pluginDir, argv, deps.homedir || os.homedir);
+      // An injected home comes with its own environment, as for the models above.
+      const router = syncRouter(build.pluginDir, argv, {
+        homedir: deps.homedir || os.homedir,
+        env: deps.homedir ? deps.env || {} : process.env,
+        stderr,
+      });
       if (router) reporter.set("Router", router);
       engram();
 

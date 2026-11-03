@@ -74,7 +74,7 @@ Tablas completas, modelos, personas, quién gana y por qué: [docs/benchs/bench-
 ## Inicio Rápido en 3 Pasos
 
 ### 1. Nada que copiar: el instalador añade un router pequeño
-Cada instalador añade un router pequeño a las instrucciones que tu host carga en cada petición ([`rules/ospec-router.instructions.md`](rules/ospec-router.instructions.md)). Manda los cambios de código a IDD por defecto, deja directas las preguntas y el trabajo de solo lectura, y entra en SDD **solo** cuando ejecutas un comando `/sdd-*` o pides trabajo guiado por especificación. Claude Code y Codex lo reciben como un bloque con marcadores en `~/.claude/CLAUDE.md` y `AGENTS.md`, junto a tu propio texto; usa `--no-router` para no instalarlo o quitarlo.
+Cada instalador añade un router pequeño a las instrucciones que tu host carga en cada petición ([`rules/ospec-router.instructions.md`](rules/ospec-router.instructions.md)). Manda los cambios de código a IDD por defecto, deja directas las preguntas y el trabajo de solo lectura, y entra en SDD **solo** cuando ejecutas un comando `/sdd-*` o pides trabajo guiado por especificación. Claude Code lo recibe como un fichero propio, `~/.claude/rules/ospec-workflow.md`, y Codex como un bloque con marcadores en `AGENTS.md`, junto a tu propio texto; usa `--no-router` para no instalarlo o quitarlo. El marketplace de Claude Code no ejecuta ningún instalador, así que allí lo escribe `! ospec router install` ([Claude Code](#-claude-code-plugin-persistente-y-marketplace)).
 
 ### 2. Instalar el Plugin en tu Herramienta
 Elige tu target y ejecuta su configurador automático:
@@ -130,6 +130,7 @@ Compila `dist/vscode` y lo añade a `chat.pluginLocations`. Para actualizar tras
   claude plugin install ospec-workflow@ospec-tools
   ```
   La build del marketplace es la de por defecto: IDD sin el paquete SDD. Para SDD, instala desde un checkout con `npm run setup:claude -- --with-sdd`.
+- **El router** (las instrucciones *always-on* que hacen de IDD el flujo por defecto): el marketplace no ejecuta ningún instalador, así que cada arranque de sesión muestra un aviso hasta que escribes `! ospec router install` en Claude Code. Escribe `~/.claude/rules/ospec-workflow.md` (`CLAUDE_CONFIG_DIR` lo mueve), y las actualizaciones del plugin lo refrescan al arrancar la sesión salvo que lo hayas editado. `! ospec router off` lo quita y calla el aviso, `! ospec router remove` lo quita antes de `claude plugin uninstall` y `! ospec router status` dice cómo está. Para un equipo, `ospec router install --scope project` escribe `.claude/rules/ospec-workflow.md` y declara el marketplace y el plugin en `.claude/settings.json`: commitea ambos; cada compañero sigue instalando el plugin. `npm run setup:claude` escribe el router por sí mismo y mueve el bloque de `~/.claude/CLAUDE.md` que escribían las versiones anteriores.
 - **Para desarrollo del plugin** (instalación idempotente local):
   ```powershell
   npm run setup:claude

@@ -58,7 +58,8 @@ Una regla escrita se puede incumplir. Por eso lo importante no descansa en ellas
 
 El generador traduce cada regla al formato de la herramienta:
 
-- **Claude Code y Codex:** el router va como bloque con marcadores en `~/.claude/CLAUDE.md` o `AGENTS.md`, junto a tu propio texto.
+- **Claude Code:** el router va en su propio fichero, `~/.claude/rules/ospec-workflow.md`, que `ospec router install` escribe y las actualizaciones del plugin refrescan.
+- **Codex:** el router va como bloque con marcadores en `AGENTS.md`, junto a tu propio texto.
 - **Cursor:** reglas `.mdc` con `alwaysApply: true`.
 - **GitHub Copilot:** ficheros de instrucciones en `.github/instructions/`.
 - **El resto:** el formato nativo de instrucciones de cada herramienta.

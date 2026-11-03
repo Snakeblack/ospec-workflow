@@ -48,7 +48,7 @@ function opencodeInstructionGlobs(byPath) {
 }
 
 function isAlwaysOn(filePath, content, opencodeGlobs) {
-  // Codex's AGENTS.md; Claude's router, which setup:claude installs in ~/.claude/CLAUDE.md (E0.4).
+  // Codex's AGENTS.md; Claude's router, which setup:claude and `ospec router install` put in ~/.claude/rules/ospec-workflow.md (claude-router).
   if (filePath === "AGENTS.md" || filePath === "global-instructions/CLAUDE.md") return true;
   if (opencodeGlobs.some((glob) => glob.test(filePath))) return true;
   if (filePath.endsWith(".mdc")) return field(content, "alwaysApply")?.value === "true";
