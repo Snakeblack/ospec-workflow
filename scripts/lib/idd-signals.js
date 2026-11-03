@@ -177,6 +177,20 @@ function firstContentHit(lines, patterns) {
   return null;
 }
 
+// Each line of `file` outside a comment that one of `patterns` matches, as
+// {file, reason, key}: the key "<reason>: <line>" ties a user's answer to the
+// lines it saw (#416).
+function lineHits(file, lines, patterns, reasonOf) {
+  const hits = [];
+  for (const line of lines || []) {
+    const code = codePortion(line);
+    if (!code.trim()) continue;
+    const hit = patterns.find((entry) => entry.pattern.test(code));
+    if (hit) hits.push({ file, reason: reasonOf(hit.label), key: `${reasonOf(hit.label)}: ${line.trim()}` });
+  }
+  return hits;
+}
+
 // Persistent data by content (OSP-036): only product code outside
 // impact.exclude and the build scripts (#416) counts. A changed product file
 // derives it when its added lines write, when it already writes, or when a
@@ -189,20 +203,12 @@ function persistentHits(diff, patterns) {
   const counts = (file) => classifyPath(file) === "product" && !isExcluded(file, patterns) && !isBuildScript(file, patterns);
   const files = sortedPaths([...Object.keys(addedLines), ...Object.keys(sources)]).filter(counts);
   const hits = [];
-  const collect = (lines, reason) => {
-    for (const line of lines || []) {
-      const code = codePortion(line);
-      if (!code.trim()) continue;
-      const hit = PERSISTENCE_PATTERNS.find((entry) => entry.pattern.test(code));
-      if (hit) hits.push({ reason: reason(hit.label), key: `${reason(hit.label)}: ${line.trim()}` });
-    }
-  };
-  for (const file of files) collect(addedLines[file], (label) => `${file} adds ${label}`);
-  for (const file of files) collect(sources[file]?.lines, (label) => `${file} uses ${label}`);
+  for (const file of files) hits.push(...lineHits(file, addedLines[file], PERSISTENCE_PATTERNS, (label) => `${file} adds ${label}`));
+  for (const file of files) hits.push(...lineHits(file, sources[file]?.lines, PERSISTENCE_PATTERNS, (label) => `${file} uses ${label}`));
   for (const file of files) {
     const imports = sources[file]?.imports || {};
     for (const target of sortedPaths(Object.keys(imports)).filter(counts)) {
-      collect(imports[target], (label) => `${file} imports ${target}, which uses ${label}`);
+      hits.push(...lineHits(target, imports[target], PERSISTENCE_PATTERNS, (label) => `${file} imports ${target}, which uses ${label}`));
     }
   }
   return hits;
@@ -223,13 +229,20 @@ function userRetracted(retracted, id, hits) {
   });
 }
 
-function contractHit(addedLines) {
-  for (const file of sortedPaths(Object.keys(addedLines || {}))) {
-    if (!isDocumentation(file)) continue;
-    const label = firstContentHit(addedLines[file], CONTRACT_PATTERNS);
-    if (label) return `${file} adds ${label}`;
-  }
-  return null;
+// Public contract by content: every added line of documentation that states a
+// selector or an HTTP method plus a path, as "<file> adds <label>: <line>", so
+// a user's answer covers only the lines it saw (E1.58), as for writes (#416).
+function contractHits(addedLines) {
+  const docs = sortedPaths(Object.keys(addedLines || {})).filter(isDocumentation);
+  return docs.flatMap((file) => lineHits(file, addedLines[file], CONTRACT_PATTERNS, (label) => `${file} adds ${label}`));
+}
+
+// The content hits of a signal the user's answer may retract (#416, E1.58);
+// none for any other signal.
+function contentHits(signalId, diff, patterns) {
+  if (signalId === "persistent-data") return persistentHits(diff, patterns);
+  if (signalId === "public-contract") return contractHits(diff.addedLines);
+  return [];
 }
 
 // The lines of a Rust file inside and outside its inline test modules: from
@@ -465,8 +478,10 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
   if (persistent.length > 0 && !userRetracted(retracted, "persistent-data", persistent)) {
     add("persistent-data", `persistent data: ${persistent[0].reason}`, "diff");
   }
-  const contract = contractHit(diff.addedLines);
-  if (contract) add("public-contract", `public contract: ${contract}`, "diff");
+  const contract = contractHits(diff.addedLines);
+  if (contract.length > 0 && !userRetracted(retracted, "public-contract", contract)) {
+    add("public-contract", `public contract: ${contract[0].reason}`, "diff");
+  }
   if ((declaration.workUnits || 0) > 1) {
     add("multi-unit-or-decision", `declared ${declaration.workUnits} work units`, "declaration");
   } else if (declaration.nonObviousDecision) {
@@ -552,6 +567,8 @@ module.exports = {
   applyDerivation,
   citesOutsidePlan,
   classifyPath,
+  contentHits,
+  contractHits,
   deriveSignals,
   inlineTests,
   isTestPath,

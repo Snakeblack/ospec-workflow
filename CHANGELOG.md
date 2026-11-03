@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Una doc que solo cita una ruta o un selector existente (POST /api/…, `#hex`) deriva public-contract por contenido con source diff, y no hay salida honrada: record retract la rechaza con signal-confirmed-by-diff y la retirada con la respuesta del usuario de #416 solo cubre persistent-data (#423, E1.58) (contract-content-retract)
+
 ## [2.170.1] - 2026-11-03
 
 ### Fixed

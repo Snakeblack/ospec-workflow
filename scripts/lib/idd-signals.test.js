@@ -349,6 +349,38 @@ test("an answered retraction holds only while the diff has no content hit beyond
   assert.strictEqual(deriveSignals({ intent, diff: answered, patterns }).signals.some((s) => s.id === "persistent-data"), true, "without the retraction it derives");
 });
 
+// E1.58: the user's answer covers the contract lines of documentation it saw,
+// API and selector alike, not every later line under the same first reason.
+test("an answered contract retraction holds only while the docs add no contract line beyond the answered ones", () => {
+  const intent = { kind: "docs", summary: "s", acceptance: "a" };
+  const patterns = resolvePatterns({ impact: {} });
+  const policy = ["# Security", "Report it through `POST /api/contact/`.", "Colors come from tokens, never `#hex` literals."];
+  const diffOf = (addedLines) => ({ paths: Object.keys(addedLines), addedLines });
+  const answered = diffOf({ "SECURITY.md": policy });
+  const { contractHits } = require("./idd-signals.js");
+  const hits = contractHits(answered.addedLines).map((hit) => hit.key);
+  assert.deepStrictEqual(hits, [
+    "SECURITY.md adds API: Report it through `POST /api/contact/`.",
+    "SECURITY.md adds selector: Colors come from tokens, never `#hex` literals.",
+  ]);
+  const retracted = [{
+    id: "public-contract", reason: "r", source: "diff", retract_reason: "cited",
+    confirmed_by: "public contract: SECURITY.md adds API", hits, answer: "It is the existing form.", answer_source: "user",
+  }];
+  const contract = (diff) => deriveSignals({ intent, diff, patterns, retracted }).signals.find((s) => s.id === "public-contract");
+
+  assert.strictEqual(contract(answered), undefined, "the answered lines stay retracted");
+  assert.ok(contract(diffOf({ "SECURITY.md": [...policy, "Poll `GET /api/reports`."] })), "a new endpoint in the same doc");
+  assert.ok(contract(diffOf({ "SECURITY.md": policy, "docs/runbook.md": ["Restart it with `POST /api/restart`."] })), "a contract line in another doc");
+  assert.ok(contract(diffOf({ "SECURITY.md": [policy[0], "Report it through `POST /api/contact/v2`.", policy[2]] })), "the answered line, changed");
+  assert.ok(contract({ paths: ["SECURITY.md", "src/api/contact.js"], addedLines: { "SECURITY.md": policy } }), "a path brings it back");
+  assert.strictEqual(
+    deriveSignals({ intent, diff: answered, patterns }).signals.find((s) => s.id === "public-contract")?.reason,
+    "public contract: SECURITY.md adds API",
+    "without the retraction it derives, named after the first line",
+  );
+});
+
 test("no signal is derived while the intent is ambiguous", () => {
   const derivation = deriveSignals({
     intent: null,

@@ -1,0 +1,393 @@
+{
+  "schema": "idd-state/v1",
+  "change": "contract-content-retract",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Una doc que solo cita una ruta o un selector existente (POST /api/…, `#hex`) deriva public-contract por contenido con source diff, y no hay salida honrada: record retract la rechaza con signal-confirmed-by-diff y la retirada con la respuesta del usuario de #416 solo cubre persistent-data (#423, E1.58)",
+    "acceptance": "public-contract que solo deriva el contenido de una doc se retira con record retract --answer … --source user, atado a los hits <razón>: <línea> que vio el usuario, y contract-spec-and-test queda withdrawn; una línea de contrato añadida o cambiada después devuelve la señal; sin --answer se sigue rechazando con signal-confirmed-by-diff y su how ofrece la respuesta; si una ruta del diff ya deriva la señal, la respuesta se rechaza con retract-answer-refused; un test por caso"
+  },
+  "facts": {
+    "basis": "El ítem E1.58 del roadmap, con el alcance que fijó el usuario el 2026-10-28 (opción 1 de la auditoría OSP-040), y REQ-idd-006 con la retirada con respuesta de #416 fijan cada comportamiento: qué señal se retira, a qué hits se ata la respuesta, qué la devuelve, cuándo se rechaza y qué fuentes valen"
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-signals.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Se generaliza la retirada con respuesta de #416 a public-contract en lugar de duplicarla: contractHits devuelve todos los hits de documentación como persistentHits (<fichero> adds <etiqueta>: <línea>), deriveSignals y diffConfirmation los usan con userRetracted, y la validación del estado admite las dos señales",
+      "Una línea de contrato en un documento de contrato (contracts.documents o sus patrones base, como docs/api/** u OpenAPI) cuenta como si una ruta derivara public-contract: la respuesta del usuario se rechaza con retract-answer-refused y la obligación se cumple con la doc y un test (respuesta del usuario: «A»)"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine: ADR 0003, 0004, 0005, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "la regla vive en el CLI (contractHits, contentHits, diffConfirmation y recordRetract) con tests en idd-signals, idd-record y ospec.test.js; ninguna skill la describe en prosa, y la skill sigue remitiendo al how del CLI"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "las señales siguen saliendo del diff real; una doc que solo cita un contrato existente deja de imponer contract-spec-and-test cuando el usuario lo confirma, y un documento de contrato o una ruta la siguen imponiendo, así que la ceremonia se ajusta al impacto real"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "contract-spec-and-test solo sale de pending con evidencia o con una retirada registrada con la respuesta del usuario y los hits que vio (REQ-idd-006); el cierre sigue negándose con una obligación pendiente"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "no añade dependencias; solo código de la biblioteca estándar en el CLI"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "no toca dónde viven en disco SDD e IDD; solo cambia el estado IDD de un cambio"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "la retirada guarda en el estado los hits y la respuesta, y la derivación vuelve a dejar fuera la señal con el mismo árbol al reanudar, sin depender de la conversación"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "la retirada lee el diff local con git; no usa la red"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-03T19:29:25.270Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-03T19:32:55.621Z",
+      "detail": {
+        "tree": "sha256:5f6ea1ca8657801ad7b4b1e31c87562ce843efa685ad6d9b8faf378031ca9235",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-03T19:32:55.621Z",
+      "detail": {
+        "tree": "sha256:5f6ea1ca8657801ad7b4b1e31c87562ce843efa685ad6d9b8faf378031ca9235",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-03T19:32:55.621Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0010 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:5f6ea1ca8657801ad7b4b1e31c87562ce843efa685ad6d9b8faf378031ca9235",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-03T19:33:33.216Z",
+      "detail": {
+        "run": "run-12",
+        "tree": "sha256:17e2b68d58510cf32b28567d2a0e74da903d82d0644098b57863ba4a49466e93",
+        "plan": "Sin migración: un state.yaml anterior sigue siendo válido tal cual, incluidas las retiradas de persistent-data con respuesta de #416, que conservan su forma; el estado solo gana entradas retracted de public-contract con confirmed_by, hits, answer y answer_source, que validateState admite ahora. Rollback: revertir el commit; los estados sin esa retirada siguen valiendo en la versión anterior, y uno abierto que ya la tenga no valida en ella hasta cerrarlo con la nueva, como pasó con las de persistent-data al introducirlas en v2.150.4"
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-03T19:34:07.693Z"
+    }
+  ],
+  "base": "659a3fe023ca8cc533f255844c25d4ca66e4c512",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"public contract a doc's content alone derives|contract line in a contract document|public contract a path derives\" scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:89f4a676907d9db8fcac33aff823aaa535dae6fdf2891f10011b6476072642af",
+      "tree": "sha256:94fe440a278152ba3bb8c1856323876f8a30cf15c21f1dcea2624eef1df848fd",
+      "recorded_at": "2026-11-03T19:27:15.660Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"public contract a doc's content alone derives|contract line in a contract document|public contract a path derives\" scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8e73aadf34b6ff35f3d3fc31fa883ad184b5a3ce7805f1fe05b50c623cf108d8",
+      "tree": "sha256:818c02c032d07d49e84fbe33715f44017832414d440094a13210399237458f38",
+      "recorded_at": "2026-11-03T19:29:25.270Z",
+      "tests": 3,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "659a3fe023ca8cc533f255844c25d4ca66e4c512",
+      "mount": "sha256:ccedb72b2a47294f2022a76ab419f7ddb8dee18d43ed9107d1b74e2c01292763",
+      "command": "node --test --test-name-pattern=\"public contract a doc's content alone derives|contract line in a contract document|public contract a path derives\" scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:3a569987fe60c2393a9e8d53aad8ef37c94744190b74aa9ca8e2c2be1fe55b9a",
+      "tree": "sha256:818c02c032d07d49e84fbe33715f44017832414d440094a13210399237458f38",
+      "recorded_at": "2026-11-03T19:29:25.270Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "659a3fe023ca8cc533f255844c25d4ca66e4c512",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"public contract a doc's content alone derives|contract line in a contract document|public contract a path derives\" scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4db0ce32384b0fc67a6f17bc57fb709c8b7a244d5b3b16570d22f89075e64a92",
+      "tree": "sha256:818c02c032d07d49e84fbe33715f44017832414d440094a13210399237458f38",
+      "recorded_at": "2026-11-03T19:29:25.270Z",
+      "tests": 1
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9d2417195bbd62dbb2b04aeac502be02971ee53e75626ff01d8b9caa3ba2173c",
+      "tree": "sha256:5f6ea1ca8657801ad7b4b1e31c87562ce843efa685ad6d9b8faf378031ca9235",
+      "recorded_at": "2026-11-03T19:32:55.621Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5dd8e5ff5df138ca62c807eb16c9f24e55165510b28369a933f27c9ce8e099c6",
+      "tree": "sha256:5f6ea1ca8657801ad7b4b1e31c87562ce843efa685ad6d9b8faf378031ca9235",
+      "recorded_at": "2026-11-03T19:32:55.621Z",
+      "tests": 56
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d9ee234093a041f33d4fc5eed571be9e2aa03fb289201ffa702f19526cc0d5d2",
+      "tree": "sha256:5f6ea1ca8657801ad7b4b1e31c87562ce843efa685ad6d9b8faf378031ca9235",
+      "recorded_at": "2026-11-03T19:32:55.621Z",
+      "tests": 18
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:5f6ea1ca8657801ad7b4b1e31c87562ce843efa685ad6d9b8faf378031ca9235",
+      "recorded_at": "2026-11-03T19:32:55.621Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a985248fba6af20126bc3161ec32f1e159c3c9ccf74ad57ade8f423a1986f60a",
+      "tree": "sha256:5f6ea1ca8657801ad7b4b1e31c87562ce843efa685ad6d9b8faf378031ca9235",
+      "recorded_at": "2026-11-03T19:32:55.621Z",
+      "tests": 22
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:20e4586dc58740749e99f3514f61ca0d8e61f7931ffa2080ec923476c7fce241",
+      "tree": "sha256:5f6ea1ca8657801ad7b4b1e31c87562ce843efa685ad6d9b8faf378031ca9235",
+      "recorded_at": "2026-11-03T19:32:55.621Z",
+      "tests": 85
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:441248e7f305138d757cedb5141bf1a4b0573a9752284d95c47e91301a6c658a",
+      "tree": "sha256:5f6ea1ca8657801ad7b4b1e31c87562ce843efa685ad6d9b8faf378031ca9235",
+      "recorded_at": "2026-11-03T19:32:55.621Z",
+      "tests": 52
+    },
+    {
+      "id": "run-12",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"content-only persistent data|content-only public contract|answered retraction holds|answered contract retraction\" scripts/lib/idd-record.test.js scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9feab7c5cbedc982e817ca0bc04d8735d3f63efc826669e1c7c5e1cf18b54a1d",
+      "tree": "sha256:17e2b68d58510cf32b28567d2a0e74da903d82d0644098b57863ba4a49466e93",
+      "recorded_at": "2026-11-03T19:33:33.216Z",
+      "tests": 4
+    }
+  ],
+  "assumptions": [
+    "La retirada con respuesta cubre las dos etiquetas de contenido de public-contract, API (método HTTP más ruta) y selector (getElementById, querySelector, data-testid, `#id`): el alcance de E1.58 habla de lo que deriva el contenido de una doc, y el caso de app-restaurante del 2026-11-03 fue un `#hex` en prosa"
+  ],
+  "closed_at": "2026-11-03T19:34:07.693Z"
+}

@@ -8,6 +8,7 @@
 // access: idd-store.js persists the result.
 
 const {
+  ANSWER_RETRACTABLE_SIGNALS,
   CHANGE_ID_PATTERN,
   DECISIONS_ROOT,
   GATED_IMPACTS,
@@ -35,6 +36,12 @@ const ALWAYS_REASON = "every change with a resolved intent";
 const IRREVERSIBLE_GATE = "irreversible-operation";
 // The prefix of the reasons the derivation gives irreversible-operation.
 const IRREVERSIBLE_PREFIX = "irreversible operation: ";
+// What the user confirms when their answer retracts one of the
+// ANSWER_RETRACTABLE_SIGNALS that only the content of the diff derives.
+const ANSWER_CONFIRMS = Object.freeze({
+  "persistent-data": "there is no persistent data",
+  "public-contract": "the documentation changes no contract",
+});
 
 class IddRecordError extends Error {
   constructor(code, message) {
@@ -440,10 +447,12 @@ function recordPlan(state, { paths = [], workUnits = 1, nonObviousDecision = fal
 // longer derives it (#418). `confirmedBy` is the reason the current diff
 // derives the signal, or null; idd-workspace.js reads the diff. A later
 // diff or declaration that derives the signal again reopens its obligation
-// (REQ-idd-006). With the user's `answer` (#416), persistent-data that only the
-// content of the diff derives (`contentOnly`) is retracted too, with the `hits`
-// the answer covers; the derivation keeps it out while the diff holds no other.
-function recordRetract(state, { id, reason, confirmedBy = null, contentOnly = false, hits = [], answer, source } = {}) {
+// (REQ-idd-006). With the user's `answer`, persistent-data (#416) or
+// public-contract (E1.58) that only the content of the diff derives
+// (`contentOnly`) is retracted too, with the `hits` the answer covers; the
+// derivation keeps it out while the diff holds no other. `refusedBecause` says
+// why content the diff alone derives still refuses the answer.
+function recordRetract(state, { id, reason, confirmedBy = null, contentOnly = false, hits = [], refusedBecause = null, answer, source } = {}) {
   requireOpen(state);
   if (!SIGNAL_BY_ID.has(id)) refuse("unknown-signal", `unknown signal: ${id}`);
   if (!RETRACTABLE_SIGNALS.includes(id)) {
@@ -463,12 +472,12 @@ function recordRetract(state, { id, reason, confirmedBy = null, contentOnly = fa
     refuse("retract-conflict", `signal ${id} was retracted with a different reason`);
   }
   if (answered) {
-    if (!contentOnly || hits.length === 0) {
-      const why = confirmedBy ? `the diff derives it: ${confirmedBy}` : "the diff does not derive it; retract it without an answer";
-      refuse("retract-answer-refused", `only persistent-data that the content of the diff alone derives is retracted with the user's answer; ${why}`);
+    if (!contentOnly || hits.length === 0 || !ANSWER_CONFIRMS[id]) {
+      const why = refusedBecause ?? (confirmedBy ? `the diff derives it: ${confirmedBy}` : "the diff does not derive it; retract it without an answer");
+      refuse("retract-answer-refused", `only ${ANSWER_RETRACTABLE_SIGNALS.join(" or ")} that the content of the diff alone derives is retracted with the user's answer; ${why}`);
     }
   } else {
-    const how = contentOnly ? "if the user confirms there is no persistent data, add --answer \"<their words>\" --source user" : undefined;
+    const how = contentOnly && ANSWER_CONFIRMS[id] ? `if the user confirms ${ANSWER_CONFIRMS[id]}, add --answer "<their words>" --source user` : undefined;
     if (confirmedBy) refuse("signal-confirmed-by-diff", `the diff confirms signal ${id}: ${confirmedBy}`, how);
   }
   const obligationId = SIGNAL_BY_ID.get(id).obligation;
