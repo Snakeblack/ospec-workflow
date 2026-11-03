@@ -1,0 +1,332 @@
+{
+  "schema": "idd-state/v1",
+  "change": "pure-rename-signals",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Un renombre puro deriva señales de contenido: readGitDiff lee el diff con --no-renames, así que el fichero movido llega como borrado más añadido completo y todo su contenido cuenta como líneas añadidas (public-contract por un `#hex` en un Markdown archivado, persistent-data por un módulo movido que ya escribe)",
+    "acceptance": "Un renombre que conserva el contenido (R100), preparado o commiteado, no deriva public-contract, persistent-data ni ninguna otra señal de contenido; un renombre que además cambia líneas solo aporta esas líneas; el fichero sigue contando por sus dos rutas para las señales de ruta; un test lo cubre, también con diff.renames=false"
+  },
+  "facts": {
+    "open": [
+      "¿Un movimiento sin preparar (mv sin git add: el original aparece borrado y el nuevo como fichero sin seguimiento, leído entero) cuenta también como renombre puro cuando su contenido es idéntico al del fichero borrado?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-workspace.js",
+      "scripts/lib/idd-workspace.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Los renombres se detectan con --find-renames explícito en la lista (--raw -z) y en el parche, que anula diff.renames y diff.renames=copies; un R100 no aporta líneas ni fuentes y sus dos rutas siguen en paths",
+      "Un mv sin preparar se empareja por el blob que git guardaría (git hash-object --stdin-paths, con los filtros de la ruta): uno a uno con los borrados, solo ficheros regulares de hasta 1 MiB, y si el hash falla no se empareja nada"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: openspec/specs/idd/spec.md adds selector",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "la regla del renombre vive en readGitDiff (CLI) con su test en scripts/lib/idd-workspace.test.js; ninguna skill la describe"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "las señales siguen saliendo del diff real; un renombre que conserva el contenido deja de aportarlo entero como líneas añadidas, así que la ceremonia vuelve a ser proporcional al impacto real"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "el cierre sigue ligado a la evidencia observada; solo cambia qué líneas lee el diff"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "no toca dónde viven en disco SDD e IDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "el mismo árbol da el mismo diff y las mismas señales; la detección de renombres es determinista y no depende de diff.renames"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "readGitDiff (scripts/lib/idd-workspace.js) decide el renombre y su test es 'a rename brings only the lines it changes…' en scripts/lib/idd-workspace.test.js; ninguna skill bajo skills/ describe la regla (grep rename/renombr sin coincidencias)",
+      "recorded_at": "2026-11-03T13:28:33.127Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 153,
+      "answer": "continua — respuesta a las preguntas que llevaban una opción recomendada; se aplica la recomendada: sí, un mv sin preparar cuyo fichero sin seguimiento tiene el mismo contenido (mismo hash) que el fichero borrado cuenta como renombre puro; un mv con ediciones sin preparar sigue contando entero",
+      "source": "user",
+      "resolved_turn": 154
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-03T13:27:54.442Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-03T13:30:15.130Z",
+      "detail": {
+        "tree": "sha256:a5905f2bcd498f646cdcc7630bd453423d2fd35351459b1849bca71aa138f774",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-03T13:30:15.130Z",
+      "detail": {
+        "tree": "sha256:a5905f2bcd498f646cdcc7630bd453423d2fd35351459b1849bca71aa138f774",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-workspace.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-03T13:30:15.130Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume none"
+        ],
+        "records": [],
+        "tree": "sha256:a5905f2bcd498f646cdcc7630bd453423d2fd35351459b1849bca71aa138f774",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-03T13:30:39.886Z"
+    }
+  ],
+  "base": "13cd93796f8ac8e70f33f3e63b22833184ca06fe",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"a rename brings\" scripts/lib/idd-workspace.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:ef01fa3dabcd44536f18d8d9163e05c02dd50b4d3e435c5d0b280dd6cbb636b4",
+      "tree": "sha256:73d547a1dc925f50686396556886b10304f643f8393cc2c890d20bb6d399e93a",
+      "recorded_at": "2026-11-03T13:26:35.582Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"a rename brings\" scripts/lib/idd-workspace.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1f2e933268d667ceb42f9b177dcbed67c96c676e65e95ffd72b9eee9d84eaddc",
+      "tree": "sha256:260d88a76a83e671d69314391f0e2e768a1dd19395bade627c7cc106353c8092",
+      "recorded_at": "2026-11-03T13:27:54.442Z",
+      "tests": 1,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "13cd93796f8ac8e70f33f3e63b22833184ca06fe",
+      "mount": "sha256:1d7f143c4706a8121f158956ba0b48884977b83c32d2fcc7ef9cc77d28eea5ae",
+      "command": "node --test --test-name-pattern=\"a rename brings\" scripts/lib/idd-workspace.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:ec2e2afc84a8fc64e2471b6c1c03726282dd571fed60f0efb12e4a1a5611f412",
+      "tree": "sha256:260d88a76a83e671d69314391f0e2e768a1dd19395bade627c7cc106353c8092",
+      "recorded_at": "2026-11-03T13:27:54.442Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "13cd93796f8ac8e70f33f3e63b22833184ca06fe",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"a rename brings\" scripts/lib/idd-workspace.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eee932089295ba5c9e04d5e95e366edd7abf5ace8b3cd060c7b0d03f4d7ab5b1",
+      "tree": "sha256:260d88a76a83e671d69314391f0e2e768a1dd19395bade627c7cc106353c8092",
+      "recorded_at": "2026-11-03T13:27:54.442Z",
+      "tests": 1
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a28812eb979a371149a2a2020391c6339a29984b08d724be3399b545fb614332",
+      "tree": "sha256:a5905f2bcd498f646cdcc7630bd453423d2fd35351459b1849bca71aa138f774",
+      "recorded_at": "2026-11-03T13:30:15.130Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8658d36e8b308da44ea0eeeadaac440499b79d3b8b8d780567c6e04c7ea000f4",
+      "tree": "sha256:a5905f2bcd498f646cdcc7630bd453423d2fd35351459b1849bca71aa138f774",
+      "recorded_at": "2026-11-03T13:30:15.130Z",
+      "tests": 55
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fa94f01ff3a0f22241f24bb036293c74418f3ceb0a14606d65a848c498a18efa",
+      "tree": "sha256:a5905f2bcd498f646cdcc7630bd453423d2fd35351459b1849bca71aa138f774",
+      "recorded_at": "2026-11-03T13:30:15.130Z",
+      "tests": 18
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dc5cf390dd2eae1fc880718c36b817fb790b52abc31b29a95fd6c5fdc5e4a81d",
+      "tree": "sha256:a5905f2bcd498f646cdcc7630bd453423d2fd35351459b1849bca71aa138f774",
+      "recorded_at": "2026-11-03T13:30:15.130Z",
+      "tests": 85
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5982bb098519f6a1f9e592f48b3febe6f4da0a4a7a982e7d82e908475631ce0f",
+      "tree": "sha256:a5905f2bcd498f646cdcc7630bd453423d2fd35351459b1849bca71aa138f774",
+      "recorded_at": "2026-11-03T13:30:15.130Z",
+      "tests": 52
+    }
+  ],
+  "assumptions": [
+    "Un test renombrado sin cambios ya no cuenta como test añadido (no satisface boundary-tests ni evita untested-product): se sigue la regla de B3, que solo cuenta un test al que el diff añade código"
+  ],
+  "closed_at": "2026-11-03T13:30:39.886Z"
+}

@@ -193,11 +193,12 @@ function readDecisionRecords(root, files) {
   return records;
 }
 
-function git(root, args, { env } = {}) {
+function git(root, args, { env, input } = {}) {
   return execFileSync("git", ["-C", root, "-c", "core.quotePath=false", ...args], {
     encoding: "utf8",
     maxBuffer: GIT_MAX_BUFFER,
-    stdio: ["ignore", "pipe", "pipe"],
+    input,
+    stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     env: env ? { ...process.env, ...env } : process.env,
   });
 }
@@ -379,10 +380,60 @@ function readSources(root, paths) {
   return sources;
 }
 
+// The tracked paths of the diff against `base`, a rename by both its paths,
+// with the new path of each rename that keeps the content (R100) and the blob
+// of each deleted file. Renames are found whatever diff.renames says.
+function readTrackedChanges(root, base) {
+  const fields = nulList(git(root, ["diff", "--relative", "--find-renames", "--raw", "--no-abbrev", "-z", base, "--"]));
+  const paths = [];
+  const pureRenames = new Set();
+  const deleted = new Map();
+  for (let at = 0; at < fields.length; ) {
+    const [, , blob, , status] = fields[at++].split(" ");
+    const sides = /^[RC]/.test(status) ? 2 : 1;
+    const files = fields.slice(at, at + sides).map(normalizePath);
+    at += sides;
+    paths.push(...files);
+    if (status === "R100") pureRenames.add(files[1]);
+    if (status === "D" && !isIddState(files[0])) deleted.set(files[0], blob);
+  }
+  return { paths, pureRenames, deleted };
+}
+
+// A file moved without git add: an untracked regular file with the content
+// (the blob git would store) of a file the diff deletes, one untracked file
+// for each deleted one. Untracked → deleted path. Hashing that fails pairs
+// nothing, so the files count as they did.
+function untrackedMoves(root, untracked, deleted) {
+  const moves = new Map();
+  if (deleted.size === 0) return moves;
+  const candidates = untracked.filter((file) => {
+    if (/[\r\n]/.test(file) || file.startsWith('"')) return false;
+    const stat = fs.lstatSync(path.join(root, file), { throwIfNoEntry: false });
+    return Boolean(stat?.isFile() && stat.size <= MAX_UNTRACKED_BYTES);
+  });
+  if (candidates.length === 0) return moves;
+  let blobs;
+  try {
+    blobs = git(root, ["hash-object", "--stdin-paths"], { input: `${candidates.join("\n")}\n` }).split("\n");
+  } catch {
+    return moves;
+  }
+  const byBlob = new Map();
+  for (const [file, blob] of [...deleted].sort()) byBlob.set(blob, [...(byBlob.get(blob) || []), file]);
+  candidates.forEach((file, index) => {
+    const from = byBlob.get(blobs[index])?.shift();
+    if (from) moves.set(file, from);
+  });
+  return moves;
+}
+
 /**
  * Paths changed between `base` and the working tree (staged, unstaged and
  * untracked), relative to `root`, with the lines each one adds and the
- * sources of the product files among them.
+ * sources of the product files among them. A rename counts by both its paths
+ * and brings only the lines it changes; one that keeps the content, staged,
+ * committed or moved without git add, brings no lines and no sources.
  */
 function readGitDiff(root, { base = "HEAD" } = {}) {
   requireWorkTree(root);
@@ -398,12 +449,12 @@ function readGitDiff(root, { base = "HEAD" } = {}) {
     }
   }
 
-  const tracked = nulList(git(root, ["diff", "--relative", "--no-renames", "--name-only", "-z", base, "--"]));
-  const untracked = nulList(git(root, ["ls-files", "--others", "--exclude-standard", "-z"]));
+  const { paths: tracked, pureRenames, deleted } = readTrackedChanges(root, base);
+  const untracked = nulList(git(root, ["ls-files", "--others", "--exclude-standard", "-z"])).map(normalizePath).filter((file) => !isIddState(file));
   // The repository's diff settings never hide a line (E1.53): fixed prefixes
   // over diff.mnemonicPrefix, diff.noprefix and diff.srcPrefix, and raw text
   // over -diff, binary and textconv attributes.
-  const patch = git(root, ["diff", "--relative", "--no-renames", "--no-color", "--no-ext-diff", "--no-textconv", "--text", "--src-prefix=a/", "--dst-prefix=b/", "--unified=0", base, "--"]);
+  const patch = git(root, ["diff", "--relative", "--find-renames", "--no-color", "--no-ext-diff", "--no-textconv", "--text", "--src-prefix=a/", "--dst-prefix=b/", "--unified=0", base, "--"]);
 
   const { added: addedLines, removed: removedLines } = changedLinesByFile(patch);
   // A binary file read as text has no lines, as an untracked one has none.
@@ -413,16 +464,22 @@ function readGitDiff(root, { base = "HEAD" } = {}) {
       delete removedLines[file];
     }
   }
-  for (const file of untracked.map(normalizePath)) {
-    if (!isIddState(file)) addedLines[file] = readUntracked(root, file);
+  const moves = untrackedMoves(root, untracked, deleted);
+  for (const file of untracked) {
+    if (moves.has(file)) {
+      delete removedLines[moves.get(file)];
+      pureRenames.add(file);
+    } else {
+      addedLines[file] = readUntracked(root, file);
+    }
   }
-  const paths = [...new Set([...tracked, ...untracked].map(normalizePath))].filter((file) => !isIddState(file)).sort();
+  const paths = [...new Set([...tracked, ...untracked])].filter((file) => !isIddState(file)).sort();
   for (const lines of [addedLines, removedLines]) {
     for (const file of Object.keys(lines)) {
       if (!paths.includes(file)) delete lines[file];
     }
   }
-  return { paths, addedLines, removedLines, sources: readSources(root, paths) };
+  return { paths, addedLines, removedLines, sources: readSources(root, paths.filter((file) => !pureRenames.has(file))) };
 }
 
 // What to do when there is no project to work in (E4.8): IDD needs a git work

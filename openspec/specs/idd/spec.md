@@ -886,7 +886,12 @@ give `source: diff`. The diff MUST be read with fixed `a/` and `b/` prefixes,
 as text and without textconv, whatever the repository's diff settings
 (`diff.mnemonicPrefix`, `diff.noprefix`, `diff.srcPrefix`, or `-diff`, `binary`
 and `diff=` attributes), and a binary file by its content (a NUL byte in its
-first 8000 bytes) MUST bring no lines (E1.53). A signal both planned and in the
+first 8000 bytes) MUST bring no lines (E1.53). Renames MUST be detected whatever
+`diff.renames` says: a renamed file counts by both its paths for every
+path-driven signal and brings only the lines it changes, and one that keeps its
+content, staged, committed or moved without `git add` (an untracked file with
+the content of a file the diff deletes, one untracked file for each deleted
+one), MUST bring no lines and MUST NOT count as a changed product file. A signal both planned and in the
 diff MUST keep `source: declaration`. Paths under `idd/` MUST NOT count. Every signal MUST
 carry a reason naming why it fired, and a path-driven reason MUST name a
 matching path and the pattern it matched. The impact patterns MUST be base
@@ -969,6 +974,16 @@ irreversible operation no entry lists opens its own (REQ-idd-008). While
 - THEN `public-contract` MUST be recorded with `source: diff` and the reason
   "public contract: touches src/api/orders.js (matches **/api/**)"
 - AND `contract-spec-and-test` MUST be `pending`
+
+#### Scenario: A pure rename derives nothing by content
+
+- GIVEN a diff that only renames `old/a.md`, which states "No inline `#hex`
+  color literals", and `src/store.js`, which calls `localStorage.setItem`,
+  staged, committed or moved without `git add`
+- WHEN its signals are derived
+- THEN neither `public-contract` nor `persistent-data` MUST be active
+- AND both paths of each file MUST be in the diff, and a rename that also
+  changes a line MUST bring only that line
 
 #### Scenario: Large mechanical refactor opens no gate
 

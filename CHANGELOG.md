@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.170.1] - 2026-11-03
+
+### Fixed
+- **Un renombre puro ya no deriva señales de contenido** (pure-rename-signals). `readGitDiff` leía el diff con `--no-renames`: el fichero movido llegaba como borrado más añadido completo y todo su contenido contaba como líneas añadidas. Un Markdown archivado con un color `#hex` en prosa derivaba `public-contract`, un módulo movido que ya escribía derivaba `persistent-data`, y la retirada respondía `signal-confirmed-by-diff`.
+  - **Los renombres se detectan siempre**, con `--find-renames` explícito en la lista y en el parche, aunque el repositorio diga `diff.renames=false`. Un renombre cuenta por sus dos rutas para las señales de ruta y solo aporta las líneas que cambia; uno que conserva el contenido no aporta líneas y su fichero no se lee como producto cambiado.
+  - **Un `mv` sin `git add` cuenta igual.** Un fichero sin seguimiento con el contenido de un fichero borrado (el blob que git guardaría) es su renombre, uno a uno. Si además se editó sin preparar, sigue contando entero.
+  - Un test movido sin cambios ya no cuenta como test añadido, como ya pasaba con uno vaciado o borrado.
+
+Hecho con IDD (`idd/archive/2026-11-03-pure-rename-signals/`), a petición de la sesión de app-restaurante, cuyo foundation paraba el archivo de 163 documentos de su etapa SDD. REQ-idd-012 recoge la regla y un escenario. Una señal registrada antes de actualizar no se borra sola (REQ-idd-006), pero `ospec record retract` ya la retira, porque el diff no la confirma.
+
+**Verificación directa**: `node scripts/check.js` (4381 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados, y la reproducción de app-restaurante con el CLI de la rama: con el renombre preparado y con el commiteado (`--base HEAD~1`) solo queda `always`.
+
 ## [2.170.0] - 2026-11-03
 
 ### Added
