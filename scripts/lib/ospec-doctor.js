@@ -24,6 +24,7 @@ const { candidateCheckCommand, configureChecksStep } = require("./idd-checks-con
 const { readPrecommitStrict } = require("./precommit-strict.js");
 const { TARGETS: ENGRAM_TARGETS, isConfigured, isUnknown, detectEngram, parseJsonc } = require("./engram-detect.js");
 const { binaryCandidates, hostBinarySuffix } = require("../hooks/ospec-hooks-launch.js");
+const { claudeConfigDir, status: routerStatus } = require("./claude-router.js");
 const hosts = require("./ospec-doctor-hosts.js");
 
 const DOCTOR_TARGETS = ["claude", ...hosts.HOST_TARGETS];
@@ -114,8 +115,10 @@ function findRouterBlock(text) {
 
 // --- Claude Code --------------------------------------------------------------
 
-function detectClaude(home) {
-  const file = path.join(home, ".claude", "plugins", "installed_plugins.json");
+// `claudeDir` is the Claude Code configuration directory: CLAUDE_CONFIG_DIR
+// or ~/.claude, as Claude Code and the router resolve it.
+function detectClaude(claudeDir) {
+  const file = path.join(claudeDir, "plugins", "installed_plugins.json");
   if (!fs.existsSync(file)) return null;
   const doc = readJson(file);
   if (!doc || typeof doc.plugins !== "object") return { file, installs: [], unreadable: true };
@@ -270,47 +273,113 @@ function claudeHookChecks(primary, { platform, arch, spawn, env, execPath, cli }
   claudeRedactionCheck(hooksJson, cli, add);
 }
 
-function claudeRouterChecks(primary, home, add) {
-  const claudeMd = path.join(home, ".claude", "CLAUDE.md");
+// claude-router: the router is <config>/rules/ospec-workflow.md, an old block
+// in <config>/CLAUDE.md or the project's team file. The doctor only reads;
+// `ospec router` writes.
+const ROUTER_INSTALL = "Run `ospec router install` (`! ospec router install` inside Claude Code; from a checkout, `npm run setup:claude`)";
+
+function routerCheck(user, project, version) {
+  const legacy = user.legacy;
+  if (user.file === "current" || user.file === "present") return { id: "router", status: "ok", detail: user.path };
+  if (user.file === "outdated") {
+    return {
+      id: "router",
+      status: "warn",
+      cause: `the router in ${user.path} was written by ospec ${user.written_version || "?"} and differs from the router of the installed plugin (${version})`,
+      action: "Start a new Claude Code session, which refreshes it, or run `ospec router install`.",
+    };
+  }
+  if (user.file === "modified") {
+    return {
+      id: "router",
+      status: "warn",
+      cause: `${user.path} differs from the router of the installed plugin (${version}) and is not what ospec wrote, so ospec no longer refreshes it`,
+      action: "Run `ospec router install --force` to restore it, or keep your edits on purpose.",
+    };
+  }
+  if (legacy?.state === "current") return { id: "router", status: "ok", detail: `old block in ${legacy.path}; \`ospec router install\` moves it to ${user.path}` };
+  if (legacy?.state === "outdated") {
+    return {
+      id: "router",
+      status: "warn",
+      cause: `the router block in ${legacy.path} differs from the router of the installed plugin (${version})`,
+      action: `Run \`ospec router install\`; it writes ${user.path} and takes the block out.`,
+    };
+  }
+  if (legacy?.state === "broken") {
+    return {
+      id: "router",
+      status: "warn",
+      cause: `${legacy.path} has the router begin marker but no end marker`,
+      action: "Fix the block by hand, then run `ospec router install`.",
+    };
+  }
+  if (project?.file === "current") return { id: "router", status: "ok", detail: `team router ${project.path}` };
+  if (project?.file === "differs") {
+    return {
+      id: "router",
+      status: "warn",
+      cause: `the team router ${project.path} differs from the router of the installed plugin (${version})`,
+      action: "Run `ospec router install --scope project --force` and commit it, if the team agrees.",
+    };
+  }
+  if (user.declined) {
+    return { id: "router", status: "info", detail: "turned off with `ospec router off`: IDD is not the default flow", action: "Run `ospec router install` to turn it back on." };
+  }
+  return {
+    id: "router",
+    status: "warn",
+    cause: `no ospec router in ${user.path}, so IDD is not the default flow in Claude Code`,
+    action: `${ROUTER_INSTALL}; \`ospec router off\` stops the notice instead.`,
+  };
+}
+
+function duplicateCheck(user, project, outside, claudeMd) {
+  const reference = SKILL_REFERENCE.exec(outside);
+  if (reference) {
+    return {
+      id: "router-duplicate",
+      status: "warn",
+      cause: `text outside the router block in ${claudeMd} also loads ospec skills (${reference[0]}), duplicating the router`,
+      action: `Remove that section from ${claudeMd}; the router already routes IDD and SDD.`,
+    };
+  }
+  if (user.file !== "absent" && user.legacy) {
+    return {
+      id: "router-duplicate",
+      status: "warn",
+      cause: `the router is both in ${user.path} and in a block of ${user.legacy.path}`,
+      action: "Run `ospec router install`; it takes the block out.",
+    };
+  }
+  if (user.file !== "absent" && project && project.file !== "absent") {
+    return {
+      id: "router-duplicate",
+      status: "warn",
+      cause: `both ${user.path} and the team router ${project.path} load in this project`,
+      action: "Keep one: `ospec router remove` takes yours out.",
+    };
+  }
+  return { id: "router-duplicate", status: "ok" };
+}
+
+function claudeRouterChecks(primary, { claudeDir, root }, add) {
+  const { user, project } = routerStatus({ pluginRoot: primary.installPath, configDir: claudeDir, root });
+  const claudeMd = path.join(claudeDir, "CLAUDE.md");
   const text = readText(claudeMd) || "";
   const block = findRouterBlock(text);
-  const source = readText(path.join(primary.installPath, "global-instructions", "CLAUDE.md"));
-  if (!block) {
-    add({
-      id: "router",
-      status: "warn",
-      cause: `${claudeMd} has no ospec router block, so IDD is not the default flow in Claude Code`,
-      action: "Run `npm run setup:claude` in the ospec-workflow checkout; it writes the block (`--no-router` removes it).",
-    });
-  } else if (source !== null && block.body !== source.trim()) {
-    add({
-      id: "router",
-      status: "warn",
-      cause: `the router block in ${claudeMd} differs from the router of the installed plugin (${primary.version})`,
-      action: "Run `npm run setup:claude` to rewrite the block from the installed plugin.",
-    });
-  } else {
-    add({ id: "router", status: "ok" });
-  }
-  const outside = block ? block.outside : text;
-  const reference = SKILL_REFERENCE.exec(outside);
-  add(reference
-    ? {
-        id: "router-duplicate",
-        status: "warn",
-        cause: `text outside the router block in ${claudeMd} also loads ospec skills (${reference[0]}), duplicating the router`,
-        action: "Remove that section from ~/.claude/CLAUDE.md; the router block already routes IDD and SDD.",
-      }
-    : { id: "router-duplicate", status: "ok" });
-  add(block && block.bytes > ALWAYS_ON_BUDGET_BYTES
+  add(routerCheck(user, project, primary.version));
+  add(duplicateCheck(user, project, block ? block.outside : text, claudeMd));
+  const bytes = user.file !== "absent" ? user.bytes : block ? block.bytes : project?.bytes || 0;
+  add(bytes > ALWAYS_ON_BUDGET_BYTES
     ? {
         id: "budget",
         status: "warn",
-        detail: `${block.bytes} B`,
-        cause: `the router block is ${block.bytes} B, over the ${ALWAYS_ON_BUDGET_BYTES} B always-on budget of E0.4`,
-        action: "Reinstall the current router (`npm run setup:claude`); if it is still over budget, report it.",
+        detail: `${bytes} B`,
+        cause: `the router is ${bytes} B, over the ${ALWAYS_ON_BUDGET_BYTES} B always-on budget of E0.4`,
+        action: "Reinstall the current router (`ospec router install`); if it is still over budget, report it.",
       }
-    : { id: "budget", status: "ok", detail: `${block ? block.bytes : 0} B` });
+    : { id: "budget", status: "ok", detail: `${bytes} B` });
 }
 
 function claudeEngramCheck({ spawn, home, env, platform, cli }, add) {
@@ -734,7 +803,8 @@ async function runDoctor({
   const version = runtimeVersion(runtimeRoot);
   adder("runtime")({ id: "runtime", status: "info", detail: `${version || "unknown version"} at ${runtimeRoot}` });
 
-  const claude = detectClaude(home);
+  const claudeDir = claudeConfigDir({ env, homedir: () => home });
+  const claude = detectClaude(claudeDir);
   const others = hosts.detectHosts({ home, env, platform, parseJsonc });
   const checkout = checkoutVersion(root);
   if (checkout) checkoutChecks(root, checkout, claude, others, adder("checkout"));
@@ -780,7 +850,7 @@ async function runDoctor({
       add({
         id: "plugin",
         status: "error",
-        cause: `no ospec-workflow plugin in ${path.join(home, ".claude", "plugins", "installed_plugins.json")}`,
+        cause: `no ospec-workflow plugin in ${path.join(claudeDir, "plugins", "installed_plugins.json")}`,
         action: "Install it: `npm run setup:claude` in the ospec-workflow checkout, or `/plugin install` from its marketplace.",
       });
     } else {
@@ -788,7 +858,7 @@ async function runDoctor({
       if (claude.primary) {
         const cli = resolveClaudeCli({ spawn: engramSpawn, env, platform });
         claudeHookChecks(claude.primary, { platform, arch, spawn, env, execPath, cli }, add);
-        claudeRouterChecks(claude.primary, home, add);
+        claudeRouterChecks(claude.primary, { claudeDir, root }, add);
         claudeEngramCheck({ spawn: engramSpawn, home, env, platform, cli }, add);
       }
     }

@@ -514,6 +514,88 @@ test("the router block is checked for presence, drift, duplicates and budget", a
   assertActionable(budget);
 });
 
+// claude-router: the router file of the configuration directory, its state
+// and the team file; the doctor reads them and writes nothing.
+function routerFile(home, text = ROUTER) {
+  write(path.join(home, ".claude", "rules", "ospec-workflow.md"), text);
+}
+
+function routerState(home, state) {
+  write(path.join(home, ".claude", "plugins", "data", "ospec-workflow-ospec-tools", "router.json"), state);
+}
+
+test("the router file is checked for presence, refresh, edits, the no and the team file", async (t) => {
+  const current = setup(t);
+  installClaude(current.home, { block: null });
+  routerFile(current.home);
+  assert.equal(find(await doctor(current), "claude", "router").status, "ok");
+
+  const stale = setup(t);
+  installClaude(stale.home, { block: null, version: "2.1.0" });
+  routerFile(stale.home, "# old router\n");
+  routerState(stale.home, { schema: 1, declined: false, version: "2.0.0", sha256: require("./claude-router.js").digest("# old router\n") });
+  const outdated = find(await doctor(stale), "claude", "router");
+  assert.equal(outdated.status, "warn");
+  assertActionable(outdated);
+  assert.match(outdated.cause, /written by ospec 2\.0\.0/);
+  assert.match(outdated.action, /new Claude Code session/);
+
+  const edited = setup(t);
+  installClaude(edited.home, { block: null });
+  routerFile(edited.home, "# my own router\n");
+  const modified = find(await doctor(edited), "claude", "router");
+  assert.equal(modified.status, "warn");
+  assert.match(modified.action, /ospec router install --force/);
+
+  const declined = setup(t);
+  installClaude(declined.home, { block: null });
+  routerState(declined.home, { schema: 1, declined: true });
+  assert.equal(find(await doctor(declined), "claude", "router").status, "info");
+
+  const absent = setup(t);
+  installClaude(absent.home, { block: null });
+  const missing = find(await doctor(absent), "claude", "router");
+  assert.equal(missing.status, "warn");
+  assert.match(missing.action, /ospec router install/);
+
+  const team = setup(t);
+  installClaude(team.home, { block: null });
+  write(path.join(team.root, ".claude", "rules", "ospec-workflow.md"), ROUTER);
+  const teamCheck = find(await doctor(team), "claude", "router");
+  assert.equal(teamCheck.status, "ok");
+  assert.match(teamCheck.detail, /team router/);
+});
+
+test("a router both in the rules file and in an old block, or also in the team file, is a duplicate", async (t) => {
+  const both = setup(t);
+  installClaude(both.home);
+  routerFile(both.home);
+  const duplicate = find(await doctor(both), "claude", "router-duplicate");
+  assert.equal(duplicate.status, "warn");
+  assert.match(duplicate.action, /ospec router install/);
+
+  const team = setup(t);
+  installClaude(team.home, { block: null });
+  routerFile(team.home);
+  write(path.join(team.root, ".claude", "rules", "ospec-workflow.md"), ROUTER);
+  assert.match(find(await doctor(team), "claude", "router-duplicate").cause, /team router/);
+});
+
+test("the Claude checks read CLAUDE_CONFIG_DIR, as Claude Code and the router do, and write nothing", async (t) => {
+  const env = setup(t);
+  const custom = tempDir(t, "ospec-doctor-config-");
+  // installClaude writes under <home>/.claude; CLAUDE_CONFIG_DIR points at it.
+  const config = path.join(custom, "home");
+  installClaude(config, { block: null });
+  routerFile(config);
+  const before = treeDigest(custom);
+  const result = await doctor(env, { env: { CLAUDE_CONFIG_DIR: path.join(config, ".claude") } });
+  assert.equal(find(result, "claude", "plugin").status, "ok");
+  assert.equal(find(result, "claude", "router").status, "ok");
+  assert.equal(treeDigest(custom), before);
+  assert.equal(find(await doctor(env), "claude", "plugin"), undefined, "~/.claude of the home holds no plugin");
+});
+
 test("--target restricts the hosts and a missing installation is an error", async (t) => {
   const env = setup(t);
   const result = await doctor(env, { target: "claude" });
