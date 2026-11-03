@@ -535,6 +535,32 @@ test("real repo: all six targets preserve D2 intent-briefing landmarks", (t) => 
   }
 });
 
+test("real repo: the handbook skill and its web scaffold ship in every install; its delegate agent ships only with SDD", (t) => {
+  const targetPaths = {
+    claude: "agents/handbook.md",
+    vscode: "agents/handbook.agent.md",
+    "github-copilot": ".github/agents/handbook.agent.md",
+    opencode: ".opencode/agents/handbook.md",
+  };
+
+  for (const [target, expectedPath] of Object.entries(targetPaths)) {
+    const plain = tmpOut(t);
+    runConfigure({ sourceDir: ROOT, target, outDir: plain, validate: false });
+    assert.ok(fs.existsSync(path.join(plain, "skills", "handbook", "SKILL.md")), `${target}: the handbook skill ships in every install`);
+    assert.ok(
+      fs.existsSync(path.join(plain, "skills", "handbook", "assets", "web-doc-template", "scripts", "sync-handbook.mjs")),
+      `${target}: the web scaffold ships with the handbook skill`
+    );
+    assert.ok(!fs.existsSync(path.join(plain, expectedPath)), `${target}: the handbook agent is the SDD orchestrator's delegate`);
+    assert.ok(!fs.existsSync(path.join(plain, "skills", "sdd-document")), `${target}: sdd-document is gone`);
+
+    const out = tmpOut(t);
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
+    assert.ok(fs.existsSync(path.join(out, expectedPath)), `handbook agent missing from ${target} output at ${expectedPath}`);
+    assert.match(fs.readFileSync(path.join(out, expectedPath), "utf8"), /Delegated/, `${target}: the agent runs the skill's Delegated mode`);
+  }
+});
+
 test("real repo: foundation runs without SDD; its delegate agent ships with SDD and never installs a MarkItDown server", (t) => {
   const targetPaths = {
     claude: "agents/foundation.md",
@@ -904,7 +930,7 @@ test("real repo: orchestrator pointer-table refs resolve and handler sentinels a
   assert.doesNotMatch(text, /"blocker_type": "needs_user_decision"/, "blocked-envelope JSON example must not be inline in orchestrator body");
   assert.doesNotMatch(text, /Intercept the block/, "gaps-resolution handler steps must not be inline in orchestrator body");
   assert.doesNotMatch(text, /questions_asked/, "clarify gate handling steps must not be inline in orchestrator body");
-  assert.doesNotMatch(text, /Acknowledge and close the route anyway/, "document-route J5 halt gate wording must not be inline in orchestrator body");
+  assert.doesNotMatch(text, /Acknowledge and close the route anyway/, "handbook-route boundary halt gate wording must not be inline in orchestrator body");
   assert.doesNotMatch(text, /archive-transaction-run\.js/, "archive move-completion sentinel 'archive-transaction-run.js' must not be inline in orchestrator body");
   assert.doesNotMatch(text, /halt with the source directory left intact/, "archive move-completion sentinel 'halt with the source directory left intact' must not be inline in orchestrator body");
 
@@ -935,7 +961,7 @@ test("real repo: orchestrator pointer-table refs resolve and handler sentinels a
     { sentinel: '"blocker_type": "needs_user_decision"', file: "skills/_shared/question-shapes.md" },
     { sentinel: "Intercept the block", file: "skills/_shared/gaps-resolution.md" },
     { sentinel: "questions_asked", file: "skills/_shared/clarify-routing.md" },
-    { sentinel: "Acknowledge and close the route anyway", file: "skills/_shared/route-document.md" },
+    { sentinel: "Acknowledge and close the route anyway", file: "skills/_shared/route-handbook.md" },
   ];
   for (const { sentinel, file } of sentinelFiles) {
     const filePath = path.join(ROOT, file);

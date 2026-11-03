@@ -1201,10 +1201,10 @@ test("persistPhaseCost writes a record for an active change (phase, agent, est_t
   assert.equal(typeof records[0].ts, "string");
 });
 
-test("persistPhaseCost uses the current models.yaml tiers for proposal and document telemetry", async (t) => {
+test("persistPhaseCost uses the current models.yaml tiers for proposal and archive telemetry", async (t) => {
   const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
   const models = await readRootModels();
-  for (const agent_type of ["sdd-propose", "sdd-document"]) {
+  for (const agent_type of ["sdd-propose", "sdd-archive"]) {
     await runSubagentStop({
       input: { cwd: workspace, agent_type, status: "success", result: "tier telemetry" },
     });
@@ -1212,7 +1212,7 @@ test("persistPhaseCost uses the current models.yaml tiers for proposal and docum
   const records = await readPhaseCosts(workspace, "strict-result-envelope");
   const tiers = Object.fromEntries(records.map(record => [record.agent, record.model_tier]));
   assert.equal(tiers["sdd-propose"], models.agents["sdd-propose"]);
-  assert.equal(tiers["sdd-document"], models.agents["sdd-document"]);
+  assert.equal(tiers["sdd-archive"], models.agents["sdd-archive"]);
 });
 
 test("persistPhaseCost prefers the valid envelope's status over top-level input.status (triangulation)", async (t) => {
@@ -1542,7 +1542,7 @@ test("resolveModelTier resolves correct tiers and handles fallbacks/failures", a
   const testYamlDir = path.resolve(__dirname, "../../"); // Has models.yaml in workspace root
   const models = await readRootModels();
 
-  for (const agent of ["sdd-design", "sdd-propose", "sdd-apply", "sdd-document"]) {
+  for (const agent of ["sdd-design", "sdd-propose", "sdd-apply", "handbook"]) {
     assert.equal(resolveModelTier(agent, testYamlDir), models.agents[agent]);
   }
   assert.equal(resolveModelTier("sdd-nonexistent", testYamlDir), models.agents._default);

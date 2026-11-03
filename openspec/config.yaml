@@ -47,7 +47,7 @@ baseline:
     - agents
     - skill-registry
     - install
-    - sdd-document
+    - handbook
     - contract-lint
     - orchestrator-evals
     - independent-verification

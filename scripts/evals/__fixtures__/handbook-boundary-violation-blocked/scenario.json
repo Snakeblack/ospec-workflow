@@ -1,0 +1,26 @@
+{
+  "id": "handbook-boundary-violation-blocked",
+  "group": "handbook",
+  "input": {
+    "command": null,
+    "text": "Actualiza el handbook del proyecto con la misma configuración de la última vez."
+  },
+  "capture": {
+    "gate": true,
+    "envelope": false
+  },
+  "expect": {
+    "question_gate": {
+      "questions": 1,
+      "options_min": {
+        "0": 2
+      },
+      "recommended_present": {
+        "0": true
+      }
+    },
+    "state": {
+      "status": "blocked"
+    }
+  }
+}

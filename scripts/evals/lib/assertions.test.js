@@ -219,10 +219,10 @@ test("assertScenario: question_gate expected null fails when a gate was captured
 test("assertScenario: fileTreeUnchanged passes when the captured tree matches the recorded baseline exactly", () => {
   const expect = {
     fileTreeUnchanged: true,
-    baselineFileTree: ["README.md", "openwiki/.last-update.json", "openwiki/quickstart.md"],
+    baselineFileTree: ["README.md", "handbook/.state.json", "handbook/quickstart.md"],
   };
   const captured = baseCaptured({
-    fileTree: ["README.md", "openwiki/.last-update.json", "openwiki/quickstart.md"],
+    fileTree: ["README.md", "handbook/.state.json", "handbook/quickstart.md"],
   });
 
   const result = assertScenario(expect, captured);
@@ -234,10 +234,10 @@ test("assertScenario: fileTreeUnchanged passes when the captured tree matches th
 test("assertScenario: fileTreeUnchanged fails and names an unexpected new file", () => {
   const expect = {
     fileTreeUnchanged: true,
-    baselineFileTree: ["README.md", "openwiki/.last-update.json"],
+    baselineFileTree: ["README.md", "handbook/.state.json"],
   };
   const captured = baseCaptured({
-    fileTree: ["README.md", "openwiki/.last-update.json", "openwiki/quickstart-v2.md"],
+    fileTree: ["README.md", "handbook/.state.json", "handbook/quickstart-v2.md"],
   });
 
   const result = assertScenario(expect, captured);
@@ -247,7 +247,7 @@ test("assertScenario: fileTreeUnchanged fails and names an unexpected new file",
     result.failures.some(
       (failure) =>
         failure.startsWith("fileTreeUnchanged:") &&
-        failure.includes("openwiki/quickstart-v2.md"),
+        failure.includes("handbook/quickstart-v2.md"),
     ),
   );
 });
@@ -255,7 +255,7 @@ test("assertScenario: fileTreeUnchanged fails and names an unexpected new file",
 test("assertScenario: fileTreeUnchanged fails and names a missing expected file", () => {
   const expect = {
     fileTreeUnchanged: true,
-    baselineFileTree: ["README.md", "openwiki/.last-update.json"],
+    baselineFileTree: ["README.md", "handbook/.state.json"],
   };
   const captured = baseCaptured({ fileTree: ["README.md"] });
 
@@ -266,7 +266,7 @@ test("assertScenario: fileTreeUnchanged fails and names a missing expected file"
     result.failures.some(
       (failure) =>
         failure.startsWith("fileTreeUnchanged:") &&
-        failure.includes("openwiki/.last-update.json"),
+        failure.includes("handbook/.state.json"),
     ),
   );
 });

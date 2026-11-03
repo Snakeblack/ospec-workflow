@@ -25,12 +25,14 @@ function isExtraSkillPath(filePath) {
 // phases (the `sdd-*` skills, the `sdd-*` agents with the orchestrator, the
 // `/sdd-*` commands and the `sdd-*` rules) ship only with `--with-sdd`
 // (REQ-generator-025). The `review-*` agents and `skills/_shared/` stay: IDD's
-// trust review uses them. The `foundation` skill runs in every install, while
-// its agent is only the SDD orchestrator's delegate for the foundation route.
+// trust review uses them. The `foundation` and `handbook` skills run in every
+// install, while their agents are only the SDD orchestrator's delegates for the
+// foundation and handbook routes.
 const SDD_PATTERNS = Object.freeze([
   /^skills\/sdd-[a-z0-9-]+\//,
   /^agents\/sdd-[a-z0-9-]+\.agent\.md$/,
   /^agents\/foundation\.agent\.md$/,
+  /^agents\/handbook\.agent\.md$/,
   /^commands\/sdd-[a-z0-9-]+\.prompt\.md$/,
   /^rules\/sdd-[a-z0-9-]+\.instructions\.md$/,
 ]);
