@@ -264,7 +264,7 @@ test("a usage error prints only the usage lines of its subcommand", (t) => {
   assert.strictEqual(unknown.code, 2);
   assert.strictEqual(
     unknown.stderr,
-    "ospec: unknown command: frobnicate (usage)\ncommands: status, next, record, signals, check, run, review, close, doctor, team, snapshot, foundation\n",
+    "ospec: unknown command: frobnicate (usage)\ncommands: status, next, record, signals, check, run, review, close, doctor, router, team, snapshot, foundation\n",
   );
 
   const intent = ospec(root, "record", "intent", "--json");
@@ -1924,7 +1924,7 @@ test("a change with a living document closes once its plan and decisions are wri
 function doctor(t, root, ...args) {
   const home = tempRoot(t);
   const env = { ...process.env, HOME: home, USERPROFILE: home, APPDATA: path.join(home, "AppData", "Roaming") };
-  for (const name of Object.keys(env)) if (name.startsWith("DISABLE_") || name === "CODEX_HOME" || name === "XDG_CONFIG_HOME") delete env[name];
+  for (const name of Object.keys(env)) if (name.startsWith("DISABLE_") || ["CODEX_HOME", "XDG_CONFIG_HOME", "CLAUDE_CONFIG_DIR"].includes(name)) delete env[name];
   const result = spawnSync(process.execPath, [CLI, "doctor", ...args, "--root", root], { encoding: "utf8", env });
   return { code: result.status, stdout: result.stdout, stderr: result.stderr, json: args.includes("--json") ? JSON.parse(result.stdout) : null };
 }
@@ -3841,4 +3841,77 @@ test("[E1.49] a checks-changed answer the turn fence keeps user-unverified still
   const closed = ospec(root, "close", "--change", "fix-readme");
   assert.strictEqual(closed.code, 0, closed.stderr);
   assert.match(closed.stdout, /^warning: gate checks-changed was answered user-unverified: no turn ended between the gate's opening and the answer$/m);
+});
+
+// claude-router: `ospec router` writes the Claude Code router from the plugin
+// it belongs to (OSPEC_PLUGIN_ROOT here) into CLAUDE_CONFIG_DIR or ~/.claude.
+function routerEnv(t, { source = true } = {}) {
+  const base = plainRoot(t);
+  const plugin = path.join(base, "plugin");
+  if (source) {
+    fs.mkdirSync(path.join(plugin, "global-instructions"), { recursive: true });
+    fs.writeFileSync(path.join(plugin, "global-instructions", "CLAUDE.md"), "# ospec-workflow\n\nrouter\n");
+  }
+  fs.mkdirSync(path.join(plugin, ".claude-plugin"), { recursive: true });
+  fs.writeFileSync(path.join(plugin, ".claude-plugin", "plugin.json"), JSON.stringify({ name: "ospec-workflow", version: "9.1.0" }));
+  const config = path.join(base, "config");
+  const env = { ...process.env, HOME: base, USERPROFILE: base, CLAUDE_CONFIG_DIR: config, OSPEC_PLUGIN_ROOT: plugin };
+  return { base, config, env, rules: path.join(config, "rules", "ospec-workflow.md"), state: path.join(config, "plugins", "data", "ospec-workflow-ospec-tools", "router.json") };
+}
+
+test("ospec router installs, reports, turns off and removes the user router", (t) => {
+  const r = routerEnv(t);
+  const root = plainRoot(t);
+  const installed = ospecWith(r.env, root, "router", "install", "--json");
+  assert.strictEqual(installed.code, 0, installed.stderr);
+  assert.strictEqual(installed.json.path, r.rules);
+  assert.strictEqual(fs.readFileSync(r.rules, "utf8"), "# ospec-workflow\n\nrouter\n");
+  const text = ospecWith(r.env, root, "router", "install");
+  assert.match(text.stdout, /router already current in/);
+
+  const status = ospecWith(r.env, root, "router", "status", "--json");
+  assert.strictEqual(status.json.source.version, "9.1.0");
+  assert.strictEqual(status.json.user.file, "current");
+  assert.strictEqual(status.json.project.file, "absent");
+
+  const off = ospecWith(r.env, root, "router", "off", "--json");
+  assert.deepStrictEqual(off.json.removed, [r.rules]);
+  assert.strictEqual(JSON.parse(fs.readFileSync(r.state, "utf8")).declined, true);
+  const removed = ospecWith(r.env, root, "router", "remove");
+  assert.match(removed.stdout, /nothing to remove; the notice comes back/);
+  assert.strictEqual(fs.existsSync(r.state), false);
+});
+
+test("ospec router install --scope project writes the team router and the settings of --root", (t) => {
+  const r = routerEnv(t);
+  const root = plainRoot(t);
+  const result = ospecWith(r.env, root, "router", "install", "--scope", "project");
+  assert.strictEqual(result.code, 0, result.stderr);
+  assert.match(result.stdout, /snakeblack\/ospec-workflow\.git#release; plugin enabled/);
+  const settings = JSON.parse(fs.readFileSync(path.join(root, ".claude", "settings.json"), "utf8"));
+  assert.strictEqual(settings.enabledPlugins["ospec-workflow@ospec-tools"], true);
+  assert.ok(fs.existsSync(path.join(root, ".claude", "rules", "ospec-workflow.md")));
+  assert.strictEqual(fs.existsSync(r.rules), false);
+});
+
+test("ospec router refuses without a built router, an edited file or a bad scope", (t) => {
+  const missing = routerEnv(t, { source: false });
+  const root = plainRoot(t);
+  const refused = ospecWith(missing.env, root, "router", "install", "--json");
+  assert.strictEqual(refused.code, 1);
+  assert.strictEqual(refused.json.error.code, "router-source-missing");
+  assert.match(refused.json.error.how, /npm run setup:claude/);
+
+  const edited = routerEnv(t);
+  fs.mkdirSync(path.dirname(edited.rules), { recursive: true });
+  fs.writeFileSync(edited.rules, "# mine\n");
+  const modified = ospecWith(edited.env, root, "router", "install");
+  assert.strictEqual(modified.code, 1);
+  assert.match(modified.stderr, /\(router-modified\)/);
+  assert.match(modified.stderr, /ospec router install --force/);
+  assert.strictEqual(ospecWith(edited.env, root, "router", "install", "--force").code, 0);
+
+  const scope = ospecWith(edited.env, root, "router", "install", "--scope", "team");
+  assert.strictEqual(scope.code, 2);
+  assert.match(scope.stderr, /--scope takes user or project/);
 });

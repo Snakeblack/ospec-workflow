@@ -257,6 +257,11 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/ospec-doctor-hosts.js",
   "scripts/lib/ospec-doctor-hosts.test.js",
   "scripts/lib/engram-detect.js",
+  // claude-router: the Claude Code router file, its CLI and its SessionStart
+  // step, with the router block helpers they share with the installers.
+  "scripts/lib/claude-router.js",
+  "scripts/lib/claude-router.test.js",
+  "scripts/lib/router-block.js",
   // Quality Review Gate successor (live v2 post-verify).
   "scripts/lib/quality-review-kpis.js",
   "scripts/lib/quality-review-kpis.test.js",

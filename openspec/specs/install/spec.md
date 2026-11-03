@@ -148,7 +148,8 @@ When invoked directly (`npm run build:claude`):
 4. If no binary is found, print the artifact path and return (non-fatal; build artifact is ready).
 5. Probe `claude plugin marketplace list`. If `"ospec-tools"` appears in output, run `claude plugin marketplace update ospec-tools`; otherwise run `claude plugin marketplace add <outDir> --scope user`.
 6. Probe `claude plugin list`. If `"ospec-workflow@ospec-tools"` appears in output, run `claude plugin update ospec-workflow@ospec-tools`; otherwise run `claude plugin install ospec-workflow@ospec-tools`.
-7. Print "Done. Restart Claude Code or run /reload-plugins to apply."
+7. Install the router of the built plugin as the user rules file of REQ-install-045 (`--no-router` turns it off instead).
+8. Print "Done. Restart Claude Code or run /reload-plugins to apply."
 
 ### 3.2 Build-Only Mode (`npm run reload:claude`)
 
@@ -1266,7 +1267,7 @@ Every target installer (`setup:claude`, `setup:vscode`, `setup:copilot`, `setup:
 
 ### Requirement: Router Installs As A Marked Block {#REQ-install-033}
 
-Where the router lands in a file the user also owns (`~/.claude/CLAUDE.md` for `setup:claude`; `~/.codex/AGENTS.md` for `setup:codex`; `<destRepo>/AGENTS.md` for `install:codex -- <destRepo>`), the installer MUST write it between the `<!-- ospec-workflow:router:begin -->` and `<!-- ospec-workflow:router:end -->` markers (`scripts/configure/instruction-block.js`): a reinstall replaces only that block, the text around it is preserved, and a begin marker without its end marker fails the install instead of being guessed. An `AGENTS.md` that a pre-E0.4 install owned whole (listed in the ownership manifest, or carrying the `# SDD Orchestrator` heading without markers) MUST be replaced by the block, never pruned. `--no-router` MUST skip the router and remove a block an earlier install wrote, deleting the file only when nothing else is left. `setup:claude` writes the block only after the plugin is installed or updated, never with `--build-only` or without the `claude` CLI. The other targets install the router as one more global rule file, which their ownership manifests already prune.
+Where the router lands in a file the user also owns (`~/.codex/AGENTS.md` for `setup:codex`; `<destRepo>/AGENTS.md` for `install:codex -- <destRepo>`), the installer MUST write it between the `<!-- ospec-workflow:router:begin -->` and `<!-- ospec-workflow:router:end -->` markers (`scripts/configure/instruction-block.js`): a reinstall replaces only that block, the text around it is preserved, and a begin marker without its end marker fails the install instead of being guessed. An `AGENTS.md` that a pre-E0.4 install owned whole (listed in the ownership manifest, or carrying the `# SDD Orchestrator` heading without markers) MUST be replaced by the block, never pruned. `--no-router` MUST skip the router and remove a block an earlier install wrote, deleting the file only when nothing else is left. Claude Code gets a file of its own instead of a block (REQ-install-045): `setup:claude` installs it only after the plugin is installed or updated, never with `--build-only` or without the `claude` CLI, and takes out the block that earlier releases wrote in `~/.claude/CLAUDE.md`. The other targets install the router as one more global rule file, which their ownership manifests already prune.
 
 #### Scenario: User text survives install and removal
 
@@ -1386,13 +1387,13 @@ A filesystem mutation that still fails with `EPERM`, `EACCES` or `EBUSY` after i
 
 ### Requirement: Setup Flags Work From Every Shell And Claude Dry Run Writes Nothing {#REQ-install-040}
 
-`setup:claude --dry-run` MUST build and validate the marketplace in a temporary directory that it removes afterwards, report the result, and exit with code 0 without registering the marketplace or the plugin, without writing the router block of `~/.claude/CLAUDE.md`, without copying the hooks binary, without running the Engram step and without touching `dist/claude-marketplace`. PowerShell's `npm.ps1` shim consumes the `--` that separates `npm run` from the script flags, so every target (`claude`, `copilot`, `opencode`, `codex`, `vscode`, `cursor`, `antigravity`) MUST also have the fixed scripts `setup:<target>:sdd` and `setup:<target>:no-sdd`, which run the same installer with `--with-sdd` and `--no-sdd` and need no separator. The guides MUST say that `npm.cmd run setup:<target> -- <flags>` and a quoted `'--'` also work in PowerShell.
+`setup:claude --dry-run` MUST build and validate the marketplace in a temporary directory that it removes afterwards, report the result, and exit with code 0 without registering the marketplace or the plugin, without writing the router of REQ-install-045, without copying the hooks binary, without running the Engram step and without touching `dist/claude-marketplace`. PowerShell's `npm.ps1` shim consumes the `--` that separates `npm run` from the script flags, so every target (`claude`, `copilot`, `opencode`, `codex`, `vscode`, `cursor`, `antigravity`) MUST also have the fixed scripts `setup:<target>:sdd` and `setup:<target>:no-sdd`, which run the same installer with `--with-sdd` and `--no-sdd` and need no separator. The guides MUST say that `npm.cmd run setup:<target> -- <flags>` and a quoted `'--'` also work in PowerShell.
 
 #### Scenario: Claude dry run installs nothing
 
-- GIVEN `~/.claude/CLAUDE.md` and `dist/claude-marketplace` exist
+- GIVEN `~/.claude/CLAUDE.md`, `~/.claude/rules/` and `dist/claude-marketplace` exist
 - WHEN `setup:claude --dry-run` runs
-- THEN the build is validated, the command ends with code 0, no `claude plugin` command runs, `~/.claude/CLAUDE.md` and `dist/claude-marketplace` are unchanged and no temporary directory is left
+- THEN the build is validated, the command ends with code 0, no `claude plugin` command runs, `~/.claude/CLAUDE.md`, `~/.claude/rules/` and `dist/claude-marketplace` are unchanged and no temporary directory is left
 
 #### Scenario: Fixed SDD scripts need no separator
 
@@ -1427,3 +1428,37 @@ A hooks binary older than the Go sources that the installer cannot rebuild (sect
 - GIVEN a stale source binary and no `go`
 - WHEN `copyBinaryToTree` runs for `opencode`
 - THEN the tree MUST hold `release/dist/ospec-hooks` AND the warning MUST say that it is used anyway
+
+### Requirement: The Claude Code Router Is A Rules File That `ospec router` Manages {#REQ-install-045}
+
+A Claude Code plugin cannot carry always-on text, and installing it from the marketplace (`claude plugin marketplace add ...#release`) runs no installer, so the router of `global-instructions/CLAUDE.md` (REQ-generator-022) MUST reach the user through `scripts/lib/claude-router.js`, which `setup:claude`, the `ospec router` command, `ospec doctor` (read-only, REQ-idd-019) and the SessionStart launcher (REQ-hooks-032) share. The Claude Code configuration directory is `CLAUDE_CONFIG_DIR` when set, else `~/.claude`.
+
+- **Where.** The user router MUST be `<config>/rules/ospec-workflow.md`, which Claude Code loads at every session start as user memory, beside `<config>/CLAUDE.md`; its content is the plugin's router, byte for byte with LF endings. Its state (the user's "no", and the version and SHA-256 of what ospec wrote) MUST live in `<config>/plugins/data/ospec-workflow-ospec-tools/router.json`, the plugin data directory that Claude Code removes with the plugin; a corrupt state reads as none. The team router MUST be `<root>/.claude/rules/ospec-workflow.md`.
+- **`ospec router install [--scope user|project] [--force]`** MUST write the router of the plugin the CLI belongs to (`OSPEC_PLUGIN_ROOT` names another). A tree without `global-instructions/CLAUDE.md`, such as a checkout, MUST be refused with `router-source-missing`, pointing to `npm run setup:claude`. The user scope MUST also take out a block that earlier releases wrote in `<config>/CLAUDE.md`, keeping the user's text and deleting a file left empty, and MUST refuse a begin marker without its end marker (`router-block-broken`) before writing anything. The project scope MUST write the team router and, in `<root>/.claude/settings.json`, keep every other key, declare the `ospec-tools` marketplace under `extraKnownMarketplaces` unless one is declared already, and set `enabledPlugins["ospec-workflow@ospec-tools"]` to `true`. The marketplace source MUST be the user's registered `ospec-tools` source when it is `github`, `git` or `url`, without `headers` or `headersHelper`, and with the password, an http(s) user and the query string taken out of its URL, and the public `{ "source": "git", "url": "https://github.com/snakeblack/ospec-workflow.git", "ref": "release" }` when it is local. A settings file that is not a JSON object with object `extraKnownMarketplaces` and `enabledPlugins` MUST be refused with `settings-invalid` before anything is written.
+- **Edits are the user's.** A user rules file that is neither the installed router nor what ospec wrote, and a team router that differs from the installed one, MUST be refused with `router-modified` by `install`, `off` and `remove` unless `--force` is given.
+- **`ospec router off [--force]`** MUST take out the user router and the old block and record the "no"; **`ospec router remove [--scope user|project] [--force]`** MUST take them out and delete the state, so the notice comes back while the plugin stays. Removing the team router MUST leave `.claude/settings.json` as it is. **`ospec router status`** MUST report the source, the user scope (`absent`, `current`, `outdated`, `modified`), an old block, the "no", and the team router and settings of `--root`. `--json` prints each result; refusals exit 1 and usage errors 2.
+- **`setup:claude`** MUST install the user router after the plugin, and `--no-router` MUST run `off`. A router the user edited MUST be reported as a warning without failing the install.
+
+#### Scenario: Marketplace install gets the router from the CLI
+
+- GIVEN the plugin installed from the marketplace and no router
+- WHEN the user runs `! ospec router install` in a Claude Code session
+- THEN `~/.claude/rules/ospec-workflow.md` holds the plugin's router and the state records its version and hash
+
+#### Scenario: Old block migrates
+
+- GIVEN `~/.claude/CLAUDE.md` holds the user's text and a router block from an earlier `setup:claude`
+- WHEN `ospec router install` or `setup:claude` runs
+- THEN the rules file holds the router and `CLAUDE.md` holds only the user's text
+
+#### Scenario: Team router
+
+- GIVEN a repository whose `.claude/settings.json` has its own permissions and the user's marketplace is a local checkout
+- WHEN `ospec router install --scope project` runs there
+- THEN `.claude/rules/ospec-workflow.md` holds the router, the permissions stay, the marketplace is the public release branch and the plugin is enabled
+
+#### Scenario: Hand edits survive
+
+- GIVEN a user rules file edited by hand
+- WHEN `ospec router install` runs without `--force`
+- THEN it exits 1 with `router-modified` and the file is unchanged

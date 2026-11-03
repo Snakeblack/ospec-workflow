@@ -15,7 +15,8 @@
 // decides and the delivery options, with their reasons (REQ-idd-023). `close`
 // writes the changelog entry and proposes the release they declare
 // (REQ-idd-025). `snapshot` exports the progress snapshot of the project on
-// demand; no IDD or SDD step runs it (REQ-idd-026).
+// demand; no IDD or SDD step runs it (REQ-idd-026). `router` installs,
+// turns off, removes and reports the Claude Code router (claude-router.js).
 //
 // Exit codes: 0 ok, 1 refused by the IDD contract (or doctor found an error),
 // 2 usage error.
@@ -90,6 +91,7 @@ const { buildSnapshotV3 } = require("./lib/progress-snapshot-v3.js");
 const { buildSnapshotV4 } = require("./lib/progress-snapshot-v4.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
+const claudeRouter = require("./lib/claude-router.js");
 const { IRREVERSIBLE_OPERATIONS, addedTests, applyDerivation, classifyPath, deriveSignals, inlineTests, persistentHits, requireDeclaredCeremony } = require("./lib/idd-signals.js");
 const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { writeFileAtomic } = require("./lib/atomic-write.js");
@@ -154,6 +156,9 @@ const USAGE = `Usage:
   ospec review record|validate --change <id> --result <json>|@<file>
   ospec close --change <id>
   ospec doctor [--target <host>] [--repair] [--json]
+  ospec router install|remove [--scope user|project] [--force] [--json]
+  ospec router off [--force] [--json]
+  ospec router status [--json]
   ospec team [--mode <idd|sdd>] [--json]
   ospec snapshot [--schema-version <1|2|3|4>] [--roadmap <path>] [--progress <path>] [--out <file>] [--json]
   ospec foundation next [--profile <id>] [--map <path>] [--json]
@@ -239,6 +244,8 @@ const OPTIONS = {
   root: { type: "string" },
   target: { type: "string" },
   repair: { type: "boolean" },
+  scope: { type: "string" },
+  force: { type: "boolean" },
   mode: { type: "string" },
   profile: { type: "string" },
   map: { type: "string" },
@@ -1420,6 +1427,64 @@ function nextAfterWrite(root, state) {
   return next;
 }
 
+// `ospec router` (claude-router). The router comes from the plugin this CLI
+// belongs to; OSPEC_PLUGIN_ROOT names another, as it does for the hooks.
+const ROUTER_SUBCOMMANDS = ["install", "off", "remove", "status"];
+
+function routerCommand(root, [sub], values) {
+  if (!ROUTER_SUBCOMMANDS.includes(sub)) throw new UsageError(`router takes one of ${ROUTER_SUBCOMMANDS.join(", ")}`);
+  const scope = values.scope ?? "user";
+  if (!["user", "project"].includes(scope)) throw new UsageError(`--scope takes user or project, not ${JSON.stringify(scope)}`);
+  const options = {
+    pluginRoot: process.env.OSPEC_PLUGIN_ROOT || path.resolve(__dirname, ".."),
+    configDir: claudeRouter.claudeConfigDir(),
+    root: path.resolve(root),
+    scope,
+    force: values.force === true,
+  };
+  if (sub === "status") return { router: sub, ...claudeRouter.status(options) };
+  if (sub === "install") return { router: sub, ...claudeRouter.install(options) };
+  if (sub === "off") return { router: sub, ...claudeRouter.off(options) };
+  return { router: sub, ...claudeRouter.remove(options) };
+}
+
+function describeRouterFile(scope) {
+  const parts = [`${scope.scope}: ${scope.path} (${scope.file})`];
+  if (scope.legacy) parts.push(`old block in ${scope.legacy.path} (${scope.legacy.state})`);
+  if (scope.declined) parts.push("off: no notice at session start");
+  if (scope.settings) {
+    const settings = scope.settings;
+    parts.push(settings.invalid
+      ? `${settings.path} is not valid JSON`
+      : `${settings.path}: marketplace ${settings.marketplace ? "declared" : "not declared"}, plugin ${settings.enabled ? "enabled" : "not enabled"}`);
+  }
+  return parts.join("; ");
+}
+
+function describeRouter(result) {
+  if (result.router === "status") {
+    const lines = [result.source ? `router: ${result.source.path} (${result.source.version ?? "unknown version"})` : "router: none here (this ospec is not an installed Claude Code plugin)"];
+    lines.push(describeRouterFile(result.user));
+    if (result.project) lines.push(describeRouterFile(result.project));
+    return lines.join("\n");
+  }
+  if (result.router === "install") {
+    const lines = [result.changed ? `router ${result.version ?? ""} written to ${result.path}`.replace("  ", " ") : `router already current in ${result.path}`];
+    if (result.migrated) lines.push(`moved the old block out of ${result.migrated}`);
+    if (result.scope === "project") {
+      const source = result.marketplace ? [result.marketplace.repo || result.marketplace.url || result.marketplace.path, result.marketplace.ref].filter(Boolean).join("#") : "kept as declared";
+      lines.push(`${result.settings}: ${result.settings_changed ? "updated" : "unchanged"} (marketplace ospec-tools: ${source}; plugin enabled); each teammate still installs the plugin`);
+    }
+    lines.push("Claude Code loads it at the next session start or after /clear.");
+    return lines.join("\n");
+  }
+  const removed = result.removed.length ? `removed ${result.removed.join(" and ")}` : "nothing to remove";
+  if (result.router === "off") return `router off: ${removed}; no notice at session start until ospec router install`;
+  return result.scope === "project"
+    ? `router: ${removed}; ${result.settings_kept} keeps the marketplace and the plugin: edit it to drop them`
+    : `router: ${removed}; the notice comes back at the next session start while the plugin stays installed`;
+}
+
 async function run(command, positionals, values) {
   const root = values.root || process.cwd();
   if (command === "status") {
@@ -1445,6 +1510,7 @@ async function run(command, positionals, values) {
   if (command === "review") return review(root, positionals, values);
   if (command === "close") return close(root, values);
   if (command === "doctor") return runDoctor({ root, target: values.target ?? null, repair: values.repair === true });
+  if (command === "router") return routerCommand(root, positionals, values);
   if (command === "foundation") return foundation(root, positionals, values);
   if (command === "team") return readTeam(root, values.mode ?? null);
   if (command === "snapshot") return snapshot(root, values);
@@ -1790,6 +1856,7 @@ function describe(command, result) {
   if (command === "foundation") return describeFoundation(result);
   if (command === "close") return describeClose(result);
   if (command === "doctor") return renderDoctor(result);
+  if (command === "router") return describeRouter(result);
   if (command === "review") return describeReview(result);
   if (command === "signals") return describeSignals(result);
   if (command === "check") return describeCheck(result);
@@ -1915,7 +1982,8 @@ async function main(argv = process.argv.slice(2)) {
       error instanceof IddImpactError ||
       error instanceof IddWorkspaceError ||
       error instanceof DecisionGapError ||
-      error instanceof SnapshotError;
+      error instanceof SnapshotError ||
+      error instanceof claudeRouter.RouterError;
     if (!known) throw error;
     const code = usage ? "usage" : error.code;
     // A refusal says how to get past it: its own how, the usage of its

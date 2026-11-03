@@ -359,12 +359,20 @@ function reshapeManifest(file, profile) {
 // --- hooks -----------------------------------------------------------------
 
 // Claude Code rewrites tool output from PostToolUse (E1.27), so its PreToolUse
-// learns that a non-shell read of a secret reaches the model redacted.
-function withOutputRedaction(event, entry) {
-  if (event !== "PreToolUse" || !entry || typeof entry.command !== "string") {
+// learns that a non-shell read of a secret reaches the model redacted. Its
+// SessionStart also keeps the Claude Code router (claude-router): VS Code runs
+// the same launcher with no router of its own, so only this build passes it.
+const CLAUDE_HOOK_FLAGS = {
+  PreToolUse: [/ pre-tool-use$/, " pre-tool-use --output-redaction"],
+  SessionStart: [/ session-start$/, " session-start --claude-router"],
+};
+
+function withClaudeFlags(event, entry) {
+  const flag = CLAUDE_HOOK_FLAGS[event];
+  if (!flag || !entry || typeof entry.command !== "string") {
     return entry;
   }
-  return { ...entry, command: entry.command.replace(/ pre-tool-use$/, " pre-tool-use --output-redaction") };
+  return { ...entry, command: entry.command.replace(flag[0], flag[1]) };
 }
 
 function nestHooks(file) {
@@ -373,7 +381,7 @@ function nestHooks(file) {
   const nested = {};
 
   for (const [event, entries] of Object.entries(events)) {
-    nested[event] = [{ hooks: entries.map((entry) => withOutputRedaction(event, entry)) }];
+    nested[event] = [{ hooks: entries.map((entry) => withClaudeFlags(event, entry)) }];
   }
 
   return { path: file.path, content: JSON.stringify({ ...obj, hooks: nested }, null, 2) };

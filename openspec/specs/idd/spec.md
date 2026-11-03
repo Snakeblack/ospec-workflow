@@ -1884,8 +1884,11 @@ The checks MUST cover at least:
   with `git rm -r --cached .ospec`, or does not ignore `.ospec/session/latest.md`;
   the hooks make the folder ignore itself, REQ-hooks-028) and
   `hook-guards` (`warn` naming every `DISABLE_*` guard set to `true`).
-- `claude`: `plugin` (`error` when an installation's directory or manifest is
-  missing, `warn` when several installations exist), `hooks` (`error` when
+- `claude`, read from the Claude Code configuration directory
+  (`CLAUDE_CONFIG_DIR` when set, else `~/.claude`, as Claude Code and the
+  router of REQ-install-045 resolve it): `plugin` (`error` when an
+  installation's directory or manifest is missing, `warn` when several
+  installations exist), `hooks` (`error` when
   `hooks/hooks.json` or its launcher is missing, `info` when no native binary
   ships for the platform), `hook-responds` (only when `hooks` found the
   launcher: it runs the installed launcher's `pre-tool-use` on a harmless
@@ -1894,13 +1897,21 @@ The checks MUST cover at least:
   a failed child still exits 0 with a fail-closed `ask`), `output-redaction`
   (only when the `PreToolUse` command passes `--output-redaction`: `warn` when
   `claude --version` is older than 2.1.121, the first version that applies
-  `updatedToolOutput` to every tool, or cannot be read), `router` (`warn`
-  when the block is missing from `~/.claude/CLAUDE.md` or differs from the
-  installed plugin's router),
-  `router-duplicate` (`warn` when text outside the block loads ospec skills),
-  `budget` (`warn` when the router block exceeds the 4 KB always-on budget of
+  `updatedToolOutput` to every tool, or cannot be read), `router` (`ok` for
+  the installed router in `rules/ospec-workflow.md`, for an old block in
+  `CLAUDE.md` equal to it or for the project's team router; `warn` naming
+  `ospec router install` when none is there, when the old block differs or
+  has no end marker, or when the team router differs; `warn` when the rules
+  file ospec wrote comes from another version, since a new session refreshes
+  it, and when the file differs from what ospec wrote, naming `ospec router
+  install --force`; `info` after `ospec router off`),
+  `router-duplicate` (`warn` when text outside the block loads ospec skills,
+  when the rules file and an old block both hold the router, or when the
+  rules file and the team router both load),
+  `budget` (`warn` when the router exceeds the 4 KB always-on budget of
   E0.4) and `engram` (read-only Engram detection; `info` when the binary is
-  absent, because Engram is optional).
+  absent, because Engram is optional). Writing the router is `ospec router`'s
+  job (REQ-install-045), never the doctor's.
 - `codex`, `cursor`, `antigravity`, `opencode` and `github-copilot`, each found
   by the `.ospec-workflow-install.json` its global installer writes (Codex
   under `CODEX_HOME` when set): `install` (`error` when the manifest is not

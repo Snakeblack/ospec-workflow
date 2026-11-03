@@ -2,14 +2,14 @@
   "schema": "ospec-context-baseline/v1",
   "targets": {
     "claude": {
-      "always_on_bytes": 3404,
+      "always_on_bytes": 3503,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10623,
-      "default_flow_bytes": 14027,
-      "memory_flow_bytes": 16975,
+      "default_flow_bytes": 14126,
+      "memory_flow_bytes": 17074,
       "agent_read_bytes": {
         "review-change": 4757,
         "review-correction": 5197,
@@ -20,14 +20,14 @@
       }
     },
     "vscode": {
-      "always_on_bytes": 3663,
+      "always_on_bytes": 3747,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10619,
-      "default_flow_bytes": 14282,
-      "memory_flow_bytes": 17230,
+      "default_flow_bytes": 14366,
+      "memory_flow_bytes": 17314,
       "agent_read_bytes": {
         "review-change": 4754,
         "review-correction": 5192,
@@ -38,14 +38,14 @@
       }
     },
     "github-copilot": {
-      "always_on_bytes": 3663,
+      "always_on_bytes": 3747,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10619,
-      "default_flow_bytes": 14282,
-      "memory_flow_bytes": 17230,
+      "default_flow_bytes": 14366,
+      "memory_flow_bytes": 17314,
       "agent_read_bytes": {
         "review-change": 4740,
         "review-correction": 5178,
@@ -56,14 +56,14 @@
       }
     },
     "opencode": {
-      "always_on_bytes": 3341,
+      "always_on_bytes": 3425,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10619,
-      "default_flow_bytes": 13960,
-      "memory_flow_bytes": 16908,
+      "default_flow_bytes": 14044,
+      "memory_flow_bytes": 16992,
       "agent_read_bytes": {
         "review-change": 4752,
         "review-correction": 5190,
@@ -74,14 +74,14 @@
       }
     },
     "codex": {
-      "always_on_bytes": 3344,
+      "always_on_bytes": 3428,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10619,
-      "default_flow_bytes": 13963,
-      "memory_flow_bytes": 16911,
+      "default_flow_bytes": 14047,
+      "memory_flow_bytes": 16995,
       "agent_read_bytes": {
         "review-change": 4797,
         "review-correction": 5235,
@@ -92,14 +92,14 @@
       }
     },
     "cursor": {
-      "always_on_bytes": 3671,
+      "always_on_bytes": 3755,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10619,
-      "default_flow_bytes": 14290,
-      "memory_flow_bytes": 17238,
+      "default_flow_bytes": 14374,
+      "memory_flow_bytes": 17322,
       "agent_read_bytes": {
         "review-change": 4706,
         "review-correction": 5144,
@@ -110,14 +110,14 @@
       }
     },
     "antigravity": {
-      "always_on_bytes": 3673,
+      "always_on_bytes": 3757,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10619,
-      "default_flow_bytes": 14292,
-      "memory_flow_bytes": 17240,
+      "default_flow_bytes": 14376,
+      "memory_flow_bytes": 17324,
       "agent_read_bytes": {
         "review-change": 4761,
         "review-correction": 5199,
@@ -338,6 +338,111 @@
         ]
       },
       "reason": "handbook sustituye a sdd-document y, como foundation, se instala en cualquier modo (decisión del usuario del 2026-11-03)"
+    },
+    {
+      "version": "2.169.0",
+      "metric": "always_on_bytes",
+      "targets": {
+        "claude": [
+          3404,
+          3503
+        ],
+        "vscode": [
+          3663,
+          3747
+        ],
+        "github-copilot": [
+          3663,
+          3747
+        ],
+        "opencode": [
+          3341,
+          3425
+        ],
+        "codex": [
+          3344,
+          3428
+        ],
+        "cursor": [
+          3671,
+          3755
+        ],
+        "antigravity": [
+          3673,
+          3757
+        ]
+      },
+      "reason": "claude-router: el router dice que se ignore si falta la entrada IDD, porque el fichero de reglas de Claude sobrevive a la desinstalación del plugin"
+    },
+    {
+      "version": "2.169.0",
+      "metric": "default_flow_bytes",
+      "targets": {
+        "claude": [
+          14027,
+          14126
+        ],
+        "vscode": [
+          14282,
+          14366
+        ],
+        "github-copilot": [
+          14282,
+          14366
+        ],
+        "opencode": [
+          13960,
+          14044
+        ],
+        "codex": [
+          13963,
+          14047
+        ],
+        "cursor": [
+          14290,
+          14374
+        ],
+        "antigravity": [
+          14292,
+          14376
+        ]
+      },
+      "reason": "claude-router: el router dice que se ignore si falta la entrada IDD, porque el fichero de reglas de Claude sobrevive a la desinstalación del plugin"
+    },
+    {
+      "version": "2.169.0",
+      "metric": "memory_flow_bytes",
+      "targets": {
+        "claude": [
+          16975,
+          17074
+        ],
+        "vscode": [
+          17230,
+          17314
+        ],
+        "github-copilot": [
+          17230,
+          17314
+        ],
+        "opencode": [
+          16908,
+          16992
+        ],
+        "codex": [
+          16911,
+          16995
+        ],
+        "cursor": [
+          17238,
+          17322
+        ],
+        "antigravity": [
+          17240,
+          17324
+        ]
+      },
+      "reason": "claude-router: el router dice que se ignore si falta la entrada IDD, porque el fichero de reglas de Claude sobrevive a la desinstalación del plugin"
     }
   ]
 }

@@ -13,7 +13,7 @@ const path = require("node:path");
 const { REFUSALS, refusalHow } = require("./idd-refusals.js");
 
 const SCRIPTS = path.join(__dirname, "..");
-const COMMANDS = ["status", "next", "record", "signals", "check", "run", "review", "close", "doctor", "team", "snapshot", "foundation"];
+const COMMANDS = ["status", "next", "record", "signals", "check", "run", "review", "close", "doctor", "router", "team", "snapshot", "foundation"];
 
 // The CLI and every module it requires, as the build gathers its runtime.
 function cliModules() {

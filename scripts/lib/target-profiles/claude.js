@@ -43,7 +43,7 @@ module.exports = {
   // orchestrator persona ships as a SKILL (the documented context-loading vehicle).
   // Global rules (router, attribution) go to global-instructions/CLAUDE.md (the
   // validator rejects a root CLAUDE.md, which a plugin never loads); setup:claude
-  // installs it as a marked block in ~/.claude/CLAUDE.md (E0.4).
+  // and `ospec router install` put it in ~/.claude/rules/ospec-workflow.md (claude-router).
   rules: { strategy: "inline-into-orchestrator", globalFile: "global-instructions/CLAUDE.md" },
   orchestrator: {
     agent: "sdd-orchestrator",
