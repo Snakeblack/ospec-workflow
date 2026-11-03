@@ -2137,6 +2137,67 @@ test("record retract takes the user's answer for persistent data the diff conten
   assert.match(byPath.json.error.message, /db\/migrations|src\/report\.js/);
 });
 
+// #423 (E1.58): public-contract that only the content of a doc derives is
+// retracted with the user's answer, tied to the contract lines it saw.
+test("record retract takes the user's answer for a public contract a doc's content alone derives", (t) => {
+  const { root } = project(t);
+  ospec(root, "record", "intent", "--change", "security-policy", "--kind", "docs", "--summary", "Document how to report a vulnerability.", "--acceptance", "SECURITY.md names the contact form.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  ospec(root, "signals", "--change", "security-policy", "--path", "SECURITY.md");
+  const policy = "# Security\n\nReport it through `POST /api/contact/` (the contact form).\n";
+  writeFile(root, "SECURITY.md", policy);
+  const reason = "public contract: SECURITY.md adds API";
+  assert.ok(ospec(root, "check", "--change", "security-policy", "--json").json.added.signals.includes("public-contract"));
+
+  const retract = ["record", "retract", "--change", "security-policy", "--signal", "public-contract", "--reason", "the policy cites the contact form we already have"];
+  const plain = ospec(root, ...retract, "--json");
+  assert.strictEqual(plain.json.error.code, "signal-confirmed-by-diff");
+  assert.match(plain.json.error.how, /no contract.*--answer "<their words>" --source user/);
+  const answered = ospec(root, ...retract, "--answer", "It is the existing form.", "--source", "user", "--json");
+  assert.strictEqual(answered.code, 0, answered.stderr);
+  let state = stateOf(root, "security-policy");
+  assert.ok(!state.signals.some((signal) => signal.id === "public-contract"));
+  assert.strictEqual(state.obligations.find((o) => o.id === "contract-spec-and-test").status, "withdrawn");
+  assert.deepStrictEqual(state.retracted, [
+    {
+      id: "public-contract",
+      reason,
+      source: "diff",
+      retract_reason: "the policy cites the contact form we already have",
+      confirmed_by: reason,
+      hits: ["SECURITY.md adds API: Report it through `POST /api/contact/` (the contact form)."],
+      answer: "It is the existing form.",
+      answer_source: "user",
+    },
+  ]);
+  const checked = ospec(root, "check", "--change", "security-policy", "--json");
+  assert.strictEqual(checked.code, 0, checked.stderr);
+  assert.ok(!(checked.json.added?.signals || []).includes("public-contract"), "the answered lines stay retracted");
+
+  // A line that cites a new endpoint brings it back.
+  writeFile(root, "SECURITY.md", `${policy}Check the triage queue at \`GET /api/reports\`.\n`);
+  assert.ok(ospec(root, "check", "--change", "security-policy", "--json").json.added.signals.includes("public-contract"));
+  state = stateOf(root, "security-policy");
+  assert.strictEqual(state.obligations.find((o) => o.id === "contract-spec-and-test").status, "pending");
+});
+
+// E1.58: a contract line in a contract document is the contract itself, as a
+// path that derives the signal, so the user's answer does not retract it.
+test("record retract refuses the user's answer for a contract line in a contract document", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  ospec(root, "signals", "--change", "fix-readme", "--path", "docs/api/contact.md");
+  writeFile(root, "docs/api/contact.md", "# Contact\n\n`POST /api/contact/` takes the form.\n");
+  assert.ok(ospec(root, "check", "--change", "fix-readme", "--json").json.added.signals.includes("public-contract"));
+  const retract = ["record", "retract", "--change", "fix-readme", "--signal", "public-contract", "--reason", "it cites the existing form"];
+  const refused = ospec(root, ...retract, "--answer", "It is the existing form.", "--source", "user", "--json");
+  assert.strictEqual(refused.json.error.code, "retract-answer-refused");
+  assert.match(refused.json.error.message, /docs\/api\/contact\.md is a contract document/);
+  const plain = ospec(root, ...retract, "--json");
+  assert.strictEqual(plain.json.error.code, "signal-confirmed-by-diff");
+  assert.doesNotMatch(plain.json.error.how, /--answer/);
+  assert.strictEqual(stateOf(root, "fix-readme").obligations.find((o) => o.id === "contract-spec-and-test").status, "pending");
+});
+
 // #418: a signal from the diff that the current diff no longer derives is
 // retracted with a reason, as a declared one; one the diff derives is refused.
 test("record retract withdraws persistent data from the diff once the diff is back to the answered hits", (t) => {
@@ -2211,7 +2272,7 @@ test("record retract withdraws a public contract from the diff once the diff no 
   ]);
 });
 
-test("record retract refuses the user's answer for a signal other than persistent data", (t) => {
+test("record retract refuses the user's answer for a public contract a path derives", (t) => {
   const { root } = project(t);
   openFeature(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...FEATURE_COVER);
   ospec(root, "signals", "--change", "add-index", "--path", "src/api/search.js");

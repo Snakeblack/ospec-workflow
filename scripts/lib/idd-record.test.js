@@ -629,11 +629,40 @@ test("the user's answer retracts content-only persistent data, and the state kee
     { confirmed_by: undefined },
     { hits: [] },
     { hits: [""] },
-    { id: "public-contract" },
+    { id: "security-boundary" },
   ]) {
     const entry = { ...retracted.retracted[0], ...broken };
     assert.strictEqual(validateState({ ...retracted, retracted: [entry] }).ok, false, JSON.stringify(broken));
   }
+});
+
+// E1.58: the user's answer retracts a public contract that only the content of
+// documentation derives; a contract document, or any other signal, refuses it.
+test("the user's answer retracts a content-only public contract, but not one in a contract document", () => {
+  const { recordRetract } = require("./idd-record.js");
+  const reason = "public contract: SECURITY.md adds API";
+  const state = recordSignal(opened(), { id: "public-contract", reason, source: "diff" }).state;
+  const hits = ["SECURITY.md adds API: Report it through `POST /api/contact/`."];
+  const answer = { id: "public-contract", reason: "it cites the existing form", confirmedBy: reason, hits, answer: "It is the existing form.", source: "user" };
+  assert.throws(
+    () => recordRetract(state, { id: "public-contract", reason: "cited", confirmedBy: reason, contentOnly: true, hits }),
+    (error) => error.code === "signal-confirmed-by-diff" && /confirms the documentation changes no contract, add --answer/.test(error.how),
+  );
+  const document = "docs/api/contact.md is a contract document, so the contract itself changes";
+  assert.throws(
+    () => recordRetract(state, { ...answer, contentOnly: false, hits: [], refusedBecause: document }),
+    (error) => error.code === "retract-answer-refused" && error.message.endsWith(document) && /persistent-data or public-contract/.test(error.message),
+  );
+
+  const { state: retracted } = recordRetract(state, { ...answer, contentOnly: true });
+  assertValid(retracted);
+  assert.deepStrictEqual(retracted.retracted, [
+    { id: "public-contract", reason, source: "diff", retract_reason: "it cites the existing form", confirmed_by: reason, hits, answer: "It is the existing form.", answer_source: "user" },
+  ]);
+  assert.strictEqual(retracted.obligations.find((o) => o.id === "contract-spec-and-test").status, "withdrawn");
+
+  const boundary = recordSignal(opened(), { id: "security-boundary", reason: "security boundary: touches src/auth/a.js", source: "diff" }).state;
+  assertCode(() => recordRetract(boundary, { ...answer, id: "security-boundary", contentOnly: true }), "retract-answer-refused");
 });
 
 // ---------------------------------------------------------------------------

@@ -121,6 +121,9 @@ const RECORDED_IMPACTS = Object.freeze(["amends", "supersedes"]);
 // declared one may be retracted while the diff does not confirm it (E1.11), as
 // one from a diff that no longer derives it (#418). The rest derive from the intent or the project configuration.
 const RETRACTABLE_SIGNALS = Object.freeze(["multi-unit-or-decision", "public-contract", "persistent-data", "security-boundary"]);
+// Those the user's answer may retract while only the content of the diff
+// derives them: persistent data (#416) and a contract in documentation (E1.58).
+const ANSWER_RETRACTABLE_SIGNALS = Object.freeze(["persistent-data", "public-contract"]);
 
 const SIGNAL_BY_ID = new Map(SIGNALS.map((signal) => [signal.id, signal]));
 const OBLIGATION_BY_ID = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation]));
@@ -212,8 +215,8 @@ function validateState(state) {
     const answered = entry !== null && typeof entry === "object" && ["answer", "answer_source", "confirmed_by", "hits"].some((key) => key in entry);
     if (!RETRACTABLE_SIGNALS.includes(entry?.id)) fail(`retracted signal ${entry?.id} is not retractable`);
     else if (answered) {
-      // #416: content-only persistent-data, retracted with the user's answer.
-      if (entry.id !== "persistent-data" || !isText(entry.reason) || !SIGNAL_SOURCES.includes(entry.source) || !isText(entry.retract_reason)
+      // #416, E1.58: a signal only the content derives, retracted with the user's answer.
+      if (!ANSWER_RETRACTABLE_SIGNALS.includes(entry.id) || !isText(entry.reason) || !SIGNAL_SOURCES.includes(entry.source) || !isText(entry.retract_reason)
         || !isText(entry.confirmed_by) || !Array.isArray(entry.hits) || entry.hits.length === 0 || !entry.hits.every(isText)
         || !isText(entry.answer) || !GATE_SOURCES.includes(entry.answer_source)) {
         fail(`retracted signal ${entry.id} with the user's answer needs its reason, source, retract_reason, confirmed_by, hits, answer and answer_source`);
@@ -677,6 +680,7 @@ function canClose(state) {
 }
 
 module.exports = {
+  ANSWER_RETRACTABLE_SIGNALS,
   ARCHIVE_ROOT,
   CHANGE_ID_PATTERN,
   CHANGE_ROOT,

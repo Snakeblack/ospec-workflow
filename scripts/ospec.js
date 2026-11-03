@@ -92,7 +92,7 @@ const { buildSnapshotV4 } = require("./lib/progress-snapshot-v4.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
 const claudeRouter = require("./lib/claude-router.js");
-const { IRREVERSIBLE_OPERATIONS, addedTests, applyDerivation, classifyPath, deriveSignals, inlineTests, persistentHits, requireDeclaredCeremony } = require("./lib/idd-signals.js");
+const { IRREVERSIBLE_OPERATIONS, addedTests, applyDerivation, classifyPath, contentHits, deriveSignals, inlineTests, requireDeclaredCeremony } = require("./lib/idd-signals.js");
 const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { writeFileAtomic } = require("./lib/atomic-write.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange, serializeState } = require("./lib/idd-store.js");
@@ -393,10 +393,12 @@ function requireKnownReferences(root, refs) {
 }
 
 // The reason the current diff derives a signal, or null (E1.11), and whether
-// only the content of the diff derives persistent-data, which the user may
-// retract with the hits they saw (#416). Only the diff confirms a declared
-// signal, so a retraction reads it against the change's base and needs git, as
-// `ospec check` does.
+// only the content of the diff derives persistent-data (#416) or
+// public-contract (E1.58), which the user may retract with the hits they saw.
+// A contract line in a contract document (REQ-idd-015) is the contract itself,
+// as a path that derives the signal, so it refuses the answer and says why.
+// Only the diff confirms a declared signal, so a retraction reads it against
+// the change's base and needs git, as `ospec check` does.
 function diffConfirmation(root, state, signalId) {
   if (state.status !== "open" || !state.signals.some((signal) => signal.id === signalId)) return { confirmedBy: null, contentOnly: false, hits: [] };
   const context = readProjectContext(root);
@@ -405,8 +407,11 @@ function diffConfirmation(root, state, signalId) {
   const { signals: derived } = deriveSignals({ intent: state.intent, diff, patterns: context.patterns, knowledge: { map, sources }, retracted: state.retracted });
   const confirmedBy = derived.find((signal) => signal.id === signalId && signal.source === "diff")?.reason ?? null;
   const byPath = diff.paths.some((file) => matchImpact(file, context.patterns).some((hit) => hit.signal === signalId));
-  const contentOnly = signalId === "persistent-data" && confirmedBy !== null && !byPath;
-  return { confirmedBy, contentOnly, hits: contentOnly ? persistentHits(diff, context.patterns).map((hit) => hit.key) : [] };
+  const hits = confirmedBy !== null && !byPath ? contentHits(signalId, diff, context.patterns) : [];
+  const documents = new Set(signalId === "public-contract" ? classifyContractPaths(hits.map((hit) => hit.file), context.contractPatterns).documents : []);
+  const document = hits.find((hit) => documents.has(hit.file))?.file;
+  if (document) return { confirmedBy, contentOnly: false, hits: [], refusedBecause: `${document} is a contract document, so the contract itself changes` };
+  return { confirmedBy, contentOnly: hits.length > 0, hits: hits.map((hit) => hit.key) };
 }
 
 function existing(reducer) {

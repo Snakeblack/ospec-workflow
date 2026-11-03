@@ -255,18 +255,20 @@ its obligation is already satisfied. Repeating it MUST be a no-op. A signal the
 diff or a declaration derives again after its retraction MUST return and
 reopen its obligation.
 
-`persistent-data` that only the content of the diff derives (REQ-idd-012: no
-changed path matches a `persistent-data` pattern) MUST also be retractable,
-whatever its source, with the user's answer: `--answer <text> --source
-user|user-unverified`, as a gate is resolved. The retraction MUST record
-`confirmed_by` (the reason the diff derives it), `hits` (every content hit of
-the diff at that moment, each as `<reason>: <line>`), `answer` and
-`answer_source`, and the derivation MUST leave the signal out while every
-content hit of the diff is one of those `hits`; a new or changed write, or a
-path, MUST bring it back. The answer MUST be
-refused (`retract-answer-refused`) for any other signal or when a path or
-nothing derives it, and the refusal of a plain retraction of such a signal
-MUST say how to give the answer.
+`persistent-data` and `public-contract` that only the content of the diff
+derives (REQ-idd-012: no changed path matches a pattern of that signal) MUST
+also be retractable, whatever their source, with the user's answer: `--answer
+<text> --source user|user-unverified`, as a gate is resolved. The retraction
+MUST record `confirmed_by` (the reason the diff derives it), `hits` (every
+content hit of the diff for that signal at that moment, each as `<reason>:
+<line>`), `answer` and `answer_source`, and the derivation MUST leave the
+signal out while every content hit of the diff is one of those `hits`; a new
+or changed write or contract line, or a path, MUST bring it back. A contract
+line in a contract document (REQ-idd-015) states the contract itself, as a
+path does. The answer MUST be refused (`retract-answer-refused`) for any other
+signal, when a path or nothing derives it, and when a contract line lies in a
+contract document, naming that document; the refusal of a plain retraction of
+a signal the answer may retract MUST say how to give the answer.
 
 #### Scenario: Overstated plan is corrected before the diff confirms it
 
@@ -305,6 +307,21 @@ MUST say how to give the answer.
   bring it back
 - AND once the diff also touches `db/migrations/001_report.sql`, the signal
   MUST return and the answer MUST be refused with `retract-answer-refused`
+
+#### Scenario: The user's answer retracts a public contract a doc only cites
+
+- GIVEN `public-contract` with `source: diff` because the diff adds to
+  `SECURITY.md` a line that cites the existing `POST /api/contact/`
+- WHEN `record retract --signal public-contract --reason <text>` runs without
+  an answer
+- THEN it MUST be refused with `signal-confirmed-by-diff`, saying how to give
+  the answer
+- WHEN it runs with `--answer "It is the existing form." --source user`
+- THEN `contract-spec-and-test` MUST be `withdrawn`, the retraction MUST record
+  the line as a hit, and a later `ospec check` MUST NOT bring the signal back
+- AND a line added later that cites `GET /api/reports` MUST bring it back
+- AND the same line added to `docs/api/contact.md`, a contract document, MUST
+  refuse the answer with `retract-answer-refused`, naming that document
 
 #### Scenario: Diff adds a migration obligation
 
