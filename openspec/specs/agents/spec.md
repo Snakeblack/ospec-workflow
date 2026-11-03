@@ -42,7 +42,7 @@ All files below have `user-invocable: false` and `tools: ['read', 'search', 'edi
 | `agents/sdd-apply.agent.md` | Implement assigned tasks in resumable batches |
 | `agents/sdd-verify.agent.md` | Validate implementation against specs; reports findings |
 | `agents/sdd-archive.agent.md` | Close a change and persist final state |
-| `agents/sdd-document.agent.md` | Generate repository wiki pages mapping architecture, specs, and status |
+| `agents/handbook.agent.md` | Write and maintain the repository handbook and its optional website (SDD delegate of the `handbook` skill) |
 
 ### 1.3 Quality Review Agents
 
@@ -336,228 +336,216 @@ The orchestrator and phase-agent contracts MUST recover an active lite change fr
 
 ---
 
-### 1.5 sdd-document Requirements
+### 1.5 handbook Requirements
 
-#### Requirement: sdd-document Catalog Registration {#REQ-agents-002}
+#### Requirement: handbook Catalog Registration {#REQ-agents-002}
 
-The `sdd-document` agent MUST be registered in the SDD agent catalog. It is a utility executor agent configured with `user-invocable: false` and abstract tools `read`, `search`, `edit`, and `execute`.
+The `handbook` agent MUST be registered in the SDD agent catalog as the SDD
+orchestrator's delegate for the handbook route. It is a utility executor agent
+configured with `user-invocable: false` and abstract tools `read`, `search`, `edit`,
+and `execute`, and it follows the **Delegated** mode of `skills/handbook/SKILL.md`.
+The agent ships only with the SDD package (`--with-sdd`); the `handbook` skill ships
+in every install and runs outside SDD in its **Direct** mode.
 
-##### Scenario: sdd-document present in catalog
+(Previously: the `sdd-document` agent, which only the orchestrator could launch and
+which shipped only with `--with-sdd`.)
 
-- GIVEN the orchestrator loads the agent catalog from the `agents` spec
-- WHEN the generator processes the catalog
-- THEN it MUST find the `sdd-document` agent listed with the corresponding configuration
+##### Scenario: handbook present in catalog
 
-#### Requirement: sdd-document Command Roster Registration {#REQ-agents-003}
+- GIVEN the SDD agent catalog
+- WHEN a contract test reads `agents/handbook.agent.md`
+- THEN it finds `user-invocable: false`, the four abstract tools and no `model:` key
+- AND the agent points to the Delegated mode of `skills/handbook/SKILL.md`
 
-The `/sdd-document` slash command MUST be registered in the orchestrator command roster and mapped to the `sdd-orchestrator` agent, routing execution dynamically to the `sdd-document` agent.
+##### Scenario: the skill installs without SDD
 
-##### Scenario: sdd-document command in roster
+- GIVEN an install without `--with-sdd`
+- WHEN the generator writes the target
+- THEN `skills/handbook/` and its web scaffold are present
+- AND the `handbook` agent is absent
 
-- GIVEN the orchestrator command parser loads command mappings
-- WHEN it evaluates `/sdd-document`
-- THEN it routes the command to the orchestrator which delegates to the `sdd-document` agent
+#### Requirement: handbook Route Without a Command {#REQ-agents-003}
 
-#### Requirement: sdd-document Launch Gate Mapping {#REQ-agents-004}
+The handbook route MUST have no slash command. Inside SDD, a request to document the
+repository, write or update its handbook, or build its documentation website MUST
+route to the `handbook` agent; outside SDD the user loads the `handbook` skill
+directly. No `commands/handbook.prompt.md` and no `commands/sdd-document.prompt.md`
+may exist.
 
-The orchestrator MUST support launch-blocking logic when invoking the `sdd-document` agent, halting execution and prompting the user with a `question_gate` containing the documentation scope selection (Options A, B, and C).
+(Previously: the `/sdd-document` command, mapped to `sdd-orchestrator` and routed to
+the `sdd-document` agent.)
 
-##### Scenario: Launch gate blocks orchestrator dispatch
+##### Scenario: a documentation request inside SDD reaches the agent
 
-- GIVEN the orchestrator is dispatching the `sdd-document` agent
-- WHEN the agent returns `status: blocked` with a `question_gate`
-- THEN the orchestrator MUST present the questions to the user and await approved choices
+- GIVEN an SDD session
+- WHEN the user asks to update the repository documentation
+- THEN the orchestrator dispatches the `handbook` agent through the Handbook Route Handler
 
----
+#### Requirement: handbook First-Run Settings {#REQ-agents-004}
 
-#### Requirement: sdd-document Orchestrator Allowlist, Command Index, and Pointer Table Wiring {#REQ-agents-005}
+When `handbook/handbook.json` does not exist, the `handbook` agent MUST return
+`status: blocked` with ONE `question_gate` holding both settings: the handbook
+language and whether to build the website. The orchestrator MUST ask them in a single
+round, record the answer in the approval ledger with `gate: handbook-settings`, and
+relaunch the agent. When `handbook/handbook.json` exists, the agent MUST ask nothing
+about these settings.
 
-`agents/sdd-orchestrator.agent.md` MUST wire the `sdd-document` agent into its three
-routing surfaces:
+(Previously: a batched language and scope gate with options A, B, C and D.)
 
-1. The frontmatter `agents:` allowlist MUST include `'sdd-document'`.
-2. The CORE body's command index (Section listing `/sdd-*` commands) MUST list
-   `/sdd-document`.
-3. The Circumstantial Handler Pointer Table (§15, agents spec) MUST gain one row —
-   "Document Route Handler" — pointing to a `skills/_shared/route-document.md` file,
-   triggered when `/sdd-document` is invoked (or route dispatch selects the
-   `sdd-document` phase), read via the `read` tool exactly once per route.
+##### Scenario: first run asks once
 
-Because `agents/sdd-orchestrator.agent.md` is size-guarded at under 500 lines (§15,
-Orchestrator Body Partitioning), these three additions MUST be the ONLY inline
-changes to the orchestrator body for this wiring — the full launch-gate, persistence,
-relaunch, and post-run verification protocol MUST live entirely in
-`skills/_shared/route-document.md`, which is subject to the same Shared Handler Trust
-Boundary (instruction-only prose, no frontmatter/tool grants) and Cross-Target Parity
-rules (§15) already normative for other `_shared/` handler files.
+- GIVEN a repository without `handbook/handbook.json`
+- WHEN the orchestrator dispatches the `handbook` agent
+- THEN the agent returns one `question_gate` with two questions, each with a recommended option
 
-##### Scenario: Allowlist includes sdd-document
+#### Requirement: handbook Orchestrator Allowlist and Pointer Table Wiring {#REQ-agents-005}
 
-- GIVEN `agents/sdd-orchestrator.agent.md` frontmatter is parsed
-- WHEN the `agents:` array is inspected
-- THEN it MUST contain `sdd-document`
+`agents/sdd-orchestrator.agent.md` MUST wire the `handbook` agent in two places:
 
-##### Scenario: /sdd-document dispatch resolves the handler via the pointer table
+1. The frontmatter `agents:` allowlist MUST include `'handbook'`.
+2. The Circumstantial Handler Pointer Table MUST hold a Handbook Route Handler row
+   pointing to `skills/_shared/route-handbook.md`, read via the `read` tool exactly
+   once per route.
 
-- GIVEN the user invokes `/sdd-document`
-- WHEN the orchestrator resolves how to route the command
-- THEN it reads `skills/_shared/route-document.md` exactly once for this route, using
-  the CORE pointer table as the sole resolution path
-- AND it does not re-read the handler on later gate boundaries within the same route
+The orchestrator body MUST NOT name `sdd-document` or `route-document`.
 
-##### Scenario: Orchestrator body stays under the 500-line guard after wiring
+##### Scenario: Allowlist includes handbook
 
-- GIVEN the orchestrator body was 491 lines before this change
-- WHEN the allowlist entry, command-index row, and pointer-table row are added inline
-- THEN the resulting body MUST remain under 500 lines
-- AND no protocol prose beyond these three rows is added inline to the orchestrator
-  body
+- GIVEN `agents/sdd-orchestrator.agent.md`
+- WHEN a contract test reads its frontmatter `agents:` list
+- THEN it MUST contain `handbook`
 
----
+##### Scenario: dispatch resolves the handler via the pointer table
 
-#### Requirement: Orchestrator-Owned Post-Run Sandbox Inventory Verification for sdd-document {#REQ-agents-006}
+- GIVEN the user asks inside SDD to document the repository
+- WHEN the orchestrator selects the `handbook` phase
+- THEN it reads `skills/_shared/route-handbook.md` once and follows it
 
-After the `sdd-document` agent returns `status: success` (following any number of
-`blocked`/resume cycles), the orchestrator MUST perform an independent post-run
-sandbox inventory check before considering the `/sdd-document` route complete. The
-check MUST be scoped directly to the approved output directory (or, for scope D, the
-SET of both approved output directories) plus the two declared exceptions
-(`/AGENTS.md`, `/CLAUDE.md`) so that pre-existing unrelated untracked paths
-elsewhere in the working tree (e.g. an untracked directory that predates this run)
-MUST NOT trigger a false positive.
+#### Requirement: Orchestrator-Owned Post-Run Write Boundary Check for handbook {#REQ-agents-006}
 
-The orchestrator MUST determine the approved output directory (or directories) itself —
-authoritatively, not by trusting the executor's self-report — from the
-`scope_choice`/`custom_path` values it resolved at launch time: Option A resolves to
-`openwiki/`, Option B resolves to `docs/wiki/`, Option C resolves to the same
-`custom_path` string the orchestrator passed to the executor, and Option D resolves to
-the SET `{openwiki/, web-doc/}` — both directories MUST be included in the scoped
-check, not just one. Before delegating, if the resolved Option C `custom_path` would
-resolve outside the repository working tree, the orchestrator MUST reject it at the
-gate and prompt the user for a path inside the repository, so that the post-run `git
-status` scoping described below always covers a path (or set of paths) `git` can see.
+Before each dispatch of the `handbook` agent (the first one and every relaunch after a
+`blocked` return), the orchestrator MUST record in the route `state.yaml` under
+`gates.handbook-boundary` the `web` value (`handbook/handbook.json` before the first
+dispatch; afterwards the user's latest `handbook-settings` answer or the previous
+record, never the file again; else null) and the
+`git status --porcelain --untracked-files=all` baseline, each line with the `git
+hash-object` of its path. It MUST keep in its own context that `web` and the `git
+hash-object` of the whole route `state.yaml` after each of its own writes. After the
+`handbook` agent returns `status: success`, and on each `blocked` return before asking
+its questions (in the session that dispatched it, so no write of a blocked run is
+absorbed by the next record), the orchestrator MUST check the write boundary itself: a `state.yaml` whose hash differs from the
+kept one counts as a path outside the boundary, and a missing kept hash or `web` (the
+session changed between the dispatch and its return) makes the check INCONCLUSIVE.
+It MUST take `web` from its own copy, never from a file the agent could write. The
+boundary is `handbook/`, plus `web-doc/` when `web` is true, plus the top-level
+`AGENTS.md` and `CLAUDE.md`, plus `openwiki/` only for renames to `handbook/` and the
+deletion of `openwiki/.last-update.json` when the `handbook-settings` approval
+accepted the migration. It MUST compare every changed or untracked path from
+`git status --porcelain --untracked-files=all` with that boundary, ignoring baseline
+lines whose path still has the recorded hash and the route's own `state.yaml` once its
+hash matched; a `web` in `handbook.json` that differs from the copy counts as a path
+outside the boundary. The agent's own report MUST NOT count as evidence.
 
-The executor's own completion report MUST NOT be treated as sufficient evidence of
-sandbox compliance; the orchestrator's check is independent and authoritative. This
-requirement generalizes the "declared cross-file contract, no verification" defect
-class already fixed once in this codebase — the executor declares its own write
-sandbox (sdd-document domain spec), but verification is a separate, orchestrator-
-owned step.
+A failed `git status` MUST make the check INCONCLUSIVE, never a pass, and halt with
+the gate below. A path outside the boundary MUST halt with a `question_gate` that
+names it and offers exactly two options: "Abort the route and leave the files for
+manual review" (recommended) and "Acknowledge and close the route anyway (accepted
+risk)". The route MUST NOT close without one of them.
 
-If the scoped `git status` reveals a changed or untracked path that is neither under
-any of the approved output directory/directories nor one of the two declared
-exceptions, the orchestrator MUST halt and surface a `question_gate` describing the
-unexpected path before closing the route. The gate MUST offer exactly two options:
-"Abort the route and leave the offending files for manual review" (the default/
-recommended option) and "Acknowledge and close the route anyway (accepted risk)". The
-orchestrator MUST NOT close the route without an explicit user choice between these two
-options.
+(Previously: the sandbox inventory of `sdd-document`, scoped from the launch
+`scope_choice`: `openwiki/`, `docs/wiki/`, a custom path, or `{openwiki/, web-doc/}`.)
 
-(Previously: the check was scoped to a single approved output directory only, with no
-provision for a scope selection — Option D — that resolves to more than one approved
-directory.)
+##### Scenario: Clean run — the check passes silently
 
-##### Scenario: Clean run — scoped check passes silently
+- GIVEN `handbook` returns `status: success` and `handbook.json` has `web: false`
+- WHEN every changed path is under `handbook/`, `AGENTS.md` or `CLAUDE.md`
+- THEN the route continues to the content review without asking
 
-- GIVEN `sdd-document` returns `status: success` with output directory `openwiki/`
-- WHEN the orchestrator runs the scoped post-run inventory check
-- THEN all changed/untracked paths reported are under `openwiki/`, `/AGENTS.md`, or
-  `/CLAUDE.md`
-- AND the route closes without any additional user interaction
+##### Scenario: A path outside the boundary halts
 
-##### Scenario: Pre-existing unrelated untracked path does not false-positive
+- GIVEN `handbook` returns `status: success`
+- WHEN `git status` shows an untracked `src/leaked-notes.txt` that the run left
+- THEN the orchestrator halts with the two-option `question_gate`
 
-- GIVEN an untracked directory unrelated to this run already existed in the working
-  tree before `sdd-document` was dispatched
-- AND that directory is outside the approved output directory/directories
-- WHEN the orchestrator scopes the `git status` query to the approved output
-  directory/directories plus the two declared exceptions
-- THEN the pre-existing unrelated directory MUST NOT appear in the scoped result and
-  MUST NOT trigger a halt
+##### Scenario: The website directory is inside the boundary only with web enabled
 
-##### Scenario: Out-of-sandbox write detected — orchestrator halts
+- GIVEN `gates.handbook-boundary.web` is `true`
+- WHEN the run changed `web-doc/package.json`
+- THEN that path is inside the boundary
 
-- GIVEN the scoped post-run check reports a changed file outside the approved output
-  directory/directories and outside the two declared exceptions
-- WHEN the orchestrator evaluates the result
-- THEN it MUST halt and present a `question_gate` describing the unexpected path
-  before closing the route
-- AND the gate MUST offer exactly the two options "Abort the route and leave the
-  offending files for manual review" (default) and "Acknowledge and close the route
-  anyway (accepted risk)"
-- AND the executor's own prior success report MUST NOT override this halt
+##### Scenario: The agent cannot widen its own boundary
 
-##### Scenario: Scope D — check covers both approved directories
+- GIVEN `gates.handbook-boundary.web` is `false`
+- WHEN the run sets `web: true` in `handbook.json` and writes under `web-doc/`
+- THEN the orchestrator halts with the two-option `question_gate`
 
-- GIVEN `sdd-document` returns `status: success` with resolved scope `D`
-- WHEN the orchestrator runs the scoped post-run inventory check
-- THEN it scopes `git status` to BOTH `openwiki/` AND `web-doc/`, plus the two
-  declared exceptions
-- AND a changed/untracked path under either `openwiki/` or `web-doc/` is treated as
-  inside the sandbox
-- AND a changed/untracked path outside both directories (and outside the two
-  exceptions) still triggers the halt and `question_gate`
+##### Scenario: The agent cannot rewrite the route state
 
----
+- GIVEN the orchestrator kept the hash of `state.yaml` after its last write
+- WHEN the run changes any part of that file (the recorded `web`, an approval, a gate)
+- THEN the hash differs and the orchestrator halts with the two-option `question_gate`
 
-#### Requirement: Orchestrator-Owned Post-Run Content QA for sdd-document {#REQ-agents-018}
+##### Scenario: A blocked run that wrote outside the boundary halts
 
-After the `sdd-document` agent returns `status: success` (following any number of
-`blocked`/resume cycles), the orchestrator MUST perform an independent post-run
-CONTENT quality assurance pass before considering the `/sdd-document` route
-complete — the content sibling of the sandbox inventory check
-(Orchestrator-Owned Post-Run Sandbox Inventory Verification for sdd-document,
-REQ-agents-006). The QA pass MUST cover the wiki pages produced or updated by
-the run (under the approved output directory/directories resolved as in
-REQ-agents-006) and MUST combine:
+- GIVEN a dispatch whose run writes `src/notes.txt` and returns `blocked`
+- WHEN the blocked return reaches the orchestrator
+- THEN it runs the boundary check before asking the questions and halts with the two-option `question_gate`
 
-1. A readability review of the touched pages (structure, clarity, duplication, stub detection).
-2. A factual spot-check contrasting a sample of published figures and identifiers against the repository.
+##### Scenario: Answering the settings in a later session is not inconclusive
 
-The QA pass MUST be delegated to a reviewer DISTINCT from the generator execution
-that produced the content — a dispatch MUST NOT review its own output. The
-generator's self-report MUST NOT be treated as sufficient evidence of content
-quality.
+- GIVEN the first dispatch returned `blocked` and the user answers in a new session
+- WHEN the orchestrator records a fresh boundary and relaunches the agent
+- THEN the check after its `success` compares against that fresh record
 
-If the QA pass finds a confirmed factual error or a severe content defect in the
-touched pages, the orchestrator MUST halt and surface a `question_gate`
-describing the findings before closing the route. The gate MUST offer exactly two
-options: "Re-dispatch the generator to correct the affected pages" (the default/
-recommended option) and "Acknowledge and close the route anyway (accepted risk)".
-The orchestrator MUST NOT close the route without an explicit user choice between
-these two options.
+##### Scenario: A further edit to an already modified file is caught
 
-The orchestrator MUST document every QA pass in `state.yaml` under
-`gates.content-qa` (at minimum `status`: `pass` | `findings`, plus a short
-`summary`), so the route never closes as success without a documented independent
-QA pass.
+- GIVEN the baseline holds ` M src/app.js` with its hash
+- WHEN the run edits `src/app.js` again
+- THEN the hash differs and the orchestrator halts with the two-option `question_gate`
 
-#### Scenario: Clean QA — route closes silently
+##### Scenario: An approved migration stays inside the boundary
 
-- GIVEN `sdd-document` returned `status: success` and the QA pass reports no confirmed defects
-- WHEN the orchestrator evaluates the QA outcome
-- THEN it records `gates.content-qa` with status `pass`
-- AND it closes the route without additional user interaction
+- GIVEN the `handbook-settings` approval accepted the `openwiki/` migration
+- WHEN `git status` shows `openwiki/` renamed to `handbook/` and `openwiki/.last-update.json` deleted
+- THEN those paths are inside the boundary
 
-#### Scenario: Confirmed factual error halts route closure
+#### Requirement: Orchestrator-Owned Post-Run Content QA for handbook {#REQ-agents-018}
 
-- GIVEN the QA spot-check confirms a published figure contradicting the repository
-- WHEN the orchestrator evaluates the QA outcome
-- THEN it MUST halt and present a `question_gate` describing the finding before closing the route
-- AND the gate MUST offer exactly "Re-dispatch the generator to correct the affected pages" (default) and "Acknowledge and close the route anyway (accepted risk)"
+After the write boundary check (REQ-agents-006), the orchestrator MUST review the
+content before closing the route. It MUST take the pages the run created or changed
+from `git status` on `handbook/`, not from the agent's report, and combine:
 
-#### Scenario: Reviewer is distinct from the generator
+1. A readability review of every touched page (structure, clarity, duplication, thin pages).
+2. A factual spot-check of `max(3, ceil(0.2 * claims))` numbers, versions, paths, commands and configuration keys against the repository.
 
-- GIVEN the generator dispatch completed successfully
-- WHEN the orchestrator selects the QA reviewer
-- THEN the reviewer MUST be a delegation distinct from the generator execution that produced the content
-- AND the generator's own quality claims MUST NOT satisfy this requirement by themselves
+The review MUST be distinct from the generator: the orchestrator performs it inline,
+and the agent's quality claims MUST NOT satisfy this requirement. A review that cannot
+run MUST be INCONCLUSIVE and halt. A confirmed factual error or severe defect MUST
+halt with a `question_gate` offering exactly "Relaunch the handbook agent to fix the
+affected pages" (recommended) and "Acknowledge and close the route anyway (accepted
+risk)"; a relaunch fixes only those pages and is followed by a new review of them.
 
-#### Scenario: No QA record — route cannot close as success
+The orchestrator MUST record every review in `state.yaml` under `gates.content-qa`
+(`status`: `pass` | `findings`, plus a short `summary`); the route MUST NOT close as
+success without that record.
 
-- GIVEN a `/sdd-document` route reaches closure
+##### Scenario: Clean QA — route closes silently
+
+- GIVEN `handbook` returned `status: success` and the review finds no confirmed defect
+- WHEN the orchestrator evaluates the outcome
+- THEN it records `gates.content-qa` with status `pass` and closes the route
+
+##### Scenario: Confirmed factual error halts route closure
+
+- GIVEN the spot-check confirms a published figure contradicting the repository
+- WHEN the orchestrator evaluates the outcome
+- THEN it halts with the two-option `question_gate` before closing the route
+
+##### Scenario: No QA record — route cannot close as success
+
+- GIVEN a handbook route reaches closure
 - WHEN no `gates.content-qa` record exists for the run
-- THEN the route MUST NOT close as success until the QA pass runs and its outcome is documented
+- THEN the route MUST NOT close as success
 
 ### Requirement: Intent Briefing Owned by the Human Thread {#REQ-agents-019}
 
@@ -659,8 +647,8 @@ discovered manually.
 
 ##### Scenario: Referenced agent present in router allowlist — test passes
 
-- GIVEN `commands/sdd-document.prompt.md` routes to `sdd-document`
-- AND `agents/sdd-orchestrator.agent.md` frontmatter `agents:` includes `sdd-document`
+- GIVEN `commands/sdd-init.prompt.md` routes to `sdd-init`
+- AND `agents/sdd-orchestrator.agent.md` frontmatter `agents:` includes `sdd-init`
 - WHEN the contract test runs
 - THEN it passes for this command/agent pair
 
@@ -952,7 +940,6 @@ Input placeholders in the body use VS Code syntax: `${input}` (bare, positional)
 | `commands/sdd-archive.prompt.md` | `/sdd-archive` | sdd-orchestrator |
 | `commands/sdd-onboard.prompt.md` | `/sdd-onboard` | sdd-orchestrator |
 | `commands/sdd-workspace.prompt.md` | `/sdd-workspace` | sdd-orchestrator |
-| `commands/sdd-document.prompt.md` | `/sdd-document` | sdd-orchestrator → sdd-document |
 
 ## Clarifications
 

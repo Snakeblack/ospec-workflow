@@ -1,0 +1,29 @@
+{
+  "id": "handbook-update-noop",
+  "group": "handbook",
+  "input": {
+    "command": null,
+    "text": "Actualiza el handbook del proyecto con la misma configuración de la última vez."
+  },
+  "capture": {
+    "gate": false,
+    "envelope": false
+  },
+  "expect": {
+    "state": {
+      "last_updated": "2025-01-01T00:00:00Z"
+    },
+    "question_gate": null,
+    "fileTreeUnchanged": true,
+    "baselineFileTree": [
+      "README.md",
+      "handbook/.state.json",
+      "handbook/handbook.json",
+      "handbook/quickstart.md",
+      "openspec/changes/update-docs/state.yaml",
+      "openspec/config.yaml",
+      "package.json",
+      "src/hello.js"
+    ]
+  }
+}

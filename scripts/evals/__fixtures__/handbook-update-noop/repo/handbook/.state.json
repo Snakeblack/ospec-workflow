@@ -1,0 +1,9 @@
+{
+  "updatedAt": "2025-01-01T00:00:00Z",
+  "command": "init",
+  "gitHead": "__GIT_HEAD__",
+  "generator": "handbook",
+  "version": "1.0",
+  "pages": ["quickstart.md"],
+  "stats": { "filesGenerated": 1, "filesUpdated": 0, "filesSkipped": [] }
+}

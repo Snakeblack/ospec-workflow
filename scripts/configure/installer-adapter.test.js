@@ -16,7 +16,7 @@ function fixture(t) {
   const root = tempDir(t, "installer-v3-");
   fs.mkdirSync(path.join(root, "agents"));
   for (const name of ["alpha", "beta"]) fs.writeFileSync(path.join(root, "agents", `${name}.agent.md`), `---\nname: ${name}\n---\n`);
-  const agents = ["sdd-apply", "sdd-archive", "sdd-baseline", "sdd-clarify", "sdd-design", "sdd-document", "sdd-explore", "foundation", "sdd-init", "sdd-onboard", "sdd-orchestrator", "sdd-propose", "sdd-reconcile", "sdd-spec", "sdd-tasks", "sdd-verify", "sdd-workspace", "review-change", "review-correction", "review-trust", "review-runtime", "review-evolution", "review-efficiency"];
+  const agents = ["sdd-apply", "sdd-archive", "sdd-baseline", "sdd-clarify", "sdd-design", "handbook", "sdd-explore", "foundation", "sdd-init", "sdd-onboard", "sdd-orchestrator", "sdd-propose", "sdd-reconcile", "sdd-spec", "sdd-tasks", "sdd-verify", "sdd-workspace", "review-change", "review-correction", "review-trust", "review-runtime", "review-evolution", "review-efficiency"];
   fs.writeFileSync(path.join(root, "models.yaml"), `agents:\n  alpha: premium\n${agents.map(name => `  ${name}: cheap\n`).join("")}  _default: default\ntiers:\n  premium:\n    claude: opus\n    codex:\n      model_reasoning_effort: high\n  default:\n    claude: sonnet\n  cheap:\n    claude: haiku\n`);
   return root;
 }

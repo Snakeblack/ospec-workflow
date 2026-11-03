@@ -290,6 +290,10 @@ const SUCCESSOR_K2_EXACT = new Set([
   // the manifest checker's phase-skill roster follows the new name.
   "scripts/lib/contract-checkers/i1-manifest.js",
   "scripts/lib/contract-checkers/i1-manifest.test.js",
+  // handbook replaced sdd-document and its /sdd-document command: the
+  // commands<->agents checker anchors on another orchestrator-routed command.
+  "scripts/lib/contract-checkers/j1-commands-agents.js",
+  "scripts/lib/contract-checkers/j1-commands-agents.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [

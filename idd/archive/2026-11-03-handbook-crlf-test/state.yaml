@@ -1,0 +1,111 @@
+{
+  "schema": "idd-state/v1",
+  "change": "handbook-crlf-test",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El test de contrato del bloque Handbook falla en Windows porque su regex exige saltos LF",
+    "acceptance": "scripts/handbook.test.js pasa con SKILL.md en CRLF y en LF; Validate (windows-latest 2/2) en verde en la PR #472"
+  },
+  "facts": {
+    "basis": "El fallo es una regex con \\n literal frente a un checkout CRLF de Windows; el resto de aserciones del fichero ya usan \\s+ o [^\\n]"
+  },
+  "plan": {
+    "paths": [
+      "scripts/handbook.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-03T11:01:06.405Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof_skipped": "the diff changes no product code, only tests, test data or documentation, so the base runs the same product and its red would prove nothing"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-03T11:02:24.470Z",
+      "detail": {
+        "tree": "sha256:ffa5efdad87cd3e3f2180b4dfab44a31caecdf7088eedba9125b29a4a710a372",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "02f55ba97724cd8ce4972b74110d5e752a1d61b1",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"keeps a Handbook block\" scripts/handbook.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:590941ec0c4d755466648bc99aefc407f884a8848eb73445272183268fabe47f",
+      "tree": "sha256:f7b0e78a80d75b6ac2ea2390643e5205d871606714b7b896a3979df786c8598b",
+      "recorded_at": "2026-11-03T11:01:00.064Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"keeps a Handbook block\" scripts/handbook.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6bb31f208c76d1e9dde93fbba1ee9722c02ef3ee3f34c862585b4667d8436517",
+      "tree": "sha256:cb8649f214c5241a7f806eacc033f89cbca5614348c1639daf8465cf65ed444d",
+      "recorded_at": "2026-11-03T11:01:06.405Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e000b38e2a07a5eb737e45bbf99bee7bbbc1d78c7583c65594bae63d18fe88a9",
+      "tree": "sha256:ffa5efdad87cd3e3f2180b4dfab44a31caecdf7088eedba9125b29a4a710a372",
+      "recorded_at": "2026-11-03T11:02:24.470Z"
+    }
+  ],
+  "closed_at": "2026-11-03T11:02:24.539Z"
+}

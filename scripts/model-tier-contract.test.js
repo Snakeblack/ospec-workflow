@@ -92,7 +92,7 @@ test("REQ-generator-005 missing, unknown, and unexpected structural mutations fa
 test("REQ-generator-005 all model routing choices in models.yaml are accepted", () => {
   const models = clone(parseModels(MODELS_TEXT));
   models.agents["sdd-propose"] = "premium";
-  models.agents["sdd-document"] = "default";
+  models.agents.handbook = "default";
   models.agents["review-trust"] = "premium";
   models.agents._default = "premium";
   models.tiers.premium.codex.model_reasoning_effort = "high";

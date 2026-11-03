@@ -11,7 +11,7 @@ context: |
 
 project:
   name: ospec-workflow
-  version: 2.168.9
+  version: 2.169.0
   status: active
 
 artifact_store:
@@ -47,7 +47,7 @@ baseline:
     - agents
     - skill-registry
     - install
-    - sdd-document
+    - handbook
     - contract-lint
     - orchestrator-evals
     - independent-verification

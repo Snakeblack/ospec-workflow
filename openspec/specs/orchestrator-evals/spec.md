@@ -11,10 +11,10 @@ data; a runner executes them and asserts only structural outcomes, never prose.
 
 ### Requirement: Golden Scenario Corpus {#REQ-orchestrator-evals-001}
 
-The suite MUST retain exactly the 9 golden scenarios below: 6 orchestrator-core plus 3 `sdd-document`. Each golden scenario MUST remain versioned fixture data under the existing `scripts/evals/__fixtures__/` pattern.
+The suite MUST retain exactly the 9 golden scenarios below: 6 orchestrator-core plus 3 `handbook`. Each golden scenario MUST remain versioned fixture data under the existing `scripts/evals/__fixtures__/` pattern.
 
 The reference benchmark MUST expose exactly nine canonical profiles from `scripts/evals/safe-export.js`. Each profile MUST define or derive its synthetic source files, input request, expected route, expected artifacts and structural outcome. The catalog MUST materialize isolated synthetic repositories without requiring versioned `__fixtures__/benchmark/` directories.
-(Previously: exactly 7 goldens, 4 orchestrator-core plus 3 `sdd-document`; the first core golden was vagueness-triggered restatement and specific requests were out of corpus.)
+(Previously: the 3 non-core goldens covered `sdd-document` — a batched language and scope gate, an update no-op over `openwiki/.last-update.json`, and its J5 sandbox inventory; before that, exactly 7 goldens, 4 orchestrator-core plus 3 `sdd-document`.)
 
 Profiles that assert post-verify review behavior MUST align with Quality Review Gate routing constants and the quality specialist roster in generated route-table copies.
 
@@ -60,23 +60,23 @@ Profiles that assert post-verify review behavior MUST align with Quality Review 
 - THEN it MUST route to `sdd-design` (never silently retry `sdd-apply`)
 - AND `state.yaml` MUST have `status: blocked` with the blocking reason recorded
 
-#### Scenario: Doc request → batched language+scope gate
+#### Scenario: First handbook run → one settings round
 
-- GIVEN a fixture repo with no prior `.last-update.json`
-- WHEN `/sdd-document` (or its natural-language equivalent) is requested
-- THEN the orchestrator MUST emit exactly ONE `question_gate` containing TWO questions (language, scope) — never two separate blocking round-trips
+- GIVEN a fixture repo without `handbook/handbook.json`
+- WHEN a request to document the repository reaches the orchestrator inside SDD
+- THEN it MUST emit exactly ONE `question_gate` containing TWO questions (language, website) — never two separate blocking round-trips
 
-#### Scenario: Doc update with no changes → no-op
+#### Scenario: Handbook update with no changes → no-op
 
-- GIVEN a fixture repo with a persisted `.last-update.json` and no source drift since the last run
-- WHEN `/sdd-document` update mode runs
-- THEN `sdd-document` MUST report no changes and MUST NOT write new output files
-- AND `state.yaml`/`.last-update.json` MUST be left unmodified in content
+- GIVEN a fixture repo with `handbook/handbook.json`, a `handbook/.state.json` whose `gitHead` is the baseline commit, and no source drift since then
+- WHEN the handbook route runs in update mode
+- THEN the `handbook` agent MUST report no changes and MUST NOT write new output files
+- AND `state.yaml` MUST be left unmodified in content
 
-#### Scenario: Write outside sandbox → blocked
+#### Scenario: Write outside the handbook boundary → blocked
 
-- GIVEN a fixture repo where the `sdd-document` executor's run leaves a changed or untracked path outside the approved output directory/directories and the two declared exceptions
-- WHEN the orchestrator runs its J5 post-run sandbox inventory check
+- GIVEN a fixture repo where the `handbook` agent's run leaves a changed or untracked path outside `handbook/`, `web-doc/` when enabled, and the top-level `AGENTS.md` and `CLAUDE.md`
+- WHEN the orchestrator runs its post-run write boundary check
 - THEN it MUST halt with a `question_gate` offering exactly the two documented options (abort vs. acknowledge-as-accepted-risk)
 - AND the route MUST NOT close silently
 

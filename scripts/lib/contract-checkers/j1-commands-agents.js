@@ -22,7 +22,7 @@ const path = require("node:path");
 const { parse, getField } = require("../frontmatter.js");
 
 // Parse the "3.2 Command Roster" markdown table, returning a map from the
-// command file's basename (e.g. "sdd-document.prompt.md") to a
+// command file's basename (e.g. "sdd-init.prompt.md") to a
 // `{ target, hasArrow }` descriptor. `target` is the routing substring after
 // the arrow (or null when the row declares no sub-agent target). `hasArrow`
 // records whether an arrow (either Unicode "→" or ASCII "->") was found in
@@ -59,7 +59,7 @@ function readFrontmatter(filePath) {
  * Runs the full J1 cross-check and returns both the offender list AND the
  * diagnostic detail (`checked[]`, `missingFromRoster[]`, `arrowRowCount`) a
  * caller can inspect — this is the secondary export `checkDetailed` that lets
- * the adapted legacy test keep its anchored assert ("sdd-document.prompt.md
+ * the adapted legacy test keep its anchored assert ("sdd-init.prompt.md
  * was actually exercised") without re-deriving the roster/allowlist logic
  * itself.
  *

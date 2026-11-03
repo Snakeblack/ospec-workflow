@@ -14,16 +14,16 @@ test("check({root: ROOT}) returns [] against the real repo (mirrors the legacy t
   assert.deepEqual(check({ root: ROOT }), []);
 });
 
-test("checkDetailed({root: ROOT}) exercises sdd-document.prompt.md's routing (anchor preserved)", () => {
+test("checkDetailed({root: ROOT}) exercises sdd-init.prompt.md's routing (anchor preserved)", () => {
   const { offenders, checked, missingFromRoster, arrowRowCount } = checkDetailed({ root: ROOT });
 
   assert.deepEqual(offenders, []);
   assert.deepEqual(missingFromRoster, []);
   assert.ok(arrowRowCount > 0, "rel-2 guard: at least one roster row must contain a routing arrow");
   assert.ok(
-    checked.includes("sdd-document.prompt.md"),
-    "rel-1 guard: sdd-document.prompt.md must be present in checked[] — the exact command " +
-      "this contract was written to protect"
+    checked.includes("sdd-init.prompt.md"),
+    "rel-1 guard: sdd-init.prompt.md must be present in checked[] — an orchestrator-routed command " +
+      "this contract protects"
   );
 });
 

@@ -4,9 +4,9 @@
     "claude": {
       "always_on_bytes": 3404,
       "orchestrator_bytes": 0,
-      "skills_installed": 33,
-      "skills_listed": 27,
-      "skill_listing_bytes": 4613,
+      "skills_installed": 34,
+      "skills_listed": 28,
+      "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10623,
       "default_flow_bytes": 14027,
       "memory_flow_bytes": 16975,
@@ -22,9 +22,9 @@
     "vscode": {
       "always_on_bytes": 3663,
       "orchestrator_bytes": 0,
-      "skills_installed": 33,
-      "skills_listed": 27,
-      "skill_listing_bytes": 4613,
+      "skills_installed": 34,
+      "skills_listed": 28,
+      "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10619,
       "default_flow_bytes": 14282,
       "memory_flow_bytes": 17230,
@@ -40,9 +40,9 @@
     "github-copilot": {
       "always_on_bytes": 3663,
       "orchestrator_bytes": 0,
-      "skills_installed": 33,
-      "skills_listed": 27,
-      "skill_listing_bytes": 4613,
+      "skills_installed": 34,
+      "skills_listed": 28,
+      "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10619,
       "default_flow_bytes": 14282,
       "memory_flow_bytes": 17230,
@@ -58,9 +58,9 @@
     "opencode": {
       "always_on_bytes": 3341,
       "orchestrator_bytes": 0,
-      "skills_installed": 33,
-      "skills_listed": 27,
-      "skill_listing_bytes": 4613,
+      "skills_installed": 34,
+      "skills_listed": 28,
+      "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10619,
       "default_flow_bytes": 13960,
       "memory_flow_bytes": 16908,
@@ -76,9 +76,9 @@
     "codex": {
       "always_on_bytes": 3344,
       "orchestrator_bytes": 0,
-      "skills_installed": 33,
-      "skills_listed": 27,
-      "skill_listing_bytes": 4613,
+      "skills_installed": 34,
+      "skills_listed": 28,
+      "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10619,
       "default_flow_bytes": 13963,
       "memory_flow_bytes": 16911,
@@ -94,9 +94,9 @@
     "cursor": {
       "always_on_bytes": 3671,
       "orchestrator_bytes": 0,
-      "skills_installed": 33,
-      "skills_listed": 27,
-      "skill_listing_bytes": 4613,
+      "skills_installed": 34,
+      "skills_listed": 28,
+      "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10619,
       "default_flow_bytes": 14290,
       "memory_flow_bytes": 17238,
@@ -112,9 +112,9 @@
     "antigravity": {
       "always_on_bytes": 3673,
       "orchestrator_bytes": 0,
-      "skills_installed": 33,
-      "skills_listed": 27,
-      "skill_listing_bytes": 4613,
+      "skills_installed": 34,
+      "skills_listed": 28,
+      "skill_listing_bytes": 4772,
       "idd_protocol_bytes": 10619,
       "default_flow_bytes": 14292,
       "memory_flow_bytes": 17240,
@@ -233,6 +233,111 @@
         ]
       },
       "reason": "E4.3: techo nuevo del flujo por defecto con references/memory-loop.md, que se lee tras cada close"
+    },
+    {
+      "version": "2.168.9",
+      "metric": "skills_installed",
+      "targets": {
+        "claude": [
+          33,
+          34
+        ],
+        "vscode": [
+          33,
+          34
+        ],
+        "github-copilot": [
+          33,
+          34
+        ],
+        "opencode": [
+          33,
+          34
+        ],
+        "codex": [
+          33,
+          34
+        ],
+        "cursor": [
+          33,
+          34
+        ],
+        "antigravity": [
+          33,
+          34
+        ]
+      },
+      "reason": "handbook sustituye a sdd-document y, como foundation, se instala en cualquier modo (decisión del usuario del 2026-11-03)"
+    },
+    {
+      "version": "2.168.9",
+      "metric": "skills_listed",
+      "targets": {
+        "claude": [
+          27,
+          28
+        ],
+        "vscode": [
+          27,
+          28
+        ],
+        "github-copilot": [
+          27,
+          28
+        ],
+        "opencode": [
+          27,
+          28
+        ],
+        "codex": [
+          27,
+          28
+        ],
+        "cursor": [
+          27,
+          28
+        ],
+        "antigravity": [
+          27,
+          28
+        ]
+      },
+      "reason": "handbook sustituye a sdd-document y, como foundation, se instala en cualquier modo (decisión del usuario del 2026-11-03)"
+    },
+    {
+      "version": "2.168.9",
+      "metric": "skill_listing_bytes",
+      "targets": {
+        "claude": [
+          4613,
+          4772
+        ],
+        "vscode": [
+          4613,
+          4772
+        ],
+        "github-copilot": [
+          4613,
+          4772
+        ],
+        "opencode": [
+          4613,
+          4772
+        ],
+        "codex": [
+          4613,
+          4772
+        ],
+        "cursor": [
+          4613,
+          4772
+        ],
+        "antigravity": [
+          4613,
+          4772
+        ]
+      },
+      "reason": "handbook sustituye a sdd-document y, como foundation, se instala en cualquier modo (decisión del usuario del 2026-11-03)"
     }
   ]
 }

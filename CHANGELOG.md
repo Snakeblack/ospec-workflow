@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.169.0] - 2026-11-03
+
+### Added
+- **La skill `handbook` sustituye a `sdd-document`** (handbook).
+  - **Se instala en cualquier modo, con dos modos como `foundation`.** En modo directo la invocas tú o el router. En SDD, el orquestador lanza el agente `handbook` cuando pides documentar, sin comando; el agente solo llega con `--with-sdd`. La primera vez pregunta el idioma y si quieres la web; las siguientes leen `handbook/handbook.json` y no preguntan nada.
+  - **La documentación vive en `handbook/`.** `handbook.json` fija el orden, la etiqueta y el público de cada grupo, y `handbook/.state.json` el estado de la última ejecución. Un `openwiki/` existente se migra con `git mv` si el usuario acepta.
+  - **La web se ordena desde el manifiesto.** `sync-handbook.mjs` (antes `sync-openwiki.mjs`) toma de `handbook.json` el orden de los grupos, su etiqueta, el público como badge de texto y el idioma de la web. Un directorio sin grupo va al final con aviso, y un manifiesto ausente o inválido deja el orden alfabético sin romper el build. Lee el handbook de `../handbook` o de `--source`. Nunca publica el usuario, la contraseña ni el puerto ssh de la URL de `origin`.
+  - **La frontera de escritura se comprueba fuera del agente.** En SDD, `route-handbook.md` fija `web` y la línea base, con el hash de cada fichero, antes de cada despacho. Guarda el hash del `state.yaml` de la ruta, repite el control en cada retorno `blocked` y revisa el contenido antes de cerrar. En modo directo, la skill compara `git status` antes y después y lo informa.
+
+### Removed
+- **`sdd-document`, su comando `/sdd-document`, `route-document.md` y las opciones de destino A/B/C/D** (handbook). Los sustituye la skill `handbook`. La web de este repositorio conserva sus URL.
+
+### Fixed
+- **El test de contrato del bloque Handbook acepta CRLF** (handbook-crlf-test). En el checkout de Windows su regex exigía saltos LF; ahora comprueba la skill en LF y en CRLF.
+
+Hecho con IDD (`idd/archive/2026-11-03-handbook/`), con cinco revisiones de confianza: la quinta, que autorizó el usuario, no encontró nada. El techo de contexto sube una skill (34 instaladas, 4772 bytes de listado) porque `handbook` se instala siempre.
+
+**Verificación directa**: `node scripts/check.js` (4351 tests pasando, 0 fallos y 5 omitidos), con 10 tests de Python OK y los siete targets generados y validados, claude incluido. La web se construyó con Astro y muestra los grupos en el orden del manifiesto con sus badges.
+
 ## [2.168.9] - 2026-11-02
 
 ### Fixed

@@ -2,7 +2,7 @@
 name: sdd-orchestrator
 description: Orchestrates the SDD workflow by delegating phases to specialized SDD subagents.
 tools: ['read', 'search', 'edit', 'execute', 'agent', 'vscode/askQuestions']
-agents: ['sdd-init', 'foundation', 'sdd-baseline', 'sdd-workspace', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-clarify', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-reconcile', 'sdd-onboard', 'sdd-document', 'review-change', 'review-correction', 'review-trust', 'review-runtime', 'review-evolution', 'review-efficiency']
+agents: ['sdd-init', 'foundation', 'sdd-baseline', 'sdd-workspace', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-clarify', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-reconcile', 'sdd-onboard', 'handbook', 'review-change', 'review-correction', 'review-trust', 'review-runtime', 'review-evolution', 'review-efficiency']
 # modelo intencionalmente omitido.
 # Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: true
@@ -66,7 +66,7 @@ Skills (appear in autocomplete):
 - `/sdd-verify [change]` → validate implementation against specs; reports CRITICAL / WARNING / SUGGESTION
 - `/sdd-archive [change]` → close a change and persist final state in the active artifact store
 - `/sdd-onboard` → guided end-to-end walkthrough of SDD using your real codebase
-- `/sdd-document` → generate/update the repository technical wiki (delegates to sdd-document)
+- `handbook` (a skill outside SDD too) → write or update the repository handbook and its optional website when the user asks to document inside SDD; inside SDD it is the `handbook` route's phase (no slash command)
 
 Meta-commands (type directly — orchestrator handles them, won't appear in autocomplete):
 - `/sdd-new [change-name] <request>` → start a new change (name derived from the request when missing) by delegating exploration + proposal to sub-agents
@@ -103,7 +103,6 @@ Lite-mode rules:
 - Use `/sdd-lite` only for `trivial` or `small` changes.
 - If the change is `normal` or `high-risk`, STOP lite mode and promote it to the standard workflow.
 - If a lite change grows during planning or apply, stop and escalate to the standard workflow before continuing.
-
 
 ### Runtime Harness Policy
 
@@ -377,6 +376,7 @@ Each phase has explicit read/write rules:
 | Phase | Reads | Writes |
 |-------|-------|--------|
 | `foundation` | `openspec/config.yaml` + `idd/config.yaml` + `docs/**` | foundation docs, architecture ADRs, updated `openspec/config.yaml`, approved `idd/config.yaml` |
+| `handbook` | the repository + `handbook/handbook.json` + `handbook/.state.json` | `handbook/**`, `web-doc/**` when `web` is true, the handbook block of `AGENTS.md`/`CLAUDE.md` |
 | `sdd-explore` | codebase/specs context as needed | `exploration.md` |
 | `sdd-propose` | exploration (optional) | `proposal` or `proposal-lite` |
 | `sdd-spec` | proposal (required) | `spec` |
@@ -475,7 +475,7 @@ here.
 | Question Shape Library | composing a delivery-strategy, review-workload, or blocked-envelope question | `skills/_shared/question-shapes.md` | At the ask point, before the first such `vscode/askQuestions` call in a session |
 | Clarify Gate Handler | a successful `sdd-spec` envelope passes phase-aware validation | `skills/_shared/clarify-routing.md` | After `sdd-spec` success, before dispatching `sdd-clarify`/`sdd-design` |
 | Gaps Resolution Handler (MANDATORY) | `foundation` returns `status: blocked` with unresolved functional/technical gaps — resolutions are recorded under the `approvals` ledger in `state.yaml` and `gaps_resolutions` in `openspec/config.yaml` | `skills/_shared/gaps-resolution.md` | On the blocked return, before relaunching `foundation` |
-| Document Route Handler | `/sdd-document` invoked (or route dispatch selects the `sdd-document` phase) | `skills/_shared/route-document.md` | At route dispatch, before the batched language+scope gate |
+| Handbook Route Handler | The user asks inside SDD to document the repository, write or update its handbook, or build its documentation website (route dispatch selects the `handbook` phase) | `skills/_shared/route-handbook.md` | At route dispatch, before launching the `handbook` agent |
 
 ### State and Conventions
 

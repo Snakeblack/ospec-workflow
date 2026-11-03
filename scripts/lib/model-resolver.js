@@ -27,7 +27,7 @@ const REQUIRED_SDD_AGENTS = [
   "sdd-baseline",
   "sdd-clarify",
   "sdd-design",
-  "sdd-document",
+  "handbook",
   "sdd-explore",
   "foundation",
   "sdd-init",

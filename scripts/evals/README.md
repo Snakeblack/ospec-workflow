@@ -166,8 +166,8 @@ in `openspec/changes/prompt-evals-golden-scenarios/design.md`.
 
 ### The `GIT-BASELINE.json` marker (git-dependent fixtures only)
 
-`sdd-document`'s update-mode drift detection and its J5 sandbox-inventory
-check both depend on real `git` state (a `gitHead` in `.last-update.json`,
+The `handbook` agent's update-mode drift detection and the orchestrator's
+post-run boundary check both depend on real `git` state (a `gitHead` in `.state.json`,
 and `git status` for untracked/changed paths). Since this repository must
 never contain a nested `.git` directory as a committed fixture asset (git
 would treat it as a broken submodule pointer and silently drop its
@@ -184,7 +184,7 @@ fixture author can reuse, not just the two scenarios currently shipping one:
 ```json
 {
   "commit_all": true,
-  "gitHead_files": ["openwiki/.last-update.json"],
+  "gitHead_files": ["handbook/.state.json"],
   "post_baseline_untracked": ["src/leaked-notes.txt"]
 }
 ```
@@ -210,8 +210,8 @@ fixture author can reuse, not just the two scenarios currently shipping one:
   the harness's own side-channel directory (`gate.json`/`envelope.json`/
   `done.json`/the setup completion marker) invisible to `git status` inside
   the fixture's nested repo — without it, that directory would show as
-  untracked and could produce a false positive for `sdd-document`'s J5
-  sandbox-inventory check on a scenario (like `document-update-noop`) that
+  untracked and could produce a false positive for the handbook route's
+  boundary check on a scenario (like `handbook-update-noop`) that
   expects a perfectly clean tree.
 
 ## `scenario.json` manifest shape
@@ -260,9 +260,9 @@ only counts, flags, and named field values (REQ-orchestrator-evals-002).
 | `high-risk-clarify-route` | orchestrator-core | `high-risk` classification resolves a route whose gates include `clarify` |
 | `verify-fail-spec-gap-routes-sdd-spec` | orchestrator-core | A `FAIL`/`spec-gap` verify-report routes to `sdd-spec`, not `sdd-apply` |
 | `apply-design-mismatch-blocked` | orchestrator-core | A `blocker_type: design-mismatch` envelope routes to `sdd-design`, never a silent `sdd-apply` retry |
-| `document-batched-gate` | sdd-document | Init-mode `/sdd-document` asks language+scope as ONE batched gate, never two round-trips |
-| `document-update-noop` | sdd-document | No source drift since the last run ⇒ no new files (`fileTreeUnchanged`), `state.yaml` untouched |
-| `document-sandbox-violation-blocked` | sdd-document | A changed/untracked path outside the approved output dir halts with the documented 2-option gate |
+| `handbook-first-run-settings` | handbook | The first handbook run asks language and website as ONE round, never two round-trips |
+| `handbook-update-noop` | handbook | No source drift since the last run ⇒ no new files (`fileTreeUnchanged`), `state.yaml` untouched |
+| `handbook-boundary-violation-blocked` | handbook | A changed/untracked path outside the handbook's write boundary halts with the documented 2-option gate |
 
 ## Role as a pre-`models.yaml`-bump gate
 
@@ -326,7 +326,7 @@ flow by policy and API shape, not by an unforgeable trust root.
 This is a **local, host-authorized** capability (roadmap 2.1) with a headless
 driver, but no CI wiring yet (roadmap 2.2/B4). Scoring is
 structural-only and taken from a single post-run snapshot (not a
-before/after diff). `document-update-noop` uses `fileTreeUnchanged` +
+before/after diff). `handbook-update-noop` uses `fileTreeUnchanged` +
 `baselineFileTree` (see the manifest shape table above) to assert the exact
 set of files present after the run matches the fixture's own seed tree — this
 catches a broken orchestrator that silently writes a NEW output file, which

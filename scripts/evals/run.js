@@ -163,8 +163,8 @@ function resolveContainedPath(workspaceRoot, relPath) {
  * `done.json`, `materialized.json`). Without this, files the harness itself
  * writes into that directory (before or after the baseline commit) would
  * show up as untracked/changed in `git status` inside the workspace,
- * producing a FALSE positive for `sdd-document`'s J5 sandbox-inventory
- * check on scenarios (like `document-update-noop`) that expect a perfectly
+ * producing a FALSE positive for the handbook route's post-run boundary
+ * check on scenarios (like `handbook-update-noop`) that expect a perfectly
  * clean tree. Only relevant to git-baselined fixtures; non-git fixtures
  * never get a nested repo at all.
  */
@@ -205,7 +205,7 @@ function runGit(args, cwd) {
  * under `post_baseline_untracked` (temporarily moved aside so they land as
  * genuinely untracked files after the baseline commit), then resolves the
  * `__GIT_HEAD__` placeholder token in each of `gitHead_files` to the
- * baseline commit's short hash. This lets fixtures exercise `sdd-document`'s
+ * baseline commit's short hash. This lets fixtures exercise the `handbook` agent's
  * real `gitHead`-scoped drift detection without ever committing a nested
  * `.git` directory into this repository (the marker + workspace are both
  * gitignored ephemeral state under `.runs/`).

@@ -19,7 +19,7 @@ test("commands<->agents contract: every routed sub-agent exists in its router's 
   assert.deepEqual(check({ root: ROOT }), []);
 });
 
-test("commands<->agents contract: rel-1/rel-2 guards and the sdd-document anchor are preserved", () => {
+test("commands<->agents contract: rel-1/rel-2 guards and the sdd-init anchor are preserved", () => {
   const { checked, missingFromRoster, arrowRowCount } = checkDetailed({ root: ROOT });
 
   // rel-1 guard: no command file may be missing from the '3.2 Command Roster' table.
@@ -37,11 +37,11 @@ test("commands<->agents contract: rel-1/rel-2 guards and the sdd-document anchor
 
   assert.ok(checked.length > 0, "at least one command must have a verifiable routing target");
 
-  // Anchor: sdd-document.prompt.md is the exact command this contract test was
-  // written to protect — its absence here means the roster row or allowlist
+  // Anchor: sdd-init.prompt.md is an orchestrator-routed command the roster always lists (it replaced
+  // the removed sdd-document anchor) — its absence here means the roster row or allowlist
   // check silently failed.
   assert.ok(
-    checked.includes("sdd-document.prompt.md"),
-    "rel-1 guard: sdd-document.prompt.md must be present in checked[] — this is the exact command the contract test was written to protect, and its absence here means the roster row or allowlist check silently failed"
+    checked.includes("sdd-init.prompt.md"),
+    "rel-1 guard: sdd-init.prompt.md must be present in checked[] — an orchestrator-routed command the contract protects, and its absence here means the roster row or allowlist check silently failed"
   );
 });

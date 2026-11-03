@@ -1,0 +1,13 @@
+schema: spec-driven-state
+change: update-docs
+status: planning
+last_updated: "2025-01-01T00:00:00Z"
+blocking_questions: []
+approvals:
+  - gate: handbook-settings
+    resolution: "language=en, web=false"
+    timestamp: "2025-01-01T00:00:00Z"
+phases:
+  handbook:
+    status: done
+    artifact: "handbook/quickstart.md"
