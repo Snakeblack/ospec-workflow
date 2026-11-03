@@ -303,9 +303,12 @@ test("the skill runs the sync script to validate the manifest instead of describ
 });
 
 test("the skill keeps a Handbook block in AGENTS.md and CLAUDE.md and replaces the OpenWiki one", () => {
-  const content = read(SKILL_PATH);
-  assert.match(content, /## Handbook\n\nThis repository's documentation lives in \/handbook\./);
-  assert.match(content, /Replace an older \`## OpenWiki\` block/);
+  // A Windows checkout may hold the skill with CRLF line endings: check both.
+  const lf = read(SKILL_PATH).replace(/\r\n/g, "\n");
+  for (const content of [lf, lf.replace(/\n/g, "\r\n")]) {
+    assert.match(content, /## Handbook\r?\n\r?\nThis repository's documentation lives in \/handbook\./);
+    assert.match(content, /Replace an older \`## OpenWiki\` block/);
+  }
 });
 
 test("the skill's state schema lists every page and skipped files as objects", () => {
