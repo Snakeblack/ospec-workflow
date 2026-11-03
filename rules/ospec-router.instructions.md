@@ -5,7 +5,7 @@ applyTo: '**'
 
 # ospec-workflow
 
-ospec-workflow is installed. Its SDD mode (OpenSpec proposal, specs, design, tasks, apply, verify and archive, with strict TDD and bounded review when the project enables them) runs only on request.
+ospec-workflow is installed. Its SDD mode (OpenSpec proposal, specs, design, tasks, apply, verify and archive, with strict TDD and bounded review when the project enables them) runs only on request. If the {{idd-entry}} is missing, ospec-workflow was uninstalled: ignore this section.
 
 ## IDD by default
 
