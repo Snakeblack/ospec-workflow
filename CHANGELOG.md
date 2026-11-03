@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.170.3] - 2026-11-03
+
 ### Fixed
-- Con Engram configurado por ospec, las escrituras de memoria (mem_save, mem_session_summary...) se deniegan en el modo auto de Claude Code (#475): el hook PreToolUse de engram@engram reescribe la entrada con updatedInput y la revisión del clasificador queda sin veredicto. setup:claude añadirá reglas permissions.allow para las herramientas de escritura no destructivas de engram, y ospec doctor avisará si faltan. (engram-auto-mode-allow)
+- **La memoria de Engram funciona en el modo auto de Claude Code** (engram-auto-mode-allow, #475). Para vincular la sesión, el hook `PreToolUse` de `engram@engram` reescribe con `updatedInput` la entrada de `mem_save`, `mem_session_summary` y demás, y el modo auto puede denegar una llamada cuya entrada cambió después de que el clasificador la revisara (`gave no verdict … a hook changed this call's input`). Con la configuración que deja ospec, las escrituras de memoria fallaban en modo auto, también tras cada compactación. Los hooks de ospec no reescriben la entrada; el arreglo de raíz va en Gentleman-Programming/engram#2231.
+  - **`setup:claude` añade reglas `permissions.allow`** al `settings.json` de `CLAUDE_CONFIG_DIR` (o `~/.claude`), en cualquier plataforma, cuando Engram queda configurado o ya lo estaba: las 12 herramientas de escritura no destructivas del matcher, con los prefijos `mcp__engram__` y `mcp__plugin_engram_engram__`. Una llamada que coincide con una regla `allow` se resuelve antes del clasificador. `mem_delete` y `mem_merge_projects` siguen pasando por él.
+  - **Lo que ya decidió el usuario se respeta.** Una herramienta cubierta en `allow`, `ask` o `deny` (por su nombre, por su servidor o por un glob como `mcp__engram__*`) no recibe regla. Se conservan los demás ajustes, no se duplican entradas, un fichero ilegible o con `permissions` malformado no se reescribe, y `--no-engram` ni añade ni quita reglas.
+  - **`ospec doctor` da `warn` en `claude/engram`** cuando faltan reglas o el `settings.json` no se puede leer.
+  - **La lista vive en `scripts/lib/engram-claude-allow.js`**, un módulo que no requiere, lee ni llama a nada. REQ-session-memory-002 prohíbe nombrar herramientas `mem_*` en la detección de Engram, y su test de contrato admite este módulo con esa aserción.
+
+Hecho con IDD (`idd/archive/2026-11-03-engram-auto-mode-allow/`). REQ-install-046 recoge el paso, y las specs de `idd` y `session-memory` el aviso del doctor y la excepción del módulo. Para aplicarlo en una instalación existente, vuelve a ejecutar `npm run setup:claude`.
+
+**Verificación directa**: `node scripts/check.js` (4394 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
 
 ## [2.170.2] - 2026-11-03
 
