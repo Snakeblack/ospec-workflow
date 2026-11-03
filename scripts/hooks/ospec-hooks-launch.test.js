@@ -215,7 +215,7 @@ test("SUBCOMMANDS covers exactly the six hook events", () => {
 
 // Mocks the child and the hook stdin, runs main(argv) and returns what the
 // launcher wrote plus the options it spawned the child with.
-function runLauncher(t, { argv, stdin, outcome, target = "claude" }) {
+function runLauncher(t, { argv, stdin, outcome, target = "claude", scriptDir = HOOKS_DIR }) {
   const cp = require("node:child_process");
   const fs = require("node:fs");
   const saved = { spawn: cp.spawnSync, read: fs.readFileSync, write: process.stdout.write, error: process.stderr.write, target: process.env.OSPEC_TARGET };
@@ -243,10 +243,70 @@ function runLauncher(t, { argv, stdin, outcome, target = "claude" }) {
   const launcher = require("./ospec-hooks-launch.js");
   const written = [];
   process.stdout.write = (chunk) => { written.push(String(chunk)); return true; };
-  const code = launcher.main(argv, HOOKS_DIR);
+  const code = launcher.main(argv, scriptDir);
   restore();
   return { code, written: written.join(""), options };
 }
+
+// claude-router: the Claude Code SessionStart keeps the router in the launcher.
+function routerPlugin(t) {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-launch-router-"));
+  t.after(() => fs.rmSync(base, { recursive: true, force: true }));
+  const plugin = path.join(base, "plugin");
+  fs.mkdirSync(path.join(plugin, "global-instructions"), { recursive: true });
+  fs.writeFileSync(path.join(plugin, "global-instructions", "CLAUDE.md"), "# ospec-workflow\n\nrouter\n");
+  const saved = { config: process.env.CLAUDE_CONFIG_DIR, off: process.env.DISABLE_ROUTER_NOTICE };
+  process.env.CLAUDE_CONFIG_DIR = path.join(base, "config");
+  delete process.env.DISABLE_ROUTER_NOTICE;
+  t.after(() => {
+    for (const [name, value] of [["CLAUDE_CONFIG_DIR", saved.config], ["DISABLE_ROUTER_NOTICE", saved.off]]) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+  return { base, scriptDir: path.join(plugin, "scripts", "hooks"), rules: path.join(base, "config", "rules", "ospec-workflow.md") };
+}
+
+test("--claude-router adds the notice to the SessionStart answer of a session without a router", (t) => {
+  const { NOTICE } = require("../lib/claude-router.js");
+  const plugin = routerPlugin(t);
+  const outcome = { status: 0, stdout: '{"status":"ok","ospecDetected":false}\n', stderr: "" };
+  const stdin = JSON.stringify({ source: "startup", cwd: plugin.base });
+  const flagged = runLauncher(t, { argv: ["session-start", "--claude-router"], stdin, outcome, scriptDir: plugin.scriptDir });
+  assert.equal(flagged.code, 0);
+  assert.deepEqual(JSON.parse(flagged.written), { status: "ok", ospecDetected: false, systemMessage: NOTICE });
+
+  const plain = runLauncher(t, { argv: ["session-start"], stdin, outcome, scriptDir: plugin.scriptDir });
+  assert.equal(plain.written, outcome.stdout, "without the flag (VS Code) nothing is added");
+  const resumed = runLauncher(t, { argv: ["session-start", "--claude-router"], stdin: JSON.stringify({ source: "resume" }), outcome, scriptDir: plugin.scriptDir });
+  assert.equal(resumed.written, outcome.stdout, "only a startup is announced");
+  const unreadable = runLauncher(t, { argv: ["session-start", "--claude-router"], stdin: "not json", outcome, scriptDir: plugin.scriptDir });
+  assert.equal(unreadable.written, outcome.stdout, "a failed step costs the notice, not the answer");
+});
+
+test("--claude-router runs before the child and still refreshes when the child fails", (t) => {
+  const fs = require("node:fs");
+  const router = require("../lib/claude-router.js");
+  const plugin = routerPlugin(t);
+  const pluginRoot = path.resolve(plugin.scriptDir, "../..");
+  fs.mkdirSync(path.join(pluginRoot, ".claude-plugin"), { recursive: true });
+  fs.writeFileSync(path.join(pluginRoot, ".claude-plugin", "plugin.json"), JSON.stringify({ version: "1.0.0" }));
+  router.install({ pluginRoot, configDir: process.env.CLAUDE_CONFIG_DIR });
+  fs.writeFileSync(path.join(pluginRoot, "global-instructions", "CLAUDE.md"), "# ospec-workflow\n\nrouter v2\n");
+  fs.writeFileSync(path.join(pluginRoot, ".claude-plugin", "plugin.json"), JSON.stringify({ version: "1.1.0" }));
+  const failed = runLauncher(t, { argv: ["session-start", "--claude-router"], stdin: JSON.stringify({ source: "startup" }), outcome: { status: 3, stdout: "", stderr: "" }, scriptDir: plugin.scriptDir });
+  assert.doesNotMatch(failed.written, /router is not installed/, "a refreshed router needs no notice");
+  assert.equal(fs.readFileSync(plugin.rules, "utf8"), "# ospec-workflow\n\nrouter v2\n");
+});
+
+test("withSystemMessage joins an earlier message and leaves a non-JSON answer alone", () => {
+  const { withSystemMessage } = require("./ospec-hooks-launch.js");
+  assert.deepEqual(JSON.parse(withSystemMessage('{"systemMessage":"first"}', "second")), { systemMessage: "first\nsecond" });
+  assert.deepEqual(JSON.parse(withSystemMessage("", "only")), { systemMessage: "only" });
+  assert.equal(withSystemMessage("plain text", "lost"), "plain text");
+});
 
 test("--output-redaction tells the PreToolUse child that the host redacts reads, and only then", (t) => {
   const previous = process.env.OSPEC_OUTPUT_REDACTION;

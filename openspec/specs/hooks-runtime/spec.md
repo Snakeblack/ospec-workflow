@@ -20,7 +20,9 @@ and vscode targets. It MUST list all six lifecycle events under the top-level
 `hooks` key. The vscode target omits `PostToolUse`: VS Code cannot replace a tool
 result, so the redaction hook would only add its note over the original output.
 The claude target appends `--output-redaction` to the `pre-tool-use` command
-(REQ-agent-shield-security-001's read exemption applies only there).
+(REQ-agent-shield-security-001's read exemption applies only there) and
+`--claude-router` to the `session-start` command (REQ-hooks-032: the launcher
+keeps the Claude Code router).
 
 All entries MUST be of type `"command"`. The command template MUST invoke the Go
 binary with the hook event name as its first positional argument instead of a
@@ -188,7 +190,7 @@ The JSON stdin/stdout contract MUST be identical across all targets.
 
 | Target | Config file | Invocation surface | Hooks wired |
 |---|---|---|---|
-| claude | `hooks/hooks.json` | Shell command via `CLAUDE_PLUGIN_ROOT` | All 6 (`pre-tool-use --output-redaction`) |
+| claude | `hooks/hooks.json` | Shell command via `CLAUDE_PLUGIN_ROOT` | All 6 (`pre-tool-use --output-redaction`, `session-start --claude-router`) |
 | vscode | inherits canonical `hooks/hooks.json` via identity transform | Shell command | 5 (`PostToolUse` omitted) |
 | github-copilot | `.github/hooks/hooks.json` (`bash` + `powershell` keys, repo-relative) | Shell command | 2 (sessionStart, preToolUse) |
 | opencode | `.opencode/plugins/ospec.js` (generated) | spawnSync — see Requirement: opencode SpawnSync | 3 (session.created → session-start, tool.execute.before → pre-tool-use, tool.execute.after → post-tool-use) |

@@ -224,12 +224,12 @@ function sourceWithRedaction() {
   });
 }
 
-test("claude keeps PostToolUse and tells its PreToolUse that the host redacts reads", () => {
+test("claude keeps PostToolUse, tells its PreToolUse that the host redacts reads and its SessionStart to keep the router", () => {
   const out = transform({ files: sourceWithRedaction(), profile: claude, models: MODELS });
   const h = JSON.parse(find(out, "hooks/hooks.json").content);
   assert.match(h.hooks.PreToolUse[0].hooks[0].command, / pre-tool-use --output-redaction$/);
   assert.match(h.hooks.PostToolUse[0].hooks[0].command, / post-tool-use$/);
-  assert.match(h.hooks.SessionStart[0].hooks[0].command, / session-start$/);
+  assert.match(h.hooks.SessionStart[0].hooks[0].command, / session-start --claude-router$/);
 });
 
 test("codex wraps PostToolUse; vscode, antigravity, copilot and cursor drop it", () => {
@@ -239,6 +239,8 @@ test("codex wraps PostToolUse; vscode, antigravity, copilot and cursor drop it",
   const vscodeHooks = JSON.parse(find(transform({ files: sourceWithRedaction(), profile: vscode, models: MODELS }), "hooks/hooks.json").content);
   assert.deepEqual(Object.keys(vscodeHooks.hooks), ["SessionStart", "PreToolUse"]);
   assert.equal(vscodeHooks.hooks.PreToolUse[0].command.includes("--output-redaction"), false);
+  assert.equal(JSON.stringify(vscodeHooks).includes("--claude-router"), false, "VS Code runs the same launcher without the Claude router");
+  assert.equal(JSON.stringify(codexHooks).includes("--claude-router"), false);
   const agyHooks = JSON.parse(find(transform({ files: sourceWithRedaction(), profile: antigravity, models: MODELS }), "hooks.json").content);
   assert.equal(JSON.stringify(agyHooks).includes("post-tool-use"), false);
   for (const [profile, location] of [[githubCopilot, ".github/hooks/hooks.json"], [cursor, "hooks.json"]]) {

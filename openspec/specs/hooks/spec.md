@@ -1844,3 +1844,17 @@ The Stop hook, in the Node hook and the native binary alike, MUST add one to the
 - GIVEN that binary and a hook input larger than the pipe buffer THEN the call MUST answer with the Node hook's decision and stderr MUST name the same reason, not `EPIPE`.
 - GIVEN `scripts/hooks/ospec-hooks` that runs and exits 3 THEN the decision MUST be `ask` naming `exit 3`, and the Node hook MUST not run.
 - GIVEN that binary and a hook input larger than the pipe buffer THEN the decision MUST be `ask` naming `exit 3`, and the Node hook MUST not run.
+
+### Requirement: The Claude Code SessionStart Keeps The Router {#REQ-hooks-032}
+
+Installing the plugin from the marketplace runs no installer and updating it runs no hook, so the Claude Code build MUST pass `--claude-router` to its `session-start` command (REQ-hooks-runtime Hook Registration) and `scripts/hooks/ospec-hooks-launch.js` MUST then run the router step of `scripts/lib/claude-router.js` (REQ-install-045) before the native or Node child, so a session outside an ospec project gets it too. VS Code runs the same launcher without the flag, and every other invocation MUST skip the step. The step:
+
+- MUST rewrite the user rules file when it holds exactly what ospec wrote (its SHA-256 matches the state) and the running plugin's version is newer than the one recorded, then record the new version and hash; it MUST NOT touch a file edited by hand, an old block in `CLAUDE.md` or anything inside the project;
+- MUST return the notice `ospec-workflow: the router is not installed, so IDD is not the default flow. Run `! ospec router install`, or `! ospec router off` to stop this notice.` only when the payload's `source` is `startup`, there is no user router, no old block, no recorded "no", no team router in the session directory or a parent below the home directory, and `DISABLE_ROUTER_NOTICE` is not `true`;
+- MUST add the notice to the child's JSON answer as `systemMessage`, after any message the child set, which Claude Code shows to the user and does not give the model; an answer that is not a JSON object passes unchanged;
+- MUST NOT fail the session start: an unreadable payload or any error in the step writes `[ospec warn] the Claude Code router step failed (<reason>); the session starts without it` to stderr and the child's answer passes unchanged. A failed child keeps its failure answer, without the notice.
+
+- GIVEN no router and a `startup` payload THEN the answer MUST carry the notice as `systemMessage` beside the child's fields.
+- GIVEN the same payload with `source` `resume`, `clear` or `compact` THEN the answer MUST be the child's, unchanged.
+- GIVEN a rules file ospec wrote at 2.0.0 and a running plugin at 2.1.0 THEN the file MUST hold the 2.1.0 router after the session start, even when the child fails.
+- GIVEN a rules file edited by hand THEN it MUST be unchanged and no notice is shown.

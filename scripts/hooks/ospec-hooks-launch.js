@@ -38,6 +38,10 @@ const SUBCOMMANDS = new Set([
 // host rewrites tool output through PostToolUse, so a non-shell read of a
 // secret needs no prompt. Every other invocation clears an inherited value.
 const OUTPUT_REDACTION_FLAG = "--output-redaction";
+// Only the Claude Code SessionStart passes it (nestHooks): the launcher keeps
+// the Claude Code router (scripts/lib/claude-router.js) before the child runs,
+// so a session outside an ospec project gets it too.
+const CLAUDE_ROUTER_FLAG = "--claude-router";
 
 const CONTINUE = '{"continue":true}\n';
 // Leave one second for launch, normalization and host delivery (host: 5s).
@@ -623,6 +627,29 @@ function resolveInvocation(sub, scriptDir, suffix = hostBinarySuffix(), exists =
 }
 
 
+// Refreshes the router ospec wrote and returns the notice for a session that
+// starts without one. A failure costs the notice, never the session start.
+function claudeRouterStep(rawInput, scriptDir, env = process.env) {
+  try {
+    const input = rawInput.trim() ? JSON.parse(rawInput) : {};
+    const { sessionStartRouter } = require("../lib/claude-router.js");
+    return sessionStartRouter({ input: isPlainObject(input) ? input : {}, env, pluginRoot: path.resolve(scriptDir, "../..") });
+  } catch (error) {
+    process.stderr.write(`[ospec warn] the Claude Code router step failed (${error.message}); the session starts without it\n`);
+    return null;
+  }
+}
+
+// The notice rides on the child's JSON answer as `systemMessage`, which the
+// user sees and the model does not. An answer that is not a JSON object is
+// passed on unchanged.
+function withSystemMessage(stdout, notice) {
+  const answer = parseLastJson(stdout || "{}");
+  if (!isPlainObject(answer)) return stdout;
+  const systemMessage = typeof answer.systemMessage === "string" && answer.systemMessage ? `${answer.systemMessage}\n${notice}` : notice;
+  return `${JSON.stringify({ ...answer, systemMessage })}\n`;
+}
+
 function launch(argv, scriptDir, seen = {}) {
   const sub = argv[0];
   if (!SUBCOMMANDS.has(sub)) {
@@ -643,6 +670,7 @@ function launch(argv, scriptDir, seen = {}) {
   if (adapted.unreadable) {
     return launcherFailure(sub, "unrecognized agy tool call", cursorHost, rawInput);
   }
+  const router = sub === "session-start" && argv.includes(CLAUDE_ROUTER_FLAG) ? claudeRouterStep(rawInput, scriptDir) : null;
   const { command, args } = resolveInvocation(sub, scriptDir, undefined, undefined, undefined, undefined, adapted.cwd);
   const input = adapted.input;
   const pluginRoot = path.resolve(scriptDir, "../..");
@@ -689,6 +717,8 @@ function launch(argv, scriptDir, seen = {}) {
     writeAntigravityHookOutput(normalizeAntigravityHookOutput(sub, parseLastJson(result.stdout)));
   } else if (cursorHost) {
     process.stdout.write(`${JSON.stringify(normalizeCursorHookOutput(sub, parseLastJson(result.stdout)))}\n`);
+  } else if (router?.notice) {
+    process.stdout.write(withSystemMessage(result.stdout, router.notice));
   } else if (result.stdout) {
     process.stdout.write(result.stdout);
   }
@@ -725,5 +755,6 @@ module.exports = {
   isCursorHost,
   adaptCursorHookInput,
   normalizeCursorHookOutput,
+  withSystemMessage,
   main,
 };
