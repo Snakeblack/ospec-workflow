@@ -1,14 +1,14 @@
 "use strict";
 
-// Runtime integration test for the materialized sync-openwiki.mjs template
-// asset (skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs).
+// Runtime integration test for the web sync script of the handbook skill
+// (skills/handbook/assets/web-doc-template/scripts/sync-handbook.mjs).
 //
-// This is the transform engine for Option D of sdd-document: it copies the
-// template script into a throwaway temp project (mkdtemp), seeds a fixture
-// openwiki/ directory, optionally initializes a git repo (+ origin remote),
-// executes the script as a real subprocess, and asserts the materialized
-// web-doc/src/content/docs/ output. Self-generates entirely under the OS temp
-// dir — never reads the gitignored dist/ directory.
+// It copies the template script into a throwaway temp project (mkdtemp),
+// seeds a fixture handbook/ directory (pages plus an optional handbook.json
+// manifest), optionally initializes a git repo (+ origin remote), executes the
+// script as a real subprocess, and asserts the materialized
+// web-doc/src/content/docs/ output and src/sidebar.generated.json. Self-
+// generates entirely under the OS temp dir — never reads the gitignored dist/.
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -21,11 +21,11 @@ const ROOT = path.resolve(__dirname, "..");
 const SYNC_SCRIPT_SRC = path.join(
   ROOT,
   "skills",
-  "sdd-document",
+  "handbook",
   "assets",
   "web-doc-template",
   "scripts",
-  "sync-openwiki.mjs"
+  "sync-handbook.mjs"
 );
 
 function gitIsolatedEnv() {
@@ -47,24 +47,28 @@ function runGit(args, cwd) {
 }
 
 // Builds a temp project root with:
-//   <root>/openwiki/**        (fixture wiki source)
-//   <root>/web-doc/scripts/sync-openwiki.mjs   (copied template script)
+//   <root>/handbook/**        (fixture wiki source)
+//   <root>/web-doc/scripts/sync-handbook.mjs   (copied template script)
 // and optionally initializes git with a `main` branch and an `origin` remote.
-function setupProject(t, { pages, withGit = true, originUrl = null } = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-sync-openwiki-"));
+function setupProject(t, { pages, withGit = true, originUrl = null, manifest = null, sourceName = "handbook" } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-sync-handbook-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
-  const openwikiDir = path.join(root, "openwiki");
-  fs.mkdirSync(openwikiDir, { recursive: true });
+  const sourceDir = path.join(root, sourceName);
+  fs.mkdirSync(sourceDir, { recursive: true });
   for (const [relPath, content] of Object.entries(pages)) {
-    const abs = path.join(openwikiDir, relPath);
+    const abs = path.join(sourceDir, relPath);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, content, "utf8");
+  }
+  if (manifest !== null) {
+    const text = typeof manifest === "string" ? manifest : JSON.stringify(manifest);
+    fs.writeFileSync(path.join(sourceDir, "handbook.json"), text, "utf8");
   }
 
   const webDocDir = path.join(root, "web-doc");
   fs.mkdirSync(path.join(webDocDir, "scripts"), { recursive: true });
-  fs.copyFileSync(SYNC_SCRIPT_SRC, path.join(webDocDir, "scripts", "sync-openwiki.mjs"));
+  fs.copyFileSync(SYNC_SCRIPT_SRC, path.join(webDocDir, "scripts", "sync-handbook.mjs"));
 
   if (withGit) {
     runGit(["init", "-q", "-b", "main"], root);
@@ -78,11 +82,11 @@ function setupProject(t, { pages, withGit = true, originUrl = null } = {}) {
     }
   }
 
-  return { root, openwikiDir, webDocDir };
+  return { root, sourceDir, webDocDir };
 }
 
-function runSync(webDocDir) {
-  const result = spawnSync(process.execPath, [path.join("scripts", "sync-openwiki.mjs")], {
+function runSync(webDocDir, extraArgs = []) {
+  const result = spawnSync(process.execPath, [path.join("scripts", "sync-handbook.mjs"), ...extraArgs], {
     cwd: webDocDir,
     env: gitIsolatedEnv(),
     encoding: "utf8",
@@ -92,6 +96,10 @@ function runSync(webDocDir) {
 
 function readOut(webDocDir, relPath) {
   return fs.readFileSync(path.join(webDocDir, "src", "content", "docs", relPath), "utf8");
+}
+
+function readSidebar(webDocDir) {
+  return JSON.parse(fs.readFileSync(path.join(webDocDir, "src", "sidebar.generated.json"), "utf8"));
 }
 
 function outExists(webDocDir, relPath) {
@@ -165,32 +173,36 @@ test("strips the leading H1 even when the source already declares a frontmatter 
   assert.match(out, /Prose\./, "the body prose must remain");
 });
 
-test("emits a sidebar manifest with quickstart first and groups in quickstart link order", (t) => {
+test("emits a sidebar manifest with quickstart first and groups in handbook.json order", (t) => {
   const { webDocDir } = setupProject(t, {
     pages: {
-      "quickstart.md":
-        "# Inicio rápido\n\n- [Seguridad](/openwiki/security/guardrails.md)\n- [Orquestación](/openwiki/orchestration/routing.md)\n",
+      "quickstart.md": "# Inicio rápido\n\n- [Orquestación](orchestration/routing.md)\n",
       "orchestration/routing.md": "# Routing\n\nContent.\n",
       "security/guardrails.md": "# Guardrails\n\nContent.\n",
-      "zeta-unmentioned/extra.md": "# Extra\n\nContent.\n",
-      "alpha-unmentioned/other.md": "# Other\n\nContent.\n",
+    },
+    manifest: {
+      language: "es",
+      groups: [
+        { directory: "security", label: "Seguridad", audience: "Usuarios" },
+        { directory: "orchestration", label: "Orquestación" },
+      ],
     },
   });
 
   const result = runSync(webDocDir);
   assert.equal(result.status, 0, result.stderr);
 
-  const manifest = JSON.parse(
-    fs.readFileSync(path.join(webDocDir, "src", "sidebar.generated.json"), "utf8")
-  );
-  assert.equal(manifest.topLinks[0].link, "/quickstart", "quickstart must be the first top link");
-  assert.equal(manifest.topLinks[0].label, "Inicio rápido", "top link label comes from the page title");
+  const sidebar = readSidebar(webDocDir);
+  assert.equal(sidebar.topLinks[0].link, "/quickstart", "quickstart must be the first top link");
+  assert.equal(sidebar.topLinks[0].label, "Inicio rápido", "top link label comes from the page title");
   assert.deepEqual(
-    manifest.groups.map((g) => g.directory),
-    ["security", "orchestration", "alpha-unmentioned", "zeta-unmentioned"],
-    "mentioned dirs follow quickstart link order; unmentioned ones go last alphabetically"
+    sidebar.groups.map((g) => [g.directory, g.label]),
+    [["security", "Seguridad"], ["orchestration", "Orquestación"]],
+    "groups follow the manifest order and labels, not the quickstart links"
   );
-  assert.equal(manifest.groups[0].label, "Security", "group labels are humanized directory names");
+  assert.equal(sidebar.groups[0].badge, "Usuarios", "the group's audience becomes its sidebar badge text");
+  assert.equal("badge" in sidebar.groups[1], false, "a group without audience carries no badge");
+  assert.equal(sidebar.language, "es", "the manifest language reaches the site config");
 });
 
 test("rewrites a source-file link to the remote repository on the default branch", (t) => {
@@ -226,6 +238,27 @@ test("normalizes a git@ SSH-form origin to an https URL before rewriting links",
     "git@ SSH origin must be normalized to an https:// URL"
   );
 });
+
+for (const originUrl of [
+  "https://user:secret-token@github.com/acme/repo.git",
+  "https://x-access-token:secret-token@github.com/acme/repo",
+  "ssh://git@github.com/acme/repo.git",
+]) {
+  test(`never publishes the credentials or the ssh user of the origin ${originUrl.split("@")[0]}@…`, (t) => {
+    const { webDocDir } = setupProject(t, {
+      pages: { "guide.md": "# Guide\n\nSee [cache](/scripts/lib/cache.js).\n" },
+      originUrl,
+    });
+
+    const result = runSync(webDocDir);
+    assert.equal(result.status, 0, result.stderr);
+
+    const out = readOut(webDocDir, "guide.md");
+    assert.match(out, /\[cache\]\(https:\/\/github\.com\/acme\/repo\/blob\/main\/scripts\/lib\/cache\.js\)/);
+    assert.doesNotMatch(out, /secret-token|user:|x-access-token|git@/, "no credential or user may reach a generated page");
+    assert.doesNotMatch(fs.readFileSync(path.join(webDocDir, "src", "sidebar.generated.json"), "utf8"), /secret-token/);
+  });
+}
 
 test("leaves the link untouched and warns (exit 0) when no origin remote is configured", (t) => {
   const { webDocDir } = setupProject(t, {
@@ -296,10 +329,10 @@ test("preserves the #anchor when rewriting a wiki-internal link", (t) => {
   assert.match(out, /\[section\]\(\/testing\/#setup\)/, "anchor fragment must survive the slug rewrite");
 });
 
-test("rewrites an /openwiki/-prefixed link to the site-root slug", (t) => {
+test("rewrites an /handbook/-prefixed link to the site-root slug", (t) => {
   const { webDocDir } = setupProject(t, {
     pages: {
-      "guide.md": "# Guide\n\nSee [hooks](/openwiki/hooks-runtime/lifecycle.md).\n",
+      "guide.md": "# Guide\n\nSee [hooks](/handbook/hooks-runtime/lifecycle.md).\n",
       "hooks-runtime/lifecycle.md": "# Lifecycle\n\nContent.\n",
     },
   });
@@ -311,7 +344,7 @@ test("rewrites an /openwiki/-prefixed link to the site-root slug", (t) => {
   assert.match(
     out,
     /\[hooks\]\(\/hooks-runtime\/lifecycle\/\)/,
-    "/openwiki/ prefix must be stripped down to the site-root slug"
+    "/handbook/ prefix must be stripped down to the site-root slug"
   );
 });
 
@@ -370,7 +403,7 @@ test("leaves external URLs and non-.md relative links untouched", (t) => {
   assert.match(out, /\[img\]\(\.\/diagram\.png\)/, "non-.md relative asset link must be left untouched");
 });
 
-test("maintains 1:1 parity between openwiki pages and web-doc output pages", (t) => {
+test("maintains 1:1 parity between handbook pages and web-doc output pages", (t) => {
   const { webDocDir } = setupProject(t, {
     pages: {
       "one.md": "# One\n\nContent one.\n",
@@ -423,8 +456,8 @@ test("skips re-transforming an unchanged page on a second incremental run", (t) 
 
 // --- 4R remediation batch (approval-006) ------------------------------------
 
-test("does not prune existing web-doc output when openwiki/ is completely missing", (t) => {
-  const { webDocDir, openwikiDir } = setupProject(t, {
+test("does not prune existing web-doc output when handbook/ is completely missing", (t) => {
+  const { webDocDir, sourceDir } = setupProject(t, {
     pages: { "keep.md": "# Keep\n\nContent.\n" },
   });
 
@@ -432,16 +465,16 @@ test("does not prune existing web-doc output when openwiki/ is completely missin
   assert.equal(first.status, 0, first.stderr);
   assert.ok(outExists(webDocDir, "keep.md"), "keep.md must exist after the first sync");
 
-  fs.rmSync(openwikiDir, { recursive: true, force: true });
+  fs.rmSync(sourceDir, { recursive: true, force: true });
 
   const second = runSync(webDocDir);
-  assert.equal(second.status, 0, "a missing openwiki/ source must not fail the sync");
-  assert.ok(outExists(webDocDir, "keep.md"), "existing web-doc output must survive a missing openwiki/ source intact");
+  assert.equal(second.status, 0, "a missing handbook/ source must not fail the sync");
+  assert.ok(outExists(webDocDir, "keep.md"), "existing web-doc output must survive a missing handbook/ source intact");
   assert.match(second.stderr + second.stdout, /warn/i, "must warn that the source is missing/empty");
 });
 
-test("does not prune existing web-doc output when openwiki/ exists but is empty", (t) => {
-  const { webDocDir, openwikiDir } = setupProject(t, {
+test("does not prune existing web-doc output when handbook/ exists but is empty", (t) => {
+  const { webDocDir, sourceDir } = setupProject(t, {
     pages: { "keep.md": "# Keep\n\nContent.\n" },
   });
 
@@ -449,11 +482,11 @@ test("does not prune existing web-doc output when openwiki/ exists but is empty"
   assert.equal(first.status, 0, first.stderr);
   assert.ok(outExists(webDocDir, "keep.md"), "keep.md must exist after the first sync");
 
-  fs.rmSync(path.join(openwikiDir, "keep.md"));
+  fs.rmSync(path.join(sourceDir, "keep.md"));
 
   const second = runSync(webDocDir);
-  assert.equal(second.status, 0, "an empty openwiki/ source must not fail the sync");
-  assert.ok(outExists(webDocDir, "keep.md"), "existing web-doc output must survive an empty openwiki/ source intact");
+  assert.equal(second.status, 0, "an empty handbook/ source must not fail the sync");
+  assert.ok(outExists(webDocDir, "keep.md"), "existing web-doc output must survive an empty handbook/ source intact");
   assert.match(second.stderr + second.stdout, /warn/i, "must warn that the source is missing/empty");
 });
 
@@ -554,8 +587,8 @@ test("degrades cleanly with a warning when there is no git repository at all", (
   assert.match(result.stderr + result.stdout, /warn/i, "sync must warn about the missing git context (default branch / origin)");
 });
 
-test("prunes the output page when the corresponding openwiki source page is deleted", (t) => {
-  const { webDocDir, openwikiDir } = setupProject(t, {
+test("prunes the output page when the corresponding handbook source page is deleted", (t) => {
+  const { webDocDir, sourceDir } = setupProject(t, {
     pages: {
       "keep.md": "# Keep\n\nContent.\n",
       "remove.md": "# Remove\n\nContent.\n",
@@ -566,7 +599,7 @@ test("prunes the output page when the corresponding openwiki source page is dele
   assert.equal(first.status, 0, first.stderr);
   assert.ok(outExists(webDocDir, "remove.md"), "remove.md must exist after the first sync");
 
-  fs.rmSync(path.join(openwikiDir, "remove.md"));
+  fs.rmSync(path.join(sourceDir, "remove.md"));
 
   const second = runSync(webDocDir);
   assert.equal(second.status, 0, second.stderr);
@@ -575,41 +608,101 @@ test("prunes the output page when the corresponding openwiki source page is dele
   assert.ok(outExists(webDocDir, "keep.md"), "keep.md output must remain untouched");
 });
 
-test("labels sidebar groups from section_labels in .last-update.json and falls back to humanized names", (t) => {
-  const { openwikiDir, webDocDir } = setupProject(t, {
+test("appends directories the manifest does not name, alphabetically with humanized labels, and warns", (t) => {
+  const { webDocDir } = setupProject(t, {
     pages: {
-      "quickstart.md": "# Inicio rápido\n\n- [Seguridad](security/guardrails.md)\n",
-      "security/guardrails.md": "# Guardrails\n\nContenido.\n",
-      "hooks-runtime/lifecycle.md": "# Ciclo de vida\n\nContenido.\n",
+      "security/guardrails.md": "# Guardrails\n",
+      "zeta-extra/a.md": "# A\n",
+      "hooks-runtime/lifecycle.md": "# Ciclo de vida\n",
     },
+    manifest: { language: "es", groups: [{ directory: "security", label: "Seguridad" }] },
   });
-  fs.writeFileSync(
-    path.join(openwikiDir, ".last-update.json"),
-    JSON.stringify({ doc_language: "es", section_labels: { security: "Seguridad" } }),
-    "utf8"
-  );
 
   const result = runSync(webDocDir);
   assert.equal(result.status, 0, result.stderr);
-
-  const manifest = JSON.parse(
-    fs.readFileSync(path.join(webDocDir, "src", "sidebar.generated.json"), "utf8")
+  assert.deepEqual(
+    readSidebar(webDocDir).groups.map((g) => [g.directory, g.label]),
+    [["security", "Seguridad"], ["hooks-runtime", "Hooks Runtime"], ["zeta-extra", "Zeta Extra"]]
   );
-  const labels = Object.fromEntries(manifest.groups.map((g) => [g.directory, g.label]));
-  assert.equal(labels.security, "Seguridad", "a generator-declared label wins over the directory name");
-  assert.equal(labels["hooks-runtime"], "Hooks Runtime", "directories without a declared label keep the humanized name");
+  assert.match(result.stderr, /WARN[^\n]*hooks-runtime/, "an unnamed directory must be reported");
 });
 
-test("ignores an unreadable .last-update.json and keeps humanized group labels", (t) => {
-  const { openwikiDir, webDocDir } = setupProject(t, {
-    pages: { "quickstart.md": "# Inicio\n", "security/guardrails.md": "# Guardrails\n" },
+test("skips a manifest group whose directory has no pages, with a warning", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: { "security/guardrails.md": "# Guardrails\n" },
+    manifest: {
+      groups: [
+        { directory: "gone", label: "Desaparecido" },
+        { directory: "security", label: "Seguridad" },
+      ],
+    },
   });
-  fs.writeFileSync(path.join(openwikiDir, ".last-update.json"), "{ not json", "utf8");
 
   const result = runSync(webDocDir);
   assert.equal(result.status, 0, result.stderr);
-  const manifest = JSON.parse(
-    fs.readFileSync(path.join(webDocDir, "src", "sidebar.generated.json"), "utf8")
-  );
-  assert.equal(manifest.groups[0].label, "Security");
+  assert.deepEqual(readSidebar(webDocDir).groups.map((g) => g.directory), ["security"]);
+  assert.match(result.stderr, /WARN[^\n]*gone/, "a group without pages must be reported");
+});
+
+for (const [name, manifest] of [
+  ["unparseable JSON", "{ not json"],
+  ["groups that is not an array", { groups: { security: "Seguridad" } }],
+  ["a group without a directory", { groups: [{ label: "Seguridad" }] }],
+  ["a duplicated directory", { groups: [{ directory: "security", label: "A" }, { directory: "security", label: "B" }] }],
+  ["a non-string audience", { groups: [{ directory: "security", label: "Seguridad", audience: 3 }] }],
+  ["an invalid language", { language: "spanish!", groups: [] }],
+]) {
+  test(`warns and falls back to alphabetical humanized groups when handbook.json has ${name}`, (t) => {
+    const { webDocDir } = setupProject(t, {
+      pages: { "security/guardrails.md": "# Guardrails\n", "agents/catalog.md": "# Catalog\n" },
+      manifest,
+    });
+
+    const result = runSync(webDocDir);
+    assert.equal(result.status, 0, "an invalid manifest must not fail the sync");
+    assert.match(result.stderr, /WARN[^\n]*handbook\.json/, "the invalid manifest must be reported");
+    const sidebar = readSidebar(webDocDir);
+    assert.deepEqual(sidebar.groups.map((g) => [g.directory, g.label]), [["agents", "Agents"], ["security", "Security"]]);
+    assert.equal(sidebar.language, "en", "the site language falls back to English");
+  });
+}
+
+test("orders groups alphabetically without a warning when there is no handbook.json", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: { "security/guardrails.md": "# Guardrails\n", "agents/catalog.md": "# Catalog\n" },
+  });
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(readSidebar(webDocDir).groups.map((g) => g.directory), ["agents", "security"]);
+  assert.doesNotMatch(result.stderr, /handbook\.json/, "a missing manifest is not an error");
+});
+
+test("reads the handbook from the directory given with --source", (t) => {
+  const { webDocDir } = setupProject(t, {
+    sourceName: "docs-handbook",
+    pages: {
+      "guide.md": "# Guide\n\nSee [hooks](/docs-handbook/hooks/lifecycle.md).\n",
+      "hooks/lifecycle.md": "# Lifecycle\n",
+    },
+    manifest: { groups: [{ directory: "hooks", label: "Ganchos" }] },
+  });
+
+  const result = runSync(webDocDir, ["--source", "../docs-handbook"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(readOut(webDocDir, "guide.md"), /\[hooks\]\(\/hooks\/lifecycle\/\)/, "the source-prefixed link maps to the site-root slug");
+  assert.equal(readSidebar(webDocDir).groups[0].label, "Ganchos");
+});
+
+test("never publishes handbook.json or .state.json as pages", (t) => {
+  const { webDocDir, sourceDir } = setupProject(t, {
+    pages: { "quickstart.md": "# Inicio\n" },
+    manifest: { groups: [] },
+  });
+  fs.writeFileSync(path.join(sourceDir, ".state.json"), "{}", "utf8");
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+  const outDir = path.join(webDocDir, "src", "content", "docs");
+  assert.deepEqual(fs.readdirSync(outDir).sort(), ["quickstart.md"]);
 });
