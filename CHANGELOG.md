@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - **`sdd-document`, su comando `/sdd-document`, `route-document.md` y las opciones de destino A/B/C/D** (handbook). Los sustituye la skill `handbook`. La web de este repositorio conserva sus URL.
 
+### Fixed
+- **El test de contrato del bloque Handbook acepta CRLF** (handbook-crlf-test). En el checkout de Windows su regex exigía saltos LF; ahora comprueba la skill en LF y en CRLF.
+
 Hecho con IDD (`idd/archive/2026-11-03-handbook/`), con cinco revisiones de confianza: la quinta, que autorizó el usuario, no encontró nada. El techo de contexto sube una skill (34 instaladas, 4772 bytes de listado) porque `handbook` se instala siempre.
 
 **Verificación directa**: `node scripts/check.js` (4351 tests pasando, 0 fallos y 5 omitidos), con 10 tests de Python OK y los siete targets generados y validados, claude incluido. La web se construyó con Astro y muestra los grupos en el orden del manifiesto con sus badges.
