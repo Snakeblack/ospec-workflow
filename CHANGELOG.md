@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.170.0] - 2026-11-03
+
 ### Added
-- Router de Claude Code para quien instala desde el marketplace: fichero ~/.claude/rules/ospec-workflow.md, CLI ospec router, aviso en SessionStart y refresco tras actualizar el plugin (claude-router)
+- **Router de Claude Code para quien instala desde el marketplace** (claude-router).
+  - **El router es un fichero propio.** Pasa del bloque de `~/.claude/CLAUDE.md` a `~/.claude/rules/ospec-workflow.md`, o bajo `CLAUDE_CONFIG_DIR`, que Claude Code carga igual en cada sesión. `setup:claude` lo escribe y mueve el bloque antiguo; `--no-router` equivale a `ospec router off`.
+  - **`ospec router install|off|remove|status`.** Instala el router desde el plugin instalado (`! ospec router install` dentro de Claude Code), lo quita recordando el «no» (`off`) o sin recordarlo (`remove`) y dice cómo está. Un fichero editado a mano se rechaza salvo con `--force`. Con `--scope project` escribe `.claude/rules/ospec-workflow.md` y declara el marketplace y el plugin en `.claude/settings.json`, sin copiar la contraseña, el usuario de http(s) ni la query de la URL.
+  - **Aviso y refresco al arrancar la sesión.** La build de Claude pasa `--claude-router` a `session-start`: el lanzador muestra un aviso como `systemMessage`, que ve el usuario y no el modelo, mientras falte el router, y tras actualizar el plugin refresca el router que escribió ospec. `DISABLE_ROUTER_NOTICE=true` calla el aviso.
+
+### Changed
+- **`ospec doctor` comprueba el router con el mismo módulo que lo escribe** (claude-router). Lee el fichero de reglas, un bloque antiguo o el router del equipo, avisa de router ausente, desfasado, editado o duplicado, y sus acciones remiten a `ospec router install`. Todas sus comprobaciones de Claude leen `CLAUDE_CONFIG_DIR`.
+- **El router dice que se ignore si falta la entrada IDD** (claude-router), porque el fichero de reglas sobrevive a `claude plugin uninstall`. *Always-on* sube 84–99 B en los siete targets (3503 B en Claude), bajo 4096.
+
+Hecho con IDD (`idd/archive/2026-11-03-claude-router/`). Una prueba previa en Claude Code con Haiku confirmó que `~/.claude/rules/` se carga como `~/.claude/CLAUDE.md` y que el modelo no ve el `systemMessage`. Hubo dos revisiones de confianza: la primera encontró credenciales que podían copiarse a la URL del marketplace del equipo, ya corregido; la segunda no encontró nada.
+
+**Verificación directa**: `node scripts/check.js` (4380 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados, claude incluido, y una prueba real en Claude Code con la build de la rama: el aviso al arrancar, `! ospec router install`, la carga tras `/clear`, el refresco al subir la versión, el fichero editado intacto, `off` y `remove`.
 
 ## [2.169.0] - 2026-11-03
 
