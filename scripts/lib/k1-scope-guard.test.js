@@ -257,6 +257,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/ospec-doctor-hosts.js",
   "scripts/lib/ospec-doctor-hosts.test.js",
   "scripts/lib/engram-detect.js",
+  // #475: the Engram write tools that setup:claude allows for Claude Code's
+  // auto mode and the doctor checks (REQ-install-046).
+  "scripts/lib/engram-claude-allow.js",
   // claude-router: the Claude Code router file, its CLI and its SessionStart
   // step, with the router block helpers they share with the installers.
   "scripts/lib/claude-router.js",

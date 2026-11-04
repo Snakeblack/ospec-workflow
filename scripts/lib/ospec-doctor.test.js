@@ -12,6 +12,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { DOCTOR_TARGETS, runDoctor, renderDoctor } = require("./ospec-doctor.js");
+const { ENGRAM_CLAUDE_ALLOW_RULES } = require("./engram-claude-allow.js");
 
 const BEGIN = "<!-- ospec-workflow:router:begin -->";
 const END = "<!-- ospec-workflow:router:end -->";
@@ -680,6 +681,56 @@ test("on Windows the Claude CLI is found in its WinGet package, as setup:claude 
       [`${exe} mcp list`]: { stdout: "plugin:engram:engram: engram mcp - connected\n" },
     },
   });
+  write(path.join(env.home, ".claude", "settings.json"), { permissions: { allow: ENGRAM_CLAUDE_ALLOW_RULES } });
   const result = await doctor(env, { spawn, platform: "win32", env: { LOCALAPPDATA: local } });
   assert.equal(find(result, "claude", "engram").status, "ok");
+});
+
+// #475: with Engram configured, the engram hook rewrites the input of its write
+// tools, and auto mode can deny them unless an allow rule resolves them first.
+function engramConfiguredSpawn() {
+  return makeSpawn({
+    commands: {
+      "engram version": { stdout: "engram 3.6.1\n" },
+      "engram doctor --json": { stdout: '{"status":"ok"}' },
+      "claude --version": { stdout: "2.1.317\n" },
+      "claude plugin list": { stdout: "engram@engram\nospec-workflow@ospec-tools\n" },
+      "claude mcp list": { stdout: "engram: engram mcp - connected\n" },
+    },
+  });
+}
+
+test("a configured Engram without its allow rules warns that auto mode can deny memory writes", async (t) => {
+  const env = setup(t);
+  installClaude(env.home, { sdd: true });
+  const settingsFile = path.join(env.home, ".claude", "settings.json");
+  write(settingsFile, { theme: "dark", permissions: { allow: ENGRAM_CLAUDE_ALLOW_RULES.slice(1) } });
+  const before = treeDigest(env.home);
+  const engram = find(await doctor(env, { spawn: engramConfiguredSpawn() }), "claude", "engram");
+  assert.equal(engram.status, "warn");
+  assertActionable(engram);
+  assert.match(engram.cause, /lacks 1 allow rule\(s\) for Engram write tools/);
+  assert.match(engram.cause, /auto mode/);
+  assert.match(engram.action, /npm run setup:claude/);
+  assert.equal(treeDigest(env.home), before, "the doctor writes nothing");
+});
+
+test("Engram allow rules count as present when listed, or when the user put the tool under ask or deny", async (t) => {
+  const env = setup(t);
+  installClaude(env.home, { sdd: true });
+  const [first, ...rest] = ENGRAM_CLAUDE_ALLOW_RULES;
+  write(path.join(env.home, ".claude", "settings.json"), { permissions: { allow: rest.slice(1), ask: [first], deny: [rest[0]] } });
+  assert.equal(find(await doctor(env, { spawn: engramConfiguredSpawn() }), "claude", "engram").status, "ok");
+});
+
+test("Engram allow rules are read from CLAUDE_CONFIG_DIR, and an unreadable settings file warns", async (t) => {
+  const env = setup(t);
+  installClaude(env.home, { sdd: true });
+  const configDir = tempDir(t, "ospec-doctor-config-");
+  fs.cpSync(path.join(env.home, ".claude"), configDir, { recursive: true });
+  write(path.join(configDir, "settings.json"), "{oops");
+  const engram = find(await doctor(env, { spawn: engramConfiguredSpawn(), env: { CLAUDE_CONFIG_DIR: configDir } }), "claude", "engram");
+  assert.equal(engram.status, "warn");
+  assert.match(engram.cause, new RegExp(`${path.join(configDir, "settings.json").replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")} cannot be read`));
+  assert.match(engram.cause, /\(invalid JSON\)/);
 });

@@ -33,6 +33,10 @@ const ALLOWLIST = new Set([
 // error (REQ-session-memory-002 exception, adr-20261002-003 amendment).
 const DIAGNOSIS = ["scripts/lib/engram-detect.js", "scripts/lib/ospec-doctor.js"];
 for (const rel of DIAGNOSIS) ALLOWLIST.add(rel);
+// The Engram write tools named only to build Claude Code permission rules
+// (REQ-install-046): a module that requires, reads and calls nothing.
+const PERMISSION_RULES = "scripts/lib/engram-claude-allow.js";
+ALLOWLIST.add(PERMISSION_RULES);
 // Target profiles only list the addendum path in their `drop` arrays (ADR-001);
 // that is generator confinement config, not a decision path.
 const ALLOWLIST_PREFIXES = ["scripts/lib/target-profiles/"];
@@ -60,6 +64,15 @@ test("the doctor's Engram diagnosis reads no memory and never fails a run", () =
   const engram = doctor.slice(doctor.indexOf("function claudeEngramCheck"), doctor.indexOf("// --- project"));
   assert.ok(engram.length > 0, "claudeEngramCheck is missing");
   assert.doesNotMatch(engram, /status: "error"/, "an Engram result is never an error");
+});
+
+test("the Engram permission-rule list requires, reads and calls nothing", () => {
+  const source = fs.readFileSync(path.join(ROOT, PERMISSION_RULES), "utf8");
+  assert.doesNotMatch(source, /\brequire\s*\(|\bimport\b|\bprocess\.|\bfetch\s*\(/, `${PERMISSION_RULES} must stay a data module`);
+  const { ENGRAM_CLAUDE_ALLOW_RULES } = require(path.join(ROOT, PERMISSION_RULES));
+  assert.ok(ENGRAM_CLAUDE_ALLOW_RULES.length > 0);
+  assert.ok(ENGRAM_CLAUDE_ALLOW_RULES.every((rule) => /^mcp__(?:engram|plugin_engram_engram)__mem_[a-z_]+$/.test(rule)));
+  assert.ok(!ENGRAM_CLAUDE_ALLOW_RULES.some((rule) => /__mem_(?:delete|merge_projects)$/.test(rule)), "destructive tools keep the classifier");
 });
 
 test("no decision-path or shipped source references Engram outside the allowlist", () => {

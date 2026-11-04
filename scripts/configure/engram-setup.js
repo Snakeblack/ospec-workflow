@@ -43,6 +43,12 @@
 // left alone. The patch does not depend on the probe's verdict: without bash the
 // script never starts, safe mode included.
 //
+// On every platform, once Claude is configured, the non-destructive write tools
+// of engram@engram get permissions.allow rules in <config>/settings.json (#475):
+// the upstream PreToolUse hook rewrites their input to bind the session, and
+// Claude Code's auto mode can deny a call whose input changed after review. A
+// rule already present, or a tool the user lists under ask or deny, is left alone.
+//
 // Semantics are deliberately the opposite of the installers' own steps (which abort
 // on failure): every probe or action here is fail-open. A failure becomes a warning
 // and NEVER throws or changes the installer exit code. Detection is by capability,
@@ -68,6 +74,8 @@ const {
   safeSpawn,
   targetSpec,
 } = require("../lib/engram-detect.js");
+const { claudeConfigDir } = require("../lib/claude-router.js");
+const { missingEngramAllowRules } = require("../lib/engram-claude-allow.js");
 const { createReporter, splitVerbose } = require("./install-output.js");
 const { prepareUserModels } = require("../lib/user-models.js");
 
@@ -326,6 +334,35 @@ function windowsSafeModeStep({ bash, spawn, fs: fsImpl, homedir, env, now, stdou
   stdout.write(
     `  - Modo seguro de Windows desactivado (sonda de fork ${elapsed} ms): ${SAFE_MODE_VAR}=0 escrito en ${settingsFile}.\n` +
       "    La captura de prompts y los recordatorios de guardado se activan en las nuevas sesiones de Claude Code; quita la línea si los prompts empiezan a ir lentos.\n",
+  );
+}
+
+// --- Claude Code auto mode: allow rules for the rewritten write tools (#475) ----
+
+function claudeAllowRulesStep({ fs: fsImpl, homedir, env, stdout, stderr }) {
+  const settingsFile = path.join(claudeConfigDir({ env, homedir }), "settings.json");
+  const consequence = "las escrituras de Engram siguen sin regla allow y el modo auto de Claude Code puede denegarlas";
+  const settings = readJsonObject(fsImpl, settingsFile);
+  const missing = settings.ok ? missingEngramAllowRules(settings.value) : settings;
+  if (!missing.ok) {
+    stderr.write(`aviso: no se puede leer ${settingsFile} (${missing.reason}); ${consequence}.\n`);
+    return;
+  }
+  if (missing.missing.length === 0) {
+    stdout.write(`  - Reglas allow de Engram para el modo auto: ya están en ${settingsFile}.\n`);
+    return;
+  }
+  const permissions = settings.value.permissions || {};
+  const next = { ...settings.value, permissions: { ...permissions, allow: [...(permissions.allow || []), ...missing.missing] } };
+  try {
+    writeJsonObject(fsImpl, settingsFile, next);
+  } catch (error) {
+    stderr.write(`aviso: no se puede escribir ${settingsFile} (${error.code || error.message}); ${consequence}.\n`);
+    return;
+  }
+  stdout.write(
+    `  - ${missing.missing.length} regla(s) allow para las escrituras de Engram en ${settingsFile}: el hook de engram reescribe su entrada y, sin ellas, el modo auto de Claude Code puede denegar esas llamadas.\n` +
+      "    mem_delete y mem_merge_projects siguen pasando por el clasificador. Una herramienta que tengas en ask o deny no se toca.\n",
   );
 }
 
@@ -589,6 +626,9 @@ function runEngramStep({
 
     if (enabled && target === "cursor") {
       projectCursorMemoryRule({ fs: fsImpl, homedir, stdout, stderr });
+    }
+    if (enabled && configured && target === "claude") {
+      claudeAllowRulesStep({ fs: fsImpl, homedir, env, stdout, stderr });
     }
     if (enabled && configured && target === "claude" && platform === "win32") {
       const gitBash = findGitBash({ spawn, fs: fsImpl, env, timeoutMs });

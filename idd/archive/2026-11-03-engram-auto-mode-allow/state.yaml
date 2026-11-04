@@ -1,0 +1,634 @@
+{
+  "schema": "idd-state/v1",
+  "change": "engram-auto-mode-allow",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Con Engram configurado por ospec, las escrituras de memoria (mem_save, mem_session_summary...) se deniegan en el modo auto de Claude Code (#475): el hook PreToolUse de engram@engram reescribe la entrada con updatedInput y la revisión del clasificador queda sin veredicto. setup:claude añadirá reglas permissions.allow para las herramientas de escritura no destructivas de engram, y ospec doctor avisará si faltan.",
+    "acceptance": "Tras npm run setup:claude con Engram configurado, el settings.json de Claude Code tiene en permissions.allow las 12 herramientas de escritura no destructivas de engram (no mem_delete ni mem_merge_projects), conserva el resto de ajustes, no duplica entradas al repetirse y no reescribe un fichero ilegible; ospec doctor informa en el check engram cuando faltan."
+  },
+  "facts": {
+    "open": [
+      "¿Qué prefijos de herramienta cubren las reglas: solo mcp__engram__ (el MCP que registra engram setup claude-code) o también mcp__plugin_engram_engram__ (el otro prefijo que cubre el matcher del hook de engram)?",
+      "¿Cómo se desactiva: basta con --no-engram y con respetar las reglas ask/deny que el usuario ya tenga para cada herramienta, o hace falta un flag propio? ¿--no-engram debe quitar las reglas que escribió una instalación anterior?",
+      "¿Con qué estado avisa ospec doctor cuando Engram está configurado y faltan reglas: warn o info?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/plugin-installation.es.md",
+      "docs/plugin-installation.md",
+      "openspec/specs/idd/spec.md",
+      "openspec/specs/install/spec.md",
+      "openspec/specs/session-memory/spec.md",
+      "scripts/configure/engram-setup.js",
+      "scripts/configure/engram-setup.test.js",
+      "scripts/lib/engram-claude-allow.js",
+      "scripts/lib/engram-detect.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/ospec-doctor.js",
+      "scripts/lib/ospec-doctor.test.js",
+      "scripts/session-memory-contract.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "La lista de herramientas y los prefijos viven en scripts/lib/engram-detect.js, que ya comparten setup y doctor: las 12 de escritura no destructivas del matcher PreToolUse de engram@engram (sin mem_delete ni mem_merge_projects), con los prefijos mcp__engram__ y mcp__plugin_engram_engram__.",
+      "Las reglas se escriben en <CLAUDE_CONFIG_DIR o ~/.claude>/settings.json con claudeConfigDir de claude-router.js, como el doctor y el router, porque es el fichero que lee Claude Code.",
+      "Una herramienta que el usuario ya tiene en permissions.ask o permissions.deny no recibe regla allow, y el doctor no la cuenta como ausente; --no-engram no escribe ni quita reglas.",
+      "La lista de herramientas y missingEngramAllowRules pasan a scripts/lib/engram-claude-allow.js, un módulo de datos que no requiere, lee ni llama a nada: REQ-session-memory-002 prohíbe nombrar mem_* en engram-detect.js y ospec-doctor.js, y el test de contrato admite el módulo de forma explícita con una aserción que impide que haga E/S."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/engram-setup.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "none",
+      "reason": "El cambio toca el paso Engram del instalador de Claude, que configura una herramienta de terceros después de instalar, y el doctor; no cambia la fuente canónica, ninguna transformación por target ni ningún árbol generado ni golden."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "El módulo nuevo del runtime, scripts/lib/engram-claude-allow.js, no requiere nada, ni siquiera la biblioteca estándar, y el paso del instalador y el doctor solo usan node:path y los helpers que ya existían; no se añade ninguna dependencia ni se toca el binario de los hooks."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "No añade llamadas de red: el paso del instalador lee y escribe el settings.json local y el doctor solo lo lee. El CLI, los hooks y las skills del flujo IDD no cambian, así que next, check y close dan lo mismo sin red ni memoria."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "none",
+      "reason": "No cambia ninguna skill, agente ni hook de la fuente canónica ni ningún árbol generado: el paso de Engram del instalador y el doctor no forman parte de la salida del generador, y cli.test.js sigue pasando dentro de node scripts/check.js."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 165,
+      "answer": "lo recomendado: (1) reglas para los dos prefijos, mcp__engram__ y mcp__plugin_engram_engram__; (2) se desactiva con --no-engram, no se añade la regla de una herramienta que el usuario ya tenga en ask o deny, y --no-engram no quita reglas escritas antes; (3) el doctor da warn cuando faltan reglas, salvo para las herramientas que el usuario tiene en ask o deny",
+      "source": "user",
+      "resolved_turn": 166
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-03T22:24:49.729Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-03T22:31:23.048Z",
+      "detail": {
+        "run": "run-10",
+        "tree": "sha256:a81c29c936200513c5cb16f4220e768bda6400e345eb8d01ab51005f824eabd5",
+        "plan": "Fusión aditiva en permissions.allow del settings.json de Claude Code del usuario: se conservan los demás ajustes y reglas, una herramienta cubierta por allow, ask o deny no recibe regla, un fichero ilegible o con permissions malformado no se reescribe, y repetir la instalación no reescribe el fichero. Vuelta atrás: borrar de permissions.allow las entradas mcp__engram__mem_* y mcp__plugin_engram_engram__mem_* que añadió ospec; --no-engram deja de añadirlas y no quita nada."
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-03T22:35:10.741Z",
+      "detail": {
+        "tree": "sha256:9307e12946864f3260c8a6d5c73ab119d264daef33e172c5aced6271f8f4a062",
+        "runs": [
+          "run-16"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-03T22:35:19.126Z",
+      "detail": {
+        "run": "run-21",
+        "tree": "sha256:3dbf1bb37fcbf9d2e5840df32b0eb88b23fef23a11640b282f934197d559243b",
+        "plan": "Fusión aditiva en permissions.allow del settings.json de Claude Code del usuario: se conservan los demás ajustes y reglas, una herramienta cubierta por allow, ask o deny no recibe regla, un fichero ilegible o con permissions malformado no se reescribe, y repetir la instalación no reescribe el fichero. Vuelta atrás: borrar de permissions.allow las entradas mcp__engram__mem_* y mcp__plugin_engram_engram__mem_* que añadió ospec; --no-engram deja de añadirlas y no quita nada."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-03T22:37:34.398Z",
+      "detail": {
+        "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+        "runs": [
+          "run-22"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-03T22:37:34.398Z",
+      "detail": {
+        "refs": [
+          "adr:0001 none",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity none"
+        ],
+        "records": [],
+        "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+        "fitness": [
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-03T22:37:48.038Z",
+      "detail": {
+        "run": "run-27",
+        "tree": "sha256:70f4e19cbab3ae8dafb3b4e5c25fd7e32b5e994fe21cdc86e530df0205676b96",
+        "plan": "Fusión aditiva en permissions.allow del settings.json de Claude Code del usuario: se conservan los demás ajustes y reglas, una herramienta cubierta por allow, ask o deny no recibe regla, un fichero ilegible o con permissions malformado no se reescribe, y repetir la instalación no reescribe el fichero. Vuelta atrás: borrar de permissions.allow las entradas mcp__engram__mem_* y mcp__plugin_engram_engram__mem_* que añadió ospec; --no-engram deja de añadirlas y no quita nada."
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-03T22:39:01.656Z",
+      "detail": {
+        "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+        "runs": [
+          "run-28"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-03T22:39:01.656Z",
+      "detail": {
+        "refs": [
+          "adr:0001 none",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity none"
+        ],
+        "records": [],
+        "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+        "fitness": [
+          "run-29",
+          "run-30",
+          "run-31",
+          "run-32"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-03T22:39:01.791Z"
+    }
+  ],
+  "base": "81ceb8aa2b1f1f11c5fbf5d77916b3a4ba52c061",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"claude auto mode\" scripts/configure/engram-setup.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:02a400f124d7fe47807f52eae892c5bbdc41b43ab1cd331093b07683e0402197",
+      "tree": "sha256:d54cbf3904c21718c25b9a599d7c122e0829d3c23e6545bbdbe0721d44400625",
+      "recorded_at": "2026-11-03T22:23:34.898Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"claude auto mode\" scripts/configure/engram-setup.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:056a374bd0879727d11c5f7c9fa6f9bcd7b57b96888e8c7babc01bdb8a37c171",
+      "tree": "sha256:04a97831461e4dd27947968c5c09548f280cc4127d9993e7681bf26479ac7169",
+      "recorded_at": "2026-11-03T22:24:49.729Z",
+      "tests": 1,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "81ceb8aa2b1f1f11c5fbf5d77916b3a4ba52c061",
+      "mount": "sha256:48b1ee649b9994a41f73d77e8ae18ee5f6a950c40302e3fc30be2ebdd13d07ae",
+      "command": "node --test --test-name-pattern=\"claude auto mode\" scripts/configure/engram-setup.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:487642400b2524e9ed8e5778378b0489b218710b7d647dbf34270b4802ca6e59",
+      "tree": "sha256:04a97831461e4dd27947968c5c09548f280cc4127d9993e7681bf26479ac7169",
+      "recorded_at": "2026-11-03T22:24:49.729Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "81ceb8aa2b1f1f11c5fbf5d77916b3a4ba52c061",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"claude auto mode\" scripts/configure/engram-setup.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:350288789670717f0cdcaccc5bd0baf88ecc879f1a08cd7f21ef9df0d3505049",
+      "tree": "sha256:04a97831461e4dd27947968c5c09548f280cc4127d9993e7681bf26479ac7169",
+      "recorded_at": "2026-11-03T22:24:49.729Z",
+      "tests": 1
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:a08e908f279faccac4cb04bcc932a14ab7a49b48a13a27111be5e94391300bed",
+      "tree": "sha256:fb8fe5ee3b66f8b5640920336dbe6f046f46edd7c6c154d3f8a3c346b70d0fcd",
+      "recorded_at": "2026-11-03T22:29:34.809Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c426542755477c67e07bb906666be22fb0eef74b185453524dbbce88c0b9ace3",
+      "tree": "sha256:fb8fe5ee3b66f8b5640920336dbe6f046f46edd7c6c154d3f8a3c346b70d0fcd",
+      "recorded_at": "2026-11-03T22:29:34.809Z",
+      "tests": 48
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:fb8fe5ee3b66f8b5640920336dbe6f046f46edd7c6c154d3f8a3c346b70d0fcd",
+      "recorded_at": "2026-11-03T22:29:34.809Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1c58e44b800921e1c270b63e85eebe105b9a1f91b37de21a5b3621350dfd2309",
+      "tree": "sha256:fb8fe5ee3b66f8b5640920336dbe6f046f46edd7c6c154d3f8a3c346b70d0fcd",
+      "recorded_at": "2026-11-03T22:29:34.809Z",
+      "tests": 22
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:18b46d2137852000704ac37544f070e23d15d3a8c4b91ed326d06a1a92d0cd23",
+      "tree": "sha256:fb8fe5ee3b66f8b5640920336dbe6f046f46edd7c6c154d3f8a3c346b70d0fcd",
+      "recorded_at": "2026-11-03T22:29:34.809Z",
+      "tests": 48
+    },
+    {
+      "id": "run-10",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"claude auto mode\" scripts/configure/engram-setup.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dcfb565e6cf08366fa75ab72d907d3d993b5968cd8d2dd013a7907d5353ce802",
+      "tree": "sha256:a81c29c936200513c5cb16f4220e768bda6400e345eb8d01ab51005f824eabd5",
+      "recorded_at": "2026-11-03T22:31:23.048Z",
+      "tests": 5
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:4511c82f751c0dccf18e23a314efa59642a93a6073484001c3dcb155e2489250",
+      "tree": "sha256:ec995a3f92da0e61f0580aa12be56be91d8e557ad5f60301c29bb73a5679fba6",
+      "recorded_at": "2026-11-03T22:32:59.819Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:81233a58e99f8544df97129f56c27f01bf25c62a70876a441e963e27f7da8e6b",
+      "tree": "sha256:ec995a3f92da0e61f0580aa12be56be91d8e557ad5f60301c29bb73a5679fba6",
+      "recorded_at": "2026-11-03T22:32:59.819Z",
+      "tests": 48
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:ec995a3f92da0e61f0580aa12be56be91d8e557ad5f60301c29bb73a5679fba6",
+      "recorded_at": "2026-11-03T22:32:59.819Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1c59645e81245c73920259acb50e43a4de9bc134e8c1492ada2a34ae6cef61bc",
+      "tree": "sha256:ec995a3f92da0e61f0580aa12be56be91d8e557ad5f60301c29bb73a5679fba6",
+      "recorded_at": "2026-11-03T22:32:59.819Z",
+      "tests": 22
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:adfe7aa5b4dc352c2dbddf66c97949137470b05593860196821ce4cd132a8568",
+      "tree": "sha256:ec995a3f92da0e61f0580aa12be56be91d8e557ad5f60301c29bb73a5679fba6",
+      "recorded_at": "2026-11-03T22:32:59.819Z",
+      "tests": 48
+    },
+    {
+      "id": "run-16",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:67105838b0d7f1ccddca7f55243c84d9daa2bf98f682b6353ffd60ee0aac21a7",
+      "tree": "sha256:9307e12946864f3260c8a6d5c73ab119d264daef33e172c5aced6271f8f4a062",
+      "recorded_at": "2026-11-03T22:35:10.741Z"
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e4edf2d04d1509a8a737bd2bed032408464a8e88aecdee60af8618a868abd229",
+      "tree": "sha256:9307e12946864f3260c8a6d5c73ab119d264daef33e172c5aced6271f8f4a062",
+      "recorded_at": "2026-11-03T22:35:10.741Z",
+      "tests": 48
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:9307e12946864f3260c8a6d5c73ab119d264daef33e172c5aced6271f8f4a062",
+      "recorded_at": "2026-11-03T22:35:10.741Z"
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b546cef719a4945d691105258a04a79f671da9c7343bbc4f4f69e08882c7bd82",
+      "tree": "sha256:9307e12946864f3260c8a6d5c73ab119d264daef33e172c5aced6271f8f4a062",
+      "recorded_at": "2026-11-03T22:35:10.741Z",
+      "tests": 22
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2484bee88ac077a1a6978b8f25ce0a19499144a46b98ab867dd1b67ebca37436",
+      "tree": "sha256:9307e12946864f3260c8a6d5c73ab119d264daef33e172c5aced6271f8f4a062",
+      "recorded_at": "2026-11-03T22:35:10.741Z",
+      "tests": 48
+    },
+    {
+      "id": "run-21",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"claude auto mode\" scripts/configure/engram-setup.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cc0183950c769faec6d2bcde2521d8a2699be4c92b9aa5912992e1fdfe705f7c",
+      "tree": "sha256:3dbf1bb37fcbf9d2e5840df32b0eb88b23fef23a11640b282f934197d559243b",
+      "recorded_at": "2026-11-03T22:35:19.126Z",
+      "tests": 5
+    },
+    {
+      "id": "run-22",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:33309690763db87a15c8432ee16b00db4074d81ae427728550a42f66859db2cf",
+      "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+      "recorded_at": "2026-11-03T22:37:34.398Z"
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0146c4387caac778628648f85e72c49075204840efa5d893eac488d16ff16f0b",
+      "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+      "recorded_at": "2026-11-03T22:37:34.398Z",
+      "tests": 48
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+      "recorded_at": "2026-11-03T22:37:34.398Z"
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1d9aa3d0e5d92f232dafa24472ed45ff70f7f72a55483a42b088e75835acca1f",
+      "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+      "recorded_at": "2026-11-03T22:37:34.398Z",
+      "tests": 22
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7020e29e65b7599915aa37223bac71ca56cbcb1f94c51a144e92c4165f9b0266",
+      "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+      "recorded_at": "2026-11-03T22:37:34.398Z",
+      "tests": 48
+    },
+    {
+      "id": "run-27",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"claude auto mode\" scripts/configure/engram-setup.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6918d48ea2f71a37de69655719debc18257e2bf9bf73eed3876150ed7ba92645",
+      "tree": "sha256:70f4e19cbab3ae8dafb3b4e5c25fd7e32b5e994fe21cdc86e530df0205676b96",
+      "recorded_at": "2026-11-03T22:37:48.038Z",
+      "tests": 5
+    },
+    {
+      "id": "run-28",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6bed8e2989d08218575a0098ab019cb63b5e55d8b7a1a0a271ba6cbe81257080",
+      "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+      "recorded_at": "2026-11-03T22:39:01.656Z"
+    },
+    {
+      "id": "run-29",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:08b0ad35cd0b3c7c79b2629262e56e2342be47f8b2ac182308542ef5cccec4c0",
+      "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+      "recorded_at": "2026-11-03T22:39:01.656Z",
+      "tests": 48
+    },
+    {
+      "id": "run-30",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+      "recorded_at": "2026-11-03T22:39:01.656Z"
+    },
+    {
+      "id": "run-31",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:11ab8314d749335224d08c6d8d5aa1ca112104a54c87f7b52212c513a6f3ab1e",
+      "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+      "recorded_at": "2026-11-03T22:39:01.656Z",
+      "tests": 22
+    },
+    {
+      "id": "run-32",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0549f012c3dad3600d5fdfffbe9e8562da20113b322f49e4bf8b55befa1c8406",
+      "tree": "sha256:251115eedd4b250007d1c4a01c7625057f2beb13409efbea863c58fbfb8be2c1",
+      "recorded_at": "2026-11-03T22:39:01.656Z",
+      "tests": 48
+    }
+  ],
+  "closed_at": "2026-11-03T22:39:01.791Z"
+}
