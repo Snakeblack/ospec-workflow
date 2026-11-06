@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.171.0] - 2026-11-06
+
 ### Added
-- security-boundary también deriva del contenido del diff: un sink de seguridad (CWE) en una línea añadida a código de producto deriva la señal y su trust-review aunque ninguna ruta case con los patrones de seguridad (E1.50); la PR lleva además las filas nuevas del roadmap E1.59, E1.60, E4.18 y el ítem de adopción en SDD, el nuevo orden del bloque C y la corrección de E1.52 (content-security-signal)
+- **`security-boundary` también sale del contenido del diff** (content-security-signal). Hasta ahora solo la derivaban las rutas, así que un `eval`, una consulta SQL concatenada o un `exec` con un comando compuesto fuera de `auth/` no pedían ninguna revisión de confianza.
+  - **Un sink de seguridad en una línea que el diff añade a código de producto** deriva la señal y su `trust-review`, con una razón que nombra el fichero y el sink: TLS sin verificar (CWE-295), deserialización insegura (CWE-502), evaluación de código (CWE-94), un comando de shell compuesto (CWE-78, el `exec` y `execSync` de Node incluidos), SQL concatenado o interpolado (CWE-89), un hash débil de credenciales (CWE-327), CORS con comodín y credenciales (CWE-942), permisos 777 (CWE-732), JWT sin verificar (CWE-347), CSRF desactivado (CWE-352) y XXE (CWE-611).
+  - **El catálogo está en `scripts/lib/idd-sinks.js`**, adaptado del de gentle-ai con su aviso MIT. Cada expresión se filtra por la extensión del fichero; una plantilla etiquetada (`` sql`…${id}` ``) no cuenta como SQL compuesto, y el SQL exige sus palabras clave en mayúsculas.
+  - **No la derivan** un comentario en el lenguaje del fichero, un test (las líneas de un test en línea de Rust incluidas), la documentación, un fichero de `impact.exclude` ni lo que el fichero ya tenía. Los build scripts sí cuentan. El resto de la línea se compara entera, así que el `//` de una URL no esconde un `verify=False`.
+  - **Solo la respuesta del usuario la retira**, atada a los sinks que vio (`record retract --answer … --source user`), como `persistent-data` y `public-contract` por contenido; un sink nuevo o una ruta de seguridad la devuelven.
+  - **`--security`** en `signals` y `record intent` la declara a mano, sin tocar el plan.
+  - **Un fichero que gana un sink después de aprobar la revisión de confianza la deja desfasada**, como uno bajo una ruta de seguridad.
+  - **Tasa de falsos positivos:** ninguno de los 198 cambios de `idd/archive/` (26 347 líneas añadidas a código de producto) deriva la señal por contenido.
+
+Hecho con IDD (`idd/archive/2026-11-06-content-security-signal/`), E1.50 del roadmap. REQ-idd-006, REQ-idd-012 y REQ-idd-016 lo recogen con sus escenarios. Un `state.yaml` anterior sigue valiendo sin migrar. El roadmap añade E1.59 `idd-runtime-review`, E1.60 `review-refuter`, E1.62 `sdd-review-adoption` y E4.18 `review-detection-bench`, el plan para cerrar la brecha del revisor frente a gentle-ai, y corrige la definición de E1.52.
+
+**Verificación directa**: `node scripts/check.js` (4409 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
 
 ## [2.170.4] - 2026-11-06
 
