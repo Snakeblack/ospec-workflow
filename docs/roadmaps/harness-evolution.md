@@ -171,7 +171,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.47** | `memory-loop-visible` (B8: `close` en texto lista el tema y el título de cada registro de conocimiento; `record intent` devuelve `memory_query`, una pista con los ADR y componentes de las rutas que el cambio ya nombra y las palabras de la petición, que no se guarda; la memoria se consulta tras `record intent` y antes de preguntar los hechos, y durante un cambio los records de `close` sustituyen al guardado genérico; el CLI sigue sin leer la memoria, en v2.157.0) | bugfix |
 | `pending` | **E1.48** | `base-counterproof` (el test del verde debe fallar contra el producto de la base, con un control sobre la base sin los tests del diff y los checks como control de entorno; el CLI en v2.166.0, falta que E4.14 mida el coste) | feature |
 | `pending` | **E1.49** | `gate-turn-fence` (#399, #343: un gate resuelto sin fin de turno queda `user-unverified`, con la cuenta de `.ospec/turns` que suma el hook de fin de turno, y `ospec check` no ejecuta checks sin aprobar; el CLI, los hooks y el plugin de OpenCode en v2.167.0, verificado en vivo solo en OpenCode; falta verificarlo en vivo en los otros seis targets y que E4.6 lo mida en agy) | feature |
-| `pending` | **E1.50** | `content-security-signal` (sinks CWE en las líneas añadidas derivan `security-boundary`) | feature |
+| `done` | **E1.50** | `content-security-signal` (un sink de seguridad en una línea añadida a código de producto deriva `security-boundary` y su `trust-review` aunque ninguna ruta case: catálogo por lenguaje adaptado del de gentle-ai, con SQL concatenado y el `exec` de Node; solo la respuesta del usuario atada a los sinks que vio lo retira, `--security` lo declara a mano y un sink añadido tras aprobar deja la review desfasada; 0 falsos positivos en los 198 cambios de `idd/archive/`, en v2.171.0) | feature |
 | `pending` | **E1.51** | `open-change-nudge` (Stop pide continuar una vez si queda un cambio sin `close` y SessionStart inyecta su paso) | feature |
 | `pending` | **E1.52** | `review-frozen-tree` (revisor sobre el árbol congelado, `relayed` no basta donde hay recibos y fuera el linaje sin uso) | bugfix |
 | `pending` | **E1.54** | `lock-reclaim-rename` (residuo de E1.46: un lock caducado se reclama por rename atómico, así que dos procesos que lo reclaman a la vez no se creen dueños los dos; prioridad baja, fuera del orden ▶) | bugfix |
@@ -179,7 +179,10 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.56** | `bench-browser-keyring` (el Chromium de los checks del banco arranca sin el llavero del escritorio, así que uno que no responde ya no deja las páginas sin cargar; una navegación sin respuesta termina el check con su error y cierra el navegador, sin dejarlo huérfano; en el bloque A, por delante de E1.55, en v2.158.1) | bugfix |
 | `pending` | **E1.57** | `idd-change-abandon` (#409: un cambio IDD sustituido, descartado o abierto por error se archiva como `abandoned` con la respuesta del usuario, sin exigir evidencia; en el bloque C, antes de E1.51) | feature |
 | `done` | **E1.58** | `contract-content-retract` (#423: `public-contract` que solo deriva el contenido de una doc se retira con la respuesta del usuario, atada a las líneas de contrato que vio, como `persistent-data` en E1.38; una línea en un documento de contrato la sigue rechazando; en el bloque C, por delante de E1.50, en v2.170.2) | bugfix |
+| `pending` | **E1.59** | `idd-runtime-review` (señal `runtime-boundary` por contenido, con concurrencia, transacciones y llamadas externas con reintento o timeout, y obligación aditiva `runtime-review` en un solo linaje con los dominios `trust` y `runtime`; en el bloque C, detrás de E1.52) | feature |
+| `pending` | **E1.60** | `review-refuter` (un agente de solo lectura refuta una vez por linaje los BLOCKER y CRITICAL antes de congelarlos: refutado pasa a advisory con su evidencia; en pie, inconcluso o malformado sigue bloqueando; en el bloque C, detrás de E1.59) | feature |
 | `done` | **E1.61** | `turn-fence-worktree` (en un `git worktree` fuera del directorio del proyecto, la respuesta a un gate quedaba `user-unverified`: el hook de fin de turno cuenta en el repositorio del `cwd` de la sesión y el CLI leía solo el del worktree; ahora suma las dos cuentas; en el bloque C, detrás de E1.58, en v2.170.4) | bugfix |
+| `pending` | **E1.62** | `sdd-review-adoption` (el Quality Review Gate de SDD adopta lo que E1.50, E1.52, E1.59 y E1.60 dan a IDD: sinks por contenido, árbol congelado, dominio runtime y refutador; fuera del orden ▶) | feature |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -204,6 +207,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E4.15** | `cli-chaining` (el CLI encadena lo que ya sabe: `record intent` declara el plan, cada orden que escribe devuelve el `next` completo, `check --close` cierra con el veredicto `ready` y un run con el comando del único check cuenta como ese check; un bugfix cierra con 4 llamadas, en v2.161.0) | feature |
 | `done` | **E4.16** | `cli-terse-output` (`next` imprime la plantilla de categorías del proyecto, sin `url-state` ni `accessibility` cuando hay código y ningún fichero de UI; el CLI escribe el Plan y las Decisions de `change.md` desde `--path` y `--decision "<texto>"`; las órdenes que escriben imprimen una línea de estado y su `next`, y `--json` omite los campos vacíos, en v2.162.0) | feature |
 | `done` | **E4.17** | `bench-knowledge-scenarios` (tres escenarios congelados sin correr: memoria entre dos sesiones, ADR con `Check:` y sink de seguridad; corpus `knowledge` con su digest fijado, `scenario.json` de schema 2 para las dos sesiones y `bench.js run` que lo rechaza hasta el bloque D, en v2.165.0) | medición |
+| `pending` | **E4.18** | `review-detection-bench` (corpus de defectos sembrados y controles limpios que mide la detección del revisor de ospec frente al de gentle-ai, con Haiku, junto con el escenario de sink de E4.17; en el bloque D) | medición |
 | `pending` | **E4.6** | `open-facts-robustness` (las mejoras de IDD que salen de E4.5: que el gate `open-facts`, los tests y las señales no dependan de lo bueno que sea el modelo; validado también en un escenario reservado) | feature |
 | `pending` | **E4.10** | `greenfield-foundation-hint` (`ospec next` sugiere `foundation`, sin bloquear, en un proyecto sin código ni documentación de producto o arquitectura; el CLI y la skill en v2.160.0, falta medirlo en el banco) | feature |
 | `done` | **E4.3** | `context-budget-ratchet` (absorbe el techo de router más protocolo IDD del checkpoint de la Etapa 3; OSP-009 / #338 y OSP-028 / #405; `--update` no sube un techo sin `--allow-growth` y su motivo, que queda en `growth`, un techo con holgura falla, y un presupuesto absoluto en bytes LF fija router más protocolo IDD ≤ 16 000; la skill `idd` queda a 1 444 B de sus 12 KiB, en v2.164.0) | medición |
@@ -222,17 +226,19 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 
 **▶ SIGUIENTE:** el orden que sale de la [auditoría del harness frente a gentle-ai del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Mantiene la decisión del usuario del 2026-10-23 (primero los defectos del harness, el banco después) y la del 2026-10-25: un change por sesión, y todo funciona en los 7 targets. Hasta la v2.151.0, la cola anterior dejó hechos E1.29, E1.31, E1.32 y E1.34–E1.41 y E4.12.
 
-E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1, E1.43 `close-revalidates-state` en v2.153.2 y E1.44 `ceremony-only-rises` en v2.153.3. E5.10 `progress-snapshot`, que el usuario pidió el 2026-10-26 por delante de E1.53, quedó hecho en v2.154.0, E1.53 `config-only-rises` en v2.154.1, E1.45 `cli-one-word-invocation` en v2.155.0, E1.46 `state-durability` en v2.156.0 y E1.47 `memory-loop-visible` en v2.157.0. E5.11 `progress-snapshot-v2`, que el usuario aceptó el 2026-10-26 por delante de E4.10, quedó hecho en v2.158.0. El 2026-10-27 el usuario colocó E1.55 `atomic-write-concurrent-rename` en el bloque A, por delante de E4.10, y aceptó detrás E5.12 `progress-snapshot-v3`. Ese mismo día pidió E1.56 `bench-browser-keyring` por delante de E1.55, y quedó hecho en v2.158.1, y E1.55 en v2.158.2. E5.12 `progress-snapshot-v3` quedó hecho en v2.159.0, y la parte del CLI y la skill de E4.10 `greenfield-foundation-hint`, el último del bloque A, en v2.160.0. Su medición pasa al bloque D, detrás de la corrida de validación de E4.6: sigue el bloque B con E4.15 `cli-chaining`, que quedó hecho en v2.161.0, y E4.16 `cli-terse-output` en v2.162.0. Ese mismo día el usuario aceptó E5.13 `progress-snapshot-v4`, un encargo de otra sesión, por delante de E4.3, y quedó hecho en v2.163.0. E4.3 `context-budget-ratchet`, el último del bloque B, quedó hecho en v2.164.0, y E4.17 `bench-knowledge-scenarios` en v2.165.0. El 2026-10-28 el usuario pidió por delante del bloque C el arreglo `cli-dropped-arguments`, hecho en v2.165.1. Del bloque C, la parte del CLI de E1.48 `base-counterproof` quedó hecha en v2.166.0, y su medición pasa a E4.14. La parte del CLI y los hooks de E1.49 `gate-turn-fence` quedó hecha en v2.167.0, y su medición pasa a E4.6. El 2026-10-30 el usuario aceptó E5.14 `delivery-integration-branch` (#458), un encargo de otra sesión, por delante de E1.50, y quedó hecho en v2.168.0. Después empezaron los arreglos de la review general del 2026-10-29, un lote por PR: `turn-fence-hosts` (PR1a) quedó hecho en v2.168.1, `turn-fence-robustness` (PR1b) en v2.168.2, `hooks-binary-fallback` (PR1c) en v2.168.3, el arreglo del test de la contraprueba, `safe-dest-test-tmpdir`, en v2.168.4 la carrera EPIPE del lanzador, `launcher-epipe-retry` y `launcher-epipe-reason`, en v2.168.5, los gates IDD que se podían saltar, `idd-gate-bypasses` (PR2a), en v2.168.6 la fricción del CLI, `idd-cli-friction` (PR2b), en v2.168.7, los huecos del CI, `ci-coverage-gaps` (PR3a), en v2.168.8 y el pendiente (j), `copilot-stop-deadline`, en v2.168.9. El 2026-11-03 el usuario pidió por delante `handbook`, que sustituye a `sdd-document`, y quedó hecho en v2.169.0, y después `claude-router`, el router de Claude para quien instala desde el marketplace, en v2.170.0. El encargo de otra sesión fue `pure-rename-signals`, el falso positivo de un renombre puro que paraba el foundation de app-restaurante, y quedó hecho en v2.170.1. Ese día el usuario colocó detrás E1.58 `contract-content-retract` y E1.61 `turn-fence-worktree`, dos observaciones de esa sesión, por delante de E1.50 `content-security-signal`. E1.58 quedó hecho en v2.170.2. Fuera del roadmap, la issue #475 de un usuario, la memoria de Engram bloqueada en el modo auto de Claude, quedó arreglada como `engram-auto-mode-allow` en v2.170.3, y E1.61 en v2.170.4; después, E1.50 y los demás lotes, empezando por los huecos del guard de atribución y PR3b, los gates locales de git.
+E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1, E1.43 `close-revalidates-state` en v2.153.2 y E1.44 `ceremony-only-rises` en v2.153.3. E5.10 `progress-snapshot`, que el usuario pidió el 2026-10-26 por delante de E1.53, quedó hecho en v2.154.0, E1.53 `config-only-rises` en v2.154.1, E1.45 `cli-one-word-invocation` en v2.155.0, E1.46 `state-durability` en v2.156.0 y E1.47 `memory-loop-visible` en v2.157.0. E5.11 `progress-snapshot-v2`, que el usuario aceptó el 2026-10-26 por delante de E4.10, quedó hecho en v2.158.0. El 2026-10-27 el usuario colocó E1.55 `atomic-write-concurrent-rename` en el bloque A, por delante de E4.10, y aceptó detrás E5.12 `progress-snapshot-v3`. Ese mismo día pidió E1.56 `bench-browser-keyring` por delante de E1.55, y quedó hecho en v2.158.1, y E1.55 en v2.158.2. E5.12 `progress-snapshot-v3` quedó hecho en v2.159.0, y la parte del CLI y la skill de E4.10 `greenfield-foundation-hint`, el último del bloque A, en v2.160.0. Su medición pasa al bloque D, detrás de la corrida de validación de E4.6: sigue el bloque B con E4.15 `cli-chaining`, que quedó hecho en v2.161.0, y E4.16 `cli-terse-output` en v2.162.0. Ese mismo día el usuario aceptó E5.13 `progress-snapshot-v4`, un encargo de otra sesión, por delante de E4.3, y quedó hecho en v2.163.0. E4.3 `context-budget-ratchet`, el último del bloque B, quedó hecho en v2.164.0, y E4.17 `bench-knowledge-scenarios` en v2.165.0. El 2026-10-28 el usuario pidió por delante del bloque C el arreglo `cli-dropped-arguments`, hecho en v2.165.1. Del bloque C, la parte del CLI de E1.48 `base-counterproof` quedó hecha en v2.166.0, y su medición pasa a E4.14. La parte del CLI y los hooks de E1.49 `gate-turn-fence` quedó hecha en v2.167.0, y su medición pasa a E4.6. El 2026-10-30 el usuario aceptó E5.14 `delivery-integration-branch` (#458), un encargo de otra sesión, por delante de E1.50, y quedó hecho en v2.168.0. Después empezaron los arreglos de la review general del 2026-10-29, un lote por PR: `turn-fence-hosts` (PR1a) quedó hecho en v2.168.1, `turn-fence-robustness` (PR1b) en v2.168.2, `hooks-binary-fallback` (PR1c) en v2.168.3, el arreglo del test de la contraprueba, `safe-dest-test-tmpdir`, en v2.168.4 la carrera EPIPE del lanzador, `launcher-epipe-retry` y `launcher-epipe-reason`, en v2.168.5, los gates IDD que se podían saltar, `idd-gate-bypasses` (PR2a), en v2.168.6 la fricción del CLI, `idd-cli-friction` (PR2b), en v2.168.7, los huecos del CI, `ci-coverage-gaps` (PR3a), en v2.168.8 y el pendiente (j), `copilot-stop-deadline`, en v2.168.9. El 2026-11-03 el usuario pidió por delante `handbook`, que sustituye a `sdd-document`, y quedó hecho en v2.169.0, y después `claude-router`, el router de Claude para quien instala desde el marketplace, en v2.170.0. El encargo de otra sesión fue `pure-rename-signals`, el falso positivo de un renombre puro que paraba el foundation de app-restaurante, y quedó hecho en v2.170.1. Ese día el usuario colocó detrás E1.58 `contract-content-retract` y E1.61 `turn-fence-worktree`, dos observaciones de esa sesión, por delante de E1.50 `content-security-signal`. E1.58 quedó hecho en v2.170.2. Fuera del roadmap, la issue #475 de un usuario, la memoria de Engram bloqueada en el modo auto de Claude, quedó arreglada como `engram-auto-mode-allow` en v2.170.3, y E1.61 en v2.170.4. E1.50 `content-security-signal` quedó hecho en v2.171.0, con las filas nuevas E1.59, E1.60, E1.62 y E4.18 del plan del 2026-11-03 para cerrar la brecha del revisor frente a gentle-ai. Siguen los demás lotes de la review general, empezando por los huecos del guard de atribución y PR3b, los gates locales de git, y después E1.52, E1.59 y E1.60.
 
 1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.53 `config-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E1.56 `bench-browser-keyring` → E1.55 `atomic-write-concurrent-rename` → E4.10 `greenfield-foundation-hint`.
 2. **B. Economía**, antes que C porque C añade una ejecución de la suite: E4.15 `cli-chaining` → E4.16 `cli-terse-output` → E4.3 `context-budget-ratchet`, que fija los techos por target después de B.
 3. **E4.17** `bench-knowledge-scenarios`: escribe y congela escenarios sin correrlos. Es una excepción acotada a «banco después», decidida por el usuario el 2026-10-25 para que C no se ajuste sobre ellos.
-4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.58 `contract-content-retract` → E1.61 `turn-fence-worktree` → E1.50 `content-security-signal` → E1.57 `idd-change-abandon` → E1.51 `open-change-nudge` → E1.52 `review-frozen-tree` → E3.7 `fact-ledger`.
-5. **D. Banco, todo junto.** E4.14 `bench-validation-readiness` (con el doble conteo) → corrida de validación de E4.6 en Claude y agy → medición de E4.10 en `todo-spa` y `receta-spa` → E4.4, recalculando antes su premisa → E4.13 `worker-delegation`, solo si E4.4 da evidencia (decisión del usuario del 2026-10-22) → E4.11 `workspace-root-resolution`, al final de la cola.
+4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.58 `contract-content-retract` → E1.61 `turn-fence-worktree` → E1.50 `content-security-signal` → E1.52 `review-frozen-tree` → E1.59 `idd-runtime-review` → E1.60 `review-refuter` → E1.57 `idd-change-abandon` → E1.51 `open-change-nudge` → E3.7 `fact-ledger`. Entre E1.50 y E1.52 van los lotes que quedan de la review general del 2026-10-29 (los huecos del guard de atribución, PR3b y PR4 a PR8), porque PR4 y PR5 tocan la base de los recibos de E1.52.
+5. **D. Banco, todo junto.** E4.14 `bench-validation-readiness` (con el doble conteo) → corrida de validación de E4.6 en Claude y agy → medición de E4.10 en `todo-spa` y `receta-spa` → E4.18 `review-detection-bench`, con el escenario de sink de E4.17 → E4.4, recalculando antes su premisa → E4.13 `worker-delegation`, solo si E4.4 da evidencia (decisión del usuario del 2026-10-22) → E4.11 `workspace-root-resolution`, al final de la cola.
 
 E1.54 `lock-reclaim-rename`, residuo de E1.46 anotado el 2026-10-26, tiene prioridad baja y queda fuera del orden ▶ hasta que el usuario lo coloque. E1.55 `atomic-write-concurrent-rename`, otro residuo de E1.46 anotado el 2026-10-27, entró ese mismo día en el bloque A porque su flake ya había roto dos de las cuatro ejecuciones de Windows desde v2.158.0. E1.56 `bench-browser-keyring` entró también el 2026-10-27, por delante de E1.55, porque los checks de Chromium del banco fallaban en local tras cada reinicio y dejaban cientos de navegadores huérfanos.
 
 E1.57 `idd-change-abandon` (#409) y E1.58 `contract-content-retract` (#423), los dos únicos issues abiertos sin ítem, entraron el 2026-10-28. El usuario colocó E1.57 en el bloque C, antes de E1.51, porque sin una salida legítima ese nudge pediría continuar un cambio sustituido que no se puede cerrar. E1.58 tenía prioridad baja y quedaba fuera del orden ▶; el 2026-11-03 el usuario lo colocó en el bloque C, por delante de E1.50, después de que app-restaurante topara con un color en prosa que casaba con el patrón de selector y no tenía más salida que reescribirlo.
+
+E1.59 `idd-runtime-review`, E1.60 `review-refuter`, E1.62 `sdd-review-adoption` y E4.18 `review-detection-bench` entraron el 2026-11-03 con el plan para cerrar la brecha del revisor frente a gentle-ai. Como sistema, gentle-ai era mejor: su binario lanza al revisor sin herramientas y admite su veredicto, revisa el árbol congelado, deriva el riesgo del contenido y pasa los hallazgos por un refutador. ospec era mejor en el criterio del prompt (`review-judgment.md`), el coste y la sencillez, y nadie había medido la detección. El usuario fijó el orden E1.50 → E1.52 → E1.59 → E1.60, seguidos, y el alcance solo en IDD, porque los cambios de `review-lineage.js` no dependen del modo. La adopción en SDD queda en E1.62, fuera del orden ▶, y la medición, E4.18, en el bloque D con Haiku.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -344,8 +350,8 @@ Auditoría del 2026-10-25 (un change por sesión, en este orden):
 A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.56 ─ E1.55 ─ E4.10
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
-C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ E1.57 ─ E1.51 ─ E1.52 ─ E3.7
-D: E4.14 ─ E4.6 (corrida de validación) ─ E4.4 ─ E4.13 ─ E4.11
+C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ (lotes de la review general) ─ E1.52 ─ E1.59 ─ E1.60 ─ E1.57 ─ E1.51 ─ E3.7
+D: E4.14 ─ E4.6 (corrida de validación) ─ E4.18 ─ E4.4 ─ E4.13 ─ E4.11
 E1.28 espera a que E1.30 cumpla su criterio de hecho: su plazo del 2026-10-29 quedó fallido el 2026-10-26.
 ```
 
@@ -969,13 +975,19 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 - **Problema:** `security-boundary` solo sale de las rutas (`scripts/lib/idd-impact.js`). Un `eval`, una consulta SQL concatenada o un `exec` con entrada externa fuera de `auth/` no deriva ninguna review.
 - **Garantía que protege:** review independiente de confianza en las fronteras de seguridad.
 - **Alcance:**
-  - Unas 20 expresiones de sinks (CWE) sobre las líneas añadidas fuera de tests, como fuente `diff` de `security-boundary`. Se pueden retirar con una razón, como las demás señales.
+  - Sinks (CWE) por lenguaje sobre las líneas añadidas a código de producto, fuera de tests, como fuente `diff` de `security-boundary`. Solo la respuesta del usuario, atada a los sinks que vio, la retira, como `persistent-data` y `public-contract` por contenido. El texto decía «unas 20 expresiones» y «con una razón, como las demás señales»; lo corrigieron las respuestas del 2026-11-06.
   - `--security` en `signals` para declararla a mano.
   - Sin clasificador con LLM.
 - **Targets:** los 7 (CLI).
 - **Hecho cuando:**
   - un corpus de sinks por stack deriva la señal, y ni los comentarios ni los tests la derivan;
   - queda publicada su tasa de falsos positivos sobre los diffs de `idd/archive/` de este repositorio.
+- **Respuestas del usuario (2026-11-06, gate `open-facts`, las recomendadas):**
+  - El catálogo adapta el de gentle-ai (`internal/reviewtransaction/risk_dangerous_sink.go`, MIT), con su aviso de copyright en `scripts/lib/idd-sinks.js`, y añade SQL concatenado o interpolado y el `exec` de Node con un comando compuesto, que el problema nombra y gentle-ai no trae. Cada expresión se filtra por la extensión del fichero. Cuenta cualquier código de producto fuera de `impact.exclude`, los build scripts incluidos.
+  - Solo se salta la línea que es entera un comentario en el lenguaje de su fichero; el resto se compara entera, así que el `//` de una URL no corta nada.
+  - Solo la respuesta del usuario, atada a los hits, retira la señal; una razón del agente no basta.
+  - Un fichero que gana un sink después de aprobar la revisión de confianza la deja desfasada, como uno bajo una ruta de seguridad.
+- **Tasa de falsos positivos (2026-11-06):** para cada uno de los 198 cambios de `idd/archive/`, el diff entre su base y el commit que añade su carpeta al archivo, con los patrones actuales de `idd/config.yaml`. Ninguno deriva la señal por contenido: 0 falsos positivos en 26 347 líneas añadidas a 171 ficheros de producto. El catálogo sí encuentra sinks reales en el árbol (`execSync` con un comando interpolado en scripts de `openspec/changes/archive/` y en tests, que no cuentan), así que el cero viene de un repositorio que no añade sinks, no de un catálogo ciego. Acota los falsos positivos; la detección la mide E4.18.
 
 ### E1.51 — `open-change-nudge`
 
@@ -1000,17 +1012,20 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 - **Problema:**
   - El revisor de confianza lee el árbol vivo aunque la petición esté congelada.
   - Una review sin recibo se acepta como `relayed` con un aviso (`scripts/lib/idd-review.js`): en la auditoría, un JSON inventado con el `request_digest` copiado quedó `approved`.
-  - Queda código de linaje sin uso en `scripts/lib/review-lineage.js`: `startK7ReviewLineage` y `createSuccessor` solo los usan fixtures, y `migrateReviewLineage` y `beginSliceCorrection` no los usa nada.
+  - Solo el hook Node de `SubagentStop` escribe recibos, y solo lo ejecutan Claude Code y Codex (REQ-hooks-027); Codex sin verificar en vivo. Un host con el binario nativo no escribe ninguno, y el agente principal puede escribir el mismo fichero por shell, así que un recibo sube el listón pero no es prueba.
+  - Queda código de linaje sin uso en `scripts/lib/review-lineage.js`: `startK7ReviewLineage` y `createSuccessor` solo los usan fixtures, y `migrateReviewLineage` solo tests. `beginSliceCorrection` sí se usa: lo llama `beginCorrection` en la remediación v2.
 - **Garantía que protege:** review independiente con hallazgos congelados.
-- **Alcance:**
-  - `review start` materializa el árbol candidato en un directorio temporal, y la petición nombra esa ruta.
-  - En los hosts con recibo de subagente, `relayed` no satisface `trust-review` salvo con respuesta del usuario.
-  - Se borra el código de linaje sin uso.
-- **Targets:** recibos en Claude, Codex, VS Code y Copilot. Cursor, OpenCode y Antigravity siguen con `relayed` y aviso, declarado en sus validadores.
+- **Depende de:** PR4 (`transcript_path` de `SubagentStop`) y PR5 (paridad de hooks) de la review general del 2026-10-29, que tocan la base de los recibos.
+- **Alcance** (recomendación del 2026-11-03, que el cambio confirmará con el usuario):
+  - `review record` y `review validate` comprueban que las rutas candidatas del árbol vivo siguen teniendo los blobs congelados. Se descarta materializar el árbol en un directorio temporal: en Claude, leer fuera del repositorio pide permisos.
+  - En los hosts con recibo, `relayed` no satisface `trust-review` salvo con respuesta del usuario; antes se verifica Codex en vivo.
+  - Se borra el código de linaje que solo usan fixtures y tests, tras comprobar cada uso.
+- **Targets:** recibos en Claude y Codex. VS Code, Copilot, Cursor, OpenCode y Antigravity siguen con `relayed` y aviso, declarado en sus validadores.
 - **Hecho cuando:**
-  - el JSON inventado de la auditoría no satisface `trust-review` en los cuatro targets con recibo;
-  - el revisor cita líneas del árbol congelado;
+  - el JSON inventado de la auditoría no satisface `trust-review` en Claude ni en Codex;
+  - una ruta candidata que cambia entre `review start` y `review record` rechaza el resultado;
   - los tests de linaje siguen en verde sin el código borrado.
+- **Corregido el 2026-11-06:** el texto decía que había recibos en VS Code y Copilot, que `review start` materializaba el árbol y que `beginSliceCorrection` no se usaba.
 
 ### E1.54 — `lock-reclaim-rename` (residuo de E1.46)
 
@@ -1103,6 +1118,34 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
   - una línea añadida después que cite un endpoint nuevo devuelve la señal;
   - sin `--answer` se sigue rechazando con `signal-confirmed-by-diff`.
 
+### E1.59 — `idd-runtime-review`
+
+- **Problema:** `trust-review` solo mira la confianza: credenciales, permisos y fronteras. Un cambio con concurrencia, transacciones o llamadas externas sin timeout ni reintento no recibe ninguna revisión de su fiabilidad en ejecución, aunque el agente `review-runtime` ya existe para el Quality Review Gate de SDD.
+- **Garantía que protege:** revisión independiente de los riesgos de ejecución: red, errores, reintentos, concurrencia y fallos parciales.
+- **Depende de:** E1.50, que da el patrón de señal por contenido, y E1.52, que congela el árbol que se revisa.
+- **Alcance:**
+  - Señal `runtime-boundary` por contenido en las líneas añadidas a código de producto: concurrencia, transacciones y llamadas externas con reintento o timeout. La simple escritura de datos no la dispara.
+  - Obligación aditiva `runtime-review`, sin renombrar `trust-review`. Un solo linaje con `selected_domains` `[trust, runtime]`, que `review-lineage.js` ya admite; `idd-review.js` deja de fijar `LENS` y `REVIEWER`.
+  - `review-runtime` entra en `RESULT_LISTS` (`scripts/lib/review-receipt.js`) y en `REPO_SKILLS` (`scripts/configure/install-codex.js`), y el catálogo de `internal/iddsession/catalog.json` cambia con su golden de Go.
+- **Targets:** los 7 (CLI); el recibo, donde E1.52 lo deje.
+- **Hecho cuando:**
+  - un corpus por stack deriva la señal, y la escritura simple de datos no;
+  - un cambio con las dos señales recorre un solo linaje con los dos revisores y no cierra sin los dos.
+
+### E1.60 — `review-refuter`
+
+- **Problema:** un BLOCKER o un CRITICAL del revisor bloquea el cierre tal cual. Un falso positivo cuesta una corrección o una review más, y nada lo contrasta antes de congelarlo. gentle-ai pasa cada hallazgo grave por un refutador.
+- **Garantía que protege:** que un hallazgo congelado solo bloquee con evidencia que aguanta una refutación.
+- **Depende de:** E1.59.
+- **Alcance:**
+  - Un agente de solo lectura hace una pasada por linaje sobre los BLOCKER y CRITICAL fusionados, antes de `freezeFindings` (`scripts/lib/review-lineage.js`).
+  - Un hallazgo refutado pasa a advisory con la evidencia de la refutación. Uno en pie, inconcluso o con una respuesta malformada sigue bloqueando: falla en cerrado.
+  - Probablemente se parte en dos entregas: el agente, y el reducer con el CLI.
+- **Targets:** los 7.
+- **Hecho cuando:**
+  - un hallazgo sembrado falso pasa a advisory con su evidencia, y uno verdadero sigue bloqueando;
+  - un refutador que no responde, o que responde mal, deja el hallazgo bloqueante.
+
 ### E1.61 — `turn-fence-worktree`
 
 - **Problema:**
@@ -1114,6 +1157,15 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 - **Hecho cuando** (un test por caso):
   - una respuesta registrada en un worktree fuera del proyecto tras un fin de turno queda `user`;
   - una registrada antes de que acabe el turno sigue `user-unverified`.
+
+### E1.62 — `sdd-review-adoption`
+
+- **Problema:** E1.50, E1.52, E1.59 y E1.60 solo cambian IDD, por decisión del usuario del 2026-11-03. El Quality Review Gate de SDD sigue sin sinks por contenido, sin árbol congelado, sin dominio runtime por contenido y sin refutador, aunque los cambios de `review-lineage.js` no dependen del modo.
+- **Garantía que protege:** la misma revisión independiente en los dos modos.
+- **Depende de:** E1.60.
+- **Alcance:** el Quality Review Gate de SDD adopta lo que cada uno de esos ítems dé a IDD, sin cambiar sus fases. Queda fuera del orden ▶ hasta que el usuario lo coloque.
+- **Targets:** los 7, con SDD instalado.
+- **Hecho cuando:** un cambio SDD con un sink fuera de `auth/` pasa por la revisión de confianza, y sus hallazgos graves por el refutador.
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
@@ -1581,6 +1633,14 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
   - En el bloque D la sesión 1 se corre de verdad en cada brazo; antes de la 2, el banco vacía Engram y aplica la variante (sembrada, vacía o contradictoria), con el disco tal como lo dejó la sesión 1. En la sesión 2, la persona repite una decisión de la 1 si le preguntan, y cuenta como pregunta repetida.
   - `bench.js list --corpus knowledge` lo muestra con su digest, y `bench.js run --corpus knowledge` sale con código 1 hasta que el banco lo conduzca. Cada escenario tiene su entrega de referencia (una por sesión en `reparto`) y una contraprueba con el defecto que mide.
 
+### E4.18 — `review-detection-bench`
+
+- **Problema:** nadie ha medido la calidad de detección del revisor, ni la del de ospec ni la del de gentle-ai. La comparación del 2026-11-03 es de diseño, no de resultados.
+- **Garantía que protege:** que las mejoras del revisor (E1.50, E1.52, E1.59 y E1.60) se midan en vez de suponerse.
+- **Alcance:** un corpus de defectos sembrados, de seguridad y de ejecución, y de controles limpios. Compara ospec con gentle-ai, con Haiku, en detección, falsos positivos y coste por defecto, y corre junto con el escenario de sink de E4.17.
+- **Targets:** Claude y agy, los hosts del banco.
+- **Hecho cuando:** quedan publicadas la detección y la tasa de falsos positivos de cada revisor sobre el corpus, con su significación.
+
 ## Etapa 5 — Plataforma por demanda
 
 Ítems que se abren cuando hay demanda o evidencia, sin orden fijo:
@@ -1723,6 +1783,12 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-06: E1.50 `content-security-signal` (IDD), publicado en v2.171.0. `security-boundary` ya no sale solo de las rutas.
+  - Un sink de seguridad en una línea que el diff añade a código de producto deriva la señal y su `trust-review`: TLS sin verificar, deserialización insegura, `eval`, un comando de shell compuesto (el `exec` de Node incluido), SQL concatenado o interpolado, un hash débil de credenciales, CORS con credenciales, permisos 777, JWT sin verificar, CSRF desactivado y XXE. El catálogo, por lenguaje, está adaptado del de gentle-ai (MIT) en `scripts/lib/idd-sinks.js`.
+  - Un comentario, un test, la documentación o lo que el fichero ya tenía no la derivan. Solo la respuesta del usuario atada a los sinks que vio la retira; `--security` la declara a mano, y un sink que aparece después de aprobar la revisión de confianza la deja desfasada.
+  - Ninguno de los 198 cambios de `idd/archive/` (26 347 líneas añadidas a código de producto) la deriva por contenido.
+  - La PR añade E1.59, E1.60, E1.62 y E4.18, el plan del 2026-11-03 para cerrar la brecha del revisor frente a gentle-ai, y corrige la definición de E1.52.
+  - Siguen los huecos del guard de atribución y PR3b, los gates locales de git.
 - 2026-11-06: E1.61 `turn-fence-worktree` (IDD), publicado en v2.170.4. Una respuesta a un gate registrada en un `git worktree` fuera del proyecto ya no queda `user-unverified` cuando llega tras un fin de turno.
   - El CLI valla los gates con la suma de `.ospec/turns` del worktree y la del repositorio principal, donde cuenta el hook de una sesión que sigue en el proyecto. Las dos solo crecen, así que una cuenta vieja del worktree no tapa la del principal.
   - Los hooks de Node y Go no cambian, y fuera de un worktree enlazado la cuenta es la de antes.
