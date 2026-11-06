@@ -74,7 +74,13 @@ test("a linked worktree counts its own turn ends plus the main repository's", (t
   writeTurns(main, "3");
   const gitFile = path.join(worktree, ".git");
   const gitDir = fs.readFileSync(gitFile, "utf8").replace(/^gitdir:\s*/, "").trim();
-  fs.writeFileSync(gitFile, `gitdir: ${path.relative(worktree, gitDir)}\n`);
+  // In place: Git for Windows hides .git, and Windows refuses to recreate a
+  // hidden file.
+  const fd = fs.openSync(gitFile, "r+");
+  fs.ftruncateSync(fd, 0);
+  fs.writeSync(fd, `gitdir: ${path.relative(worktree, gitDir)}\n`);
+  fs.closeSync(fd);
+  assert.match(fs.readFileSync(gitFile, "utf8"), /^gitdir: \.\./);
   assert.strictEqual(workspaceTurn(worktree), 10);
 });
 
