@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.170.4] - 2026-11-06
+
+### Fixed
+- **Una respuesta a un gate registrada en un `git worktree` ya se verifica** (turn-fence-worktree). En un worktree fuera del directorio del proyecto la sesión sigue con el `cwd` en el proyecto, así que el hook de fin de turno cuenta en `.ospec/turns` del proyecto y el CLI leía solo la cuenta del worktree, que no existía. La respuesta del usuario quedaba `user-unverified` con `no turn count in .ospec/turns`, aunque llegara tras un fin de turno. Lo reportó la sesión de app-restaurante con el gate `checks-changed`.
+  - **El CLI suma las dos cuentas**: la del worktree y la del repositorio principal, que localiza siguiendo `.git`, `gitdir` y `commondir` sin lanzar git. Las dos solo crecen, así que una cuenta antigua del worktree no tapa la del principal, y una respuesta en el mismo turno en que se abrió el gate sigue `user-unverified`.
+  - **Solo cuentan el propio worktree y el principal.** Un worktree hermano, un repositorio principal desnudo o un `.git` sin `commondir` (el de un submódulo) no aportan cuenta. Fuera de un worktree enlazado la cuenta es la de antes, y los hooks de Node y Go no cambian.
+
+Hecho con IDD (`idd/archive/2026-11-06-turn-fence-worktree/`), E1.61 del roadmap. REQ-idd-008 recoge la regla con un escenario, y REQ-hooks-030 la referencia. Un `state.yaml` anterior sigue valiendo sin migrar.
+
+**Verificación directa**: `node scripts/check.js` (4397 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
+
 ## [2.170.3] - 2026-11-03
 
 ### Fixed

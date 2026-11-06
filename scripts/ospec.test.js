@@ -3843,6 +3843,34 @@ test("[E1.49] without a turn count the ambiguous intent answered user is recorde
   assert.deepStrictEqual([gate.source, gate.declared_source, gate.opened_turn, gate.resolved_turn], ["user-unverified", "user", null, null]);
 });
 
+// E1.61 turn-fence-worktree: in a linked worktree outside the project the
+// session's cwd stays in the project, so the hook counts the turn ends there.
+test("[E1.61] in a worktree outside the project the turn ends counted in the main repository fence its gates", (t) => {
+  const { root, git } = project(t);
+  const worktree = path.join(plainRoot(t), "wt");
+  git("worktree", "add", "-q", "-b", "wt", worktree);
+  // A count the worktree kept from a session that once ran there, plus the
+  // one of the project, where this session's turns end.
+  writeTurns(worktree, 7);
+  writeTurns(root, 3);
+  ospec(worktree, ...OPEN_DOCS);
+  ospec(worktree, ...OPEN_IRREVERSIBLE);
+  assert.strictEqual(stateOf(worktree, "fix-readme").gates[0].opened_turn, 10);
+
+  const early = ospec(worktree, ...RESOLVE_IRREVERSIBLE, "--json");
+  assert.strictEqual(early.code, 0, early.stderr);
+  const fenced = stateOf(worktree, "fix-readme").gates[0];
+  assert.deepStrictEqual([fenced.source, fenced.resolved_turn, fenced.unverified_reason], ["user-unverified", 10, "no turn ended between the gate's opening and the answer"]);
+
+  ospec(worktree, "record", "gate", "--change", "fix-readme", "--gate", "adr-amend-or-contradict", "--open", "--reason", "ADR 0003: the hook decides");
+  writeTurns(root, 4);
+  const answered = ospec(worktree, "record", "gate", "--change", "fix-readme", "--gate", "adr-amend-or-contradict", "--resolve", "--answer", "Amend it.", "--source", "user", "--json");
+  assert.strictEqual(answered.code, 0, answered.stderr);
+  assert.strictEqual(answered.json.warnings, undefined);
+  const gate = stateOf(worktree, "fix-readme").gates[1];
+  assert.deepStrictEqual([gate.source, gate.opened_turn, gate.resolved_turn], ["user", 10, 11]);
+});
+
 test("[E1.49] check runs no check the user has not approved: it opens checks-changed, and the next check after the answer runs it", (t) => {
   const { root } = project(t);
   const marker = path.join(tempRoot(t), "ran");

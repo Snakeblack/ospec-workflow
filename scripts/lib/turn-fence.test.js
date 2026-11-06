@@ -9,7 +9,9 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { TURNS_FILE, countTurnEnd, fenceGates, readTurn, unverifiedGateWarnings } = require("./turn-fence.js");
+const { execFileSync } = require("node:child_process");
+
+const { TURNS_FILE, countTurnEnd, fenceGates, readTurn, unverifiedGateWarnings, workspaceTurn } = require("./turn-fence.js");
 
 function workspace(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "turn-fence-"));
@@ -43,6 +45,67 @@ test("each turn end adds one, an unreadable count starts again, and .ospec/ igno
   assert.strictEqual(fs.readFileSync(path.join(root, ".ospec", ".gitignore"), "utf8"), "*\n");
   writeTurns(root, "garbage");
   assert.strictEqual(await countTurnEnd(root), 1);
+});
+
+// E1.61 turn-fence-worktree: a session whose cwd stays in the project counts
+// its turn ends there, so a linked worktree adds the main repository's count.
+function gitRepo(root, ...init) {
+  const git = (...args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8" });
+  git("init", "-q", ...init);
+  git("-c", "user.email=t@example.invalid", "-c", "user.name=t", "commit", "-q", "--allow-empty", "--no-verify", "-m", "base");
+  return git;
+}
+
+test("a linked worktree counts its own turn ends plus the main repository's", (t) => {
+  const main = workspace(t);
+  const git = gitRepo(main);
+  const worktree = path.join(workspace(t), "wt");
+  git("worktree", "add", "-q", "-b", "wt", worktree);
+  assert.strictEqual(workspaceTurn(worktree), null, "no count anywhere");
+  writeTurns(main, "3");
+  assert.strictEqual(workspaceTurn(worktree), 3, "only the main repository's");
+  assert.strictEqual(workspaceTurn(main), 3, "the main repository reads only its own");
+  writeTurns(worktree, "7");
+  assert.strictEqual(workspaceTurn(worktree), 10, "both");
+  writeTurns(main, "garbage");
+  assert.strictEqual(workspaceTurn(worktree), 7, "an unreadable count adds nothing");
+
+  // A gitdir written relative to the worktree, as git worktree --relative-paths does.
+  writeTurns(main, "3");
+  const gitFile = path.join(worktree, ".git");
+  const gitDir = fs.readFileSync(gitFile, "utf8").replace(/^gitdir:\s*/, "").trim();
+  // In place: Git for Windows hides .git, and Windows refuses to recreate a
+  // hidden file.
+  const fd = fs.openSync(gitFile, "r+");
+  fs.ftruncateSync(fd, 0);
+  fs.writeSync(fd, `gitdir: ${path.relative(worktree, gitDir)}\n`);
+  fs.closeSync(fd);
+  assert.match(fs.readFileSync(gitFile, "utf8"), /^gitdir: \.\./);
+  assert.strictEqual(workspaceTurn(worktree), 10);
+});
+
+test("a worktree of a bare repository, and a .git file with no commondir, read only their own count", (t) => {
+  const bare = path.join(workspace(t), "repo.git");
+  fs.mkdirSync(bare);
+  execFileSync("git", ["-C", bare, "init", "-q", "--bare"]);
+  const seed = workspace(t);
+  const git = gitRepo(seed);
+  git("push", "-q", bare, "HEAD:main");
+  const worktree = path.join(workspace(t), "wt");
+  execFileSync("git", ["-C", bare, "worktree", "add", "-q", worktree, "main"]);
+  writeTurns(worktree, "2");
+  writeTurns(path.dirname(bare), "5");
+  assert.strictEqual(workspaceTurn(worktree), 2);
+
+  // A submodule's .git file points into the superproject's .git/modules/,
+  // which holds no commondir.
+  const submodule = workspace(t);
+  const modules = path.join(workspace(t), ".git", "modules", "sub");
+  fs.mkdirSync(modules, { recursive: true });
+  fs.writeFileSync(path.join(submodule, ".git"), `gitdir: ${modules}\n`);
+  writeTurns(path.dirname(path.dirname(path.dirname(modules))), "5");
+  writeTurns(submodule, "2");
+  assert.strictEqual(workspaceTurn(submodule), 2);
 });
 
 test("a gate opened by the command takes the turn, one it left as it was keeps its own", () => {

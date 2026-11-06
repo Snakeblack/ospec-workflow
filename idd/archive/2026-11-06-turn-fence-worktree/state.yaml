@@ -1,0 +1,556 @@
+{
+  "schema": "idd-state/v1",
+  "change": "turn-fence-worktree",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En un git worktree fuera del directorio del proyecto, la respuesta a un gate queda user-unverified: el hook de fin de turno cuenta en .ospec/turns del repositorio del cwd de la sesión y el CLI lee la cuenta del worktree, que no existe",
+    "acceptance": "Una respuesta --source user registrada en un worktree tras un fin de turno contado en el repositorio principal queda user; una registrada antes de que acabe el turno sigue user-unverified"
+  },
+  "facts": {
+    "open": [
+      "Alcance: ¿el CLI lee también la cuenta del repositorio principal (resuelto con el commondir del worktree, sin tocar los hooks Node ni Go), o el hook de fin de turno cuenta en cada worktree con un cambio abierto?",
+      "Combinación: ¿la cuenta que usa el CLI en un worktree es la suma de la propia y la del principal, o la propia cuando existe y si no la del principal?",
+      "Otros worktrees: ¿cuentan también los fines de turno de sesiones cuyo cwd está en un worktree hermano, o solo los del propio worktree y el principal?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/hooks/spec.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-store.js",
+      "scripts/lib/turn-fence.js",
+      "scripts/lib/turn-fence.test.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "En un worktree enlazado, el CLI cuenta los fines de turno como la suma de .ospec/turns del propio worktree y la del repositorio principal, que localiza siguiendo .git, gitdir y commondir sin lanzar git; los hooks de Node y Go no cambian",
+      "Solo cuentan el propio worktree y el principal, no los worktrees hermanos; un repositorio principal desnudo no aporta cuenta"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: touches scripts/lib/idd-store.js (matches scripts/lib/idd-store.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components change-state, idd-engine: ADR 0002, 0003, 0004, 0005, 0009, 0011 and quality scenario contract-compatibility, deterministic-resume",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0002",
+      "impact": "conforms",
+      "reason": "state.yaml lo sigue escribiendo solo el CLI bajo lock y validado; el CLI solo lee .ospec/turns, ahora también el del repositorio principal, sin escribirlo"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La suma de cuentas la decide el CLI (workspaceTurn en scripts/lib/turn-fence.js, usado en mutateChange) con tests; la skill no cambia"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia señales ni obligaciones: solo la cuenta de turnos con la que se valla una respuesta"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "close sigue exigiendo evidencia y gates resueltos y avisando de cada respuesta user-unverified"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "none",
+      "reason": "Sin cambio en idd-state/v1 ni en el formato de .ospec/turns: opened_turn y resolved_turn siguen siendo enteros o null"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "El estado IDD sigue en idd/ del worktree; .ospec/turns sigue siendo runtime de los hooks que solo lee IDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "Un estado anterior se lee igual y un gate sin opened_turn no se valla (test E1.49); fuera de un worktree enlazado la cuenta es la de antes"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "Los turnos de cada gate siguen en state.yaml; la cuenta se lee de ficheros del disco, sin lanzar git ni depender del entorno"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "workspaceTurn vive en scripts/lib/turn-fence.js con tests en turn-fence.test.js y ospec.test.js ([E1.61]); ninguna skill describe la regla",
+      "recorded_at": "2026-11-06T10:44:53.492Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 172,
+      "answer": "todas las recomendadas, y si añadelo en esta pr",
+      "source": "user",
+      "resolved_turn": 173
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-06T10:44:05.208Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-06T10:44:23.650Z",
+      "detail": {
+        "run": "run-6",
+        "tree": "sha256:881422e7213ec3032ef5cc6468086a4ce86ceeae9540623da3bed36ef1f38abc",
+        "plan": "Sin cambio de formato: state.yaml y .ospec/turns se leen y escriben igual, y fuera de un worktree enlazado la cuenta es la misma de antes. Un gate abierto en un worktree antes de actualizar guarda la cuenta propia o null: con null sigue user-unverified; con la propia, la suma solo puede ser igual o mayor, así que una respuesta en el mismo turno de la actualización contaría como tras un fin de turno, una vez. Rollback: revertir el commit; los gates sellados con la suma se comparan entonces con la cuenta propia, con el mismo efecto único"
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-06T10:47:06.217Z",
+      "detail": {
+        "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+        "runs": [
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-06T10:47:06.217Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0009 none",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms"
+        ],
+        "records": [],
+        "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+        "fitness": [
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-06T10:47:14.577Z",
+      "detail": {
+        "run": "run-15",
+        "tree": "sha256:cef75e042bd8e7e6015c09b14ffdf57c3b4995a64cfd08ddeaf95c1aa1cfb371",
+        "plan": "Sin cambio de formato: state.yaml y .ospec/turns se leen y escriben igual, y fuera de un worktree enlazado la cuenta es la misma de antes. Un gate abierto en un worktree antes de actualizar guarda la cuenta propia o null: con null sigue user-unverified; con la propia, la suma solo puede ser igual o mayor, así que una respuesta en el mismo turno de la actualización contaría como tras un fin de turno, una vez. Rollback: revertir el commit; los gates sellados con la suma se comparan entonces con la cuenta propia, con el mismo efecto único"
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-06T10:48:28.617Z",
+      "detail": {
+        "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+        "runs": [
+          "run-16"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-06T10:48:28.617Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0009 none",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms"
+        ],
+        "records": [],
+        "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+        "fitness": [
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-06T10:48:43.723Z"
+    }
+  ],
+  "base": "3e742f4fd1eb5808bf21ce5e158fbe8b1b103fbf",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=E1.61 scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:3c779979cf724d753459740b2e83cdf6c136c5febdbb3a9b89c05f7ba09d209d",
+      "tree": "sha256:6ba34fe8b00887915f38a2e8f5fb9d41aec7a50bca34dc77ed6c676798288f04",
+      "recorded_at": "2026-11-06T10:43:28.072Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=E1.61 scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d8130658c9e3a3a8068882853d8050745e5a225367fd377cb401d1763c81b4ad",
+      "tree": "sha256:881422e7213ec3032ef5cc6468086a4ce86ceeae9540623da3bed36ef1f38abc",
+      "recorded_at": "2026-11-06T10:44:05.208Z",
+      "tests": 1,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "3e742f4fd1eb5808bf21ce5e158fbe8b1b103fbf",
+      "mount": "sha256:172e3e7ddca1e11596ecfeba1bc81d56387fbd961d14b737f9ea45e96bb50784",
+      "command": "node --test --test-name-pattern=E1.61 scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:cb2f8efe75bb6bf2fff708c37b483b21cc1690b2c7be3175559b875d78f65494",
+      "tree": "sha256:881422e7213ec3032ef5cc6468086a4ce86ceeae9540623da3bed36ef1f38abc",
+      "recorded_at": "2026-11-06T10:44:05.208Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "3e742f4fd1eb5808bf21ce5e158fbe8b1b103fbf",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=E1.61 scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ca469337fd7923bfeaf1e6d41108eff291263c52266f1964be9c943b763c05a1",
+      "tree": "sha256:881422e7213ec3032ef5cc6468086a4ce86ceeae9540623da3bed36ef1f38abc",
+      "recorded_at": "2026-11-06T10:44:05.208Z",
+      "tests": 1
+    },
+    {
+      "id": "run-5",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=E1.4[9]|E1.61 scripts/ospec.test.js scripts/lib/turn-fence.test.js",
+      "exit_code": 127,
+      "output_sha256": "sha256:af93bd7aae75f3c469bbc6e6408da43e18b8dc46133c23c7531ddf1d77b587ad",
+      "tree": "sha256:881422e7213ec3032ef5cc6468086a4ce86ceeae9540623da3bed36ef1f38abc",
+      "recorded_at": "2026-11-06T10:44:15.888Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern='E1.49|E1.61' scripts/ospec.test.js scripts/lib/turn-fence.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:07410c4cdfb1727708ea47c951f73baa04c0811d588d7ab49193b96ebf7897b9",
+      "tree": "sha256:881422e7213ec3032ef5cc6468086a4ce86ceeae9540623da3bed36ef1f38abc",
+      "recorded_at": "2026-11-06T10:44:23.650Z",
+      "tests": 7
+    },
+    {
+      "id": "run-7",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:67d7d99d7b629dcfc5dc08ce80093dc63cd2accebb0d359febd43ac118eb2fcf",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:47:06.217Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:be054d6039ceb62e7cae7251bba1a19f620648828be13df1ef290438e61f9d90",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:47:06.217Z",
+      "tests": 14
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8df2c823f7404d5c2769c9ec3ba0559583cfc3e178855b5c184effc9abfa0d33",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:47:06.217Z",
+      "tests": 56
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:121b59b430a3d1c18608e7af71a81cd25acc5cfe2d36945e2a0b65a859235b6a",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:47:06.217Z",
+      "tests": 18
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:44c7fbb49acfe5afa42b8c746c3b27cb20c9407347fc19dc38cfc3915ae6880f",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:47:06.217Z",
+      "tests": 32
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0ae69e50ff41619774ed0da355f95153cad9cb2b572e3a9c9158c95839a602c6",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:47:06.217Z",
+      "tests": 85
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:56206e757f704b039d7ce930bcbf5a2c0d2352ee9ca418d1a0dfffd2c5d23604",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:47:06.217Z",
+      "tests": 32
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b0dc92caf1bcfd333451ea21766f7a75360344f8809f8acccdbb6087c03cc4f0",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:47:06.217Z",
+      "tests": 52
+    },
+    {
+      "id": "run-15",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern='E1.49|E1.61' scripts/ospec.test.js scripts/lib/turn-fence.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0766105d9f029c10f3e3f5f1ea9d658d86b9e481d6cda3b442afed78d621a4af",
+      "tree": "sha256:cef75e042bd8e7e6015c09b14ffdf57c3b4995a64cfd08ddeaf95c1aa1cfb371",
+      "recorded_at": "2026-11-06T10:47:14.577Z",
+      "tests": 7
+    },
+    {
+      "id": "run-16",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fa14565032b914116bf1081bdadcde7069b82d6359d85065f88894ea87f2f0fa",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:48:28.617Z"
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:88221e63cd455c569138e3d040816de3fc3ddede311911d77f762915352728aa",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:48:28.617Z",
+      "tests": 14
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1ceb85787a160461874811813b23865e2b5ce340298df3be47fbb01928db7e54",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:48:28.617Z",
+      "tests": 56
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:23545213e4effdfc773534a9fef312b3f09d26972b5b09d62430cffbb84154c8",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:48:28.617Z",
+      "tests": 18
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a7ea7c8daa1f0796f343f0fee91ec86a01104a4fc63734fc6e25854ed25511b0",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:48:28.617Z",
+      "tests": 32
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:45ca35af5541c2cfbade51837f7778daea1f474c2cb1493674db17ec9c2d094e",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:48:28.617Z",
+      "tests": 85
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1cc0ce85adbf17cfe4472d80cf9d27207a1c1ae019486e0de698f45ceae9fb20",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:48:28.617Z",
+      "tests": 32
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:404df52dc1759596d884ac00d05a8f6f66ce61b7e4f89e37c2e408e9339e5018",
+      "tree": "sha256:88038811292c6ca0b903e2ccde88de19714d81f07670764e23d029af2a039a46",
+      "recorded_at": "2026-11-06T10:48:28.617Z",
+      "tests": 52
+    }
+  ],
+  "closed_at": "2026-11-06T10:48:43.723Z"
+}

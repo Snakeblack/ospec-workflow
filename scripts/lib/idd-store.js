@@ -28,7 +28,7 @@ const {
 } = require("./idd-contract.js");
 const { recoverOrphanBak, writeFileAtomic } = require("./atomic-write.js");
 const { withFileLock } = require("./ospec-state.js");
-const { fenceGates, readTurn } = require("./turn-fence.js");
+const { fenceGates, workspaceTurn } = require("./turn-fence.js");
 
 class IddStoreError extends Error {
   constructor(code, message) {
@@ -179,7 +179,7 @@ async function mutateChange(root, changeId, reducer, { writeFile = writeFileAtom
       throw new IddStoreError("change-mismatch", `state for ${result.state.change} does not match ${changeId}`);
     }
     if (result.changed) {
-      const unverified = fenceGates(current, result.state, readTurn(root));
+      const unverified = fenceGates(current, result.state, workspaceTurn(root));
       if (unverified.length) result.unverified = unverified;
       const { ok, errors } = validateState(result.state);
       if (!ok) throw new IddStoreError("state-invalid", errors.join("; "));
