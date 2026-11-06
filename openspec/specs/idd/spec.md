@@ -388,7 +388,12 @@ operation, which an open entry already asks. `validateState` MUST refuse
 
 Since E1.49 every write of the state MUST fence the gates with the count of
 turn ends the end-of-turn hook keeps in `.ospec/turns` (REQ-hooks-030), read
-as a whole number or else as no count. A gate the write opens, or changes while
+as a whole number or else as no count. Since E1.61, in a linked worktree the
+count is its own plus the one of its main repository, found by following its
+`.git` file to `commondir` without running git, since a session whose `cwd`
+stays in the project counts its turn ends there; with only one of them it is
+that one. A sibling worktree adds nothing, and neither does a bare main
+repository nor a `.git` file without `commondir`. A gate the write opens, or changes while
 open (a `checks-changed` asked again about other checks, an
 `irreversible-operation` that takes in another operation), MUST keep the count
 as `opened_turn`, null without one; an open gate the write leaves as it was
@@ -431,6 +436,16 @@ leaves the review receipts.
 - AND had the count been 4 at the answer, the gate MUST keep `source` `user`
   with `resolved_turn` 4 and no warning, and so had `.ospec/turns` been lost
   and counted again to 1
+
+#### Scenario: A worktree outside the project reads the main repository's count
+
+- GIVEN a linked worktree outside the project whose `.ospec/turns` holds 7 and
+  the project's holds 3 when `irreversible-operation` opens in the worktree
+- WHEN it is resolved with `--source user` while both counts are unchanged
+- THEN the gate MUST hold `opened_turn` 10, `resolved_turn` 10 and `source`
+  `user-unverified`
+- AND a gate opened next and resolved with `--source user` after the project's
+  count rose to 4 MUST keep `source` `user` with `resolved_turn` 11
 
 #### Scenario: A gate answer names a known source
 

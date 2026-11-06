@@ -101,7 +101,7 @@ Solo una respuesta explícita tuya resuelve un gate. El agente la registra con t
 ospec record gate --change <id> --gate <gate> --resolve --answer "<tus palabras>" --source user
 ```
 
-`--source` vale `user`, o `user-unverified` si la respuesta le llegó reenviada. El CLI no puede comprobar quién respondió, pero pone una valla: el hook de fin de turno cuenta los turnos en `.ospec/turns`, y una respuesta registrada como `user` sin que haya terminado ningún turno desde que se abrió el gate queda como `user-unverified`, con un aviso en `record` y en `close`. No bloquea, pero deja constancia. Por eso el agente pregunta un gate terminando su turno, no dentro de él.
+`--source` vale `user`, o `user-unverified` si la respuesta le llegó reenviada. El CLI no puede comprobar quién respondió, pero pone una valla: el hook de fin de turno cuenta los turnos en `.ospec/turns`, y una respuesta registrada como `user` sin que haya terminado ningún turno desde que se abrió el gate queda como `user-unverified`, con un aviso en `record` y en `close`. En un `git worktree`, el CLI suma la cuenta del worktree y la del repositorio principal, donde cuenta una sesión que sigue en el proyecto. No bloquea, pero deja constancia. Por eso el agente pregunta un gate terminando su turno, no dentro de él.
 
 ---
 

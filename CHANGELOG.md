@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- En un git worktree fuera del directorio del proyecto, la respuesta a un gate queda user-unverified: el hook de fin de turno cuenta en .ospec/turns del repositorio del cwd de la sesión y el CLI lee la cuenta del worktree, que no existe (turn-fence-worktree)
+
 ## [2.170.3] - 2026-11-03
 
 ### Fixed

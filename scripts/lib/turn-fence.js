@@ -35,6 +35,41 @@ function readTurn(root) {
 }
 
 /**
+ * The directory of the main repository of the linked worktree `root`, where
+ * the hook counts the turn ends of a session whose cwd stays in the project
+ * (E1.61): `.git` names the worktree's git directory, whose `commondir` names
+ * the repository's. Null when `root` is no linked worktree or its repository
+ * is bare, so no `.git` the hook would find sits in a directory.
+ */
+function mainRepositoryRoot(root) {
+  try {
+    const link = /^gitdir:\s*(.+?)\s*$/m.exec(fs.readFileSync(path.join(root, ".git"), "utf8"));
+    if (!link) return null;
+    const gitDir = path.resolve(root, link[1]);
+    const common = path.resolve(gitDir, fs.readFileSync(path.join(gitDir, "commondir"), "utf8").trim());
+    if (path.basename(common) !== ".git") return null;
+    const main = path.dirname(common);
+    return main === path.resolve(root) ? null : main;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The turns that ended for the IDD workspace `root`: its own count plus, in a
+ * linked worktree, the main repository's. Both only grow, so any turn end in
+ * either moves the sum. Null when neither has a count.
+ */
+function workspaceTurn(root) {
+  const own = readTurn(root);
+  const mainRoot = mainRepositoryRoot(root);
+  const main = mainRoot === null ? null : readTurn(mainRoot);
+  if (own === null || main === null) return own ?? main;
+  const turn = own + main;
+  return Number.isSafeInteger(turn) ? turn : null;
+}
+
+/**
  * The directory whose count a turn end in `cwd` adds to: the first one up
  * holding .git (a worktree's is a file), where the CLI reads it, else `cwd`.
  */
@@ -125,4 +160,5 @@ module.exports = {
   readTurn,
   turnsRoot,
   unverifiedGateWarnings,
+  workspaceTurn,
 };
