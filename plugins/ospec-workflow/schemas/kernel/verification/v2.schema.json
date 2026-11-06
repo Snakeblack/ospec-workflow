@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/verification/v2",
+  "title": "VerificationV2",
+  "description": "Kernel Verification Schema v2. Verdict is distinct from evidence.",
+  "type": "object",
+  "schema_version": 2,
+  "required": [
+    "schema_version",
+    "kind",
+    "verification_id",
+    "candidate_id",
+    "verdict",
+    "evidence_ids"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "kind": {
+      "type": "string",
+      "const": "verification/v2"
+    },
+    "verification_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "PASS WITH WARNINGS",
+        "FAIL"
+      ]
+    },
+    "evidence_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,126 @@
+{
+  "schema": "ospec-knowledge-map-catalog/v1",
+  "profiles": ["prototype", "internal-tool", "product", "regulated", "public-library", "embedded"],
+  "slots": [
+    {
+      "id": "business.problem",
+      "dimension": "business",
+      "decisions": ["system-boundaries"],
+      "mandatory": ["prototype", "internal-tool", "product", "regulated", "public-library", "embedded"]
+    },
+    {
+      "id": "business.goals",
+      "dimension": "business",
+      "decisions": ["test-strategy"],
+      "mandatory": ["product", "regulated"]
+    },
+    {
+      "id": "business.constraints",
+      "dimension": "business",
+      "decisions": ["trust-boundaries", "technology-choice"],
+      "mandatory": ["product", "regulated", "embedded"]
+    },
+    {
+      "id": "functional.actors",
+      "dimension": "functional",
+      "decisions": ["system-boundaries"],
+      "mandatory": ["prototype", "internal-tool", "product", "regulated", "public-library"]
+    },
+    {
+      "id": "functional.capabilities",
+      "dimension": "functional",
+      "decisions": ["system-boundaries"],
+      "mandatory": ["prototype", "internal-tool", "product", "regulated", "public-library", "embedded"]
+    },
+    {
+      "id": "functional.exclusions",
+      "dimension": "functional",
+      "decisions": ["system-boundaries"],
+      "mandatory": ["product", "regulated", "public-library"]
+    },
+    {
+      "id": "team.shape",
+      "dimension": "team",
+      "decisions": ["deployment-topology", "technology-choice"],
+      "mandatory": ["internal-tool", "product", "regulated", "public-library", "embedded"]
+    },
+    {
+      "id": "team.production-owner",
+      "dimension": "team",
+      "decisions": ["operability"],
+      "mandatory": ["internal-tool", "product", "regulated"]
+    },
+    {
+      "id": "quality.drivers",
+      "dimension": "quality",
+      "decisions": ["system-boundaries", "deployment-topology"],
+      "mandatory": ["prototype", "internal-tool", "product", "regulated", "public-library", "embedded"]
+    },
+    {
+      "id": "architecture.boundaries",
+      "dimension": "architecture",
+      "decisions": ["system-boundaries", "integration-style"],
+      "mandatory": ["prototype", "internal-tool", "product", "regulated", "public-library", "embedded"]
+    },
+    {
+      "id": "architecture.data",
+      "dimension": "architecture",
+      "decisions": ["data-ownership"],
+      "mandatory": ["internal-tool", "product", "regulated"]
+    },
+    {
+      "id": "architecture.integration",
+      "dimension": "architecture",
+      "decisions": ["integration-style", "contract-evolution"],
+      "mandatory": ["product", "regulated", "public-library"]
+    },
+    {
+      "id": "architecture.deployment",
+      "dimension": "architecture",
+      "decisions": ["deployment-topology"],
+      "mandatory": ["product", "regulated", "embedded"]
+    },
+    {
+      "id": "architecture.trust",
+      "dimension": "architecture",
+      "decisions": ["trust-boundaries"],
+      "mandatory": ["regulated", "embedded"]
+    },
+    {
+      "id": "technology.stack",
+      "dimension": "technology",
+      "decisions": ["technology-choice"],
+      "mandatory": ["internal-tool", "product", "regulated", "embedded"]
+    },
+    {
+      "id": "technology.licenses",
+      "dimension": "technology",
+      "decisions": ["technology-choice"],
+      "mandatory": ["regulated", "public-library"]
+    },
+    {
+      "id": "operation.observability",
+      "dimension": "operation",
+      "decisions": ["operability"],
+      "mandatory": ["product", "regulated"]
+    },
+    {
+      "id": "operation.backup",
+      "dimension": "operation",
+      "decisions": ["data-ownership", "operability"],
+      "mandatory": ["regulated"]
+    },
+    {
+      "id": "delivery.environments",
+      "dimension": "delivery",
+      "decisions": ["delivery-target", "deployment-topology"],
+      "mandatory": ["internal-tool", "product", "regulated", "embedded"]
+    },
+    {
+      "id": "delivery.versioning",
+      "dimension": "delivery",
+      "decisions": ["contract-evolution", "delivery-target"],
+      "mandatory": ["product", "regulated", "public-library"]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "match-execute",
+  "human": {
+    "code": "verification-fail",
+    "cause": "critical-finding",
+    "next_action": {
+      "kind": "execute",
+      "operation": "repair-node",
+      "command": "ospec kernel repair-node --node-id=n1"
+    }
+  },
+  "envelope": {
+    "reason_code": "verification-fail",
+    "cause": "critical-finding",
+    "next_transition": {
+      "kind": "execute",
+      "operation": "repair-node",
+      "command": "ospec kernel repair-node --node-id=n1"
+    }
+  }
+}

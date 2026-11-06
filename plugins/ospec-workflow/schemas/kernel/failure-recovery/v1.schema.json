@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/failure-recovery/v1",
+  "schema_version": 1,
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "recovery_id": {
+      "type": "string"
+    },
+    "failure_code": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "focal",
+        "escalate",
+        "stop"
+      ]
+    },
+    "budget_remaining": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "recovery_id",
+    "failure_code",
+    "mode"
+  ],
+  "additionalProperties": false
+}

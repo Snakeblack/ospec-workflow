@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/workspace-descriptor/v1",
+  "title": "WorkspaceDescriptorV1",
+  "description": "Workspace Descriptor Schema v1 for isolated worker execution environments.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "root_path",
+    "source_snapshot_id",
+    "status",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "workspace_id": {
+      "type": "string",
+      "pattern": "^ws-[a-f0-9-]+$"
+    },
+    "root_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_snapshot_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "disposed",
+        "interrupted"
+      ]
+    },
+    "created_at": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

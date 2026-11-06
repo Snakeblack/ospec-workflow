@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "event_id": "evt-clarify-001",
+  "question_id": "q-repair-scope",
+  "answer": "Apply repair changes strictly to src/core modules",
+  "timestamp": "2026-08-15T00:00:00Z",
+  "affected_nodes": [
+    "repair-apply-core"
+  ]
+}

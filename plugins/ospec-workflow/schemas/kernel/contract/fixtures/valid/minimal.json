@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "contract_id": "kernel.classification",
+  "family": "classification",
+  "version": 1,
+  "surface": "both"
+}
