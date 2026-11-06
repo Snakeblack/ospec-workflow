@@ -1,0 +1,591 @@
+{
+  "schema": "idd-state/v1",
+  "change": "content-security-signal",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "kind": "feature",
+    "summary": "security-boundary también deriva del contenido del diff: un sink de seguridad (CWE) en una línea añadida a código de producto deriva la señal y su trust-review aunque ninguna ruta case con los patrones de seguridad (E1.50); la PR lleva además las filas nuevas del roadmap E1.59, E1.60, E4.18 y el ítem de adopción en SDD, el nuevo orden del bloque C y la corrección de E1.52",
+    "acceptance": "Un diff que añade a código de producto fuera de las rutas de seguridad un sink del catálogo (eval, SQL concatenado, exec con comando compuesto, TLS sin verificar, deserialización insegura...) deriva security-boundary con source diff y trust-review pendiente; el mismo sink en un comentario, en un test o en documentación no la deriva; un corpus por stack lo prueba y la tasa de falsos positivos sobre los diffs de idd/archive/ queda publicada en el roadmap"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "Catálogo y alcance: ¿se adapta el catálogo de gentle-ai (MIT, 48 expresiones filtradas por extensión: TLS sin verificar, deserialización insegura, eval, shell compuesto, hash débil de credenciales, CORS con credenciales, permisos 777, JWT sin verificar, CSRF desactivado, XXE) conservando su aviso de copyright, más SQL concatenado y exec/execSync de Node con comando compuesto, que el roadmap nombra y gentle-ai no trae, o se escribe uno propio de unas 20? ¿Y cuentan las líneas añadidas a cualquier código de producto fuera de impact.exclude, incluidos los build scripts?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "Comentarios: ¿se salta solo la línea que es entera un comentario según el lenguaje del fichero y el resto se compara entera, como gentle-ai, o se usa el codePortion actual, que corta en el primer // y perdería requests.get(\"https://…\", verify=False)?"
+      },
+      {
+        "category": "persistence",
+        "question": "Retirada: ¿security-boundary por contenido se retira solo con la respuesta del usuario atada a los hits que vio, como persistent-data y public-contract (E1.58), nunca con una razón del agente; o no se retira nunca y siempre exige trust-review?"
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/idd-signals.js",
+          "line": 479
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 975
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 973
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Review aprobada: ¿un fichero que gana un sink después de aprobar la review de confianza la deja desfasada y exige otra, como hoy un fichero bajo una ruta de seguridad?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-signals.test.js",
+      "scripts/lib/idd-sinks.js",
+      "scripts/lib/idd-sinks.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El catálogo de sinks vive en scripts/lib/idd-sinks.js, adaptado del de gentle-ai (internal/reviewtransaction/risk_dangerous_sink.go, MIT) con su aviso de copyright en la cabecera, más SQL concatenado y exec/execSync de Node con comando compuesto; cada expresión se filtra por la extensión del fichero",
+      "Un sink cuenta en una línea añadida a código de producto fuera de impact.exclude, build scripts incluidos; tests, documentación, manifiestos y las líneas de un test en línea de Rust no cuentan, y el contenido previo del fichero tampoco",
+      "Se salta solo la línea que es entera un comentario según el lenguaje del fichero; el resto de la línea se compara entera, sin codePortion, para no cortar en el // de una URL",
+      "security-boundary por contenido se suma a ANSWER_RETRACTABLE_SIGNALS: solo la respuesta del usuario atada a los hits la retira, nunca una razón del agente",
+      "reviewedPathsChanged suma a las rutas vigiladas los ficheros cuyas líneas añadidas tienen un sink, así un sink añadido tras aprobar deja la review desfasada",
+      "Una ruta planeada o de seguridad, o --security, nombra la señal antes que un sink: el contenido se deriva después de las rutas, así una señal planeada conserva source declaration",
+      "La etiqueta del sink de eval es \"code evaluation (CWE-94)\": con \"eval (CWE-94)\" el propio catálogo derivaba la señal, porque la cadena casa con el patrón de eval",
+      "Una plantilla etiquetada (sql`...${id}`) no es SQL compuesto porque enlaza sus valores; el SQL exige palabras clave en mayúsculas para que una frase como \"Select a file from the list\" no case, y cada literal se cierra con la comilla que lo abrió"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine: ADR 0003, 0004, 0005, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "retracted": [
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: scripts/lib/idd-sinks.js adds eval (CWE-94)",
+      "source": "diff",
+      "retract_reason": "lo derivaba la etiqueta \"eval (CWE-94)\" del propio catálogo, un falso positivo; renombrada a \"code evaluation (CWE-94)\", el diff no añade ningún sink ni toca una ruta de seguridad"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "la regla vive en el CLI (idd-sinks.js, securityHits, contentHits, diffConfirmation, recordRetract y reviewedPathsChanged) con tests en idd-sinks, idd-signals, idd-record y ospec.test.js; ninguna skill la describe en prosa"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "security-boundary sale ahora también del contenido real del diff, no solo de las rutas: un sink en código de producto añade trust-review y un cambio sin sinks ni rutas de seguridad sigue sin ella; solo la respuesta del usuario retira lo que el contenido confirma, como en #416 y E1.58"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "trust-review solo sale de pending con una revisión aprobada o con una retirada registrada con la respuesta del usuario y los hits que vio; un sink añadido tras aprobar devuelve la revisión a pending"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "el catálogo adaptado de gentle-ai se escribe en el repositorio con su aviso MIT, solo con RegExp de la biblioteca estándar; package.json no gana dependencias"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "no toca dónde viven en disco SDD e IDD; solo cambia la derivación y el estado de un cambio IDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "la retirada guarda en el estado los hits y la respuesta, y la derivación vuelve a dejar fuera la señal con el mismo árbol al reanudar; --security queda en las señales del estado"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "los sinks se buscan con expresiones locales sobre el diff que git lee en local; no se añade ninguna llamada de red"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Las órdenes que cambian (signals --security, record retract --answer de security-boundary, check y review start) tienen tests en idd-signals.test.js, idd-sinks.test.js, idd-record.test.js y ospec.test.js ([E1.50]); ninguna skill describe la regla de los sinks: el handbook remite al CLI",
+      "recorded_at": "2026-11-06T17:38:38.453Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "idd-sinks.js solo evalúa expresiones regulares sobre las líneas que readGitDiff lee en local; el diff no añade require de red (http, https, net, fetch) al CLI, los hooks ni las skills, y next, check y close siguen siendo funciones del árbol y el estado",
+      "recorded_at": "2026-11-06T17:38:38.608Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "withdrawn",
+      "evidence": [],
+      "withdrawn_reason": "lo derivaba la etiqueta \"eval (CWE-94)\" del propio catálogo, un falso positivo; renombrada a \"code evaluation (CWE-94)\", el diff no añade ningún sink ni toca una ruta de seguridad"
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 180,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_turn": 181
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-06T17:37:55.305Z",
+      "detail": {
+        "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+        "runs": [
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-06T17:37:55.305Z",
+      "detail": {
+        "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-sinks.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-06T17:38:12.860Z",
+      "detail": {
+        "run": "run-15",
+        "tree": "sha256:27ab8585b7526db88b7fd80cb659bd0cf997f71cc13e67ecf9f4727298afada7",
+        "plan": "Sin migración: un state.yaml anterior sigue siendo válido tal cual, con sus retiradas de persistent-data y public-contract con respuesta; el estado solo gana entradas retracted de security-boundary con confirmed_by, hits, answer y answer_source, que validateState admite ahora, y --security no toca el esquema del plan. Rollback: revertir el commit; los estados sin esa retirada siguen valiendo en la versión anterior, y uno abierto que ya la tenga no valida en ella hasta cerrarlo con la nueva, como pasó con las de public-contract en v2.170.2"
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-06T17:40:11.889Z",
+      "detail": {
+        "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+        "runs": [
+          "run-16"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-06T17:40:11.889Z",
+      "detail": {
+        "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+        "check": "ev-4",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-sinks.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-06T17:40:11.889Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+        "fitness": [
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-06T17:40:12.044Z"
+    }
+  ],
+  "base": "6195afc849e33e0de7a3f01b84f3a05ee45df977",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:1958878e5d37800cef8d6cbdaadb7e261ff4f015deff10c6c803c135b2b9c36e",
+      "tree": "sha256:38bec815bd45ed3e05dfd8cb7a471c31f08a39b34078722486b1d9d403306c88",
+      "recorded_at": "2026-11-06T17:35:03.767Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2ee6b9aae891aa4a301d0a49b1b8dcd9a0a241171c51759cac816ba1088f39e3",
+      "tree": "sha256:38bec815bd45ed3e05dfd8cb7a471c31f08a39b34078722486b1d9d403306c88",
+      "recorded_at": "2026-11-06T17:35:03.767Z",
+      "tests": 59
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:055caef3e8509691647743ed6fffd4c986855ab21fd683ef7bd60ab1727f9cbe",
+      "tree": "sha256:38bec815bd45ed3e05dfd8cb7a471c31f08a39b34078722486b1d9d403306c88",
+      "recorded_at": "2026-11-06T17:35:03.767Z",
+      "tests": 18
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:38bec815bd45ed3e05dfd8cb7a471c31f08a39b34078722486b1d9d403306c88",
+      "recorded_at": "2026-11-06T17:35:03.767Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d5aaf1e9993962aedb40a8e9434eb277868db3b3253e4b6a6980e4c5498200a4",
+      "tree": "sha256:38bec815bd45ed3e05dfd8cb7a471c31f08a39b34078722486b1d9d403306c88",
+      "recorded_at": "2026-11-06T17:35:03.767Z",
+      "tests": 22
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c185c1d23e3eea51ad7e39cde7271dfd72a08997b8e9aa3c1516ade8e73514be",
+      "tree": "sha256:38bec815bd45ed3e05dfd8cb7a471c31f08a39b34078722486b1d9d403306c88",
+      "recorded_at": "2026-11-06T17:35:03.767Z",
+      "tests": 85
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:efe6c21fa4d5f3e89e6f46f5e930db133ebdeeb05f542a4a31de8f8931f7b386",
+      "tree": "sha256:38bec815bd45ed3e05dfd8cb7a471c31f08a39b34078722486b1d9d403306c88",
+      "recorded_at": "2026-11-06T17:35:03.767Z",
+      "tests": 52
+    },
+    {
+      "id": "run-8",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f5e3ee54c1288e0f664e7add2490180baf6bc97e04b759cb57eba64e48859013",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:37:55.305Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3491a4cd8fe206221c3802e894f266fcc5080a5d75f4ea6222ff87807845c185",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:37:55.305Z",
+      "tests": 59
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:451b11fe6680121f1acda6f6c908571530e50431e0e38587bd1bb2c83409171c",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:37:55.305Z",
+      "tests": 18
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:37:55.305Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1ace38dc4e446a7f0928199cff1c50a12f83313b24fb399bd04a3bd9b5d8afec",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:37:55.305Z",
+      "tests": 22
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1b12ac0987a4e96965a022d19d37e640105fc62f3b0c83d6f1fbfbcaa5e2c88b",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:37:55.305Z",
+      "tests": 85
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:303d6bc70866e7843f70619f90cca46e9aa7601c1fc60574885857dd3d3f47a9",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:37:55.305Z",
+      "tests": 52
+    },
+    {
+      "id": "run-15",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"content-only security boundary|answered security retraction|content-only persistent data|content-only public contract\" scripts/lib/idd-record.test.js scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e769be732b9672cc2b297536fc2c5b04bb81e80bf3d0ec0f2049e5b63d69fcee",
+      "tree": "sha256:27ab8585b7526db88b7fd80cb659bd0cf997f71cc13e67ecf9f4727298afada7",
+      "recorded_at": "2026-11-06T17:38:12.860Z",
+      "tests": 4
+    },
+    {
+      "id": "run-16",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:13c4f9446ca9aeaf41fbe03e2298c04bfe8f662ad0f860f574cd3e75c2380882",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:40:11.889Z"
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2eca57c8d519835dc4edffae8fc1bb6ce3790daf84c3fc93c3ae94e2964a51f2",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:40:11.889Z",
+      "tests": 59
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:908b081fdb9697a65a90f5a5f9b44c0107bbda0c25c1b7c378dc02b14ce47c04",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:40:11.889Z",
+      "tests": 18
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:40:11.889Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ca075c7f76c637c3950932ca205d67e11d7df8d145eae0c97b9fe87452b06570",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:40:11.889Z",
+      "tests": 22
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c2388ff5d91612bc53f2e0568261d4552b07783f415f9daf58701c6a8bff293d",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:40:11.889Z",
+      "tests": 85
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:50c66f3023adecc1308624b2539d19ea0e94baed93d2ef35d57328681de5173c",
+      "tree": "sha256:41b381ae0cbea9b51c96a2c3e89ef6ec0362ea92da605d07c4c5c4ac065e131a",
+      "recorded_at": "2026-11-06T17:40:11.889Z",
+      "tests": 52
+    }
+  ],
+  "assumptions": [
+    "La tasa de falsos positivos se mide con un script de un solo uso fuera del repositorio: para cada cambio de idd/archive/, el diff entre su base y el commit que añade su carpeta al archivo; se publican la cifra, el método y cada hit con su veredicto en el roadmap",
+    "La opción --security registra security-boundary con source declaration en signals y en record intent sin guardarse en el plan, así el esquema del plan de idd-contract.js y de internal/iddsession no cambia"
+  ],
+  "closed_at": "2026-11-06T17:40:12.044Z"
+}

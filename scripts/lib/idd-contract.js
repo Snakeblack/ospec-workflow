@@ -122,8 +122,9 @@ const RECORDED_IMPACTS = Object.freeze(["amends", "supersedes"]);
 // one from a diff that no longer derives it (#418). The rest derive from the intent or the project configuration.
 const RETRACTABLE_SIGNALS = Object.freeze(["multi-unit-or-decision", "public-contract", "persistent-data", "security-boundary"]);
 // Those the user's answer may retract while only the content of the diff
-// derives them: persistent data (#416) and a contract in documentation (E1.58).
-const ANSWER_RETRACTABLE_SIGNALS = Object.freeze(["persistent-data", "public-contract"]);
+// derives them: persistent data (#416), a contract in documentation (E1.58)
+// and a security sink in product code (E1.50).
+const ANSWER_RETRACTABLE_SIGNALS = Object.freeze(["persistent-data", "public-contract", "security-boundary"]);
 
 const SIGNAL_BY_ID = new Map(SIGNALS.map((signal) => [signal.id, signal]));
 const OBLIGATION_BY_ID = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation]));
@@ -215,7 +216,7 @@ function validateState(state) {
     const answered = entry !== null && typeof entry === "object" && ["answer", "answer_source", "confirmed_by", "hits"].some((key) => key in entry);
     if (!RETRACTABLE_SIGNALS.includes(entry?.id)) fail(`retracted signal ${entry?.id} is not retractable`);
     else if (answered) {
-      // #416, E1.58: a signal only the content derives, retracted with the user's answer.
+      // #416, E1.58, E1.50: a signal only the content derives, retracted with the user's answer.
       if (!ANSWER_RETRACTABLE_SIGNALS.includes(entry.id) || !isText(entry.reason) || !SIGNAL_SOURCES.includes(entry.source) || !isText(entry.retract_reason)
         || !isText(entry.confirmed_by) || !Array.isArray(entry.hits) || entry.hits.length === 0 || !entry.hits.every(isText)
         || !isText(entry.answer) || !GATE_SOURCES.includes(entry.answer_source)) {

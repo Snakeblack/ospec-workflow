@@ -41,6 +41,7 @@ const IRREVERSIBLE_PREFIX = "irreversible operation: ";
 const ANSWER_CONFIRMS = Object.freeze({
   "persistent-data": "there is no persistent data",
   "public-contract": "the documentation changes no contract",
+  "security-boundary": "no added sink takes untrusted input",
 });
 
 class IddRecordError extends Error {
@@ -447,8 +448,8 @@ function recordPlan(state, { paths = [], workUnits = 1, nonObviousDecision = fal
 // longer derives it (#418). `confirmedBy` is the reason the current diff
 // derives the signal, or null; idd-workspace.js reads the diff. A later
 // diff or declaration that derives the signal again reopens its obligation
-// (REQ-idd-006). With the user's `answer`, persistent-data (#416) or
-// public-contract (E1.58) that only the content of the diff derives
+// (REQ-idd-006). With the user's `answer`, persistent-data (#416),
+// public-contract (E1.58) or security-boundary (E1.50) that only the content of the diff derives
 // (`contentOnly`) is retracted too, with the `hits` the answer covers; the
 // derivation keeps it out while the diff holds no other. `refusedBecause` says
 // why content the diff alone derives still refuses the answer.
@@ -474,7 +475,8 @@ function recordRetract(state, { id, reason, confirmedBy = null, contentOnly = fa
   if (answered) {
     if (!contentOnly || hits.length === 0 || !ANSWER_CONFIRMS[id]) {
       const why = refusedBecause ?? (confirmedBy ? `the diff derives it: ${confirmedBy}` : "the diff does not derive it; retract it without an answer");
-      refuse("retract-answer-refused", `only ${ANSWER_RETRACTABLE_SIGNALS.join(" or ")} that the content of the diff alone derives is retracted with the user's answer; ${why}`);
+      const signals = `${ANSWER_RETRACTABLE_SIGNALS.slice(0, -1).join(", ")} or ${ANSWER_RETRACTABLE_SIGNALS.at(-1)}`;
+      refuse("retract-answer-refused", `only ${signals} that the content of the diff alone derives is retracted with the user's answer; ${why}`);
     }
   } else {
     const how = contentOnly && ANSWER_CONFIRMS[id] ? `if the user confirms ${ANSWER_CONFIRMS[id]}, add --answer "<their words>" --source user` : undefined;
