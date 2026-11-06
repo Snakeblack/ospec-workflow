@@ -1424,6 +1424,21 @@ test("a trust review without blockers satisfies trust-review until the reviewed 
   assert.strictEqual(successor.json.review.request.reviewer, "review-trust");
 });
 
+// E1.50: a file that gains a security sink after the approval is watched like
+// a security path, whether or not the review saw it.
+test("[E1.50] a file that gains a security sink after the approval leaves the trust review stale", (t) => {
+  const root = openRotation(t);
+  recordAnswer(root);
+  const trust = () => ospec(root, "check", "--change", "rotate-tokens", "--json").json.missing?.find((entry) => entry.obligation === "trust-review");
+  assert.strictEqual(trust(), undefined);
+  writeFile(root, "src/report.js", "module.exports = (rows) => rows.length;\n");
+  writeFile(root, "src/report.test.js", "test('rows', () => {});\n");
+  assert.strictEqual(trust(), undefined, "a file without a sink keeps the review");
+  writeFile(root, "src/report.js", "module.exports = (rows, id) => db.query(`SELECT * FROM rows WHERE id = ${id}`);\n");
+  assert.match(trust()?.reason ?? "", /reviewed paths changed after the review/);
+  assert.strictEqual(review(root, "start").json.review.generation, 2);
+});
+
 test("an IDD successor needs no approval, and an unchanged or exhausted review is refused", (t) => {
   const root = openRotation(t);
   review(root, "start");
@@ -2135,6 +2150,56 @@ test("record retract takes the user's answer for persistent data the diff conten
   const byPath = ospec(root, "record", "retract", "--change", "rename-report", "--signal", "persistent-data", "--reason", "no migration", "--answer", "None.", "--source", "user", "--json");
   assert.strictEqual(byPath.json.error.code, "retract-answer-refused");
   assert.match(byPath.json.error.message, /db\/migrations|src\/report\.js/);
+});
+
+// E1.50: security-boundary that only a sink in the added lines derives is
+// retracted with the user's answer, tied to the sinks it saw; a security path
+// keeps any answer out.
+test("[E1.50] record retract takes the user's answer for a security sink the diff content alone derives", (t) => {
+  const { root } = project(t);
+  openFeature(root, "record", "intent", "--change", "formula-total", "--kind", "feature", "--summary", "Compute the total from a formula.", "--acceptance", "The report shows the total.", ...FEATURE_COVER);
+  writeFile(root, "src/report.js", "const FORMULA = '1 + 2';\nmodule.exports = () => eval(FORMULA);\n");
+  writeFile(root, "src/report.test.js", "test('total', () => {});\n");
+  const reason = "security boundary: src/report.js adds code evaluation (CWE-94)";
+  const checked = ospec(root, "check", "--change", "formula-total", "--json");
+  assert.ok(checked.json.added.signals.includes("security-boundary"));
+  assert.strictEqual(stateOf(root, "formula-total").signals.find((signal) => signal.id === "security-boundary").reason, reason);
+
+  const retract = ["record", "retract", "--change", "formula-total", "--signal", "security-boundary", "--reason", "the formula is a constant"];
+  const plain = ospec(root, ...retract, "--json");
+  assert.strictEqual(plain.json.error.code, "signal-confirmed-by-diff");
+  assert.match(plain.json.error.how, /no added sink takes untrusted input, add --answer "<their words>" --source user/);
+  const answered = ospec(root, ...retract, "--answer", "FORMULA is a constant.", "--source", "user", "--json");
+  assert.strictEqual(answered.code, 0, answered.stderr);
+  let state = stateOf(root, "formula-total");
+  assert.strictEqual(state.obligations.find((o) => o.id === "trust-review").status, "withdrawn");
+  assert.deepStrictEqual(state.retracted.at(-1).hits, ["src/report.js adds code evaluation (CWE-94): module.exports = () => eval(FORMULA);"]);
+  assert.ok(!(ospec(root, "check", "--change", "formula-total", "--json").json.added?.signals || []).includes("security-boundary"), "the answered sink stays retracted");
+
+  // A new sink brings it back; a security path then keeps any answer out.
+  writeFile(root, "src/report.js", "const FORMULA = '1 + 2';\nmodule.exports = () => eval(FORMULA);\nconst run = (cmd) => require('node:child_process').execSync(`sh ${cmd}`);\n");
+  assert.ok(ospec(root, "check", "--change", "formula-total", "--json").json.added.signals.includes("security-boundary"));
+  writeFile(root, "src/auth/session.js", "module.exports = {};\n");
+  ospec(root, "check", "--change", "formula-total", "--json");
+  state = stateOf(root, "formula-total");
+  assert.strictEqual(state.obligations.find((o) => o.id === "trust-review").status, "pending");
+  const byPath = ospec(root, ...retract, "--answer", "None.", "--source", "user", "--json");
+  assert.strictEqual(byPath.json.error.code, "retract-answer-refused");
+});
+
+test("[E1.50] --security declares the security boundary without widening the plan", (t) => {
+  const { root } = project(t);
+  ospec(root, "record", "intent", "--change", "share-links", "--kind", "bug", "--summary", "Shared links expire.", "--acceptance", "An old link is refused.", "--no-open-facts", "--basis", "The request fixes every behavior.", "--path", "src/links.js");
+  const plan = stateOf(root, "share-links").plan;
+  const declared = ospec(root, "signals", "--change", "share-links", "--security", "--json");
+  assert.strictEqual(declared.code, 0, declared.stderr);
+  const state = stateOf(root, "share-links");
+  assert.deepStrictEqual(state.signals.find((signal) => signal.id === "security-boundary"), { id: "security-boundary", reason: "declared a security boundary", source: "declaration" });
+  assert.strictEqual(state.obligations.find((o) => o.id === "trust-review").status, "pending");
+  assert.deepStrictEqual(state.plan, plan, "the plan stays as it was");
+  // The diff does not confirm a declared boundary, so a plain retraction withdraws it.
+  const retracted = ospec(root, "record", "retract", "--change", "share-links", "--signal", "security-boundary", "--reason", "the links module holds no secret", "--json");
+  assert.strictEqual(retracted.code, 0, retracted.stderr);
 });
 
 // #423 (E1.58): public-contract that only the content of a doc derives is

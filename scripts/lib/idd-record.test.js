@@ -629,7 +629,7 @@ test("the user's answer retracts content-only persistent data, and the state kee
     { confirmed_by: undefined },
     { hits: [] },
     { hits: [""] },
-    { id: "security-boundary" },
+    { id: "multi-unit-or-decision" },
   ]) {
     const entry = { ...retracted.retracted[0], ...broken };
     assert.strictEqual(validateState({ ...retracted, retracted: [entry] }).ok, false, JSON.stringify(broken));
@@ -651,7 +651,7 @@ test("the user's answer retracts a content-only public contract, but not one in 
   const document = "docs/api/contact.md is a contract document, so the contract itself changes";
   assert.throws(
     () => recordRetract(state, { ...answer, contentOnly: false, hits: [], refusedBecause: document }),
-    (error) => error.code === "retract-answer-refused" && error.message.endsWith(document) && /persistent-data or public-contract/.test(error.message),
+    (error) => error.code === "retract-answer-refused" && error.message.endsWith(document) && /persistent-data, public-contract or security-boundary/.test(error.message),
   );
 
   const { state: retracted } = recordRetract(state, { ...answer, contentOnly: true });
@@ -661,8 +661,30 @@ test("the user's answer retracts a content-only public contract, but not one in 
   ]);
   assert.strictEqual(retracted.obligations.find((o) => o.id === "contract-spec-and-test").status, "withdrawn");
 
-  const boundary = recordSignal(opened(), { id: "security-boundary", reason: "security boundary: touches src/auth/a.js", source: "diff" }).state;
-  assertCode(() => recordRetract(boundary, { ...answer, id: "security-boundary", contentOnly: true }), "retract-answer-refused");
+  const units = recordSignal(opened(), { id: "multi-unit-or-decision", reason: "declared 2 work units", source: "declaration" }).state;
+  assertCode(() => recordRetract(units, { ...answer, id: "multi-unit-or-decision", contentOnly: true }), "retract-answer-refused");
+});
+
+// E1.50: the user's answer retracts a security boundary that only a sink in the
+// added lines derives; one a security path derives refuses it.
+test("the user's answer retracts a content-only security boundary, but not one a path derives", () => {
+  const { recordRetract } = require("./idd-record.js");
+  const reason = "security boundary: src/report.js adds code evaluation (CWE-94)";
+  const state = recordSignal(opened(), { id: "security-boundary", reason, source: "diff" }).state;
+  const hits = ["src/report.js adds code evaluation (CWE-94): const total = eval(FORMULA);"];
+  const answer = { id: "security-boundary", reason: "a constant formula", confirmedBy: reason, hits, answer: "FORMULA is a constant.", source: "user" };
+  assert.throws(
+    () => recordRetract(state, { id: "security-boundary", reason: "constant", confirmedBy: reason, contentOnly: true, hits }),
+    (error) => error.code === "signal-confirmed-by-diff" && /confirms no added sink takes untrusted input, add --answer/.test(error.how),
+  );
+  assertCode(() => recordRetract(state, { ...answer, contentOnly: false, hits: [] }), "retract-answer-refused");
+
+  const { state: retracted } = recordRetract(state, { ...answer, contentOnly: true });
+  assertValid(retracted);
+  assert.deepStrictEqual(retracted.retracted, [
+    { id: "security-boundary", reason, source: "diff", retract_reason: "a constant formula", confirmed_by: reason, hits, answer: "FORMULA is a constant.", answer_source: "user" },
+  ]);
+  assert.strictEqual(retracted.obligations.find((o) => o.id === "trust-review").status, "withdrawn");
 });
 
 // ---------------------------------------------------------------------------

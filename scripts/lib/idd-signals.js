@@ -13,6 +13,7 @@ const { classifyContractPaths } = require("./idd-contracts.js");
 const { IMPACT_SIGNALS, isBuildScript, isExcluded, matchImpact, normalizePath } = require("./idd-impact.js");
 const { IRREVERSIBLE_PREFIX, IddRecordError, recordGate, recordPlan, recordReferences, recordSignal } = require("./idd-record.js");
 const { derivedReferences, resolveReferences } = require("./idd-knowledge.js");
+const { sinkOf } = require("./idd-sinks.js");
 
 // K1 hard-floor evidence key → IDD signal. mechanical_no_behavior has no
 // signal: a mechanical change only lowers the floor.
@@ -237,11 +238,34 @@ function contractHits(addedLines) {
   return docs.flatMap((file) => lineHits(file, addedLines[file], CONTRACT_PATTERNS, (label) => `${file} adds ${label}`));
 }
 
-// The content hits of a signal the user's answer may retract (#416, E1.58);
-// none for any other signal.
+// Security boundary by content (E1.50): every line added to product code
+// outside impact.exclude, build scripts included, that holds a sink of
+// idd-sinks.js for the language of its file, as "<file> adds <sink>: <line>",
+// so a user's answer covers only the sinks it saw (#416). A line only a
+// comment, a test, documentation, the lines of a Rust inline test and what the
+// file already held do not count.
+function securityHits(diff, patterns) {
+  const addedLines = diff.addedLines || {};
+  const counts = (file) => classifyPath(file) === "product" && !isExcluded(file, patterns);
+  const hits = [];
+  for (const file of sortedPaths(Object.keys(addedLines)).filter(counts)) {
+    const sources = /\.rs$/i.test(file) ? diff.sources?.[file]?.lines : null;
+    const regions = sources ? rustTestRegions(sources) : null;
+    for (const line of addedLines[file] || []) {
+      if (regions && regions.tests.has(line) && !regions.product.has(line)) continue;
+      const label = sinkOf(file, line);
+      if (label) hits.push({ file, reason: `${file} adds ${label}`, key: `${file} adds ${label}: ${line.trim()}` });
+    }
+  }
+  return hits;
+}
+
+// The content hits of a signal the user's answer may retract (#416, E1.58,
+// E1.50); none for any other signal.
 function contentHits(signalId, diff, patterns) {
   if (signalId === "persistent-data") return persistentHits(diff, patterns);
   if (signalId === "public-contract") return contractHits(diff.addedLines);
+  if (signalId === "security-boundary") return securityHits(diff, patterns);
   return [];
 }
 
@@ -451,7 +475,7 @@ function floorOf(intent, signalIds) {
  *   intent: {kind: string} | null,   null while the intent is ambiguous
  *   strictTdd?: boolean,
  *   declaration?: {paths?: string[], workUnits?: number, nonObviousDecision?: boolean, operations?: string[],
- *                  adrs?: string[], scenarios?: string[]},
+ *                  adrs?: string[], scenarios?: string[], security?: boolean},   security: --security (E1.50)
  *   diff?: {paths?: string[], addedLines?: Record<string, string[]>,
  *          sources?: Record<string, {lines: string[], imports: Record<string, string[]>}>},
  *   patterns: object,                resolvePatterns() of idd-impact.js
@@ -487,6 +511,7 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
   } else if (declaration.nonObviousDecision) {
     add("multi-unit-or-decision", "declared a non-obvious decision", "declaration");
   }
+  if (declaration.security) add("security-boundary", "declared a security boundary", "declaration");
   for (const [source, paths] of [
     ["declaration", declaration.paths],
     ["diff", diff.paths],
@@ -495,6 +520,11 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
     for (const signal of IMPACT_SIGNALS) {
       if (hits.has(signal)) add(signal, impactReason(signal, hits.get(signal), patterns), source);
     }
+  }
+  // After the paths, so a planned or matching path names the signal (E1.50).
+  const security = securityHits(diff, patterns);
+  if (security.length > 0 && !userRetracted(retracted, "security-boundary", security)) {
+    add("security-boundary", `security boundary: ${security[0].reason}`, "diff");
   }
   // Declared references come first; then those of the components the plan
   // and the diff touch (E3.2).
@@ -575,4 +605,5 @@ module.exports = {
   kindMismatch,
   persistentHits,
   requireDeclaredCeremony,
+  securityHits,
 };

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- security-boundary también deriva del contenido del diff: un sink de seguridad (CWE) en una línea añadida a código de producto deriva la señal y su trust-review aunque ninguna ruta case con los patrones de seguridad (E1.50); la PR lleva además las filas nuevas del roadmap E1.59, E1.60, E4.18 y el ítem de adopción en SDD, el nuevo orden del bloque C y la corrección de E1.52 (content-security-signal)
+
 ## [2.170.4] - 2026-11-06
 
 ### Fixed

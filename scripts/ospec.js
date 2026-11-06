@@ -92,7 +92,7 @@ const { buildSnapshotV4 } = require("./lib/progress-snapshot-v4.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
 const claudeRouter = require("./lib/claude-router.js");
-const { IRREVERSIBLE_OPERATIONS, addedTests, applyDerivation, classifyPath, contentHits, deriveSignals, inlineTests, requireDeclaredCeremony } = require("./lib/idd-signals.js");
+const { IRREVERSIBLE_OPERATIONS, addedTests, applyDerivation, classifyPath, contentHits, deriveSignals, inlineTests, requireDeclaredCeremony, securityHits } = require("./lib/idd-signals.js");
 const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { writeFileAtomic } = require("./lib/atomic-write.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange, serializeState } = require("./lib/idd-store.js");
@@ -134,7 +134,7 @@ const USAGE = `Usage:
                       categories: ${CATEGORY_IDS.join(", ")}; at least one is an --open-fact;
                       ${UI_CATEGORY_IDS.join(" and ")} only with a UI file or no code (ospec next prints the template)
                       [<plan>]: [--path <file>]... [--work-units <n>] [--decision <text>]... [--operation <op>]...
-                                [--adr <id>]... [--quality <id>]..., declared as ospec signals does
+                                [--adr <id>]... [--quality <id>]... [--security], declared as ospec signals does
   ospec record intent --change <id> --ambiguous --request <text>
   ospec record assumption --change <id> --text <text>
   ospec record signal --change <id> --signal <id> --reason <text> [--source declaration|diff]
@@ -145,7 +145,7 @@ const USAGE = `Usage:
                       [--impact <none|conforms|amends|supersedes|contradicts> --reason <text>] [--record <new ADR>]
   ospec record fitness --change <id> (--adr <id> | --quality <id>) --evidence <text>
   ospec signals --change <id> [--path <file>]... [--work-units <n>] [--decision <text>]...
-                [--operation <op>]... [--adr <id>]... [--quality <id>]... [--diff] [--base <ref>]
+                [--operation <op>]... [--adr <id>]... [--quality <id>]... [--security] [--diff] [--base <ref>]
                 operations: ${IRREVERSIBLE_OPERATIONS.join(", ")}; open irreversible-operation
                 with ospec record gate for any other destructive or irreversible step
   ospec check --change <id> [--base <ref>] [--close]
@@ -229,6 +229,7 @@ const OPTIONS = {
   "work-units": { type: "string" },
   decision: { type: "string", multiple: true },
   operation: { type: "string", multiple: true },
+  security: { type: "boolean" },
   adr: { type: "string", multiple: true },
   quality: { type: "string", multiple: true },
   impact: { type: "string" },
@@ -279,7 +280,7 @@ function reducerFor(type, values, root) {
       const feature = values.kind === "feature";
       // The plan rides on the intent (E4.15): one write records both, or
       // neither when the intent is refused.
-      const plan = declaresPlan(values) || declaredReferences(values).length > 0 ? planContext(root, values) : null;
+      const plan = declaresPlan(values) || declaredReferences(values).length > 0 || values.security ? planContext(root, values) : null;
       if (plan && values.ambiguous) throw new UsageError("an ambiguous intent declares no plan: declare it with the record intent that resolves it");
       // Run again with --ambiguous, the fields that resolve the intent were
       // dropped and the gate stayed open.
@@ -393,8 +394,9 @@ function requireKnownReferences(root, refs) {
 }
 
 // The reason the current diff derives a signal, or null (E1.11), and whether
-// only the content of the diff derives persistent-data (#416) or
-// public-contract (E1.58), which the user may retract with the hits they saw.
+// only the content of the diff derives persistent-data (#416), public-contract
+// (E1.58) or security-boundary (E1.50), which the user may retract with the
+// hits they saw.
 // A contract line in a contract document (REQ-idd-015) is the contract itself,
 // as a path that derives the signal, so it refuses the answer and says why.
 // Only the diff confirms a declared signal, so a retraction reads it against
@@ -456,6 +458,8 @@ function planContext(root, values) {
     nonObviousDecision: decisions.length > 0,
     decisions,
     operations: values.operation || [],
+    // --security declares the signal without widening the plan (E1.50).
+    security: values.security === true,
     adrs: refs.filter((ref) => ref.kind === "adr").map((ref) => ref.id),
     scenarios: refs.filter((ref) => ref.kind === "scenario").map((ref) => ref.id),
   };
@@ -738,7 +742,7 @@ function readCheckOutcome(root, values, current, context, diff) {
   let reviewedChanged = false;
   if (reviewed) {
     const trees = reviewTrees(root, values, current);
-    reviewedChanged = reviewedPathsChanged(root, reviewed, trees.tree, trees.numstat, context.patterns);
+    reviewedChanged = reviewedPathsChanged(root, reviewed, trees.tree, trees.numstat, context.patterns, diff);
   }
   return {
     contractPaths: classifyContractPaths(diff.paths, context.contractPatterns),
@@ -1219,11 +1223,12 @@ function readResult(raw) {
   }
 }
 
-// Whether the reviewed paths, or any security-boundary path the diff now
-// touches, differ from the last reviewed candidate.
-function reviewedPathsChanged(root, lineage, tree, numstat, patterns) {
+// Whether the reviewed paths, any security-boundary path the diff now touches
+// or any file whose added lines hold a security sink (E1.50) differ from the
+// last reviewed candidate.
+function reviewedPathsChanged(root, lineage, tree, numstat, patterns, diff) {
   if (!lineage) return true;
-  const paths = new Set(lineage.genesis.paths);
+  const paths = new Set([...lineage.genesis.paths, ...securityHits(diff, patterns).map((hit) => hit.file)]);
   for (const { path: file } of numstat) {
     if (matchImpact(file, patterns).some((hit) => hit.signal === "security-boundary")) paths.add(file);
   }
@@ -1252,6 +1257,8 @@ async function review(root, positionals, values) {
   const recordedAt = new Date().toISOString();
   const context = action === "start" || action === "correct" ? readProjectContext(root) : null;
   const trees = context ? reviewTrees(root, values, current) : null;
+  // A start reads the diff for the files that gained a security sink (E1.50).
+  const startDiff = action === "start" ? readGitDiff(root, { base: diffBase(values, current) }) : {};
   // The SubagentStop hook's receipt of a reviewer result (REQ-hooks-027).
   const receiptFor = (digest) => readReceipt(root, digest);
 
@@ -1270,7 +1277,7 @@ async function review(root, positionals, values) {
           baseBlobs: treeBlobs(root, baseTree),
           candidateBlobs: treeBlobs(root, tree),
         });
-        const reviewedChanged = reviewedPathsChanged(root, lineage, tree, numstat, context.patterns);
+        const reviewedChanged = reviewedPathsChanged(root, lineage, tree, numstat, context.patterns, startDiff);
         // A review waiting for its correction: the changes since the reviewed
         // candidate decide whether they still fit one bounded correction.
         const correctionChanges = lineage && lineage.status === "correction-required"

@@ -381,6 +381,66 @@ test("an answered contract retraction holds only while the docs add no contract 
   );
 });
 
+// E1.50: a sink in a line added to product code derives security-boundary
+// outside any security path; what is not product code, or not added, does not.
+test("a sink added to product code derives the security boundary, and a comment, a test, a doc or an excluded path does not", () => {
+  const intent = { kind: "feature", summary: "s", acceptance: "a" };
+  const security = (diff, impact = {}) =>
+    deriveSignals({ intent, diff, patterns: resolvePatterns({ impact }) }).signals.find((s) => s.id === "security-boundary");
+  const added = (file, lines, sources) => ({ paths: [file], addedLines: { [file]: lines }, ...(sources ? { sources: { [file]: { lines: sources, imports: {} } } } : {}) });
+
+  assert.deepStrictEqual(security(added("src/report.js", ["const x = 1;", "const total = eval(formula);"])), {
+    id: "security-boundary",
+    reason: "security boundary: src/report.js adds code evaluation (CWE-94)",
+    source: "diff",
+  });
+  assert.strictEqual(security(added("scripts/build.mjs", ["execSync(`tar czf ${out} dist`);"]))?.reason, "security boundary: scripts/build.mjs adds composed shell command (CWE-78)", "a build script counts");
+  assert.strictEqual(security(added("src/report.js", ["// const total = eval(formula);"])), undefined, "a comment");
+  assert.strictEqual(security(added("src/report.test.js", ["const total = eval(formula);"])), undefined, "a test");
+  assert.strictEqual(security(added("tests/fixtures/sinks.py", ["data = pickle.loads(blob)"])), undefined, "a file under tests/");
+  assert.strictEqual(security(added("docs/security.md", ["Never call `eval(input)`."])), undefined, "documentation");
+  assert.strictEqual(security(added("src/report.js", ["const total = eval(formula);"]), { exclude: ["src/report.js"] }), undefined, "impact.exclude");
+  assert.strictEqual(security({ paths: ["src/report.js"], addedLines: { "src/report.js": ["run();"] }, sources: { "src/report.js": { lines: ["eval(formula);", "run();"], imports: {} } } }), undefined, "a sink the file already held");
+
+  const rust = ["pub fn fetch() {}", "", "#[cfg(test)]", "mod tests {", "    fn insecure() { Client::builder().danger_accept_invalid_certs(true); }", "}"];
+  assert.strictEqual(security(added("src/client.rs", [rust[4]], rust)), undefined, "a line of a Rust inline test");
+  const product = ["pub fn fetch() { Client::builder().danger_accept_invalid_certs(true); }"];
+  assert.strictEqual(security(added("src/client.rs", product, product))?.reason, "security boundary: src/client.rs adds disabled TLS verification (CWE-295)");
+});
+
+test("a security path or --security names the signal before a sink does", () => {
+  const intent = { kind: "feature", summary: "s", acceptance: "a" };
+  const patterns = resolvePatterns({ impact: {} });
+  const diff = { paths: ["src/auth/login.js", "src/report.js"], addedLines: { "src/auth/login.js": ["login();"], "src/report.js": ["eval(formula);"] } };
+  const reason = (input) => deriveSignals({ intent, patterns, ...input }).signals.find((s) => s.id === "security-boundary");
+
+  assert.match(reason({ diff }).reason, /^security boundary: .*src\/auth\/login\.js/);
+  assert.deepStrictEqual(reason({ declaration: { security: true } }), { id: "security-boundary", reason: "declared a security boundary", source: "declaration" });
+  assert.strictEqual(reason({ declaration: { security: true }, diff }).source, "declaration", "a declared signal keeps its source");
+  assert.strictEqual(reason({ declaration: { security: false } }), undefined);
+});
+
+// E1.50: the user's answer covers the sinks it saw, as for writes (#416).
+test("an answered security retraction holds only while the diff adds no sink beyond the answered ones", () => {
+  const intent = { kind: "feature", summary: "s", acceptance: "a" };
+  const patterns = resolvePatterns({ impact: {} });
+  const diffOf = (addedLines) => ({ paths: Object.keys(addedLines), addedLines });
+  const answered = diffOf({ "src/report.js": ["const total = eval(FORMULA);"] });
+  const { securityHits } = require("./idd-signals.js");
+  const hits = securityHits(answered, patterns).map((hit) => hit.key);
+  assert.deepStrictEqual(hits, ["src/report.js adds code evaluation (CWE-94): const total = eval(FORMULA);"]);
+  const retracted = [{
+    id: "security-boundary", reason: "r", source: "diff", retract_reason: "constant", confirmed_by: "security boundary: src/report.js adds code evaluation (CWE-94)",
+    hits, answer: "FORMULA is a constant.", answer_source: "user",
+  }];
+  const security = (diff) => deriveSignals({ intent, diff, patterns, retracted }).signals.find((s) => s.id === "security-boundary");
+
+  assert.strictEqual(security(answered), undefined, "the answered sink stays retracted");
+  assert.ok(security(diffOf({ "src/report.js": ["const total = eval(FORMULA);", "const rows = db.query(`SELECT * FROM t WHERE id = ${id}`);"] })), "a second sink in the same file");
+  assert.ok(security(diffOf({ "src/report.js": ["const total = eval(input);"] })), "the answered sink, changed");
+  assert.ok(security({ ...answered, paths: ["src/report.js", "src/auth/session.js"] }), "a security path brings it back");
+});
+
 test("no signal is derived while the intent is ambiguous", () => {
   const derivation = deriveSignals({
     intent: null,

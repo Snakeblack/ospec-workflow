@@ -166,6 +166,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/idd-impact.test.js",
   "scripts/lib/idd-signals.js",
   "scripts/lib/idd-signals.test.js",
+  "scripts/lib/idd-sinks.js",
+  "scripts/lib/idd-sinks.test.js",
   "scripts/lib/idd-workspace.js",
   "scripts/lib/idd-workspace.test.js",
   // E1.4 (0) IDD configuration in idd/config.yaml, outside openspec/ (roadmap harness-evolution).

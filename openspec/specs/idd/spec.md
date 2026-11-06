@@ -255,15 +255,17 @@ its obligation is already satisfied. Repeating it MUST be a no-op. A signal the
 diff or a declaration derives again after its retraction MUST return and
 reopen its obligation.
 
-`persistent-data` and `public-contract` that only the content of the diff
-derives (REQ-idd-012: no changed path matches a pattern of that signal) MUST
-also be retractable, whatever their source, with the user's answer: `--answer
+`persistent-data`, `public-contract` and `security-boundary` that only the
+content of the diff derives (REQ-idd-012: no changed path matches a pattern of
+that signal) MUST also be retractable, whatever their source, with the user's
+answer, never with a reason alone: `--answer
 <text> --source user|user-unverified`, as a gate is resolved. The retraction
 MUST record `confirmed_by` (the reason the diff derives it), `hits` (every
 content hit of the diff for that signal at that moment, each as `<reason>:
 <line>`), `answer` and `answer_source`, and the derivation MUST leave the
 signal out while every content hit of the diff is one of those `hits`; a new
-or changed write or contract line, or a path, MUST bring it back. A contract
+or changed write, contract line or security sink, or a path, MUST bring it
+back. A contract
 line in a contract document (REQ-idd-015) states the contract itself, as a
 path does. The answer MUST be refused (`retract-answer-refused`) for any other
 signal, when a path or nothing derives it, and when a contract line lies in a
@@ -322,6 +324,21 @@ a signal the answer may retract MUST say how to give the answer.
 - AND a line added later that cites `GET /api/reports` MUST bring it back
 - AND the same line added to `docs/api/contact.md`, a contract document, MUST
   refuse the answer with `retract-answer-refused`, naming that document
+
+#### Scenario: The user's answer retracts a security sink the content alone derives
+
+- GIVEN `security-boundary` with `source: diff` because the diff adds
+  `eval(FORMULA)` to `src/report.js`, outside every security path
+- WHEN `record retract --signal security-boundary --reason <text>` runs without
+  an answer
+- THEN it MUST be refused with `signal-confirmed-by-diff`, saying how to give
+  the answer
+- WHEN it runs with `--answer "FORMULA is a constant." --source user`
+- THEN `trust-review` MUST be `withdrawn`, the retraction MUST record the line
+  as a hit, and a later `ospec check` MUST NOT bring the signal back
+- AND a second sink added to `src/report.js` MUST bring it back
+- AND once the diff also touches `src/auth/session.js`, the signal MUST return
+  and the answer MUST be refused with `retract-answer-refused`
 
 #### Scenario: Diff adds a migration obligation
 
@@ -607,8 +624,8 @@ MUST run under the state file's lock and replace the file atomically and
 durably (REQ-idd-027), so an interrupted `record` leaves the last committed
 state readable. A write whose lock another process took over MUST be refused
 with `lock-lost` and write nothing. `record intent` MAY take the plan flags of
-`ospec signals` (`--path`, `--work-units`, `--decision <text>`, `--operation`, `--adr`
-and `--quality`, REQ-idd-012) and MUST then declare the plan and record the
+`ospec signals` (`--path`, `--work-units`, `--decision <text>`, `--operation`, `--adr`,
+`--quality` and `--security`, REQ-idd-012) and MUST then declare the plan and record the
 signals it derives in the same write, returning them in `plan` as `signals`
 reports them (E4.15): a refused intent or plan MUST write neither, and with
 `--ambiguous` a plan flag MUST be a usage error. A change id
@@ -966,7 +983,25 @@ derive `persistent-data` by content, as the touched file or as the imported
 module, while its path still counts for every path-driven signal. Added lines MUST derive `public-contract` when documentation
 states a selector contract (`getElementById`, `querySelector`, `` `#id` ``) or
 an HTTP method plus a path. A comment line, including `//`, `#`, `--`, `/* */`
-and `<!-- -->`, MUST NOT count. For an intent of kind `feature` or `bug`, a
+and `<!-- -->`, MUST NOT count. A line the diff adds to product code outside
+`impact.exclude`, build scripts included, MUST also derive `security-boundary`
+when it holds a security sink for the language of its file
+(`scripts/lib/idd-sinks.js`, adapted from gentle-ai's catalog): disabled TLS
+verification (CWE-295), unsafe deserialization (CWE-502), runtime evaluation
+of code (CWE-94), a shell command composed from pieces (CWE-78, Node's `exec`
+and `execSync` included), SQL built by concatenation or interpolation instead
+of bound parameters (CWE-89), a weak hash of a credential (CWE-327), a wildcard
+CORS origin with credentials (CWE-942), a world-writable mode (CWE-732), an
+unverified JWT (CWE-347), a disabled CSRF protection (CWE-352) or XML external
+entities (CWE-611). Its reason MUST name the file and the sink, and a planned
+or matching path or `--security` MUST name the signal before a sink does. A
+line that is only a comment in the language of its file, a test (the lines of
+a Rust inline test included), documentation, a manifest and what the file
+already held MUST NOT derive it; a comment marker counts only in the languages
+that use it, and the rest of a line is matched whole, so `//` inside a URL
+cuts nothing. `--security` on `signals` or `record intent` MUST record
+`security-boundary` with `source: declaration` and the reason "declared a
+security boundary", without widening the plan. For an intent of kind `feature` or `bug`, a
 diff that changes product code and adds no code to a test MUST derive
 `untested-product`. Code is a line that is neither blank nor only a comment, in
 a test with a source-file extension: a deleted or emptied test, a comment and a
@@ -1658,8 +1693,9 @@ summary, acceptance criteria) so the reviewer checks them on top of the full
 review.
 
 Approved evidence proves only its candidate: on every `ospec check`, if the
-reviewed paths, or any security-boundary path the diff now touches, differ
-from the reviewed candidate, `trust-review` MUST return to `pending`. A
+reviewed paths, any security-boundary path the diff now touches or any file
+whose added lines hold a security sink (REQ-idd-012) differ from the reviewed
+candidate, `trust-review` MUST return to `pending`. A
 successor review MUST need no approval (REQ-idd-008) but MUST be refused while
 the reviewed paths are unchanged since the last review, and a change MUST run
 at most 3 reviews plus one for each resolved `review-limit` gate. Once they are
@@ -1698,6 +1734,14 @@ predecessor.
 - THEN `trust-review` MUST stay `satisfied`
 - AND when `src/auth/tokens.js` changes, the next check MUST return it to
   `pending` and `ospec review start` MUST open review 2
+
+#### Scenario: A sink added after the approval leaves the review stale
+
+- GIVEN an approved trust review of `src/auth/tokens.js`
+- WHEN the diff adds `src/report.js` without a sink and `ospec check` runs
+- THEN `trust-review` MUST stay `satisfied`
+- AND when `src/report.js` gains a query built with `${id}`, the next check
+  MUST return it to `pending`
 
 #### Scenario: A change without a base commit reviews what it commits
 
