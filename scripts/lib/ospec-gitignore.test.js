@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -8,6 +9,19 @@ const test = require("node:test");
 
 const { ensureOspecGitignore, mkdirOspec } = require("./ospec-gitignore.js");
 const { setup } = require("../setup-git-hooks.js");
+
+// setup asks git where the hooks live: the machine's git configuration (a
+// global core.hooksPath) must not change the answer.
+const isolated = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-git-config-"));
+fs.writeFileSync(path.join(isolated, "gitconfig"), "");
+process.env.GIT_CONFIG_GLOBAL = path.join(isolated, "gitconfig");
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+test.after(() => fs.rmSync(isolated, { recursive: true, force: true }));
+
+function gitInit(root) {
+  const result = spawnSync("git", ["init", "-q"], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+}
 
 function tempDir(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-gitignore-"));
@@ -45,7 +59,7 @@ test("a symlink gitignore is not followed", (t) => {
   assert.equal(ensureOspecGitignore(dangling).changed, false);
   assert.equal(fs.existsSync(missing), false);
 
-  fs.mkdirSync(path.join(root, ".git", "hooks"), { recursive: true });
+  gitInit(root);
   setup(root);
   assert.equal(fs.readFileSync(target, "utf8"), "keep\n");
   assert.equal(fs.lstatSync(path.join(root, ".gitignore")).isSymbolicLink(), true);
@@ -53,7 +67,7 @@ test("a symlink gitignore is not followed", (t) => {
 
 test("setup adds .ospec/ to a repository gitignore", (t) => {
   const root = tempDir(t);
-  fs.mkdirSync(path.join(root, ".git", "hooks"), { recursive: true });
+  gitInit(root);
   setup(root);
   assert.match(fs.readFileSync(path.join(root, ".gitignore"), "utf8"), /^\.ospec\/\n/);
   assert.match(fs.readFileSync(path.join(root, ".git", "hooks", "pre-commit"), "utf8"), /pre-commit-hook\.js/);

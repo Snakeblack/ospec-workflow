@@ -7,9 +7,11 @@ Esta especificación define el comportamiento de la validación local pre-commit
 ## Requirements
 
 ### Requirement: Instalación del hook de Git
-El sistema MUST proveer un script de instalación idempotente para registrar el hook pre-commit:
-- El comando `npm run setup:git-hooks` (o ejecutable directo `node scripts/setup-git-hooks.js`) MUST instalar el hook de Git.
-- MUST escribir en `.git/hooks/pre-commit` un script de entrada que invoque al validador (`node scripts/hooks/pre-commit-hook.js`).
+El sistema MUST proveer un script de instalación idempotente para registrar los hooks pre-commit y commit-msg:
+- El comando `npm run setup:git-hooks` (o ejecutable directo `node scripts/setup-git-hooks.js`) MUST instalar los hooks de Git, y `npm install` MUST ejecutarlo como script `prepare`.
+- MUST escribirlos en la carpeta de hooks que git usa para el work tree, la que da `git rev-parse --git-common-dir --git-path hooks`: en un worktree enlazado, cuyo `.git` es un fichero, es la del repositorio principal, que comparten. `pre-commit` invoca al validador (`node scripts/hooks/pre-commit-hook.js`) y `commit-msg`, al guard de atribución (`node scripts/hooks/commit-msg-hook.js "$1"`).
+- Con `core.hooksPath`, la carpeta es del usuario o de otra herramienta y a menudo la comparten todos sus repositorios: el instalador MUST NOT escribir en ella y MUST nombrar la carpeta y las líneas que añadir.
+- Fuera de un repositorio git, o con `core.hooksPath`, no instala ningún hook: la ejecución directa MUST salir con un código distinto de cero, y bajo `prepare` (`npm_lifecycle_event=prepare`) MUST avisar y salir con 0 para no romper `npm install`.
 - En entornos Unix-like, el instalador MUST otorgar permisos de ejecución (`chmod +x`) al hook. En Windows, debe asegurar que Git pueda invocarlo correctamente (usando la cabecera `#!/bin/sh` estándar).
 - Si el archivo `.git/hooks/pre-commit` ya existe y fue instalado por otra herramienta, MUST concatenar o añadir la llamada de forma que no destruya ganchos preexistentes.
 
@@ -18,6 +20,17 @@ El sistema MUST proveer un script de instalación idempotente para registrar el 
 - WHEN se ejecuta `npm run setup:git-hooks`
 - THEN el archivo `.git/hooks/pre-commit` MUST crearse con permisos de ejecución
 - AND al realizar un commit, se ejecutará la suite de validaciones de OpenSpec.
+
+#### Scenario: Instalación desde un worktree enlazado
+- GIVEN un worktree enlazado de un repositorio
+- WHEN se ejecuta `npm run setup:git-hooks` en el worktree
+- THEN `pre-commit` y `commit-msg` MUST quedar en `.git/hooks` del repositorio principal, sin error.
+
+#### Scenario: core.hooksPath definido
+- GIVEN `core.hooksPath` apunta a `.githooks`
+- WHEN se ejecuta `npm run setup:git-hooks`
+- THEN no MUST escribir en `.githooks` ni en `.git/hooks`
+- AND MUST mostrar las líneas de `pre-commit` y `commit-msg` que añadir en `.githooks`.
 
 ---
 

@@ -76,7 +76,7 @@ El repositorio incluye un hook de pre-commit que aplica las reglas de Strict TDD
 
 - Con `testing.tdd_mode: strict`, si el commit toca archivos de producción en rutas activas (por ejemplo `internal/`, `cmd/`, `scripts/hooks/`, `scripts/lib/`), exige que también vaya al menos un archivo de pruebas (`*_test.go`, `*.test.js`) o el `tasks.md` del cambio.
 - Ejecuta `scripts/check.js` localmente para comprobar la paridad de los targets y evitar subir código con errores de sintaxis o tests rotos.
-- Se instala con `npm run setup:git-hooks`. Se puede omitir de forma temporal con `DISABLE_OSPEC_PRECOMMIT=true` o con `git commit --no-verify`.
+- Se instala con `npm install` o `npm run setup:git-hooks`, en la carpeta de hooks que git usa (un worktree comparte la del repositorio principal; con `core.hooksPath` no escribe y muestra las líneas que añadir). Se puede omitir de forma temporal con `DISABLE_OSPEC_PRECOMMIT=true` o con `git commit --no-verify`.
 
 En IDD, el mismo hook sigue `strict_tdd` cuando el proyecto declara `idd/config.yaml`. Con `mode: sdd`, o sin ese fichero, sigue `testing.tdd_mode`. `ospec doctor` avisa si ambas fuentes no coinciden.
 

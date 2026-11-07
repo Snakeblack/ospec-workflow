@@ -207,6 +207,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/precommit-strict.test.js",
   "scripts/lib/ospec-gitignore.js",
   "scripts/lib/ospec-gitignore.test.js",
+  // The hooks folder git runs, shared by setup:git-hooks and the doctor (attribution-guard-gaps).
+  "scripts/lib/git-hooks-dir.js",
   // E1.4 (a) ospec check and ospec run: observed runs and their evidence (roadmap harness-evolution).
   "scripts/lib/idd-check.js",
   "scripts/lib/idd-check.test.js",

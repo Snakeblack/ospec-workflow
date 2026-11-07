@@ -1953,7 +1953,10 @@ The checks MUST cover at least:
 - `checkout`, only when the project is the ospec-workflow source: `dist-drift`
   when the built plugin's version differs from `package.json`, `install-drift`
   when an installed host's version differs, and `git-hooks` when the
-  repository's commit hooks are not installed.
+  repository's pre-commit or commit-msg hook is missing from the folder git
+  runs them from (`git rev-parse --git-path hooks`: in a linked worktree the
+  main repository's; with `core.hooksPath` that folder, and the action names
+  the lines to add there, since `setup:git-hooks` never writes it).
 - `project`: `idd-config` (`error` when `idd/config.yaml` is invalid), `mode`,
   `idd-checks` (`warn` when configuration is valid or absent and at least one
   valid open IDD change has no declared checks; action MUST name `checks:` in
@@ -1968,7 +1971,8 @@ The checks MUST cover at least:
   `ospec doctor --repair` and the version-control restore as the action,
   `info` with `ospec next --change <id>` for an open change), `sdd-change` for every change
   in `openspec/changes/` (`info` with `/sdd-continue <name>`),
-  `strict-tdd-hook` (`warn` when the installed pre-commit hook's active mode
+  `strict-tdd-hook` (`warn` when the installed pre-commit hook's active mode,
+  read from that same folder,
   and the other Strict TDD source disagree: IDD follows `strict_tdd`, and
   `mode: sdd` or a missing `idd/config.yaml` follows `testing.tdd_mode`),
   `session-dir` (`warn` when `.ospec/` exists and git tracks files under it,
