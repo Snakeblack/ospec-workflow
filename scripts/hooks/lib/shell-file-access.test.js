@@ -30,5 +30,12 @@ test('literal read operands keep quotes, separators and option values distinct',
     ['scp .env host:', ['.env', 'host:']],
     ['scp -i ~/.ssh/id_rsa notes.txt host:', ['notes.txt', 'host:']],
     ['scp -o IdentityFile=~/.ssh/id_rsa notes.txt host:', ['notes.txt', 'host:']],
+    // $'…' quoting: \' does not close it, so the next command stays visible.
+    [`echo $'\\'' ; cat .env`, ['.env']],
+    [`cat $'.env`, []],
+    // A backslash before a line break continues the line; a `<<` without its
+    // delimiter (an arithmetic shift) hides nothing after it.
+    ['cat \\\n  .env', ['.env']],
+    ['echo $((1<<2))\ncat .env', ['.env']],
   ]) assert.deepEqual(extractShellReadPaths(command), expected, command);
 });

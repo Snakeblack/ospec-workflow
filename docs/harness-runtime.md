@@ -119,7 +119,7 @@ Protege estrictamente contra la inserción de atribución AI/modelo en commits y
 
 | Capa | Cuándo actúa | Qué bloquea |
 | --- | --- | --- |
-| **PreToolUse DENY** (`pre-tool-use.js`) | Antes de que el agente ejecute `git commit -m "..."` o `gh pr create\|edit` | Escanea `-m`/`--message` del commit y `-t`/`--title`/`-b`/`--body` de la PR; deniega si contienen atribución |
+| **PreToolUse DENY** (`pre-tool-use.js` y el binario Go) | Antes de que el agente ejecute `git commit`, `git merge`, `gh pr create\|new\|edit\|comment\|review\|merge` o `gh pr close\|reopen -c`, también tras un wrapper (`env -i`, `sudo -u`, `timeout`), una palabra reservada o un grupo (`then`, `{`, `(`), dentro de `sh -c` y con opciones globales delante (`git -C <dir>`, `gh pr -R <repo>`) | Escanea el texto entero de la orden (heredocs incluidos), sus cadenas entre comillas y cada palabra; lee el fichero de `-F`/`--file`/`--template` del commit y de `-F`/`--body-file`/`-T` de la PR desde el directorio que usa git (`cd`, `git -C`), y con `-F -` el fichero que alimenta la orden (`cat f \|`, `< f`; otro programa por tubería, salvo `echo` y `printf`, se niega). Deniega si hay atribución o si no puede leer un fichero de mensaje |
 | **Git `commit-msg` Hook** (`commit-msg-hook.js`) | Después de que el usuario/IDE componga el mensaje | Lee el archivo temporal de mensaje de Git; rechaza el commit si contiene atribución |
 | **Rules file** (`rules/no-model-attribution.instructions.md`) | Carga del contexto del agente | Instruye al modelo para que nunca genere atribución; primera barrera pasiva |
 
@@ -127,7 +127,7 @@ Protege estrictamente contra la inserción de atribución AI/modelo en commits y
 
 **Instalación**: `npm install` (o `npm run setup:git-hooks`) instala tanto el `pre-commit` como el `commit-msg` hook. El PreToolUse DENY está integrado en el hook `PreToolUse` del arnés y no requiere instalación adicional.
 
-**Bypass**: `DISABLE_OSPEC_ATTRIBUTION_CHECK=true` desactiva únicamente el `commit-msg` hook. El DENY de PreToolUse no tiene bypass — es un bloqueo absoluto para agentes.
+**Bypass**: `DISABLE_OSPEC_ATTRIBUTION_CHECK=true` desactiva únicamente el `commit-msg` hook. El DENY de PreToolUse no tiene variable de bypass ni lo rebaja el modo de permisos, pero es un reconocedor literal, no un intérprete de shell: no sigue sustituciones de órdenes, variables, alias, `eval` ni la salida de otros programas. Para una PR, el check de CI es la red que queda.
 
 ### 5. Estado del CLI (PreToolUse y `ospec close`)
 Solo el CLI escribe el estado de un cambio IDD (REQ-idd-003, REQ-hooks-029):

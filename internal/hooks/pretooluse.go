@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,41 +34,597 @@ var forbiddenAttributionRE = regexp.MustCompile(
 	`(?im)^[ \t]*[\w-]+-by:.*\b(?:claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere|antigravity|agy|cursor|windsurf|kiro|opencode|qwen|deepseek|grok|devin|aider|cline|junie|amp)\b|\b(?:generated|written|created|made|built|authored|assisted|powered|produced|generad[oa]s?|escrit[oa]s?|cread[oa]s?|hech[oa]s?|asistid[oa]s?|producid[oa]s?)\s+(?:with|by|using|con|por)\W+(?:\w+\W+){0,3}?(?:claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere|antigravity|agy|cursor|windsurf|kiro|opencode|qwen|deepseek|grok|devin|aider|cline|junie|amp)\b|🤖`,
 )
 
-// attributionTextCommand pairs a command whose text arguments carry a commit
-// message or a pull request with the pattern that extracts those arguments
-// (quoted or bare), mirroring ATTRIBUTION_TEXT_COMMANDS in pre-tool-use.js.
-type attributionTextCommand struct {
-	command *regexp.Regexp
-	args    *regexp.Regexp
+const attributionReason = "Bloqueado: el commit o la PR atribuye el trabajo a una IA o herramienta (trailer *-by: que la nombra, «generated with/by …» o 🤖). Nombrar un agente sí está permitido: quita solo la atribución. Consulta rules/no-model-attribution.instructions.md."
+
+func unreadableStdinReason(program string) string {
+	return "Bloqueado: el mensaje llega por stdin desde `" + program + "`, cuya salida el guard no puede leer para comprobar que el commit o la PR no atribuye el trabajo a una IA o herramienta. Pasa el texto en la propia orden: -m o --body, o -F - / --body-file - con un heredoc."
 }
 
-var attributionTextCommands = []attributionTextCommand{
-	{gitCommitPatternRE, regexp.MustCompile(`(?i)(?:-m|--message)(?:=|\s+)(?:"([^"]*)"|'([^']*)'|([^\s;|&]+))`)},
-	{regexp.MustCompile(`(?i)\bgh\s+pr\s+(?:create|edit)\b`), regexp.MustCompile(`(?i)(?:-t|--title|-b|--body)(?:=|\s+)(?:"([^"]*)"|'([^']*)'|([^\s;|&]+))`)},
+// Programs piped into a message read from stdin: file readers, whose files are
+// read (with the options that take a value), and printers, whose text is the
+// command's own.
+var (
+	readerCountOptions   = map[string]bool{"-n": true, "-c": true, "--lines": true, "--bytes": true}
+	readerContentOptions = map[string]bool{"-encoding": true, "-totalcount": true, "-tail": true, "-readcount": true}
+	fileReaders          = map[string]map[string]bool{
+		"cat": {}, "tac": {}, "type": {},
+		"head": readerCountOptions, "tail": readerCountOptions,
+		"get-content": readerContentOptions, "gc": readerContentOptions,
+	}
+	printers = map[string]bool{"echo": true, "printf": true}
+)
+
+func unreadableMessageReason(file string) string {
+	return "Bloqueado: no se pudo leer `" + file + "` para comprobar que el commit o la PR no atribuye el trabajo a una IA o herramienta (no existe, no es un fichero, supera 1 MiB o depende de una variable). Pasa el texto en la propia orden: -m o --body, o -F - / --body-file - con un heredoc."
+}
+
+// What may come before the program of a simple command (mirrors
+// pre-tool-use.js): environment assignments and reserved words or groups,
+// which the program follows, and wrappers, whose options and values end at the
+// first git, gh or shell word.
+var (
+	attributionPrefilterRE = regexp.MustCompile(`(?i)\b(?:git|gh)\b`)
+	envAssignmentRE        = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
+	reservedWords          = map[string]bool{"if": true, "then": true, "elif": true, "else": true, "do": true, "while": true, "until": true, "!": true, "{": true, "(": true}
+	commandWrappers        = map[string]bool{"env": true, "command": true, "exec": true, "sudo": true, "doas": true, "nohup": true, "time": true, "timeout": true, "nice": true, "ionice": true, "stdbuf": true, "xargs": true}
+	shellPrograms          = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true}
+	directoryCommands      = map[string]bool{"cd": true, "pushd": true, "popd": true}
+	// git options before the subcommand that take the next word (-C moves the directory).
+	gitValueOptions   = map[string]bool{"-c": true, "--git-dir": true, "--work-tree": true, "--namespace": true, "--config-env": true, "--super-prefix": true}
+	ghPRValueOptions  = map[string]bool{"-R": true, "--repo": true}
+	stdinMessageFiles = map[string]bool{"-": true, "/dev/stdin": true}
+	// A command line that only mentions one of those commands, wherever it
+	// sits, still has its text checked (decision 1a of attribution-guard-gaps).
+	messageCommandMentionRE = regexp.MustCompile(`(?is)\bgit\b.*?\b(?:commit|merge)\b|\bgh\b.*?\bpr\b.*?\b(?:create|new|edit|comment|review|merge|close|reopen)\b`)
+	// Every quoted string, read apart from the tokenizer.
+	quotedStringRE  = regexp.MustCompile(`"((?:[^"\\]|\\[\s\S])*)"|'([^']*)'`)
+	cdOptionRE      = regexp.MustCompile(`^-[LPe@]+$`)
+	shellOptionRE   = regexp.MustCompile(`^-[A-Za-z]+$`)
+	programPrefixRE = regexp.MustCompile(`^[\\$({]+`)
+	trailingParenRE = regexp.MustCompile(`\)+$`)
+	// printf, echo -e and $'…' escapes: \n, \t, \r, \xHH, \uHHHH, \UHHHHHHHH, \NNN.
+	escapeRE        = regexp.MustCompile(`\\(?:x([0-9A-Fa-f]{1,2})|u([0-9A-Fa-f]{1,4})|U([0-9A-Fa-f]{1,8})|0?([0-7]{1,3})|([ntr]))`)
+	backslashRE     = regexp.MustCompile(`\\([\s\S])`)
+	trailerEqualsRE = regexp.MustCompile(`(?im)^([ \t]*[\w-]+-by)[ \t]*=`)
+	maxShellDepth   = 2
+)
+
+// messageOptions names the options of a command whose value is message text
+// (skipped when looking for a file) and those whose value names the file that
+// holds the message (attribution-guard-gaps). git takes a unique abbreviation of a long option
+// (`--fil`), gh does not.
+type messageOptions struct {
+	text, short, long []string
+	abbreviate        bool
+}
+
+var ghPRMessage = messageOptions{
+	text:  []string{"-t", "--title", "-b", "--body", "--subject", "-R", "--repo"},
+	short: []string{"-F", "-T"},
+	long:  []string{"--body-file", "--template"},
+}
+
+// messageCommands mirrors MESSAGE_COMMANDS in pre-tool-use.js: the commands
+// whose text carries a commit message or a pull request's title, body or
+// comment.
+var messageCommands = map[string]messageOptions{
+	"git commit":    {text: []string{"-m", "--message", "-c", "-C", "--reuse-message", "--reedit-message"}, short: []string{"-F", "-t"}, long: []string{"--file", "--template"}, abbreviate: true},
+	"git merge":     {text: []string{"-m", "--message"}, short: []string{"-F"}, long: []string{"--file"}, abbreviate: true},
+	"gh pr create":  ghPRMessage,
+	"gh pr new":     ghPRMessage,
+	"gh pr edit":    ghPRMessage,
+	"gh pr comment": ghPRMessage,
+	"gh pr review":  ghPRMessage,
+	"gh pr merge":   ghPRMessage,
+	// Closing or reopening a pull request posts its -c/--comment.
+	"gh pr close":  {text: []string{"-c", "--comment"}},
+	"gh pr reopen": {text: []string{"-c", "--comment"}},
+}
+
+// messageTarget is a message command, its words after the subcommand and the
+// directory git reads its files from ("" when it cannot be told).
+type messageTarget struct {
+	messageOptions
+	args []shellToken
+	cwd  string
+	// What feeds a message read from stdin: the files of its `<`, a heredoc or
+	// here-string, or the simple command piped into it, from the shell's
+	// directory.
+	shellCwd  string
+	inputs    []shellToken
+	stdinText bool
+	feeder    *pipedCommand
+}
+
+// pipedCommand is a simple command with the shell's directory where it runs.
+type pipedCommand struct {
+	program string
+	args    []shellToken
+	cwd     string
+}
+
+// segment is a simple command of a command line: its words, the files its `<`
+// redirections read, whether a heredoc or a here-string feeds it, and whether
+// a lone `|` pipes the previous one into it.
+type segment struct {
+	words, inputs []shellToken
+	stdinText     bool
+	piped         bool
+}
+
+// commandSegments splits the words of a command line at `;`, `&`, `|` and
+// line breaks, without the `)` that closes a subshell on the last word.
+func commandSegments(tokens []shellToken) []*segment {
+	var segments []*segment
+	var current *segment
+	between := ""
+	redirect := ""
+	for _, tok := range tokens {
+		if tok.operator {
+			if strings.Contains(";&|\n", tok.value) {
+				current = nil
+				between += tok.value
+				redirect = ""
+			} else {
+				redirect = tok.value
+			}
+			continue
+		}
+		if current == nil {
+			current = &segment{piped: between == "|"}
+			segments = append(segments, current)
+			between = ""
+		}
+		switch {
+		case redirect == "":
+			current.words = append(current.words, tok)
+		case redirect == "<":
+			current.inputs = append(current.inputs, tok)
+		case strings.HasPrefix(redirect, "<<"):
+			current.stdinText = true
+		}
+		redirect = ""
+	}
+	for _, seg := range segments {
+		if n := len(seg.words); n > 0 && !strings.Contains(seg.words[n-1].value, "(") && strings.HasSuffix(seg.words[n-1].value, ")") {
+			seg.words[n-1].value = trailingParenRE.ReplaceAllString(seg.words[n-1].value, "")
+		}
+	}
+	return segments
+}
+
+// readerFiles returns the operands of a file reader, without options and their values.
+func readerFiles(feeder *pipedCommand) []shellToken {
+	valueOptions := fileReaders[feeder.program]
+	var files []shellToken
+	for i := 0; i < len(feeder.args); i++ {
+		if valueOptions[strings.ToLower(feeder.args[i].value)] {
+			i++
+		} else if !strings.HasPrefix(feeder.args[i].value, "-") {
+			files = append(files, feeder.args[i])
+		}
+	}
+	return files
+}
+
+// programName strips a program word's path, a leading `\`, `(`, `{` or `$(`, and `.exe`.
+func programName(value string) string {
+	value = programPrefixRE.ReplaceAllString(value, "")
+	return strings.TrimSuffix(strings.ToLower(value[strings.LastIndexAny(value, `/\`)+1:]), ".exe")
+}
+
+// simpleCommand returns the program of a simple command and the words after it.
+func simpleCommand(words []shellToken) (string, []shellToken, bool) {
+	i := 0
+	for i < len(words) && (envAssignmentRE.MatchString(words[i].value) || reservedWords[words[i].value]) {
+		i++
+	}
+	if i < len(words) && commandWrappers[programName(words[i].value)] {
+		for i++; i < len(words); i++ {
+			name := programName(words[i].value)
+			if name == "git" || name == "gh" || shellPrograms[name] {
+				break
+			}
+		}
+	}
+	if i >= len(words) {
+		return "", nil, false
+	}
+	return programName(words[i].value), words[i+1:], true
+}
+
+// homePath expands a leading ~ or ~/ to the home directory.
+func homePath(value string) (string, bool) {
+	if value != "~" && !strings.HasPrefix(value, "~/") && !strings.HasPrefix(value, `~\`) {
+		return value, true
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", false
+	}
+	if value == "~" {
+		return home, true
+	}
+	return filepath.Join(home, value[2:]), true
+}
+
+// resolveDirectory returns the directory a `cd`, `pushd` or `git -C` operand
+// names from base, or "" when it cannot be told (an expansion or an unknown base).
+func resolveDirectory(base string, word *shellToken) string {
+	if base == "" || word == nil || !word.literal || word.value == "" {
+		return ""
+	}
+	value, ok := homePath(word.value)
+	if !ok {
+		return ""
+	}
+	if filepath.IsAbs(value) {
+		return filepath.Clean(value)
+	}
+	return filepath.Join(base, value)
+}
+
+// changeDirectory returns the directory after a `cd`, `pushd` or `popd`.
+func changeDirectory(base, program string, args []shellToken) string {
+	if program == "popd" {
+		return ""
+	}
+	var operands []shellToken
+	for _, word := range args {
+		if !cdOptionRE.MatchString(word.value) {
+			operands = append(operands, word)
+		}
+	}
+	if len(operands) == 0 {
+		if program != "cd" {
+			return ""
+		}
+		home, _ := homePath("~")
+		return home
+	}
+	if len(operands) > 1 || operands[0].value == "-" {
+		return ""
+	}
+	return resolveDirectory(base, &operands[0])
+}
+
+// shellScript returns the script word of `sh|bash|zsh|dash|ksh [options] -c <script>`.
+func shellScript(args []shellToken) (string, bool) {
+	for i := 0; i < len(args); i++ {
+		value := args[i].value
+		if value == "-o" || value == "+o" {
+			i++
+			continue
+		}
+		if !shellOptionRE.MatchString(value) {
+			return "", false
+		}
+		if strings.Contains(value, "c") {
+			if i+1 < len(args) {
+				return args[i+1].value, true
+			}
+			return "", false
+		}
+	}
+	return "", false
+}
+
+// messageCommand returns the message options of a `git commit|merge` or
+// `gh pr <sub>` simple command, with the directory git reads its files from.
+func messageCommand(program string, args []shellToken, cwd string) (messageTarget, bool) {
+	i := 0
+	base := cwd
+	command := ""
+	if program == "git" {
+		for i < len(args) && strings.HasPrefix(args[i].value, "-") {
+			switch {
+			case args[i].value == "-C":
+				var operand *shellToken
+				if i+1 < len(args) {
+					operand = &args[i+1]
+				}
+				base = resolveDirectory(base, operand)
+				i += 2
+			case gitValueOptions[args[i].value]:
+				i += 2
+			default:
+				i++
+			}
+		}
+		if i < len(args) {
+			command = "git " + args[i].value
+		}
+	} else if program == "gh" && len(args) > 0 && args[0].value == "pr" {
+		i = 1
+		for i < len(args) && strings.HasPrefix(args[i].value, "-") {
+			if ghPRValueOptions[args[i].value] {
+				i += 2
+			} else {
+				i++
+			}
+		}
+		if i < len(args) {
+			command = "gh pr " + args[i].value
+		}
+	}
+	options, ok := messageCommands[command]
+	if !ok {
+		return messageTarget{}, false
+	}
+	return messageTarget{messageOptions: options, args: args[i+1:], cwd: base}, true
+}
+
+// longOption returns the long option of names a word names, as written
+// (`--name`, `--name=…`, or with abbreviate a prefix of at least `--xy`).
+func longOption(value string, names []string, abbreviate bool) string {
+	if !strings.HasPrefix(value, "--") {
+		return ""
+	}
+	name, _, _ := strings.Cut(value, "=")
+	for _, option := range names {
+		if strings.HasPrefix(option, "--") && (option == name || (abbreviate && len(name) >= 4 && strings.HasPrefix(option, name))) {
+			return name
+		}
+	}
+	return ""
+}
+
+// messageFiles returns the words a message option names as its file; a
+// missing value is nil.
+func messageFiles(target messageTarget) []*shellToken {
+	var files []*shellToken
+	args := target.args
+	for i := 0; i < len(args); i++ {
+		value := args[i].value
+		if value == "--" {
+			break
+		}
+		textOption := longOption(value, target.text, target.abbreviate)
+		if slices.Contains(target.text, value) {
+			textOption = value
+		}
+		if textOption != "" {
+			if value == textOption {
+				i++
+			}
+			continue
+		}
+		option := longOption(value, target.long, target.abbreviate)
+		if option == "" {
+			for _, name := range target.short {
+				if strings.HasPrefix(value, name) {
+					option = name
+					break
+				}
+			}
+		}
+		if option == "" {
+			continue
+		}
+		if value == option {
+			if i+1 < len(args) {
+				file := args[i+1]
+				files = append(files, &file)
+			} else {
+				files = append(files, nil)
+			}
+			i++
+			continue
+		}
+		skip := len(option)
+		if strings.HasPrefix(option, "--") {
+			skip++
+		}
+		files = append(files, &shellToken{value: value[skip:], literal: args[i].literal})
+	}
+	return files
+}
+
+// readMessageFile reads a regular file under 1 MiB, its path resolved against
+// base (the directory git reads it from; "" when unknown) and ~/ against the
+// home directory.
+func readMessageFile(file *shellToken, base string) (string, bool) {
+	if file == nil || !file.literal || file.value == "" {
+		return "", false
+	}
+	name := file.value
+	if strings.HasPrefix(name, "~/") || strings.HasPrefix(name, `~\`) {
+		expanded, ok := homePath(name)
+		if !ok {
+			return "", false
+		}
+		name = expanded
+	}
+	if !filepath.IsAbs(name) {
+		if base == "" {
+			return "", false
+		}
+		name = filepath.Join(base, name)
+	}
+	info, err := os.Stat(name)
+	if err != nil || !info.Mode().IsRegular() || info.Size() >= maxScanSizeBytes {
+		return "", false
+	}
+	data, err := os.ReadFile(name)
+	if err != nil {
+		return "", false
+	}
+	return string(data), true
+}
+
+// decodeEscapes decodes the printf, echo -e and $'…' escapes of a text.
+func decodeEscapes(text string) string {
+	return escapeRE.ReplaceAllStringFunc(text, func(all string) string {
+		m := escapeRE.FindStringSubmatch(all)
+		var code int64
+		var err error
+		switch {
+		case m[5] == "n":
+			return "\n"
+		case m[5] == "t":
+			return "\t"
+		case m[5] == "r":
+			return "\r"
+		case m[1] != "":
+			code, err = strconv.ParseInt(m[1], 16, 32)
+		case m[2] != "":
+			code, err = strconv.ParseInt(m[2], 16, 32)
+		case m[3] != "":
+			code, err = strconv.ParseInt(m[3], 16, 64)
+		default:
+			code, err = strconv.ParseInt(m[4], 8, 32)
+		}
+		// A surrogate or a code point past Unicode stays as written, as in the Node hook.
+		if err != nil || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) {
+			return all
+		}
+		return string(rune(code))
+	})
+}
+
+// hasAttribution checks a text as written and as the shell or git reads it:
+// escapes decoded, the backslashes an unquoted word drops dropped, and a
+// `--trailer token=value` read as `token: value`.
+func hasAttribution(text string) bool {
+	for _, spelling := range []string{text, decodeEscapes(text), backslashRE.ReplaceAllString(text, "$1")} {
+		if forbiddenAttributionRE.MatchString(trailerEqualsRE.ReplaceAllString(spelling, "$1:")) {
+			return true
+		}
+	}
+	return false
 }
 
 // checkCommitAttribution ports checkCommitAttribution from
-// scripts/hooks/pre-tool-use.js: extracts the message of a `git commit` or the
-// title and body of a `gh pr create|edit` command and denies when forbidden
-// AI/model attribution is present. Returns "" when clean or not such a command.
-func checkCommitAttribution(command string) string {
-	for _, target := range attributionTextCommands {
-		if !target.command.MatchString(command) {
+// scripts/hooks/pre-tool-use.js: it checks the message of a `git commit|merge`
+// and the title, body or comment of a `gh pr create|new|edit|comment|review|merge`
+// wherever it travels (attribution-guard-gaps): the whole command text, its quoted strings and
+// words, the scripts of `sh -c`, the files the message options name, read
+// from the directory git uses (`cd`, `git -C`), and, for a message read from
+// stdin, the file of its `<` or of a file reader piped into it (other programs
+// but echo and printf deny). A file it cannot read is denied
+// (ADR 0008). An empty workspace is the working directory. Returns "" when
+// clean or not such a command.
+func checkCommitAttribution(command, workspace string) string {
+	if workspace == "" {
+		if wd, err := os.Getwd(); err == nil {
+			workspace = wd
+		}
+	}
+	return attributionIn(command, workspace, 0)
+}
+
+func attributionIn(command, workspace string, depth int) string {
+	if !attributionPrefilterRE.MatchString(command) {
+		return ""
+	}
+	tokens := shellTokens(command)
+	type script struct{ text, cwd string }
+	var targets []messageTarget
+	var scripts []script
+	cwd := workspace
+	var previous *pipedCommand
+	for _, seg := range commandSegments(tokens) {
+		program, args, ok := simpleCommand(seg.words)
+		var feeder *pipedCommand
+		if seg.piped {
+			feeder = previous
+		}
+		previous = nil
+		if !ok {
 			continue
 		}
-		for _, m := range target.args.FindAllStringSubmatch(command, -1) {
-			text := m[1]
-			if text == "" {
-				text = m[2]
+		previous = &pipedCommand{program, args, cwd}
+		switch {
+		case directoryCommands[program]:
+			cwd = changeDirectory(cwd, program, args)
+		case shellPrograms[program]:
+			if text, found := shellScript(args); found {
+				scripts = append(scripts, script{text, cwd})
 			}
-			if text == "" {
-				text = m[3]
-			}
-			if forbiddenAttributionRE.MatchString(text) {
-				return "Bloqueado: el commit o la PR atribuye el trabajo a una IA o herramienta (trailer *-by: que la nombra, «generated with/by …» o 🤖). Nombrar un agente sí está permitido: quita solo la atribución. Consulta rules/no-model-attribution.instructions.md."
+		default:
+			if target, found := messageCommand(program, args, cwd); found {
+				target.shellCwd, target.inputs, target.stdinText, target.feeder = cwd, seg.inputs, seg.stdinText, feeder
+				targets = append(targets, target)
 			}
 		}
+	}
+	if len(targets) == 0 && len(scripts) == 0 && !messageCommandMentionRE.MatchString(command) {
 		return ""
+	}
+	texts := []string{command}
+	for _, match := range quotedStringRE.FindAllStringSubmatch(command, -1) {
+		if strings.HasPrefix(match[0], `"`) {
+			texts = append(texts, match[1])
+		} else {
+			texts = append(texts, match[2])
+		}
+	}
+	for _, tok := range tokens {
+		if tok.operator {
+			continue
+		}
+		texts = append(texts, tok.value)
+		if equals := strings.Index(tok.value, "="); strings.HasPrefix(tok.value, "-") && equals > 0 {
+			texts = append(texts, tok.value[equals+1:])
+		}
+	}
+	for _, text := range texts {
+		if hasAttribution(text) {
+			return attributionReason
+		}
+	}
+	if depth < maxShellDepth {
+		for _, nested := range scripts {
+			if reason := attributionIn(nested.text, nested.cwd, depth+1); reason != "" {
+				return reason
+			}
+		}
+	}
+	type fileToRead struct {
+		file *shellToken
+		base string
+	}
+	for _, target := range targets {
+		// Message files are read where git runs (git -C); what feeds stdin,
+		// where the shell runs.
+		var toRead []fileToRead
+		fromStdin := false
+		for _, file := range messageFiles(target) {
+			if file != nil && file.literal && stdinMessageFiles[file.value] {
+				fromStdin = true
+			} else {
+				toRead = append(toRead, fileToRead{file, target.cwd})
+			}
+		}
+		if fromStdin && !target.stdinText {
+			switch {
+			case len(target.inputs) > 0:
+				for i := range target.inputs {
+					toRead = append(toRead, fileToRead{&target.inputs[i], target.shellCwd})
+				}
+			case target.feeder != nil && fileReaders[target.feeder.program] != nil:
+				for _, file := range readerFiles(target.feeder) {
+					file := file
+					toRead = append(toRead, fileToRead{&file, target.feeder.cwd})
+				}
+			case target.feeder != nil && !printers[target.feeder.program]:
+				return unreadableStdinReason(target.feeder.program)
+			}
+		}
+		for _, entry := range toRead {
+			file := entry.file
+			content, ok := readMessageFile(file, entry.base)
+			if !ok {
+				name := ""
+				if file != nil {
+					name = file.value
+				}
+				return unreadableMessageReason(name)
+			}
+			if forbiddenAttributionRE.MatchString(content) {
+				return attributionReason
+			}
+		}
 	}
 	return ""
 }
@@ -580,7 +1138,7 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 		if action, reason := rules.Evaluate(cmd); action == "deny" {
 			return makeDecision("deny", reason), 0
 		}
-		if reason := checkCommitAttribution(cmd); reason != "" {
+		if reason := checkCommitAttribution(cmd, ""); reason != "" {
 			return makeDecision("deny", reason), 0
 		}
 	}

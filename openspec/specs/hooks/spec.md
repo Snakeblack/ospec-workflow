@@ -1380,9 +1380,73 @@ emoji. Tool names sit at word boundaries.
 - GIVEN `Co-Authored-By: Claude <noreply@anthropic.com>`, `Generated with Gemini CLI`,
   `Generado con Codex` or a 🤖 line WHEN the hook runs THEN it MUST reject the message.
 
-The PreToolUse DENY applies the same pattern to the `-m`/`--message` arguments of a
-`git commit` command and to the `-t`/`--title`/`-b`/`--body` arguments of a
-`gh pr create|edit` command.
+The PreToolUse DENY, in `pre-tool-use.js` and the Go hook alike, MUST apply the same
+pattern to every command that writes a commit message or the text of a pull request
+(attribution-guard-gaps): `git commit`, `git merge`, `gh pr create|new|edit|comment|review|merge`, or
+`gh pr close|reopen`, whose `-c`/`--comment` posts a PR comment.
+Such a command is the program of a simple command (the words between unquoted `;`,
+`&`, `|` or line breaks), found:
+
+- after environment assignments, reserved words and groups (`if`, `then`, `elif`,
+  `else`, `do`, `while`, `until`, `!`, `{`, `(`, also glued as in `(git`), with a
+  leading `\` (`\git`) dropped and a backslash before a line break read as a
+  continued line;
+- after a wrapper (`env`, `command`, `exec`, `sudo`, `doas`, `nohup`, `time`, `timeout`,
+  `nice`, `ionice`, `stdbuf`, `xargs`), whose options and values end at the first `git`,
+  `gh` or shell word;
+- before global options and the subcommand (`git -C <dir>`, `git -c <key=value>`,
+  `git --no-pager`, `gh pr -R <repo>`);
+- inside the script of `sh|bash|zsh|dash|ksh [options] -c <script>`, two levels deep.
+
+A command line that only mentions such a command, wherever it sits (a word sequence
+`git … commit|merge` or `gh … pr … <sub>`), still has its text checked. For a command
+line that holds or mentions one, the hook MUST check:
+
+1. the whole command text, heredoc bodies included, each quoted string and each word
+   without quotes, plus the value after `=` of an `--option=value` word. Each text is
+   also read as the shell or git reads it: with the `printf`, `echo -e` and `$'…'`
+   escapes decoded (`\n`, `\t`, `\r`, `\xHH`, `\uHHHH`, `\UHHHHHHHH`, `\NNN`), without
+   the backslashes an unquoted word drops (`Cl\aude`), and with a
+   `--trailer token=value` read as `token: value`. `$'…'` follows its own quoting,
+   where `\'` does not close it, and a `<<` without its delimiter line (an
+   arithmetic `$((1<<2))`) hides nothing after it;
+2. the file each message-file option names: `-F`, `--file`, `-t` and `--template` of
+   `git commit`, `-F` and `--file` of `git merge` (git's unique abbreviations, such as
+   `--fil`, included), and `-F`, `--body-file`, `-T` and `--template` of `gh pr`;
+3. for a message read from stdin (`-` or `/dev/stdin`) and not fed by a heredoc or a
+   here-string, the files of the command's own `<` redirection or, when a lone `|`
+   pipes a file reader (`cat`, `tac`, `type`, `head`, `tail`, `Get-Content`) into it,
+   that reader's files, read from the shell's directory. A piped `echo` or `printf`
+   has its text in the command line; any other program piped into it MUST be denied,
+   since its output cannot be read. Other readers of the command line are not its
+   message.
+
+A relative file is read from the directory git uses: the session's directory, moved
+by an earlier `cd` or `pushd` of the same command line and by `git -C <dir>`; `~/` is
+the home directory. When that directory cannot be told (`cd "$DIR"`, `cd -`, `popd`),
+a relative file counts as unreadable. A message file that is not a readable regular
+file under 1 MiB, or whose name holds an expansion (`"$BODY"`), MUST be denied
+(ADR 0008), with a reason that names it and proposes `-m`, `--body`, or `-F -` or
+`--body-file -` with a heredoc. The recognizer is literal, not a shell interpreter:
+it does not follow command substitution (`-m "$(cat f)"`), variables, aliases or
+functions, `eval`, other programs' output, grouped short options (`-aF f`) or the
+directory a subshell leaves behind, which the commit-msg hook and CI still check.
+
+- GIVEN `git commit -F - <<'EOF'` whose heredoc holds `Co-Authored-By: Claude …`, or
+  `gh pr comment 12 --body "🤖 Generated with Claude Code"` WHEN PreToolUse runs THEN it
+  MUST deny.
+- GIVEN `git commit -F msg.txt` or `gh pr create --body-file pr.md` whose file holds
+  such attribution WHEN PreToolUse runs THEN it MUST deny; a clean file MUST pass.
+- GIVEN `git commit -F missing.txt` WHEN PreToolUse runs THEN it MUST deny, naming
+  `missing.txt`.
+- GIVEN `env -i git commit -F msg.txt`, `if true; then git commit -F msg.txt; fi` or
+  `bash -c 'git commit -F msg.txt'` whose file holds such attribution WHEN PreToolUse
+  runs THEN it MUST deny.
+- GIVEN a clean `msg.txt` in the session's directory and one with attribution in
+  `sub/`, WHEN PreToolUse runs `git -C sub commit -F msg.txt` or
+  `cd sub && git commit -F msg.txt` THEN it MUST deny.
+- GIVEN `grep -F foo msg.txt && git commit -m "fix: x"`, or a commit message that cites
+  `git commit -F missing.txt`, WHEN PreToolUse runs THEN it MUST NOT deny.
 
 ### 6a.2 Traceability trailer validation (B3)
 

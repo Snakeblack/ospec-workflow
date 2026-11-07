@@ -2,19 +2,24 @@ package hooks
 
 import "strings"
 
-// Bounded literal-operand recognizer, mirrored in shell-file-access.js.
-// Does not interpret expansions or nested shells.
-func extractShellReadPaths(command string) []string {
-	type token struct {
-		value             string
-		literal, operator bool
-	}
+// shellToken is a word (quotes removed) or an operator of a command line.
+type shellToken struct {
+	value             string
+	literal, operator bool
+}
+
+// shellTokens returns the words and operators of a command line, mirroring
+// shellTokens in shell-file-access.js. A word with an expansion is not
+// literal, and heredoc bodies are skipped as data.
+func shellTokens(command string) []shellToken {
+	type token = shellToken
 	var tokens []token
 	var word []rune
 	var quote rune
 	heredoc := ""
 	stripTabs := false
 	literal := true
+	ansi := false
 	flush := func() {
 		if len(word) > 0 {
 			last := len(tokens) - 1
@@ -30,6 +35,28 @@ func extractShellReadPaths(command string) []string {
 	chars := []rune(command)
 	for i := 0; i < len(chars); i++ {
 		ch := chars[i]
+		// $'…' (ANSI-C quoting): a backslash escapes the next character, so \'
+		// does not close it; other escapes stay as written.
+		if ansi {
+			if ch == '\\' && i+1 < len(chars) {
+				i++
+				if chars[i] != '\'' {
+					word = append(word, '\\')
+				}
+				word = append(word, chars[i])
+			} else if ch == '\'' {
+				ansi = false
+			} else {
+				word = append(word, ch)
+			}
+			continue
+		}
+		if quote == 0 && ch == '$' && i+1 < len(chars) && chars[i+1] == '\'' {
+			ansi = true
+			literal = false
+			i++
+			continue
+		}
 		if ch == quote {
 			quote = 0
 			continue
@@ -55,6 +82,14 @@ func extractShellReadPaths(command string) []string {
 			}
 			continue
 		}
+		// A backslash before a line break continues the line: both go.
+		if quote != '\'' && ch == '\\' && i+1 < len(chars) && (chars[i+1] == '\n' || (chars[i+1] == '\r' && i+2 < len(chars) && chars[i+2] == '\n')) {
+			i++
+			if chars[i] == '\r' {
+				i++
+			}
+			continue
+		}
 		if quote != '\'' && (ch == '`' || (ch == '\\' && i+1 < len(chars) && strings.ContainsRune(" \t\r\n\"';&|<>\\", chars[i+1]))) {
 			i++
 			if i < len(chars) {
@@ -67,9 +102,9 @@ func extractShellReadPaths(command string) []string {
 			if strings.ContainsRune(";&|<>\n", ch) {
 				tokens = append(tokens, token{value: string(ch), operator: true})
 			}
+			// Without its delimiter (`$((1<<2))` is no heredoc) nothing is skipped.
 			if ch == '\n' && heredoc != "" {
 				offset := i + 1
-				i = len(chars)
 				for offset < len(chars) {
 					end := offset
 					for end < len(chars) && chars[end] != '\n' {
@@ -94,9 +129,16 @@ func extractShellReadPaths(command string) []string {
 		}
 		word = append(word, ch)
 	}
-	if quote == 0 {
+	if quote == 0 && !ansi {
 		flush()
 	}
+	return tokens
+}
+
+// Bounded literal-operand recognizer, mirrored in shell-file-access.js.
+// Does not interpret expansions or nested shells.
+func extractShellReadPaths(command string) []string {
+	tokens := shellTokens(command)
 	var paths []string
 	first, reader, skip, inputRead := true, false, false, false
 	readerName := ""

@@ -10,9 +10,11 @@ const CONTENT_OPTIONS = new Set(['-encoding', '-totalcount', '-tail', '-readcoun
 const SCP_OPTIONS = new Set(['-i', '-o']);
 const VALUE_OPTIONS = new Map([['head', COUNT_OPTIONS], ['tail', COUNT_OPTIONS], ['get-content', CONTENT_OPTIONS], ['gc', CONTENT_OPTIONS], ['scp', SCP_OPTIONS]]);
 
-function extractShellReadPaths(command) {
+// The words and operators of a command line, quotes removed. A word with an
+// expansion is not literal, and heredoc bodies are skipped as data.
+function shellTokens(command) {
   const tokens = [];
-  let word = '', quote = '', literal = true, heredoc = '', stripTabs = false;
+  let word = '', quote = '', literal = true, heredoc = '', stripTabs = false, ansi = false;
   const flush = () => {
     if (word) {
       const last = tokens.length - 1;
@@ -25,6 +27,15 @@ function extractShellReadPaths(command) {
   };
   for (let i = 0; i < command.length; i += 1) {
     const ch = command[i];
+    // $'…' (ANSI-C quoting): a backslash escapes the next character, so \' does
+    // not close it; other escapes stay as written.
+    if (ansi) {
+      if (ch === '\\' && i + 1 < command.length) { const next = command[++i]; word += next === "'" ? "'" : `\\${next}`; }
+      else if (ch === "'") ansi = false;
+      else word += ch;
+      continue;
+    }
+    if (!quote && ch === '$' && command[i + 1] === "'") { ansi = true; literal = false; i += 1; continue; }
     if (ch === quote) { quote = ''; continue; }
     if (!quote && (ch === '"' || ch === "'")) { quote = ch; continue; }
     if (!quote && ch === '<' && command[i + 1] === '<') {
@@ -37,6 +48,10 @@ function extractShellReadPaths(command) {
       while (i + 1 < command.length && command[i + 1] !== '\n') i += 1;
       continue;
     }
+    // A backslash before a line break continues the line: both go.
+    if (quote !== "'" && ch === '\\' && (command[i + 1] === '\n' || (command[i + 1] === '\r' && command[i + 2] === '\n'))) {
+      i += command[i + 1] === '\r' ? 2 : 1; continue;
+    }
     if (quote !== "'" && (ch === '`' || (ch === '\\' && /[ \t\r\n"';&|<>\\]/.test(command[i + 1] || '')))) {
       word += command[++i] || ''; continue;
     }
@@ -45,9 +60,9 @@ function extractShellReadPaths(command) {
       if (!/[ \t\r\n]/.test(ch) || ch === '\n') tokens.push({ value: ch, operator: true });
       // Heredoc bodies are data, not command segments. Skip until the literal
       // delimiter, without parsing quotes or apparent readers inside the body.
+      // Without that delimiter (`$((1<<2))` is no heredoc) nothing is skipped.
       if (ch === '\n' && heredoc) {
         let offset = i + 1;
-        i = command.length;
         while (offset < command.length) {
           const newline = command.indexOf('\n', offset);
           const end = newline < 0 ? command.length : newline;
@@ -62,7 +77,12 @@ function extractShellReadPaths(command) {
     if (quote !== "'" && /[$*?()]/.test(ch)) literal = false;
     word += ch;
   }
-  if (!quote) flush();
+  if (!quote && !ansi) flush();
+  return tokens;
+}
+
+function extractShellReadPaths(command) {
+  const tokens = shellTokens(command);
   const paths = [];
   let first = true, reader = false, readerName = '', skip = false, inputRead = false;
   for (const token of tokens) {
@@ -88,4 +108,4 @@ function extractShellReadPaths(command) {
   return paths;
 }
 
-module.exports = { extractShellReadPaths };
+module.exports = { extractShellReadPaths, shellTokens };

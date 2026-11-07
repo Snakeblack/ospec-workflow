@@ -1,0 +1,5 @@
+{
+  "description": "DENY: a git commit -F names a message file the guard cannot read, so it cannot rule out attribution (attribution-guard-gaps, ADR 0008)",
+  "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -F ospec-missing-commit-message.txt\"}}",
+  "expectedStdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Bloqueado: no se pudo leer `ospec-missing-commit-message.txt` para comprobar que el commit o la PR no atribuye el trabajo a una IA o herramienta (no existe, no es un fichero, supera 1 MiB o depende de una variable). Pasa el texto en la propia orden: -m o --body, o -F - / --body-file - con un heredoc.\"}}"
+}
