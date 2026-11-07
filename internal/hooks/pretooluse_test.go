@@ -1061,7 +1061,6 @@ func TestPreToolUse_CommitAttribution_MentionsPass(t *testing.T) {
 		`git commit -m "chore: bump deps via Gemini"`,
 		`git commit -m "feat: x" -m "Co-Authored-By: Ana Pérez <ana@example.dev>"`,
 		`gh pr create --title "fix(cursor): el validador ignora hooks ajenos" --body "Arregla setup:cursor con hooks de Orca."`,
-		`gh pr create --title "docs: x" --body-file pr.md`,
 	}
 	for _, cmd := range commands {
 		t.Run(cmd, func(t *testing.T) {

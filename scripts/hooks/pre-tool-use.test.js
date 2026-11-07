@@ -999,11 +999,315 @@ test("checkCommitAttribution lets a gh pr name the agents it is about", () => {
     'gh pr create --title "fix(cursor): el validador ignora hooks ajenos" --body "Arregla setup:cursor con hooks de Orca."',
     'gh pr edit 12 --title "feat(codex): adaptar hooks"',
     "gh pr view 12 --comments",
-    'gh pr create --title "docs: x" --body-file pr.md',
   ];
 
   for (const cmd of commands) {
     assert.equal(checkCommitAttribution(cmd), null, cmd);
+  }
+});
+
+// attribution-guard-gaps: the message also arrives through a file, stdin, another subcommand or
+// global options before the subcommand. The guard reads all of them.
+const TRAILER = "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>";
+// The attribution denial, apart from the one for a message the guard cannot read.
+const ATTRIBUTION_DENIAL = checkCommitAttribution(`git commit -m "fix: x" -m "${TRAILER}"`);
+
+function messageWorkspace(t, files = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-attribution-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  for (const [name, content] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), content);
+  return dir;
+}
+
+test("checkCommitAttribution denies attribution in the command text however the message arrives", (t) => {
+  const workspace = messageWorkspace(t);
+  const commands = [
+    `git commit -F - <<'EOF'\nfix: x\n\n${TRAILER}\nEOF`,
+    `git commit --file=- <<EOF\nfix: x\n\n🤖 Generated with Claude Code\nEOF`,
+    `git commit -m "$(cat <<'EOF'\nfix: el "guard" mira todo\n\n${TRAILER}\nEOF\n)"`,
+    `printf 'fix: x\\n\\n${TRAILER}\\n' | git commit -F -`,
+    `git commit -F - <<< $'fix: x\\n\\n${TRAILER}'`,
+    `git commit -m fix -m Co-Authored-By:Claude`,
+    `git -C /repo commit -m "fix: x" -m "${TRAILER}"`,
+    `git -c user.name=ana --no-pager commit -m "fix: x" -m "${TRAILER}"`,
+    `git merge -m "Merge generated with Claude" topic`,
+    `gh pr -R owner/repo create -t "feat: x" -b "${TRAILER}"`,
+    `gh pr new --title "feat: x" --body "Resumen\n\n🤖 Generated with Claude Code"`,
+    `gh pr comment 12 --body "🤖 Generated with Claude Code"`,
+    `gh pr review 12 --approve -b "${TRAILER}"`,
+    `gh pr merge 12 --merge --subject "x" --body "${TRAILER}"`,
+    `gh pr create --title "feat: x" --body-file - <<'EOF'\nResumen\n\nGenerado con Claude Code\nEOF`,
+  ];
+
+  for (const cmd of commands) {
+    assert.notEqual(checkCommitAttribution(cmd, workspace), null, cmd);
+  }
+});
+
+test("checkCommitAttribution reads the message and body files a commit or a PR names", (t) => {
+  const workspace = messageWorkspace(t, {
+    "msg.txt": `fix: x\n\n${TRAILER}\n`,
+    "pr.md": "## Resumen\n\nx\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+  });
+  const commands = [
+    "git commit -F msg.txt",
+    "git commit -Fmsg.txt",
+    "git commit --file msg.txt",
+    "git commit --file=msg.txt",
+    `git commit -F "${path.join(workspace, "msg.txt")}"`,
+    "git commit -t msg.txt --no-edit",
+    "git merge --file msg.txt topic",
+    "cat msg.txt | git commit -F -",
+    "git commit -F - < msg.txt",
+    'gh pr create --title "feat: x" --body-file pr.md',
+    'gh pr create -t "feat: x" -F pr.md',
+    "gh pr edit 12 --body-file=pr.md",
+    "gh pr comment 12 -F pr.md",
+  ];
+
+  for (const cmd of commands) {
+    assert.notEqual(checkCommitAttribution(cmd, workspace), null, cmd);
+  }
+});
+
+test("checkCommitAttribution denies a message file it cannot read, and says how to pass the text", (t) => {
+  const workspace = messageWorkspace(t, { "big.txt": "x".repeat(1024 * 1024) });
+  fs.mkdirSync(path.join(workspace, "dir"));
+  const commands = [
+    "git commit -F missing.txt",
+    'gh pr create --title "feat: x" --body-file "$BODY"',
+    "git commit -F dir",
+    "git commit -F big.txt",
+    "cat missing.txt | git commit -F -",
+  ];
+
+  for (const cmd of commands) {
+    const reason = checkCommitAttribution(cmd, workspace);
+    assert.notEqual(reason, null, cmd);
+    assert.match(reason, /no se pudo leer/, cmd);
+    assert.match(reason, /-F -/, cmd);
+  }
+});
+
+test("checkCommitAttribution lets clean files, heredocs and other commands through", (t) => {
+  const workspace = messageWorkspace(t, {
+    "msg.txt": "fix(claude): corregir el hook\n\nCo-Authored-By: Ana Pérez <ana@example.dev>\n",
+    "pr.md": "## Resumen\n\nArregla setup:cursor.\n",
+  });
+  const commands = [
+    "git commit -F msg.txt",
+    "cat msg.txt | git commit -F -",
+    'gh pr create --title "docs: x" --body-file pr.md',
+    `git commit -F - <<'EOF'\nfix(codex): adaptar hooks\n\nCuerpo que cita git commit -F missing.txt.\nEOF`,
+    'git commit -m "docs: explica git commit -F missing.txt y gh pr --body-file x.md"',
+    'grep -F foo msg.txt && git commit -m "fix: x"',
+    "git log -F --grep foo",
+    "gh pr view 12 --comments",
+  ];
+
+  for (const cmd of commands) {
+    assert.equal(checkCommitAttribution(cmd, workspace), null, cmd);
+  }
+});
+
+// Trust review of attribution-guard-gaps: the command may sit behind a wrapper
+// with options, a reserved word, a group or a nested shell, and the message
+// file is read from the directory git uses.
+test("checkCommitAttribution finds the command behind wrappers, reserved words, groups and nested shells", (t) => {
+  const workspace = messageWorkspace(t, {
+    "msg.txt": `fix: x\n\n${TRAILER}\n`,
+    "pr.md": "Resumen\n\n🤖 Generated with Claude Code\n",
+  });
+  const commands = [
+    `env -i git commit -m "fix: x" -m "${TRAILER}"`,
+    `sudo -u root gh pr create -t "feat: x" -b "${TRAILER}"`,
+    `timeout 60 git commit -m "fix: x" -m "${TRAILER}"`,
+    `bash -c 'git commit -m "fix: x" -m "${TRAILER}"'`,
+    `if true; then git commit -m "fix: x" -m "${TRAILER}"; fi`,
+    `{ git commit -m "fix: x" -m "${TRAILER}"; }`,
+    `(git commit -m "fix: x" -m "${TRAILER}")`,
+    `echo $'\\'' ; git commit -m "fix: x" -m "${TRAILER}"`,
+    "env -i git commit -F msg.txt",
+    "bash -lc 'git commit -F msg.txt'",
+    'sudo -u root gh pr create -t "feat: x" --body-file pr.md',
+    "if true; then git commit -F msg.txt; fi",
+  ];
+
+  for (const cmd of commands) {
+    assert.notEqual(checkCommitAttribution(cmd, workspace), null, cmd);
+  }
+});
+
+test("checkCommitAttribution reads the message file from the directory git uses", (t) => {
+  const workspace = messageWorkspace(t, { "msg.txt": "fix: x\n" });
+  fs.mkdirSync(path.join(workspace, "sub"));
+  fs.writeFileSync(path.join(workspace, "sub", "msg.txt"), `fix: x\n\n${TRAILER}\n`);
+  const denied = [
+    "git -C sub commit -F msg.txt",
+    "cd sub && git commit -F msg.txt",
+    "(cd sub && git commit -F msg.txt)",
+    "bash -c 'cd sub && git commit -F msg.txt'",
+    "git commit --fil sub/msg.txt",
+    "git commit --fil=sub/msg.txt",
+    'gh pr create -t "feat: x" --template sub/msg.txt',
+    'gh pr create -t "feat: x" -T sub/msg.txt',
+  ];
+  for (const cmd of denied) {
+    assert.notEqual(checkCommitAttribution(cmd, workspace), null, cmd);
+  }
+
+  const unknown = checkCommitAttribution('cd "$DIR" && git commit -F msg.txt', workspace);
+  assert.match(unknown ?? "", /no se pudo leer/);
+
+  const clean = [
+    "cd sub; git -C .. commit -F msg.txt",
+    `cd sub && git commit -F "${path.join(workspace, "msg.txt")}"`,
+    'cd "$DIR" && git commit -m "fix: x"',
+  ];
+  for (const cmd of clean) {
+    assert.equal(checkCommitAttribution(cmd, workspace), null, cmd);
+  }
+});
+
+// Second trust review: continued lines, escaped words, a `<<` that is no
+// heredoc, `--trailer token=value` and $'…' escapes read as the shell does.
+test("checkCommitAttribution reads continued lines, escaped words, trailers and escapes as the shell does", (t) => {
+  const workspace = messageWorkspace(t, {
+    "msg.txt": `fix: x\n\n${TRAILER}\n`,
+    "pr.md": "Resumen\n\n🤖 Generated with Claude Code\n",
+    "clean.txt": "fix: x\n",
+  });
+  const denied = [
+    "git commit \\\n-F msg.txt",
+    "git add . && \\\n  git commit -F msg.txt",
+    "gh pr create --title x \\\n--body-file pr.md",
+    "\\git commit -F msg.txt",
+    "git commit -m Co-authored-by:\\ Cl\\aude",
+    "echo $((1<<2))\ngit commit -F msg.txt",
+    "git commit -m x --trailer 'Co-authored-by=Claude <noreply@anthropic.com>'",
+    "git commit -m $'x\\n\\nCo-authored-by: Cl\\x61ude'",
+  ];
+  for (const cmd of denied) {
+    assert.notEqual(checkCommitAttribution(cmd, workspace), null, cmd);
+  }
+  const clean = [
+    "git commit \\\n-F clean.txt",
+    "\\git commit -F clean.txt",
+    "git commit -m x --trailer 'Reviewed-by=Ana Pérez'",
+  ];
+  for (const cmd of clean) {
+    assert.equal(checkCommitAttribution(cmd, workspace), null, cmd);
+  }
+});
+
+// Third trust review: a message from stdin comes from the command's own `<`
+// redirect or from a file reader piped into it, read in the shell's directory;
+// other readers of the line are not its message. `gh pr close|reopen -c`
+// posts a PR comment.
+test("checkCommitAttribution reads only the files that feed a message from stdin", (t) => {
+  const workspace = messageWorkspace(t, { "msg.txt": "fix: x\n", "notes.txt": `${TRAILER}\n` });
+  fs.mkdirSync(path.join(workspace, "sub"));
+  fs.writeFileSync(path.join(workspace, "sub", "msg.txt"), `fix: x\n\n${TRAILER}\n`);
+  const heredoc = "git commit -F - <<'EOF'\nfix: x\nEOF";
+  const clean = [
+    `git log --oneline | grep -v wip; ${heredoc}`,
+    `sed -n 1p notes.txt; ${heredoc}`,
+    `cp notes.txt /tmp/out.txt && ${heredoc}`,
+    "cat msg.txt | git commit -F -",
+    "printf 'fix: x\\n' | git commit -F -",
+    'gh pr close 12 -c "superseded by #13"',
+  ];
+  for (const cmd of clean) {
+    assert.equal(checkCommitAttribution(cmd, workspace), null, cmd);
+  }
+  const denied = [
+    "cd sub && cat msg.txt | git -C .. commit -F -",
+    "cd sub && git -C .. commit -F - < msg.txt",
+    "head -n 20 sub/msg.txt | git commit -F -",
+    'gh pr close 12 -c "🤖 Generated with Claude Code"',
+    `gh pr reopen 12 --comment "${TRAILER}"`,
+  ];
+  for (const cmd of denied) {
+    assert.notEqual(checkCommitAttribution(cmd, workspace), null, cmd);
+  }
+  assert.match(checkCommitAttribution("cat missing.txt | git commit -F -", workspace) ?? "", /no se pudo leer/);
+});
+
+// attribution-stdin-feeders: a pipe broken by a line or written |&, a reader
+// fed by its own < or by another pipe, and a < after a >& redirection all feed
+// a message read from stdin.
+test("checkCommitAttribution follows what feeds a message from stdin through pipes and redirections", (t) => {
+  const workspace = messageWorkspace(t, { "msg.txt": `fix: x\n\n${TRAILER}\n`, "clean.txt": "fix: x\n" });
+  const forms = [
+    (file) => `cat ${file} |\ngit commit -F -`,
+    (file) => `cat ${file} |& git commit -F -`,
+    (file) => `cat < ${file} | git commit -F -`,
+    (file) => `cat ${file} | cat | git commit -F -`,
+    (file) => `git commit -F - 2>&1 < ${file}`,
+    (file) => `git commit -F - &> log.txt < ${file}`,
+    (file) => `cat ${file} 2>/dev/null | git commit -F -`,
+  ];
+  for (const form of forms) {
+    assert.equal(checkCommitAttribution(form("msg.txt"), workspace), ATTRIBUTION_DENIAL, form("msg.txt"));
+    assert.equal(checkCommitAttribution(form("clean.txt"), workspace), null, form("clean.txt"));
+  }
+  for (const cmd of ["cat | git commit -F -", "sed 's/x/y/' clean.txt | cat | git commit -F -"]) {
+    assert.match(checkCommitAttribution(cmd, workspace) ?? "", /llega por stdin desde `(?:cat|sed)`/, cmd);
+  }
+  for (const cmd of ["cat <<'EOF' | git commit -F -\nfix: x\nEOF", "echo 'fix: x' | cat | git commit -F -"]) {
+    assert.equal(checkCommitAttribution(cmd, workspace), null, cmd);
+  }
+});
+
+// Trust review of attribution-stdin-feeders: a wrapped feeder is followed or
+// denied, a `<` of another descriptor is not stdin, and `>|` is a redirection.
+test("checkCommitAttribution follows a wrapped feeder and reads only stdin redirections", (t) => {
+  const workspace = messageWorkspace(t, { "msg.txt": `fix: x\n\n${TRAILER}\n`, "clean.txt": "fix: x\n" });
+  const forms = [
+    (file) => `env cat ${file} | git commit -F -`,
+    (file) => `nice -n 5 cat ${file} | git commit -F -`,
+    (file) => `cat ${file} | git commit -F - 3< clean.txt`,
+    (file) => `git commit -F - >| out.txt < ${file}`,
+    (file) => `git commit -F - 0< ${file}`,
+  ];
+  for (const form of forms) {
+    assert.equal(checkCommitAttribution(form("msg.txt"), workspace), ATTRIBUTION_DENIAL, form("msg.txt"));
+    assert.equal(checkCommitAttribution(form("clean.txt"), workspace), null, form("clean.txt"));
+  }
+  for (const [cmd, program] of [["cat msg.txt | env tee | git commit -F -", "env"], ["cat list.txt | xargs cat | git commit -F -", "xargs"]]) {
+    assert.match(checkCommitAttribution(cmd, workspace) ?? "", new RegExp(`llega por stdin desde \`${program}\``), cmd);
+  }
+});
+
+// Second review: a reader's `-` or /dev/stdin operand reads its own stdin too.
+test("checkCommitAttribution follows a reader's stdin operand", (t) => {
+  const workspace = messageWorkspace(t, { "msg.txt": `fix: x\n\n${TRAILER}\n`, "clean.txt": "fix: x\n" });
+  for (const cmd of ["cat clean.txt - < msg.txt | git commit -F -", "cat clean.txt /dev/stdin < msg.txt | git commit -F -", "cat msg.txt - < clean.txt | git commit -F -"]) {
+    assert.equal(checkCommitAttribution(cmd, workspace), ATTRIBUTION_DENIAL, cmd);
+  }
+  for (const [cmd, program] of [["cat clean.txt - | git commit -F -", "cat"], ["sed 's/x/y/' clean.txt | cat clean.txt - | git commit -F -", "sed"]]) {
+    assert.match(checkCommitAttribution(cmd, workspace) ?? "", new RegExp(`llega por stdin desde \`${program}\``), cmd);
+  }
+  assert.equal(checkCommitAttribution("cat clean.txt - < clean.txt | git commit -F -", workspace), null);
+});
+
+test("checkCommitAttribution stays linear on a long repetitive command", () => {
+  const started = process.hrtime.bigint();
+  assert.equal(checkCommitAttribution("gh pr ".repeat(20000)), null);
+  assert.equal(checkCommitAttribution("git status ".repeat(20000)), null);
+  const elapsed = Number(process.hrtime.bigint() - started) / 1e6;
+  assert.ok(elapsed < 2000, `took ${elapsed} ms`);
+});
+
+test("evaluateToolUse denies attribution read from a message file in every permission mode", (t) => {
+  const workspace = messageWorkspace(t, { "msg.txt": `fix: x\n\n${TRAILER}\n` });
+  for (const permission_mode of ["default", "bypassPermissions"]) {
+    const decision = evaluateToolUse(
+      { tool_name: "Bash", tool_input: { command: "git commit -F msg.txt" }, permission_mode },
+      { workspace },
+    )?.hookSpecificOutput ?? NO_DECISION;
+    assert.equal(decision.permissionDecision, "deny", permission_mode);
+    assert.match(decision.permissionDecisionReason, /atribuye/);
   }
 });
 

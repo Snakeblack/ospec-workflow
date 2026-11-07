@@ -1,0 +1,1603 @@
+{
+  "schema": "idd-state/v1",
+  "change": "attribution-guard-gaps",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El guard PreToolUse de atribución (JS y Go) deja pasar git commit -F/--file (fichero o heredoc por stdin), gh pr --body-file/-F, gh pr comment/review/merge, git merge -m, git -C/-c antes de commit, gh pr -R antes del subcomando y un -m \"$(cat <<EOF…)\" con comillas dentro; y el hook commit-msg solo se instala a mano, con setup-git-hooks.js fallando en worktrees (ENOTDIR) e instalando donde git no mira con core.hooksPath, mientras el doctor se salta los worktrees (hallazgo 4 de PR3b).",
+    "acceptance": "Un commit o una PR con atribución por cualquiera de esas formas recibe deny en el hook Node y en el binario Go con el mismo resultado; los mensajes limpios y los que solo nombran un agente siguen pasando; setup-git-hooks instala pre-commit y commit-msg en la carpeta de hooks que git usa (también desde un worktree) y el doctor la comprueba allí; CONTRIBUTING.md explica cómo quedan instalados."
+  },
+  "facts": {
+    "open": [
+      "Alcance del escaneo: en un git commit o gh pr, ¿el guard mira el texto entero del comando (cubre heredoc de -F -, printf | git commit -F -, here-string, -m \"$(cat <<EOF…)\" con comillas dentro y un fichero que la propia orden escribe) o solo los argumentos de mensaje más los cuerpos heredoc? Con texto entero, una orden compuesta que nombre la atribución en otra parte (p. ej. sed '/🤖/d') también se niega.",
+      "Órdenes cubiertas: hoy git commit y gh pr create|edit. ¿Se añaden git merge (-m/-F), gh pr comment, gh pr review y gh pr merge (--subject/--body/--body-file), dejando fuera gh api y gh issue?",
+      "Fichero ilegible: con -F/--file de git o --body-file/-F de gh, si el fichero no existe, no se puede leer, supera 1 MiB o usa una variable ($F), ¿el guard deja pasar (siguen el escaneo del texto, commit-msg y CI), pregunta o niega?",
+      "core.hooksPath definido: ¿setup-git-hooks instala en esa carpeta (git la lee; si es global y compartida rompería los commits de otros repos, y husky la regenera), no escribe y explica qué líneas añadir (el doctor avisa igual), o instala solo si la carpeta está dentro del repositorio?",
+      "Instalación automática: ¿script prepare en package.json (cada npm install/npm ci instala los hooks, también en CI; un fallo avisa sin romper npm install) más CONTRIBUTING.md, o solo CONTRIBUTING.md y el aviso que ya da el doctor?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "CONTRIBUTING.md",
+      "docs/harness-runtime.md",
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/sdd/verificacion-sdd.md",
+      "internal/hooks/attribution_test.go",
+      "internal/hooks/pretooluse.go",
+      "internal/hooks/pretooluse_test.go",
+      "internal/hooks/shellfileaccess.go",
+      "internal/hooks/shellfileaccess_test.go",
+      "internal/testdata/parity/pre-tool-use-attribution-heredoc-deny.json",
+      "internal/testdata/parity/pre-tool-use-attribution-pr-comment-deny.json",
+      "internal/testdata/parity/pre-tool-use-attribution-unreadable-deny.json",
+      "internal/testdata/parity/pre-tool-use-attribution-wrapper-deny.json",
+      "openspec/specs/git-precommit-hook/spec.md",
+      "openspec/specs/hooks/spec.md",
+      "openspec/specs/idd/spec.md",
+      "package.json",
+      "scripts/hooks/lib/shell-file-access.js",
+      "scripts/hooks/lib/shell-file-access.test.js",
+      "scripts/hooks/pre-tool-use.js",
+      "scripts/hooks/pre-tool-use.test.js",
+      "scripts/lib/git-hooks-dir.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/ospec-doctor.js",
+      "scripts/lib/ospec-doctor.test.js",
+      "scripts/lib/ospec-gitignore.test.js",
+      "scripts/setup-git-hooks.js",
+      "scripts/setup-git-hooks.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Las opciones globales antes del subcomando (git -C <dir>, git -c k=v, --git-dir=…, --no-pager; gh pr -R o/r) no sacan la orden del guard: se reconoce igual que git commit o gh pr <sub>.",
+      "setup-git-hooks y el doctor localizan la carpeta de hooks con git rev-parse --git-path hooks desde la raíz del work tree, resuelta contra ella: en un worktree es la del repositorio principal, compartida.",
+      "El doctor usa la misma carpeta para git-hooks (checkout) y para strict-tdd-hook, así un worktree no se salta la comprobación.",
+      "El guard es un reconocedor literal acotado, no un intérprete de shell (como shell-file-access.js): no sigue sustituciones de órdenes (-m \"$(cat f)\"), variables ni la salida de otros programas, ni opciones cortas agrupadas (-aF f); eso queda para commit-msg y CI.",
+      "Un mensaje por stdin (-F -, --body-file -, /dev/stdin) se busca en el texto de la orden y en los ficheros que la orden lee según extractShellReadPaths (cat f |, < f); uno ilegible niega.",
+      "Las rutas de -F/--file/--template y --body-file se resuelven contra el directorio de la sesión, con ~/ expandido al home; solo se lee un fichero regular de menos de 1 MiB.",
+      "El tokenizador de shell-file-access.js (y shellfileaccess.go) se exporta como shellTokens y lo comparten el guard de secretos y el de atribución, así una orden citada dentro de otra (un patrón de grep, un mensaje) no cuenta como commit.",
+      "Tras la revisión de confianza, el programa se busca tras asignaciones, palabras reservadas y grupos (then, {, (git), y tras un wrapper (env -i, sudo -u, timeout) hasta la primera palabra git, gh o shell; el script de sh|bash -c se analiza hasta dos niveles; y una orden que solo menciona git … commit|merge o gh … pr … <sub> en cualquier sitio también tiene su texto revisado (decisión 1a).",
+      "Un fichero de mensaje relativo se lee desde el directorio que usa git (cd o pushd previos de la misma orden y git -C); si no se puede saber (cd \"$DIR\", cd -, popd) se niega como ilegible. git acepta abreviaturas únicas (--fil) y gh pr -T/--template también nombra un fichero.",
+      "El tokenizador compartido sigue el entrecomillado $'…', donde \\\\' no lo cierra: una orden detrás de echo $'\\\\'' ya no queda dentro de una comilla, también para el guard de secretos.",
+      "Tras la segunda revisión, cada texto se lee también como lo lee el shell o git: escapes de printf y $'…' decodificados (un surrogate suelto queda como está, igual en Node y Go), sin las barras que quita una palabra sin comillas y con --trailer token=valor como token: valor; una barra ante salto de línea continúa la línea, \\git es git, un << sin su línea delimitadora no oculta nada y la mención se busca en tiempo lineal.",
+      "Tras la tercera revisión, un mensaje por stdin se lee solo de lo que lo alimenta, desde el directorio del shell: el < de la propia orden o el lector de ficheros (cat, tac, type, head, tail, Get-Content) que le llega por una tubería; un heredoc o here-string queda en el texto, echo y printf también, y cualquier otro programa por tubería se niega; los demás lectores de la línea no son su mensaje. gh pr close|reopen -c/--comment es una orden de mensaje."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/pre-tool-use.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/pre-tool-use.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "El guard de atribución sigue en el suelo de denegaciones que el modo de permisos no degrada (test en default y bypassPermissions), y un fichero de mensaje que no puede leer, ni su ruta con variable, se niega en vez de pasar."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas: el guard Node usa node:fs/os/path y el binario Go la biblioteca estándar (slices incluido); prepare ejecuta un script local sin descargar nada, y los fixtures de paridad nuevos prueban que binario y respaldo dan la misma salida."
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Un guard que no puede decidir bloquea: -F o --body-file con un fichero ausente, que no es regular, de 1 MiB o más o con variable, y cat f | git commit -F - con f ilegible, se niegan con un motivo que dice cómo pasar el texto."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-14"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-18"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-17"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-15"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-16"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 186,
+      "answer": "todas las recomendadas: 1a texto entero de la orden; 2a añadir git merge -m/-F, gh pr comment, gh pr review y gh pr merge --subject/--body/--body-file, sin gh api ni gh issue; 3a fichero ilegible se niega (ADR 0008) y el mensaje propone -F - con heredoc o -m; 4a con core.hooksPath no se escribe, se explican las líneas y el doctor avisa; 5a script prepare más CONTRIBUTING.md, un fallo bajo prepare avisa y sale con 0, la invocación directa sigue fallando",
+      "source": "user",
+      "resolved_turn": 187
+    },
+    {
+      "id": "review-limit",
+      "status": "resolved",
+      "reason": "3 of 3 trust reviews used: ospec check opens the review-limit gate, and only the person's answer authorizes one more",
+      "opened_turn": 190,
+      "answer": "A, autoriza la cuarta revisión",
+      "source": "user",
+      "resolved_turn": 191
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-06T19:24:01.286Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-06T19:26:10.666Z",
+      "detail": {
+        "tree": "sha256:aeb1fccbef517ffb5625481563deeecaf68cb698c8cee30a6c952c2534b7d8af",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-06T19:26:10.666Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:aeb1fccbef517ffb5625481563deeecaf68cb698c8cee30a6c952c2534b7d8af",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-06T19:27:13.313Z",
+      "detail": {
+        "run": "run-10",
+        "tree": "sha256:ada0f99cc765feed16095b4a9f8fd021fbee9d46af1d6415b5df9e0ee56f1cfb",
+        "plan": "Compatibilidad: las líneas que setup escribe en pre-commit y commit-msg son las mismas que antes, una instalación previa se reconoce por el nombre del script y no se duplica, y el hook de otra herramienta se conserva y solo recibe la línea de ospec al final; prepare repite setup en cada npm install sin cambiar nada ya instalado. Con core.hooksPath no se escribe. Rollback: borrar las dos líneas de ospec de los hooks (o los ficheros que solo las contienen) y quitar el script prepare de package.json."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-06T19:32:18.969Z",
+      "detail": {
+        "lineage_id": "sha256:3b20db970225d08923c76f5b3508ecf745597425cf6885881e1c4c5383eccd2b",
+        "candidate_id": "sha256:43ccb53e011402b25aa0bbbf5fe5220650eb3e6a97d28ac701f34b6087f5aadb",
+        "candidate_tree": "202812b7b105377d26762fee69b86f7a2c564587",
+        "findings_digest": "sha256:634362f9403c283d4a5d0fcf983d7359eeb62ac92641c3477234a71f1f25166a",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-06T19:31:08.429Z",
+          "result_digest": "sha256:126fe2961c19137f44aa2388fcc94d4980d4b87204e05c9dbd0a0a9f4584dfa5"
+        }
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-06T19:41:57.283Z",
+      "detail": {
+        "tree": "sha256:f2b7bff1b8fe078435ca465581bfc882348088480583a4d31f031d36c6fb8d66",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-06T19:41:57.283Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:f2b7bff1b8fe078435ca465581bfc882348088480583a4d31f031d36c6fb8d66",
+        "fitness": [
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-06T19:42:26.012Z",
+      "detail": {
+        "run": "run-16",
+        "tree": "sha256:79ba58a690285032fabd215317d5d8f62b4a01c5ea45e6164740f7abf2ce63b7",
+        "plan": "Compatibilidad: las líneas que setup escribe en pre-commit y commit-msg son las mismas que antes, una instalación previa se reconoce por el nombre del script y no se duplica, y el hook de otra herramienta se conserva y solo recibe la línea de ospec al final; prepare repite setup en cada npm install sin cambiar nada ya instalado. Con core.hooksPath no se escribe. Rollback: borrar las dos líneas de ospec de los hooks (o los ficheros que solo las contienen) y quitar el script prepare de package.json."
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-06T19:48:44.605Z",
+      "detail": {
+        "lineage_id": "sha256:257e5eb1bd7a4a0d516d8e0de26214ae23eea0bd86d9e0d65b0fe9b8b4973fe8",
+        "candidate_id": "sha256:bdbaa3f76e0f3b18e11f359adb6a5a9fe08dfccd6e0921e8b3bd3035f3ea66e8",
+        "candidate_tree": "100de70bd40180947ab0b2701f0748ccc9ac0078",
+        "findings_digest": "sha256:2942ba78ebf3e90191405fdd59db5ceaa5edfe6ff7ed2fbb3909d2ec28d91542",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-06T19:47:56.075Z",
+          "result_digest": "sha256:2fe6d30567f1b262e08c72ebee0d68a30c8a6f7b012733f53ea29c40b74433be"
+        }
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-06T19:53:51.055Z",
+      "detail": {
+        "tree": "sha256:f528705cf4f2256bf13d675c372f13abce48dd55e0c4a3a4bed07bdb83619f80",
+        "runs": [
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-06T19:53:51.055Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:f528705cf4f2256bf13d675c372f13abce48dd55e0c4a3a4bed07bdb83619f80",
+        "fitness": [
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21"
+        ]
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-06T19:54:02.958Z",
+      "detail": {
+        "run": "run-22",
+        "tree": "sha256:1224f9f5bf2d54bad2c3dd15dcda906b6b0f7c83c1930d86ec1fbf5c5b44dc80",
+        "plan": "Compatibilidad: las líneas que setup escribe en pre-commit y commit-msg son las mismas que antes, una instalación previa se reconoce por el nombre del script y no se duplica, y el hook de otra herramienta se conserva y solo recibe la línea de ospec al final; prepare repite setup en cada npm install sin cambiar nada ya instalado. Con core.hooksPath no se escribe. Rollback: borrar las dos líneas de ospec de los hooks (o los ficheros que solo las contienen) y quitar el script prepare de package.json."
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-06T20:01:49.265Z",
+      "detail": {
+        "lineage_id": "sha256:2ba89e17f8f4c9ed07bfa0e843ae0ca420b56cd4f290bb03b3f18d4dc1f0705c",
+        "candidate_id": "sha256:422fced2c7d8cb600a4a01ace23120c9d6ca9d34507479c056155065330a7a78",
+        "candidate_tree": "4ed150f5ae9fc613df139b6d1779f567cf283354",
+        "findings_digest": "sha256:3921f624055dda96b93c03433631e47435a4c9ef463eb01ff76bac311e075f43",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-06T20:01:11.960Z",
+          "result_digest": "sha256:0b28ac32c709d19c828204541ecc044883e8cff26ef47aef632c84974ce9199f"
+        }
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-06T20:07:37.713Z",
+      "detail": {
+        "tree": "sha256:3caae90d8559e0cde0d7789529b95561978934a61f76b3292e4c7a55e69929e7",
+        "runs": [
+          "run-23"
+        ]
+      }
+    },
+    {
+      "id": "ev-15",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-06T20:07:37.713Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:3caae90d8559e0cde0d7789529b95561978934a61f76b3292e4c7a55e69929e7",
+        "fitness": [
+          "run-24",
+          "run-25",
+          "run-26",
+          "run-27"
+        ]
+      }
+    },
+    {
+      "id": "ev-16",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-06T20:07:49.472Z",
+      "detail": {
+        "run": "run-28",
+        "tree": "sha256:c0f0d8d3b93ba657ac55cc0ecfc27aa44853cb17186d38aa2a2693de7dfe4a2b",
+        "plan": "Compatibilidad: las líneas que setup escribe en pre-commit y commit-msg son las mismas que antes, una instalación previa se reconoce por el nombre del script y no se duplica, y el hook de otra herramienta se conserva y solo recibe la línea de ospec al final; prepare repite setup en cada npm install sin cambiar nada ya instalado. Con core.hooksPath no se escribe. Rollback: borrar las dos líneas de ospec de los hooks (o los ficheros que solo las contienen) y quitar el script prepare de package.json."
+      }
+    },
+    {
+      "id": "ev-17",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-07T09:44:04.145Z",
+      "detail": {
+        "lineage_id": "sha256:12e7771560f95bd8651a16a3ffa836724dd57db85691b1b6d30b819366511d88",
+        "candidate_id": "sha256:3b449e136a8a895d688520d4e2e29b4779498c01603796e721e220cd04a241f5",
+        "candidate_tree": "24ef6b2051e52b8256149b2da524d672f3e59798",
+        "findings_digest": "sha256:61271974e2c0cb4221befa87624017ea080dd5cd2084454c038bd9d3bc23a7d0",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-07T09:43:40.738Z",
+          "result_digest": "sha256:c70ca550dc5c49c5499924b33f90ba264d60492ae7cec4b4ab29e5b38666a904"
+        }
+      }
+    },
+    {
+      "id": "ev-18",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-07T09:44:20.645Z"
+    }
+  ],
+  "base": "f5a01cfb522481c9ca791b979b4f5424e28b0094",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js scripts/setup-git-hooks.test.js scripts/lib/ospec-doctor.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:42c73cbc300ab8721a8d9c8e55674116a18d174429c86a2eb59f6d58cf910eb5",
+      "tree": "sha256:698ba4ef6db5abd479a3bc6793a4573540bcaeb2feab0abfec998cc1436cc6d7",
+      "recorded_at": "2026-11-06T19:14:08.227Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js scripts/setup-git-hooks.test.js scripts/lib/ospec-doctor.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b357498a0b6223e1ae3a7808654356609ae143e84d023ffc309b704276d9e818",
+      "tree": "sha256:29423d26348ff27fce1c26de25f087a25eb7e3019096691f025ba1c949330355",
+      "recorded_at": "2026-11-06T19:24:01.286Z",
+      "tests": 119,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "f5a01cfb522481c9ca791b979b4f5424e28b0094",
+      "mount": "sha256:711135959d4183668fa27e51df01842021fe2d6f270924fc5bc55a9af189949b",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js scripts/setup-git-hooks.test.js scripts/lib/ospec-doctor.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:e229e0b56f8375163d8ef2684da13e1a993e27e801088bda3453c739967f3e63",
+      "tree": "sha256:29423d26348ff27fce1c26de25f087a25eb7e3019096691f025ba1c949330355",
+      "recorded_at": "2026-11-06T19:24:01.286Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "f5a01cfb522481c9ca791b979b4f5424e28b0094",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/hooks/pre-tool-use.test.js scripts/setup-git-hooks.test.js scripts/lib/ospec-doctor.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:99e6283e85643e62963589977702efb8205c94bcee2b2e102305ab3d46b3ca72",
+      "tree": "sha256:29423d26348ff27fce1c26de25f087a25eb7e3019096691f025ba1c949330355",
+      "recorded_at": "2026-11-06T19:24:01.286Z",
+      "tests": 106
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1c772f1cef5bd023e4e588b74e76cb6f00967bd04f87cd7438bd5f2aa9e820d5",
+      "tree": "sha256:aeb1fccbef517ffb5625481563deeecaf68cb698c8cee30a6c952c2534b7d8af",
+      "recorded_at": "2026-11-06T19:26:10.666Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f29c39f8b48e157d0322cddb5be750c6586fea12969bf6ac4f415ee7512caa11",
+      "tree": "sha256:aeb1fccbef517ffb5625481563deeecaf68cb698c8cee30a6c952c2534b7d8af",
+      "recorded_at": "2026-11-06T19:26:10.666Z",
+      "tests": 87
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:aeb1fccbef517ffb5625481563deeecaf68cb698c8cee30a6c952c2534b7d8af",
+      "recorded_at": "2026-11-06T19:26:10.666Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:649e25318a6726f3e804a817c14bac9f2fad80429263a8250f7e1e5969added6",
+      "tree": "sha256:aeb1fccbef517ffb5625481563deeecaf68cb698c8cee30a6c952c2534b7d8af",
+      "recorded_at": "2026-11-06T19:26:10.666Z",
+      "tests": 25
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e88b9f7460ff251ead3332413556462cd104c5a986d9ef176bb4f23e1bbeb29e",
+      "tree": "sha256:aeb1fccbef517ffb5625481563deeecaf68cb698c8cee30a6c952c2534b7d8af",
+      "recorded_at": "2026-11-06T19:26:10.666Z",
+      "tests": 87
+    },
+    {
+      "id": "run-10",
+      "purpose": "migration-test",
+      "command": "node --test scripts/setup-git-hooks.test.js scripts/lib/ospec-gitignore.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c1610ddbc42d3e41e8fda5359b13c2175fc03b518af63ba318a816dfd3014fcd",
+      "tree": "sha256:ada0f99cc765feed16095b4a9f8fd021fbee9d46af1d6415b5df9e0ee56f1cfb",
+      "recorded_at": "2026-11-06T19:27:13.313Z",
+      "tests": 12
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b95673125f0ea07b9da4defa978e593ff47987ea3f224be17af9adaa342580c1",
+      "tree": "sha256:f2b7bff1b8fe078435ca465581bfc882348088480583a4d31f031d36c6fb8d66",
+      "recorded_at": "2026-11-06T19:41:57.283Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2e2ab98f096a9e2d4c669526b61ad08b47a95266b7eafd90e3ab869aef43dc78",
+      "tree": "sha256:f2b7bff1b8fe078435ca465581bfc882348088480583a4d31f031d36c6fb8d66",
+      "recorded_at": "2026-11-06T19:41:57.283Z",
+      "tests": 89
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:f2b7bff1b8fe078435ca465581bfc882348088480583a4d31f031d36c6fb8d66",
+      "recorded_at": "2026-11-06T19:41:57.283Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b1744174855fe58a9f451f3212f6ca167870d2cda02733e63122d31f2115dd65",
+      "tree": "sha256:f2b7bff1b8fe078435ca465581bfc882348088480583a4d31f031d36c6fb8d66",
+      "recorded_at": "2026-11-06T19:41:57.283Z",
+      "tests": 26
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5fcba197fd00693ee17889a539864453eac6f756ede2d6b777f32024a9a63205",
+      "tree": "sha256:f2b7bff1b8fe078435ca465581bfc882348088480583a4d31f031d36c6fb8d66",
+      "recorded_at": "2026-11-06T19:41:57.283Z",
+      "tests": 89
+    },
+    {
+      "id": "run-16",
+      "purpose": "migration-test",
+      "command": "node --test scripts/setup-git-hooks.test.js scripts/lib/ospec-gitignore.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a1cd2da4abdbf0e3ed26d707f5b5f5620c47b867b44f60ad622c398f152aa451",
+      "tree": "sha256:79ba58a690285032fabd215317d5d8f62b4a01c5ea45e6164740f7abf2ce63b7",
+      "recorded_at": "2026-11-06T19:42:26.012Z",
+      "tests": 12
+    },
+    {
+      "id": "run-17",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:33212a7293e31a8ae40b66d691e6e381a07b8ed7ed94bec76c0c504ece49a1a0",
+      "tree": "sha256:f528705cf4f2256bf13d675c372f13abce48dd55e0c4a3a4bed07bdb83619f80",
+      "recorded_at": "2026-11-06T19:53:51.055Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c9ae0da87efea41145a42309639eb02caac6364403e9e5f8ee18e5b2ca56836b",
+      "tree": "sha256:f528705cf4f2256bf13d675c372f13abce48dd55e0c4a3a4bed07bdb83619f80",
+      "recorded_at": "2026-11-06T19:53:51.055Z",
+      "tests": 91
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:f528705cf4f2256bf13d675c372f13abce48dd55e0c4a3a4bed07bdb83619f80",
+      "recorded_at": "2026-11-06T19:53:51.055Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c8638e6bbf27236d8043ef9b40105037002c43b972ede3984dac585cf297b55d",
+      "tree": "sha256:f528705cf4f2256bf13d675c372f13abce48dd55e0c4a3a4bed07bdb83619f80",
+      "recorded_at": "2026-11-06T19:53:51.055Z",
+      "tests": 26
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:12195d198a46ad8b449e81e269c384937f3c7d2bae5ad45b7b108fbf7d4b6563",
+      "tree": "sha256:f528705cf4f2256bf13d675c372f13abce48dd55e0c4a3a4bed07bdb83619f80",
+      "recorded_at": "2026-11-06T19:53:51.055Z",
+      "tests": 91
+    },
+    {
+      "id": "run-22",
+      "purpose": "migration-test",
+      "command": "node --test scripts/setup-git-hooks.test.js scripts/lib/ospec-gitignore.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d2a9f946d333d95f24ecf62ef572136fcf0706ee55cb7679346a9ee69b00e5dd",
+      "tree": "sha256:1224f9f5bf2d54bad2c3dd15dcda906b6b0f7c83c1930d86ec1fbf5c5b44dc80",
+      "recorded_at": "2026-11-06T19:54:02.958Z",
+      "tests": 12
+    },
+    {
+      "id": "run-23",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:606a2b2e078ff78625e154bcf30d2d367cc3e17c283b81f01af69a157dd7ee02",
+      "tree": "sha256:3caae90d8559e0cde0d7789529b95561978934a61f76b3292e4c7a55e69929e7",
+      "recorded_at": "2026-11-06T20:07:37.713Z"
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7fcf78e55354cf87d7689e156a64f79dc6571e1eb64bf60a42c9ac42b96d2368",
+      "tree": "sha256:3caae90d8559e0cde0d7789529b95561978934a61f76b3292e4c7a55e69929e7",
+      "recorded_at": "2026-11-06T20:07:37.713Z",
+      "tests": 92
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:3caae90d8559e0cde0d7789529b95561978934a61f76b3292e4c7a55e69929e7",
+      "recorded_at": "2026-11-06T20:07:37.713Z"
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:422d44df4d416f2f1052463a00528b585ec1cf84cc1a638154d9cff0c77e0587",
+      "tree": "sha256:3caae90d8559e0cde0d7789529b95561978934a61f76b3292e4c7a55e69929e7",
+      "recorded_at": "2026-11-06T20:07:37.713Z",
+      "tests": 26
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:357cc207f41f8db265b39761023705edcf342c69a1473faccfbe823f56ea2435",
+      "tree": "sha256:3caae90d8559e0cde0d7789529b95561978934a61f76b3292e4c7a55e69929e7",
+      "recorded_at": "2026-11-06T20:07:37.713Z",
+      "tests": 92
+    },
+    {
+      "id": "run-28",
+      "purpose": "migration-test",
+      "command": "node --test scripts/setup-git-hooks.test.js scripts/lib/ospec-gitignore.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:91863006140fac5ca75f489ea1fb864b7b6efa9ea034b08766794fc88a0075d0",
+      "tree": "sha256:c0f0d8d3b93ba657ac55cc0ecfc27aa44853cb17186d38aa2a2693de7dfe4a2b",
+      "recorded_at": "2026-11-06T20:07:49.472Z",
+      "tests": 12
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:3b20db970225d08923c76f5b3508ecf745597425cf6885881e1c4c5383eccd2b",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "d788bfe2503e963306aa55b35cb1a60fcc2e94a0",
+          "candidate_tree": "202812b7b105377d26762fee69b86f7a2c564587",
+          "paths": [
+            "CONTRIBUTING.md",
+            "docs/harness-runtime.md",
+            "handbook/sdd/verificacion-sdd.md",
+            "internal/hooks/attribution_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/shellfileaccess.go",
+            "internal/testdata/parity/pre-tool-use-attribution-heredoc-deny.json",
+            "internal/testdata/parity/pre-tool-use-attribution-pr-comment-deny.json",
+            "internal/testdata/parity/pre-tool-use-attribution-unreadable-deny.json",
+            "openspec/specs/git-precommit-hook/spec.md",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "package.json",
+            "scripts/hooks/lib/shell-file-access.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/git-hooks-dir.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/ospec-doctor.js",
+            "scripts/lib/ospec-doctor.test.js",
+            "scripts/lib/ospec-gitignore.test.js",
+            "scripts/setup-git-hooks.js",
+            "scripts/setup-git-hooks.test.js"
+          ],
+          "diff_hash": "sha256:9a6f6063282acdcb2888cd4b9e4b434eac5a9752dad54f456b3fd04a4101bb96",
+          "paths_digest": "sha256:feb4e6905e7b32b7eab5f9914c9e8e1510b307d320ddc8995257437bf9bf0665",
+          "authored_lines": 1025,
+          "original_changed_lines": 1137
+        },
+        "candidate_id": "sha256:43ccb53e011402b25aa0bbbf5fe5220650eb3e6a97d28ac701f34b6087f5aadb",
+        "paths": [
+          "CONTRIBUTING.md",
+          "docs/harness-runtime.md",
+          "handbook/sdd/verificacion-sdd.md",
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/testdata/parity/pre-tool-use-attribution-heredoc-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-pr-comment-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-unreadable-deny.json",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "package.json",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/git-hooks-dir.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/ospec-gitignore.test.js",
+          "scripts/setup-git-hooks.js",
+          "scripts/setup-git-hooks.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "202812b7b105377d26762fee69b86f7a2c564587",
+        "original_changed_lines": 1137,
+        "authored_lines": 1025
+      },
+      "current_candidate_id": "sha256:43ccb53e011402b25aa0bbbf5fe5220650eb3e6a97d28ac701f34b6087f5aadb",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "d788bfe2503e963306aa55b35cb1a60fcc2e94a0",
+        "candidate_tree": "202812b7b105377d26762fee69b86f7a2c564587",
+        "paths": [
+          "CONTRIBUTING.md",
+          "docs/harness-runtime.md",
+          "handbook/sdd/verificacion-sdd.md",
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/testdata/parity/pre-tool-use-attribution-heredoc-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-pr-comment-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-unreadable-deny.json",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "package.json",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/git-hooks-dir.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/ospec-gitignore.test.js",
+          "scripts/setup-git-hooks.js",
+          "scripts/setup-git-hooks.test.js"
+        ],
+        "diff_hash": "sha256:9a6f6063282acdcb2888cd4b9e4b434eac5a9752dad54f456b3fd04a4101bb96",
+        "paths_digest": "sha256:feb4e6905e7b32b7eab5f9914c9e8e1510b307d320ddc8995257437bf9bf0665",
+        "authored_lines": 1025,
+        "original_changed_lines": 1137
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "attribution-guard-gaps:lens-start:1:0",
+          "result_digest": "sha256:0a8c5003bfd09447857bc103d7925522e037351cba4d3e05fe119421db9cf242",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "The PreToolUse attribution deny is skipped when the commit is not at the start of a simple command, or when the tokenizer misreads the quotes. In pre-tool-use.js, messageCommand (793-809) skips only the wrapper words (env, sudo, time…), never their options. So `env -i git commit …`, `sudo -u root gh pr create …` and `timeout 60 git commit …` are not recognised. `bash -c '…'`, `if …; then git commit …`, `{ git commit …; }`, `(git commit …)` and `$(git …)` are not recognised either. Separately, shellTokens (shell-file-access.js:28-67) treats `$'\\''` as an opened quote. In `echo $'\\'' ; git commit -m \"Co-Authored-By: Claude\"` the commit is then read as quoted text and the last word is dropped. In all these cases targets is empty and checkCommitAttribution returns null (line 867) before the whole-text scan at 876. The Go port (pretooluse.go:110-151, shellfileaccess.go) behaves the same way.",
+                "acceptance_criteria": "With the same input, the hook and the Go binary deny each of these commands when it carries `Co-Authored-By: Claude …`: `env -i git commit -m \"…\"`, `sudo -u root gh pr create -b \"…\"`, `timeout 60 git commit -m \"…\"`, `bash -c 'git commit -m \"…\"'`, `if true; then git commit -m \"…\"; fi`, `{ git commit -m \"…\"; }`, `(git commit -m \"…\")`, and `echo $'\\'' ; git commit -m \"…\"`. Clean commands and a grep pattern or commit message that only cites `git commit` still pass. Any limit that remains is listed in hooks/spec.md and harness-runtime.md instead of the absolute-block claim."
+              },
+              {
+                "severity": "WARNING",
+                "summary": "Message-file lookup can read a different file from the one git reads, or skip the file altogether. readMessageFile (pre-tool-use.js:835-846) and the Go readMessageFile (pretooluse.go:206-230) resolve a relative -F, --file or --body-file path against the hook's workspace. Git resolves it after `git -C <dir>`, `--work-tree` or an earlier `cd <dir> &&`. A clean decoy `msg.txt` in the workspace lets `git -C other commit -F msg.txt` pass while other/msg.txt carries the trailer. Without a decoy the commit is denied as unreadable. messageFiles (812-831) also compares option names exactly. Git accepts unique abbreviations such as `--fil msg.txt`, and `gh pr create -T/--template` is not in GH_PR_MESSAGE (768). In those cases no file is read and nothing fails closed.",
+                "acceptance_criteria": "With the same input, the hook and the Go binary behave as follows. `git -C <dir> commit -F msg.txt` and `cd <dir> && git commit -F msg.txt` read <dir>/msg.txt, or deny when they cannot tell which directory applies, and never read workspace/msg.txt in their place. `git commit --fil msg.txt` and `gh pr create --template t.md` with attribution in the file are denied, or denied as unreadable. Clean files still pass."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "attribution-guard-gaps:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-be42a7540cbca4b5",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The PreToolUse attribution deny is skipped when the commit is not at the start of a simple command, or when the tokenizer misreads the quotes. In pre-tool-use.js, messageCommand (793-809) skips only the wrapper words (env, sudo, time…), never their options. So `env -i git commit …`, `sudo -u root gh pr create …` and `timeout 60 git commit …` are not recognised. `bash -c '…'`, `if …; then git commit …`, `{ git commit …; }`, `(git commit …)` and `$(git …)` are not recognised either. Separately, shellTokens (shell-file-access.js:28-67) treats `$'\\''` as an opened quote. In `echo $'\\'' ; git commit -m \"Co-Authored-By: Claude\"` the commit is then read as quoted text and the last word is dropped. In all these cases targets is empty and checkCommitAttribution returns null (line 867) before the whole-text scan at 876. The Go port (pretooluse.go:110-151, shellfileaccess.go) behaves the same way.",
+          "acceptance_criteria": "With the same input, the hook and the Go binary deny each of these commands when it carries `Co-Authored-By: Claude …`: `env -i git commit -m \"…\"`, `sudo -u root gh pr create -b \"…\"`, `timeout 60 git commit -m \"…\"`, `bash -c 'git commit -m \"…\"'`, `if true; then git commit -m \"…\"; fi`, `{ git commit -m \"…\"; }`, `(git commit -m \"…\")`, and `echo $'\\'' ; git commit -m \"…\"`. Clean commands and a grep pattern or commit message that only cites `git commit` still pass. Any limit that remains is listed in hooks/spec.md and harness-runtime.md instead of the absolute-block claim.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-4bb3ecce46f02544",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "Message-file lookup can read a different file from the one git reads, or skip the file altogether. readMessageFile (pre-tool-use.js:835-846) and the Go readMessageFile (pretooluse.go:206-230) resolve a relative -F, --file or --body-file path against the hook's workspace. Git resolves it after `git -C <dir>`, `--work-tree` or an earlier `cd <dir> &&`. A clean decoy `msg.txt` in the workspace lets `git -C other commit -F msg.txt` pass while other/msg.txt carries the trailer. Without a decoy the commit is denied as unreadable. messageFiles (812-831) also compares option names exactly. Git accepts unique abbreviations such as `--fil msg.txt`, and `gh pr create -T/--template` is not in GH_PR_MESSAGE (768). In those cases no file is read and nothing fails closed.",
+          "acceptance_criteria": "With the same input, the hook and the Go binary behave as follows. `git -C <dir> commit -F msg.txt` and `cd <dir> && git commit -F msg.txt` read <dir>/msg.txt, or deny when they cannot tell which directory applies, and never read workspace/msg.txt in their place. `git commit --fil msg.txt` and `gh pr create --template t.md` with attribution in the file are denied, or denied as unreadable. Clean files still pass.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:634362f9403c283d4a5d0fcf983d7359eeb62ac92641c3477234a71f1f25166a",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:257e5eb1bd7a4a0d516d8e0de26214ae23eea0bd86d9e0d65b0fe9b8b4973fe8",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:3b20db970225d08923c76f5b3508ecf745597425cf6885881e1c4c5383eccd2b",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "d788bfe2503e963306aa55b35cb1a60fcc2e94a0",
+          "candidate_tree": "100de70bd40180947ab0b2701f0748ccc9ac0078",
+          "paths": [
+            "CONTRIBUTING.md",
+            "docs/harness-runtime.md",
+            "handbook/sdd/verificacion-sdd.md",
+            "internal/hooks/attribution_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/shellfileaccess.go",
+            "internal/hooks/shellfileaccess_test.go",
+            "internal/testdata/parity/pre-tool-use-attribution-heredoc-deny.json",
+            "internal/testdata/parity/pre-tool-use-attribution-pr-comment-deny.json",
+            "internal/testdata/parity/pre-tool-use-attribution-unreadable-deny.json",
+            "internal/testdata/parity/pre-tool-use-attribution-wrapper-deny.json",
+            "openspec/specs/git-precommit-hook/spec.md",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "package.json",
+            "scripts/hooks/lib/shell-file-access.js",
+            "scripts/hooks/lib/shell-file-access.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/git-hooks-dir.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/ospec-doctor.js",
+            "scripts/lib/ospec-doctor.test.js",
+            "scripts/lib/ospec-gitignore.test.js",
+            "scripts/setup-git-hooks.js",
+            "scripts/setup-git-hooks.test.js"
+          ],
+          "diff_hash": "sha256:8dd290f5e16e3597f7f4a56d6f93ff5eb306cece0c6601e2dcf7aac88323dc50",
+          "paths_digest": "sha256:0f96b2719df6db3b80fe3bd446a305aa3bbf0eceb82f38c342df559b013e577b",
+          "authored_lines": 1506,
+          "original_changed_lines": 1621
+        },
+        "candidate_id": "sha256:bdbaa3f76e0f3b18e11f359adb6a5a9fe08dfccd6e0921e8b3bd3035f3ea66e8",
+        "paths": [
+          "CONTRIBUTING.md",
+          "docs/harness-runtime.md",
+          "handbook/sdd/verificacion-sdd.md",
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/parity/pre-tool-use-attribution-heredoc-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-pr-comment-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-unreadable-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-wrapper-deny.json",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "package.json",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/git-hooks-dir.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/ospec-gitignore.test.js",
+          "scripts/setup-git-hooks.js",
+          "scripts/setup-git-hooks.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "100de70bd40180947ab0b2701f0748ccc9ac0078",
+        "original_changed_lines": 1621,
+        "authored_lines": 1506
+      },
+      "current_candidate_id": "sha256:bdbaa3f76e0f3b18e11f359adb6a5a9fe08dfccd6e0921e8b3bd3035f3ea66e8",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "d788bfe2503e963306aa55b35cb1a60fcc2e94a0",
+        "candidate_tree": "100de70bd40180947ab0b2701f0748ccc9ac0078",
+        "paths": [
+          "CONTRIBUTING.md",
+          "docs/harness-runtime.md",
+          "handbook/sdd/verificacion-sdd.md",
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/parity/pre-tool-use-attribution-heredoc-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-pr-comment-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-unreadable-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-wrapper-deny.json",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "package.json",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/git-hooks-dir.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/ospec-gitignore.test.js",
+          "scripts/setup-git-hooks.js",
+          "scripts/setup-git-hooks.test.js"
+        ],
+        "diff_hash": "sha256:8dd290f5e16e3597f7f4a56d6f93ff5eb306cece0c6601e2dcf7aac88323dc50",
+        "paths_digest": "sha256:0f96b2719df6db3b80fe3bd446a305aa3bbf0eceb82f38c342df559b013e577b",
+        "authored_lines": 1506,
+        "original_changed_lines": 1621
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "attribution-guard-gaps:lens-start:2:0",
+          "result_digest": "sha256:4acc93b20c29ccfa06d2c419bb114169d40855bf7aaec2add7603d61060a19b0",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/hooks/lib/shell-file-access.js:51-53 (y internal/hooks/shellfileaccess.go:85-91): el tokenizador conserva el backslash sin comillas y convierte `\\`+salto de línea en un \"\\n\" dentro de la palabra, mientras bash lo descarta. `git commit \\<nl>-F msg.txt` produce la palabra \"\\n-F\" y la opción no se reconoce. `git add . && \\<nl>  git commit -F msg.txt` hace que el programa sea \"\\n\" y no se reconoce el comando. `\\git commit -F msg.txt` queda como programa `\\git`. En los tres casos el fichero de mensaje no se lee y no hay deny (el texto de la orden sí se escanea, el fichero no). `Cl\\aude` sin comillas tampoco coincide con la regex.",
+                "acceptance_criteria": "En el hook Node y en el binario Go, con un msg.txt o pr.md que contiene `Co-Authored-By: Claude …`, estas órdenes reciben deny: `git commit \\<nl>-F msg.txt`; `git add . && \\<nl>  git commit -F msg.txt`; `gh pr create --title x \\<nl>--body-file pr.md`; `\\git commit -F msg.txt`; `git commit -m Co-authored-by:\\ Cl\\aude`. Con un fichero limpio las mismas órdenes pasan. Hay pruebas en ambos puertos."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "scripts/hooks/lib/shell-file-access.js:21-23,41-46,59-70 (y shellfileaccess.go:26-29,68-77,97-116): cualquier palabra tras un `<<` activa la omisión de heredoc, también un desplazamiento aritmético. `echo $((1<<2))\\ngit commit -F msg.txt` fija el delimitador \"2))\" y, al no encontrarlo, descarta el resto de la orden sin tokenizar. `git commit` no llega a ser objetivo, así que el fichero no se lee y no hay deny. El resultado es fail-open, no el deny por fichero ilegible del ADR 0008.",
+                "acceptance_criteria": "Con un msg.txt con atribución, `echo $((1<<2))\\ngit commit -F msg.txt` recibe deny en Node y en Go, o la orden se trata como no analizable y se deniega o pide confirmación. Un heredoc real con terminador (`cat <<'EOF' … EOF`) sigue omitiendo su cuerpo, y un heredoc sin terminador no oculta una orden `git commit -F` posterior."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "scripts/hooks/pre-tool-use.js:38-39 (y pretooluse.go:32-34): la regex exige `-by:`, pero `git commit --trailer \"Co-authored-by=Claude <noreply@anthropic.com>\"` también produce un trailer (git acepta `token=valor` en --trailer, cf. interpret-trailers). El texto no contiene `-by:` y no coincide. `$'…Cl\\x61ude'` tampoco coincide: el tokenizador deja los escapes ANSI-C \\xNN, \\NNN y \\uNNNN sin decodificar (shell-file-access.js:33).",
+                "acceptance_criteria": "`git commit -m x --trailer 'Co-authored-by=Claude <noreply@anthropic.com>'` y `git commit -m $'x\\n\\nCo-authored-by: Cl\\x61ude'` reciben deny en Node y en Go, y un `--trailer 'Reviewed-by=Ana Pérez'` pasa. Si los dos casos se dejan fuera a propósito, la spec 6a.1 los lista entre los límites."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "scripts/hooks/pre-tool-use.js:783: MESSAGE_COMMAND_MENTION_RE usa `[\\s\\S]*?` encadenados. En V8 es cuadrática con muchos `git` sin commit|merge y cúbica con muchos `gh`/`pr` sin create|new|edit|comment|review|merge. El puerto Go usa RE2 (lineal), así que solo afecta al hook Node. El resto del fichero declara expresiones lineales (DISK_FORMAT_RE).",
+                "acceptance_criteria": "Una orden de cientos de KB que repite `gh pr ` sin subcomando, o `git ` sin commit|merge, se evalúa en tiempo lineal (medido sobre una entrada de peor caso, con un tope acordado) y las decisiones de las pruebas de mención siguen iguales."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "attribution-guard-gaps:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-d6e9237b6622e544",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/hooks/lib/shell-file-access.js:51-53 (y internal/hooks/shellfileaccess.go:85-91): el tokenizador conserva el backslash sin comillas y convierte `\\`+salto de línea en un \"\\n\" dentro de la palabra, mientras bash lo descarta. `git commit \\<nl>-F msg.txt` produce la palabra \"\\n-F\" y la opción no se reconoce. `git add . && \\<nl>  git commit -F msg.txt` hace que el programa sea \"\\n\" y no se reconoce el comando. `\\git commit -F msg.txt` queda como programa `\\git`. En los tres casos el fichero de mensaje no se lee y no hay deny (el texto de la orden sí se escanea, el fichero no). `Cl\\aude` sin comillas tampoco coincide con la regex.",
+          "acceptance_criteria": "En el hook Node y en el binario Go, con un msg.txt o pr.md que contiene `Co-Authored-By: Claude …`, estas órdenes reciben deny: `git commit \\<nl>-F msg.txt`; `git add . && \\<nl>  git commit -F msg.txt`; `gh pr create --title x \\<nl>--body-file pr.md`; `\\git commit -F msg.txt`; `git commit -m Co-authored-by:\\ Cl\\aude`. Con un fichero limpio las mismas órdenes pasan. Hay pruebas en ambos puertos.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-5fc1dd7dd04e34b5",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "scripts/hooks/lib/shell-file-access.js:21-23,41-46,59-70 (y shellfileaccess.go:26-29,68-77,97-116): cualquier palabra tras un `<<` activa la omisión de heredoc, también un desplazamiento aritmético. `echo $((1<<2))\\ngit commit -F msg.txt` fija el delimitador \"2))\" y, al no encontrarlo, descarta el resto de la orden sin tokenizar. `git commit` no llega a ser objetivo, así que el fichero no se lee y no hay deny. El resultado es fail-open, no el deny por fichero ilegible del ADR 0008.",
+          "acceptance_criteria": "Con un msg.txt con atribución, `echo $((1<<2))\\ngit commit -F msg.txt` recibe deny en Node y en Go, o la orden se trata como no analizable y se deniega o pide confirmación. Un heredoc real con terminador (`cat <<'EOF' … EOF`) sigue omitiendo su cuerpo, y un heredoc sin terminador no oculta una orden `git commit -F` posterior.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-c2e6bf3b13866027",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "scripts/hooks/pre-tool-use.js:38-39 (y pretooluse.go:32-34): la regex exige `-by:`, pero `git commit --trailer \"Co-authored-by=Claude <noreply@anthropic.com>\"` también produce un trailer (git acepta `token=valor` en --trailer, cf. interpret-trailers). El texto no contiene `-by:` y no coincide. `$'…Cl\\x61ude'` tampoco coincide: el tokenizador deja los escapes ANSI-C \\xNN, \\NNN y \\uNNNN sin decodificar (shell-file-access.js:33).",
+          "acceptance_criteria": "`git commit -m x --trailer 'Co-authored-by=Claude <noreply@anthropic.com>'` y `git commit -m $'x\\n\\nCo-authored-by: Cl\\x61ude'` reciben deny en Node y en Go, y un `--trailer 'Reviewed-by=Ana Pérez'` pasa. Si los dos casos se dejan fuera a propósito, la spec 6a.1 los lista entre los límites.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-490deadcb7379506",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "scripts/hooks/pre-tool-use.js:783: MESSAGE_COMMAND_MENTION_RE usa `[\\s\\S]*?` encadenados. En V8 es cuadrática con muchos `git` sin commit|merge y cúbica con muchos `gh`/`pr` sin create|new|edit|comment|review|merge. El puerto Go usa RE2 (lineal), así que solo afecta al hook Node. El resto del fichero declara expresiones lineales (DISK_FORMAT_RE).",
+          "acceptance_criteria": "Una orden de cientos de KB que repite `gh pr ` sin subcomando, o `git ` sin commit|merge, se evalúa en tiempo lineal (medido sobre una entrada de peor caso, con un tope acordado) y las decisiones de las pruebas de mención siguen iguales.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:2942ba78ebf3e90191405fdd59db5ceaa5edfe6ff7ed2fbb3909d2ec28d91542",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:2ba89e17f8f4c9ed07bfa0e843ae0ca420b56cd4f290bb03b3f18d4dc1f0705c",
+      "generation": 3,
+      "predecessor_lineage_id": "sha256:257e5eb1bd7a4a0d516d8e0de26214ae23eea0bd86d9e0d65b0fe9b8b4973fe8",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "d788bfe2503e963306aa55b35cb1a60fcc2e94a0",
+          "candidate_tree": "4ed150f5ae9fc613df139b6d1779f567cf283354",
+          "paths": [
+            "CONTRIBUTING.md",
+            "docs/harness-runtime.md",
+            "handbook/sdd/verificacion-sdd.md",
+            "internal/hooks/attribution_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/shellfileaccess.go",
+            "internal/hooks/shellfileaccess_test.go",
+            "internal/testdata/parity/pre-tool-use-attribution-heredoc-deny.json",
+            "internal/testdata/parity/pre-tool-use-attribution-pr-comment-deny.json",
+            "internal/testdata/parity/pre-tool-use-attribution-unreadable-deny.json",
+            "internal/testdata/parity/pre-tool-use-attribution-wrapper-deny.json",
+            "openspec/specs/git-precommit-hook/spec.md",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "package.json",
+            "scripts/hooks/lib/shell-file-access.js",
+            "scripts/hooks/lib/shell-file-access.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/git-hooks-dir.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/ospec-doctor.js",
+            "scripts/lib/ospec-doctor.test.js",
+            "scripts/lib/ospec-gitignore.test.js",
+            "scripts/setup-git-hooks.js",
+            "scripts/setup-git-hooks.test.js"
+          ],
+          "diff_hash": "sha256:69b434d2faf1bd0903b7d7c92d7148764193d33dbcb34ab6f148603882be69f9",
+          "paths_digest": "sha256:0f96b2719df6db3b80fe3bd446a305aa3bbf0eceb82f38c342df559b013e577b",
+          "authored_lines": 1672,
+          "original_changed_lines": 1789
+        },
+        "candidate_id": "sha256:422fced2c7d8cb600a4a01ace23120c9d6ca9d34507479c056155065330a7a78",
+        "paths": [
+          "CONTRIBUTING.md",
+          "docs/harness-runtime.md",
+          "handbook/sdd/verificacion-sdd.md",
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/parity/pre-tool-use-attribution-heredoc-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-pr-comment-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-unreadable-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-wrapper-deny.json",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "package.json",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/git-hooks-dir.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/ospec-gitignore.test.js",
+          "scripts/setup-git-hooks.js",
+          "scripts/setup-git-hooks.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "4ed150f5ae9fc613df139b6d1779f567cf283354",
+        "original_changed_lines": 1789,
+        "authored_lines": 1672
+      },
+      "current_candidate_id": "sha256:422fced2c7d8cb600a4a01ace23120c9d6ca9d34507479c056155065330a7a78",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "d788bfe2503e963306aa55b35cb1a60fcc2e94a0",
+        "candidate_tree": "4ed150f5ae9fc613df139b6d1779f567cf283354",
+        "paths": [
+          "CONTRIBUTING.md",
+          "docs/harness-runtime.md",
+          "handbook/sdd/verificacion-sdd.md",
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/parity/pre-tool-use-attribution-heredoc-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-pr-comment-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-unreadable-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-wrapper-deny.json",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "package.json",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/git-hooks-dir.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/ospec-gitignore.test.js",
+          "scripts/setup-git-hooks.js",
+          "scripts/setup-git-hooks.test.js"
+        ],
+        "diff_hash": "sha256:69b434d2faf1bd0903b7d7c92d7148764193d33dbcb34ab6f148603882be69f9",
+        "paths_digest": "sha256:0f96b2719df6db3b80fe3bd446a305aa3bbf0eceb82f38c342df559b013e577b",
+        "authored_lines": 1672,
+        "original_changed_lines": 1789
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "attribution-guard-gaps:lens-start:3:0",
+          "result_digest": "sha256:b4feec2d22b604aace465dce7e66d3ebbc4c47959d6a3682699cfcc1107d87a3",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/hooks/pre-tool-use.js:1013 and internal/hooks/pretooluse.go:514-518: for a message read from stdin (-F - / --body-file -), the guard reads every file that extractShellReadPaths finds anywhere in the command, not only the source that feeds the message command. That recognizer also reports non-file operands such as grep patterns, sed/awk scripts and cp targets (shell-file-access.js:103-106; its test expects 'grep API_KEY .env' -> ['API_KEY','.env']). Trigger: `git log --oneline | grep -v wip; git commit -F - <<'EOF'\\nfix: x\\nEOF` gives ['wip']. readMessageFile returns null and the hook denies it as unreadable (ADR 0008), although the message is clean and was passed the way the denial text recommends. An unrelated file read earlier in the line that quotes a model name also denies. The paths are resolved against the git -C base (target.cwd), not against the directory where the reader ran. The deny holds in every permission mode and has no bypass variable.",
+                "acceptance_criteria": "In both the Node and Go hooks, a clean `-F -` or `--body-file -` heredoc commit or PR in a command line that also runs a reader with a non-file operand (`grep -v wip`, `sed -n 1p f`) is not denied. `cat missing.txt | git commit -F -` is still denied as unreadable. `cat msg.txt | git commit -F -` and `git commit -F - < msg.txt` still read and check the fed file. A test in each runtime covers a non-file operand next to a clean `-F -` heredoc."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "The PR-text surface is enumerated as gh pr create|new|edit|comment|review|merge (pre-tool-use.js:778, mentionsMessageCommand at 809-817; pretooluse.go:92-101, 60). `gh pr close <n> -c \"🤖 Generated with Claude Code\"` and `gh pr reopen <n> -c ...` also post a PR comment, but they match none of the six subcommands. The mention heuristic needs a whole word create|new|edit|comment|review|merge, so the long `--comment` form is scanned only by accident and the short `-c` form is not scanned at all. The hook returns null and the text is not checked. §6a.1 does not list this among the deliberate limits, and CI checks PR commits, title and body, not comments, so nothing else catches it.",
+                "acceptance_criteria": "`gh pr close 12 -c \"🤖 Generated with Claude Code\"` and the same with `reopen` are denied in both the Node and Go hooks. A clean `gh pr close 12 -c \"superseded by #13\"` passes. Alternatively, §6a.1 names close/reopen comments as a deliberate limit. Parity tests cover the chosen behavior."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "attribution-guard-gaps:lens-result:3:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-bab78d856ed0d10e",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/hooks/pre-tool-use.js:1013 and internal/hooks/pretooluse.go:514-518: for a message read from stdin (-F - / --body-file -), the guard reads every file that extractShellReadPaths finds anywhere in the command, not only the source that feeds the message command. That recognizer also reports non-file operands such as grep patterns, sed/awk scripts and cp targets (shell-file-access.js:103-106; its test expects 'grep API_KEY .env' -> ['API_KEY','.env']). Trigger: `git log --oneline | grep -v wip; git commit -F - <<'EOF'\\nfix: x\\nEOF` gives ['wip']. readMessageFile returns null and the hook denies it as unreadable (ADR 0008), although the message is clean and was passed the way the denial text recommends. An unrelated file read earlier in the line that quotes a model name also denies. The paths are resolved against the git -C base (target.cwd), not against the directory where the reader ran. The deny holds in every permission mode and has no bypass variable.",
+          "acceptance_criteria": "In both the Node and Go hooks, a clean `-F -` or `--body-file -` heredoc commit or PR in a command line that also runs a reader with a non-file operand (`grep -v wip`, `sed -n 1p f`) is not denied. `cat missing.txt | git commit -F -` is still denied as unreadable. `cat msg.txt | git commit -F -` and `git commit -F - < msg.txt` still read and check the fed file. A test in each runtime covers a non-file operand next to a clean `-F -` heredoc.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-5d092c93ba9ee91c",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "The PR-text surface is enumerated as gh pr create|new|edit|comment|review|merge (pre-tool-use.js:778, mentionsMessageCommand at 809-817; pretooluse.go:92-101, 60). `gh pr close <n> -c \"🤖 Generated with Claude Code\"` and `gh pr reopen <n> -c ...` also post a PR comment, but they match none of the six subcommands. The mention heuristic needs a whole word create|new|edit|comment|review|merge, so the long `--comment` form is scanned only by accident and the short `-c` form is not scanned at all. The hook returns null and the text is not checked. §6a.1 does not list this among the deliberate limits, and CI checks PR commits, title and body, not comments, so nothing else catches it.",
+          "acceptance_criteria": "`gh pr close 12 -c \"🤖 Generated with Claude Code\"` and the same with `reopen` are denied in both the Node and Go hooks. A clean `gh pr close 12 -c \"superseded by #13\"` passes. Alternatively, §6a.1 names close/reopen comments as a deliberate limit. Parity tests cover the chosen behavior.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:3921f624055dda96b93c03433631e47435a4c9ef463eb01ff76bac311e075f43",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:12e7771560f95bd8651a16a3ffa836724dd57db85691b1b6d30b819366511d88",
+      "generation": 4,
+      "predecessor_lineage_id": "sha256:2ba89e17f8f4c9ed07bfa0e843ae0ca420b56cd4f290bb03b3f18d4dc1f0705c",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "d788bfe2503e963306aa55b35cb1a60fcc2e94a0",
+          "candidate_tree": "24ef6b2051e52b8256149b2da524d672f3e59798",
+          "paths": [
+            "CONTRIBUTING.md",
+            "docs/harness-runtime.md",
+            "handbook/sdd/verificacion-sdd.md",
+            "internal/hooks/attribution_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/shellfileaccess.go",
+            "internal/hooks/shellfileaccess_test.go",
+            "internal/testdata/parity/pre-tool-use-attribution-heredoc-deny.json",
+            "internal/testdata/parity/pre-tool-use-attribution-pr-comment-deny.json",
+            "internal/testdata/parity/pre-tool-use-attribution-unreadable-deny.json",
+            "internal/testdata/parity/pre-tool-use-attribution-wrapper-deny.json",
+            "openspec/specs/git-precommit-hook/spec.md",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "package.json",
+            "scripts/hooks/lib/shell-file-access.js",
+            "scripts/hooks/lib/shell-file-access.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/git-hooks-dir.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/ospec-doctor.js",
+            "scripts/lib/ospec-doctor.test.js",
+            "scripts/lib/ospec-gitignore.test.js",
+            "scripts/setup-git-hooks.js",
+            "scripts/setup-git-hooks.test.js"
+          ],
+          "diff_hash": "sha256:76214ed8c64c637c0842365e3974fe1b689c82e5e72aaa8cfd3459fc22fe8ec0",
+          "paths_digest": "sha256:0f96b2719df6db3b80fe3bd446a305aa3bbf0eceb82f38c342df559b013e577b",
+          "authored_lines": 1905,
+          "original_changed_lines": 2022
+        },
+        "candidate_id": "sha256:3b449e136a8a895d688520d4e2e29b4779498c01603796e721e220cd04a241f5",
+        "paths": [
+          "CONTRIBUTING.md",
+          "docs/harness-runtime.md",
+          "handbook/sdd/verificacion-sdd.md",
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/parity/pre-tool-use-attribution-heredoc-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-pr-comment-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-unreadable-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-wrapper-deny.json",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "package.json",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/git-hooks-dir.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/ospec-gitignore.test.js",
+          "scripts/setup-git-hooks.js",
+          "scripts/setup-git-hooks.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "24ef6b2051e52b8256149b2da524d672f3e59798",
+        "original_changed_lines": 2022,
+        "authored_lines": 1905
+      },
+      "current_candidate_id": "sha256:3b449e136a8a895d688520d4e2e29b4779498c01603796e721e220cd04a241f5",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "d788bfe2503e963306aa55b35cb1a60fcc2e94a0",
+        "candidate_tree": "24ef6b2051e52b8256149b2da524d672f3e59798",
+        "paths": [
+          "CONTRIBUTING.md",
+          "docs/harness-runtime.md",
+          "handbook/sdd/verificacion-sdd.md",
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/parity/pre-tool-use-attribution-heredoc-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-pr-comment-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-unreadable-deny.json",
+          "internal/testdata/parity/pre-tool-use-attribution-wrapper-deny.json",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "package.json",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/git-hooks-dir.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/ospec-gitignore.test.js",
+          "scripts/setup-git-hooks.js",
+          "scripts/setup-git-hooks.test.js"
+        ],
+        "diff_hash": "sha256:76214ed8c64c637c0842365e3974fe1b689c82e5e72aaa8cfd3459fc22fe8ec0",
+        "paths_digest": "sha256:0f96b2719df6db3b80fe3bd446a305aa3bbf0eceb82f38c342df559b013e577b",
+        "authored_lines": 1905,
+        "original_changed_lines": 2022
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "attribution-guard-gaps:lens-start:4:0",
+          "result_digest": "sha256:8a950999eff076730334942d8fa6d9423704ea32e914c431c3a79ab9b9ec6658",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "pre-tool-use.js:806-837 (commandSegments) and 1057-1071, mirrored in internal/hooks/pretooluse.go:157-194 and 599-613: the file behind a message read from stdin (-F - / --body-file -) is found only when a bare `|` joins a reader with a file operand, or the command has its own `<`. Triggers that read and deny nothing: `cat msg.txt |<newline>git commit -F -` (between \"|\\n\", piped=false); `cat msg.txt |& git commit -F -`; `cat < msg.txt | git commit -F -` and `cat a | cat | git commit -F -` (reader with no operands; its `<` is not kept); `git commit -F - 2>&1 < msg.txt` (the `&` of `>&` splits the segment). A msg.txt with `Co-Authored-By: Claude …` passes in JS and Go; no test covers these. Impact: breaks hooks spec §6a.1 point 3 (other programs piped in MUST be denied) and ADR 0008 fail-closed; commit-msg hook and CI still catch it.",
+                "acceptance_criteria": "With a msg.txt holding an AI attribution trailer, `cat msg.txt |<newline>git commit -F -`, `cat msg.txt |& git commit -F -`, `cat < msg.txt | git commit -F -`, `cat a | cat | git commit -F -` and `git commit -F - 2>&1 < msg.txt` are each denied in the JS hook and the Go hook, either with the attribution reason (file read) or the unreadable-stdin reason (feeder not resolvable); none passes unread. Clean cases still pass: `cat clean.txt | git commit -F -`, `printf '…' | git commit -F -`, and heredocs. Tests for these forms exist in pre-tool-use.test.js and attribution_test.go."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "attribution-guard-gaps:lens-result:4:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-9a731fd35292b8b2",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "pre-tool-use.js:806-837 (commandSegments) and 1057-1071, mirrored in internal/hooks/pretooluse.go:157-194 and 599-613: the file behind a message read from stdin (-F - / --body-file -) is found only when a bare `|` joins a reader with a file operand, or the command has its own `<`. Triggers that read and deny nothing: `cat msg.txt |<newline>git commit -F -` (between \"|\\n\", piped=false); `cat msg.txt |& git commit -F -`; `cat < msg.txt | git commit -F -` and `cat a | cat | git commit -F -` (reader with no operands; its `<` is not kept); `git commit -F - 2>&1 < msg.txt` (the `&` of `>&` splits the segment). A msg.txt with `Co-Authored-By: Claude …` passes in JS and Go; no test covers these. Impact: breaks hooks spec §6a.1 point 3 (other programs piped in MUST be denied) and ADR 0008 fail-closed; commit-msg hook and CI still catch it.",
+          "acceptance_criteria": "With a msg.txt holding an AI attribution trailer, `cat msg.txt |<newline>git commit -F -`, `cat msg.txt |& git commit -F -`, `cat < msg.txt | git commit -F -`, `cat a | cat | git commit -F -` and `git commit -F - 2>&1 < msg.txt` are each denied in the JS hook and the Go hook, either with the attribution reason (file read) or the unreadable-stdin reason (feeder not resolvable); none passes unread. Clean cases still pass: `cat clean.txt | git commit -F -`, `printf '…' | git commit -F -`, and heredocs. Tests for these forms exist in pre-tool-use.test.js and attribution_test.go.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:61271974e2c0cb4221befa87624017ea080dd5cd2084454c038bd9d3bc23a7d0",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "assumptions": [
+    "CI no ejecuta npm install en el checkout y el paquete no tiene dependencias: prepare solo instala los hooks cuando un contribuidor ejecuta npm install; CONTRIBUTING.md lo pide una vez tras clonar."
+  ],
+  "closed_at": "2026-11-07T09:44:20.645Z"
+}

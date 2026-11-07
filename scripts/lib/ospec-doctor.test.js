@@ -44,6 +44,8 @@ function treeDigest(dir) {
   return hash.digest("hex");
 }
 
+const HOOKS_DIR_QUERY = "git rev-parse --git-common-dir --git-path hooks";
+
 // Spawn stub: `git check-ignore` answers from `ignored`, the hook launcher from
 // `probe` (a healthy, silent PreToolUse by default), and every other command is
 // absent unless listed in `commands` ("bin arg..." -> result).
@@ -60,6 +62,12 @@ function makeSpawn({ ignored = true, tracked = "", commands = {}, probe = {} } =
       return { status: 0, stdout: "", stderr: "", ...probe };
     }
     if (Object.hasOwn(commands, key)) return { status: 0, stdout: "", stderr: "", ...commands[key] };
+    // Like git: a directory with .git is a repository whose hooks are .git/hooks.
+    if (key === HOOKS_DIR_QUERY) {
+      return fs.existsSync(path.join(options.cwd || ".", ".git"))
+        ? { status: 0, stdout: ".git\n.git/hooks\n", stderr: "" }
+        : { status: 128, stdout: "", stderr: "fatal: not a git repository" };
+    }
     return { error: Object.assign(new Error(`spawn ${bin} ENOENT`), { code: "ENOENT" }) };
   };
   spawn.calls = calls;
@@ -626,6 +634,43 @@ test("from the ospec-workflow checkout, drift and git hooks are checked", async 
   assert.equal(hooks.status, "warn");
   assert.match(hooks.action, /npm run setup:git-hooks/);
   assert.equal(result.exit_code, 0, "drift alone is a warning");
+});
+
+// attribution-guard-gaps / PR3b finding 4: a linked worktree has a .git file, and its hooks are
+// the main repository's; core.hooksPath moves them to a folder setup leaves alone.
+test("from a linked worktree the doctor checks the hooks the main repository shares", async (t) => {
+  const env = setup(t);
+  const main = tempDir(t, "ospec-doctor-main-");
+  write(path.join(env.root, "package.json"), { name: "ospec-workflow", version: "2.1.0" });
+  write(path.join(env.root, "scripts", "configure", "cli.js"), "// generator\n");
+  write(path.join(env.root, ".git"), `gitdir: ${path.join(main, ".git", "worktrees", "wt")}\n`);
+  write(path.join(main, ".git", "hooks", "pre-commit"), 'node "$(git rev-parse --show-toplevel)/scripts/hooks/pre-commit-hook.js"\n');
+  write(path.join(main, ".git", "hooks", "commit-msg"), 'node "$(git rev-parse --show-toplevel)/scripts/hooks/commit-msg-hook.js" "$1"\n');
+  write(path.join(env.root, "idd", "config.yaml"), "strict_tdd: true\n");
+  const commands = { [HOOKS_DIR_QUERY]: { stdout: `${path.join(main, ".git")}\n${path.join(main, ".git", "hooks")}\n` } };
+  const result = await doctor(env, { spawn: makeSpawn({ commands }) });
+  assert.equal(find(result, "checkout", "git-hooks").status, "ok");
+  const strict = find(result, "project", "strict-tdd-hook");
+  assert.equal(strict.status, "ok");
+  assert.equal(strict.detail, undefined, "the shared pre-commit hook is installed");
+});
+
+test("with core.hooksPath the doctor checks that folder and says which lines to add", async (t) => {
+  const env = setup(t);
+  write(path.join(env.root, "package.json"), { name: "ospec-workflow", version: "2.1.0" });
+  write(path.join(env.root, "scripts", "configure", "cli.js"), "// generator\n");
+  write(path.join(env.root, ".githooks", "pre-commit"), 'node "$(git rev-parse --show-toplevel)/scripts/hooks/pre-commit-hook.js"\n');
+  const commands = { [HOOKS_DIR_QUERY]: { stdout: ".git\n.githooks\n" } };
+  const result = await doctor(env, { spawn: makeSpawn({ commands }) });
+  const hooks = find(result, "checkout", "git-hooks");
+  assert.equal(hooks.status, "warn");
+  assertActionable(hooks);
+  assert.match(hooks.cause, /commit-msg/);
+  assert.doesNotMatch(hooks.cause, /pre-commit/);
+  assert.match(hooks.cause, /core\.hooksPath/);
+  assert.ok(hooks.action.includes(path.join(env.root, ".githooks", "commit-msg")), hooks.action);
+  assert.match(hooks.action, /commit-msg-hook\.js" "\$1"/);
+  assert.doesNotMatch(hooks.action, /setup:git-hooks/);
 });
 
 test("checkout checks are skipped in a consumer project", async (t) => {

@@ -1,0 +1,5 @@
+{
+  "description": "DENY: a git commit -F - whose heredoc message carries an AI Co-Authored-By trailer (attribution-guard-gaps)",
+  "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -F - <<'EOF'\\nfix: x\\n\\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\\nEOF\"}}",
+  "expectedStdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Bloqueado: el commit o la PR atribuye el trabajo a una IA o herramienta (trailer *-by: que la nombra, «generated with/by …» o 🤖). Nombrar un agente sí está permitido: quita solo la atribución. Consulta rules/no-model-attribution.instructions.md.\"}}"
+}

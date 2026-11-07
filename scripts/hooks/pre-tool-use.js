@@ -3,6 +3,7 @@
 "use strict";
 
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { mkdirOspec } = require("../lib/ospec-gitignore.js");
 const {
@@ -22,7 +23,7 @@ const {
   MAX_SCAN_SIZE_BYTES,
 } = require("./lib/secret-scan.js");
 const { containsRedactionMarker, isCoveredByRedaction, redactSecrets } = require("./lib/secret-redact.js");
-const { extractShellReadPaths } = require("./lib/shell-file-access.js");
+const { extractShellReadPaths, shellTokens } = require("./lib/shell-file-access.js");
 
 /**
  * Regex that matches forbidden AI/model attribution: a `*-by:` trailer that
@@ -542,7 +543,7 @@ function evaluateToolUseCore(input, opts) {
   // A secret advisory must never hide a hard command denial, including bypass.
   for (const command of commands) {
     const denyRule = findMatchingRule(command, DENY_RULES);
-    const reason = denyRule?.reason || checkCommitAttribution(command);
+    const reason = denyRule?.reason || checkCommitAttribution(command, workspace);
     if (reason) return makeDecision("deny", reason);
   }
   if (writesCliOwnedFile(input, workspace)) return makeDecision("deny", CLI_OWNED_REASON);
@@ -742,35 +743,385 @@ async function main() {
   }
 }
 
-/**
- * The commands whose text arguments carry a commit message or a pull
- * request: `git commit -m/--message` and `gh pr create|edit -t/--title/-b/--body`.
- */
-const ATTRIBUTION_TEXT_COMMANDS = [
-  { command: /\bgit\s+commit\b/i, args: /(?:-m|--message)(?:=|\s+)(?:"([^"]*)"|'([^']*)'|([^\s;|&]+))/gi },
-  { command: /\bgh\s+pr\s+(?:create|edit)\b/i, args: /(?:-t|--title|-b|--body)(?:=|\s+)(?:"([^"]*)"|'([^']*)'|([^\s;|&]+))/gi },
-];
+const ATTRIBUTION_REASON =
+  "Bloqueado: el commit o la PR atribuye el trabajo a una IA o herramienta (trailer *-by: que la nombra, «generated with/by …» o 🤖). Nombrar un agente sí está permitido: quita solo la atribución. Consulta rules/no-model-attribution.instructions.md.";
+
+function unreadableStdinReason(program) {
+  return `Bloqueado: el mensaje llega por stdin desde \`${program}\`, cuya salida el guard no puede leer para comprobar que el commit o la PR no atribuye el trabajo a una IA o herramienta. Pasa el texto en la propia orden: -m o --body, o -F - / --body-file - con un heredoc.`;
+}
+
+function unreadableMessageReason(file) {
+  return `Bloqueado: no se pudo leer \`${file}\` para comprobar que el commit o la PR no atribuye el trabajo a una IA o herramienta (no existe, no es un fichero, supera 1 MiB o depende de una variable). Pasa el texto en la propia orden: -m o --body, o -F - / --body-file - con un heredoc.`;
+}
+
+// What may come before the program of a simple command: environment
+// assignments and reserved words or groups, which the program follows, and
+// wrappers, whose options and values end at the first git, gh or shell word.
+const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
+const RESERVED_WORDS = new Set(["if", "then", "elif", "else", "do", "while", "until", "!", "{", "("]);
+const COMMAND_WRAPPERS = new Set(["env", "command", "exec", "sudo", "doas", "nohup", "time", "timeout", "nice", "ionice", "stdbuf", "xargs"]);
+const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
+const DIRECTORY_COMMANDS = new Set(["cd", "pushd", "popd"]);
+// git options before the subcommand that take the next word (-C moves the directory).
+const GIT_VALUE_OPTIONS = new Set(["-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"]);
+const GH_PR_VALUE_OPTIONS = new Set(["-R", "--repo"]);
+const STDIN_FILES = new Set(["-", "/dev/stdin"]);
+// Programs piped into a message read from stdin: file readers, whose files are
+// read (with the options that take a value), and printers, whose text is the
+// command's own.
+const READER_COUNT_OPTIONS = new Set(["-n", "-c", "--lines", "--bytes"]);
+const READER_CONTENT_OPTIONS = new Set(["-encoding", "-totalcount", "-tail", "-readcount"]);
+const FILE_READERS = new Map([
+  ["cat", new Set()], ["tac", new Set()], ["type", new Set()],
+  ["head", READER_COUNT_OPTIONS], ["tail", READER_COUNT_OPTIONS],
+  ["get-content", READER_CONTENT_OPTIONS], ["gc", READER_CONTENT_OPTIONS],
+]);
+const PRINTERS = new Set(["echo", "printf"]);
+const MAX_SHELL_DEPTH = 2;
 
 /**
- * Extracts the message of a `git commit` or the title and body of a
- * `gh pr create|edit` command string and checks them for forbidden AI/model
- * attribution.
- * Returns a denial reason string if attribution is found, or null if clean.
+ * The commands whose text carries a commit message or a pull request's title,
+ * body or comment (attribution-guard-gaps), with the options whose value is message text
+ * (skipped when looking for a file) and those whose value names the file that
+ * holds it. git takes a unique abbreviation of a long option (`--fil`), gh
+ * does not.
  */
-function checkCommitAttribution(command) {
-  const target = ATTRIBUTION_TEXT_COMMANDS.find((entry) => entry.command.test(command));
-  if (!target) {
-    return null;
+const GH_PR_MESSAGE = { text: ["-t", "--title", "-b", "--body", "--subject", "-R", "--repo"], short: ["-F", "-T"], long: ["--body-file", "--template"], abbreviate: false };
+const MESSAGE_COMMANDS = new Map([
+  ["git commit", { text: ["-m", "--message", "-c", "-C", "--reuse-message", "--reedit-message"], short: ["-F", "-t"], long: ["--file", "--template"], abbreviate: true }],
+  ["git merge", { text: ["-m", "--message"], short: ["-F"], long: ["--file"], abbreviate: true }],
+  ...["create", "new", "edit", "comment", "review", "merge"].map((sub) => [`gh pr ${sub}`, GH_PR_MESSAGE]),
+  // Closing or reopening a pull request posts its -c/--comment.
+  ...["close", "reopen"].map((sub) => [`gh pr ${sub}`, { text: ["-c", "--comment"], short: [], long: [], abbreviate: false }]),
+]);
+
+// Every quoted string, read apart from the tokenizer.
+const QUOTED_RE = /"((?:[^"\\]|\\[\s\S])*)"|'([^']*)'/g;
+
+// The simple commands of a command line: its words split at `;`, `&`, `|` and
+// line breaks, without the `)` that closes a subshell on the last word. Each
+// keeps apart the files its `<` redirections read, whether a heredoc or a
+// here-string feeds it (`stdinText`), and whether a pipe (`|` or `|&`, also
+// broken by a line) feeds it the previous one. An `&` after a redirection
+// (`>&`, `<&`) or before `>` (`&>`) belongs to the redirection, and a word of
+// digits right before one is its descriptor, not an operand.
+function commandSegments(tokens) {
+  const segments = [];
+  let current = null;
+  let between = "";
+  let redirect = null;
+  let descriptor = null;
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    if (token.operator) {
+      if ((token.value === "&" && redirect !== null) || (token.value === "|" && redirect === ">")) continue;
+      if (token.value === "&" && tokens[i + 1]?.operator && tokens[i + 1].value === ">") {
+        redirect = ">";
+        i += 1;
+      } else if (";&|\n".includes(token.value)) {
+        current = null;
+        between += token.value;
+        redirect = null;
+      } else {
+        if (redirect === null) {
+          const last = current?.words[current.words.length - 1]?.value ?? "";
+          descriptor = /^\d+$/.test(last) ? last : null;
+          if (descriptor !== null) current.words.pop();
+        }
+        redirect = token.value;
+      }
+      continue;
+    }
+    if (!current) {
+      const pipe = between.replace(/\n/g, "");
+      current = { words: [], inputs: [], stdinText: false, piped: pipe === "|" || pipe === "|&" };
+      segments.push(current);
+      between = "";
+    }
+    // `N<` with another descriptor than 0 is not stdin.
+    if (redirect === null) current.words.push(token);
+    else if (redirect === "<" && (descriptor === null || descriptor === "0")) current.inputs.push(token);
+    else if (redirect.startsWith("<<")) current.stdinText = true;
+    redirect = null;
+    descriptor = null;
   }
+  for (const { words } of segments) {
+    const last = words[words.length - 1];
+    if (last && !last.value.includes("(") && last.value.endsWith(")")) words[words.length - 1] = { ...last, value: last.value.replace(/\)+$/, "") };
+  }
+  return segments;
+}
 
-  // An argument may appear several times (one -m per paragraph).
-  for (const match of command.matchAll(target.args)) {
-    const text = match[1] ?? match[2] ?? match[3] ?? "";
-    if (FORBIDDEN_ATTRIBUTION_RE.test(text)) {
-      return `Bloqueado: el commit o la PR atribuye el trabajo a una IA o herramienta (trailer *-by: que la nombra, «generated with/by …» o 🤖). Nombrar un agente sí está permitido: quita solo la atribución. Consulta rules/no-model-attribution.instructions.md.`;
+// A command line that only mentions one of those commands, wherever it sits
+// (`git … commit|merge`, `gh … pr … <sub>`), still has its text checked
+// (decision 1a of attribution-guard-gaps). Searched from the first match on, in linear time.
+function mentionsMessageCommand(command) {
+  const git = command.search(/\bgit\b/i);
+  if (git >= 0 && /\b(?:commit|merge)\b/i.test(command.slice(git))) return true;
+  const gh = command.search(/\bgh\b/i);
+  if (gh < 0) return false;
+  const rest = command.slice(gh);
+  const pr = rest.search(/\bpr\b/i);
+  return pr >= 0 && /\b(?:create|new|edit|comment|review|merge|close|reopen)\b/i.test(rest.slice(pr));
+}
+
+// A program word without its path, a leading `\`, `(`, `{` or `$(`, and `.exe`.
+function programName(value) {
+  return value.replace(/^[\\$({]+/, "").split(/[\\/]/).pop().toLowerCase().replace(/\.exe$/, "");
+}
+
+// The program of a simple command and the words after it, or null. A
+// wrapper's options and values end at the first git, gh, shell, file reader or
+// printer word; without one the wrapper is the program, and xargs, which turns
+// its stdin into arguments, only leads to git, gh or a shell.
+function simpleCommand(words) {
+  let i = 0;
+  while (i < words.length && (ENV_ASSIGNMENT_RE.test(words[i].value) || RESERVED_WORDS.has(words[i].value))) i += 1;
+  if (i >= words.length) return null;
+  const wrapper = programName(words[i].value);
+  if (COMMAND_WRAPPERS.has(wrapper)) {
+    const leads = (name) => name === "git" || name === "gh" || SHELLS.has(name) || (wrapper !== "xargs" && (FILE_READERS.has(name) || PRINTERS.has(name)));
+    let j = i + 1;
+    while (j < words.length && !leads(programName(words[j].value))) j += 1;
+    if (j >= words.length) return { program: wrapper, args: words.slice(i + 1) };
+    i = j;
+  }
+  return { program: programName(words[i].value), args: words.slice(i + 1) };
+}
+
+// The directory a `cd`, `pushd` or `git -C` operand names from `base`, or null
+// when it cannot be told (an expansion or an unknown base).
+function resolveDirectory(base, word) {
+  if (base === null || !word || !word.literal || !word.value) return null;
+  const value = word.value === "~" ? os.homedir() : /^~[\\/]/.test(word.value) ? path.join(os.homedir(), word.value.slice(2)) : word.value;
+  return path.resolve(base, value);
+}
+
+// The directory after a `cd`, `pushd` or `popd` simple command.
+function changeDirectory(base, program, args) {
+  if (program === "popd") return null;
+  const operands = args.filter((word) => !/^-[LPe@]+$/.test(word.value));
+  if (operands.length === 0) return program === "cd" ? os.homedir() : null;
+  if (operands.length > 1 || operands[0].value === "-") return null;
+  return resolveDirectory(base, operands[0]);
+}
+
+// The files a file reader reads: its operands (`-` for stdin included),
+// without options and their values.
+function readerFiles({ program, args }) {
+  const valueOptions = FILE_READERS.get(program);
+  const files = [];
+  for (let i = 0; i < args.length; i += 1) {
+    if (valueOptions.has(args[i].value.toLowerCase())) i += 1;
+    else if (!args[i].value.startsWith("-") || args[i].value === "-") files.push(args[i]);
+  }
+  return files;
+}
+
+// Where a message read from stdin comes from, for a simple command and what
+// feeds it: { files } to read (none when the command line holds the text), or
+// { deny } naming a program whose output cannot be read. A command's own `<`
+// wins over a heredoc and a pipe; a file reader reads its operands, and without
+// them its own stdin; echo and printf print their own text.
+function stdinOf(node, base) {
+  if (node.inputs.length > 0) return { files: node.inputs.map((file) => ({ file, base })) };
+  if (node.stdinText) return { files: [] };
+  return node.feeder ? fedBy(node.feeder) : null;
+}
+
+function fedBy(feeder) {
+  if (PRINTERS.has(feeder.program)) return { files: [] };
+  if (!FILE_READERS.has(feeder.program)) return { deny: feeder.program };
+  const operands = readerFiles(feeder);
+  const isStdin = (file) => file.literal && STDIN_FILES.has(file.value);
+  const files = operands.filter((file) => !isStdin(file)).map((file) => ({ file, base: feeder.cwd }));
+  if (files.length > 0 && !operands.some(isStdin)) return { files };
+  // Without operands, or with a `-` among them, the reader reads its own stdin;
+  // with nothing feeding it, the terminal.
+  const own = stdinOf(feeder, feeder.cwd);
+  if (!own) return { deny: feeder.program };
+  return own.deny ? own : { files: [...files, ...own.files] };
+}
+
+// The script word of `sh|bash|zsh|dash|ksh [options] -c <script>`, or null.
+function shellScript(args) {
+  for (let i = 0; i < args.length; i += 1) {
+    const { value } = args[i];
+    if (value === "-o" || value === "+o") {
+      i += 1;
+      continue;
+    }
+    if (!/^-[A-Za-z]+$/.test(value)) return null;
+    if (value.includes("c")) return args[i + 1] || null;
+  }
+  return null;
+}
+
+// The message options of a `git commit|merge` or `gh pr <sub>` simple command,
+// with the directory git reads its files from (`git -C <dir>`), or null.
+function messageTarget({ program, args }, cwd) {
+  let i = 0;
+  let base = cwd;
+  let key = null;
+  if (program === "git") {
+    while (i < args.length && args[i].value.startsWith("-")) {
+      if (args[i].value === "-C") {
+        base = resolveDirectory(base, args[i + 1]);
+        i += 2;
+      } else {
+        i += GIT_VALUE_OPTIONS.has(args[i].value) ? 2 : 1;
+      }
+    }
+    key = `git ${args[i]?.value}`;
+  } else if (program === "gh" && args[0]?.value === "pr") {
+    i = 1;
+    while (i < args.length && args[i].value.startsWith("-")) i += GH_PR_VALUE_OPTIONS.has(args[i].value) ? 2 : 1;
+    key = `gh pr ${args[i]?.value}`;
+  }
+  const options = key && MESSAGE_COMMANDS.get(key);
+  return options ? { ...options, args: args.slice(i + 1), cwd: base } : null;
+}
+
+// The long option of `names` a word names, as written (`--name`, `--name=…`,
+// or with `abbreviate` a prefix of at least `--xy` such as `--fil`), or null.
+function longOption(value, names, abbreviate) {
+  if (!value.startsWith("--")) return null;
+  const name = value.split("=", 1)[0];
+  const known = names.some((option) => option.startsWith("--") && (option === name || (abbreviate && name.length >= 4 && option.startsWith(name))));
+  return known ? name : null;
+}
+
+// The words a message option names as its file; a missing value is null.
+function messageFiles({ args, text, short, long, abbreviate }) {
+  const files = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const { value, literal } = args[i];
+    if (value === "--") break;
+    const textOption = text.includes(value) ? value : longOption(value, text, abbreviate);
+    if (textOption) {
+      if (value === textOption) i += 1;
+      continue;
+    }
+    const option = longOption(value, long, abbreviate) || short.find((name) => value.startsWith(name));
+    if (!option) continue;
+    if (value === option) {
+      files.push(args[i + 1] || null);
+      i += 1;
+    } else {
+      files.push({ value: value.slice(option.length + (option.startsWith("--") ? 1 : 0)), literal });
     }
   }
+  return files;
+}
 
+// A regular file under 1 MiB, its path resolved against `base` (the directory
+// git reads it from; null when unknown) and ~/ against the home directory;
+// anything else is null.
+function readMessageFile(file, base) {
+  if (!file || !file.literal || !file.value) return null;
+  const name = /^~[\\/]/.test(file.value) ? path.join(os.homedir(), file.value.slice(2)) : file.value;
+  const target = path.isAbsolute(name) ? name : base === null ? null : path.resolve(base, name);
+  if (target === null) return null;
+  try {
+    const stat = fs.statSync(target);
+    if (!stat.isFile() || stat.size >= MAX_SCAN_SIZE_BYTES) return null;
+    return fs.readFileSync(target, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+// printf, echo -e and $'…' escapes: \n, \t, \r, \xHH, \uHHHH, \UHHHHHHHH, \NNN.
+const ESCAPE_RE = /\\(?:x([0-9A-Fa-f]{1,2})|u([0-9A-Fa-f]{1,4})|U([0-9A-Fa-f]{1,8})|0?([0-7]{1,3})|([ntr]))/g;
+
+function decodeEscapes(text) {
+  return text.replace(ESCAPE_RE, (all, hex, u4, u8, octal, letter) => {
+    if (letter) return letter === "n" ? "\n" : letter === "t" ? "\t" : "\r";
+    const code = hex !== undefined ? parseInt(hex, 16) : u4 !== undefined ? parseInt(u4, 16) : u8 !== undefined ? parseInt(u8, 16) : parseInt(octal, 8);
+    // A surrogate or a code point past Unicode stays as written, as in the Go hook.
+    return code <= 0x10ffff && (code < 0xd800 || code > 0xdfff) ? String.fromCodePoint(code) : all;
+  });
+}
+
+// A text as written and as the shell or git reads it: escapes decoded, the
+// backslashes an unquoted word drops dropped, and a `--trailer token=value`
+// read as `token: value`.
+function hasAttribution(text) {
+  return [text, decodeEscapes(text), text.replace(/\\([\s\S])/g, "$1")]
+    .some((spelling) => FORBIDDEN_ATTRIBUTION_RE.test(spelling.replace(/^([ \t]*[\w-]+-by)[ \t]*=/gim, "$1:")));
+}
+
+/**
+ * Checks the message of a `git commit|merge` and the title, body or comment of
+ * a `gh pr create|new|edit|comment|review|merge` for forbidden AI/model
+ * attribution, wherever it travels (attribution-guard-gaps): the whole command text (heredocs
+ * included), its quoted strings and words, the scripts of `sh -c`, the files
+ * the message options name, read from the directory git uses (`cd`,
+ * `git -C`), and, for a message read from stdin, the file of its `<` or of a
+ * file reader piped into it (other programs but echo and printf deny).
+ * A bounded literal recognizer, not a shell interpreter: command substitution
+ * and variables are not followed, and a file it cannot read is denied
+ * (ADR 0008). Returns a denial reason string, or null if clean or not such a
+ * command.
+ */
+function checkCommitAttribution(command, workspace = process.cwd(), depth = 0) {
+  if (!/\b(?:git|gh)\b/i.test(command)) return null;
+  const tokens = shellTokens(command);
+  const targets = [];
+  const scripts = [];
+  let cwd = workspace;
+  let previous = null;
+  for (const segment of commandSegments(tokens)) {
+    const simple = simpleCommand(segment.words);
+    const feeder = segment.piped ? previous : null;
+    // A piped segment always feeds something: one with no program feeds what cannot be read.
+    previous = { ...(simple ?? { program: segment.words[0]?.value ?? "", args: [] }), cwd, inputs: segment.inputs, stdinText: segment.stdinText, feeder };
+    if (!simple) continue;
+    if (DIRECTORY_COMMANDS.has(simple.program)) {
+      cwd = changeDirectory(cwd, simple.program, simple.args);
+    } else if (SHELLS.has(simple.program)) {
+      const script = shellScript(simple.args);
+      if (script) scripts.push({ script: script.value, cwd });
+    } else {
+      const target = messageTarget(simple, cwd);
+      if (target) targets.push({ ...target, shellCwd: cwd, inputs: segment.inputs, stdinText: segment.stdinText, feeder });
+    }
+  }
+  if (targets.length === 0 && scripts.length === 0 && !mentionsMessageCommand(command)) return null;
+
+  const texts = [command];
+  for (const match of command.matchAll(QUOTED_RE)) texts.push(match[1] ?? match[2]);
+  for (const token of tokens) {
+    if (token.operator) continue;
+    texts.push(token.value);
+    const equals = token.value.indexOf("=");
+    if (token.value.startsWith("-") && equals > 0) texts.push(token.value.slice(equals + 1));
+  }
+  if (texts.some(hasAttribution)) return ATTRIBUTION_REASON;
+
+  if (depth < MAX_SHELL_DEPTH) {
+    for (const { script, cwd: directory } of scripts) {
+      const reason = checkCommitAttribution(script, directory, depth + 1);
+      if (reason) return reason;
+    }
+  }
+  const fromStdin = (file) => Boolean(file && file.literal && STDIN_FILES.has(file.value));
+  for (const target of targets) {
+    const files = messageFiles(target);
+    // Message files are read where git runs (git -C); what feeds stdin, where
+    // the shell runs.
+    const toRead = files.filter((file) => !fromStdin(file)).map((file) => ({ file, base: target.cwd }));
+    if (files.some(fromStdin)) {
+      const source = stdinOf(target, target.shellCwd);
+      if (source?.deny) return unreadableStdinReason(source.deny);
+      if (source) toRead.push(...source.files);
+    }
+    for (const { file, base } of toRead) {
+      const content = readMessageFile(file, base);
+      if (content === null) return unreadableMessageReason(file?.value || "");
+      if (FORBIDDEN_ATTRIBUTION_RE.test(content)) return ATTRIBUTION_REASON;
+    }
+  }
   return null;
 }
 

@@ -107,7 +107,7 @@ Protege contra fugas de información confidencial y el acceso no deseado a crede
 
 ### 3. Git Pre-commit Hook
 Validador local que asegura la calidad, seguridad y consistencia del repositorio antes de consolidar cambios:
-- **Instalación**: Se configura de manera idempotente usando `npm run setup:git-hooks` (ejecuta [setup-git-hooks.js](../scripts/setup-git-hooks.js) para instalar los hooks en `.git/hooks/`).
+- **Instalación**: Se configura de manera idempotente con `npm run setup:git-hooks`, que `npm install` ejecuta como `prepare` ([setup-git-hooks.js](../scripts/setup-git-hooks.js)). Instala los hooks en la carpeta que git usa (`git rev-parse --git-path hooks`): un worktree enlazado comparte la del repositorio principal. Con `core.hooksPath` no escribe en esa carpeta, que suele ser del usuario o de otra herramienta, y muestra las líneas que añadir; `ospec doctor` avisa mientras falten.
 - **Escaneo de Secretos (AgentShield Pre-commit)**: Escanea los archivos y contenidos staged antes del commit; bloquea inmediatamente archivos sensibles (`.env*`, claves privadas SSH, `.npmrc`) y patrones de tokens de credenciales (`sk-...`, `AIzaSy...`, `AKIA...`, JWT, contraseñas). Omitible con `DISABLE_AGENT_SHIELD=true`.
 - **Validación de Sintaxis en Memoria**: Verifica sintácticamente archivos JS (`node:vm.Script`) y JSON (`JSON.parse`) en memoria de forma fail-fast (<1 ms por archivo).
 - **Validación Diferencial de Workspace**: Invoca `scripts/check.js --staged` para validar únicamente los tests y targets afectados por los archivos staged (<1 s frente a ~63 s de la suite completa), garantizando máxima velocidad sin perder cobertura. Para forzar la suite completa: `OSPEC_PRECOMMIT_FULL=true`.
@@ -119,15 +119,15 @@ Protege estrictamente contra la inserción de atribución AI/modelo en commits y
 
 | Capa | Cuándo actúa | Qué bloquea |
 | --- | --- | --- |
-| **PreToolUse DENY** (`pre-tool-use.js`) | Antes de que el agente ejecute `git commit -m "..."` o `gh pr create\|edit` | Escanea `-m`/`--message` del commit y `-t`/`--title`/`-b`/`--body` de la PR; deniega si contienen atribución |
+| **PreToolUse DENY** (`pre-tool-use.js` y el binario Go) | Antes de que el agente ejecute `git commit`, `git merge`, `gh pr create\|new\|edit\|comment\|review\|merge` o `gh pr close\|reopen -c`, también tras un wrapper (`env -i`, `sudo -u`, `timeout`), una palabra reservada o un grupo (`then`, `{`, `(`), dentro de `sh -c` y con opciones globales delante (`git -C <dir>`, `gh pr -R <repo>`) | Escanea el texto entero de la orden (heredocs incluidos), sus cadenas entre comillas y cada palabra; lee el fichero de `-F`/`--file`/`--template` del commit y de `-F`/`--body-file`/`-T` de la PR desde el directorio que usa git (`cd`, `git -C`), y con `-F -` el fichero que alimenta la orden (`cat f \|`, `< f`; otro programa por tubería, salvo `echo` y `printf`, se niega). Deniega si hay atribución o si no puede leer un fichero de mensaje |
 | **Git `commit-msg` Hook** (`commit-msg-hook.js`) | Después de que el usuario/IDE componga el mensaje | Lee el archivo temporal de mensaje de Git; rechaza el commit si contiene atribución |
 | **Rules file** (`rules/no-model-attribution.instructions.md`) | Carga del contexto del agente | Instruye al modelo para que nunca genere atribución; primera barrera pasiva |
 
 **Qué es atribución** (case-insensitive): un trailer `*-by:` cuyo valor nombra una IA o herramienta (un `Co-Authored-By:` humano pasa); una frase `generated|written|created|made|built|authored|assisted|powered|produced` o `generado|escrito|creado|hecho|asistido|producido` + `with|by|using|con|por` con el nombre de la herramienta en las tres palabras siguientes; o `🤖`. Nombrar un agente no es atribución: `fix(claude): …` o «soporte de Antigravity» pasan. Herramientas reconocidas: `claude`, `anthropic`, `opus`, `sonnet`, `haiku`, `fable`, `gpt`, `chatgpt`, `openai`, `codex`, `copilot`, `gemini`, `bard`, `llama`, `mistral`, `cohere`, `antigravity`, `agy`, `cursor`, `windsurf`, `kiro`, `opencode`, `qwen`, `deepseek`, `grok`, `devin`, `aider`, `cline`, `junie`, `amp`.
 
-**Instalación**: `npm run setup:git-hooks` instala tanto el `pre-commit` como el `commit-msg` hook. El PreToolUse DENY está integrado en el hook `PreToolUse` del arnés y no requiere instalación adicional.
+**Instalación**: `npm install` (o `npm run setup:git-hooks`) instala tanto el `pre-commit` como el `commit-msg` hook. El PreToolUse DENY está integrado en el hook `PreToolUse` del arnés y no requiere instalación adicional.
 
-**Bypass**: `DISABLE_OSPEC_ATTRIBUTION_CHECK=true` desactiva únicamente el `commit-msg` hook. El DENY de PreToolUse no tiene bypass — es un bloqueo absoluto para agentes.
+**Bypass**: `DISABLE_OSPEC_ATTRIBUTION_CHECK=true` desactiva únicamente el `commit-msg` hook. El DENY de PreToolUse no tiene variable de bypass ni lo rebaja el modo de permisos, pero es un reconocedor literal, no un intérprete de shell: no sigue sustituciones de órdenes, variables, alias, `eval` ni la salida de otros programas. Para una PR, el check de CI es la red que queda.
 
 ### 5. Estado del CLI (PreToolUse y `ospec close`)
 Solo el CLI escribe el estado de un cambio IDD (REQ-idd-003, REQ-hooks-029):

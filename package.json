@@ -1,6 +1,6 @@
 {
   "name": "ospec-workflow",
-  "version": "2.171.0",
+  "version": "2.171.1",
   "private": true,
   "description": "Impact-driven development (IDD) workflow: the ospec CLI derives each change's obligations from its impact and closes it on observed evidence, with strict TDD, bounded review, hooks, and an optional Spec-Driven Development (SDD) mode with OpenSpec.",
   "license": "SEE LICENSE IN LICENSE",
@@ -59,6 +59,7 @@
     "setup:tui": "go run ./cmd/ospec-install",
     "build:hooks": "node -e \"const r = require('./scripts/configure/install-target.js').ensureRuntimeBinary(process.cwd()); if (!r) process.exit(1);\"",
     "ensure:hooks": "npm run build:hooks",
-    "setup:git-hooks": "node scripts/setup-git-hooks.js"
+    "setup:git-hooks": "node scripts/setup-git-hooks.js",
+    "prepare": "node scripts/setup-git-hooks.js"
   }
 }

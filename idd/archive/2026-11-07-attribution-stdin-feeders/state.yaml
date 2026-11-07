@@ -1,0 +1,996 @@
+{
+  "schema": "idd-state/v1",
+  "change": "attribution-stdin-feeders",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Con un mensaje por stdin (-F -, --body-file -), el guard de atribución (JS y Go) no lee el fichero ni niega en cinco formas: cat f | seguido de salto de línea, cat f |&, cat < f | git commit -F -, cat a | cat | git commit -F - y git commit -F - 2>&1 < f; la orden pasa sin leer (hallazgo de la cuarta revisión de confianza de attribution-guard-gaps).",
+    "acceptance": "Con un msg.txt que lleva un trailer de atribución, esas cinco formas reciben deny en el hook Node y en el binario Go, con el motivo de atribución (fichero leído) o el de stdin ilegible; un lector sin ficheros ni entrada (cat | git commit -F -) también niega; las mismas formas con un fichero limpio, printf/echo por tubería y los heredocs siguen pasando."
+  },
+  "facts": {
+    "basis": "El hallazgo de la cuarta revisión (acceptance criteria), la spec hooks §6a.1 punto 3 (otro programa por tubería niega) y el ADR 0008 fijan cada comportamiento; bash fija que |& y | seguido de salto de línea son tuberías, que >& y &> son redirecciones, que un < explícito gana a la tubería y que un lector sin operandos lee su stdin."
+  },
+  "plan": {
+    "paths": [
+      "internal/hooks/attribution_test.go",
+      "internal/hooks/pretooluse.go",
+      "openspec/specs/hooks/spec.md",
+      "scripts/hooks/pre-tool-use.js",
+      "scripts/hooks/pre-tool-use.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "La fuente de un stdin se resuelve en cadena: un lector de ficheros lee sus operandos, si no tiene su <, si no su heredoc, y si no lo que le llega por tubería; sin nada de eso (lee el terminal) niega. echo y printf tienen su texto en la orden; cualquier otro programa niega.",
+      "Un & tras una redirección (>&, <&) o delante de > (&>) es parte de la redirección, no un separador; una palabra de solo dígitos justo antes de una redirección es su descriptor y no un operando.",
+      "Tras la revisión de confianza: las opciones de un wrapper acaban también en un lector de ficheros o un printer (xargs solo lleva a git, gh o un shell) y, sin ninguno, el wrapper es el programa; un segmento por tubería sin programa alimenta algo ilegible; >| es redirección y N< con otro descriptor que 0 no es stdin.",
+      "Tras la segunda revisión, el operando - o /dev/stdin de un lector también lee su propio stdin, que se sigue igual (su <, su heredoc o su tubería) y niega si nada lo alimenta."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/pre-tool-use.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/pre-tool-use.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "Cierra formas en que el guard dejaba pasar sin leer un mensaje por stdin: ahora lee el fichero que lo alimenta o niega cuando no puede (lector sin nada que leer, programa cuya salida no ve), sin rebajarse por el modo de permisos."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; Node y Go siguen la misma lógica con la biblioteca estándar y los tests de paridad pasan."
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Un stdin cuya fuente no puede leer niega en vez de pasar: cat | git commit -F -, sed … | cat | git commit -F -."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-14"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-13"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-12"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-07T12:48:21.232Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-07T12:49:59.892Z",
+      "detail": {
+        "tree": "sha256:5f360c56dc9805932245abd0a851c3f1cdeb85c1161fa6252c715ac2ea146096",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-07T12:49:59.892Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:5f360c56dc9805932245abd0a851c3f1cdeb85c1161fa6252c715ac2ea146096",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-07T12:50:16.394Z",
+      "detail": {
+        "run": "run-10",
+        "tree": "sha256:e9445285b72884da87b1174d07cfb58788fc8eed5250824ca9624edd3207341f",
+        "plan": "Sin cambio de datos persistidos: la única escritura del hook (el contador de tokens del asesor en .ospec, que cubren los tests token budget advisor) no cambia de formato ni de ruta; el cambio solo afecta a qué decide el guard de atribución. Rollback: revertir el commit."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-07T12:52:56.986Z",
+      "detail": {
+        "lineage_id": "sha256:d5ecde3d535643bc1617101822b0509b3060c9d9fdc9502d3f6e55c6f5afab77",
+        "candidate_id": "sha256:a35651ea32d9a328bc5dcd511f510a7fb993939ce5e8993d80610771bd5e2dcc",
+        "candidate_tree": "e97cd37485cda2ac183f2bfe65b0550dc0a8a4e6",
+        "findings_digest": "sha256:ef7ce0bd3d859cacbf82bba17429eea9afb6f2d743d3182883240fbacc487ca5",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-07T12:52:14.747Z",
+          "result_digest": "sha256:bd28de8785263d9e3d548baac98e6d5d1aadd6db54040db9d4eb6e19335e1a13"
+        }
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-07T12:56:16.097Z",
+      "detail": {
+        "tree": "sha256:e41294d1700a6fa537433e2ac46cfe8f97d3eeb45b0660f801aaa7915b2ecd71",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-07T12:56:16.097Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:e41294d1700a6fa537433e2ac46cfe8f97d3eeb45b0660f801aaa7915b2ecd71",
+        "fitness": [
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-07T12:56:29.003Z",
+      "detail": {
+        "run": "run-16",
+        "tree": "sha256:d5218ab48c752a90ce6e4e064f4f93e856459449676138d12ab508b6a954385d",
+        "plan": "Sin cambio de datos persistidos: la única escritura del hook (el contador de tokens del asesor en .ospec, que cubren los tests token budget advisor) no cambia de formato ni de ruta; el cambio solo afecta a qué decide el guard de atribución. Rollback: revertir el commit."
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-07T12:57:50.782Z",
+      "detail": {
+        "lineage_id": "sha256:16085397d6b3aac0412ccb13a805aee832a207889de182a62cc9385657a7dc54",
+        "candidate_id": "sha256:cc8156e64f2c5bc5d59ad751011c7510ec65ce57d17729c7ace1dc250f887685",
+        "candidate_tree": "be22df22155570acca331b1bb90c0ea6221509fb",
+        "findings_digest": "sha256:735eaaf08f165bed60af44f71385191d58f6d9f514b596513afb003f945bb288",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-07T12:57:27.997Z",
+          "result_digest": "sha256:36987a4251205a9323149cfa0203ad574f823c4986d3554368364279cd7e0365"
+        }
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-07T13:00:29.813Z",
+      "detail": {
+        "tree": "sha256:9a181adac72d89e52e07d57422c4b29656b0d8d11ad5af2e132f5e26d0daea37",
+        "runs": [
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-07T13:00:29.813Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:9a181adac72d89e52e07d57422c4b29656b0d8d11ad5af2e132f5e26d0daea37",
+        "fitness": [
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21"
+        ]
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-07T13:00:30.741Z",
+      "detail": {
+        "run": "run-22",
+        "tree": "sha256:a024aada112ec99259f709b8475627160c04aa6730b406e3c820a260796e7025",
+        "plan": "Sin cambio de datos persistidos: la única escritura del hook (el contador de tokens del asesor en .ospec, que cubren los tests token budget advisor) no cambia de formato ni de ruta; el cambio solo afecta a qué decide el guard de atribución. Rollback: revertir el commit."
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-07T13:03:14.082Z",
+      "detail": {
+        "lineage_id": "sha256:edd86e0c4a989161c9104d01e29c0f915f3886021210ce5247ea998b9b15c63f",
+        "candidate_id": "sha256:2281fe324d4cb111b52452e5726387092eeac76bb724058e38f1a0fefd03b2c7",
+        "candidate_tree": "dd59af3b231b401e8586b7c1d9570c4caa91c376",
+        "findings_digest": "sha256:e78092567d0cad4f713c217800384b897c92b52bc5015565beaaed93992a5ec1",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-07T13:02:42.496Z",
+          "result_digest": "sha256:0d28bcca091586c3fd5851cdb0eecacf459a15860a733649fb6c1fe4a1eb666e"
+        }
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-07T13:03:24.783Z"
+    }
+  ],
+  "base": "3bc7f3bd038a4f40eb0338be4020ec84c29a638d",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:4f5094adcc15ff38b0d392e34c57f6f96259a492c839245a767b60d266c2ff51",
+      "tree": "sha256:14a18c1740aba92a19f274be646519e24bbdf5a0fea4181ade821d2b4f627c86",
+      "recorded_at": "2026-11-07T12:46:34.698Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:27029d4a6be0f0ae34ab130fdec8b21bc0f737c69018c418c6c29e346e39a676",
+      "tree": "sha256:e9445285b72884da87b1174d07cfb58788fc8eed5250824ca9624edd3207341f",
+      "recorded_at": "2026-11-07T12:48:21.232Z",
+      "tests": 82,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "3bc7f3bd038a4f40eb0338be4020ec84c29a638d",
+      "mount": "sha256:2ccb067271e32176fbbfd64ec5281d64567684f7f119f3dc5c628b227e46737a",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:6bf518a2c50c9ec8e5a97f456b045c3e837c9934b4677bef1cd8d3da9f8db54e",
+      "tree": "sha256:e9445285b72884da87b1174d07cfb58788fc8eed5250824ca9624edd3207341f",
+      "recorded_at": "2026-11-07T12:48:21.232Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "3bc7f3bd038a4f40eb0338be4020ec84c29a638d",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:af2614389cb1eb2e2ed74252c323119ce1f74e16bfcf697fef1484122cabf5ef",
+      "tree": "sha256:e9445285b72884da87b1174d07cfb58788fc8eed5250824ca9624edd3207341f",
+      "recorded_at": "2026-11-07T12:48:21.232Z",
+      "tests": 81
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:95b511ae8a638951a8e096892398051f64ec62d342e6265e3e7116cbf4d3693c",
+      "tree": "sha256:5f360c56dc9805932245abd0a851c3f1cdeb85c1161fa6252c715ac2ea146096",
+      "recorded_at": "2026-11-07T12:49:59.892Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e581dd8348d237e8572f51c626ac01ce22283e5745a7f318e5e2cb2d602fdbd2",
+      "tree": "sha256:5f360c56dc9805932245abd0a851c3f1cdeb85c1161fa6252c715ac2ea146096",
+      "recorded_at": "2026-11-07T12:49:59.892Z",
+      "tests": 93
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:5f360c56dc9805932245abd0a851c3f1cdeb85c1161fa6252c715ac2ea146096",
+      "recorded_at": "2026-11-07T12:49:59.892Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:df04e11d82b5945886cdd2d3f47aa9102b2c31ac781431f4133651a8b3f66b0f",
+      "tree": "sha256:5f360c56dc9805932245abd0a851c3f1cdeb85c1161fa6252c715ac2ea146096",
+      "recorded_at": "2026-11-07T12:49:59.892Z",
+      "tests": 26
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a9230ac430a4c65c0dc3ac907e8558823f79efdbf39afc635a9e72c74d023a8a",
+      "tree": "sha256:5f360c56dc9805932245abd0a851c3f1cdeb85c1161fa6252c715ac2ea146096",
+      "recorded_at": "2026-11-07T12:49:59.892Z",
+      "tests": 93
+    },
+    {
+      "id": "run-10",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5ff46fa944a5a258750203a11de77f8f588300a11ad18360dae003d801672b8c",
+      "tree": "sha256:e9445285b72884da87b1174d07cfb58788fc8eed5250824ca9624edd3207341f",
+      "recorded_at": "2026-11-07T12:50:16.394Z",
+      "tests": 82
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2d91ce2931c800560058eee0239e1db57ffd2b5a2d1410925eb5460f8df616d1",
+      "tree": "sha256:e41294d1700a6fa537433e2ac46cfe8f97d3eeb45b0660f801aaa7915b2ecd71",
+      "recorded_at": "2026-11-07T12:56:16.097Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3e9594d4d55b81960d500fb92c213d1a00976f78e4b1dcd9ec24bfc768320fa4",
+      "tree": "sha256:e41294d1700a6fa537433e2ac46cfe8f97d3eeb45b0660f801aaa7915b2ecd71",
+      "recorded_at": "2026-11-07T12:56:16.097Z",
+      "tests": 94
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:e41294d1700a6fa537433e2ac46cfe8f97d3eeb45b0660f801aaa7915b2ecd71",
+      "recorded_at": "2026-11-07T12:56:16.097Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:200c51f21e6ae3b24be35e36ae8d2bef2c4b167c8238288c390a10160e22dc82",
+      "tree": "sha256:e41294d1700a6fa537433e2ac46cfe8f97d3eeb45b0660f801aaa7915b2ecd71",
+      "recorded_at": "2026-11-07T12:56:16.097Z",
+      "tests": 26
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:600c9f127652ce68e1028a3644d3fdbbf3dd8a776b317ef25aa782f9d227796d",
+      "tree": "sha256:e41294d1700a6fa537433e2ac46cfe8f97d3eeb45b0660f801aaa7915b2ecd71",
+      "recorded_at": "2026-11-07T12:56:16.097Z",
+      "tests": 94
+    },
+    {
+      "id": "run-16",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:92b5614420ad252b7259efd0988f28acdaf94a25d03398db1a0051bfa1ecff97",
+      "tree": "sha256:d5218ab48c752a90ce6e4e064f4f93e856459449676138d12ab508b6a954385d",
+      "recorded_at": "2026-11-07T12:56:29.003Z",
+      "tests": 83
+    },
+    {
+      "id": "run-17",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7f5fe39df2a5659596ae3b09e1df2808d90292de9acedf9f1816d1cdcf0a8998",
+      "tree": "sha256:9a181adac72d89e52e07d57422c4b29656b0d8d11ad5af2e132f5e26d0daea37",
+      "recorded_at": "2026-11-07T13:00:29.813Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2a44555fca1c89a62089a8bf502e144637e1b6ad83b926ee51f9cff09fd8503d",
+      "tree": "sha256:9a181adac72d89e52e07d57422c4b29656b0d8d11ad5af2e132f5e26d0daea37",
+      "recorded_at": "2026-11-07T13:00:29.813Z",
+      "tests": 95
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:9a181adac72d89e52e07d57422c4b29656b0d8d11ad5af2e132f5e26d0daea37",
+      "recorded_at": "2026-11-07T13:00:29.813Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:68ee0eef8beb0f254a4b001ad3710ce78bd61107dbaff9a27e3ad74ac895a853",
+      "tree": "sha256:9a181adac72d89e52e07d57422c4b29656b0d8d11ad5af2e132f5e26d0daea37",
+      "recorded_at": "2026-11-07T13:00:29.813Z",
+      "tests": 26
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e0b0edfdd50cbf4d1851ed985bfce366d078ca72bad2144fa337a178b7710bc2",
+      "tree": "sha256:9a181adac72d89e52e07d57422c4b29656b0d8d11ad5af2e132f5e26d0daea37",
+      "recorded_at": "2026-11-07T13:00:29.813Z",
+      "tests": 95
+    },
+    {
+      "id": "run-22",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4a630fad6c363b9e665d0741b7958b9c4b0eaf17d5726debfaf8261ee530a813",
+      "tree": "sha256:a024aada112ec99259f709b8475627160c04aa6730b406e3c820a260796e7025",
+      "recorded_at": "2026-11-07T13:00:30.741Z",
+      "tests": 84
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:d5ecde3d535643bc1617101822b0509b3060c9d9fdc9502d3f6e55c6f5afab77",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "fe15fd8045697521bcfd1ac8a27bd7b0d13e2e3f",
+          "candidate_tree": "e97cd37485cda2ac183f2bfe65b0550dc0a8a4e6",
+          "paths": [
+            "internal/hooks/attribution_test.go",
+            "internal/hooks/pretooluse.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:d8c1a73911881a65337208d5baa6ef947ac43073e8b71698fdf1415189d7faa0",
+          "paths_digest": "sha256:49a0bf2363696a7537dbe1bc2e6677fa6a3f5c6b10c2cc68fe5e273bdf5bf296",
+          "authored_lines": 204,
+          "original_changed_lines": 252
+        },
+        "candidate_id": "sha256:a35651ea32d9a328bc5dcd511f510a7fb993939ce5e8993d80610771bd5e2dcc",
+        "paths": [
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "e97cd37485cda2ac183f2bfe65b0550dc0a8a4e6",
+        "original_changed_lines": 252,
+        "authored_lines": 204
+      },
+      "current_candidate_id": "sha256:a35651ea32d9a328bc5dcd511f510a7fb993939ce5e8993d80610771bd5e2dcc",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "fe15fd8045697521bcfd1ac8a27bd7b0d13e2e3f",
+        "candidate_tree": "e97cd37485cda2ac183f2bfe65b0550dc0a8a4e6",
+        "paths": [
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:d8c1a73911881a65337208d5baa6ef947ac43073e8b71698fdf1415189d7faa0",
+        "paths_digest": "sha256:49a0bf2363696a7537dbe1bc2e6677fa6a3f5c6b10c2cc68fe5e273bdf5bf296",
+        "authored_lines": 204,
+        "original_changed_lines": 252
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "attribution-stdin-feeders:lens-start:1:0",
+          "result_digest": "sha256:2dcd54c8d0f7f1c6e438df063f42123a0faee0cb5163d9316a483e1b0a0a3a41",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "A piped feeder behind a wrapper is not followed, so the guard fails open. `env cat f | git commit -F -` (also `sudo`, `nice`, `time`, `command`, `timeout`, `xargs cat`) gives simpleCommand a null result (pre-tool-use.js:867-875; pretooluse.go:293-310). The wrapper loop skips every word until a git, gh or shell word, and none follows. In checkCommitAttribution, `previous` is then null (pre-tool-use.js:1056; pretooluse.go:608), so the commit's `feeder` is null. stdinOf returns null (pre-tool-use.js:910-914), nothing is read or denied, and an attributed file passes. This contradicts spec §6a.1 point 3 (spec.md:1422-1424), which says any other piped program MUST be denied. A middle link (`cat f | env tee | git commit -F -`) opens the same hole. No test covers a wrapped feeder.",
+                "acceptance_criteria": "In both the JS and Go guards, `env cat msg.txt | git commit -F -`, `nice cat msg.txt | git commit -F -` and `cat msg.txt | env tee | git commit -F -` (msg.txt holding a Co-Authored-By trailer) are denied. They are denied either with the attribution reason (the wrapped reader's file is read) or with the unreadable-stdin reason naming the program. A clean file behind a wrapped reader does not get the attribution denial. A piped segment whose program cannot be determined yields a deny, never a null feeder. The change is covered by a JS and a Go test."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "The redirection parser misattributes the real stdin source in two forms. (a) A digit-prefixed `<` of another descriptor, as in `cat f | git commit -F - 3< g`, is treated as stdin. `inputs` holds g, which wins in stdinOf, so f is never read although the pipe still feeds fd 0. (b) The clobber redirection `>|` is split into `>` and a `|` separator, as in `git commit -F - >| out < f`. The `< f` attaches to the new `out` segment, so the commit has no input and no deny (commandSegments, pre-tool-use.js:808-846; pretooluse.go:166-213). The fd digit is dropped without recording it (JS 825; Go 184-186).",
+                "acceptance_criteria": "In both ports, `cat msg.txt | git commit -F - 3< clean.txt` and `git commit -F - >| out.txt < msg.txt` (msg.txt with an attribution trailer) are denied. Either the real stdin source is read, or the command is denied as unreadable. Existing `2>&1 < f` and `&> log < f` behavior is unchanged, and both ports are tested."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "attribution-stdin-feeders:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-eb430ace3249625d",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "A piped feeder behind a wrapper is not followed, so the guard fails open. `env cat f | git commit -F -` (also `sudo`, `nice`, `time`, `command`, `timeout`, `xargs cat`) gives simpleCommand a null result (pre-tool-use.js:867-875; pretooluse.go:293-310). The wrapper loop skips every word until a git, gh or shell word, and none follows. In checkCommitAttribution, `previous` is then null (pre-tool-use.js:1056; pretooluse.go:608), so the commit's `feeder` is null. stdinOf returns null (pre-tool-use.js:910-914), nothing is read or denied, and an attributed file passes. This contradicts spec §6a.1 point 3 (spec.md:1422-1424), which says any other piped program MUST be denied. A middle link (`cat f | env tee | git commit -F -`) opens the same hole. No test covers a wrapped feeder.",
+          "acceptance_criteria": "In both the JS and Go guards, `env cat msg.txt | git commit -F -`, `nice cat msg.txt | git commit -F -` and `cat msg.txt | env tee | git commit -F -` (msg.txt holding a Co-Authored-By trailer) are denied. They are denied either with the attribution reason (the wrapped reader's file is read) or with the unreadable-stdin reason naming the program. A clean file behind a wrapped reader does not get the attribution denial. A piped segment whose program cannot be determined yields a deny, never a null feeder. The change is covered by a JS and a Go test.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-101667a3c3821516",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "The redirection parser misattributes the real stdin source in two forms. (a) A digit-prefixed `<` of another descriptor, as in `cat f | git commit -F - 3< g`, is treated as stdin. `inputs` holds g, which wins in stdinOf, so f is never read although the pipe still feeds fd 0. (b) The clobber redirection `>|` is split into `>` and a `|` separator, as in `git commit -F - >| out < f`. The `< f` attaches to the new `out` segment, so the commit has no input and no deny (commandSegments, pre-tool-use.js:808-846; pretooluse.go:166-213). The fd digit is dropped without recording it (JS 825; Go 184-186).",
+          "acceptance_criteria": "In both ports, `cat msg.txt | git commit -F - 3< clean.txt` and `git commit -F - >| out.txt < msg.txt` (msg.txt with an attribution trailer) are denied. Either the real stdin source is read, or the command is denied as unreadable. Existing `2>&1 < f` and `&> log < f` behavior is unchanged, and both ports are tested.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:ef7ce0bd3d859cacbf82bba17429eea9afb6f2d743d3182883240fbacc487ca5",
+      "correction_budget": {
+        "limit_lines": 126,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:16085397d6b3aac0412ccb13a805aee832a207889de182a62cc9385657a7dc54",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:d5ecde3d535643bc1617101822b0509b3060c9d9fdc9502d3f6e55c6f5afab77",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "fe15fd8045697521bcfd1ac8a27bd7b0d13e2e3f",
+          "candidate_tree": "be22df22155570acca331b1bb90c0ea6221509fb",
+          "paths": [
+            "internal/hooks/attribution_test.go",
+            "internal/hooks/pretooluse.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:3c05fb73b9c22b69a2b0ed13829001c959c023c109935e70d13ad21716790b78",
+          "paths_digest": "sha256:49a0bf2363696a7537dbe1bc2e6677fa6a3f5c6b10c2cc68fe5e273bdf5bf296",
+          "authored_lines": 311,
+          "original_changed_lines": 377
+        },
+        "candidate_id": "sha256:cc8156e64f2c5bc5d59ad751011c7510ec65ce57d17729c7ace1dc250f887685",
+        "paths": [
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "be22df22155570acca331b1bb90c0ea6221509fb",
+        "original_changed_lines": 377,
+        "authored_lines": 311
+      },
+      "current_candidate_id": "sha256:cc8156e64f2c5bc5d59ad751011c7510ec65ce57d17729c7ace1dc250f887685",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "fe15fd8045697521bcfd1ac8a27bd7b0d13e2e3f",
+        "candidate_tree": "be22df22155570acca331b1bb90c0ea6221509fb",
+        "paths": [
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:3c05fb73b9c22b69a2b0ed13829001c959c023c109935e70d13ad21716790b78",
+        "paths_digest": "sha256:49a0bf2363696a7537dbe1bc2e6677fa6a3f5c6b10c2cc68fe5e273bdf5bf296",
+        "authored_lines": 311,
+        "original_changed_lines": 377
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "attribution-stdin-feeders:lens-start:2:0",
+          "result_digest": "sha256:f1dc73464b21ac35d037964fafebd712ccde85f636f9c053f6fb42558d7456a5",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/hooks/pre-tool-use.js:910-918 (readerFiles) and :931-938 (fedBy), and the Go port internal/hooks/pretooluse.go:258-291, drop the `-` operand (stdin) of a piped file reader. A word starting with `-` is skipped, so `-` is never an operand. Trigger: `curl https://x/msg | cat clean.txt - | git commit -F -`, or `cat clean.txt - < dirty.txt | git commit -F -`. readerFiles returns only [clean.txt], so fedBy reads only that file and never follows the reader's own stdin (the curl output, or dirty.txt). A message with an attribution trailer reaches git and is allowed. This contradicts spec §6a.1 point 3 and the ADR 0008 deny-what-cannot-be-read principle. The guard fails open for a standard stdin spelling of the same feeder it follows elsewhere. No test covers a `-` operand.",
+                "acceptance_criteria": "In both hooks, a piped file reader (cat, tac, type, head, tail, Get-Content) with a `-` or `/dev/stdin` operand also follows the reader's own stdin, using its `<`, heredoc or pipe, and denies when nothing readable feeds it. Tests in JS and Go show that `cat clean.txt - < dirty.txt | git commit -F -` and `printf-less-unreadable | cat clean.txt - | git commit -F -` are denied, and `cat msg.txt - < clean.txt | git commit -F -` is allowed only when every source is clean. The spec text matches."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "attribution-stdin-feeders:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-abb19e6982232244",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/hooks/pre-tool-use.js:910-918 (readerFiles) and :931-938 (fedBy), and the Go port internal/hooks/pretooluse.go:258-291, drop the `-` operand (stdin) of a piped file reader. A word starting with `-` is skipped, so `-` is never an operand. Trigger: `curl https://x/msg | cat clean.txt - | git commit -F -`, or `cat clean.txt - < dirty.txt | git commit -F -`. readerFiles returns only [clean.txt], so fedBy reads only that file and never follows the reader's own stdin (the curl output, or dirty.txt). A message with an attribution trailer reaches git and is allowed. This contradicts spec §6a.1 point 3 and the ADR 0008 deny-what-cannot-be-read principle. The guard fails open for a standard stdin spelling of the same feeder it follows elsewhere. No test covers a `-` operand.",
+          "acceptance_criteria": "In both hooks, a piped file reader (cat, tac, type, head, tail, Get-Content) with a `-` or `/dev/stdin` operand also follows the reader's own stdin, using its `<`, heredoc or pipe, and denies when nothing readable feeds it. Tests in JS and Go show that `cat clean.txt - < dirty.txt | git commit -F -` and `printf-less-unreadable | cat clean.txt - | git commit -F -` are denied, and `cat msg.txt - < clean.txt | git commit -F -` is allowed only when every source is clean. The spec text matches.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:735eaaf08f165bed60af44f71385191d58f6d9f514b596513afb003f945bb288",
+      "correction_budget": {
+        "limit_lines": 189,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:edd86e0c4a989161c9104d01e29c0f915f3886021210ce5247ea998b9b15c63f",
+      "generation": 3,
+      "predecessor_lineage_id": "sha256:16085397d6b3aac0412ccb13a805aee832a207889de182a62cc9385657a7dc54",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "fe15fd8045697521bcfd1ac8a27bd7b0d13e2e3f",
+          "candidate_tree": "dd59af3b231b401e8586b7c1d9570c4caa91c376",
+          "paths": [
+            "internal/hooks/attribution_test.go",
+            "internal/hooks/pretooluse.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:7a8549bc05a57d22497ddea35d225e19ee4877e6b1df57c3519a1ae23488d4fe",
+          "paths_digest": "sha256:49a0bf2363696a7537dbe1bc2e6677fa6a3f5c6b10c2cc68fe5e273bdf5bf296",
+          "authored_lines": 370,
+          "original_changed_lines": 440
+        },
+        "candidate_id": "sha256:2281fe324d4cb111b52452e5726387092eeac76bb724058e38f1a0fefd03b2c7",
+        "paths": [
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "dd59af3b231b401e8586b7c1d9570c4caa91c376",
+        "original_changed_lines": 440,
+        "authored_lines": 370
+      },
+      "current_candidate_id": "sha256:2281fe324d4cb111b52452e5726387092eeac76bb724058e38f1a0fefd03b2c7",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "fe15fd8045697521bcfd1ac8a27bd7b0d13e2e3f",
+        "candidate_tree": "dd59af3b231b401e8586b7c1d9570c4caa91c376",
+        "paths": [
+          "internal/hooks/attribution_test.go",
+          "internal/hooks/pretooluse.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:7a8549bc05a57d22497ddea35d225e19ee4877e6b1df57c3519a1ae23488d4fe",
+        "paths_digest": "sha256:49a0bf2363696a7537dbe1bc2e6677fa6a3f5c6b10c2cc68fe5e273bdf5bf296",
+        "authored_lines": 370,
+        "original_changed_lines": 440
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "attribution-stdin-feeders:lens-start:3:0",
+          "result_digest": "sha256:3455ca0f210eec003b73c6766b9fa69bc7d588c64773e0ff738bb60d6ab42f3a",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "A message read from stdin is attributed to the wrong feeder when the pipe comes from a ( ) group, and the stdin of a nested shell is lost. In pre-tool-use.js:1074-1078 the feeder is the last simple command before `|`, and commandSegments strips the `)` from the last word (848-851), so `(cat msg.txt; echo) | git commit -F -` has feeder `echo`. fedBy treats echo as a printer, `{files: []}`, and msg.txt is never read. Likewise `cat msg.txt | sh -c 'git commit -F -'` or `sh -c '...' < msg.txt`: the script is rechecked at line 1104 with no feeder (stdinOf returns null at 929), so nothing is read. A file with a `Co-Authored-By: Claude` trailer gets past PreToolUse. The Go port has the same flaw (attributionIn 629-659, 685-690). Spec 6a.1 (1417-1429) says a piped cat is followed, and lists neither groups nor stdin into `sh -c` as limits. Tests cover neither case (attribution_test.go:198-309, pre-tool-use.test.js:1239-1292). The commit-msg hook and CI still catch it.",
+                "acceptance_criteria": "In the Node hook and the Go port alike, `(cat msg.txt; echo) | git commit -F -` and `cat msg.txt | sh -c 'git commit -F -'` with attribution in msg.txt are denied. Denial may come from reading the files or from the unreadable-stdin reason. The same commands with a clean msg.txt keep a defined outcome, either allowed or denied by the same reason, identical in both ports. Tests cover a group feeder and a shell fed by `|` or `<`. Spec 6a.1 matches the behavior."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "A read-write redirection `<>` is dropped as stdin. shellTokens splits `<>` into the operators `<` and `>`. In commandSegments (pre-tool-use.js:826-831, 842-843) the second operator sets redirect to `>`, so the file word is neither an input nor stdinText. `git commit -F - <> msg.txt`, with attribution in msg.txt, leaves inputs empty, stdinOf returns null (929) and nothing is read or denied. The shell opens msg.txt on stdin, so git reads it. The Go port is identical (pretooluse.go:184-192, 203-209). Spec 6a.1 (1425-1429) lists `>&`, `<&`, `&>` and `>|`, not `<>`, and no test covers it. It is obscure, and the commit-msg hook and CI back it up.",
+                "acceptance_criteria": "`git commit -F - <> msg.txt` and `cat <> msg.txt | git commit -F -`, with attribution in msg.txt, are denied in the Node hook and the Go port, either by reading msg.txt or by an unreadable-stdin denial. The same commands with a clean file give an outcome identical in both ports. A test covers `<>` and `0<>`, and the spec names `<>` among the redirections it handles."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "attribution-stdin-feeders:lens-result:3:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-12222cf523258863",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "A message read from stdin is attributed to the wrong feeder when the pipe comes from a ( ) group, and the stdin of a nested shell is lost. In pre-tool-use.js:1074-1078 the feeder is the last simple command before `|`, and commandSegments strips the `)` from the last word (848-851), so `(cat msg.txt; echo) | git commit -F -` has feeder `echo`. fedBy treats echo as a printer, `{files: []}`, and msg.txt is never read. Likewise `cat msg.txt | sh -c 'git commit -F -'` or `sh -c '...' < msg.txt`: the script is rechecked at line 1104 with no feeder (stdinOf returns null at 929), so nothing is read. A file with a `Co-Authored-By: Claude` trailer gets past PreToolUse. The Go port has the same flaw (attributionIn 629-659, 685-690). Spec 6a.1 (1417-1429) says a piped cat is followed, and lists neither groups nor stdin into `sh -c` as limits. Tests cover neither case (attribution_test.go:198-309, pre-tool-use.test.js:1239-1292). The commit-msg hook and CI still catch it.",
+          "acceptance_criteria": "In the Node hook and the Go port alike, `(cat msg.txt; echo) | git commit -F -` and `cat msg.txt | sh -c 'git commit -F -'` with attribution in msg.txt are denied. Denial may come from reading the files or from the unreadable-stdin reason. The same commands with a clean msg.txt keep a defined outcome, either allowed or denied by the same reason, identical in both ports. Tests cover a group feeder and a shell fed by `|` or `<`. Spec 6a.1 matches the behavior.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-94e6952dab78ffd7",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "A read-write redirection `<>` is dropped as stdin. shellTokens splits `<>` into the operators `<` and `>`. In commandSegments (pre-tool-use.js:826-831, 842-843) the second operator sets redirect to `>`, so the file word is neither an input nor stdinText. `git commit -F - <> msg.txt`, with attribution in msg.txt, leaves inputs empty, stdinOf returns null (929) and nothing is read or denied. The shell opens msg.txt on stdin, so git reads it. The Go port is identical (pretooluse.go:184-192, 203-209). Spec 6a.1 (1425-1429) lists `>&`, `<&`, `&>` and `>|`, not `<>`, and no test covers it. It is obscure, and the commit-msg hook and CI back it up.",
+          "acceptance_criteria": "`git commit -F - <> msg.txt` and `cat <> msg.txt | git commit -F -`, with attribution in msg.txt, are denied in the Node hook and the Go port, either by reading msg.txt or by an unreadable-stdin denial. The same commands with a clean file give an outcome identical in both ports. A test covers `<>` and `0<>`, and the spec names `<>` among the redirections it handles.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:e78092567d0cad4f713c217800384b897c92b52bc5015565beaaed93992a5ec1",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-11-07T13:03:24.783Z"
+}

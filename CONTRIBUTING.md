@@ -61,6 +61,13 @@ third-party runtime dependencies.
   is about is fine (`fix(claude): …`), and so is a human `Co-Authored-By:`.
   This applies to human and AI contributors alike — see
   `rules/no-model-attribution.instructions.md`.
+- **Git hooks.** Run `npm install` once after cloning (or
+  `npm run setup:git-hooks`): it installs the `pre-commit` hook (staged checks,
+  Strict TDD) and the `commit-msg` hook that rejects model attribution, in the
+  hooks folder git uses, which a linked worktree shares with the main
+  repository. With `core.hooksPath` set, setup writes nothing there and prints
+  the two lines to add. `ospec doctor` warns while either hook is missing; CI
+  checks the PR commits, title and body either way.
 - Bump the version in `package.json`, `openspec/config.yaml`, `.plugin.json`
   and `.claude-plugin/plugin.json` together (`scripts/manifest-sync.test.js`
   keeps them equal) per [SemVer](https://semver.org/): patch for non-behavioral fixes, minor for

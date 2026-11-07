@@ -5,7 +5,7 @@
 // status (ok, info, warn, error); warnings and errors carry their cause and the
 // action that fixes them. Nothing here writes: state files are parsed, never
 // read through the store (which recovers interrupted writes), and the only
-// processes spawned are `git ls-files`, `git check-ignore`, `claude --version`,
+// processes spawned are `git rev-parse`, `git ls-files`, `git check-ignore`, `claude --version`,
 // the read-only Engram probes and the installed PreToolUse hook, run on a
 // harmless Read outside the project. The one exception is `--repair`, which
 // moves an unreadable IDD state aside so its change can resume (E1.46).
@@ -22,6 +22,7 @@ const { CONFIG_FILE, CONFIG_KEYS, IddConfigError, parseIddConfig } = require("./
 const { statusOf } = require("./idd-next.js");
 const { candidateCheckCommand, configureChecksStep } = require("./idd-checks-config.js");
 const { readPrecommitStrict } = require("./precommit-strict.js");
+const { gitHooksDir, GIT_HOOK_LINES } = require("./git-hooks-dir.js");
 const { TARGETS: ENGRAM_TARGETS, isConfigured, isUnknown, detectEngram, parseJsonc } = require("./engram-detect.js");
 const { missingEngramAllowRules } = require("./engram-claude-allow.js");
 const { binaryCandidates, hostBinarySuffix } = require("../hooks/ospec-hooks-launch.js");
@@ -706,13 +707,15 @@ function sddPackageCheck({ mode, changes, hostsWithoutSdd }, add) {
     : { id: "sdd-package", status: "warn", cause: `openspec/changes/ holds SDD changes, but ${hosts} has no SDD package to continue them`, action });
 }
 
-function gitHookText(root, name) {
-  return readText(path.join(root, ".git", "hooks", name)) || "";
+// `hooks` is gitHooksDir's answer: in a linked worktree, the main repository's
+// shared folder; with core.hooksPath, that folder.
+function gitHookText(hooks, name) {
+  return (hooks && readText(path.join(hooks.dir, name))) || "";
 }
 
-function strictTddCheck(root, add) {
+function strictTddCheck(root, hooks, add) {
   const decision = readPrecommitStrict(root);
-  const hookInstalled = gitHookText(root, "pre-commit").includes("pre-commit-hook.js");
+  const hookInstalled = gitHookText(hooks, "pre-commit").includes("pre-commit-hook.js");
   if (!hookInstalled) {
     if (decision.activeStrict) {
       add({ id: "strict-tdd-hook", status: "ok", detail: "no ospec pre-commit hook installed" });
@@ -777,7 +780,7 @@ function hookGuardCheck(env, add) {
 
 // --- checkout -----------------------------------------------------------------
 
-function checkoutChecks(root, version, claude, others, add) {
+function checkoutChecks(root, hooks, version, claude, others, add) {
   const dist = readJson(path.join(root, "dist", "claude-marketplace", "plugins", "ospec-workflow", ".claude-plugin", "plugin.json"));
   if (dist?.version) {
     add(dist.version === version
@@ -802,19 +805,26 @@ function checkoutChecks(root, version, claude, others, add) {
         });
   }
   hosts.installDriftChecks(version, others, add);
-  if (!fs.existsSync(path.join(root, ".git", "hooks"))) return;
-  const missing = [
-    gitHookText(root, "pre-commit").includes("pre-commit-hook.js") ? null : "pre-commit",
-    gitHookText(root, "commit-msg").includes("commit-msg-hook.js") ? null : "commit-msg",
-  ].filter(Boolean);
-  add(missing.length
+  if (!hooks) return; // not a git work tree
+  const missing = Object.keys(GIT_HOOK_LINES).filter((name) => !gitHookText(hooks, name).includes(`${name}-hook.js`));
+  if (missing.length === 0) {
+    add({ id: "git-hooks", status: "ok" });
+    return;
+  }
+  // setup:git-hooks never writes a core.hooksPath folder: the user adds the lines.
+  add(hooks.custom
     ? {
         id: "git-hooks",
         status: "warn",
-        cause: `the repository's ${missing.join(" and ")} hook is not installed`,
-        action: "Run `npm run setup:git-hooks`.",
+        cause: `core.hooksPath points to ${hooks.dir}, where the repository's ${missing.join(" and ")} hook is not installed`,
+        action: `Add ${missing.map((name) => `\`${GIT_HOOK_LINES[name]}\` to ${path.join(hooks.dir, name)}`).join(" and ")}; ospec does not write a core.hooksPath folder.`,
       }
-    : { id: "git-hooks", status: "ok" });
+    : {
+        id: "git-hooks",
+        status: "warn",
+        cause: `the repository's ${missing.join(" and ")} hook is not installed`,
+        action: "Run `npm run setup:git-hooks` (`npm install` runs it too).",
+      });
 }
 
 // --- entry ------------------------------------------------------------------
@@ -844,7 +854,8 @@ async function runDoctor({
   const claude = detectClaude(claudeDir);
   const others = hosts.detectHosts({ home, env, platform, parseJsonc });
   const checkout = checkoutVersion(root);
-  if (checkout) checkoutChecks(root, checkout, claude, others, adder("checkout"));
+  const hooks = gitHooksDir(root, spawn);
+  if (checkout) checkoutChecks(root, hooks, checkout, claude, others, adder("checkout"));
 
   const project = adder("project");
   const config = readConfig(root, project);
@@ -874,7 +885,7 @@ async function runDoctor({
       action: `Continue with \`/sdd-continue ${change.name}\`.`,
     });
   }
-  strictTddCheck(root, project);
+  strictTddCheck(root, hooks, project);
   sessionDirCheck(root, spawn, project);
   hookGuardCheck(env, project);
   hosts.codexRepoCheck(root, others, project);

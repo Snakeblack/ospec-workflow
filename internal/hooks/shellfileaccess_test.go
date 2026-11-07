@@ -35,6 +35,13 @@ func TestLiteralReadOperands(t *testing.T) {
 		{"scp .env host:", []string{".env", "host:"}},
 		{"scp -i ~/.ssh/id_rsa notes.txt host:", []string{"notes.txt", "host:"}},
 		{"scp -o IdentityFile=~/.ssh/id_rsa notes.txt host:", []string{"notes.txt", "host:"}},
+		// $'…' quoting: \' does not close it, so the next command stays visible.
+		{`echo $'\'' ; cat .env`, []string{".env"}},
+		{`cat $'.env`, nil},
+		// A backslash before a line break continues the line; a `<<` without its
+		// delimiter (an arithmetic shift) hides nothing after it.
+		{"cat \\\n  .env", []string{".env"}},
+		{"echo $((1<<2))\ncat .env", []string{".env"}},
 	} {
 		if got := extractShellReadPaths(tc.command); !reflect.DeepEqual(got, tc.paths) {
 			t.Errorf("%s: got %v, want %v", tc.command, got, tc.paths)
