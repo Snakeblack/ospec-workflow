@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.171.1] - 2026-11-07
+
 ### Fixed
-- El guard PreToolUse de atribución (JS y Go) deja pasar git commit -F/--file (fichero o heredoc por stdin), gh pr --body-file/-F, gh pr comment/review/merge, git merge -m, git -C/-c antes de commit, gh pr -R antes del subcomando y un -m "$(cat <<EOF…)" con comillas dentro; y el hook commit-msg solo se instala a mano, con setup-git-hooks.js fallando en worktrees (ENOTDIR) e instalando donde git no mira con core.hooksPath, mientras el doctor se salta los worktrees (hallazgo 4 de PR3b). (attribution-guard-gaps)
-- Con un mensaje por stdin (-F -, --body-file -), el guard de atribución (JS y Go) no lee el fichero ni niega en cinco formas: cat f | seguido de salto de línea, cat f |&, cat < f | git commit -F -, cat a | cat | git commit -F - y git commit -F - 2>&1 < f; la orden pasa sin leer (hallazgo de la cuarta revisión de confianza de attribution-guard-gaps). (attribution-stdin-feeders)
+- **El guard de atribución ya no deja pasar un commit o una PR por un fichero, por stdin ni por otras órdenes** (attribution-guard-gaps). El 2026-11-02 cuatro commits con un trailer `Co-Authored-By` de un modelo llegaron a GitHub, porque el guard PreToolUse solo miraba `git commit -m` y `gh pr create|edit -t/-b`.
+  - **Órdenes**: `git commit`, `git merge` y `gh pr create|new|edit|comment|review|merge|close|reopen`, también tras wrappers con opciones (`env -i`, `sudo -u`, `timeout`), palabras reservadas, grupos, `sh -c` y opciones globales (`git -C`, `gh pr -R`).
+  - **Texto**: la orden entera (heredocs incluidos), sus cadenas y sus palabras, también como las lee el shell o git: escapes de `printf` y `$'…'`, barras de una palabra sin comillas, continuación de línea y `--trailer token=valor`. Una orden que solo menciona `git … commit` también tiene su texto revisado.
+  - **Ficheros**: el de `-F`, `--file` o `--template` del commit y el de `--body-file`, `-F` o `-T` de la PR, leídos desde el directorio que usa git (`cd`, `git -C`; con las abreviaturas de git). Un fichero que no puede leer, o un directorio que no puede saber, se niega (ADR 0008), con un motivo que propone `-m` o `-F -` con un heredoc.
+  - **Stdin** (attribution-stdin-feeders): con `-F -` sigue lo que alimenta la orden: su `<`, su heredoc o la tubería (`|` o `|&`, también partida por una línea), a través de lectores de ficheros (`cat`, `head`, `tail`, `Get-Content`…, con su operando `-`). `echo` y `printf` tienen su texto en la orden; otro programa por tubería, o un lector sin nada que leer, se niega. `>&`, `&>`, `>|` y los descriptores numéricos se leen como redirecciones.
+  - **Node y el binario Go dan la misma decisión**, con cuatro fixtures de paridad nuevos. El tokenizador que comparte con el guard de secretos sigue ahora `$'…'`, la continuación con barra y un `<<` sin delimitador.
+- **Los hooks de git se instalan en la carpeta que usa git** (hallazgo 4 de PR3b). `setup-git-hooks` y el doctor la localizan con `git rev-parse --git-common-dir --git-path hooks`: desde un worktree enlazado instalan y comprueban la del repositorio principal, sin el `ENOTDIR` de antes. Con `core.hooksPath` no escriben en esa carpeta y muestran las líneas que añadir. `npm install` los instala con el script `prepare`, sin fallar fuera de un repositorio, y CONTRIBUTING.md lo explica.
+
+Hecho con IDD (`idd/archive/2026-11-07-attribution-guard-gaps/` y `idd/archive/2026-11-07-attribution-stdin-feeders/`), con cuatro revisiones de confianza en el primero (la cuarta, autorizada por el usuario) y tres en el segundo. La spec de hooks (§6a.1), la de git-precommit-hook y REQ-idd-019 recogen el comportamiento y los límites deliberados del reconocedor (sustitución de órdenes, variables, alias, `eval`, salida de otros programas), que siguen cubriendo el hook commit-msg y el check de CI.
+
+**Verificación directa**: `node scripts/check.js` (4435 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados; `gofmt`, `go vet` y `go test ./...` en verde.
 
 ## [2.171.0] - 2026-11-06
 
