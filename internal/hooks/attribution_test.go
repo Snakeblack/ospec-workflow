@@ -232,6 +232,94 @@ func TestCommitAttribution_ReadsOnlyTheFilesThatFeedAMessageFromStdin(t *testing
 	}
 }
 
+// attribution-stdin-feeders: a pipe broken by a line or written |&, a reader
+// fed by its own < or by another pipe, and a < after a >& redirection all feed
+// a message read from stdin.
+func TestCommitAttribution_FollowsWhatFeedsAMessageFromStdin(t *testing.T) {
+	workspace := messageWorkspace(t, map[string]string{"msg.txt": "fix: x\n\n" + attributionTrailer + "\n", "clean.txt": "fix: x\n"})
+	forms := []func(string) string{
+		func(file string) string { return "cat " + file + " |\ngit commit -F -" },
+		func(file string) string { return "cat " + file + " |& git commit -F -" },
+		func(file string) string { return "cat < " + file + " | git commit -F -" },
+		func(file string) string { return "cat " + file + " | cat | git commit -F -" },
+		func(file string) string { return "git commit -F - 2>&1 < " + file },
+		func(file string) string { return "git commit -F - &> log.txt < " + file },
+		func(file string) string { return "cat " + file + " 2>/dev/null | git commit -F -" },
+	}
+	for _, form := range forms {
+		if reason := checkCommitAttribution(form("msg.txt"), workspace); reason != attributionReason {
+			t.Errorf("expected the attribution denial for %q, got %q", form("msg.txt"), reason)
+		}
+		if reason := checkCommitAttribution(form("clean.txt"), workspace); reason != "" {
+			t.Errorf("expected no denial for %q, got %q", form("clean.txt"), reason)
+		}
+	}
+	for _, cmd := range []string{"cat | git commit -F -", "sed 's/x/y/' clean.txt | cat | git commit -F -"} {
+		if reason := checkCommitAttribution(cmd, workspace); !strings.Contains(reason, "llega por stdin desde `") {
+			t.Errorf("expected the unreadable-stdin denial for %q, got %q", cmd, reason)
+		}
+	}
+	for _, cmd := range []string{"cat <<'EOF' | git commit -F -\nfix: x\nEOF", "echo 'fix: x' | cat | git commit -F -"} {
+		if reason := checkCommitAttribution(cmd, workspace); reason != "" {
+			t.Errorf("expected no denial for %q, got %q", cmd, reason)
+		}
+	}
+}
+
+// Trust review of attribution-stdin-feeders: a wrapped feeder is followed or
+// denied, a `<` of another descriptor is not stdin, and `>|` is a redirection.
+func TestCommitAttribution_FollowsAWrappedFeederAndReadsOnlyStdinRedirections(t *testing.T) {
+	workspace := messageWorkspace(t, map[string]string{"msg.txt": "fix: x\n\n" + attributionTrailer + "\n", "clean.txt": "fix: x\n"})
+	forms := []func(string) string{
+		func(file string) string { return "env cat " + file + " | git commit -F -" },
+		func(file string) string { return "nice -n 5 cat " + file + " | git commit -F -" },
+		func(file string) string { return "cat " + file + " | git commit -F - 3< clean.txt" },
+		func(file string) string { return "git commit -F - >| out.txt < " + file },
+		func(file string) string { return "git commit -F - 0< " + file },
+	}
+	for _, form := range forms {
+		if reason := checkCommitAttribution(form("msg.txt"), workspace); reason != attributionReason {
+			t.Errorf("expected the attribution denial for %q, got %q", form("msg.txt"), reason)
+		}
+		if reason := checkCommitAttribution(form("clean.txt"), workspace); reason != "" {
+			t.Errorf("expected no denial for %q, got %q", form("clean.txt"), reason)
+		}
+	}
+	for cmd, program := range map[string]string{
+		"cat msg.txt | env tee | git commit -F -":    "env",
+		"cat list.txt | xargs cat | git commit -F -": "xargs",
+	} {
+		if reason := checkCommitAttribution(cmd, workspace); !strings.Contains(reason, "llega por stdin desde `"+program+"`") {
+			t.Errorf("expected the unreadable-stdin denial naming %s for %q, got %q", program, cmd, reason)
+		}
+	}
+}
+
+// Second review: a reader's `-` or /dev/stdin operand reads its own stdin too.
+func TestCommitAttribution_FollowsAReadersStdinOperand(t *testing.T) {
+	workspace := messageWorkspace(t, map[string]string{"msg.txt": "fix: x\n\n" + attributionTrailer + "\n", "clean.txt": "fix: x\n"})
+	for _, cmd := range []string{
+		"cat clean.txt - < msg.txt | git commit -F -",
+		"cat clean.txt /dev/stdin < msg.txt | git commit -F -",
+		"cat msg.txt - < clean.txt | git commit -F -",
+	} {
+		if reason := checkCommitAttribution(cmd, workspace); reason != attributionReason {
+			t.Errorf("expected the attribution denial for %q, got %q", cmd, reason)
+		}
+	}
+	for cmd, program := range map[string]string{
+		"cat clean.txt - | git commit -F -":                          "cat",
+		"sed 's/x/y/' clean.txt | cat clean.txt - | git commit -F -": "sed",
+	} {
+		if reason := checkCommitAttribution(cmd, workspace); !strings.Contains(reason, "llega por stdin desde `"+program+"`") {
+			t.Errorf("expected the unreadable-stdin denial naming %s for %q, got %q", program, cmd, reason)
+		}
+	}
+	if reason := checkCommitAttribution("cat clean.txt - < clean.txt | git commit -F -", workspace); reason != "" {
+		t.Errorf("expected no denial, got %q", reason)
+	}
+}
+
 func TestCommitAttribution_LetsCleanFilesHeredocsAndOtherCommandsThrough(t *testing.T) {
 	workspace := messageWorkspace(t, map[string]string{
 		"msg.txt": "fix(claude): corregir el hook\n\nCo-Authored-By: Ana Pérez <ana@example.dev>\n",

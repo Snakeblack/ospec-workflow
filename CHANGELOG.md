@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - El guard PreToolUse de atribución (JS y Go) deja pasar git commit -F/--file (fichero o heredoc por stdin), gh pr --body-file/-F, gh pr comment/review/merge, git merge -m, git -C/-c antes de commit, gh pr -R antes del subcomando y un -m "$(cat <<EOF…)" con comillas dentro; y el hook commit-msg solo se instala a mano, con setup-git-hooks.js fallando en worktrees (ENOTDIR) e instalando donde git no mira con core.hooksPath, mientras el doctor se salta los worktrees (hallazgo 4 de PR3b). (attribution-guard-gaps)
+- Con un mensaje por stdin (-F -, --body-file -), el guard de atribución (JS y Go) no lee el fichero ni niega en cinco formas: cat f | seguido de salto de línea, cat f |&, cat < f | git commit -F -, cat a | cat | git commit -F - y git commit -F - 2>&1 < f; la orden pasa sin leer (hallazgo de la cuarta revisión de confianza de attribution-guard-gaps). (attribution-stdin-feeders)
 
 ## [2.171.0] - 2026-11-06
 

@@ -801,33 +801,49 @@ const QUOTED_RE = /"((?:[^"\\]|\\[\s\S])*)"|'([^']*)'/g;
 // The simple commands of a command line: its words split at `;`, `&`, `|` and
 // line breaks, without the `)` that closes a subshell on the last word. Each
 // keeps apart the files its `<` redirections read, whether a heredoc or a
-// here-string feeds it (`stdinText`), and whether a lone `|` pipes the
-// previous one into it.
+// here-string feeds it (`stdinText`), and whether a pipe (`|` or `|&`, also
+// broken by a line) feeds it the previous one. An `&` after a redirection
+// (`>&`, `<&`) or before `>` (`&>`) belongs to the redirection, and a word of
+// digits right before one is its descriptor, not an operand.
 function commandSegments(tokens) {
   const segments = [];
   let current = null;
   let between = "";
   let redirect = null;
-  for (const token of tokens) {
+  let descriptor = null;
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
     if (token.operator) {
-      if (";&|\n".includes(token.value)) {
+      if ((token.value === "&" && redirect !== null) || (token.value === "|" && redirect === ">")) continue;
+      if (token.value === "&" && tokens[i + 1]?.operator && tokens[i + 1].value === ">") {
+        redirect = ">";
+        i += 1;
+      } else if (";&|\n".includes(token.value)) {
         current = null;
         between += token.value;
         redirect = null;
       } else {
+        if (redirect === null) {
+          const last = current?.words[current.words.length - 1]?.value ?? "";
+          descriptor = /^\d+$/.test(last) ? last : null;
+          if (descriptor !== null) current.words.pop();
+        }
         redirect = token.value;
       }
       continue;
     }
     if (!current) {
-      current = { words: [], inputs: [], stdinText: false, piped: between === "|" };
+      const pipe = between.replace(/\n/g, "");
+      current = { words: [], inputs: [], stdinText: false, piped: pipe === "|" || pipe === "|&" };
       segments.push(current);
       between = "";
     }
+    // `N<` with another descriptor than 0 is not stdin.
     if (redirect === null) current.words.push(token);
-    else if (redirect === "<") current.inputs.push(token);
+    else if (redirect === "<" && (descriptor === null || descriptor === "0")) current.inputs.push(token);
     else if (redirect.startsWith("<<")) current.stdinText = true;
     redirect = null;
+    descriptor = null;
   }
   for (const { words } of segments) {
     const last = words[words.length - 1];
@@ -854,15 +870,23 @@ function programName(value) {
   return value.replace(/^[\\$({]+/, "").split(/[\\/]/).pop().toLowerCase().replace(/\.exe$/, "");
 }
 
-// The program of a simple command and the words after it, or null.
+// The program of a simple command and the words after it, or null. A
+// wrapper's options and values end at the first git, gh, shell, file reader or
+// printer word; without one the wrapper is the program, and xargs, which turns
+// its stdin into arguments, only leads to git, gh or a shell.
 function simpleCommand(words) {
   let i = 0;
   while (i < words.length && (ENV_ASSIGNMENT_RE.test(words[i].value) || RESERVED_WORDS.has(words[i].value))) i += 1;
-  if (i < words.length && COMMAND_WRAPPERS.has(programName(words[i].value))) {
-    do i += 1;
-    while (i < words.length && !["git", "gh"].includes(programName(words[i].value)) && !SHELLS.has(programName(words[i].value)));
+  if (i >= words.length) return null;
+  const wrapper = programName(words[i].value);
+  if (COMMAND_WRAPPERS.has(wrapper)) {
+    const leads = (name) => name === "git" || name === "gh" || SHELLS.has(name) || (wrapper !== "xargs" && (FILE_READERS.has(name) || PRINTERS.has(name)));
+    let j = i + 1;
+    while (j < words.length && !leads(programName(words[j].value))) j += 1;
+    if (j >= words.length) return { program: wrapper, args: words.slice(i + 1) };
+    i = j;
   }
-  return i < words.length ? { program: programName(words[i].value), args: words.slice(i + 1) } : null;
+  return { program: programName(words[i].value), args: words.slice(i + 1) };
 }
 
 // The directory a `cd`, `pushd` or `git -C` operand names from `base`, or null
@@ -882,15 +906,41 @@ function changeDirectory(base, program, args) {
   return resolveDirectory(base, operands[0]);
 }
 
-// The files a file reader reads: its operands, without options and their values.
+// The files a file reader reads: its operands (`-` for stdin included),
+// without options and their values.
 function readerFiles({ program, args }) {
   const valueOptions = FILE_READERS.get(program);
   const files = [];
   for (let i = 0; i < args.length; i += 1) {
     if (valueOptions.has(args[i].value.toLowerCase())) i += 1;
-    else if (!args[i].value.startsWith("-")) files.push(args[i]);
+    else if (!args[i].value.startsWith("-") || args[i].value === "-") files.push(args[i]);
   }
   return files;
+}
+
+// Where a message read from stdin comes from, for a simple command and what
+// feeds it: { files } to read (none when the command line holds the text), or
+// { deny } naming a program whose output cannot be read. A command's own `<`
+// wins over a heredoc and a pipe; a file reader reads its operands, and without
+// them its own stdin; echo and printf print their own text.
+function stdinOf(node, base) {
+  if (node.inputs.length > 0) return { files: node.inputs.map((file) => ({ file, base })) };
+  if (node.stdinText) return { files: [] };
+  return node.feeder ? fedBy(node.feeder) : null;
+}
+
+function fedBy(feeder) {
+  if (PRINTERS.has(feeder.program)) return { files: [] };
+  if (!FILE_READERS.has(feeder.program)) return { deny: feeder.program };
+  const operands = readerFiles(feeder);
+  const isStdin = (file) => file.literal && STDIN_FILES.has(file.value);
+  const files = operands.filter((file) => !isStdin(file)).map((file) => ({ file, base: feeder.cwd }));
+  if (files.length > 0 && !operands.some(isStdin)) return { files };
+  // Without operands, or with a `-` among them, the reader reads its own stdin;
+  // with nothing feeding it, the terminal.
+  const own = stdinOf(feeder, feeder.cwd);
+  if (!own) return { deny: feeder.program };
+  return own.deny ? own : { files: [...files, ...own.files] };
 }
 
 // The script word of `sh|bash|zsh|dash|ksh [options] -c <script>`, or null.
@@ -1024,7 +1074,8 @@ function checkCommitAttribution(command, workspace = process.cwd(), depth = 0) {
   for (const segment of commandSegments(tokens)) {
     const simple = simpleCommand(segment.words);
     const feeder = segment.piped ? previous : null;
-    previous = simple ? { ...simple, cwd } : null;
+    // A piped segment always feeds something: one with no program feeds what cannot be read.
+    previous = { ...(simple ?? { program: segment.words[0]?.value ?? "", args: [] }), cwd, inputs: segment.inputs, stdinText: segment.stdinText, feeder };
     if (!simple) continue;
     if (DIRECTORY_COMMANDS.has(simple.program)) {
       cwd = changeDirectory(cwd, simple.program, simple.args);
@@ -1060,14 +1111,10 @@ function checkCommitAttribution(command, workspace = process.cwd(), depth = 0) {
     // Message files are read where git runs (git -C); what feeds stdin, where
     // the shell runs.
     const toRead = files.filter((file) => !fromStdin(file)).map((file) => ({ file, base: target.cwd }));
-    if (files.some(fromStdin) && !target.stdinText) {
-      if (target.inputs.length > 0) {
-        toRead.push(...target.inputs.map((file) => ({ file, base: target.shellCwd })));
-      } else if (target.feeder && FILE_READERS.has(target.feeder.program)) {
-        toRead.push(...readerFiles(target.feeder).map((file) => ({ file, base: target.feeder.cwd })));
-      } else if (target.feeder && !PRINTERS.has(target.feeder.program)) {
-        return unreadableStdinReason(target.feeder.program);
-      }
+    if (files.some(fromStdin)) {
+      const source = stdinOf(target, target.shellCwd);
+      if (source?.deny) return unreadableStdinReason(source.deny);
+      if (source) toRead.push(...source.files);
     }
     for (const { file, base } of toRead) {
       const content = readMessageFile(file, base);

@@ -82,6 +82,7 @@ var (
 	shellOptionRE   = regexp.MustCompile(`^-[A-Za-z]+$`)
 	programPrefixRE = regexp.MustCompile(`^[\\$({]+`)
 	trailingParenRE = regexp.MustCompile(`\)+$`)
+	digitsRE        = regexp.MustCompile(`^[0-9]+$`)
 	// printf, echo -e and $'…' escapes: \n, \t, \r, \xHH, \uHHHH, \UHHHHHHHH, \NNN.
 	escapeRE        = regexp.MustCompile(`\\(?:x([0-9A-Fa-f]{1,2})|u([0-9A-Fa-f]{1,4})|U([0-9A-Fa-f]{1,8})|0?([0-7]{1,3})|([ntr]))`)
 	backslashRE     = regexp.MustCompile(`\\([\s\S])`)
@@ -136,16 +137,21 @@ type messageTarget struct {
 	feeder    *pipedCommand
 }
 
-// pipedCommand is a simple command with the shell's directory where it runs.
+// pipedCommand is a simple command with the shell's directory where it runs
+// and what feeds its stdin: its `<` files, a heredoc or here-string, or the
+// command piped into it.
 type pipedCommand struct {
-	program string
-	args    []shellToken
-	cwd     string
+	program   string
+	args      []shellToken
+	cwd       string
+	inputs    []shellToken
+	stdinText bool
+	feeder    *pipedCommand
 }
 
 // segment is a simple command of a command line: its words, the files its `<`
 // redirections read, whether a heredoc or a here-string feeds it, and whether
-// a lone `|` pipes the previous one into it.
+// a pipe (`|` or `|&`, also broken by a line) feeds it the previous one.
 type segment struct {
 	words, inputs []shellToken
 	stdinText     bool
@@ -153,37 +159,57 @@ type segment struct {
 }
 
 // commandSegments splits the words of a command line at `;`, `&`, `|` and
-// line breaks, without the `)` that closes a subshell on the last word.
+// line breaks, without the `)` that closes a subshell on the last word. An `&`
+// after a redirection (`>&`, `<&`) or before `>` (`&>`) belongs to the
+// redirection, and a word of digits right before one is its descriptor, not an
+// operand.
 func commandSegments(tokens []shellToken) []*segment {
 	var segments []*segment
 	var current *segment
 	between := ""
 	redirect := ""
-	for _, tok := range tokens {
+	descriptor := ""
+	for i := 0; i < len(tokens); i++ {
+		tok := tokens[i]
 		if tok.operator {
-			if strings.Contains(";&|\n", tok.value) {
+			switch {
+			case (tok.value == "&" && redirect != "") || (tok.value == "|" && redirect == ">"):
+			case tok.value == "&" && i+1 < len(tokens) && tokens[i+1].operator && tokens[i+1].value == ">":
+				redirect = ">"
+				i++
+			case strings.Contains(";&|\n", tok.value):
 				current = nil
 				between += tok.value
 				redirect = ""
-			} else {
+			default:
+				if redirect == "" {
+					descriptor = ""
+					if current != nil && len(current.words) > 0 && digitsRE.MatchString(current.words[len(current.words)-1].value) {
+						descriptor = current.words[len(current.words)-1].value
+						current.words = current.words[:len(current.words)-1]
+					}
+				}
 				redirect = tok.value
 			}
 			continue
 		}
 		if current == nil {
-			current = &segment{piped: between == "|"}
+			pipe := strings.ReplaceAll(between, "\n", "")
+			current = &segment{piped: pipe == "|" || pipe == "|&"}
 			segments = append(segments, current)
 			between = ""
 		}
+		// `N<` with another descriptor than 0 is not stdin.
 		switch {
 		case redirect == "":
 			current.words = append(current.words, tok)
-		case redirect == "<":
+		case redirect == "<" && (descriptor == "" || descriptor == "0"):
 			current.inputs = append(current.inputs, tok)
 		case strings.HasPrefix(redirect, "<<"):
 			current.stdinText = true
 		}
 		redirect = ""
+		descriptor = ""
 	}
 	for _, seg := range segments {
 		if n := len(seg.words); n > 0 && !strings.Contains(seg.words[n-1].value, "(") && strings.HasSuffix(seg.words[n-1].value, ")") {
@@ -193,14 +219,83 @@ func commandSegments(tokens []shellToken) []*segment {
 	return segments
 }
 
-// readerFiles returns the operands of a file reader, without options and their values.
+// stdinSource is where a message read from stdin comes from: files to read
+// (none when the command line holds the text), or a program whose output
+// cannot be read.
+type stdinSource struct {
+	files []fileToRead
+	deny  string
+}
+
+// fileToRead is a message file and the directory it is read from.
+type fileToRead struct {
+	file *shellToken
+	base string
+}
+
+// stdinOf returns where the stdin of a simple command comes from, or nil when
+// nothing feeds it. Its own `<` wins over a heredoc and a pipe.
+func stdinOf(inputs []shellToken, stdinText bool, feeder *pipedCommand, base string) *stdinSource {
+	if len(inputs) > 0 {
+		source := &stdinSource{}
+		for i := range inputs {
+			source.files = append(source.files, fileToRead{&inputs[i], base})
+		}
+		return source
+	}
+	if stdinText {
+		return &stdinSource{}
+	}
+	if feeder == nil {
+		return nil
+	}
+	return fedBy(feeder)
+}
+
+// fedBy returns what a piped command feeds: a file reader its operands, and
+// without them its own stdin; echo and printf their own text; any other
+// program cannot be read.
+func fedBy(feeder *pipedCommand) *stdinSource {
+	if printers[feeder.program] {
+		return &stdinSource{}
+	}
+	if fileReaders[feeder.program] == nil {
+		return &stdinSource{deny: feeder.program}
+	}
+	operands := readerFiles(feeder)
+	var files []fileToRead
+	readsStdin := false
+	for i := range operands {
+		if operands[i].literal && stdinMessageFiles[operands[i].value] {
+			readsStdin = true
+		} else {
+			files = append(files, fileToRead{&operands[i], feeder.cwd})
+		}
+	}
+	if len(files) > 0 && !readsStdin {
+		return &stdinSource{files: files}
+	}
+	// Without operands, or with a `-` among them, the reader reads its own
+	// stdin; with nothing feeding it, the terminal.
+	own := stdinOf(feeder.inputs, feeder.stdinText, feeder.feeder, feeder.cwd)
+	if own == nil {
+		return &stdinSource{deny: feeder.program}
+	}
+	if own.deny != "" {
+		return own
+	}
+	return &stdinSource{files: append(files, own.files...)}
+}
+
+// readerFiles returns the operands of a file reader (`-` for stdin included),
+// without options and their values.
 func readerFiles(feeder *pipedCommand) []shellToken {
 	valueOptions := fileReaders[feeder.program]
 	var files []shellToken
 	for i := 0; i < len(feeder.args); i++ {
 		if valueOptions[strings.ToLower(feeder.args[i].value)] {
 			i++
-		} else if !strings.HasPrefix(feeder.args[i].value, "-") {
+		} else if !strings.HasPrefix(feeder.args[i].value, "-") || feeder.args[i].value == "-" {
 			files = append(files, feeder.args[i])
 		}
 	}
@@ -214,21 +309,29 @@ func programName(value string) string {
 }
 
 // simpleCommand returns the program of a simple command and the words after it.
+// A wrapper's options and values end at the first git, gh, shell, file reader
+// or printer word; without one the wrapper is the program, and xargs, which
+// turns its stdin into arguments, only leads to git, gh or a shell.
 func simpleCommand(words []shellToken) (string, []shellToken, bool) {
 	i := 0
 	for i < len(words) && (envAssignmentRE.MatchString(words[i].value) || reservedWords[words[i].value]) {
 		i++
 	}
-	if i < len(words) && commandWrappers[programName(words[i].value)] {
-		for i++; i < len(words); i++ {
-			name := programName(words[i].value)
-			if name == "git" || name == "gh" || shellPrograms[name] {
-				break
-			}
-		}
-	}
 	if i >= len(words) {
 		return "", nil, false
+	}
+	if wrapper := programName(words[i].value); commandWrappers[wrapper] {
+		leads := func(name string) bool {
+			return name == "git" || name == "gh" || shellPrograms[name] || (wrapper != "xargs" && (fileReaders[name] != nil || printers[name]))
+		}
+		j := i + 1
+		for j < len(words) && !leads(programName(words[j].value)) {
+			j++
+		}
+		if j >= len(words) {
+			return wrapper, words[i+1:], true
+		}
+		i = j
 	}
 	return programName(words[i].value), words[i+1:], true
 }
@@ -529,11 +632,17 @@ func attributionIn(command, workspace string, depth int) string {
 		if seg.piped {
 			feeder = previous
 		}
-		previous = nil
-		if !ok {
+		// A piped segment always feeds something: one with no program feeds what cannot be read.
+		if ok {
+			previous = &pipedCommand{program, args, cwd, seg.inputs, seg.stdinText, feeder}
+		} else {
+			first := ""
+			if len(seg.words) > 0 {
+				first = seg.words[0].value
+			}
+			previous = &pipedCommand{first, nil, cwd, seg.inputs, seg.stdinText, feeder}
 			continue
 		}
-		previous = &pipedCommand{program, args, cwd}
 		switch {
 		case directoryCommands[program]:
 			cwd = changeDirectory(cwd, program, args)
@@ -580,10 +689,6 @@ func attributionIn(command, workspace string, depth int) string {
 			}
 		}
 	}
-	type fileToRead struct {
-		file *shellToken
-		base string
-	}
 	for _, target := range targets {
 		// Message files are read where git runs (git -C); what feeds stdin,
 		// where the shell runs.
@@ -596,19 +701,12 @@ func attributionIn(command, workspace string, depth int) string {
 				toRead = append(toRead, fileToRead{file, target.cwd})
 			}
 		}
-		if fromStdin && !target.stdinText {
-			switch {
-			case len(target.inputs) > 0:
-				for i := range target.inputs {
-					toRead = append(toRead, fileToRead{&target.inputs[i], target.shellCwd})
+		if fromStdin {
+			if source := stdinOf(target.inputs, target.stdinText, target.feeder, target.shellCwd); source != nil {
+				if source.deny != "" {
+					return unreadableStdinReason(source.deny)
 				}
-			case target.feeder != nil && fileReaders[target.feeder.program] != nil:
-				for _, file := range readerFiles(target.feeder) {
-					file := file
-					toRead = append(toRead, fileToRead{&file, target.feeder.cwd})
-				}
-			case target.feeder != nil && !printers[target.feeder.program]:
-				return unreadableStdinReason(target.feeder.program)
+				toRead = append(toRead, source.files...)
 			}
 		}
 		for _, entry := range toRead {

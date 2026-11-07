@@ -1009,6 +1009,8 @@ test("checkCommitAttribution lets a gh pr name the agents it is about", () => {
 // attribution-guard-gaps: the message also arrives through a file, stdin, another subcommand or
 // global options before the subcommand. The guard reads all of them.
 const TRAILER = "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>";
+// The attribution denial, apart from the one for a message the guard cannot read.
+const ATTRIBUTION_DENIAL = checkCommitAttribution(`git commit -m "fix: x" -m "${TRAILER}"`);
 
 function messageWorkspace(t, files = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-attribution-"));
@@ -1229,6 +1231,64 @@ test("checkCommitAttribution reads only the files that feed a message from stdin
     assert.notEqual(checkCommitAttribution(cmd, workspace), null, cmd);
   }
   assert.match(checkCommitAttribution("cat missing.txt | git commit -F -", workspace) ?? "", /no se pudo leer/);
+});
+
+// attribution-stdin-feeders: a pipe broken by a line or written |&, a reader
+// fed by its own < or by another pipe, and a < after a >& redirection all feed
+// a message read from stdin.
+test("checkCommitAttribution follows what feeds a message from stdin through pipes and redirections", (t) => {
+  const workspace = messageWorkspace(t, { "msg.txt": `fix: x\n\n${TRAILER}\n`, "clean.txt": "fix: x\n" });
+  const forms = [
+    (file) => `cat ${file} |\ngit commit -F -`,
+    (file) => `cat ${file} |& git commit -F -`,
+    (file) => `cat < ${file} | git commit -F -`,
+    (file) => `cat ${file} | cat | git commit -F -`,
+    (file) => `git commit -F - 2>&1 < ${file}`,
+    (file) => `git commit -F - &> log.txt < ${file}`,
+    (file) => `cat ${file} 2>/dev/null | git commit -F -`,
+  ];
+  for (const form of forms) {
+    assert.equal(checkCommitAttribution(form("msg.txt"), workspace), ATTRIBUTION_DENIAL, form("msg.txt"));
+    assert.equal(checkCommitAttribution(form("clean.txt"), workspace), null, form("clean.txt"));
+  }
+  for (const cmd of ["cat | git commit -F -", "sed 's/x/y/' clean.txt | cat | git commit -F -"]) {
+    assert.match(checkCommitAttribution(cmd, workspace) ?? "", /llega por stdin desde `(?:cat|sed)`/, cmd);
+  }
+  for (const cmd of ["cat <<'EOF' | git commit -F -\nfix: x\nEOF", "echo 'fix: x' | cat | git commit -F -"]) {
+    assert.equal(checkCommitAttribution(cmd, workspace), null, cmd);
+  }
+});
+
+// Trust review of attribution-stdin-feeders: a wrapped feeder is followed or
+// denied, a `<` of another descriptor is not stdin, and `>|` is a redirection.
+test("checkCommitAttribution follows a wrapped feeder and reads only stdin redirections", (t) => {
+  const workspace = messageWorkspace(t, { "msg.txt": `fix: x\n\n${TRAILER}\n`, "clean.txt": "fix: x\n" });
+  const forms = [
+    (file) => `env cat ${file} | git commit -F -`,
+    (file) => `nice -n 5 cat ${file} | git commit -F -`,
+    (file) => `cat ${file} | git commit -F - 3< clean.txt`,
+    (file) => `git commit -F - >| out.txt < ${file}`,
+    (file) => `git commit -F - 0< ${file}`,
+  ];
+  for (const form of forms) {
+    assert.equal(checkCommitAttribution(form("msg.txt"), workspace), ATTRIBUTION_DENIAL, form("msg.txt"));
+    assert.equal(checkCommitAttribution(form("clean.txt"), workspace), null, form("clean.txt"));
+  }
+  for (const [cmd, program] of [["cat msg.txt | env tee | git commit -F -", "env"], ["cat list.txt | xargs cat | git commit -F -", "xargs"]]) {
+    assert.match(checkCommitAttribution(cmd, workspace) ?? "", new RegExp(`llega por stdin desde \`${program}\``), cmd);
+  }
+});
+
+// Second review: a reader's `-` or /dev/stdin operand reads its own stdin too.
+test("checkCommitAttribution follows a reader's stdin operand", (t) => {
+  const workspace = messageWorkspace(t, { "msg.txt": `fix: x\n\n${TRAILER}\n`, "clean.txt": "fix: x\n" });
+  for (const cmd of ["cat clean.txt - < msg.txt | git commit -F -", "cat clean.txt /dev/stdin < msg.txt | git commit -F -", "cat msg.txt - < clean.txt | git commit -F -"]) {
+    assert.equal(checkCommitAttribution(cmd, workspace), ATTRIBUTION_DENIAL, cmd);
+  }
+  for (const [cmd, program] of [["cat clean.txt - | git commit -F -", "cat"], ["sed 's/x/y/' clean.txt | cat clean.txt - | git commit -F -", "sed"]]) {
+    assert.match(checkCommitAttribution(cmd, workspace) ?? "", new RegExp(`llega por stdin desde \`${program}\``), cmd);
+  }
+  assert.equal(checkCommitAttribution("cat clean.txt - < clean.txt | git commit -F -", workspace), null);
 });
 
 test("checkCommitAttribution stays linear on a long repetitive command", () => {

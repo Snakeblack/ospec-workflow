@@ -1393,7 +1393,8 @@ Such a command is the program of a simple command (the words between unquoted `;
   continued line;
 - after a wrapper (`env`, `command`, `exec`, `sudo`, `doas`, `nohup`, `time`, `timeout`,
   `nice`, `ionice`, `stdbuf`, `xargs`), whose options and values end at the first `git`,
-  `gh` or shell word;
+  `gh`, shell, file reader or printer word (for `xargs`, which turns its stdin into
+  arguments, only `git`, `gh` or a shell); without one, the wrapper is the program;
 - before global options and the subcommand (`git -C <dir>`, `git -c <key=value>`,
   `git --no-pager`, `gh pr -R <repo>`);
 - inside the script of `sh|bash|zsh|dash|ksh [options] -c <script>`, two levels deep.
@@ -1413,13 +1414,19 @@ line that holds or mentions one, the hook MUST check:
 2. the file each message-file option names: `-F`, `--file`, `-t` and `--template` of
    `git commit`, `-F` and `--file` of `git merge` (git's unique abbreviations, such as
    `--fil`, included), and `-F`, `--body-file`, `-T` and `--template` of `gh pr`;
-3. for a message read from stdin (`-` or `/dev/stdin`) and not fed by a heredoc or a
-   here-string, the files of the command's own `<` redirection or, when a lone `|`
-   pipes a file reader (`cat`, `tac`, `type`, `head`, `tail`, `Get-Content`) into it,
-   that reader's files, read from the shell's directory. A piped `echo` or `printf`
-   has its text in the command line; any other program piped into it MUST be denied,
-   since its output cannot be read. Other readers of the command line are not its
-   message.
+3. for a message read from stdin (`-` or `/dev/stdin`), what feeds it, read from the
+   shell's directory: the files of the command's own `<` (which wins over a heredoc
+   and a pipe), else the text of a heredoc or here-string, else what a pipe (`|` or
+   `|&`, also broken by a line) brings. A piped file reader (`cat`, `tac`, `type`,
+   `head`, `tail`, `Get-Content`) brings its operands' files and, without operands
+   or with a `-` or `/dev/stdin` among them, its own stdin, followed the same way; a
+   reader with nothing to read MUST be denied, since it reads the terminal. A piped `echo` or `printf` has its text in
+   the command line; any other program piped in MUST be denied, since its output
+   cannot be read, and so MUST a piped segment with no program. An `&` after a
+   redirection (`>&`, `<&`) or before `>` (`&>`) and a `|` after `>` (`>|`) belong
+   to the redirection, and a word of digits right before one is its descriptor:
+   `N<` with another descriptor than 0 is not stdin. Other readers of the command
+   line are not its message.
 
 A relative file is read from the directory git uses: the session's directory, moved
 by an earlier `cd` or `pushd` of the same command line and by `git -C <dir>`; `~/` is
