@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- PR4a de la review 2026-10-29: la transacción de archivado SDD queda bloqueada para siempre tras un fallo sin efectos, archiva sin comprobar el linaje del quality-review-gate y el reducer marca archived antes de la transacción (sdd-archive-chain)
+
 ## [2.171.2] - 2026-11-08
 
 ### Fixed

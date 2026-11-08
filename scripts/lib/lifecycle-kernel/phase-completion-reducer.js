@@ -273,7 +273,9 @@ function reducePhaseCompletion(currentState, payload, options = {}) {
     }
     nextState.status = "verified";
   } else if (phase === "archive") {
-    nextState.status = "archived";
+    // sdd-archive only emits the plan: the change stays active until the
+    // archive transaction commits it and writes `archived` into its copy.
+    nextState.status = "archive-pending";
   }
   effects.push({
     kind: "persist-state",

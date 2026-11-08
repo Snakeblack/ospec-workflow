@@ -88,7 +88,7 @@ Minimum state shape:
 
 ```yaml
 change: "{change-name}"
-status: "planning | ready-for-apply | applying | ready-for-verify | verified | archived | blocked"
+status: "planning | ready-for-apply | applying | ready-for-verify | verified | archive-pending | archived | blocked"
 last_updated: 2026-06-01T19:12:00Z
 blocking_questions: []
 phases:
@@ -146,7 +146,7 @@ Runtime mechanical projection rules:
 - On successful `tasks`, sets `phases.tasks.status: done` and advances top-level to `status: ready-for-apply`.
 - On `apply`, sets `phases.apply.status: partial` for incomplete batches (top-level `status: applying`) or `done` when complete (top-level `status: ready-for-verify`).
 - On successful `verify`, sets `phases.verify.status: done`. Top-level becomes `status: verified` for `PASS` and `PASS WITH WARNINGS`, or stays `blocked` on failure.
-- On successful `archive`, sets `phases.archive.status: done` and top-level `status: archived`.
+- On successful `archive`, sets `phases.archive.status: done` and top-level `status: archive-pending`; only the archive transaction runtime writes `status: archived`, into the archived copy.
 - Clears resolved entries from `blocking_questions` upon successful completion.
 
 ### None mode

@@ -8,9 +8,11 @@ Deterministic filesystem transaction that applies a validated `archive-plan.json
 
 ### Requirement: Transaction Lifecycle and Delete-After-Full-Match {#REQ-archive-transaction-runtime-001}
 
-The runtime MUST execute archive closure in order: (1) preflight — verify verify-verdict, quality gates, approvals, `baseline_fingerprints`, plan validation (including input hashes), AND spec content integrity (verifying no prepared spec writes contain `undefined` tokens or undeclared dropped requirement IDs from `target_before`); (2) write staging; (3) copy the full `archive_inventory` into staging/destination staging area; (4) byte/hash-compare origin ↔ staging ↔ destination; (5) atomic commit/rename of staged results into live paths when comparison succeeds; (6) delete the origin change folder **only** after a full three-way match. The runtime MUST NOT delete origin on any preflight, spec integrity, hash, inventory, or compare failure. Spec/ADR live writes MUST occur only via this commit path, never by the archive agent.
+The runtime MUST execute archive closure in order: (1) preflight — verify verify-verdict, quality gates, approvals, the review and verify lineages, `baseline_fingerprints`, plan validation (including input hashes), AND spec content integrity (verifying no prepared spec writes contain `undefined` tokens or undeclared dropped requirement IDs from `target_before`); (2) write staging; (3) copy the full `archive_inventory` into staging/destination staging area, replacing only the top-level `status` line of the staged `state.yaml` with `status: archived`; (4) byte/hash-compare origin ↔ staging ↔ destination, where the only accepted difference is that status line; (5) atomic commit/rename of staged results into live paths when comparison succeeds; (6) delete the origin change folder **only** after a full three-way match. The runtime MUST NOT delete origin on any preflight, spec integrity, hash, inventory, or compare failure. Spec/ADR live writes MUST occur only via this commit path, never by the archive agent.
 
-(Previously: preflight checked gates and hashes without verifying spec content integrity and requirement retention.)
+The lineage check fails closed with `gate-not-satisfied`: a top-level `verify_lineage`, when present, MUST be `closed`; when the routing table of `openspec/config.yaml` lists `quality-review-gate` for the persisted `route.actual_route`, `gates.quality-review-gate` MUST hold a lineage that `planLineageGate` allows for the `archive` gate against the lineage's own `current_candidate_id`, or record `status: done` with no selected domain. A lineage that ended unapproved (`exhausted`, `escalated`, `invalidated`), a lineage not written as one-line JSON, an unreadable `openspec/config.yaml`, or a route the table does not declare blocks the archive; no override applies. No route, the `freeform` route, a missing `openspec/config.yaml` or an empty routing table require no review lineage.
+
+(Previously: preflight did not check the review or verify lineages, and the archived `state.yaml` kept the status the change had before the transaction.)
 
 #### Scenario: Failure before commit leaves origin intact
 
@@ -34,6 +36,20 @@ The runtime MUST execute archive closure in order: (1) preflight — verify veri
 - AND only then is the origin change folder deleted
 - AND a success receipt is emitted
 
+#### Scenario: Preflight halts on a review lineage not approved for archive
+
+- GIVEN the persisted route lists `quality-review-gate` and its gate is absent, still reviewing, or ended `escalated`
+- WHEN the runtime executes preflight
+- THEN the receipt is `failed` with `failure_reason: gate-not-satisfied`
+- AND origin stays intact and no destination is created
+
+#### Scenario: The archived state.yaml says archived
+
+- GIVEN a change whose `state.yaml` has `status: archive-pending`
+- WHEN the transaction commits
+- THEN the archived `state.yaml` has `status: archived`
+- AND every other byte equals the origin `state.yaml`
+
 #### Scenario: Preflight halts on spec content integrity failure
 
 - GIVEN an archive plan whose prepared spec content contains `undefined` or undeclared dropped requirement IDs
@@ -44,6 +60,10 @@ The runtime MUST execute archive closure in order: (1) preflight — verify veri
 ### Requirement: Journal, Resume, and Rollback {#REQ-archive-transaction-runtime-002}
 
 The runtime MUST persist a transaction journal that records enough state to resume after interruption past staging. Re-invoking the runtime for the same change MUST either resume from the journal, complete as a no-op if already committed, or roll back to the pre-transaction state when rollback is required. Rollback strategy for schema v1 MUST be `staging-rename`: discard/replace via staging without rewriting archived audit history. Rollback behavior MUST be demonstrable with filesystem fixtures.
+
+A `failed` journal with no live write (`created_by_tx` empty: a preflight, staging or compare A failure) and a `rolled-back` journal MUST NOT block the change: the next run discards staging and starts a new transaction from `init`. A `failed` journal with live writes MUST stay terminal, answering with its failure, until `--rollback` restores the pre-transaction state.
+
+(Previously: every `failed` or `rolled-back` journal was terminal, so the change could not be archived again without deleting the journal by hand.)
 
 #### Scenario: Failure after staging is resumable
 
@@ -59,6 +79,19 @@ The runtime MUST persist a transaction journal that records enough state to resu
 - THEN origin remains intact (or is restored to pre-transaction content)
 - AND staging artifacts do not leave live targets half-applied
 - AND the archived audit trail under `openspec/changes/archive/` is never rewritten
+
+#### Scenario: A failure without live writes is retried
+
+- GIVEN a run failed in preflight with `gate-not-satisfied`, or a rollback completed
+- WHEN the cause is fixed and the runtime is invoked again
+- THEN it starts a new transaction from `init` and can reach `success`
+
+#### Scenario: A failure after live writes waits for rollback
+
+- GIVEN a `failed` journal whose `created_by_tx` is not empty
+- WHEN the runtime is invoked again without `--rollback`
+- THEN it answers `failed` with the recorded `failure_reason`
+- AND it leaves the journal and origin unchanged
 
 #### Scenario: Idempotent re-run after successful commit
 

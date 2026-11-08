@@ -18,6 +18,8 @@ const {
 } = require("./archive-plan.js");
 const { renameWithFallback } = require("./atomic-write.js");
 const { ignoreOspecDir } = require("./ospec-gitignore.js");
+const { parseRoutingTable } = require("./route-dispatcher.js");
+const { planLineageGate } = require("./review-gate-state.js");
 
 const TERMINAL_STATES = new Set(["done", "failed", "rolled-back"]);
 const NON_TERMINAL = new Set([
@@ -43,6 +45,10 @@ function fingerprintInventory(inventory) {
   return digestBytes(Buffer.from(lines, "utf8"));
 }
 
+function hasLiveWrites(journal) {
+  return Array.isArray(journal && journal.created_by_tx) && journal.created_by_tx.length > 0;
+}
+
 /**
  * Pure reducer: decide the next transaction action from journal + facts.
  * @param {{state: string, plan_sha256?: string}} journal
@@ -63,7 +69,13 @@ function nextTransactionAction(journal, facts) {
     return { action: "fail", failure_reason: "journal-plan-conflict" };
   }
 
-  if (state === "failed" || state === "rolled-back") {
+  // A rollback restored the pre-transaction state, and a failure before any
+  // live write left it untouched: both start a new transaction. A failure
+  // after a live write waits for --rollback.
+  if (state === "rolled-back" || (state === "failed" && !hasLiveWrites(journal))) {
+    return { action: "restart" };
+  }
+  if (state === "failed") {
     return { action: "noop-terminal" };
   }
   if (state === "done") {
@@ -296,6 +308,178 @@ function readPersistedRoute(stateYamlText) {
   }
 
   return "";
+}
+
+// ---- Review and verify lineages the archive needs ----
+// state.yaml keeps top-level keys at indent 0, gate entries at 2 and their
+// fields at 4. A lineage is read as a one-line JSON value, the form the
+// review and verify runtimes emit; anything else reads as unreadable.
+
+const UNREADABLE = Symbol("unreadable");
+
+// The value of `key:` among the lines [start, end) at `indent`, with the range
+// of the lines nested under it, or null when the key is absent.
+function yamlEntry(lines, start, end, indent, key) {
+  for (let i = start; i < end; i += 1) {
+    const raw = lines[i];
+    const content = raw.trim();
+    if (!content || content.startsWith("#")) continue;
+    if (raw.length - raw.trimStart().length !== indent || !content.startsWith(`${key}:`)) continue;
+    let next = i + 1;
+    while (next < end) {
+      const nested = lines[next];
+      const nestedContent = nested.trim();
+      if (nestedContent && !nestedContent.startsWith("#") && nested.length - nested.trimStart().length <= indent) break;
+      next += 1;
+    }
+    const value = content.slice(key.length + 1).trim();
+    return { value: value.startsWith("#") ? "" : value, start: i + 1, end: next };
+  }
+  return null;
+}
+
+function jsonValue(entry) {
+  if (!entry) return undefined;
+  if (entry.value === "null" || entry.value === "~") return null;
+  if (!entry.value.startsWith("{")) return UNREADABLE;
+  try {
+    return JSON.parse(entry.value);
+  } catch {
+    return UNREADABLE;
+  }
+}
+
+// Selected review domains of a block gate: `- trust` items, an inline list,
+// or a `trust: { selected: true }` map.
+function blockDomains(lines, entry) {
+  if (entry.value) {
+    if (entry.value === "[]") return [];
+    if (!entry.value.startsWith("[") || !entry.value.endsWith("]")) return UNREADABLE;
+    return entry.value.slice(1, -1).split(",").map((item) => yamlScalar(item)).filter(Boolean);
+  }
+  const selected = [];
+  for (let i = entry.start; i < entry.end; i += 1) {
+    const content = lines[i].trim();
+    if (!content || content.startsWith("#")) continue;
+    if (content.startsWith("- ")) selected.push(yamlScalar(content.slice(2)));
+    else if (/\bselected:\s*true\b/.test(content)) selected.push(content.slice(0, content.indexOf(":")));
+  }
+  return selected;
+}
+
+function readReviewGateEntry(stateYamlText) {
+  const lines = String(stateYamlText || "").split(/\r?\n/);
+  const gates = yamlEntry(lines, 0, lines.length, 0, "gates");
+  const entry = gates && yamlEntry(lines, gates.start, gates.end, 2, "quality-review-gate");
+  if (!entry) return undefined;
+  if (entry.value) return jsonValue(entry);
+  const field = (name) => yamlEntry(lines, entry.start, entry.end, 4, name);
+  const status = field("status");
+  const domains = field("selected_domains");
+  return {
+    status: status ? yamlScalar(status.value) : null,
+    selected_domains: domains ? blockDomains(lines, domains) : [],
+    lineage: jsonValue(field("lineage")),
+  };
+}
+
+function selectedDomainCount(domains) {
+  if (Array.isArray(domains)) return domains.length;
+  if (domains && typeof domains === "object") {
+    return Object.values(domains).filter((domain) => domain && domain.selected !== false).length;
+  }
+  return Infinity;
+}
+
+// The status of a top-level verify_lineage (one-line JSON or a block), null
+// when there is none, or UNREADABLE.
+function readVerifyLineageStatus(stateYamlText) {
+  const lines = String(stateYamlText || "").split(/\r?\n/);
+  const entry = yamlEntry(lines, 0, lines.length, 0, "verify_lineage");
+  if (!entry) return null;
+  if (entry.value) {
+    const lineage = jsonValue(entry);
+    if (lineage === null) return null;
+    return lineage === UNREADABLE || typeof lineage.status !== "string" ? UNREADABLE : lineage.status;
+  }
+  const status = yamlEntry(lines, entry.start, entry.end, 2, "status");
+  return status ? yamlScalar(status.value) : UNREADABLE;
+}
+
+/**
+ * Whether the review and verify lineages let the change archive: a present
+ * verify_lineage is closed and, when the route lists quality-review-gate, its
+ * gate holds a lineage approved for archive (or selected no domain). A
+ * lineage that ended unapproved, or one that cannot be read, blocks.
+ * @param {string} stateYamlText
+ * @param {{reviewRequired: boolean}} opts
+ */
+function archiveLineagesAllow(stateYamlText, { reviewRequired }) {
+  const verifyStatus = readVerifyLineageStatus(stateYamlText);
+  if (verifyStatus !== null && verifyStatus !== "closed") return false;
+  if (!reviewRequired) return true;
+
+  const gate = readReviewGateEntry(stateYamlText);
+  if (!gate || gate === UNREADABLE || typeof gate !== "object") return false;
+  const lineage = gate.lineage;
+  if (lineage === undefined || lineage === null) {
+    return gate.status === "done" && selectedDomainCount(gate.selected_domains) === 0;
+  }
+  if (lineage === UNREADABLE || typeof lineage !== "object") return false;
+  const binding = lineage.genesis && lineage.genesis.k7_binding;
+  try {
+    return planLineageGate({
+      lineage,
+      observed_candidate_id: lineage.current_candidate_id,
+      observed_binding_id: binding && binding.binding_id,
+      observed_policy_snapshot_id: binding && binding.policy_snapshot_id,
+      issuance: gate.issuance,
+      downstream_gate: "archive",
+    }).archive_allowed === true;
+  } catch {
+    return false;
+  }
+}
+
+// Whether the persisted route lists quality-review-gate in the routing table
+// of openspec/config.yaml. No route, freeform, no config or an empty table
+// (the degraded routes) need no review; a config that cannot be read or a
+// route it does not declare is { ok: false }.
+async function routeReviewRequirement(workspace, stateYamlText, fsx) {
+  const route = readPersistedRoute(stateYamlText);
+  if (!route || route === "freeform") return { ok: true, required: false };
+  let content;
+  try {
+    content = await fsx.readFile(path.join(workspace, "openspec", "config.yaml"), "utf8");
+  } catch (err) {
+    return err && err.code === "ENOENT" ? { ok: true, required: false } : { ok: false };
+  }
+  let routes;
+  try {
+    routes = parseRoutingTable(content);
+  } catch {
+    return { ok: false };
+  }
+  if (routes.length === 0) return { ok: true, required: false };
+  const entry = routes.find((candidate) => String(candidate.name || "").toLowerCase() === route);
+  if (!entry) return { ok: false };
+  return { ok: true, required: Array.isArray(entry.gates) && entry.gates.includes("quality-review-gate") };
+}
+
+// The archived copy of state.yaml says `status: archived`: the staged copy is
+// the origin bytes with only its top-level status line replaced (latin1 maps
+// each byte to one character, so no other byte changes). Returns the
+// inventory the archive must match.
+async function markStagedStateArchived(stagingArchive, originInv, fsx) {
+  if (!originInv.some((entry) => entry.path === "state.yaml")) return originInv;
+  const stagedState = path.join(stagingArchive, "state.yaml");
+  const text = (await fsx.readFile(stagedState)).toString("latin1");
+  const archived = text.replace(/^status:[^\r\n]*/m, "status: archived");
+  if (archived === text) return originInv;
+  const bytes = Buffer.from(archived, "latin1");
+  await fsx.writeFile(stagedState, bytes);
+  const digest = digestBytes(bytes);
+  return originInv.map((entry) => (entry.path === "state.yaml" ? { ...entry, sha256: digest } : entry));
 }
 
 function defaultFs() {
@@ -679,13 +863,14 @@ async function runArchiveTransaction(opts) {
     await writeReceipt(txDir, receipt, fsx).catch(() => {});
     return receipt;
   }
-  if (journal.state === "failed" || journal.state === "rolled-back") {
-    const receipt = emptyReceipt(
-      changeName,
-      journal.plan_sha256,
-      journal.state === "rolled-back" ? "rolled-back" : "failed",
-      { failure_reason: journal.failure_reason || null },
-    );
+  if (nextTransactionAction(journal, {}).action === "restart") {
+    await fsx.rm(path.join(txDir, "staging"), { recursive: true, force: true }).catch(() => {});
+    journal = { state: "init", plan_sha256: null, created_by_tx: [] };
+  }
+  if (journal.state === "failed") {
+    const receipt = emptyReceipt(changeName, journal.plan_sha256, "failed", {
+      failure_reason: journal.failure_reason || null,
+    });
     await writeReceipt(txDir, receipt, fsx);
     return receipt;
   }
@@ -786,7 +971,12 @@ async function runArchiveTransaction(opts) {
       if (err.code !== "ENOENT") throw err;
     }
     const gateFacts = readArchiveGateFacts(stateText);
-    if (!gateFacts.gatesSatisfied) {
+    const review = await routeReviewRequirement(workspace, stateText, fsx);
+    if (
+      !gateFacts.gatesSatisfied ||
+      !review.ok ||
+      !archiveLineagesAllow(stateText, { reviewRequired: review.required })
+    ) {
       const receipt = emptyReceipt(changeName, planSha, "failed", {
         failure_reason: "gate-not-satisfied",
       });
@@ -797,24 +987,12 @@ async function runArchiveTransaction(opts) {
       return receipt;
     }
 
-    // baseline stale: compare target_before against live AND recorded fingerprints
-    if (gateFacts.baselineFingerprints) {
-      for (const sw of plan.spec_writes || []) {
-        const recorded = gateFacts.baselineFingerprints[sw.domain];
-        if (recorded && sw.target_before_sha256) {
-          if (recorded.toLowerCase() !== String(sw.target_before_sha256).toLowerCase()) {
-            // Fingerprint in state may be domain-level baseline; also check live bytes via snapshot
-          }
-        }
-      }
-    }
-
     let snapshot;
     try {
       snapshot = await buildSnapshot(workspace, changeName, plan, fsx);
     } catch (err) {
       const receipt = emptyReceipt(changeName, planSha, "failed", {
-        failure_reason: err.code === "io-error" ? "io-error" : "io-error",
+        failure_reason: "io-error",
       });
       journal.state = "failed";
       journal.failure_reason = "io-error";
@@ -873,9 +1051,11 @@ async function runArchiveTransaction(opts) {
       const stagingArchive = path.join(stagingRoot, "archive");
       const originInv = await computeInventory(origin, fsx);
       await copyInventoryToStaging(origin, stagingArchive, originInv, fsx);
+      const archiveInv = await markStagedStateArchived(stagingArchive, originInv, fsx);
       await stagePreparedWrites(workspace, changeName, plan, stagingRoot, fsx);
       journal.state = "staged";
       journal.origin_inventory = originInv;
+      journal.archive_inventory = archiveInv;
       await writeJournal(txDir, journal, fsx);
     } catch (err) {
       const receipt = emptyReceipt(changeName, planSha, "failed", {
@@ -893,8 +1073,12 @@ async function runArchiveTransaction(opts) {
   if (journal.state === "staged") {
     try {
       const stagingArchive = path.join(txDir, "staging", "archive");
+      // A journal staged before the archived status rewrite has no
+      // archive_inventory: its staging copied the origin bytes unchanged.
       const originInv =
-        journal.origin_inventory || (await computeInventory(origin, fsx));
+        journal.archive_inventory ||
+        journal.origin_inventory ||
+        (await computeInventory(origin, fsx));
       const ok = await compareOriginToDir(originInv, stagingArchive, fsx);
       if (!ok) {
         const receipt = emptyReceipt(changeName, planSha, "failed", {
@@ -1034,8 +1218,12 @@ async function runArchiveTransaction(opts) {
   if (journal.state === "committed") {
     try {
       const destAbs = path.join(workspace, ...destinationRel.split("/"));
+      // A journal staged before the archived status rewrite has no
+      // archive_inventory: its staging copied the origin bytes unchanged.
       const originInv =
-        journal.origin_inventory || (await computeInventory(origin, fsx));
+        journal.archive_inventory ||
+        journal.origin_inventory ||
+        (await computeInventory(origin, fsx));
       const ok = await compareOriginToDir(originInv, destAbs, fsx);
       if (!ok) {
         const receipt = emptyReceipt(changeName, planSha, "failed", {
@@ -1243,6 +1431,7 @@ async function rollbackTransaction(opts) {
 module.exports = {
   nextTransactionAction,
   readArchiveGateFacts,
+  archiveLineagesAllow,
   readPersistedRoute,
   computeInventory,
   runArchiveTransaction,

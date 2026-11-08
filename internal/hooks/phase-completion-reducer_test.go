@@ -403,6 +403,31 @@ func TestPersistResultEnvelope_LogsRecoveredProjectionPanicWithoutChangingHookOu
 	}
 }
 
+func TestProjectPhaseCompletion_ArchiveProjectsArchivePending(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.yaml")
+	before := "change: archive-pending\nstatus: verified\nrevision: 3\nphases:\n  verify:\n    status: done\n"
+	if err := os.WriteFile(statePath, []byte(before), 0644); err != nil {
+		t.Fatal(err)
+	}
+	envelope := map[string]any{"status": "success", "executive_summary": "Archive plan emitted.", "artifacts": []any{"archive-plan.json"}}
+
+	result := ProjectPhaseCompletion(statePath, "archive", envelope, nil)
+	if !result.OK || result.Outcome != "advanced" {
+		t.Fatalf("archive completion must advance, got %+v", result)
+	}
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := parsePhaseCompletionState(string(after))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Status != "archive-pending" || state.Phases["archive"].Status != "done" {
+		t.Fatalf("archive completion must project archive-pending with phases.archive done, got status %q phase %q\n%s", state.Status, state.Phases["archive"].Status, after)
+	}
+}
+
 func TestProjectPhaseCompletion_MalformedStateFailsClosed(t *testing.T) {
 	cases := []struct {
 		name   string
