@@ -525,7 +525,9 @@ func reducePhaseCompletion(current phaseCompletionState, phase string, envelope 
 		}
 		next.Status = "verified"
 	case "archive":
-		next.Status = "archived"
+		// sdd-archive only emits the plan: the change stays active until the
+		// archive transaction commits it and writes `archived` into its copy.
+		next.Status = "archive-pending"
 	}
 	return next, "advanced", "", nil
 }

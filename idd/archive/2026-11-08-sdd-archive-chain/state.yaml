@@ -1,0 +1,378 @@
+{
+  "schema": "idd-state/v1",
+  "change": "sdd-archive-chain",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "PR4a de la review 2026-10-29: la transacción de archivado SDD queda bloqueada para siempre tras un fallo sin efectos, archiva sin comprobar el linaje del quality-review-gate y el reducer marca archived antes de la transacción",
+    "acceptance": "Un fallo de preflight (o un rollback completo) deja repetir el archivado sin borrar el journal a mano; el preflight rechaza con gate-not-satisfied una ruta con quality-review-gate cuyo linaje no está aprobado para archive; el reducer proyecta archive-pending al volver sdd-archive (JS y Go) y solo la transacción deja el cambio archivado; desaparecen el bucle vacío y el ternario muerto del preflight"
+  },
+  "facts": {
+    "open": [
+      "Partición de PR4 (13 hallazgos): ¿4 PRs (4a archivado: 2, 3, 5 y 13a; 4b proyección del envelope: 1, 6, 7; 4c runtime y prosa SDD: 4, 8, 11, 12; 4d linajes: 9, 10, 13b), 2 PRs (1-8 y 9-13) o 3?",
+      "Tras un fallo sin efectos en vivo (preflight, staging o comparación A) o un rollback completo, ¿el siguiente run abre una transacción nueva desde init, o solo los fallos de preflight son reintentables?",
+      "¿Qué exige el preflight del review: el linaje de gates.quality-review-gate aprobado para archive contra su propio current_candidate_id, o además recalcular el candidato vivo y fallar por deriva? ¿Y un verify_lineage presente debe estar closed?",
+      "Un linaje de review terminal no aprobado (exhausted, escalated, invalidated): ¿bloquea el archivado sin excepción o admite un override del usuario en approvals como quality-gates?",
+      "Con archive-pending, ¿quién escribe archived: la transacción en la copia staged de state.yaml (la comparación acepta solo ese cambio), o la copia archivada se queda en archive-pending y la carpeta archive/ basta?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "agents/sdd-orchestrator.agent.md",
+      "internal/hooks/phase-completion-reducer.go",
+      "internal/hooks/phase-completion-reducer_test.go",
+      "openspec/specs/archive-transaction-runtime/spec.md",
+      "scripts/lib/archive-transaction.js",
+      "scripts/lib/archive-transaction.test.js",
+      "scripts/lib/lifecycle-kernel/phase-completion-reducer.js",
+      "scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js",
+      "skills/_shared/gate-4r-review.md",
+      "skills/_shared/gate-archive-quality.md",
+      "skills/_shared/sdd-phase-common.md"
+    ],
+    "work_units": 4,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Un fallo sin escrituras en vivo (preflight, staging o comparación A, sin created_by_tx) y un rollback completo dejan el journal reutilizable: el siguiente run descarta staging y abre una transacción nueva desde init; solo un fallo con escrituras en vivo sigue terminal hasta --rollback",
+      "El preflight lee gates.quality-review-gate (JSON en línea) cuando la ruta persistida lista quality-review-gate y exige validateLineageForGate con gate archive contra el current_candidate_id del propio linaje; un verify_lineage presente debe estar closed; sin recalcular el candidato vivo",
+      "Un linaje de review terminal no aprobado bloquea el archivado sin override; la salida es un sucesor aprobado",
+      "El reducer proyecta archive-pending (no terminal) al completar sdd-archive, en JS y Go; la transacción escribe status archived solo en la copia staged de state.yaml y la comparación A acepta exactamente ese cambio",
+      "inventory-mismatch sigue como rejection_code con failure_reason gate-not-satisfied, por ADR-004",
+      "El runtime lee el linaje de review solo como JSON en una línea (gate entero o su campo lineage); un linaje escrito como bloque YAML bloquea el archivado y el protocolo del gate pide esa forma",
+      "Sin linaje, el gate de review solo deja archivar con status done y ningún dominio seleccionado, el único camino de planQualityReviewGate a done",
+      "La ruta se resuelve con parseRoutingTable de openspec/config.yaml: sin ruta, freeform, sin config o con tabla vacía no se exige review; una config ilegible o una ruta no declarada fallan cerrado"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: touches scripts/lib/archive-transaction.js and 1 more (matches scripts/lib/archive-*.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component skills: ADR 0003, 0006 and quality scenario offline-operation",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La regla de archivado (reintento, linaje de review exigido, status archived) se calcula en archive-transaction.js con tests; la prosa del gate solo cita el runtime y su recibo"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "El cambio no lee ni escribe memoria entre sesiones; el archivado decide con state.yaml, config.yaml y el journal en disco"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "El preflight solo lee ficheros locales (state.yaml, openspec/config.yaml, journal); no añade llamadas de red"
+    },
+    {
+      "kind": "adr",
+      "id": "0007",
+      "impact": "conforms",
+      "reason": "El archivado pasa a exigir el linaje congelado aprobado para archive con planLineageGate, sin relanzar revisores ni restaurar intentos; un linaje agotado o escalado bloquea y la salida es un sucesor explícito"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 209,
+      "answer": "todas las recomendadas: 1A cuatro PRs (4a archivado 2,3,5,13a; 4b proyección 1,6,7; 4c runtime y prosa 4,8,11,12; 4d linajes 9,10,13b); 2A un fallo sin efectos en vivo o un rollback completo abre una transacción nueva desde init, solo un fallo a mitad del commit exige --rollback; 3A linaje de quality-review-gate aprobado para archive contra su current_candidate_id y verify_lineage presente en closed; 4A un linaje terminal no aprobado bloquea sin excepción; 5A la transacción escribe archived en la copia staged de state.yaml y la comparación acepta solo ese cambio",
+      "source": "user",
+      "resolved_turn": 210
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-08T22:03:41.271Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-08T22:04:02.697Z",
+      "detail": {
+        "run": "run-5",
+        "tree": "sha256:d459dbbc04954afc171b6483ae25ad6bf3df93da135aa8933fd55dfe1a4b1fa2",
+        "plan": "Compatible sin migración: un journal preparado antes del cambio (sin archive_inventory) se reanuda comparando contra origin_inventory y conserva los bytes de state.yaml; un state.yaml con status archived del reducer anterior se archiva igual (la reescritura no cambia nada); los journals failed sin escrituras en vivo y rolled-back pasan a reiniciarse, que es el arreglo; un failed con created_by_tx sigue esperando --rollback. Vuelta atrás: revertir el commit; los journals nuevos solo añaden archive_inventory, que la versión anterior ignora."
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-08T22:07:09.211Z",
+      "detail": {
+        "tree": "sha256:831c7e1861cd108500df382bc1be8e261afe0d947371234019faedb497946ffb",
+        "runs": [
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-08T22:07:45.341Z",
+      "detail": {
+        "run": "run-9",
+        "tree": "sha256:fa0d916d73a4ae2891c370073befe275d1ea9627d331dc97fd2bafa302652733",
+        "plan": "Compatible sin migración: un journal preparado antes del cambio (sin archive_inventory) se reanuda comparando contra origin_inventory y conserva los bytes de state.yaml; un state.yaml con status archived del reducer anterior se archiva igual (la reescritura no cambia nada); los journals failed sin escrituras en vivo y rolled-back pasan a reiniciarse, que es el arreglo; un failed con created_by_tx sigue esperando --rollback. Vuelta atrás: revertir el commit; los journals nuevos solo añaden archive_inventory, que la versión anterior ignora."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-08T22:09:59.258Z",
+      "detail": {
+        "tree": "sha256:831c7e1861cd108500df382bc1be8e261afe0d947371234019faedb497946ffb",
+        "runs": [
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-08T22:09:59.258Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 none",
+          "scenario:offline-operation conforms",
+          "adr:0007 conforms"
+        ],
+        "records": [],
+        "tree": "sha256:831c7e1861cd108500df382bc1be8e261afe0d947371234019faedb497946ffb",
+        "fitness": [
+          "run-11",
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-08T22:09:59.380Z"
+    }
+  ],
+  "base": "8beb3247aa8fcf433f05a190ceac6e8a404137a3",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/archive-transaction.test.js scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js && go test ./internal/hooks/ -run 'TestProjectPhaseCompletion_ArchiveProjectsArchivePending'",
+      "exit_code": 1,
+      "output_sha256": "sha256:3bc640cdca365d1fe3909f6b044cc4eb6e2e197d8057b601be0afa95e93a659f",
+      "tree": "sha256:19c39985441bab1b4dca12bf4f2cd7cf1d3e92510ebc8acd34d6f42c6b481da3",
+      "recorded_at": "2026-11-08T21:59:38.214Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/archive-transaction.test.js scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js && go test ./internal/hooks/ -run 'TestProjectPhaseCompletion_ArchiveProjectsArchivePending'",
+      "exit_code": 0,
+      "output_sha256": "sha256:e40bcba1d07198c25d915b5ce0051fc5424781201a86bedc8e834c8d07698e56",
+      "tree": "sha256:873ec219ea650d4b99d0e0020238ee93debcd9bb17f8f39f1665cbaede74549a",
+      "recorded_at": "2026-11-08T22:03:41.271Z",
+      "tests": 79,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "8beb3247aa8fcf433f05a190ceac6e8a404137a3",
+      "mount": "sha256:ca4056c1cfce26f0a14400a30228b166c588850fad728fc5206671bda51ecd59",
+      "command": "node --test scripts/lib/archive-transaction.test.js scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js && go test ./internal/hooks/ -run 'TestProjectPhaseCompletion_ArchiveProjectsArchivePending'",
+      "exit_code": 1,
+      "output_sha256": "sha256:68cbb7c747e11a0804b849b993106333d4e72450ce887aa30e06bc0eb1c672f1",
+      "tree": "sha256:873ec219ea650d4b99d0e0020238ee93debcd9bb17f8f39f1665cbaede74549a",
+      "recorded_at": "2026-11-08T22:03:41.271Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "8beb3247aa8fcf433f05a190ceac6e8a404137a3",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/lib/archive-transaction.test.js scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js && go test ./internal/hooks/ -run 'TestProjectPhaseCompletion_ArchiveProjectsArchivePending'",
+      "exit_code": 0,
+      "output_sha256": "sha256:fe7f7a9eef9394b34d2df4b115dbbffaf4c373a4317db4e076142ef4f57d2d69",
+      "tree": "sha256:873ec219ea650d4b99d0e0020238ee93debcd9bb17f8f39f1665cbaede74549a",
+      "recorded_at": "2026-11-08T22:03:41.271Z",
+      "tests": 65
+    },
+    {
+      "id": "run-5",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/archive-transaction.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:67d7d521db780475d3c8734032e3eb8c32d5f2a290dcedb7acd443617deb0db3",
+      "tree": "sha256:d459dbbc04954afc171b6483ae25ad6bf3df93da135aa8933fd55dfe1a4b1fa2",
+      "recorded_at": "2026-11-08T22:04:02.697Z",
+      "tests": 64
+    },
+    {
+      "id": "run-6",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:031590c3a9decaf129935ab7061b767a5cd6d7fc2422a49f54b9f9d50fc0dd68",
+      "tree": "sha256:831c7e1861cd108500df382bc1be8e261afe0d947371234019faedb497946ffb",
+      "recorded_at": "2026-11-08T22:07:09.211Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a5471af5ca1c27704e489525422b3bd59e17ea79558cc909d4fc2b29ab9881f4",
+      "tree": "sha256:831c7e1861cd108500df382bc1be8e261afe0d947371234019faedb497946ffb",
+      "recorded_at": "2026-11-08T22:07:09.211Z",
+      "tests": 2
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0007",
+      "command": "node --test scripts/review-lineage.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:182c4216edeabccfa6634c134d9f5d428cac880365d8c19cc3d2b28b14e1e892",
+      "tree": "sha256:831c7e1861cd108500df382bc1be8e261afe0d947371234019faedb497946ffb",
+      "recorded_at": "2026-11-08T22:07:09.211Z",
+      "tests": 32
+    },
+    {
+      "id": "run-9",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/archive-transaction.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6be76ede1b3061cfcc4006d506e8b9e35f9b9c7b8918519f7a0b354e95b575dc",
+      "tree": "sha256:fa0d916d73a4ae2891c370073befe275d1ea9627d331dc97fd2bafa302652733",
+      "recorded_at": "2026-11-08T22:07:45.341Z",
+      "tests": 70
+    },
+    {
+      "id": "run-10",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:89751b7ce666e7a27d560ed0cf405e069d6201c495b551b171d32f33c96771d8",
+      "tree": "sha256:831c7e1861cd108500df382bc1be8e261afe0d947371234019faedb497946ffb",
+      "recorded_at": "2026-11-08T22:09:59.258Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5e620caafa57b9d81f421693981a29506ab4dcf87ae0f1e5f38fa5e6a5046d32",
+      "tree": "sha256:831c7e1861cd108500df382bc1be8e261afe0d947371234019faedb497946ffb",
+      "recorded_at": "2026-11-08T22:09:59.258Z",
+      "tests": 2
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0007",
+      "command": "node --test scripts/review-lineage.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dccdd3d901d864eca67ee712cc0f38b083e978518fc569dc74e313fea1594988",
+      "tree": "sha256:831c7e1861cd108500df382bc1be8e261afe0d947371234019faedb497946ffb",
+      "recorded_at": "2026-11-08T22:09:59.258Z",
+      "tests": 32
+    }
+  ],
+  "closed_at": "2026-11-08T22:09:59.380Z"
+}

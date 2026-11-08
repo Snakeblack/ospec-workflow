@@ -96,20 +96,34 @@ test("nextTransactionAction: journal-plan-conflict on mismatched plan_sha256", (
   assert.equal(result.failure_reason, "journal-plan-conflict");
 });
 
-test("nextTransactionAction: terminal failed stays terminal", () => {
+test("nextTransactionAction: a failure with live writes stays terminal", () => {
   const result = nextTransactionAction(
-    { state: "failed", plan_sha256: "sha256:aaa" },
+    {
+      state: "failed",
+      plan_sha256: "sha256:aaa",
+      created_by_tx: ["openspec/changes/archive/2026-07-26-demo-change"],
+    },
     { planSha256: "sha256:aaa" },
   );
   assert.equal(result.action, "noop-terminal");
 });
 
-test("nextTransactionAction: terminal rolled-back stays terminal", () => {
+test("nextTransactionAction: a failure without live writes restarts", () => {
+  for (const created of [[], undefined]) {
+    const result = nextTransactionAction(
+      { state: "failed", plan_sha256: "sha256:aaa", created_by_tx: created },
+      { planSha256: "sha256:bbb" },
+    );
+    assert.equal(result.action, "restart");
+  }
+});
+
+test("nextTransactionAction: rolled-back restarts", () => {
   const result = nextTransactionAction(
-    { state: "rolled-back", plan_sha256: "sha256:aaa" },
+    { state: "rolled-back", plan_sha256: "sha256:aaa", created_by_tx: ["x"] },
     { planSha256: "sha256:aaa" },
   );
-  assert.equal(result.action, "noop-terminal");
+  assert.equal(result.action, "restart");
 });
 
 test("nextTransactionAction: compared with compareA failure → fail", () => {
@@ -315,15 +329,7 @@ async function writeTree(root, files) {
 // `legacyAdr` builds a plan written before E3.1, which still promotes an ADR
 // to docs/adr/; since E3.1 a plan carries no promotion and the change keeps
 // its decisions under decisions/.
-async function buildWorkspace(t, { changeName = "demo-change", legacyAdr = false } = {}) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ospec-archive-tx-"));
-  t.after(async () => {
-    await fs.rm(root, { recursive: true, force: true });
-  });
-
-  const originRel = `openspec/changes/${changeName}`;
-  const proposal = "# Proposal\n";
-  const stateYaml = `status: verified
+const DEFAULT_STATE_YAML = `status: verified
 phases:
   verify:
     status: done
@@ -334,6 +340,18 @@ gates:
 baseline_fingerprints:
   routing: "${sha256(Buffer.from("# Routing baseline\n"))}"
 `;
+
+async function buildWorkspace(
+  t,
+  { changeName = "demo-change", legacyAdr = false, stateYaml = DEFAULT_STATE_YAML, extraFiles = {} } = {},
+) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ospec-archive-tx-"));
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  const originRel = `openspec/changes/${changeName}`;
+  const proposal = "# Proposal\n";
   const preparedSpec = "# Routing merged\n";
   const adr = "# ADR-001\n";
   const liveTarget = "# Routing baseline\n";
@@ -345,6 +363,7 @@ baseline_fingerprints:
     [`${originRel}/decisions/${legacyAdr ? "adr" : "dc"}-001.md`]: adr,
     "openspec/specs/routing/spec.md": liveTarget,
     "docs/adr/.gitkeep": "",
+    ...extraFiles,
   });
 
   const originDir = path.join(root, "openspec", "changes", changeName);
@@ -780,6 +799,22 @@ test("FS: a plan staged before E3.1 resumes to success and still commits its ADR
   });
   assert.equal(second.outcome, "success");
   assert.equal(second.already_complete, true);
+});
+
+test("FS: a journal staged before the archived status rewrite resumes with the origin state.yaml", async (t) => {
+  const ctx = await buildWorkspace(t, { legacyAdr: true });
+  const originState = await fs.readFile(path.join(ctx.originDir, "state.yaml"), "utf8");
+  await stageLegacy(ctx, "staged");
+
+  const resumed = await runArchiveTransaction({
+    workspace: ctx.root,
+    changeName: ctx.changeName,
+    planPath: ctx.planPath,
+    now: new Date("2026-07-26T12:00:00Z"),
+  });
+  assert.equal(resumed.outcome, "resumed-success");
+  const dest = path.join(ctx.root, "openspec", "changes", "archive", "2026-07-26-demo-change");
+  assert.equal(await fs.readFile(path.join(dest, "state.yaml"), "utf8"), originState);
 });
 
 test("FS: rollback staging-rename restores safety", async (t) => {
@@ -1458,3 +1493,285 @@ baseline_fingerprints:
   assert.equal(await fs.readFile(livePath, "utf8"), liveTarget);
 });
 
+
+// --- PR4a: retry after a failure, review lineage gate, archived status --------
+
+const {
+  startQualityReviewLineage,
+  beginLens,
+  recordLensResult,
+  freezeFindings,
+  terminateLineage,
+} = require("./review-lineage.js");
+
+const ARCHIVE_NOW = new Date("2026-07-26T12:00:00Z");
+
+function runArchive(ctx) {
+  return runArchiveTransaction({
+    workspace: ctx.root,
+    changeName: ctx.changeName,
+    planPath: ctx.planPath,
+    now: ARCHIVE_NOW,
+  });
+}
+
+function archivedDir(ctx) {
+  return path.join(ctx.root, "openspec", "changes", "archive", `2026-07-26-${ctx.changeName}`);
+}
+
+test("FS: a gate failure is retried once the gate is satisfied", async (t) => {
+  const ctx = await buildWorkspace(t, {
+    stateYaml: DEFAULT_STATE_YAML.replace("    verdict: PASS\n", ""),
+  });
+  const first = await runArchive(ctx);
+  assert.equal(first.outcome, "failed");
+  assert.equal(first.failure_reason, "gate-not-satisfied");
+
+  await fs.writeFile(path.join(ctx.originDir, "state.yaml"), DEFAULT_STATE_YAML);
+  await rewritePlanFingerprint(ctx);
+  const second = await runArchive(ctx);
+  assert.equal(second.outcome, "success");
+  await assert.rejects(fs.stat(ctx.originDir), { code: "ENOENT" });
+  assert.ok(await fs.stat(archivedDir(ctx)));
+});
+
+test("FS: after a rollback a new run archives the change", async (t) => {
+  const ctx = await buildWorkspace(t);
+  const txDir = path.join(ctx.root, ".ospec", "archive-tx", ctx.changeName);
+  await fs.mkdir(path.join(txDir, "staging", "archive"), { recursive: true });
+  await fs.writeFile(
+    path.join(txDir, "journal.json"),
+    JSON.stringify({
+      state: "staged",
+      plan_sha256: digestBytes(await fs.readFile(ctx.planPath)),
+      destination: "openspec/changes/archive/2026-07-20-demo-change",
+      created_by_tx: [],
+    }),
+  );
+  const rolledBack = await rollbackTransaction({ workspace: ctx.root, changeName: ctx.changeName });
+  assert.equal(rolledBack.outcome, "rolled-back");
+
+  const receipt = await runArchive(ctx);
+  assert.equal(receipt.outcome, "success");
+  assert.equal(receipt.destination, "openspec/changes/archive/2026-07-26-demo-change");
+  assert.ok(await fs.stat(archivedDir(ctx)));
+});
+
+test("FS: a failure after live writes stays failed until rollback", async (t) => {
+  const ctx = await buildWorkspace(t);
+  const txDir = path.join(ctx.root, ".ospec", "archive-tx", ctx.changeName);
+  await fs.mkdir(txDir, { recursive: true });
+  const journal = {
+    state: "failed",
+    failure_reason: "commit-failed",
+    plan_sha256: digestBytes(await fs.readFile(ctx.planPath)),
+    destination: "openspec/changes/archive/2026-07-26-demo-change",
+    created_by_tx: ["openspec/changes/archive/2026-07-26-demo-change"],
+  };
+  await fs.writeFile(path.join(txDir, "journal.json"), JSON.stringify(journal));
+
+  const receipt = await runArchive(ctx);
+  assert.equal(receipt.outcome, "failed");
+  assert.equal(receipt.failure_reason, "commit-failed");
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(txDir, "journal.json"), "utf8")), journal);
+  assert.ok(await fs.stat(ctx.originDir));
+});
+
+test("FS: the archived state.yaml says archived and keeps every other byte", async (t) => {
+  const stateYaml = DEFAULT_STATE_YAML.replace("status: verified", "status: archive-pending");
+  const ctx = await buildWorkspace(t, { stateYaml: stateYaml.replace(/\n/g, "\r\n") });
+  const receipt = await runArchive(ctx);
+  assert.equal(receipt.outcome, "success");
+  const archived = await fs.readFile(path.join(archivedDir(ctx), "state.yaml"), "utf8");
+  assert.equal(archived, stateYaml.replace("status: archive-pending", "status: archived").replace(/\n/g, "\r\n"));
+  const entry = receipt.committed_inventory.find((e) => e.path === "state.yaml");
+  assert.equal(entry.sha256, sha256(Buffer.from(archived)));
+});
+
+const REVIEW_CONFIG = `routing:
+  - name: standard
+    classification: [normal]
+    phases: [sdd-propose, sdd-apply, sdd-verify, sdd-archive]
+    gates: [quality-review-gate]
+  - name: plain
+    classification: [small]
+    phases: [sdd-propose, sdd-apply, sdd-verify, sdd-archive]
+    gates: []
+`;
+
+function reviewCandidate() {
+  return {
+    projection: "workspace",
+    base_tree: "base-1",
+    candidate_tree: "tree-9",
+    paths: ["scripts/a.js"],
+    diff_hash: `sha256:${"a".repeat(64)}`,
+    paths_digest: `sha256:${"b".repeat(64)}`,
+    authored_lines: 9,
+    original_changed_lines: 9,
+  };
+}
+
+function reviewingLineage() {
+  return startQualityReviewLineage({
+    candidate: reviewCandidate(),
+    classification: "normal",
+    selected_domains: ["trust"],
+    evidence_fingerprint: `sha256:${"c".repeat(64)}`,
+  });
+}
+
+function approvedLineage() {
+  let state = reviewingLineage();
+  state = beginLens(state, { dimension: "trust", expected_revision: state.revision, request_id: "trust-start" });
+  state = recordLensResult(state, {
+    dimension: "trust",
+    expected_revision: state.revision,
+    request_id: "trust-result",
+    result: { findings: [] },
+  });
+  return freezeFindings(state, { expected_revision: state.revision, request_id: "freeze" });
+}
+
+function escalatedLineage() {
+  const state = reviewingLineage();
+  return terminateLineage(state, {
+    expected_revision: state.revision,
+    request_id: "escalate",
+    status: "escalated",
+    reason: "the user stopped the review",
+  });
+}
+
+function reviewGate(lineage) {
+  return {
+    schema_version: 2,
+    classification: "normal",
+    classification_status: "sufficient",
+    selected_domains: ["trust"],
+    status: lineage.status,
+    lineage,
+  };
+}
+
+function reviewState({ route = "standard", gate = null, verifyLineage = null } = {}) {
+  let text = DEFAULT_STATE_YAML.replace(
+    "phases:\n",
+    `route:\n  actual_route: ${route}\nphases:\n`,
+  );
+  if (gate) {
+    text = text.replace("gates:\n", `gates:\n  quality-review-gate: ${JSON.stringify(gate)}\n`);
+  }
+  if (verifyLineage) text += `verify_lineage: ${JSON.stringify(verifyLineage)}\n`;
+  return text;
+}
+
+async function archiveWithState(t, stateYaml) {
+  const ctx = await buildWorkspace(t, {
+    stateYaml,
+    extraFiles: { "openspec/config.yaml": REVIEW_CONFIG },
+  });
+  return { ctx, receipt: await runArchive(ctx) };
+}
+
+for (const [name, gate] of [
+  ["absent", null],
+  ["still reviewing", () => reviewGate(reviewingLineage())],
+  ["escalated", () => reviewGate(escalatedLineage())],
+]) {
+  test(`FS: a route with quality-review-gate blocks archive when the review is ${name}`, async (t) => {
+    const { ctx, receipt } = await archiveWithState(t, reviewState({ gate: gate && gate() }));
+    assert.equal(receipt.outcome, "failed");
+    assert.equal(receipt.failure_reason, "gate-not-satisfied");
+    assert.ok(await fs.stat(ctx.originDir));
+    await assert.rejects(fs.stat(archivedDir(ctx)), { code: "ENOENT" });
+  });
+}
+
+test("FS: a route with quality-review-gate archives with an approved lineage", async (t) => {
+  const lineage = approvedLineage();
+  assert.equal(lineage.status, "approved");
+  const { receipt } = await archiveWithState(t, reviewState({ gate: reviewGate(lineage) }));
+  assert.equal(receipt.outcome, "success");
+});
+
+test("FS: a review gate that selected no domain needs no lineage", async (t) => {
+  const gate = { schema_version: 2, classification: "trivial", classification_status: "sufficient", selected_domains: [], status: "done" };
+  const { receipt } = await archiveWithState(t, reviewState({ gate }));
+  assert.equal(receipt.outcome, "success");
+});
+
+test("FS: a route without quality-review-gate archives without a review", async (t) => {
+  const { receipt } = await archiveWithState(t, reviewState({ route: "plain" }));
+  assert.equal(receipt.outcome, "success");
+});
+
+test("FS: a route missing from the routing table blocks archive", async (t) => {
+  const { receipt } = await archiveWithState(t, reviewState({ route: "unknown-route" }));
+  assert.equal(receipt.outcome, "failed");
+  assert.equal(receipt.failure_reason, "gate-not-satisfied");
+});
+
+test("FS: a verify_lineage that is not closed blocks archive", async (t) => {
+  const open = await archiveWithState(t, reviewState({ route: "plain", verifyLineage: { status: "remediation-pending" } }));
+  assert.equal(open.receipt.outcome, "failed");
+  assert.equal(open.receipt.failure_reason, "gate-not-satisfied");
+
+  const closed = await archiveWithState(t, reviewState({ route: "plain", verifyLineage: { status: "closed" } }));
+  assert.equal(closed.receipt.outcome, "success");
+});
+
+const { archiveLineagesAllow } = require("./archive-transaction.js");
+
+function blockGateState(gateLines, tail = "") {
+  return ["status: archive-pending", "gates:", "  quality-review-gate:     # live v2", ...gateLines, tail].join("\n");
+}
+
+test("archiveLineagesAllow: a block gate that selected no domain needs no lineage", () => {
+  const text = blockGateState([
+    "    status: done",
+    "    schema_version: 2",
+    "    selected_domains:",
+    "      trust: { selected: false, reasons: [{ code: no-trust-signal }] }",
+    "      runtime: { selected: false, reasons: [] }",
+  ]);
+  assert.equal(archiveLineagesAllow(text, { reviewRequired: true }), true);
+});
+
+test("archiveLineagesAllow: a block gate with selected domains needs a lineage", () => {
+  const selected = blockGateState(["    status: done", "    selected_domains:", "      - trust"]);
+  assert.equal(archiveLineagesAllow(selected, { reviewRequired: true }), false);
+  const flagged = blockGateState(["    status: done", "    selected_domains:", "      trust: { selected: true }"]);
+  assert.equal(archiveLineagesAllow(flagged, { reviewRequired: true }), false);
+});
+
+test("archiveLineagesAllow: a block gate reads a one-line JSON lineage", () => {
+  const approved = blockGateState([
+    "    status: approved",
+    "    selected_domains:",
+    '      - "trust"',
+    `    lineage: ${JSON.stringify(approvedLineage())}`,
+  ]);
+  assert.equal(archiveLineagesAllow(approved, { reviewRequired: true }), true);
+  const escalated = blockGateState(["    status: escalated", `    lineage: ${JSON.stringify(escalatedLineage())}`]);
+  assert.equal(archiveLineagesAllow(escalated, { reviewRequired: true }), false);
+});
+
+test("archiveLineagesAllow: a lineage written as a YAML block blocks", () => {
+  const text = blockGateState(["    status: approved", "    lineage:", "      schema_version: 2", "      status: approved"]);
+  assert.equal(archiveLineagesAllow(text, { reviewRequired: true }), false);
+});
+
+test("archiveLineagesAllow: verify_lineage in block or JSON form must be closed", () => {
+  const base = "status: archive-pending\n";
+  assert.equal(archiveLineagesAllow(`${base}verify_lineage:\n  schema_version: 1\n  status: closed\n`, { reviewRequired: false }), true);
+  assert.equal(archiveLineagesAllow(`${base}verify_lineage:\n  status: exhausted\n`, { reviewRequired: false }), false);
+  assert.equal(archiveLineagesAllow(`${base}verify_lineage: null\n`, { reviewRequired: false }), true);
+  assert.equal(archiveLineagesAllow(`${base}verify_lineage: {"status":"recheck-pending"}\n`, { reviewRequired: false }), false);
+  assert.equal(archiveLineagesAllow(`${base}verify_lineage: {broken\n`, { reviewRequired: false }), false);
+});
+
+test("archiveLineagesAllow: without a review requirement the review gate is not read", () => {
+  const text = blockGateState(["    status: escalated", `    lineage: ${JSON.stringify(escalatedLineage())}`]);
+  assert.equal(archiveLineagesAllow(text, { reviewRequired: false }), true);
+});

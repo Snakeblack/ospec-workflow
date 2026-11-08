@@ -387,6 +387,14 @@ test("reducePhaseCompletion: distinct re-run of legacy done phase without stored
   assert.equal(result.state.phases.design.summary, "Amended design re-run.");
 });
 
+test("reducePhaseCompletion: a completed archive phase projects archive-pending, not archived", () => {
+  const envelope = { status: "success", executive_summary: "Archive plan emitted.", artifacts: ["archive-plan.json"] };
+  const result = reducePhaseCompletion(sampleState({ status: "verified" }), { phase: "archive", envelope }, { now: NOW });
+  assert.equal(result.outcome, "advanced");
+  assert.equal(result.state.phases.archive.status, "done");
+  assert.equal(result.state.status, "archive-pending");
+});
+
 test("reducePhaseCompletion: verify FAIL outcome projects blocked; PASS stays verified [REQ-lifecycle-kernel-029]", () => {
   const envelope = (o) => ({ status: "success", executive_summary: "Verification report produced.", artifacts: "inline", verify_outcome: o });
   const reduce = (o) => reducePhaseCompletion(sampleState(), { phase: "verify", envelope: envelope(o) }, { now: NOW });

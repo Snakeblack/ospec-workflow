@@ -113,9 +113,18 @@ the completion mechanism.
    the archive route complete. Do not require a separate ad-hoc recursive diff.
 3. **Any runtime failure, mismatch, or absent/unsuccessful receipt** → halt with the source directory left intact (or restored per runtime rollback), surface the failure to the user, and do NOT close the route silently. MUST NOT delete the source outside the runtime under a mismatch condition.
 
+`status: archive-pending` means `sdd-archive` returned its plan and no success
+receipt exists yet: run or re-run the runtime, never re-dispatch `sdd-archive`.
+The runtime alone writes `status: archived`, into the archived copy. Its
+preflight also requires a closed `verify_lineage` when one exists and, when the
+route lists `quality-review-gate`, a review lineage approved for archive;
+`gate-not-satisfied` with an unapproved lineage needs an approved successor.
+
 This is re-runnable via the runtime journal: if the transaction halted after staging,
 re-invoking the runtime (same plan identity) is the correct recovery path, not
-re-dispatching `sdd-archive`.
+re-dispatching `sdd-archive`. A failure before any live write, and a completed
+`--rollback`, start a new transaction on the next run once the cause is fixed;
+a failure after a live write answers the same failure until `--rollback`.
 
 ## Roadmap Hand-off
 

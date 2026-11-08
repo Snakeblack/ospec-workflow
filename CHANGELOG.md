@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.171.3] - 2026-11-08
+
+### Fixed
+- **La transacción de archivado SDD ya no se queda bloqueada ni archiva sin review** (sdd-archive-chain, PR4a de la review general del 2026-10-29).
+  - **Reintento**: un fallo sin escrituras en vivo (preflight, staging o la comparación A) y un `--rollback` completo dejaban el journal en `failed` o `rolled-back`, terminales, y el cambio no se podía volver a archivar sin borrar `.ospec/archive-tx/<change>/journal.json`. Ahora el siguiente run abre una transacción nueva desde `init`; un fallo después de una escritura en vivo sigue esperando `--rollback`.
+  - **Linaje de review**: el preflight solo miraba el veredicto y `quality-gates`. Ahora, si la ruta de `openspec/config.yaml` lista `quality-review-gate`, exige un linaje aprobado para archive (`planLineageGate`) o un gate `done` sin dominios seleccionados, y un `verify_lineage` presente tiene que estar `closed`. Un linaje terminal no aprobado (`exhausted`, `escalated`, `invalidated`), uno que no está en JSON de una línea, una config ilegible o una ruta no declarada bloquean con `gate-not-satisfied`, sin override.
+  - **`archive-pending`**: el reducer marcaba `archived` (terminal) cuando `sdd-archive` solo había emitido el plan, y el cambio dejaba de verse activo. Ahora proyecta `archive-pending`, en JS y Go, y solo la transacción escribe `status: archived`, en la copia staged de `state.yaml`; la comparación acepta exactamente esa línea.
+  - Fuera el bucle vacío y el ternario muerto del preflight.
+
+Hecho con IDD (`idd/archive/2026-11-08-sdd-archive-chain/`). La spec archive-transaction-runtime (REQ-001 y REQ-002) y la prosa de `gate-archive-quality.md`, `sdd-phase-common.md` y `gate-4r-review.md` recogen el comportamiento. Siguen 4b (proyección del envelope sin SubagentStop), 4c (runtime y prosa SDD) y 4d (linajes).
+
+**Verificación directa**: `node scripts/check.js` (4476 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados, y `gofmt`, `go vet ./...` y `go test ./...` en verde.
+
 ## [2.171.2] - 2026-11-08
 
 ### Fixed
