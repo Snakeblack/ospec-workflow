@@ -6,6 +6,21 @@ const vm = require("node:vm");
 const child_process = require("node:child_process");
 
 /**
+ * Opciones de spawn para git. `deps.indexFile` es el índice que git está
+ * commiteando (con `git commit -a` o con rutas no es `.git/index`): se pasa como
+ * GIT_INDEX_FILE solo a esta llamada, nunca al entorno de los tests.
+ *
+ * @param {string} repoRoot
+ * @param {object} deps
+ * @param {object} [extra]
+ */
+function gitSpawnOptions(repoRoot, deps, extra = {}) {
+  const options = { cwd: repoRoot, encoding: "utf8", ...extra };
+  if (deps.indexFile) options.env = { ...process.env, GIT_INDEX_FILE: deps.indexFile };
+  return options;
+}
+
+/**
  * Obtiene la lista de archivos staged (agregados, copiados, modificados, renombrados).
  *
  * @param {string} repoRoot
@@ -15,10 +30,7 @@ const child_process = require("node:child_process");
  */
 function getStagedFiles(repoRoot, deps = {}) {
   const spawn = deps.spawnSync || child_process.spawnSync;
-  const res = spawn("git", ["-c", "core.quotepath=false", "diff", "--cached", "--name-only", "--diff-filter=ACMR"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
+  const res = spawn("git", ["-c", "core.quotepath=false", "diff", "--cached", "--name-only", "--diff-filter=ACMR"], gitSpawnOptions(repoRoot, deps));
   if (res.error) {
     throw new Error(`Error de Git al obtener archivos staged: ${res.error.message}`);
   }
@@ -47,11 +59,7 @@ function getStagedBlobSize(repoRoot, relativePath, deps = {}) {
   if (!clean) return 0;
   const spawn = deps.spawnSync || child_process.spawnSync;
   try {
-    const res = spawn("git", ["cat-file", "-s", `:${clean}`], {
-      cwd: repoRoot,
-      encoding: "utf8",
-      shell: false,
-    });
+    const res = spawn("git", ["cat-file", "-s", `:${clean}`], gitSpawnOptions(repoRoot, deps, { shell: false }));
     if (res.status === 0 && res.stdout) {
       const size = parseInt(res.stdout.trim(), 10);
       return Number.isFinite(size) ? size : 0;
@@ -86,12 +94,10 @@ function getStagedContent(repoRoot, relativePath, deps = {}) {
     throw new Error("Ruta relativa normalizada vacía para getStagedContent");
   }
   const spawn = deps.spawnSync || child_process.spawnSync;
-  const res = spawn("git", ["show", `:${posixPath}`], {
-    cwd: repoRoot,
-    encoding: "utf8",
+  const res = spawn("git", ["show", `:${posixPath}`], gitSpawnOptions(repoRoot, deps, {
     shell: false,
     maxBuffer: 10 * 1024 * 1024,
-  });
+  }));
   if (res.error) {
     if (res.error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
       throw new Error(`El archivo staged :${posixPath} excede el límite máximo de búfer de 10 MB`);
@@ -106,6 +112,59 @@ function getStagedContent(repoRoot, relativePath, deps = {}) {
     throw new Error(`git show :${posixPath} falló con código ${res.status}: ${stderr}`);
   }
   return res.stdout;
+}
+
+/**
+ * Extrae las líneas que el commit añade a un archivo: las del blob staged que
+ * la versión de HEAD no tiene, contando repeticiones. Lo que ya estaba
+ * versionado no cuenta, así que un fixture de `main` no bloquea un commit que
+ * no lo añade. No usa `git diff --cached`, que lee el árbol de trabajo cuando
+ * coincide con el índice y no falla con un blob staged ilegible.
+ *
+ * @param {string} repoRoot
+ * @param {string} relativePath
+ * @param {object} [deps]
+ * @returns {string|null} Las líneas añadidas unidas con '\n', o null para
+ *   submódulos.
+ * @throws {Error} Si el blob staged no se puede leer: el escaneo falla cerrado.
+ */
+function getStagedAddedLines(repoRoot, relativePath, deps = {}) {
+  const staged = typeof deps.getStagedContent === "function"
+    ? deps.getStagedContent(repoRoot, relativePath, deps)
+    : getStagedContent(repoRoot, relativePath, deps);
+  if (staged === null || typeof staged !== "string") return null;
+  const head = getHeadContent(repoRoot, relativePath, deps);
+  if (!head) return staged;
+  const remaining = new Map();
+  for (const line of head.split("\n")) remaining.set(line, (remaining.get(line) || 0) + 1);
+  const added = [];
+  for (const line of staged.split("\n")) {
+    const count = remaining.get(line) || 0;
+    if (count > 0) remaining.set(line, count - 1);
+    else added.push(line);
+  }
+  return added.join("\n");
+}
+
+/**
+ * Contenido del archivo en HEAD, o '' si no está (archivo nuevo, rama sin
+ * commits) o no se puede leer: sin versión previa todo el blob staged cuenta
+ * como añadido.
+ */
+function getHeadContent(repoRoot, relativePath, deps = {}) {
+  const posixPath = toPosixPath(path.isAbsolute(relativePath) ? path.relative(repoRoot, relativePath) : relativePath);
+  if (!posixPath) return "";
+  const spawn = deps.spawnSync || child_process.spawnSync;
+  try {
+    const res = spawn("git", ["show", `HEAD:${posixPath}`], gitSpawnOptions(repoRoot, deps, {
+      shell: false,
+      maxBuffer: 10 * 1024 * 1024,
+    }));
+    if (res.error || res.status !== 0 || typeof res.stdout !== "string") return "";
+    return res.stdout;
+  } catch {
+    return "";
+  }
 }
 
 /**
@@ -426,7 +485,8 @@ function findAffectedTargets(stagedFiles) {
  * 2. Pruebas afectadas
  * 3. Builds de target afectados (si aplica)
  *
- * @param {object} options
+ * @param {object} options - `indexFile`: ruta absoluta del índice que git está
+ *   commiteando, cuando no es el de por defecto.
  * @param {object} [deps]
  * @returns {{ ok: boolean, stagedFiles: string[], testsRun: string[], targetsRun: string[] }}
  */
@@ -435,11 +495,14 @@ function runStagedChecks(options = {}, deps = {}) {
   const run = deps.runStep || options.runStep;
   const generate = deps.generateTarget || options.generateTarget;
 
+  // El índice que git está commiteando, si no es el de por defecto.
+  const gitDeps = options.indexFile ? { ...deps, indexFile: options.indexFile } : deps;
+
   // 1. Archivos staged
-  const stagedFiles = options.stagedFiles || getStagedFiles(repoRoot, deps);
+  const stagedFiles = options.stagedFiles || getStagedFiles(repoRoot, gitDeps);
 
   // 2. Comprobación sintáctica en memoria
-  const syntaxErrors = checkStagedSyntax(stagedFiles, repoRoot, deps);
+  const syntaxErrors = checkStagedSyntax(stagedFiles, repoRoot, gitDeps);
   if (syntaxErrors.length > 0) {
     const details = syntaxErrors
       .map((e) => `  - ${e.file} [${e.type}]: ${e.error}`)
@@ -474,6 +537,7 @@ module.exports = {
   getStagedFiles,
   getStagedBlobSize,
   getStagedContent,
+  getStagedAddedLines,
   checkStagedSyntax,
   findAffectedTests,
   findAffectedTargets,

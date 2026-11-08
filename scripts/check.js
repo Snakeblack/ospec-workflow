@@ -103,6 +103,18 @@ function parseShard(argv) {
   return { index, total };
 }
 
+// --index <path>: the index git is committing, which the pre-commit hook
+// passes when it is not .git/index (`git commit -a`, or with paths).
+function parseIndex(argv) {
+  const at = argv.indexOf("--index");
+  if (at === -1) return undefined;
+  const value = argv[at + 1];
+  if (!value || value.startsWith("--")) {
+    throw new Error("--index expects the path of a git index");
+  }
+  return path.resolve(value);
+}
+
 function main(deps = {}) {
   const proc = deps.process || process;
   const run = deps.runStep || runStep;
@@ -116,10 +128,12 @@ function main(deps = {}) {
 
   try {
     if (isStaged) {
+      const indexFile = parseIndex(argv);
       const claudeOk = hasClaudeCli();
       runStaged(
         {
           repoRoot: ROOT,
+          indexFile,
           runStep: run,
           generateTarget: (target, validate, d) =>
             generate(target, target === "claude" ? claudeOk && validate : validate, d),
