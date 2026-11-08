@@ -1476,7 +1476,10 @@ trailer.
 
 Given `trailerResult.status !== "ok"`,
 When the hook decides enforcement,
-Then it MUST read `openspec/config.yaml` for `traceability: { trailers: required }`:
+Then it MUST read `openspec/config.yaml` for `traceability: { trailers: required }`,
+as YAML (`scripts/lib/yaml-lite.js`): `trailers` counts only inside the
+`traceability` section, as a block or a one-line flow mapping, quoted or not, and a
+comment never declares it:
 - If NOT declared (default, advisory): print an `[Advisory]`-labeled warning to stderr
   and exit 0 (never blocks the commit).
 - If declared `required`: print an `[ERROR]`-labeled message to stderr and exit
@@ -1498,6 +1501,10 @@ of the advisory/required traceability policy.
 - **Active change, missing trailer, required mode**: GIVEN the same missing-trailer
   commit AND `traceability: { trailers: required }` is declared WHEN the hook runs THEN
   it prints an `[ERROR]` message AND exits non-zero, blocking the commit.
+- **trailers: required in another section**: GIVEN the same missing-trailer commit AND
+  `openspec/config.yaml` declares `trailers: required` only under a section other than
+  `traceability`, or only in a comment, WHEN the hook runs THEN it stays advisory AND
+  exits 0.
 - **Trailer names the wrong change**: GIVEN an active change `add-x` AND the commit
   message trailer reads `Ospec-Change: add-y` WHEN `checkTraceabilityTrailers` runs
   THEN it returns `status: "mismatch"`.

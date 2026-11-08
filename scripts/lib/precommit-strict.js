@@ -11,11 +11,11 @@ const path = require("node:path");
 
 const { parseIddConfig } = require("./idd-config.js");
 const { resolveTddMode } = require("./tdd-mode.js");
+const { readYamlScalar } = require("./yaml-lite.js");
 
 function openspecIsStrict(text) {
-  if (text == null) return false;
-  const match = String(text).match(/tdd_mode\s*:\s*["']?(\w+)/i);
-  return resolveTddMode({ testing: match ? { tdd_mode: match[1] } : undefined }) === "strict";
+  const mode = readYamlScalar(text, ["testing", "tdd_mode"]);
+  return resolveTddMode({ testing: mode == null ? undefined : { tdd_mode: mode } }) === "strict";
 }
 
 /**

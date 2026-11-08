@@ -63,3 +63,14 @@ test("an unreadable idd config stays IDD and does not fall through to openspec",
   assert.equal(decision.idd.invalid, true);
   assert.equal(decision.contradiction, false);
 });
+
+test("openspec tdd_mode is read from testing, never from a comment or another section", () => {
+  const commented = resolvePrecommitStrict({ openspecText: "# tdd_mode: strict\ntesting:\n  tdd_mode: standard\n" });
+  assert.equal(commented.activeStrict, false);
+  const inline = resolvePrecommitStrict({ openspecText: "testing: # tdd_mode: strict\n  tdd_mode: focused\n" });
+  assert.equal(inline.activeStrict, false);
+  const elsewhere = resolvePrecommitStrict({ openspecText: "review:\n  tdd_mode: strict\ntesting:\n  coverage: 80\n" });
+  assert.equal(elsewhere.activeStrict, false);
+  const quoted = resolvePrecommitStrict({ openspecText: "testing:\n  coverage: 80\n  tdd_mode: \"strict\" # enforced\n" });
+  assert.equal(quoted.activeStrict, true);
+});

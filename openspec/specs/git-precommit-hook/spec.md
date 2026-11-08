@@ -40,6 +40,8 @@ El hook pre-commit MUST asegurar la validez semántica y sintáctica del arnés 
 - Para archivos `.mjs`, la validación sintáctica MUST parsear sintaxis de módulos ESM real (`import`/`export`): el blob staged obtenido del índice MUST materializarse en un archivo temporal `.mjs` (directorio temporal del sistema) y validarse ejecutando `node --check` sobre él (`shell: false`), ya que el fast path en memoria (`vm.Script`) no soporta sintaxis de módulos. El directorio temporal MUST eliminarse tras la comprobación (best-effort, sin enmascarar el resultado). Si la invocación de `node --check` falla (error de ejecución del subproceso), la validación MUST fallar de forma fail-closed; si el parseo detecta un error de sintaxis, el commit MUST cancelarse reportando la línea de diagnóstico relevante.
 - Si cualquier archivo preparado en el índice de Git contiene errores de sintaxis o si la validación de OpenSpec falla, el commit MUST cancelarse con código de salida diferente de cero y un mensaje de error descriptivo.
 - Si un archivo preparado en el índice contiene sintaxis válida, modificaciones no preparadas (`unstaged`) con sintaxis rota en el árbol de trabajo MUST NOT bloquear el commit.
+- MUST validar el índice que git está commiteando. Con `git commit -a` o con rutas ese índice no es `.git/index` y git lo da en `GIT_INDEX_FILE`, a veces relativo al directorio del hook: el hook MUST pasarlo a `check.js --staged` como `--index <ruta absoluta>`, y `check.js` MUST usarlo como `GIT_INDEX_FILE` solo en sus propias llamadas a git (`getStagedFiles`, `getStagedContent`, `getStagedBlobSize`). Sin `GIT_INDEX_FILE` MUST NOT pasar `--index`. `--index` sin ruta MUST hacer fallar `check.js`.
+- `check.js` MUST NOT heredar del hook el contexto git del commit (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, `GIT_OBJECT_DIRECTORY`, `GIT_ALTERNATE_OBJECT_DIRECTORIES`, `GIT_PREFIX`) ni los bypass de los hooks (`DISABLE_AGENT_SHIELD`, `DISABLE_OSPEC_PRECOMMIT`, `DISABLE_OSPEC_ATTRIBUTION_CHECK`): los tests que lanza crean sus propios repositorios y comprueban esos bypass.
 - MUST ejecutar la validación completa monolítica sin filtros diferenciales cuando se defina la variable de entorno `OSPEC_PRECOMMIT_FULL=true` o cuando se invoque `check.js` sin el argumento `--staged`.
 - La enumeración de archivos preparados (`getStagedFiles`) MUST operar de forma fail-closed: si el subproceso `git diff --cached` falla o finaliza con código de salida distinto de cero, MUST lanzar un `Error` descriptivo en lugar de retornar un arreglo vacío.
 - La lectura de contenido staged (`getStagedContent`) MUST operar de forma fail-closed: si `git show :<path>` falla o concluye con código distinto de cero para un archivo presente en el índice, MUST lanzar un `Error` descriptivo en lugar de retornar `null` o continuar.
@@ -57,6 +59,13 @@ El hook pre-commit MUST asegurar la validez semántica y sintáctica del arnés 
 - WHEN el desarrollador ejecuta `git commit`
 - THEN la comprobación sintáctica inspecciona el blob del índice (`git show :<path>`)
 - AND el commit es rechazado reportando el error de sintaxis del contenido preparado.
+
+#### Scenario: git commit -a o con rutas valida el índice del commit
+- GIVEN un archivo JavaScript versionado con sintaxis válida y el hook instalado
+- AND el archivo se rompe en el árbol de trabajo sin `git add`
+- WHEN el desarrollador ejecuta `git commit -a` o `git commit -- <archivo>`
+- THEN la comprobación sintáctica lee el blob del índice que git construyó para el commit
+- AND el commit es rechazado reportando el error de sintaxis.
 
 #### Scenario: Archivo preparado limpio y working tree con sintaxis rota
 - GIVEN un archivo JavaScript preparado en el índice con sintaxis válida
@@ -103,6 +112,7 @@ El hook pre-commit MUST asegurar la validez semántica y sintáctica del arnés 
 El hook pre-commit MUST activar la heurística de Strict TDD según el modo del proyecto:
 - Si existe `idd/config.yaml` y su `mode` no es `sdd`, MUST usar solo `strict_tdd`. Una clave ausente MUST dejar la heurística inactiva. `testing.tdd_mode` MUST NOT activarla ni apagarla.
 - Si no existe `idd/config.yaml`, o `mode` es `sdd`, MUST usar solo `testing.tdd_mode: strict` de `openspec/config.yaml`. `strict_tdd` MUST NOT activarla ni apagarla.
+- `testing.tdd_mode` MUST leerse como YAML (`scripts/lib/yaml-lite.js`): la clave cuenta solo dentro de la sección `testing`, en bloque o en un mapa flow de una línea (`testing: { tdd_mode: strict }`), y un comentario MUST NOT declararla.
 - Con la heurística activa, el hook MUST verificar qué archivos están staged en Git.
 - Si un archivo de código de producción (por ejemplo, en `internal/**/*.go` o `scripts/hooks/*.js`) está staged, MUST verificar que al menos un archivo de pruebas correspondiente (`*_test.go` o `*.test.js`) o el archivo `tasks.md` del cambio activo también se encuentre staged.
 - Si no se encuentra un archivo de prueba o tarea staged junto al código de producción, el commit MUST ser bloqueado.
