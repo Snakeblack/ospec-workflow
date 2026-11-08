@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- PR3b: el pre-commit valida el índice real con git commit -a o con rutas; el escaneo de secretos no bloquea por fixtures ya versionados y su bypass no rompe los tests; tdd_mode y trailers se leen con un lector YAML-lite que ignora comentarios y respeta secciones; los directorios de fixtures quedan en LF (local-git-gates)
+
 ## [2.171.1] - 2026-11-07
 
 ### Fixed
