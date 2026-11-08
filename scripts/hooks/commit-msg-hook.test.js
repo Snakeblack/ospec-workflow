@@ -230,3 +230,29 @@ test("trailers: merge/revert/fixup commits are exempt", () => {
     assert.equal(r.status, "ok", subject);
   }
 });
+
+// The traceability policy is read as YAML: `trailers` must sit under
+// `traceability:`, and a comment never declares it.
+function runCommitMsgIn(t, config) {
+  const os = require("node:os");
+  const child_process = require("node:child_process");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-commit-msg-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, "openspec", "changes", "my-change"), { recursive: true });
+  fs.writeFileSync(path.join(root, "openspec", "config.yaml"), config);
+  fs.writeFileSync(path.join(root, "openspec", "changes", "my-change", "state.yaml"), "status: active\n");
+  fs.writeFileSync(path.join(root, "msg.txt"), "feat: x\n\nbody\n");
+  return child_process.spawnSync(process.execPath, [path.join(__dirname, "commit-msg-hook.js"), "msg.txt"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+}
+
+test("trailers: required only counts under traceability", (t) => {
+  const elsewhere = runCommitMsgIn(t, "traceability:\n  mode: advisory\nreview:\n  trailers: required\n");
+  assert.equal(elsewhere.status, 0, elsewhere.stderr);
+  const commented = runCommitMsgIn(t, "traceability:\n  # trailers: required\n  trailers: advisory\n");
+  assert.equal(commented.status, 0, commented.stderr);
+  const required = runCommitMsgIn(t, "traceability: # policy\n  mode: strict\n  trailers: \"required\" # enforced\n");
+  assert.equal(required.status, 1, required.stderr);
+});

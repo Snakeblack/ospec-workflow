@@ -1,0 +1,602 @@
+{
+  "schema": "idd-state/v1",
+  "change": "local-git-gates",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "PR3b: el pre-commit valida el índice real con git commit -a o con rutas; el escaneo de secretos no bloquea por fixtures ya versionados y su bypass no rompe los tests; tdd_mode y trailers se leen con un lector YAML-lite que ignora comentarios y respeta secciones; los directorios de fixtures quedan en LF",
+    "acceptance": "Un commit -a con un .js roto es rechazado por check.js --staged; un commit que toca pre-tool-use.test.js sin añadir secretos pasa el escaneo; un comentario '# tdd_mode: strict' no activa Strict TDD y 'trailers: required' de otra sección no exige trailers; scripts/evals/bench/scenarios y los demás fixtures llevan eol=lf"
+  },
+  "facts": {
+    "open": [
+      "¿Los tres avisos que quedaron fuera del guard de atribución (grupo '( … ) |', 'sh -c' alimentado por tubería y '<>') entran en esta PR o en otra?",
+      "Escaneo de secretos del pre-commit: ¿(A) escanear solo las líneas que añade el commit, (B) eximir tests y fixtures por ruta, o (C) un marcador por línea en los fixtures?",
+      "¿check.js --staged deja de heredar DISABLE_AGENT_SHIELD (y el resto de bypass del hook) a los tests que lanza?",
+      "¿Cómo recibe check.js --staged el índice real: argumento --index <ruta>, variable de entorno, o la lista de ficheros ya calculada por el hook?",
+      ".gitattributes: ¿patrones genéricos (**/fixtures/**, **/__fixtures__/**, **/testdata/**, más los dos scenarios) con text=auto eol=lf, o la lista explícita de directorios?",
+      "Lector YAML-lite: ¿solo sustituye los dos lectores por regex del hallazgo (tdd_mode y trailers) o también los demás lectores ad hoc de openspec/config.yaml (team, routing, capabilities)?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      ".gitattributes",
+      "docs/harness-runtime.md",
+      "docs/tdd-y-revision.md",
+      "openspec/specs/agent-shield-security/spec.md",
+      "openspec/specs/git-precommit-hook/spec.md",
+      "openspec/specs/hooks/spec.md",
+      "scripts/check.js",
+      "scripts/check.test.js",
+      "scripts/gitattributes-fixtures.test.js",
+      "scripts/hooks/commit-msg-hook.js",
+      "scripts/hooks/commit-msg-hook.test.js",
+      "scripts/hooks/lib/staged-validator.integration.test.js",
+      "scripts/hooks/lib/staged-validator.js",
+      "scripts/hooks/lib/staged-validator.test.js",
+      "scripts/hooks/pre-commit-hook.js",
+      "scripts/hooks/pre-commit-hook.test.js",
+      "scripts/lib/precommit-strict.js",
+      "scripts/lib/precommit-strict.test.js",
+      "scripts/lib/yaml-lite.js",
+      "scripts/lib/yaml-lite.test.js"
+    ],
+    "work_units": 4,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El pre-commit pasa el índice del commit a check.js --staged como --index <ruta absoluta>, que solo lo usa como GIT_INDEX_FILE en sus llamadas a git: una variable de entorno llegaría a los tests que crean repositorios temporales",
+      "El escaneo de secretos del pre-commit evalúa solo las líneas del blob staged que HEAD no tiene, contando repeticiones; no usa git diff --cached porque lee el árbol de trabajo cuando coincide con el índice y no falla con un blob staged ilegible (ADR 0008)",
+      "check.js --staged no hereda DISABLE_AGENT_SHIELD, DISABLE_OSPEC_PRECOMMIT ni DISABLE_OSPEC_ATTRIBUTION_CHECK, para que el bypass de emergencia no rompa los tests del escudo",
+      "scripts/lib/yaml-lite.js lee un escalar por ruta de claves (bloque o mapa flow de una línea, sin comentarios); sustituye solo los lectores por regex de tdd_mode y trailers",
+      ".gitattributes fija text=auto eol=lf en **/fixtures/**, **/__fixtures__/**, **/testdata/** y los dos directorios scenarios; scripts/evals/bench/__fixtures__ queda con !text !eol por la decisión de bench-knowledge-crlf"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/commit-msg-hook.js and 3 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/lib/staged-validator.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "El escaneo de secretos sigue bloqueando cuando no puede leer el blob staged (git show :ruta, fail-closed) y git diff falla cerrado; ahora evalúa solo las líneas que el commit añade, y el pre-commit valida el índice real del commit en vez de uno vacío"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "El lector YAML-lite se escribe en el repositorio con la biblioteca estándar; no se añade ninguna dependencia"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Un blob staged ilegible o un índice corrupto siguen bloqueando el commit; staged-validator.integration.test.js lo comprueba también con git commit -a y con rutas"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 200,
+      "answer": "todas las recomendadas: 1) los tres avisos del guard van en otra PR; 2) (A) escanear solo las líneas que añade el commit; 3) sí, check.js --staged no hereda DISABLE_AGENT_SHIELD ni los demás bypass del hook; 4) argumento --index <ruta absoluta>; 5) patrones genéricos con text=auto eol=lf, excluyendo scripts/evals/bench/__fixtures__ (decisión de bench-knowledge-crlf) y cubriendo scripts/evals/bench/scenarios; 6) solo los dos lectores del hallazgo (tdd_mode y trailers)",
+      "source": "user",
+      "resolved_turn": 201
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-08T20:33:12.484Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-08T20:34:53.328Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:dd65ffe3e1fa0cdc9701967448ece5182f590e30acf7b5131be4816ad7ddef16",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-08T20:35:58.845Z",
+      "detail": {
+        "run": "run-10",
+        "tree": "sha256:d1e47429c6861a89bfc6f5f3bd9efc1737c69a5ea992e43ebd4b1671e09a4c5e",
+        "plan": "Sin datos persistidos que migrar: staged-validator.js solo escribe un .mjs temporal en os.tmpdir() para node --check y lo borra; el cambio no añade escrituras. Compatibilidad: sin GIT_INDEX_FILE el hook llama a check.js --staged igual que antes, y los tests del camino .mjs y del índice por defecto siguen pasando. Vuelta atrás: revertir el commit."
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-08T20:40:03.918Z",
+      "detail": {
+        "lineage_id": "sha256:e68ffa76a4bf3f5e7048cc9af2d4b9f3db5461520f18db6dbdbbc990f7b4cbf7",
+        "candidate_id": "sha256:57349c1dd29f9188d7a13ceb15ffb8384108a1155f95916080970fe4cda36213",
+        "candidate_tree": "4170647571a7f615fe91fd22b0902871bf62c663",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-08T20:39:57.845Z",
+          "result_digest": "sha256:bb7680edc2c29ed7fcc7c317105c9f2f1483302ce11b7c17e2ad781787c36681"
+        }
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-08T20:41:27.169Z",
+      "detail": {
+        "tree": "sha256:def42cbebe6b3821d6602d41bb2d4d83dcef52ad651402d4c9b05f383f36dbd6",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-08T20:41:27.169Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:def42cbebe6b3821d6602d41bb2d4d83dcef52ad651402d4c9b05f383f36dbd6",
+        "fitness": [
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-08T20:41:27.509Z"
+    }
+  ],
+  "base": "7588a0e39bd6bc7e18775328f4f816d89cccbb4c",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/pre-commit-hook.test.js scripts/hooks/lib/staged-validator.integration.test.js scripts/gitattributes-fixtures.test.js scripts/lib/precommit-strict.test.js scripts/hooks/commit-msg-hook.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:fff05b076499df9a1e0de6f882e49e1de3e4d39862da51b0b1a63b72b9587d32",
+      "tree": "sha256:24661f80701d830c982e321c0576a2f2ee611f6653b0e5d830cb7c03ec4ebd44",
+      "recorded_at": "2026-11-08T20:28:04.097Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/pre-commit-hook.test.js scripts/hooks/lib/staged-validator.integration.test.js scripts/gitattributes-fixtures.test.js scripts/lib/precommit-strict.test.js scripts/hooks/commit-msg-hook.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b3609cf1d3e4ba9c8027aa5ac6552dd63861ca282a241e52542f78b524ab2781",
+      "tree": "sha256:db834cca1ac3bf147e3a23f9c1129fa8266182b20e6419ca040e40d3cf5f05ee",
+      "recorded_at": "2026-11-08T20:33:12.484Z",
+      "tests": 65,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "7588a0e39bd6bc7e18775328f4f816d89cccbb4c",
+      "mount": "sha256:0bcc334b3573683fcecc141276c390850c84a40ba21b45b961ff15678e31ad0e",
+      "command": "node --test scripts/hooks/pre-commit-hook.test.js scripts/hooks/lib/staged-validator.integration.test.js scripts/gitattributes-fixtures.test.js scripts/lib/precommit-strict.test.js scripts/hooks/commit-msg-hook.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:1d5b0f1587bc0c68372b024264a5e69224fef8c5c6ba640c59f9f9caea8f2229",
+      "tree": "sha256:db834cca1ac3bf147e3a23f9c1129fa8266182b20e6419ca040e40d3cf5f05ee",
+      "recorded_at": "2026-11-08T20:33:12.484Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "7588a0e39bd6bc7e18775328f4f816d89cccbb4c",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/hooks/pre-commit-hook.test.js scripts/hooks/lib/staged-validator.integration.test.js scripts/gitattributes-fixtures.test.js scripts/lib/precommit-strict.test.js scripts/hooks/commit-msg-hook.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:924804b27c1976f0c8f7aafce56150103425d9457025e8d21e92874af30ed4ea",
+      "tree": "sha256:db834cca1ac3bf147e3a23f9c1129fa8266182b20e6419ca040e40d3cf5f05ee",
+      "recorded_at": "2026-11-08T20:33:12.484Z",
+      "tests": 56
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:70ecd4c00809069b3ccbbf776c8386f05e60d62699095559d76988d459c0035b",
+      "tree": "sha256:dd65ffe3e1fa0cdc9701967448ece5182f590e30acf7b5131be4816ad7ddef16",
+      "recorded_at": "2026-11-08T20:34:53.328Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:946cad5958eb5b73b3c1cce54dd041fa2afdefc48171a5f2e71330ff67d15265",
+      "tree": "sha256:dd65ffe3e1fa0cdc9701967448ece5182f590e30acf7b5131be4816ad7ddef16",
+      "recorded_at": "2026-11-08T20:34:53.328Z",
+      "tests": 98
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:dd65ffe3e1fa0cdc9701967448ece5182f590e30acf7b5131be4816ad7ddef16",
+      "recorded_at": "2026-11-08T20:34:53.328Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6d23993ef69d67c05494c7ec12985c575d45d9ab9e3b6610865a5cd6d1ee5adc",
+      "tree": "sha256:dd65ffe3e1fa0cdc9701967448ece5182f590e30acf7b5131be4816ad7ddef16",
+      "recorded_at": "2026-11-08T20:34:53.328Z",
+      "tests": 26
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ad6f606e435e1fb7984bc0124cc0349590bbfb66ed1374915151651214a073e1",
+      "tree": "sha256:dd65ffe3e1fa0cdc9701967448ece5182f590e30acf7b5131be4816ad7ddef16",
+      "recorded_at": "2026-11-08T20:34:53.328Z",
+      "tests": 98
+    },
+    {
+      "id": "run-10",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/lib/staged-validator.test.js scripts/hooks/lib/staged-validator.integration.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c977a04750a258ca421db1f050e0945693c0ce86a7c105db60256b760e76710d",
+      "tree": "sha256:d1e47429c6861a89bfc6f5f3bd9efc1737c69a5ea992e43ebd4b1671e09a4c5e",
+      "recorded_at": "2026-11-08T20:35:58.845Z",
+      "tests": 58
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:34bd375edacbdb8ebf8a5878661bbbaba33d0d1d33b416258fac86652b210988",
+      "tree": "sha256:def42cbebe6b3821d6602d41bb2d4d83dcef52ad651402d4c9b05f383f36dbd6",
+      "recorded_at": "2026-11-08T20:41:27.169Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:26bf2e5f0bd2f10f7174bed61660eba9c097d07f671645f36648d56a65df17d8",
+      "tree": "sha256:def42cbebe6b3821d6602d41bb2d4d83dcef52ad651402d4c9b05f383f36dbd6",
+      "recorded_at": "2026-11-08T20:41:27.169Z",
+      "tests": 98
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:def42cbebe6b3821d6602d41bb2d4d83dcef52ad651402d4c9b05f383f36dbd6",
+      "recorded_at": "2026-11-08T20:41:27.169Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f8edd458f84c4f7b4b1544be12bbb2c2afbc69c3e3621692d73bad8f632a7076",
+      "tree": "sha256:def42cbebe6b3821d6602d41bb2d4d83dcef52ad651402d4c9b05f383f36dbd6",
+      "recorded_at": "2026-11-08T20:41:27.169Z",
+      "tests": 26
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d84e34e76d37d343da8188a2ba0229a193a443e4ed04c0789ed958df98b4e8e0",
+      "tree": "sha256:def42cbebe6b3821d6602d41bb2d4d83dcef52ad651402d4c9b05f383f36dbd6",
+      "recorded_at": "2026-11-08T20:41:27.169Z",
+      "tests": 98
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:e68ffa76a4bf3f5e7048cc9af2d4b9f3db5461520f18db6dbdbbc990f7b4cbf7",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "4ff74353124fe7139c66d53ecacc7f9eddb44be9",
+          "candidate_tree": "4170647571a7f615fe91fd22b0902871bf62c663",
+          "paths": [
+            ".gitattributes",
+            "docs/harness-runtime.md",
+            "docs/tdd-y-revision.md",
+            "openspec/specs/agent-shield-security/spec.md",
+            "openspec/specs/git-precommit-hook/spec.md",
+            "openspec/specs/hooks/spec.md",
+            "scripts/check.js",
+            "scripts/check.test.js",
+            "scripts/gitattributes-fixtures.test.js",
+            "scripts/hooks/commit-msg-hook.js",
+            "scripts/hooks/commit-msg-hook.test.js",
+            "scripts/hooks/lib/staged-validator.integration.test.js",
+            "scripts/hooks/lib/staged-validator.js",
+            "scripts/hooks/lib/staged-validator.test.js",
+            "scripts/hooks/pre-commit-hook.js",
+            "scripts/hooks/pre-commit-hook.test.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/precommit-strict.js",
+            "scripts/lib/precommit-strict.test.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js"
+          ],
+          "diff_hash": "sha256:0ff7f109f777d2ffe5b068763f0588395ab47d44d0fa10723ee1bacdcf0bdb5b",
+          "paths_digest": "sha256:2fbc011cabb3979112a200ee0b489a2242406e43dc15a90222d924b1a13f9b7e",
+          "authored_lines": 617,
+          "original_changed_lines": 648
+        },
+        "candidate_id": "sha256:57349c1dd29f9188d7a13ceb15ffb8384108a1155f95916080970fe4cda36213",
+        "paths": [
+          ".gitattributes",
+          "docs/harness-runtime.md",
+          "docs/tdd-y-revision.md",
+          "openspec/specs/agent-shield-security/spec.md",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "scripts/check.js",
+          "scripts/check.test.js",
+          "scripts/gitattributes-fixtures.test.js",
+          "scripts/hooks/commit-msg-hook.js",
+          "scripts/hooks/commit-msg-hook.test.js",
+          "scripts/hooks/lib/staged-validator.integration.test.js",
+          "scripts/hooks/lib/staged-validator.js",
+          "scripts/hooks/lib/staged-validator.test.js",
+          "scripts/hooks/pre-commit-hook.js",
+          "scripts/hooks/pre-commit-hook.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/precommit-strict.js",
+          "scripts/lib/precommit-strict.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "4170647571a7f615fe91fd22b0902871bf62c663",
+        "original_changed_lines": 648,
+        "authored_lines": 617
+      },
+      "current_candidate_id": "sha256:57349c1dd29f9188d7a13ceb15ffb8384108a1155f95916080970fe4cda36213",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "4ff74353124fe7139c66d53ecacc7f9eddb44be9",
+        "candidate_tree": "4170647571a7f615fe91fd22b0902871bf62c663",
+        "paths": [
+          ".gitattributes",
+          "docs/harness-runtime.md",
+          "docs/tdd-y-revision.md",
+          "openspec/specs/agent-shield-security/spec.md",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "scripts/check.js",
+          "scripts/check.test.js",
+          "scripts/gitattributes-fixtures.test.js",
+          "scripts/hooks/commit-msg-hook.js",
+          "scripts/hooks/commit-msg-hook.test.js",
+          "scripts/hooks/lib/staged-validator.integration.test.js",
+          "scripts/hooks/lib/staged-validator.js",
+          "scripts/hooks/lib/staged-validator.test.js",
+          "scripts/hooks/pre-commit-hook.js",
+          "scripts/hooks/pre-commit-hook.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/precommit-strict.js",
+          "scripts/lib/precommit-strict.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js"
+        ],
+        "diff_hash": "sha256:0ff7f109f777d2ffe5b068763f0588395ab47d44d0fa10723ee1bacdcf0bdb5b",
+        "paths_digest": "sha256:2fbc011cabb3979112a200ee0b489a2242406e43dc15a90222d924b1a13f9b7e",
+        "authored_lines": 617,
+        "original_changed_lines": 648
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "local-git-gates:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "local-git-gates:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-11-08T20:41:27.509Z"
+}

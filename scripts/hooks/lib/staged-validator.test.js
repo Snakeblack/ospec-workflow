@@ -9,6 +9,7 @@ const {
   getStagedFiles,
   getStagedBlobSize,
   getStagedContent,
+  getStagedAddedLines,
   checkStagedSyntax,
   findAffectedTests,
   findAffectedTargets,
@@ -536,4 +537,47 @@ test("findAffectedTargets does not invalidate targets for scripts/lib tests or t
     "scripts/lib/test-support/fixtures/helper.js",
   ];
   assert.deepEqual(findAffectedTargets(staged), []);
+});
+
+function gitShow(blobs) {
+  return (cmd, args) => {
+    const spec = args[1];
+    return spec in blobs
+      ? { status: 0, stdout: blobs[spec], stderr: "" }
+      : { status: 128, stdout: "", stderr: `fatal: path '${spec}' does not exist` };
+  };
+}
+
+test("getStagedAddedLines returns the staged lines HEAD does not have, counting repeats", () => {
+  const spawnSync = gitShow({ ":a.txt": "keep\nnew\nkeep\nkeep\n", "HEAD:a.txt": "keep\nkeep\nold\n" });
+  assert.equal(getStagedAddedLines("/repo", "a.txt", { spawnSync }), "new\nkeep");
+});
+
+test("getStagedAddedLines counts the whole blob when HEAD has no version", () => {
+  const spawnSync = gitShow({ ":a.txt": "one\ntwo\n" });
+  assert.equal(getStagedAddedLines("/repo", "a.txt", { spawnSync }), "one\ntwo\n");
+});
+
+test("getStagedAddedLines fails closed when the staged blob is unreadable", () => {
+  const spawnSync = gitShow({ "HEAD:a.txt": "one\n" });
+  assert.throws(() => getStagedAddedLines("/repo", "a.txt", { spawnSync }), /git show :a\.txt falló/);
+});
+
+test("the commit index reaches only git, through GIT_INDEX_FILE", () => {
+  let env = null;
+  getStagedFiles("/repo", {
+    indexFile: "/repo/.git/index.lock",
+    spawnSync: (cmd, args, options) => {
+      env = options.env;
+      return { status: 0, stdout: "a.js\n" };
+    },
+  });
+  assert.equal(env.GIT_INDEX_FILE, "/repo/.git/index.lock");
+  getStagedFiles("/repo", {
+    spawnSync: (cmd, args, options) => {
+      env = options.env;
+      return { status: 0, stdout: "" };
+    },
+  });
+  assert.equal(env, undefined);
 });

@@ -60,6 +60,60 @@ test("check.js does not inherit the commit git context", (t) => {
   }
 });
 
+test("check.js receives the commit index as an absolute --index and no hook bypass", (t) => {
+  t.mock.method(process, "exit", () => {});
+  let checkCall = null;
+  t.mock.method(child_process, "spawnSync", (cmd, args, options) => {
+    if (cmd === "node" && args[0] === "scripts/check.js") {
+      checkCall = { args, env: options && options.env };
+      return { status: 0, stdout: "", stderr: "" };
+    }
+    return { status: 0, stdout: "" };
+  });
+
+  const keys = ["GIT_INDEX_FILE", "DISABLE_AGENT_SHIELD", "DISABLE_OSPEC_ATTRIBUTION_CHECK"];
+  const previous = {};
+  for (const key of keys) previous[key] = process.env[key];
+  process.env.GIT_INDEX_FILE = path.join(".git", "index.lock");
+  process.env.DISABLE_AGENT_SHIELD = "true";
+  process.env.DISABLE_OSPEC_ATTRIBUTION_CHECK = "true";
+  try {
+    runPreCommit();
+    assert.ok(checkCall, "check.js must run");
+    const at = checkCall.args.indexOf("--index");
+    assert.notEqual(at, -1, "check.js must receive --index");
+    assert.equal(checkCall.args[at + 1], path.resolve(process.cwd(), ".git", "index.lock"));
+    for (const key of keys) {
+      assert.equal(checkCall.env[key], undefined, `${key} must not reach the test child`);
+    }
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
+});
+
+test("without GIT_INDEX_FILE check.js runs on the default index", (t) => {
+  t.mock.method(process, "exit", () => {});
+  let checkArgs = null;
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "node" && args[0] === "scripts/check.js") {
+      checkArgs = args;
+      return { status: 0, stdout: "", stderr: "" };
+    }
+    return { status: 0, stdout: "" };
+  });
+  const previous = process.env.GIT_INDEX_FILE;
+  delete process.env.GIT_INDEX_FILE;
+  try {
+    runPreCommit();
+    assert.deepEqual(checkArgs, ["scripts/check.js", "--staged"]);
+  } finally {
+    if (previous !== undefined) process.env.GIT_INDEX_FILE = previous;
+  }
+});
+
 test.afterEach(() => {
   // En Node.js native test runner, los mocks se limpian automáticamente al terminar cada test si se registran a través de t.mock.
 });

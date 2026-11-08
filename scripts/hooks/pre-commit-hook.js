@@ -4,9 +4,12 @@ const child_process = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const { classifySensitiveFile, scanContentForSecrets, MAX_SCAN_SIZE_BYTES } = require("./lib/secret-scan.js");
-const { getStagedContent, getStagedBlobSize } = require("./lib/staged-validator.js");
+const { getStagedAddedLines, getStagedBlobSize } = require("./lib/staged-validator.js");
 const { readPrecommitStrict } = require("../lib/precommit-strict.js");
 
+// check.js --staged lanza tests que crean sus propios repositorios: no deben
+// heredar el contexto git del commit ni los bypass de los hooks, que cambian lo
+// que esos tests comprueban. El índice del commit le llega con --index.
 const GIT_HOOK_CONTEXT_VARS = [
   "GIT_DIR",
   "GIT_WORK_TREE",
@@ -14,7 +17,17 @@ const GIT_HOOK_CONTEXT_VARS = [
   "GIT_OBJECT_DIRECTORY",
   "GIT_ALTERNATE_OBJECT_DIRECTORIES",
   "GIT_PREFIX",
+  "DISABLE_AGENT_SHIELD",
+  "DISABLE_OSPEC_PRECOMMIT",
+  "DISABLE_OSPEC_ATTRIBUTION_CHECK",
 ];
+
+// El índice que git está commiteando. Con `git commit -a` o con rutas no es
+// .git/index; git lo da en GIT_INDEX_FILE, a veces relativo al directorio del
+// hook.
+function commitIndexFile(source = process.env) {
+  return source.GIT_INDEX_FILE ? path.resolve(process.cwd(), source.GIT_INDEX_FILE) : null;
+}
 
 function envWithoutGitHookContext(source = process.env) {
   const env = { ...source };
@@ -83,9 +96,11 @@ function runPreCommit(options = {}) {
           const blobSize = getStagedBlobSize(repoRoot, file);
           if (blobSize >= maxScan) continue;
 
+          // Solo cuenta lo que el commit añade: un fixture ya versionado no
+          // bloquea un commit que no lo toca.
           let content;
           try {
-            content = getStagedContent(repoRoot, file);
+            content = getStagedAddedLines(repoRoot, file);
           } catch (err) {
             console.error("\n======================================================================");
             console.error(`OSPEC-PRECOMMIT ERROR: No se pudo inspeccionar el contenido staged de ${file}`);
@@ -138,10 +153,11 @@ function runPreCommit(options = {}) {
     // Task 2.1: progress feedback while output is buffered
     console.log("OSPEC-PRECOMMIT: Ejecutando validación de OpenSpec...");
 
+    const indexFile = commitIndexFile();
     const checkArgs =
       process.env.OSPEC_PRECOMMIT_FULL === "true"
         ? ["scripts/check.js"]
-        : ["scripts/check.js", "--staged"];
+        : ["scripts/check.js", "--staged", ...(indexFile ? ["--index", indexFile] : [])];
 
     // Task 2.2: capture stdout/stderr via pipe instead of inheriting
     const checkResult = child_process.spawnSync("node", checkArgs, {
@@ -290,4 +306,5 @@ if (require.main === module) {
 module.exports = {
   runPreCommit,
   envWithoutGitHookContext,
+  commitIndexFile,
 };

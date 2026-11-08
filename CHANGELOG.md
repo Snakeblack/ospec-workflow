@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.171.2] - 2026-11-08
+
+### Fixed
+- **Los gates locales de git validan lo que git commitea** (local-git-gates, PR3b de la review general del 2026-10-29).
+  - **`git commit -a` y con rutas**: git commitea un índice que no es `.git/index` y el hook se lo ocultaba a `check.js --staged`, que no validaba nada. Ahora se lo pasa como `--index <ruta absoluta>`, que solo usan sus llamadas a git.
+  - **Escaneo de secretos**: evalúa las líneas del blob staged que `HEAD` no tiene, así que un fixture ya versionado (la cabecera PEM de los tests del escudo) no bloquea un commit que no lo añade. Un blob staged ilegible sigue bloqueando (ADR 0008). `DISABLE_AGENT_SHIELD` y los otros bypass de los hooks ya no llegan a los tests que lanza `check.js --staged`.
+  - **`tdd_mode` y `trailers`**: se leen como YAML con `scripts/lib/yaml-lite.js`, solo dentro de `testing` y `traceability`, en bloque o en un mapa flow de una línea. Un comentario ya no activa Strict TDD ni exige trailers.
+  - **Fin de línea**: `**/fixtures/**`, `**/__fixtures__/**`, `**/testdata/**` y los directorios de scenarios se descargan en LF; los fixtures de referencia del banco conservan el del checkout.
+
+Hecho con IDD (`idd/archive/2026-11-08-local-git-gates/`), con una revisión de confianza sin hallazgos. Las specs agent-shield-security, git-precommit-hook y hooks recogen el comportamiento.
+
+**Verificación directa**: `node scripts/check.js` (4455 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
+
 ## [2.171.1] - 2026-11-07
 
 ### Fixed

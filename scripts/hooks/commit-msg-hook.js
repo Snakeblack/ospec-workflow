@@ -2,6 +2,8 @@
 
 const fs = require("node:fs");
 
+const { readYamlScalar } = require("../lib/yaml-lite.js");
+
 /**
  * Regex that matches any forbidden AI/model attribution in a commit message:
  * a `*-by:` trailer that names an AI or coding tool, a "generated with/by
@@ -94,7 +96,7 @@ function findActiveChangeNameSync() {
 function trailersRequiredSync() {
   try {
     const content = fs.readFileSync("openspec/config.yaml", "utf8");
-    return /^traceability:\s*$[\s\S]*?^\s+trailers:\s*required\s*$/m.test(content);
+    return readYamlScalar(content, ["traceability", "trailers"]) === "required";
   } catch (err) {
     return false;
   }

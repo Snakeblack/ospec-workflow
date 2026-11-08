@@ -209,6 +209,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/ospec-gitignore.test.js",
   // The hooks folder git runs, shared by setup:git-hooks and the doctor (attribution-guard-gaps).
   "scripts/lib/git-hooks-dir.js",
+  // The YAML-lite reader of the git hooks' openspec/config.yaml keys (local-git-gates).
+  "scripts/lib/yaml-lite.js",
+  "scripts/lib/yaml-lite.test.js",
   // E1.4 (a) ospec check and ospec run: observed runs and their evidence (roadmap harness-evolution).
   "scripts/lib/idd-check.js",
   "scripts/lib/idd-check.test.js",

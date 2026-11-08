@@ -58,7 +58,8 @@ El Advisor de Seguridad MUST desactivar todos sus controles si se detecta la var
 - GIVEN la variable de entorno `DISABLE_AGENT_SHIELD=true` en el sistema
 - AND un archivo clasificado como sensible (`.env`) o con una clave de API preparado en el índice de Git
 - WHEN se ejecuta el hook pre-commit
-- THEN el escaneo de seguridad de AgentShield se omite y no bloquea la confirmación del commit.
+- THEN el escaneo de seguridad de AgentShield se omite y no bloquea la confirmación del commit
+- AND `DISABLE_AGENT_SHIELD` MUST NOT llegar a los tests que lanza `check.js --staged`, que comprueban el escudo con su propio entorno.
 
 ---
 
@@ -68,7 +69,8 @@ El sistema AgentShield en el hook pre-commit MUST inspeccionar preventivamente t
 - Para cada archivo en la lista, MUST clasificar la ruta mediante `classifySensitiveFile`. Si la acción requerida es `deny` (e.g. claves SSH privadas, `.git/config`, `.npmrc`) o `ask` (e.g. `.env`, `.env.*`, `secrets.json`, `credentials`), el hook pre-commit MUST cancelar de inmediato el commit con código de error 1 y emitir un mensaje indicando el archivo sensible detectado y las opciones de bypass.
 - Para los archivos preparados que no coincidan como archivos sensibles por nombre y cuyo tamaño sea menor a 1 MB (`MAX_SCAN_SIZE_BYTES`), el sistema MUST leer el contenido del blob directamente desde el índice de Git invocando `getStagedContent` (`git show :<path>` con `shell: false`, codificación UTF-8 y ruta relativa a la raíz del repositorio), absteniéndose de leer del sistema de archivos de trabajo (`fs.readFileSync`).
 - Si la lectura del contenido del blob staged a través de `getStagedContent` falla o arroja una excepción, el hook pre-commit MUST abortar de inmediato con código de salida 1 y mostrar un mensaje de error descriptivo (`"OSPEC-PRECOMMIT ERROR: No se pudo inspeccionar el contenido staged de <path>"`). Los fallos al inspeccionar blobs staged MUST NOT ser ignorados ni silenciados.
-- El contenido del blob extraído MUST ser evaluado con `scanContentForSecrets`. Si coincide con tokens de proveedores conocidos (`KNOWN_TOKEN_PATTERNS`: OpenAI, OpenAI project, Anthropic, GitHub, Google, AWS, Slack, Stripe, npm, GitLab, Hugging Face, SendGrid, JWT) o expresiones de credenciales genéricas (`GENERIC_CREDENTIAL_REGEX`), el commit MUST ser cancelado con código 1 indicando el patrón detectado.
+- El escaneo MUST evaluar solo lo que el commit añade (`getStagedAddedLines`): las líneas del blob staged que la versión de `HEAD:<path>` no tiene, contando repeticiones. Sin versión en `HEAD` (archivo nuevo, rama sin commits) o si no se puede leer, todo el blob cuenta como añadido. Un secreto ya versionado (un fixture de test) MUST NOT bloquear un commit que no lo añade. MUST NOT usar `git diff --cached`, que lee el árbol de trabajo cuando coincide con el índice y no falla con un blob staged ilegible.
+- Lo añadido MUST ser evaluado con `scanContentForSecrets`. Si coincide con tokens de proveedores conocidos (`KNOWN_TOKEN_PATTERNS`: OpenAI, OpenAI project, Anthropic, GitHub, Google, AWS, Slack, Stripe, npm, GitLab, Hugging Face, SendGrid, JWT) o expresiones de credenciales genéricas (`GENERIC_CREDENTIAL_REGEX`), el commit MUST ser cancelado con código 1 indicando el patrón detectado.
 - Si un secreto está presente en el árbol de trabajo (`working tree`) pero no se encuentra preparado en el índice (`unstaged`), el escaneo de pre-commit MUST permitir el commit.
 - Si un secreto se encuentra preparado en el índice (`staged`) pero ha sido eliminado o modificado en el árbol de trabajo, el escaneo de pre-commit MUST bloquear el commit.
 
@@ -94,6 +96,13 @@ El sistema AgentShield en el hook pre-commit MUST inspeccionar preventivamente t
 - WHEN se ejecuta el pre-commit
 - THEN el hook detecta la clave presente en el blob del índice
 - AND la ejecución finaliza con código 1 impidiendo el commit.
+
+#### Scenario: Un secreto ya versionado no bloquea un commit que no lo añade
+- GIVEN un archivo cuya versión en `HEAD` contiene una cabecera de clave privada
+- AND el commit cambia otra línea del archivo
+- WHEN se ejecuta el pre-commit
+- THEN el escaneo no encuentra el secreto entre las líneas añadidas y permite el commit
+- AND si el commit añade una línea con una clave de API, el commit es cancelado con código 1.
 
 #### Scenario: Bloqueo de commit por fallo al leer blob staged en escaneo de secretos (fail-closed)
 - GIVEN un archivo preparado en el índice de Git

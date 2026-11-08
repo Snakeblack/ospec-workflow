@@ -325,6 +325,34 @@ test("main delegates to runStagedChecks when --staged flag is passed", () => {
   assert.match(stdout.join(""), /All staged checks passed/);
 });
 
+test("main passes --index to runStagedChecks as an absolute path, and rejects it without a value", () => {
+  const quiet = { stdout: { write: () => {} }, stderr: { write: () => {} }, exit: () => {} };
+  let options = null;
+  main({
+    argv: ["--staged", "--index", ".git/index.lock"],
+    claudeCliAvailable: () => false,
+    runStagedChecks: (received) => {
+      options = received;
+    },
+    process: quiet,
+  });
+  assert.equal(options.indexFile, path.resolve(".git/index.lock"));
+
+  main({ argv: ["--staged"], claudeCliAvailable: () => false, runStagedChecks: (received) => { options = received; }, process: quiet });
+  assert.equal(options.indexFile, undefined);
+
+  const stderr = [];
+  let exitCode;
+  main({
+    argv: ["--staged", "--index"],
+    claudeCliAvailable: () => false,
+    runStagedChecks: () => assert.fail("must not run without an index path"),
+    process: { ...quiet, stderr: { write: (text) => stderr.push(text) }, exit: (code) => { exitCode = code; } },
+  });
+  assert.equal(exitCode, 1);
+  assert.match(stderr.join(""), /--index expects the path of a git index/);
+});
+
 test("main catches runStagedChecks failure and exits 1", () => {
   const stderr = [];
   let exitCode;

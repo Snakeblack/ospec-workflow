@@ -40,9 +40,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const generatedTargets = [];
+const indexAt = process.argv.indexOf("--index");
 try {
   runStagedChecks({
     repoRoot: process.cwd(),
+    indexFile: indexAt === -1 ? undefined : process.argv[indexAt + 1],
     runStep: () => {},
     generateTarget: (target) => {
       generatedTargets.push(target);
@@ -81,6 +83,26 @@ function runHook(tmpDir) {
       OSPEC_REPO_ROOT: tmpDir,
     },
   });
+}
+
+// Installs the pre-commit hook so a real `git commit` runs it, as the
+// repository's hook does.
+function installHook(tmpDir) {
+  const node = process.execPath.replace(/\\/g, "/");
+  const script = PRE_COMMIT_HOOK_PATH.replace(/\\/g, "/");
+  fs.writeFileSync(path.join(tmpDir, ".git", "hooks", "pre-commit"), `#!/bin/sh\nexec "${node}" "${script}"\n`, { mode: 0o755 });
+}
+
+function git(tmpDir, args) {
+  return child_process.spawnSync("git", args, {
+    cwd: tmpDir,
+    encoding: "utf8",
+    env: { ...process.env, OSPEC_REPO_ROOT: tmpDir },
+  });
+}
+
+function commitCount(tmpDir) {
+  return Number(git(tmpDir, ["rev-list", "--count", "HEAD"]).stdout.trim());
 }
 
 test.afterEach(() => {
@@ -293,4 +315,57 @@ test("integration: staging isolated target validator triggers only that target i
   assert.ok(fs.existsSync(targetsRecord), "Expected .generated-targets.json to be generated");
   const targets = JSON.parse(fs.readFileSync(targetsRecord, "utf8"));
   assert.deepEqual(targets, ["cursor"], "Expected only cursor to be generated for isolated validator");
+});
+
+test("integration: git commit -a checks the syntax of the index git is committing", () => {
+  const tmpDir = setupEphemeralRepo();
+  fs.writeFileSync(path.join(tmpDir, "index.js"), "const valid = 1;\n", "utf8");
+  git(tmpDir, ["add", "index.js"]);
+  assert.equal(git(tmpDir, ["commit", "-q", "-m", "base"]).status, 0);
+  installHook(tmpDir);
+
+  fs.writeFileSync(path.join(tmpDir, "index.js"), "const broken = ;\n", "utf8");
+  const broken = git(tmpDir, ["commit", "-a", "-m", "broken"]);
+  assert.notEqual(broken.status, 0, `commit -a must be rejected. Output: ${broken.stdout}\nStderr: ${broken.stderr}`);
+  assert.match(broken.stderr + broken.stdout, /Error de sintaxis en archivos staged/);
+  assert.equal(commitCount(tmpDir), 1);
+
+  fs.writeFileSync(path.join(tmpDir, "index.js"), "const valid = 2;\n", "utf8");
+  const valid = git(tmpDir, ["commit", "-a", "-m", "valid"]);
+  assert.equal(valid.status, 0, `Output: ${valid.stdout}\nStderr: ${valid.stderr}`);
+  assert.equal(commitCount(tmpDir), 2);
+});
+
+test("integration: git commit with paths checks the temporary index git builds", () => {
+  const tmpDir = setupEphemeralRepo();
+  fs.writeFileSync(path.join(tmpDir, "index.js"), "const valid = 1;\n", "utf8");
+  git(tmpDir, ["add", "index.js"]);
+  assert.equal(git(tmpDir, ["commit", "-q", "-m", "base"]).status, 0);
+  installHook(tmpDir);
+
+  fs.writeFileSync(path.join(tmpDir, "index.js"), "const broken = ;\n", "utf8");
+  const broken = git(tmpDir, ["commit", "-m", "broken", "--", "index.js"]);
+  assert.notEqual(broken.status, 0, `commit with paths must be rejected. Output: ${broken.stdout}\nStderr: ${broken.stderr}`);
+  assert.match(broken.stderr + broken.stdout, /Error de sintaxis en archivos staged/);
+  assert.equal(commitCount(tmpDir), 1);
+});
+
+test("integration: a secret the commit does not add does not block it [REQ-agent-shield-security-001]", () => {
+  const tmpDir = setupEphemeralRepo();
+  const header = "-----BEGIN" + " PRIVATE KEY-----";
+  const fixture = path.join(tmpDir, "fixture.txt");
+  fs.writeFileSync(fixture, `pem: ${header}\nvalue: 1\n`, "utf8");
+  git(tmpDir, ["add", "fixture.txt"]);
+  assert.equal(git(tmpDir, ["commit", "-q", "-m", "base"]).status, 0);
+
+  fs.writeFileSync(fixture, `pem: ${header}\nvalue: 2\n`, "utf8");
+  git(tmpDir, ["add", "fixture.txt"]);
+  const untouched = runHook(tmpDir);
+  assert.equal(untouched.status, 0, `Output: ${untouched.stdout}\nStderr: ${untouched.stderr}`);
+
+  fs.writeFileSync(fixture, `pem: ${header}\nvalue: 2\nkey: ${"sk-" + "x".repeat(48)}\n`, "utf8");
+  git(tmpDir, ["add", "fixture.txt"]);
+  const added = runHook(tmpDir);
+  assert.equal(added.status, 1, `Output: ${added.stdout}\nStderr: ${added.stderr}`);
+  assert.match(added.stderr, /Se detectó una credencial o clave secreta en archivo staged/);
 });
