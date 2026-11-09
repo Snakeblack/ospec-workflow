@@ -278,7 +278,7 @@ Envelope persistence MUST derive the state phase key from the resolved canonical
 
 ### Requirement: SubagentStop Extracción de Tokens Desde Transcripciones Claude {#REQ-hooks-018}
 
-En sesiones de Claude Code (incluidos endpoints compatibles Anthropic/GLM), `scripts/hooks/subagent-stop.js` MUST intentar extraer el uso de tokens del host (`input_tokens`, `output_tokens`, contadores de caché) desde la transcripción JSONL referenciada por `transcript_path` o `agent_transcript_path`, para poblar la lane CX0 (REQ-hooks-017) con métricas `available` según REQ-context-measurement-007. La extracción MUST aceptar el formato de uso estándar (`cached_input_tokens`) y el formato Anthropic (`cache_read_input_tokens`, `cache_creation_input_tokens`). El escaneo SHOULD limitarse a las entradas recientes de la transcripción para acotar el I/O en archivos grandes. Esta extracción es estrictamente aditiva y fail-safe: una transcripción ausente, ilegible o corrupta MUST degradar las métricas afectadas a `unavailable` con razón `host-field-unavailable`, sin bloquear `SubagentStop`, sin alterar stdout (`continue: true`), la persistencia del envelope, la grabación de phase-cost ni el código de salida.
+En sesiones de Claude Code (incluidos endpoints compatibles Anthropic/GLM), `scripts/hooks/subagent-stop.js` MUST intentar extraer el uso de tokens del host (`input_tokens`, `output_tokens`, contadores de caché) desde la transcripción JSONL del subagente, `agent_transcript_path` o, cuando falta, `transcript_path` (REQ-hooks-033), para poblar la lane CX0 (REQ-hooks-017) con métricas `available` según REQ-context-measurement-007. La extracción MUST aceptar el formato de uso estándar (`cached_input_tokens`) y el formato Anthropic (`cache_read_input_tokens`, `cache_creation_input_tokens`). El escaneo SHOULD limitarse a las entradas recientes de la transcripción para acotar el I/O en archivos grandes. Esta extracción es estrictamente aditiva y fail-safe: una transcripción ausente, ilegible o corrupta MUST degradar las métricas afectadas a `unavailable` con razón `host-field-unavailable`, sin bloquear `SubagentStop`, sin alterar stdout (`continue: true`), la persistencia del envelope, la grabación de phase-cost ni el código de salida.
 
 #### Scenario: Transcripción válida alimenta la lane CX0
 
@@ -546,9 +546,11 @@ the original advisory text surfaced via `systemMessage` (mirroring the existing
 
 On the `codex` target, `SubagentStop`'s existing skill-resolution extraction (baseline
 §5.2) MUST additionally accept `input.agent_transcript_path` as a source for the
-transcript-file fallback step, in place of (or alongside) `input.transcript_path`, since
-the Codex host names this field differently. Resolution priority and JSONL-parsing
-behavior (§5.2 step 3) are otherwise unchanged.
+transcript-file fallback step, since the Codex host names this field differently. When
+both fields are present, `agent_transcript_path` wins (REQ-hooks-033). JSONL-parsing
+behavior (§5.2 step 3) is otherwise unchanged.
+
+(Previously: `transcript_path` took priority when both fields were present.)
 
 #### Scenario: Codex transcript field resolves skill_resolution
 
@@ -1057,9 +1059,10 @@ If the file already exists and content is identical: skip the write and return
 
 Before its existing `skill_resolution` evaluation (baseline §5.1-§5.4), `SubagentStop`
 MUST attempt to extract a fenced ```` ```json:result-envelope ```` block from the
-subagent's result payload, using the same field-search order already defined in §5.2
-(`input.skill_resolution`-style priority: `result`, `output`, `response`,
-`final_output`, `final_result`, `message`, `content`, then `transcript_path` fallback).
+subagent's result payload, using the same field-search order already defined in §5.2:
+`last_assistant_message` alone when the host passes it (REQ-hooks-033), else `result`,
+`output`, `response`, `final_output`, `final_result`, `message`, `content`, then the
+subagent's transcript fallback.
 
 When the fence is present, the hook MUST validate its content against the canonical
 Result Envelope Schema (skills domain, `sdd-phase-common.md` §D) using the shared,
@@ -1158,14 +1161,18 @@ Then it MUST:
 
 The hook MUST search for `skill_resolution` in this priority order:
 1. `input.skill_resolution` directly (string field).
+   When `input.last_assistant_message` is a string, it is then the only other source
+   (REQ-hooks-033): steps 2 and 3 do not run.
 2. Known result fields on `input` in order: `result`, `output`, `response`,
    `final_output`, `final_result`, `message`, `content`. Each field is searched as:
    - If the value is a string: regex match for `skill_resolution: "value"` or JSON parse
      + structured search.
    - If the value is an object/array: recursive `skill_resolution` key search
      (depth-first, reversed-values to find the last occurrence).
-3. `input.transcript_path`: read the JSONL file, parse each line from the last line
-   backward, and apply the structured search to each parsed JSON object.
+3. The subagent's transcript, `input.agent_transcript_path`, or `input.transcript_path`
+   only when the former is absent (REQ-hooks-033): read the JSONL file, parse each line
+   from the last line backward, and apply the structured search to each parsed JSON
+   object.
 
 ### 5.3 Advisory append lock
 
@@ -1936,3 +1943,19 @@ Installing the plugin from the marketplace runs no installer and updating it run
 - GIVEN the same payload with `source` `resume`, `clear` or `compact` THEN the answer MUST be the child's, unchanged.
 - GIVEN a rules file ospec wrote at 2.0.0 and a running plugin at 2.1.0 THEN the file MUST hold the 2.1.0 router after the session start, even when the child fails.
 - GIVEN a rules file edited by hand THEN it MUST be unchanged and no notice is shown.
+
+### Requirement: SubagentStop Reads The Subagent's Own Output {#REQ-hooks-033}
+
+In Claude Code, `transcript_path` is the main session's transcript, whose last envelope belongs to the subagent that ran before, and the hook fires before the subagent's own transcript holds its final message, which the host hands in `last_assistant_message`. `SubagentStop` (JS `scripts/hooks/subagent-stop.js` and Go `internal/hooks/subagentstop.go`) MUST therefore:
+
+- take the result envelope and `skill_resolution` from `last_assistant_message` alone when it is a string, as the review receipts do (REQ-hooks-027): its `json:result-envelope` fence, else its legacy prose through the adapter (REQ-lifecycle-kernel-030); a message without an envelope projects nothing and leaves the dispatch status of the phase-cost record to the input's `status`, whatever any transcript holds;
+- without it, keep the result fields and then the transcript fallback;
+- read every transcript of the dispatch from `agent_transcript_path`, and from `transcript_path` only when the host passes no agent transcript: the envelope and dispatch status, `skill_resolution`, the host binding of the phase-cost record, the Codex token counts and the Claude usage telemetry (REQ-hooks-018).
+
+A host that passes only `transcript_path` keeps today's behavior.
+
+- GIVEN an `sdd-design` stop whose `last_assistant_message` holds its envelope, a `transcript_path` ending with the previous phase's envelope and an `agent_transcript_path` without the final message THEN `phases.design` MUST hold the design envelope.
+- GIVEN the same stop without `last_assistant_message` and an `agent_transcript_path` ending with the design envelope THEN `phases.design` MUST hold the design envelope, not the main session's.
+- GIVEN a `last_assistant_message` that is prose and an agent transcript holding an envelope THEN `state.yaml` MUST be unchanged.
+- GIVEN a main transcript reporting `skill_resolution: fallback-registry` and an agent transcript or final message reporting `injected` THEN no degraded event MUST be recorded.
+- GIVEN both transcripts THEN the host binding MUST hash the agent transcript's bytes.

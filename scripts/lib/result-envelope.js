@@ -549,8 +549,35 @@ function renderEnvelopeToMarkdown(envelope, options = {}) {
   return lines.join("\n");
 }
 
+/**
+ * The envelope a subagent's final message carries: its `json:result-envelope`
+ * fence (an unversioned one goes through the legacy adapter, and stays as it
+ * is when the adapter rejects it), else the legacy prose adapted. Returns null
+ * when the message carries none. Shared by SubagentStop and the projection
+ * runner (REQ-hooks-033, REQ-lifecycle-kernel-031), so both read a message
+ * the same way.
+ */
+function envelopeFromMessage(text) {
+  if (typeof text !== "string" || !text.trim()) {
+    return null;
+  }
+  const fenced = extractEnvelope(text);
+  if (fenced.found && fenced.value && typeof fenced.value === "object" && !Array.isArray(fenced.value)) {
+    if (fenced.value.schema_version === undefined) {
+      const adapted = adaptLegacyEnvelope(fenced.value);
+      if (adapted.ok && adapted.envelope) {
+        return adapted.envelope;
+      }
+    }
+    return fenced.value;
+  }
+  const adapted = adaptLegacyEnvelope(text);
+  return adapted.ok && adapted.envelope ? adapted.envelope : null;
+}
+
 module.exports = {
   extractEnvelope,
+  envelopeFromMessage,
   validateEnvelope,
   adaptLegacyEnvelope,
   renderEnvelopeToMarkdown,

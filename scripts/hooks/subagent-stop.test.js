@@ -2468,3 +2468,113 @@ test("last_assistant_message: a final message without a result leaves no receipt
   assert.equal(receipt, null);
   await assert.rejects(fs.access(receiptPath(workspace, REVIEW_DIGEST)));
 });
+
+// REQ-hooks-033: in Claude Code `transcript_path` is the main session's
+// transcript, whose last envelope belongs to the subagent that ran before, and
+// the hook fires before the subagent's own transcript holds its final message.
+const PROPOSAL_ENVELOPE = {
+  ...VALID_ENVELOPE,
+  executive_summary: "Propuso el alcance del cambio anterior.",
+  artifacts: ["openspec/changes/strict-result-envelope/proposal.md"],
+  next_recommended: "sdd-spec",
+  key_decisions: ["Alcance del proposal anterior"],
+};
+
+function assistantEntry(text) {
+  return { type: "assistant", message: { role: "assistant", content: [{ type: "text", text }] } };
+}
+
+async function writeNamedTranscript(workspace, name, entries) {
+  const file = path.join(workspace, name);
+  await fs.writeFile(file, `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`, "utf8");
+  return file;
+}
+
+test("[REQ-hooks-033] the envelope comes from last_assistant_message, never from the main session's transcript", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  const mainTranscript = await writeNamedTranscript(workspace, "main.jsonl", [assistantEntry(buildFenceText(PROPOSAL_ENVELOPE))]);
+  const agentTranscript = await writeNamedTranscript(workspace, "agent.jsonl", [
+    { type: "user", message: { role: "user", content: "Design the change." } },
+  ]);
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      transcript_path: mainTranscript,
+      agent_transcript_path: agentTranscript,
+      last_assistant_message: buildFenceText(VALID_ENVELOPE),
+    },
+  });
+
+  const updated = await fs.readFile(statePath, "utf8");
+  assert.match(updated, /summary: "Diseñó el flujo de persistencia del envelope\."/);
+  assert.doesNotMatch(updated, /Propuso el alcance/);
+});
+
+test("[REQ-hooks-033] without last_assistant_message the subagent's own transcript wins over the main session's", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  const mainTranscript = await writeNamedTranscript(workspace, "main.jsonl", [assistantEntry(buildFenceText(PROPOSAL_ENVELOPE))]);
+  const agentTranscript = await writeNamedTranscript(workspace, "agent.jsonl", [assistantEntry(buildFenceText(VALID_ENVELOPE))]);
+
+  await runSubagentStop({
+    input: { cwd: workspace, agent_type: "sdd-design", transcript_path: mainTranscript, agent_transcript_path: agentTranscript },
+  });
+
+  const updated = await fs.readFile(statePath, "utf8");
+  assert.match(updated, /summary: "Diseñó el flujo de persistencia del envelope\."/);
+  assert.doesNotMatch(updated, /Propuso el alcance/);
+});
+
+test("[REQ-hooks-033] a last_assistant_message without an envelope projects nothing, whatever the transcripts hold", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  const agentTranscript = await writeNamedTranscript(workspace, "agent.jsonl", [assistantEntry(buildFenceText(VALID_ENVELOPE))]);
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      agent_transcript_path: agentTranscript,
+      last_assistant_message: "I could not finish the design.",
+    },
+  });
+
+  assert.equal(await fs.readFile(statePath, "utf8"), STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  assert.equal(await resolveDispatchStatus({ agent_type: "sdd-design", agent_transcript_path: agentTranscript, last_assistant_message: "No envelope." }), "unknown");
+});
+
+test("[REQ-hooks-033] skill_resolution comes from the subagent's own output, not from the main session's transcript", async (t) => {
+  const workspace = await createWorkspace(t);
+  const degraded = JSON.stringify({ role: "assistant", result: { status: "success", skill_resolution: "fallback-registry" } });
+  const healthy = JSON.stringify({ role: "assistant", result: { status: "success", skill_resolution: "injected" } });
+  const mainTranscript = path.join(workspace, "main.jsonl");
+  const agentTranscript = path.join(workspace, "agent.jsonl");
+  await fs.writeFile(mainTranscript, `${degraded}\n`, "utf8");
+  await fs.writeFile(agentTranscript, `${healthy}\n`, "utf8");
+
+  const byTranscript = await runSubagentStop({
+    input: { cwd: workspace, agent_type: "sdd-verify", transcript_path: mainTranscript, agent_transcript_path: agentTranscript },
+  });
+  assert.deepEqual(byTranscript, { status: "skipped", reason: "healthy-resolution" });
+
+  const byMessage = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-verify",
+      agent_transcript_path: mainTranscript,
+      last_assistant_message: buildFenceText({ ...VALID_ENVELOPE, skill_resolution: "injected" }),
+    },
+  });
+  assert.deepEqual(byMessage, { status: "skipped", reason: "healthy-resolution" });
+});
+
+test("[REQ-hooks-033] the host binding hashes the subagent's own transcript", async (t) => {
+  const workspace = await createWorkspace(t);
+  const mainTranscript = path.join(workspace, "main.jsonl");
+  const agentTranscript = path.join(workspace, "agent.jsonl");
+  await fs.writeFile(mainTranscript, "main session bytes\n", "utf8");
+  await fs.writeFile(agentTranscript, "subagent bytes\n", "utf8");
+  const binding = await resolveHostBinding({ session_id: "session-a", transcript_path: mainTranscript, agent_transcript_path: agentTranscript });
+  const expected = require("node:crypto").createHash("sha256").update("subagent bytes\n").digest("hex");
+  assert.equal(binding.transcript_sha256, expected);
+});

@@ -2350,3 +2350,138 @@ func TestSubagentStop_Integration_LegacyDispatchAndProjection(t *testing.T) {
 		t.Errorf("expected state.yaml summary to be persisted, got:\n%s", updated)
 	}
 }
+
+// ── REQ-hooks-033: the subagent's own output ─────────────────────────────────
+// In Claude Code transcript_path is the main session's transcript, whose last
+// envelope belongs to the subagent that ran before, and the hook fires before
+// the subagent's own transcript holds its final message.
+
+func proposalEnvelope() map[string]any {
+	envelope := validSubagentEnvelope()
+	envelope["executive_summary"] = "Propuso el alcance del cambio anterior."
+	envelope["next_recommended"] = "sdd-spec"
+	return envelope
+}
+
+func writeAssistantTranscript(t *testing.T, path, text string) {
+	t.Helper()
+	line, _ := json.Marshal(map[string]any{
+		"type":    "assistant",
+		"message": map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "text", "text": text}}},
+	})
+	if err := os.WriteFile(path, append(line, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSubagentStop_EnvelopeComesFromTheSubagentsOwnOutput(t *testing.T) {
+	cases := []struct {
+		name  string
+		input func(main, agent string) map[string]any
+	}{
+		{"last_assistant_message over both transcripts", func(main, agent string) map[string]any {
+			return map[string]any{"transcript_path": main, "agent_transcript_path": agent + ".missing", "last_assistant_message": buildFenceText(validSubagentEnvelope())}
+		}},
+		{"agent transcript over the main session's", func(main, agent string) map[string]any {
+			return map[string]any{"transcript_path": main, "agent_transcript_path": agent}
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+			mainPath := filepath.Join(workspace, "main.jsonl")
+			agentPath := filepath.Join(workspace, "agent.jsonl")
+			writeAssistantTranscript(t, mainPath, buildFenceText(proposalEnvelope()))
+			writeAssistantTranscript(t, agentPath, buildFenceText(validSubagentEnvelope()))
+			input := tc.input(mainPath, agentPath)
+			input["cwd"] = workspace
+			input["agent_type"] = "sdd-design"
+			stdin, _ := json.Marshal(input)
+
+			runSubagentStop(t, stdin)
+
+			after, err := os.ReadFile(statePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(after), `summary: "Diseñó el flujo de persistencia del envelope."`) || strings.Contains(string(after), "Propuso el alcance") {
+				t.Fatalf("the envelope must come from the subagent's own output:\n%s", after)
+			}
+		})
+	}
+}
+
+func TestSubagentStop_LastAssistantMessageWithoutEnvelopeProjectsNothing(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	agentPath := filepath.Join(workspace, "agent.jsonl")
+	writeAssistantTranscript(t, agentPath, buildFenceText(validSubagentEnvelope()))
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd": workspace, "agent_type": "sdd-design", "agent_transcript_path": agentPath,
+		"last_assistant_message": "I could not finish the design.",
+	})
+
+	runSubagentStop(t, stdin)
+
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != stateWithEmptyDesignSummary {
+		t.Fatalf("a final message without an envelope must project nothing:\n%s", after)
+	}
+	if records := readPhaseCosts(t, workspace, "strict-result-envelope"); records[0].Status != "unknown" {
+		t.Fatalf("dispatch status must not come from the transcript: %q", records[0].Status)
+	}
+}
+
+func TestSubagentStop_SkillResolutionComesFromTheSubagentsOwnOutput(t *testing.T) {
+	ws := createSubagentWorkspace(t)
+	mainPath := filepath.Join(ws, "main.jsonl")
+	agentPath := filepath.Join(ws, "agent.jsonl")
+	if err := os.WriteFile(mainPath, []byte(`{"role":"assistant","result":{"status":"success","skill_resolution":"fallback-registry"}}`+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(agentPath, []byte(`{"role":"assistant","result":{"status":"success","skill_resolution":"injected"}}`+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	healthy := validSubagentEnvelope()
+	healthy["skill_resolution"] = "injected"
+	for _, input := range []map[string]any{
+		{"transcript_path": mainPath, "agent_transcript_path": agentPath},
+		{"agent_transcript_path": mainPath, "last_assistant_message": buildFenceText(healthy)},
+	} {
+		input["cwd"] = ws
+		input["agent_type"] = "sdd-verify"
+		stdin, _ := json.Marshal(input)
+		r, _ := runSubagentStop(t, stdin)
+		if r.SystemMessage != "" {
+			t.Fatalf("a healthy subagent must not be reported degraded from another transcript: %+v (input %v)", r, input)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(ws, filepath.FromSlash(store.RuntimeEventsRelPath))); !os.IsNotExist(err) {
+		t.Fatalf("no degraded event may be recorded, stat error=%v", err)
+	}
+}
+
+func TestSubagentStop_HostBindingHashesTheSubagentsOwnTranscript(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	mainPath := filepath.Join(workspace, "main.jsonl")
+	agentPath := filepath.Join(workspace, "agent.jsonl")
+	if err := os.WriteFile(mainPath, []byte("main session bytes\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(agentPath, []byte("subagent bytes\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd": workspace, "agent_type": "sdd-apply", "status": "success", "session_id": "session-a",
+		"transcript_path": mainPath, "agent_transcript_path": agentPath,
+	})
+	runSubagentStop(t, stdin)
+
+	record := readPhaseCosts(t, workspace, "strict-result-envelope")[0]
+	want := fmt.Sprintf("%x", sha256.Sum256([]byte("subagent bytes\n")))
+	if record.HostBinding["transcript_sha256"] != want {
+		t.Fatalf("binding must hash the subagent's transcript: %#v", record.HostBinding)
+	}
+}

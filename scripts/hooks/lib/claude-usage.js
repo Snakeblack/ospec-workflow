@@ -180,14 +180,16 @@ async function readTranscriptTail(filePath, tailBytes = TAIL_WINDOW_BYTES) {
 }
 
 /**
- * Resuelve la ruta de la transcripción del dispatch: `transcript_path` primero,
- * `agent_transcript_path` como alias (precedente REQ-hooks-006).
+ * Resuelve la ruta de la transcripción del dispatch: la del propio subagente
+ * (`agent_transcript_path`) primero, porque en Claude Code `transcript_path`
+ * es la de la sesión principal; `transcript_path` solo cuando falta
+ * (REQ-hooks-006, REQ-hooks-033).
  *
  * @param {unknown} input dispatch crudo del host
  * @returns {unknown} el valor crudo de la ruta (o undefined)
  */
 function resolveClaudeTranscriptPath(input) {
-  return input?.transcript_path || input?.agent_transcript_path;
+  return input?.agent_transcript_path || input?.transcript_path;
 }
 
 /**

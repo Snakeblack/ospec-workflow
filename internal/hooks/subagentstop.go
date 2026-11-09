@@ -235,19 +235,52 @@ func readFilePermissive(path string) ([]byte, error) {
 	return data, nil
 }
 
-// resolveTranscriptPath resolves the transcript-file path from either
-// transcript_path (baseline hosts) or agent_transcript_path (REQ-hooks-006:
-// the name the Codex host uses), transcript_path taking priority when both
-// are present. Mirrors resolveTranscriptPath from
-// scripts/hooks/subagent-stop.js.
+// resolveTranscriptPath resolves the dispatch's transcript for every reader
+// (REQ-hooks-006/033). The subagent's own transcript (agent_transcript_path,
+// the only one Codex names) wins: in Claude Code transcript_path is the main
+// session's, whose last envelope belongs to the subagent that ran before.
+// transcript_path counts only when the host passes no agent transcript.
+// Mirrors resolveTranscriptPath from scripts/hooks/subagent-stop.js.
 func resolveTranscriptPath(input map[string]any) (string, bool) {
-	if tp, ok := input["transcript_path"].(string); ok && tp != "" {
-		return tp, true
-	}
 	if tp, ok := input["agent_transcript_path"].(string); ok && tp != "" {
 		return tp, true
 	}
+	if tp, ok := input["transcript_path"].(string); ok && tp != "" {
+		return tp, true
+	}
 	return "", false
+}
+
+// finalMessageOf returns last_assistant_message when the host passes it as a
+// string (REQ-hooks-033): Claude Code fires SubagentStop before the
+// subagent's transcript holds its final message, so that message is then the
+// only source of the envelope and of skill_resolution, as for the review
+// receipts (REQ-hooks-027).
+func finalMessageOf(input map[string]any) (string, bool) {
+	message, ok := input["last_assistant_message"].(string)
+	return message, ok
+}
+
+// envelopeFromMessage mirrors envelopeFromMessage from
+// scripts/lib/result-envelope.js: the message's json:result-envelope fence
+// (an unversioned one adapted when the adapter accepts it), else the legacy
+// prose adapted.
+func envelopeFromMessage(text string) (map[string]any, bool) {
+	if strings.TrimSpace(text) == "" {
+		return nil, false
+	}
+	if envelope, found := resultenvelope.Extract(text); found && envelope != nil {
+		if _, hasVersion := envelope["schema_version"]; !hasVersion {
+			if adapted, ok, _ := resultenvelope.AdaptLegacyEnvelope(envelope); ok && adapted != nil {
+				return adapted, true
+			}
+		}
+		return envelope, true
+	}
+	if adapted, ok, _ := resultenvelope.AdaptLegacyEnvelope(text); ok && adapted != nil {
+		return adapted, true
+	}
+	return nil, false
 }
 
 // resolveHostBinding mirrors the Node fallback without claiming a stronger
@@ -405,8 +438,9 @@ func resolveHostBinding(input map[string]any, workspace string, canonicalRecord 
 // ── Result Envelope extraction/validation/persistence (C5) ──────────────────
 // Ports findEnvelopeInInput/findEnvelopeInTranscript/persistResultEnvelope from
 // scripts/hooks/subagent-stop.js. Mirrors the same §5.2 field-search order
-// already used for skill_resolution (resultFields, then a transcript_path
-// fallback), but looks for the strict json:result-envelope fence instead.
+// already used for skill_resolution (the final message alone when the host
+// passes it, else resultFields, then the resolveTranscriptPath fallback), but
+// looks for the strict json:result-envelope fence instead.
 
 // findEnvelopeInValue searches v (string or nested structure) for the strict
 // json:result-envelope fence. JSON payloads are always acyclic.
@@ -511,6 +545,9 @@ func adaptTranscriptContent(content string) (map[string]any, bool) {
 }
 
 func resolveCandidateEnvelope(input map[string]any) (map[string]any, bool) {
+	if message, ok := finalMessageOf(input); ok {
+		return envelopeFromMessage(message)
+	}
 	envelope, found := findEnvelopeInInput(input)
 	if !found {
 		if tp, ok := resolveTranscriptPath(input); ok {
@@ -1227,8 +1264,21 @@ func runSubagentStop(input map[string]any) ([]byte, int) {
 	// never alters this function's return value or the hook's stdout.
 	persistPhaseCostWithActiveChange(input, workspace, activeChangeResolution)
 
-	resolution := findResolutionInInput(input)
-	if resolution == "" {
+	// §5.2 order: the input's own field, then the subagent's final message
+	// alone when the host passes it (REQ-hooks-033), else the result fields
+	// and the transcript.
+	resolution := ""
+	if direct, ok := input["skill_resolution"]; ok {
+		resolution = NormalizeResolution(direct)
+	}
+	message, hasMessage := finalMessageOf(input)
+	if resolution == "" && hasMessage {
+		resolution = findTextResolution(message)
+	}
+	if resolution == "" && !hasMessage {
+		resolution = findResolutionInInput(input)
+	}
+	if resolution == "" && !hasMessage {
 		if tp, ok := resolveTranscriptPath(input); ok {
 			res, err := findResolutionInTranscript(tp)
 			if err != nil {
