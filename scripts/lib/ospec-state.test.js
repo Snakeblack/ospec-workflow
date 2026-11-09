@@ -1512,3 +1512,117 @@ test("projectPhaseCompletion: repeat projection preserves non-projected phase fi
 });
 
 
+
+// --- REQ-lifecycle-kernel-032: block and multi-line scalars ------------------
+
+const DESIGN_ENVELOPE = {
+  schema_version: 1,
+  status: "success",
+  executive_summary: "Designed stateless JWT auth.",
+  artifacts: ["openspec/changes/jwt-auth/design.md"],
+  next_recommended: "sdd-tasks",
+  risks: "None",
+  skill_resolution: "injected",
+};
+
+async function writeChangeState(t, content) {
+  const workspace = await createWorkspace(t);
+  const changeDir = path.join(workspace, "openspec", "changes", "jwt-auth");
+  await fs.mkdir(changeDir, { recursive: true });
+  const statePath = path.join(changeDir, "state.yaml");
+  await fs.writeFile(statePath, content, "utf8");
+  return { changeDir, statePath };
+}
+
+test("[REQ-lifecycle-kernel-032] projectPhaseCompletion projects over block and multi-line scalars and keeps them byte for byte", async (t) => {
+  const opaque = [
+    "route:",
+    "  actual_route: standard",
+    "  route_rationale: >",
+    "    The auth floor matched:",
+    "    status: is part of the text, not a key",
+    "",
+    "    second paragraph",
+    "  note: a plain scalar that",
+    "    continues on the next line",
+    "  quoted: \"a double-quoted scalar",
+    "    that: also continues\"",
+    "  single: 'it''s single-quoted",
+    "    and continues'",
+    "owner:",
+    "  notes: |-",
+    "    - not a sequence item",
+    "    phases: not a key",
+  ];
+  const before = [
+    "change: jwt-auth",
+    "status: planning",
+    "revision: 1",
+    ...opaque,
+    "phases:",
+    "  design:",
+    "    status: pending",
+    "    notes: |",
+    "      status: fake",
+    "      summary: fake",
+    "  tasks:",
+    "    status: pending",
+    "",
+  ].join("\n");
+  const { changeDir, statePath } = await writeChangeState(t, before);
+
+  const result = await projectPhaseCompletion({ changePath: changeDir, phase: "design", envelope: DESIGN_ENVELOPE });
+
+  assert.equal(result.ok, true, result.error);
+  assert.equal(result.outcome, "advanced");
+  const after = await fs.readFile(statePath, "utf8");
+  assert.ok(after.includes(opaque.join("\n")), after);
+  assert.ok(after.includes(["    notes: |", "      status: fake", "      summary: fake"].join("\n")), after);
+  assert.match(after, /\n  design:\n    status: done\n/);
+  assert.match(after, /summary: "Designed stateless JWT auth\."/);
+  assert.match(after, /\n  tasks:\n    status: pending\n/);
+});
+
+test("[REQ-lifecycle-kernel-032] a projected key written as a block or multi-line scalar is rewritten on one line", async (t) => {
+  const before = [
+    "change: jwt-auth",
+    "status: >",
+    "  planning",
+    "last_updated: \"2026-11-01",
+    "  T00:00:00Z\"",
+    "revision: 1",
+    "phases:",
+    "  design:",
+    "    status: pending",
+    "    summary: |",
+    "      An old summary",
+    "      on two lines",
+    "    artifact: design.md",
+    "",
+  ].join("\n");
+  const { changeDir, statePath } = await writeChangeState(t, before);
+
+  const result = await projectPhaseCompletion({ changePath: changeDir, phase: "design", envelope: DESIGN_ENVELOPE });
+
+  assert.equal(result.ok, true, result.error);
+  const after = await fs.readFile(statePath, "utf8");
+  const lines = after.split("\n");
+  assert.equal(lines[1], "status: planning");
+  assert.match(lines[2], /^last_updated: "\d{4}-/);
+  assert.equal(lines[3], "revision: 2");
+  assert.doesNotMatch(after, /An old summary|on two lines|T00:00:00Z"|^ {2}planning$/m);
+  assert.match(after, /    summary: "Designed stateless JWT auth\."\n    artifact: design\.md\n/);
+});
+
+test("[REQ-lifecycle-kernel-032] a quoted scalar that never closes still fails closed", async (t) => {
+  const cases = [
+    ["at the end of the file", "change: jwt-auth\nstatus: planning\nphases:\n  design:\n    summary: \"unterminated\n"],
+    ["before a less indented line", "change: jwt-auth\nstatus: planning\nphases:\n  design:\n    summary: 'open\n  tasks:\n    status: pending\n"],
+  ];
+  for (const [name, before] of cases) {
+    const { changeDir, statePath } = await writeChangeState(t, before);
+    const result = await projectPhaseCompletion({ changePath: changeDir, phase: "design", envelope: DESIGN_ENVELOPE });
+    assert.equal(result.outcome, "malformed-state", name);
+    assert.equal(await fs.readFile(statePath, "utf8"), before, name);
+  }
+});

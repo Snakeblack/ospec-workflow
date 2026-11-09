@@ -133,3 +133,11 @@ The lifecycle kernel runtime MUST provide a legacy envelope adapter that normali
 - WHEN the adapter attempts normalization
 - THEN it MUST return a structured validation error without throwing
 - AND the kernel MUST NOT mutate authoritative state
+
+### Requirement: The Projector Tolerates Block And Multi-Line Scalars {#REQ-lifecycle-kernel-032}
+
+The Node and Go projectors (`scripts/lib/ospec-state.js`, `internal/hooks/phase-completion-reducer.go`) write `state.yaml` line by line, yet a block scalar (`|` or `>`, with chomping and indentation indicators) or a plain or quoted scalar that starts on its key's line and continues on more indented lines is valid YAML a human or an agent may write, for example `route_rationale: >`. Both projectors MUST treat those continuation lines as opaque: validation MUST accept them, parsing MUST NOT read a key inside them, and projection MUST leave them byte for byte. A key the projector rewrites (`status`, `last_updated`, `revision` or a projected phase field) MUST lose its continuation lines and be written on one line; the parser reads its one-line form, the continuation joined by single spaces. A quoted scalar that never closes, or whose continuation is not more indented than its key, MUST still be `malformed-state`, as MUST a tab on any line. A value that starts on the line after its key is not supported. Only lines at exactly four spaces under a phase are phase fields, and a blank line never ends a phase block.
+
+- GIVEN `route_rationale: >` with a content line `status: …`, a plain and a double- and single-quoted scalar over two lines, and a phase field `notes: |` whose content holds `status: fake` and `summary: fake` THEN a projection MUST succeed and leave all of them byte for byte.
+- GIVEN `status: >` over two lines, `last_updated` as a two-line quoted scalar and `phases.design.summary: |` THEN after a design projection each MUST be on one line, with no trace of their old continuation.
+- GIVEN `summary: "unterminated` at the end of the file, or `summary: 'open` followed by a less indented line THEN the projection MUST fail with `malformed-state` and leave the bytes unchanged.

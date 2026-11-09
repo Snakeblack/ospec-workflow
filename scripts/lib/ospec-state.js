@@ -734,6 +734,127 @@ function setPhaseSummary(content, phase, { summary, keyDecisions = [] } = {}) {
   return nextLines.join(eol);
 }
 
+// REQ-lifecycle-kernel-032: a block scalar (`|` or `>`, with chomping and
+// indentation indicators) and a plain or quoted scalar that starts on its
+// key's line and continues on more indented lines are valid YAML the
+// projector never edits inside. The scan marks those continuation lines so
+// validation, parsing and projection treat them as opaque. A value that starts
+// on the next line is not supported, and a quoted scalar that never closes, or
+// whose continuation is not more indented than its key, is malformed.
+const BLOCK_SCALAR_HEADER = /^[|>](?:[1-9][+-]?|[+-][1-9]?)?(?:\s+#.*)?$/;
+const MAPPING_LINE = /^([^:\s][^:]*):\s*(.*)$/;
+
+function lineIndent(raw) {
+  return raw.match(/^ */)[0].length;
+}
+
+// Index just past the quote that closes a scalar opened with `quote`, scanning
+// from `from`; -1 when it does not close in `text`.
+function quoteClose(text, quote, from) {
+  for (let i = from; i < text.length; i += 1) {
+    if (quote === '"' && text[i] === "\\") {
+      i += 1;
+    } else if (text[i] === quote) {
+      if (quote === "'" && text[i + 1] === "'") {
+        i += 1;
+      } else {
+        return i + 1;
+      }
+    }
+  }
+  return -1;
+}
+
+function opensQuotedScalar(value) {
+  const v = String(value).trim();
+  return (v.startsWith('"') || v.startsWith("'")) && quoteClose(v, v[0], 1) === -1;
+}
+
+// The scalar a mapping or sequence line holds, or null for any other line.
+function lineScalarValue(trimmed) {
+  if (trimmed.startsWith("- ")) {
+    const item = trimmed.slice(2).trim();
+    if (item.startsWith('"') || item.startsWith("'")) return item;
+    const entry = item.match(MAPPING_LINE);
+    return entry ? entry[2] : item;
+  }
+  const entry = trimmed.match(MAPPING_LINE);
+  return entry ? entry[2] : null;
+}
+
+function scalarOwner(value, indent) {
+  const v = String(value).trim();
+  if (!v || v.startsWith("#")) return null;
+  if (BLOCK_SCALAR_HEADER.test(v)) return { indent, kind: "block" };
+  if (v.startsWith('"') || v.startsWith("'")) {
+    return quoteClose(v, v[0], 1) === -1 ? { indent, kind: v[0] } : null;
+  }
+  return { indent, kind: "plain" };
+}
+
+function scanScalarContinuations(lines) {
+  const continuation = new Array(lines.length).fill(false);
+  let owner = null;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    const indent = lineIndent(raw);
+
+    if (owner?.kind === "block") {
+      if (!trimmed || indent > owner.indent) {
+        continuation[i] = true;
+        continue;
+      }
+      owner = null;
+    } else if (owner && owner.kind !== "plain") {
+      continuation[i] = true;
+      if (!trimmed) continue;
+      if (indent <= owner.indent) {
+        return { continuation, error: `line ${i + 1}: quoted scalar never closes` };
+      }
+      const end = quoteClose(trimmed, owner.kind, 0);
+      if (end !== -1) {
+        const rest = trimmed.slice(end);
+        if (rest.trim() && !/^\s+#/.test(rest)) {
+          return { continuation, error: `line ${i + 1}: text after a closed quoted scalar` };
+        }
+        owner = null;
+      }
+      continue;
+    } else if (owner) {
+      if (!trimmed) continue;
+      const entry = trimmed.startsWith("- ") || trimmed === "-" || MAPPING_LINE.test(trimmed);
+      if (indent > owner.indent && !entry && !trimmed.startsWith("#")) {
+        continuation[i] = true;
+        continue;
+      }
+      owner = null;
+    }
+
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const value = lineScalarValue(trimmed);
+    owner = value === null ? null : scalarOwner(value, indent);
+  }
+
+  if (owner && owner.kind !== "block" && owner.kind !== "plain") {
+    return { continuation, error: "quoted scalar never closes" };
+  }
+  return { continuation, error: null };
+}
+
+// The one-line form of the scalar that line `index` opens: its continuation
+// lines joined by single spaces, then read like any single-line scalar.
+function oneLineScalar(lines, index, value, continuation) {
+  const parts = [];
+  for (let j = index + 1; j < lines.length && continuation[j]; j += 1) {
+    if (lines[j].trim()) parts.push(lines[j].trim());
+  }
+  const v = String(value).trim();
+  if (BLOCK_SCALAR_HEADER.test(v)) return parts.join(" ");
+  return parseScalar([v, ...parts].join(" "));
+}
+
 // This module writes state.yaml with a line-oriented projector rather than a
 // full YAML serializer. Validate the supported document subset while holding
 // the state lock so malformed nested YAML is never normalized or overwritten.
@@ -742,24 +863,34 @@ function validateProjectableState(content) {
   let status = false;
   let phases = false;
 
-  for (const raw of String(content).split(/\r?\n/)) {
+  const lines = String(content).split(/\r?\n/);
+  const { continuation, error } = scanScalarContinuations(lines);
+  if (error) return false;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const raw = lines[i];
     const trimmed = raw.trim();
+    if (continuation[i]) {
+      if (raw.includes("\t")) return false;
+      continue;
+    }
     if (!trimmed || trimmed.startsWith("#")) continue;
     if (raw.includes("\t")) return false;
 
     if (trimmed.startsWith("- ")) {
-      if (!isValidYamlScalar(trimmed.slice(2))) return false;
+      const item = trimmed.slice(2);
+      if (!isValidYamlScalar(item) && !opensQuotedScalar(item)) return false;
       continue;
     }
 
-    const match = trimmed.match(/^([^:\s][^:]*):\s*(.*)$/);
+    const match = trimmed.match(MAPPING_LINE);
     if (!match) return false;
     const [, key, value] = match;
-    if (!isValidYamlScalar(value)) return false;
+    if (!isValidYamlScalar(value) && !opensQuotedScalar(value)) return false;
     if (raw.match(/^\s*/)[0].length !== 0) continue;
     if (key === "change") change = Boolean(value.trim());
     if (key === "status") status = Boolean(value.trim());
-    if (key === "revision" && !/^\d+$/.test(value.trim())) return false;
+    if (key === "revision" && !/^\d+$/.test(oneLineScalar(lines, i, value, continuation))) return false;
     if (key === "phases") {
       if (value.trim() && !value.trim().startsWith("#")) return false;
       phases = true;
@@ -793,13 +924,14 @@ function parseStateYaml(content) {
   };
 
   const lines = content.split(/\r?\n/);
+  const { continuation } = scanScalarContinuations(lines);
   let currentTopSection = null;
   let currentPhase = null;
 
   for (let i = 0; i < lines.length; i += 1) {
     const raw = lines[i];
     const trimmed = raw.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
+    if (continuation[i] || !trimmed || trimmed.startsWith("#")) continue;
 
     const indent = raw.match(/^\s*/)[0].length;
 
@@ -810,20 +942,20 @@ function parseStateYaml(content) {
       const kv = trimmed.match(/^([^:]+):\s*(.*)$/);
       if (kv) {
         const key = kv[1].trim();
-        const val = kv[2].trim();
+        const val = oneLineScalar(lines, i, kv[2], continuation);
 
         if (key === "schema_version") {
-          result.schema_version = Number(parseScalar(val)) || 1;
+          result.schema_version = Number(val) || 1;
         } else if (key === "change") {
-          result.change = parseScalar(val);
+          result.change = val;
         } else if (key === "status") {
-          result.status = parseScalar(val);
+          result.status = val;
         } else if (key === "last_updated") {
-          result.last_updated = parseScalar(val);
+          result.last_updated = val;
         } else if (key === "revision") {
-          result.revision = Number(parseScalar(val)) || 0;
+          result.revision = Number(val) || 0;
         } else if (key === "classification") {
-          result.classification = parseScalar(val);
+          result.classification = val;
         } else if (key === "blocking_questions") {
           if (val === "[]") {
             result.blocking_questions = [];
@@ -841,7 +973,7 @@ function parseStateYaml(content) {
 
     if (currentTopSection === "blocking_questions") {
       if (indent >= 2 && trimmed.startsWith("- ")) {
-        result.blocking_questions.push(parseScalar(trimmed.slice(2)));
+        result.blocking_questions.push(oneLineScalar(lines, i, trimmed.slice(2), continuation));
       }
       continue;
     }
@@ -868,19 +1000,19 @@ function parseStateYaml(content) {
           currentPhase = match[1];
           result.phases[currentPhase] = result.phases[currentPhase] || {};
         }
-      } else if (indent >= 4 && currentPhase) {
+      } else if (indent === 4 && currentPhase) {
         const kv = trimmed.match(/^([^:]+):\s*(.*)$/);
         if (kv) {
           const pKey = kv[1].trim();
-          const pVal = kv[2].trim();
+          const pVal = oneLineScalar(lines, i, kv[2], continuation);
           if (pKey === "status") {
-            result.phases[currentPhase].status = parseScalar(pVal);
+            result.phases[currentPhase].status = pVal;
           } else if (pKey === "summary") {
-            result.phases[currentPhase].summary = parseScalar(pVal);
+            result.phases[currentPhase].summary = pVal;
           } else if (pKey === "last_payload_hash") {
-            result.phases[currentPhase].last_payload_hash = parseScalar(pVal);
+            result.phases[currentPhase].last_payload_hash = pVal;
           } else if (pKey === "blocker_type") {
-            result.phases[currentPhase].blocker_type = parseScalar(pVal);
+            result.phases[currentPhase].blocker_type = pVal;
           }
         }
       }
@@ -890,9 +1022,31 @@ function parseStateYaml(content) {
   return result;
 }
 
+// The top-level keys the projector rewrites lose their continuation lines
+// first, so each one ends up on a single line (REQ-lifecycle-kernel-032).
+const REWRITTEN_TOP_LEVEL_KEYS = new Set(["status", "last_updated", "revision"]);
+
+function dropRewrittenContinuations(lines) {
+  const { continuation } = scanScalarContinuations(lines);
+  const kept = [];
+  let dropping = false;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (continuation[i]) {
+      if (!dropping) kept.push(lines[i]);
+      continue;
+    }
+    if (lines[i].trim()) {
+      const entry = lineIndent(lines[i]) === 0 ? lines[i].trim().match(MAPPING_LINE) : null;
+      dropping = Boolean(entry && REWRITTEN_TOP_LEVEL_KEYS.has(entry[1].trim()));
+    }
+    kept.push(lines[i]);
+  }
+  return kept;
+}
+
 function applyStateProjectionToYaml(content, nextState, phase) {
   const eol = content.includes("\r\n") ? "\r\n" : "\n";
-  let lines = content.split(/\r?\n/);
+  let lines = dropRewrittenContinuations(content.split(/\r?\n/));
 
   // 1. Top-level status
   let statusIndex = lines.findIndex(
@@ -990,7 +1144,7 @@ function applyStateProjectionToYaml(content, nextState, phase) {
   for (let i = phasesStart + 1; i < phasesEnd; i += 1) {
     const trimmed = lines[i].trim();
     const indent = lines[i].match(/^\s*/)[0].length;
-    if (indent === 2) {
+    if (trimmed && indent === 2) {
       if (phaseHeaderIndex !== -1) {
         phaseBlockEnd = i;
         break;
@@ -1063,7 +1217,9 @@ function applyStateProjectionToYaml(content, nextState, phase) {
     const applied = new Set();
     let cursor = phaseHeaderIndex + 1;
     while (cursor < phaseBlockEnd) {
-      const m = lines[cursor].match(/^\s{4}([^:#]+):/);
+      // Exactly four spaces: a deeper line belongs to a nested list or to the
+      // continuation of a scalar, never to a phase field.
+      const m = lines[cursor].match(/^ {4}([^\s:#][^:#]*):/);
       const key = m ? m[1].trim() : null;
       const rep = key && !applied.has(key) ? projected.find(([k]) => k === key) : null;
       if (!rep) { cursor += 1; continue; }
