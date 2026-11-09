@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.171.4] - 2026-11-10
+
+### Fixed
+- **Cada fase SDD llega a `state.yaml` en todos los hosts, con su propio envelope** (sdd-envelope-projection, PR4b de la review general del 2026-10-29).
+  - **Sin SubagentStop**: solo ese hook proyectaba la fase, y Cursor, Antigravity, OpenCode y VS Code no lo tienen (el hook además se salta un workspace con varios cambios activos), así que el archivado nunca veía `phases.verify.verdict`. El runner nuevo `scripts/phase-completion-run.js <change> --phase <fase> --envelope-file <fichero>` proyecta el mensaje final del subagente con el mismo reducer, validado para su fase, y responde con una línea JSON. El orquestador lo ejecuta tras cada fase en todos los hosts; donde el hook ya proyectó el mismo envelope queda en `noop-replay`. `sdd-phase-common.md` deja de pedir a las fases que escriban `phases.*`, la contradicción de la prosa común.
+  - **El envelope del subagente anterior**: en Claude Code `transcript_path` es el transcript de la sesión principal, y SubagentStop (JS y Go) proyectaba el último envelope que había allí, el de la fase anterior. Ahora el envelope y `skill_resolution` salen solo de `last_assistant_message` cuando el host lo pasa, y todo lector del transcript (envelope, estado del coste, `skill_resolution`, enlace de host, tokens de Codex y telemetría de Claude) usa `agent_transcript_path` antes que `transcript_path`.
+  - **Escalares de bloque**: `state.yaml` con `route_rationale: >` o un escalar que sigue en otra línea se rechazaba como `malformed-state`. Los proyectores Node y Go dejan esas líneas intactas, reescriben en una línea las claves que proyectan y escriben los mismos bytes; una comilla sin cerrar sigue rechazada.
+
+Hecho con IDD (`idd/archive/2026-11-09-sdd-envelope-projection/`). Lo recogen REQ-hooks-033 (con REQ-hooks-006 y 018) y REQ-lifecycle-kernel-031 y 032. Detrás va, en una PR propia, el arreglo de los lectores línea a línea de `state.yaml` que leen dentro de un escalar de bloque; después 4c (runtime y prosa SDD) y 4d (linajes).
+
+**Verificación directa**: `node scripts/check.js` (4489 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados, y `gofmt -l cmd internal`, `go vet ./...` y `go test ./...` en verde.
+
 ## [2.171.3] - 2026-11-08
 
 ### Fixed

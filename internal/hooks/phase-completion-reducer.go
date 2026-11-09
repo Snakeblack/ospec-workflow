@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -591,9 +592,11 @@ func parsePhaseCompletionState(content string) (phaseCompletionState, error) {
 	}
 	section, phase := "", ""
 	seenChange, seenStatus, seenPhases := false, false, false
-	for lineNumber, line := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
+	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	continuation, _ := scanScalarContinuations(lines)
+	for lineNumber, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+		if continuation[lineNumber] || trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
 		if strings.Contains(line, "\t") {
@@ -606,14 +609,15 @@ func parsePhaseCompletionState(content string) (phaseCompletionState, error) {
 			if !ok || key == "" {
 				return state, fmt.Errorf("state YAML line %d is not a top-level mapping", lineNumber+1)
 			}
+			scalar := oneLineScalar(lines, lineNumber, value, continuation)
 			switch key {
 			case "change":
-				seenChange = yamlScalar(value) != ""
+				seenChange = scalar != ""
 			case "status":
-				state.Status = yamlScalar(value)
+				state.Status = scalar
 				seenStatus = state.Status != ""
 			case "revision":
-				revision, err := strconv.Atoi(yamlScalar(value))
+				revision, err := strconv.Atoi(scalar)
 				if err != nil || revision < 0 {
 					return state, fmt.Errorf("state YAML line %d has an invalid revision", lineNumber+1)
 				}
@@ -642,15 +646,16 @@ func parsePhaseCompletionState(content string) (phaseCompletionState, error) {
 				return state, fmt.Errorf("state YAML line %d is not a phase mapping", lineNumber+1)
 			}
 			entry := state.Phases[phase]
+			scalar := oneLineScalar(lines, lineNumber, value, continuation)
 			switch key {
 			case "status":
-				entry.Status = yamlScalar(value)
+				entry.Status = scalar
 			case "summary":
-				entry.Summary = yamlScalar(value)
+				entry.Summary = scalar
 			case "last_payload_hash":
-				entry.LastPayloadHash = yamlScalar(value)
+				entry.LastPayloadHash = scalar
 			case "blocker_type":
-				entry.BlockerType = yamlScalar(value)
+				entry.BlockerType = scalar
 			}
 			state.Phases[phase] = entry
 		}
@@ -666,7 +671,7 @@ func applyPhaseCompletionProjection(content string, state phaseCompletionState, 
 	if strings.Contains(content, "\r\n") {
 		eol = "\r\n"
 	}
-	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	lines := dropRewrittenContinuations(strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n"))
 	statusIndex := replaceOrInsertTopLevel(&lines, "status", "status: "+state.Status, 1)
 	replaceOrInsertTopLevel(&lines, "last_updated", "last_updated: "+yamlQuote(state.LastUpdated), statusIndex+1)
 	replaceOrInsertTopLevel(&lines, "revision", fmt.Sprintf("revision: %d", state.Revision), statusIndex+1)
@@ -746,7 +751,7 @@ func applyPhaseProjection(lines *[]string, state phaseCompletionState, phase str
 	}
 	header, blockEnd := -1, phasesEnd
 	for i := phasesStart + 1; i < phasesEnd; i++ {
-		if lineIndentation((*lines)[i]) != 2 {
+		if strings.TrimSpace((*lines)[i]) == "" || lineIndentation((*lines)[i]) != 2 {
 			continue
 		}
 		if header != -1 {
@@ -855,13 +860,199 @@ func artifactLines(artifacts any) []string {
 	return lines
 }
 
+// REQ-lifecycle-kernel-032, mirrored from scripts/lib/ospec-state.js: a block
+// scalar (| or >, with chomping and indentation indicators) and a plain or
+// quoted scalar that starts on its key's line and continues on more indented
+// lines are valid YAML the projector never edits inside. The scan marks those
+// continuation lines so validation, parsing and projection treat them as
+// opaque. A value that starts on the next line is not supported, and a quoted
+// scalar that never closes, or whose continuation is not more indented than
+// its key, is malformed.
+var (
+	blockScalarHeader = regexp.MustCompile(`^[|>](?:[1-9][+-]?|[+-][1-9]?)?(?:\s+#.*)?$`)
+	mappingLine       = regexp.MustCompile(`^([^:\s][^:]*):\s*(.*)$`)
+	trailingComment   = regexp.MustCompile(`^\s+#`)
+)
+
+type scalarOwner struct {
+	indent int
+	kind   byte // 'b' block, 'p' plain, '"' or '\'' an open quoted scalar
+}
+
+func spaceIndent(line string) int {
+	return len(line) - len(strings.TrimLeft(line, " "))
+}
+
+// quoteClose returns the index just past the quote that closes a scalar
+// opened with quote, scanning from from; -1 when it does not close in text.
+func quoteClose(text string, quote byte, from int) int {
+	for i := from; i < len(text); i++ {
+		if quote == '"' && text[i] == '\\' {
+			i++
+		} else if text[i] == quote {
+			if quote == '\'' && i+1 < len(text) && text[i+1] == '\'' {
+				i++
+			} else {
+				return i + 1
+			}
+		}
+	}
+	return -1
+}
+
+func opensQuotedScalar(value string) bool {
+	v := strings.TrimSpace(value)
+	return v != "" && (v[0] == '"' || v[0] == '\'') && quoteClose(v, v[0], 1) == -1
+}
+
+// lineScalarValue returns the scalar a mapping or sequence line holds.
+func lineScalarValue(trimmed string) (string, bool) {
+	if strings.HasPrefix(trimmed, "- ") {
+		item := strings.TrimSpace(trimmed[2:])
+		if item != "" && (item[0] == '"' || item[0] == '\'') {
+			return item, true
+		}
+		if entry := mappingLine.FindStringSubmatch(item); entry != nil {
+			return entry[2], true
+		}
+		return item, true
+	}
+	if entry := mappingLine.FindStringSubmatch(trimmed); entry != nil {
+		return entry[2], true
+	}
+	return "", false
+}
+
+func newScalarOwner(value string, indent int) *scalarOwner {
+	v := strings.TrimSpace(value)
+	if v == "" || v[0] == '#' {
+		return nil
+	}
+	if blockScalarHeader.MatchString(v) {
+		return &scalarOwner{indent, 'b'}
+	}
+	if v[0] == '"' || v[0] == '\'' {
+		if quoteClose(v, v[0], 1) == -1 {
+			return &scalarOwner{indent, v[0]}
+		}
+		return nil
+	}
+	return &scalarOwner{indent, 'p'}
+}
+
+func scanScalarContinuations(lines []string) ([]bool, error) {
+	continuation := make([]bool, len(lines))
+	var owner *scalarOwner
+	for i, raw := range lines {
+		trimmed := strings.TrimSpace(raw)
+		indent := spaceIndent(raw)
+		switch {
+		case owner != nil && owner.kind == 'b':
+			if trimmed == "" || indent > owner.indent {
+				continuation[i] = true
+				continue
+			}
+			owner = nil
+		case owner != nil && owner.kind != 'p':
+			continuation[i] = true
+			if trimmed == "" {
+				continue
+			}
+			if indent <= owner.indent {
+				return continuation, fmt.Errorf("state YAML line %d: quoted scalar never closes", i+1)
+			}
+			if end := quoteClose(trimmed, owner.kind, 0); end != -1 {
+				if rest := trimmed[end:]; strings.TrimSpace(rest) != "" && !trailingComment.MatchString(rest) {
+					return continuation, fmt.Errorf("state YAML line %d: text after a closed quoted scalar", i+1)
+				}
+				owner = nil
+			}
+			continue
+		case owner != nil:
+			if trimmed == "" {
+				continue
+			}
+			entry := strings.HasPrefix(trimmed, "- ") || trimmed == "-" || mappingLine.MatchString(trimmed)
+			if indent > owner.indent && !entry && !strings.HasPrefix(trimmed, "#") {
+				continuation[i] = true
+				continue
+			}
+			owner = nil
+		}
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if value, ok := lineScalarValue(trimmed); ok {
+			owner = newScalarOwner(value, indent)
+		} else {
+			owner = nil
+		}
+	}
+	if owner != nil && owner.kind != 'b' && owner.kind != 'p' {
+		return continuation, fmt.Errorf("state YAML: quoted scalar never closes")
+	}
+	return continuation, nil
+}
+
+// oneLineScalar returns the one-line form of the scalar that line index
+// opens: its continuation lines joined by single spaces, then read like any
+// single-line scalar.
+func oneLineScalar(lines []string, index int, value string, continuation []bool) string {
+	parts := []string{}
+	for j := index + 1; j < len(lines) && continuation[j]; j++ {
+		if part := strings.TrimSpace(lines[j]); part != "" {
+			parts = append(parts, part)
+		}
+	}
+	v := strings.TrimSpace(value)
+	if blockScalarHeader.MatchString(v) {
+		return strings.Join(parts, " ")
+	}
+	return yamlScalar(strings.Join(append([]string{v}, parts...), " "))
+}
+
+// rewrittenTopLevelKeys lose their continuation lines before the projection,
+// so each one ends up on a single line.
+var rewrittenTopLevelKeys = map[string]bool{"status": true, "last_updated": true, "revision": true}
+
+func dropRewrittenContinuations(lines []string) []string {
+	continuation, _ := scanScalarContinuations(lines)
+	kept := make([]string, 0, len(lines))
+	dropping := false
+	for i, line := range lines {
+		if continuation[i] {
+			if !dropping {
+				kept = append(kept, line)
+			}
+			continue
+		}
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			entry := mappingLine.FindStringSubmatch(trimmed)
+			dropping = spaceIndent(line) == 0 && entry != nil && rewrittenTopLevelKeys[strings.TrimSpace(entry[1])]
+		}
+		kept = append(kept, line)
+	}
+	return kept
+}
+
 // validatePhaseCompletionYAML is deliberately conservative because this
 // reducer is a line-oriented writer, not a general YAML parser. It rejects
 // malformed mappings and unterminated quoted scalars before any projection can
 // rewrite opaque state bytes.
 func validatePhaseCompletionYAML(content string) error {
-	for lineNumber, line := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
+	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	continuation, err := scanScalarContinuations(lines)
+	if err != nil {
+		return err
+	}
+	for lineNumber, line := range lines {
 		trimmed := strings.TrimSpace(line)
+		if continuation[lineNumber] {
+			if strings.Contains(line, "\t") {
+				return fmt.Errorf("state YAML line %d contains a tab", lineNumber+1)
+			}
+			continue
+		}
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
@@ -869,7 +1060,8 @@ func validatePhaseCompletionYAML(content string) error {
 			return fmt.Errorf("state YAML line %d contains a tab", lineNumber+1)
 		}
 		if strings.HasPrefix(trimmed, "- ") {
-			if err := validateYAMLScalar(strings.TrimSpace(strings.TrimPrefix(trimmed, "- "))); err != nil {
+			item := strings.TrimSpace(strings.TrimPrefix(trimmed, "- "))
+			if err := validateYAMLScalar(item); err != nil && !opensQuotedScalar(item) {
 				return fmt.Errorf("state YAML line %d has an invalid sequence scalar: %w", lineNumber+1, err)
 			}
 			continue
@@ -878,7 +1070,7 @@ func validatePhaseCompletionYAML(content string) error {
 		if !ok || key == "" {
 			return fmt.Errorf("state YAML line %d is not a mapping", lineNumber+1)
 		}
-		if err := validateYAMLScalar(value); err != nil {
+		if err := validateYAMLScalar(value); err != nil && !opensQuotedScalar(value) {
 			return fmt.Errorf("state YAML line %d has an invalid scalar: %w", lineNumber+1, err)
 		}
 	}

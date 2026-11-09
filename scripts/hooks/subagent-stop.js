@@ -23,7 +23,7 @@ const { normalizeContextMeasurement, validateContextMeasurement } = require("../
 const { extractClaudeTelemetry } = require("./lib/claude-usage.js");
 const { writeFileAtomic, recoverOrphanBak } = require("../lib/atomic-write.js");
 const { mkdirOspec } = require("../lib/ospec-gitignore.js");
-const { extractEnvelope, validateEnvelope, adaptLegacyEnvelope } = require("../lib/result-envelope.js");
+const { extractEnvelope, envelopeFromMessage, validateEnvelope, adaptLegacyEnvelope } = require("../lib/result-envelope.js");
 const { resolveModelTier } = require("./lib/model-tier.js");
 const {
   UNRESOLVED,
@@ -43,14 +43,22 @@ const RESULT_FIELDS = [
   "content",
 ];
 
-// REQ-hooks-006: on the codex target the host names the transcript-file field
-// `agent_transcript_path` rather than `transcript_path`. Every call site that
-// reads a transcript path resolves through this helper so both field names
-// work identically (transcript_path takes priority when both are present;
-// resolution priority and the §5.2 step-3 JSONL-parsing logic are otherwise
-// unchanged).
+// REQ-hooks-006/033: every call site that reads the dispatch's transcript
+// resolves it here. The subagent's own transcript (`agent_transcript_path`,
+// the only one Codex names) wins: in Claude Code `transcript_path` is the main
+// session's, whose last envelope belongs to the subagent that ran before.
+// `transcript_path` counts only when the host passes no agent transcript.
 function resolveTranscriptPath(input) {
-  return input?.transcript_path || input?.agent_transcript_path;
+  return input?.agent_transcript_path || input?.transcript_path;
+}
+
+// REQ-hooks-033: Claude Code fires SubagentStop before the subagent's
+// transcript holds its final message, which it hands in
+// `last_assistant_message`. When that field is a string it is the only source
+// of the envelope and of skill_resolution, as for the review receipts
+// (REQ-hooks-027): a transcript could still end with an older one.
+function finalMessageOf(input) {
+  return typeof input?.last_assistant_message === "string" ? input.last_assistant_message : null;
 }
 
 function unsupportedHostBinding(binding) {
@@ -321,6 +329,21 @@ function findResolutionInJsonLines(content) {
   return "";
 }
 
+// §5.2 order: the input's own field, then the subagent's final message alone
+// when the host passes it (REQ-hooks-033), else the result fields and the
+// transcript.
+async function resolveSkillResolution(input) {
+  const direct = normalizeResolution(input?.skill_resolution);
+  if (direct) {
+    return direct;
+  }
+  const finalMessage = finalMessageOf(input);
+  if (finalMessage !== null) {
+    return findTextResolution(finalMessage);
+  }
+  return findResolutionInInput(input) || (await findResolutionInTranscript(resolveTranscriptPath(input)));
+}
+
 async function findResolutionInTranscript(transcriptPath) {
   // Reject relative paths, ".." traversal, and filesystem roots before any read
   // (parity with internal/hooks/subagentstop.go). A rejected path is treated as
@@ -350,8 +373,9 @@ async function findResolutionInTranscript(transcriptPath) {
 
 /**
  * Result Envelope fence extraction (C5 / strict-result-envelope). Mirrors the
- * §5.2 field-search order already used for skill_resolution (RESULT_FIELDS,
- * then a transcript_path fallback), but looks for the strict
+ * §5.2 field-search order already used for skill_resolution (the final
+ * message alone when the host passes it, else RESULT_FIELDS, then the
+ * transcript fallback of resolveTranscriptPath), but looks for the strict
  * ```json:result-envelope``` fence instead of a bare skill_resolution value.
  * Every function here is fail-safe: it returns {found:false} rather than
  * throwing on any unexpected shape.
@@ -494,6 +518,11 @@ function adaptTranscriptContent(content) {
  * falling back to adaptLegacyEnvelope on raw payload and transcript content.
  */
 async function resolveCandidateEnvelope(input) {
+  const finalMessage = finalMessageOf(input);
+  if (finalMessage !== null) {
+    return envelopeFromMessage(finalMessage);
+  }
+
   let envelopeResult = findEnvelopeInInput(input);
 
   if (!envelopeResult.found) {
@@ -1331,9 +1360,7 @@ async function runSubagentStop({
   // REQ-hooks-027: receipt of a trust review result, fail-safe like the above.
   await persistReviewReceipt({ input, workspace, now });
 
-  const resolution =
-    findResolutionInInput(input) ||
-    (await findResolutionInTranscript(resolveTranscriptPath(input)));
+  const resolution = await resolveSkillResolution(input);
 
   if (!isDegradedResolution(resolution)) {
     return {

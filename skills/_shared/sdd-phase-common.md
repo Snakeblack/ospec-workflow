@@ -82,9 +82,9 @@ Every phase that produces an artifact MUST persist it when mode is `openspec`. S
 
 Write the phase artifact to the path defined by the phase skill and `openspec-convention.md`. If the file already exists, read it first and update it instead of blindly overwriting.
 
-After persisting the phase artifact, you MUST also read-merge-update `openspec/changes/{change-name}/state.yaml` so recovery can resume from the filesystem without relying on chat history.
+Do not write `phases.*` in `openspec/changes/{change-name}/state.yaml`: the runtime projects your phase into it from your result envelope, through `SubagentStop` where the host has it and through the orchestrator's `scripts/phase-completion-run.js` on every host, so recovery can resume from the filesystem without relying on chat history.
 
-Minimum state shape:
+State shape the runtime keeps (verify also records `verdict` from `verify_outcome`):
 
 ```yaml
 change: "{change-name}"
@@ -111,6 +111,7 @@ phases:
   verify:
     status: "pending | done"
     artifact: "openspec/changes/{change-name}/verify-report.md"
+    verdict: "PASS | PASS WITH WARNINGS | FAIL"
   archive:
     status: "pending | done"
     artifact: "openspec/changes/{change-name}/archive-report.md"

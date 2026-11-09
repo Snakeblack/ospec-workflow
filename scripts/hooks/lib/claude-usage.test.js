@@ -259,11 +259,11 @@ test("extractClaudeTelemetry resuelve transcript_path y su alias agent_transcrip
     isClaudeTranscript: true,
   });
 
-  // transcript_path tiene prioridad cuando ambos están presentes.
-  const both = await extractClaudeTelemetry({
-    transcript_path: filePath,
-    agent_transcript_path: path.join(dir, "inexistente.jsonl"),
-  });
+  // [REQ-hooks-033] La transcripción del subagente tiene prioridad: en Claude
+  // Code `transcript_path` es la de la sesión principal.
+  const mainPath = path.join(dir, "main.jsonl");
+  await fs.writeFile(mainPath, `${claudeAssistantLine({ input_tokens: 999, output_tokens: 99 })}\n`, "utf8");
+  const both = await extractClaudeTelemetry({ transcript_path: mainPath, agent_transcript_path: filePath });
   assert.equal(both.usage.input_tokens, 30);
 });
 

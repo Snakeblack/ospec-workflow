@@ -1,0 +1,909 @@
+{
+  "schema": "idd-state/v1",
+  "change": "sdd-envelope-projection",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "PR4b de la review 2026-10-29: la fase SDD no se proyecta en state.yaml sin SubagentStop (Cursor, Antigravity, OpenCode, VS Code), así que el archivado nunca ve phases.verify.verdict y la prosa común se contradice; en Claude Code SubagentStop lee el transcript de la sesión principal y proyecta el envelope del subagente anterior; y state.yaml con escalares de bloque o texto multilínea se rechaza como malformed-state",
+    "acceptance": "Un host sin SubagentStop proyecta cada fase por una vía del runtime (el mismo PhaseCompletionReducer) y el archivado ve el veredicto de verify; la prosa común deja de contradecirse; SubagentStop (JS y Go) toma el envelope de last_assistant_message y nunca del transcript principal si existe el del agente; state.yaml con escalares de bloque o multilínea se proyecta sin corromperse en JS y Go"
+  },
+  "facts": {
+    "open": [
+      "Hallazgo 1: ¿cómo se proyecta la fase sin SubagentStop: (a) un runner del runtime que el orquestador ejecuta con el envelope tras cada fase, (b) el gate de archivado deriva el veredicto de verify-report.md, o (c) ambos?",
+      "Hallazgo 1, si (a): ¿el orquestador ejecuta el runner en todos los hosts (noop por el hash de replay donde SubagentStop ya proyectó) o solo en los que no tienen SubagentStop?",
+      "Hallazgo 6: si last_assistant_message existe pero no trae envelope, ¿no se proyecta nada (como los recibos de review, REQ-hooks-027) o se cae al transcript del agente?",
+      "Hallazgo 6: ¿la prioridad del transcript del agente sobre el principal se aplica a todos los lectores del dispatch (envelope, estado del coste, skill_resolution, enlace de host, tokens de Codex y telemetría de Claude) o solo al envelope y al estado del coste?",
+      "Hallazgo 7: ¿qué YAML se tolera: escalares de bloque (| y > con indicadores) y continuaciones multilínea de escalares planos y entrecomillados, o solo escalares de bloque?",
+      "Hallazgo 7: si una clave que el proyector reescribe (status, phases.<fase>.summary…) viene como escalar de bloque, ¿se reemplaza por su forma de una línea borrando la continuación, o se rechaza la proyección?",
+      "Hallazgo 7: cuando la proyección se rechaza igualmente, ¿basta con el error del runner ante el orquestador y el log de stderr del hook, o SubagentStop debe avisar además al agente principal?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "agents/sdd-orchestrator.agent.md",
+      "docs/target-capabilities.md",
+      "internal/hooks/phase-completion-reducer.go",
+      "internal/hooks/subagentstop.go",
+      "openspec/specs/hooks/spec.md",
+      "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "scripts/configure/cli.js",
+      "scripts/hooks/lib/claude-usage.js",
+      "scripts/hooks/subagent-stop.js",
+      "scripts/lib/ospec-state.js",
+      "scripts/lib/result-envelope.js",
+      "scripts/phase-completion-run.js",
+      "skills/_shared/sdd-phase-common.md"
+    ],
+    "work_units": 3,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "scripts/phase-completion-run.js <change> --phase <fase|sdd-fase> --envelope-file <fichero> [--workspace] proyecta con el mismo projectPhaseCompletion el envelope del mensaje final del subagente (bloque json:result-envelope, prosa heredada o el JSON del envelope), validado para su fase; imprime un JSON con el resultado y sale 0 solo si la proyección es ok (advanced, blocked o noop-replay)",
+      "El orquestador ejecuta el runner tras cada fase en todos los hosts, con --change explícito: donde SubagentStop ya proyectó el mismo envelope el hash de replay lo deja en noop, y cubre también los varios cambios activos que el hook se salta",
+      "Las fases nunca escriben phases.* en state.yaml: sdd-phase-common.md deja de pedir el read-merge-update y describe la forma que proyecta el runtime, con verdict en verify",
+      "Con last_assistant_message, el mensaje final del subagente es la única fuente del envelope y de skill_resolution (sin envelope no se proyecta nada); sin él siguen los campos de resultado y después el transcript, como los recibos de REQ-hooks-027",
+      "Todo lector del transcript del dispatch (envelope, estado del coste, skill_resolution, enlace de host, tokens de Codex y telemetría de Claude) usa agent_transcript_path y solo cae a transcript_path cuando falta, en JS y Go",
+      "state.yaml tolera escalares de bloque (| y > con indicadores) y continuaciones multilínea de escalares planos y entrecomillados que empiezan en la línea de su clave: la validación y el parseo los tratan como opacos, una comilla sin cerrar sigue rechazada y el tabulador sigue prohibido; un valor que empieza en la línea siguiente no se admite",
+      "Al reescribir una clave proyectada (status, last_updated, revision o un campo de fase) el proyector borra sus líneas de continuación y la deja en una línea; el resto del YAML queda byte a byte",
+      "Un rechazo de la proyección se ve en la salida del runner ante el orquestador; SubagentStop sigue registrándolo solo en stderr"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: touches scripts/lib/ospec-state.js (matches scripts/lib/ospec-state.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/subagent-stop.js (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components change-state, hooks, skills: ADR 0002, 0003, 0006, 0008, 0009, 0010, 0011 and quality scenario contract-compatibility, deterministic-resume, guard-fail-closed, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/configure/cli.js (matches scripts/configure/cli.js)",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0002",
+      "impact": "conforms",
+      "reason": "Refuerza la ADR: el runner escribe state.yaml solo con projectPhaseCompletion (lock, escritura atómica, validación) y la prosa deja de pedir a las fases que escriban phases.*; ninguna fase se da por hecha sin que state.yaml lo diga, también en hosts sin SubagentStop"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La proyección la decide código con tests (runner, reducer, proyector); la prosa del orquestador solo dice cuándo ejecutar el runner y qué hacer con su salida"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "SubagentStop sigue siendo observabilidad que falla abierta con la misma salida; ningún guard de seguridad cambia, y el proyector sigue rechazando un state.yaml con una comilla sin cerrar o un tabulador"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "state.yaml conserva su contrato (schema_version 1): todo estado aceptado se lee igual y solo se amplía el subconjunto YAML tolerado; el hash de replay no cambia. La línea JSON del runner es el resultado de una orden para el agente, como la de route-dispatch-run, y no se persiste"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo biblioteca estándar (Node y regexp de Go); los hooks y proyectores Node y Go siguen equivalentes, con un test de paridad de bytes nuevo"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "El runner solo escribe openspec/changes/<change>/state.yaml y .ospec/.gitignore; no lee ni escribe idd/"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "Los state.yaml que ya se aceptaban se proyectan igual y los tests previos siguen en verde; los rechazados por escalares de bloque ahora se proyectan; la salida de SubagentStop no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "El estado de cada fase llega a state.yaml en todos los hosts, así que la reanudación sale del disco; la reproyección del mismo envelope es noop-replay"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "No cambia ningún guard; la proyección sigue fallando cerrada ante un estado malformado"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Ni el runner ni los hooks ni el proyector añaden llamadas de red"
+    },
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El runner se añade a RUNTIME_ENTRY_SCRIPTS y la prosa se edita en la fuente canónica: cada target lo recibe de la misma generación"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El runner se comporta igual en los siete targets y los proyectores Node y Go dan los mismos bytes (TestProjectPhaseCompletion_NodeAndGoProjectScalarsAlike)"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "La prosa que describe la proyección (agents/sdd-orchestrator.agent.md y skills/_shared/sdd-phase-common.md) cita la orden que la decide, scripts/phase-completion-run.js, y no reimplementa la regla; la orden tiene tests en scripts/phase-completion-run.test.js",
+      "recorded_at": "2026-11-09T09:59:52.903Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Revisado el diff: ni scripts/phase-completion-run.js, ni los hooks JS y Go, ni ospec-state.js ni el reducer Go importan módulos de red (node:http, node:https, node:net, net/http) ni llaman a fetch; el runner solo lee el fichero del mensaje y state.yaml",
+      "recorded_at": "2026-11-09T09:59:53.065Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 215,
+      "answer": "las recomendadas: 1 (a) runner del runtime que el orquestador ejecuta tras cada fase; 2 en todos los hosts, noop por hash de replay; 3 sin envelope en last_assistant_message no se proyecta nada; 4 transcript del agente antes que el principal en todos los lectores del dispatch; 5 escalares de bloque y continuaciones multilínea planas y entrecomilladas; 6 la clave proyectada en bloque se reemplaza por su forma de una línea borrando la continuación; 7 basta con el error del runner y el log de stderr del hook",
+      "source": "user",
+      "resolved_turn": 216
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-09T09:53:38.239Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-09T09:57:51.440Z",
+      "detail": {
+        "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-09T09:57:51.440Z",
+      "detail": {
+        "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/hooks/subagentstop_test.go",
+          "scripts/hooks/lib/claude-usage.test.js",
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/phase-completion-run.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-09T09:58:45.105Z",
+      "detail": {
+        "run": "run-18",
+        "tree": "sha256:e871c996d8a7123a01bca2b4c874846acdb097ce9a9b7097f2250f9507474230",
+        "plan": "Sin migración de datos: todo state.yaml que el proyector ya aceptaba se proyecta igual (los tests previos de projectPhaseCompletion, CAS, replay v2.67 y paridad del reducer siguen en verde sin cambios) y Node y Go dan los mismos bytes; los que rechazaba por escalares de bloque o multilínea ahora se proyectan sin tocar esas líneas, salvo las claves que reescribe, que quedan en una línea. El hash de replay no cambia, así que una fase ya proyectada repite como noop-replay. Rollback: revertir el commit; no hay datos que deshacer, porque un state.yaml escrito por la versión nueva sigue siendo válido para la anterior cuando no lleva bloques, y con bloques vuelve a malformed-state como antes"
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "detail": {
+        "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+        "runs": [
+          "run-19"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "detail": {
+        "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+        "check": "ev-5",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/hooks/subagentstop_test.go",
+          "scripts/hooks/lib/claude-usage.test.js",
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/phase-completion-run.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0006 none",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "adr:0001 conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+        "fitness": [
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26",
+          "run-27",
+          "run-28",
+          "run-29",
+          "run-30",
+          "run-31"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-09T10:04:03.885Z",
+      "detail": {
+        "lineage_id": "sha256:6ecabc47a0a4c850610444486ceb4fed339cac0b2c53dedd89af8ff305ae794b",
+        "candidate_id": "sha256:84fb5aaaebae037a1dcae32d934ff716b18c21e61e988fee6418ce8e6e85318f",
+        "candidate_tree": "e907a19a16a9a6ecb52ae157c5d1bf7592e0feaf",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-09T10:03:50.392Z",
+          "result_digest": "sha256:65c300ada801d4eea675ef243621ba6c3f30ea4b0e5c498e7ce86e7a4db849c2"
+        }
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-09T10:04:12.427Z"
+    }
+  ],
+  "base": "6b3e3449ad945a982391884d34bea5e46af765fa",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"REQ-hooks-033|REQ-lifecycle-kernel-03[12]|extractClaudeTelemetry resuelve\" scripts/hooks/subagent-stop.test.js scripts/hooks/lib/claude-usage.test.js scripts/lib/ospec-state.test.js scripts/phase-completion-run.test.js && go test ./internal/hooks/ -run \"TestSubagentStop_EnvelopeComesFromTheSubagentsOwnOutput|TestSubagentStop_LastAssistantMessageWithoutEnvelopeProjectsNothing|TestSubagentStop_SkillResolutionComesFromTheSubagentsOwnOutput|TestSubagentStop_HostBindingHashesTheSubagentsOwnTranscript|TestProjectPhaseCompletion_BlockAndMultilineScalarsStayOpaque|TestProjectPhaseCompletion_ProjectedBlockScalarIsRewrittenOnOneLine|TestProjectPhaseCompletion_QuotedScalarThatNeverClosesFailsClosed\"",
+      "exit_code": 1,
+      "output_sha256": "sha256:c059b77dfb0ee1da0638cf588b2b9a05d979948e0a4e1bb1732d2a391866a660",
+      "tree": "sha256:7a9f8a79f25b739f5f03e4e30a50a1609d90b13dfa90b8bf4c72910a3b85ccfc",
+      "recorded_at": "2026-11-09T09:47:51.254Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"REQ-hooks-033|REQ-lifecycle-kernel-03[12]|extractClaudeTelemetry resuelve\" scripts/hooks/subagent-stop.test.js scripts/hooks/lib/claude-usage.test.js scripts/lib/ospec-state.test.js scripts/phase-completion-run.test.js && go test ./internal/hooks/ -run \"TestSubagentStop_EnvelopeComesFromTheSubagentsOwnOutput|TestSubagentStop_LastAssistantMessageWithoutEnvelopeProjectsNothing|TestSubagentStop_SkillResolutionComesFromTheSubagentsOwnOutput|TestSubagentStop_HostBindingHashesTheSubagentsOwnTranscript|TestProjectPhaseCompletion_BlockAndMultilineScalarsStayOpaque|TestProjectPhaseCompletion_ProjectedBlockScalarIsRewrittenOnOneLine|TestProjectPhaseCompletion_QuotedScalarThatNeverClosesFailsClosed\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:74c313f82387eaa4aa90fd560927c32a5391b6ddcb8f9e779ca648e195b02cc6",
+      "tree": "sha256:e599ef7eaeefabb8d95b07d47e0f055d74a930c21cff537034f78c355c09c977",
+      "recorded_at": "2026-11-09T09:53:38.239Z",
+      "tests": 14,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "6b3e3449ad945a982391884d34bea5e46af765fa",
+      "mount": "sha256:bfea79880370618a9a5320f737209611158bae1f51341e90b3e355ef96939084",
+      "command": "node --test --test-name-pattern=\"REQ-hooks-033|REQ-lifecycle-kernel-03[12]|extractClaudeTelemetry resuelve\" scripts/hooks/subagent-stop.test.js scripts/hooks/lib/claude-usage.test.js scripts/lib/ospec-state.test.js scripts/phase-completion-run.test.js && go test ./internal/hooks/ -run \"TestSubagentStop_EnvelopeComesFromTheSubagentsOwnOutput|TestSubagentStop_LastAssistantMessageWithoutEnvelopeProjectsNothing|TestSubagentStop_SkillResolutionComesFromTheSubagentsOwnOutput|TestSubagentStop_HostBindingHashesTheSubagentsOwnTranscript|TestProjectPhaseCompletion_BlockAndMultilineScalarsStayOpaque|TestProjectPhaseCompletion_ProjectedBlockScalarIsRewrittenOnOneLine|TestProjectPhaseCompletion_QuotedScalarThatNeverClosesFailsClosed\"",
+      "exit_code": 1,
+      "output_sha256": "sha256:66e9a5f4d8b302f128c8fbc440a1a0cd6267dad275f5814a4e00fe43fcf12822",
+      "tree": "sha256:e599ef7eaeefabb8d95b07d47e0f055d74a930c21cff537034f78c355c09c977",
+      "recorded_at": "2026-11-09T09:53:38.239Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "6b3e3449ad945a982391884d34bea5e46af765fa",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"REQ-hooks-033|REQ-lifecycle-kernel-03[12]|extractClaudeTelemetry resuelve\" scripts/hooks/subagent-stop.test.js scripts/hooks/lib/claude-usage.test.js scripts/lib/ospec-state.test.js scripts/phase-completion-run.test.js && go test ./internal/hooks/ -run \"TestSubagentStop_EnvelopeComesFromTheSubagentsOwnOutput|TestSubagentStop_LastAssistantMessageWithoutEnvelopeProjectsNothing|TestSubagentStop_SkillResolutionComesFromTheSubagentsOwnOutput|TestSubagentStop_HostBindingHashesTheSubagentsOwnTranscript|TestProjectPhaseCompletion_BlockAndMultilineScalarsStayOpaque|TestProjectPhaseCompletion_ProjectedBlockScalarIsRewrittenOnOneLine|TestProjectPhaseCompletion_QuotedScalarThatNeverClosesFailsClosed\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:4cddff5a462117680490fd0ce6408b98bf1fd256b297a9e2bc003cb96b9b8477",
+      "tree": "sha256:e599ef7eaeefabb8d95b07d47e0f055d74a930c21cff537034f78c355c09c977",
+      "recorded_at": "2026-11-09T09:53:38.239Z",
+      "tests": 3
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e04c1b7c2025bb77db9fa2f9764a230e18607f7a7cedd877864a5bdc6f9ed0ec",
+      "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+      "recorded_at": "2026-11-09T09:57:51.440Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7175c325b5a7911afd450ecabfb632e0ab0df10d40d94146b04d22d1080bb07b",
+      "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+      "recorded_at": "2026-11-09T09:57:51.440Z",
+      "tests": 14
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1c2f27f1e5acd712193a00fc1e38e6fd8da0b6d6206161fb21b631164699fbbd",
+      "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+      "recorded_at": "2026-11-09T09:57:51.440Z",
+      "tests": 2
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:750780e7d04bca686e415eba4a2c9bee0cef2dfadaa8ec88e416dbe42e559af4",
+      "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+      "recorded_at": "2026-11-09T09:57:51.440Z",
+      "tests": 98
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5b0d555258d3b8236ba01ea359c82ca05a0afd94b75e4a8005d5f834d74d0289",
+      "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+      "recorded_at": "2026-11-09T09:57:51.440Z",
+      "tests": 32
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+      "recorded_at": "2026-11-09T09:57:51.440Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:35aa5f2cf8d4fee2381f553a25e4a740975c63c6b93aa398792550383b0c698c",
+      "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+      "recorded_at": "2026-11-09T09:57:51.440Z",
+      "tests": 26
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bdfacf99f69b63072285e516e5a8f603e72ea20a47d085142d8598da34f81ec3",
+      "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+      "recorded_at": "2026-11-09T09:57:51.440Z",
+      "tests": 88
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b262b556b22cf584d4f697fef887e6df17663cc42cb801870420996bc1ebf850",
+      "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+      "recorded_at": "2026-11-09T09:57:51.440Z",
+      "tests": 32
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c75912e087565d986c31568a1240c4e508239a875536dfe268cb0e4901a22bf8",
+      "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+      "recorded_at": "2026-11-09T09:57:51.440Z",
+      "tests": 52
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b1c446204020cc2d56e982b95990ba493be5262747c8a83f2a702f18445706b4",
+      "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+      "recorded_at": "2026-11-09T09:57:51.440Z",
+      "tests": 98
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9e7076a301753fc60e9aec37dc96e0eb66a3edefcd0420776cbc78687d09f4b6",
+      "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+      "recorded_at": "2026-11-09T09:57:51.440Z",
+      "tests": 48
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6a64d10cc692aa5071361bb59f886ca9aee6bf5820b50da2c9315c57506fdc8a",
+      "tree": "sha256:00b2954283627017b1697af9e7e880b27a1a242ccdfecccb7efbaf5feb2007d3",
+      "recorded_at": "2026-11-09T09:57:51.440Z",
+      "tests": 48
+    },
+    {
+      "id": "run-18",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/ospec-state.test.js scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js scripts/phase-completion-run.test.js && go test ./internal/hooks/ -run \"TestProjectPhaseCompletion|TestSubagentStop_ProjectsEnvelopeWithReducerParity\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:31a8adbaf3142d30dde921432a417847e0be1dbc78293e760d71ca13096dee18",
+      "tree": "sha256:e871c996d8a7123a01bca2b4c874846acdb097ce9a9b7097f2250f9507474230",
+      "recorded_at": "2026-11-09T09:58:45.105Z",
+      "tests": 95
+    },
+    {
+      "id": "run-19",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9f9c999d474fd64cbecf20a96f5426d4fdeb629038a25e0120def0e39b883d63",
+      "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+      "recorded_at": "2026-11-09T10:01:15.916Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8aa1f678f166583bfa956c270884b720ab83dd6c9181f65e1df6cc7ccc940052",
+      "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "tests": 14
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8e8c517b5d640012fb9484db5869394a03f5861c18d8055d1bdb9673e6b8e8e8",
+      "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "tests": 2
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e8b0fcf52a81571d9a93073a274421c52eb80746b31106b737f06aa184cbfe6a",
+      "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "tests": 98
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:497146d16f33a4f1c1024cbf72a8d5921578258c2d389f0293c7ea805113c1ca",
+      "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "tests": 32
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+      "recorded_at": "2026-11-09T10:01:15.916Z"
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e2a31d9f705557567c2aeaf43dd0a32a95e23324b2452a1c1107b9646a65e9dc",
+      "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "tests": 26
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b117b455a3b0bcdb29586d0c5fde0b56aeb43b6c519edc33adb1e29397a43e76",
+      "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "tests": 88
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:27f94894308cd81f7a73a1f9ec3eed49245a674c74a0de5d6e2a8fff60c80598",
+      "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "tests": 32
+    },
+    {
+      "id": "run-28",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dd5bd2422aa4ca4f2ab36f9d62d46787228fba7a27ff385854b45a4b1571cabe",
+      "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "tests": 52
+    },
+    {
+      "id": "run-29",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5be45f7b18d785b116c3990cf56e231a39806f1f8c85986b97fcf04865fa5a3b",
+      "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "tests": 98
+    },
+    {
+      "id": "run-30",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c4daa5695bbe7cdbe57171c6fac7015fb75e2073bf839f63c9be60bdccf7885c",
+      "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "tests": 48
+    },
+    {
+      "id": "run-31",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fe1296098579ea97271bbe4a5282433eeffad5f67bdd6dbf933038373d1a3670",
+      "tree": "sha256:f5408f4bf9574308cff7e4239531713634590f1689ccd9ca52416f028ea3feb9",
+      "recorded_at": "2026-11-09T10:01:15.916Z",
+      "tests": 48
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:6ecabc47a0a4c850610444486ceb4fed339cac0b2c53dedd89af8ff305ae794b",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "03b4ed15474fc69d0d24a29b24354aaeb543000c",
+          "candidate_tree": "e907a19a16a9a6ecb52ae157c5d1bf7592e0feaf",
+          "paths": [
+            "agents/sdd-orchestrator.agent.md",
+            "docs/target-capabilities.md",
+            "internal/hooks/phase-completion-reducer.go",
+            "internal/hooks/phase-completion-reducer_test.go",
+            "internal/hooks/subagentstop.go",
+            "internal/hooks/subagentstop_test.go",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/configure/cli.js",
+            "scripts/hooks/lib/claude-usage.js",
+            "scripts/hooks/lib/claude-usage.test.js",
+            "scripts/hooks/subagent-stop.js",
+            "scripts/hooks/subagent-stop.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/result-envelope.js",
+            "scripts/phase-completion-run.js",
+            "scripts/phase-completion-run.test.js",
+            "skills/_shared/sdd-phase-common.md"
+          ],
+          "diff_hash": "sha256:8e169f225edc2e763d1fa0c98c533ea2d714970bc658265f50df9974c6b948f2",
+          "paths_digest": "sha256:e64d6cf5e8bf3871fc01e1791d9354fe0a25a11f68a7377ebc4754f7c62b5de8",
+          "authored_lines": 1396,
+          "original_changed_lines": 1480
+        },
+        "candidate_id": "sha256:84fb5aaaebae037a1dcae32d934ff716b18c21e61e988fee6418ce8e6e85318f",
+        "paths": [
+          "agents/sdd-orchestrator.agent.md",
+          "docs/target-capabilities.md",
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/hooks/subagentstop.go",
+          "internal/hooks/subagentstop_test.go",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/configure/cli.js",
+          "scripts/hooks/lib/claude-usage.js",
+          "scripts/hooks/lib/claude-usage.test.js",
+          "scripts/hooks/subagent-stop.js",
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/result-envelope.js",
+          "scripts/phase-completion-run.js",
+          "scripts/phase-completion-run.test.js",
+          "skills/_shared/sdd-phase-common.md"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "e907a19a16a9a6ecb52ae157c5d1bf7592e0feaf",
+        "original_changed_lines": 1480,
+        "authored_lines": 1396
+      },
+      "current_candidate_id": "sha256:84fb5aaaebae037a1dcae32d934ff716b18c21e61e988fee6418ce8e6e85318f",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "03b4ed15474fc69d0d24a29b24354aaeb543000c",
+        "candidate_tree": "e907a19a16a9a6ecb52ae157c5d1bf7592e0feaf",
+        "paths": [
+          "agents/sdd-orchestrator.agent.md",
+          "docs/target-capabilities.md",
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/hooks/subagentstop.go",
+          "internal/hooks/subagentstop_test.go",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/configure/cli.js",
+          "scripts/hooks/lib/claude-usage.js",
+          "scripts/hooks/lib/claude-usage.test.js",
+          "scripts/hooks/subagent-stop.js",
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/result-envelope.js",
+          "scripts/phase-completion-run.js",
+          "scripts/phase-completion-run.test.js",
+          "skills/_shared/sdd-phase-common.md"
+        ],
+        "diff_hash": "sha256:8e169f225edc2e763d1fa0c98c533ea2d714970bc658265f50df9974c6b948f2",
+        "paths_digest": "sha256:e64d6cf5e8bf3871fc01e1791d9354fe0a25a11f68a7377ebc4754f7c62b5de8",
+        "authored_lines": 1396,
+        "original_changed_lines": 1480
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "sdd-envelope-projection:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "sdd-envelope-projection:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-11-09T10:04:12.427Z"
+}

@@ -459,3 +459,180 @@ func TestProjectPhaseCompletion_MalformedStateFailsClosed(t *testing.T) {
 		})
 	}
 }
+
+// REQ-lifecycle-kernel-032: block and multi-line scalars, mirrored from
+// scripts/lib/ospec-state.test.js.
+func projectionDesignEnvelope() map[string]any {
+	return map[string]any{
+		"status":            "success",
+		"executive_summary": "Designed stateless JWT auth.",
+		"artifacts":         []any{"openspec/changes/jwt-auth/design.md"},
+		"next_recommended":  "sdd-tasks",
+		"risks":             "None",
+		"skill_resolution":  "injected",
+	}
+}
+
+func TestProjectPhaseCompletion_BlockAndMultilineScalarsStayOpaque(t *testing.T) {
+	opaque := strings.Join([]string{
+		"route:",
+		"  actual_route: standard",
+		"  route_rationale: >",
+		"    The auth floor matched:",
+		"    status: is part of the text, not a key",
+		"",
+		"    second paragraph",
+		"  note: a plain scalar that",
+		"    continues on the next line",
+		"  quoted: \"a double-quoted scalar",
+		"    that: also continues\"",
+		"  single: 'it''s single-quoted",
+		"    and continues'",
+		"owner:",
+		"  notes: |-",
+		"    - not a sequence item",
+		"    phases: not a key",
+	}, "\n")
+	notes := "    notes: |\n      status: fake\n      summary: fake"
+	before := "change: jwt-auth\nstatus: planning\nrevision: 1\n" + opaque + "\nphases:\n  design:\n    status: pending\n" + notes + "\n  tasks:\n    status: pending\n"
+	statePath := filepath.Join(t.TempDir(), "state.yaml")
+	if err := os.WriteFile(statePath, []byte(before), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := ProjectPhaseCompletion(statePath, "design", projectionDesignEnvelope(), nil)
+	if !result.OK || result.Outcome != "advanced" {
+		t.Fatalf("block and multi-line scalars must not block the projection, got %+v", result)
+	}
+	afterBytes, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after := string(afterBytes)
+	for _, want := range []string{opaque, notes, "\n  design:\n    status: done\n", `summary: "Designed stateless JWT auth."`, "\n  tasks:\n    status: pending\n"} {
+		if !strings.Contains(after, want) {
+			t.Fatalf("projected state lacks %q:\n%s", want, after)
+		}
+	}
+}
+
+func TestProjectPhaseCompletion_ProjectedBlockScalarIsRewrittenOnOneLine(t *testing.T) {
+	before := "change: jwt-auth\nstatus: >\n  planning\nlast_updated: \"2026-11-01\n  T00:00:00Z\"\nrevision: 1\nphases:\n  design:\n    status: pending\n    summary: |\n      An old summary\n      on two lines\n    artifact: design.md\n"
+	statePath := filepath.Join(t.TempDir(), "state.yaml")
+	if err := os.WriteFile(statePath, []byte(before), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := ProjectPhaseCompletion(statePath, "design", projectionDesignEnvelope(), nil)
+	if !result.OK {
+		t.Fatalf("projection must succeed, got %+v", result)
+	}
+	afterBytes, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after := string(afterBytes)
+	lines := strings.Split(after, "\n")
+	if lines[1] != "status: planning" || !strings.HasPrefix(lines[2], `last_updated: "`) || lines[3] != "revision: 2" {
+		t.Fatalf("top-level keys must be rewritten on one line:\n%s", after)
+	}
+	for _, stale := range []string{"An old summary", "on two lines", `T00:00:00Z"`, "\n  planning\n"} {
+		if strings.Contains(after, stale) {
+			t.Fatalf("continuation %q survived the rewrite:\n%s", stale, after)
+		}
+	}
+	if !strings.Contains(after, "    summary: \"Designed stateless JWT auth.\"\n    artifact: design.md\n") {
+		t.Fatalf("summary must be rewritten in place:\n%s", after)
+	}
+}
+
+func TestProjectPhaseCompletion_QuotedScalarThatNeverClosesFailsClosed(t *testing.T) {
+	for name, before := range map[string]string{
+		"before a less indented line": "change: jwt-auth\nstatus: planning\nphases:\n  design:\n    summary: 'open\n  tasks:\n    status: pending\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			statePath := filepath.Join(t.TempDir(), "state.yaml")
+			if err := os.WriteFile(statePath, []byte(before), 0644); err != nil {
+				t.Fatal(err)
+			}
+			result := ProjectPhaseCompletion(statePath, "design", projectionDesignEnvelope(), nil)
+			if result.OK || result.Outcome != "malformed-state" {
+				t.Fatalf("an unclosed quoted scalar must fail closed, got %+v", result)
+			}
+			after, _ := os.ReadFile(statePath)
+			if string(after) != before {
+				t.Fatalf("state bytes changed:\n%s", after)
+			}
+		})
+	}
+}
+
+// REQ-lifecycle-kernel-032 parity: Node and Go project the same state.yaml,
+// with block and multi-line scalars, to the same bytes (last_updated aside).
+func TestProjectPhaseCompletion_NodeAndGoProjectScalarsAlike(t *testing.T) {
+	before := strings.Join([]string{
+		"change: jwt-auth",
+		"status: >",
+		"  planning",
+		"revision: 3",
+		"route:",
+		"  route_rationale: |",
+		"    status: inside a block",
+		"",
+		"    tail",
+		"  note: plain that",
+		"    continues",
+		"phases:",
+		"  design:",
+		"    status: pending",
+		"    summary: \"old summary",
+		"      on two lines\"",
+		"    notes: >-",
+		"      summary: fake",
+		"  tasks:",
+		"    status: pending",
+		"",
+	}, "\n")
+	envelope := projectionDesignEnvelope()
+	goPath := filepath.Join(t.TempDir(), "state.yaml")
+	nodeDir := t.TempDir()
+	for _, path := range []string{goPath, filepath.Join(nodeDir, "state.yaml")} {
+		if err := os.WriteFile(path, []byte(before), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if result := ProjectPhaseCompletion(goPath, "design", envelope, nil); !result.OK {
+		t.Fatalf("Go projection failed: %+v", result)
+	}
+
+	envelopeJSON, _ := json.Marshal(envelope)
+	_, sourceFile, _, _ := runtime.Caller(0)
+	stateModule := filepath.Join(filepath.Dir(sourceFile), "..", "..", "scripts", "lib", "ospec-state.js")
+	const script = `const { projectPhaseCompletion } = require(process.argv[1]);
+projectPhaseCompletion({ changePath: process.argv[2], phase: "design", envelope: JSON.parse(process.argv[3]) })
+  .then((result) => { if (!result.ok) { console.error(JSON.stringify(result)); process.exit(1); } });`
+	if output, err := exec.Command("node", "-e", script, stateModule, nodeDir, string(envelopeJSON)).CombinedOutput(); err != nil {
+		t.Fatalf("Node projection failed: %v\n%s", err, output)
+	}
+
+	normalize := func(path string) string {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines := strings.Split(string(data), "\n")
+		for i, line := range lines {
+			if strings.HasPrefix(line, "last_updated:") {
+				lines[i] = "last_updated: <now>"
+			}
+		}
+		return strings.Join(lines, "\n")
+	}
+	goState, nodeState := normalize(goPath), normalize(filepath.Join(nodeDir, "state.yaml"))
+	if goState != nodeState {
+		t.Fatalf("Node and Go projections differ:\n--- go\n%s\n--- node\n%s", goState, nodeState)
+	}
+	if !strings.Contains(goState, "    status: inside a block\n\n    tail\n") || !strings.Contains(goState, "    notes: >-\n      summary: fake\n") {
+		t.Fatalf("opaque scalars changed:\n%s", goState)
+	}
+}
