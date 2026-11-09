@@ -291,7 +291,7 @@ Each phase returns: `status`, optional `blocker_type`, optional `question_gate`,
 
 Each phase also appends one strict ```` ```json:result-envelope ```` fenced block with these
 fields as `JSON.parse`-able JSON (`sdd-phase-common.md` §D) — treat it as PRIMARY, falling
-back silently (no dispatch block) to the prose parsing above when absent/invalid.
+back silently (no dispatch block) to the prose parsing above when absent/invalid. After every phase returns, on every host, write its final message verbatim to `.ospec/session/{change-name}/{phase}-result.md` and run `node <pluginInstallRoot>/scripts/phase-completion-run.js CHANGE_NAME --phase PHASE_NAME --envelope-file <that file> --workspace <projectRoot>`: it projects the envelope into `state.yaml` through the runtime reducer, the only projection on hosts without `SubagentStop` and a `noop-replay` where the hook already did it. On exit 1, report its JSON `outcome` (and `error`) to the user.
 
 ### Review Workload Guard (MANDATORY)
 

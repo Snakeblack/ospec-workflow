@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- PR4b de la review 2026-10-29: la fase SDD no se proyecta en state.yaml sin SubagentStop (Cursor, Antigravity, OpenCode, VS Code), así que el archivado nunca ve phases.verify.verdict y la prosa común se contradice; en Claude Code SubagentStop lee el transcript de la sesión principal y proyecta el envelope del subagente anterior; y state.yaml con escalares de bloque o texto multilínea se rechaza como malformed-state (sdd-envelope-projection)
+
 ## [2.171.3] - 2026-11-08
 
 ### Fixed
