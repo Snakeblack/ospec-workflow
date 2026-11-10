@@ -1618,6 +1618,8 @@ test("[REQ-lifecycle-kernel-032] a quoted scalar that never closes still fails c
   const cases = [
     ["at the end of the file", "change: jwt-auth\nstatus: planning\nphases:\n  design:\n    summary: \"unterminated\n"],
     ["before a less indented line", "change: jwt-auth\nstatus: planning\nphases:\n  design:\n    summary: 'open\n  tasks:\n    status: pending\n"],
+    // REQ-lifecycle-kernel-033: a flow collection that never closes, too.
+    ["a flow collection before a less indented line", "change: jwt-auth\nstatus: planning\nphases:\n  design:\n    notes: [one,\n  tasks:\n    status: pending\n"],
   ];
   for (const [name, before] of cases) {
     const { changeDir, statePath } = await writeChangeState(t, before);
@@ -1625,4 +1627,17 @@ test("[REQ-lifecycle-kernel-032] a quoted scalar that never closes still fails c
     assert.equal(result.outcome, "malformed-state", name);
     assert.equal(await fs.readFile(statePath, "utf8"), before, name);
   }
+});
+
+// --- REQ-lifecycle-kernel-033: no reader looks inside a scalar ---------------
+
+test("[REQ-lifecycle-kernel-033] readState never reads a status inside a block scalar", async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ospec-status-block-"));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const statusOf = async (body) => {
+    await fs.writeFile(path.join(dir, "state.yaml"), body);
+    return (await readState(dir)).status;
+  };
+  assert.equal(await statusOf("change:\n  name: x\n  notes: |\n    status: archived\n  status: active\n"), "active");
+  assert.equal(await statusOf("change: x\nsummary: |\n  status: archived\nstatus: active\n"), "active");
 });

@@ -337,3 +337,22 @@ test("skips cleanly when no active change exists", async (t) => {
     (error) => error.code === "ENOENT",
   );
 });
+
+test("REQ-lifecycle-kernel-033: the YAML-lite reader skips the continuation lines of a scalar", () => {
+  const { extractFirstScalar, extractListSection } = require("./pre-compact.js");
+  const state = `change: x
+summary: |
+  status: archived
+  next_recommended: sdd-archive
+status: active
+next_recommended: sdd-apply
+approvals:
+  - gate: design
+    notes: |
+      - gate: forged
+    decision: approved
+`;
+  assert.equal(extractFirstScalar(state, [["change", "status"], ["status"]]), "active");
+  assert.equal(extractFirstScalar(state, [["next_recommended"]]), "sdd-apply");
+  assert.deepEqual(extractListSection(state, "approvals"), [{ gate: "design", notes: "|", decision: "approved" }]);
+});

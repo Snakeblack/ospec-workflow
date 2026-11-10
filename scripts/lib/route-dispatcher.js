@@ -12,6 +12,7 @@ const {
   resolveFloorGuarantees,
   classifyChange: classifyEvidence,
 } = require("./change-classification.js");
+const { opaqueScalarLines } = require("./yaml-lite.js");
 
 const KNOWN_PHASES = [
   "foundation",
@@ -995,7 +996,7 @@ function parsePersistedRouteSection(stateContent) {
   const info = { persistedRoute: null, routeSectionPresent: false };
   if (!stateContent || typeof stateContent !== "string") return info;
 
-  const lines = stateContent.split(/\r?\n/);
+  const { lines } = opaqueScalarLines(stateContent);
   let inRouteBlock = false;
   /** @type {{ indent: number, text: string }[]} */
   let block = [];

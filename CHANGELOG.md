@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.171.5] - 2026-11-10
+
+### Fixed
+- **Ningún lector de `state.yaml` lee una clave escrita dentro de un valor** (state-yaml-opaque-scalars, la PR propia detrás de PR4b de la review general del 2026-10-29).
+  - **El defecto**: los lectores línea a línea leían el texto de un escalar de bloque como si fueran claves. Un `verdict: PASS` o una aprobación `override` de `quality-gates` escritos dentro de `notes: |` abrían el gate de archivado. Un `status: archived` dentro de un bloque daba por terminado un cambio activo en los hooks JS y Go. Una `classification` o un `auth_security: true` dentro de un bloque cambiaban la ruta del dispatcher. PreToolUse elegía el cambio activo buscando la subcadena `status: active` en todo el fichero.
+  - **Un escáner por lenguaje**: el escáner de continuaciones del proyector pasa a `scripts/lib/yaml-lite.js` e `internal/yamllite/continuations.go`. Cada lector recibe en blanco las líneas de un valor: el gate de archivado y sus linajes, la ruta persistida, la clasificación y el impacto del dispatcher, `readStatus` y `store.ReadStatus`, el YAML-lite de los hooks y el cambio activo de PreToolUse. Son opacos:
+    - los escalares de bloque, planos y entrecomillados, también con etiquetas o anclas (`!!str |`, `&a >-`);
+    - las colecciones flow de varias líneas, hasta que cierran sus corchetes;
+    - el valor en la línea siguiente a su clave.
+    El escáner lee una clave como YAML: entrecomillada, o plana hasta los primeros dos puntos seguidos de espacio o tabulador. Así `verdict:PASS` es texto. Nombra solo el espacio y el tabulador para que Node y Go coincidan, y recorre cualquier línea en tiempo lineal: con el patrón anterior, 200.000 espacios tardaban 99 s en el hook de Node.
+  - **El gate de archivado falla cerrado**: un `state.yaml` con una comilla o una colección flow sin cerrar nunca satisface el gate, y el `verdict` solo cuenta a cuatro espacios bajo `phases.verify`, donde lo escribe el proyector. `readPersistedRoute` salta las líneas vacías y los comentarios, que antes cerraban la sección `route:`. El proyector sigue rechazando como `malformed-state` un valor en la línea siguiente a su clave, y ahora también una colección flow que no cierra.
+  - **PreToolUse**: `findActiveChangeNameSync` y `FindActiveChangeName` leen el `status` real con `readStatus` y `store.ReadStatus`.
+
+Hecho con IDD (`idd/archive/2026-11-10-state-yaml-opaque-scalars/`), con cuatro revisiones de confianza: la cuarta la autorizó el usuario con el gate `review-limit`, y su hallazgo bloqueante lo dio por resuelto el validador de corrección. Lo recoge REQ-lifecycle-kernel-033. Detrás va, en una PR propia, el arreglo de los lectores línea a línea de `config.yaml`, junto con el patrón cuadrático de `readFlowScalar`; después 4c (runtime y prosa SDD) y 4d (linajes).
+
+**Verificación directa**: `node scripts/check.js` (4509 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados, y `gofmt -l cmd internal`, `go vet ./...` y `go test ./...` en verde.
+
 ## [2.171.4] - 2026-11-10
 
 ### Fixed

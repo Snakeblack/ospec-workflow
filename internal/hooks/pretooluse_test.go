@@ -1370,3 +1370,27 @@ func TestPreToolUse_CLIOwnedWrites(t *testing.T) {
 		}
 	}
 }
+
+// REQ-lifecycle-kernel-033: the active change is the one whose status is
+// active, not the first whose file holds the text "status: active".
+func TestFindActiveChangeName_ReadsTheRealStatus(t *testing.T) {
+	ws := t.TempDir()
+	if err := os.WriteFile(filepath.Join(ws, "package.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, body string) {
+		dir := filepath.Join(ws, "openspec", "changes", name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "state.yaml"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("a-done", "change: a-done\nstatus: done\nnotes: |\n  status: active\nphases:\n  apply:\n    status: active\n")
+	write("b-live", "change: b-live\nstatus: active\nphases:\n")
+	t.Chdir(ws)
+	if got := hooks.FindActiveChangeName(); got != "b-live" {
+		t.Fatalf("FindActiveChangeName() = %q, want b-live", got)
+	}
+}

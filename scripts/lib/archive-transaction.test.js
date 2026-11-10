@@ -1775,3 +1775,129 @@ test("archiveLineagesAllow: without a review requirement the review gate is not 
   const text = blockGateState(["    status: escalated", `    lineage: ${JSON.stringify(escalatedLineage())}`]);
   assert.equal(archiveLineagesAllow(text, { reviewRequired: false }), true);
 });
+
+// --- REQ-lifecycle-kernel-033: no reader looks inside a scalar ---------------
+{
+  const {
+    readPersistedRoute,
+    sumQuestionsAsked,
+  } = require("./archive-transaction.js");
+
+  test("REQ-lifecycle-kernel-033: a verdict PASS inside a block scalar does not hide the real FAIL", () => {
+    const facts = readArchiveGateFacts(`change: x
+phases:
+  verify:
+    verdict: "FAIL"
+    notes: |
+      verdict: PASS
+`);
+    assert.equal(facts.verdict, "FAIL");
+    assert.equal(facts.gatesSatisfied, false);
+  });
+
+  test("REQ-lifecycle-kernel-033: an override approval written inside a block scalar does not lift failed quality gates", () => {
+    const facts = readArchiveGateFacts(`change: x
+phases:
+  verify:
+    verdict: PASS
+gates:
+  quality-gates:
+    status: failed
+    notes: >
+      override:
+approvals:
+  - gate: other
+    notes: |
+      gate: quality-gates
+      decision: override
+baseline_fingerprints:
+  spec.md: abc
+  notes: "two
+    lines: here"
+`);
+    assert.equal(facts.overridePresent, false);
+    assert.equal(facts.gatesSatisfied, false);
+    assert.deepEqual(facts.baselineFingerprints, { "spec.md": "abc", notes: "two" });
+  });
+
+  test("REQ-lifecycle-kernel-033: a malformed state.yaml never satisfies the archive gates", () => {
+    const facts = readArchiveGateFacts(`change: x
+summary: "never closes
+phases:
+  verify:
+    verdict: PASS
+`);
+    assert.equal(facts.gatesSatisfied, false);
+  });
+
+  test("REQ-lifecycle-kernel-033: readPersistedRoute and sumQuestionsAsked skip continuation lines", () => {
+    assert.equal(readPersistedRoute("route:\n notes: |\n  actual_route: dev\n"), "");
+    assert.equal(readPersistedRoute("route:\n  notes: |\n    x\n  actual_route: full\n"), "full");
+    assert.equal(sumQuestionsAsked(`gates:
+  foo:
+    questions_asked: 1
+    notes: |
+      questions_asked: 5
+`), 1);
+  });
+}
+
+test("REQ-lifecycle-kernel-033: a tagged or anchored block scalar, a tagged quoted scalar or a flow collection never forge the verdict", () => {
+  for (const notes of ["!!str |", "&a >-", '!!str "two', "[one,"]) {
+    const close = notes.startsWith("!!str \"") ? '"' : notes.startsWith("[") ? "]" : "";
+    const facts = readArchiveGateFacts(`change: x
+phases:
+  verify:
+    verdict: "FAIL"
+    notes: ${notes}
+      verdict: PASS${close}
+`);
+    assert.equal(facts.verdict, "FAIL", notes);
+    assert.equal(facts.gatesSatisfied, false, notes);
+  }
+  assert.equal(readArchiveGateFacts("change: x\nphases:\n  verify:\n    verdict: PASS\n    notes: [one,\n  two: x\n").gatesSatisfied, false);
+});
+
+test("REQ-lifecycle-kernel-033: a scalar that starts on the line after its key never forges the verdict", () => {
+  for (const [opener, close] of [["|", ""], [">", ""], ['"two', '"'], ["- - |", ""]]) {
+    const facts = readArchiveGateFacts(`change: x
+phases:
+  verify:
+    verdict: "FAIL"
+    notes:
+      ${opener}
+        verdict: PASS${close}
+`);
+    assert.equal(facts.verdict, "FAIL", opener);
+    assert.equal(facts.gatesSatisfied, false, opener);
+  }
+});
+
+test("REQ-lifecycle-kernel-033: a verdict counts only as a phase field, at exactly four spaces under verify", () => {
+  for (const notes of ["notes: text\n      verdict:PASS", "notes: !!str\n      |\n        verdict: PASS", "notes:\n      verdict:PASS", "result:\n      verdict: PASS"]) {
+    const facts = readArchiveGateFacts(`change: x\nphases:\n  verify:\n    verdict: "FAIL"\n    ${notes}\n`);
+    assert.equal(facts.verdict, "FAIL", notes);
+    assert.equal(facts.gatesSatisfied, false, notes);
+  }
+});
+
+test("REQ-lifecycle-kernel-033: a next-line flow mapping or a colon followed by NBSP never forge an override approval", () => {
+  const base = `change: x
+phases:
+  verify:
+    verdict: PASS
+gates:
+  quality-gates:
+    status: failed
+approvals:
+  - gate: other
+`;
+  for (const reason of [
+    "    reason:\n      {x: 1,\n       gate: quality-gates\n       ,\n       decision: override\n      }\n",
+    "    reason: first line\n      decision: override\n      gate: quality-gates\n",
+  ]) {
+    const facts = readArchiveGateFacts(base + reason);
+    assert.equal(facts.overridePresent, false, reason);
+    assert.equal(facts.gatesSatisfied, false, reason);
+  }
+});

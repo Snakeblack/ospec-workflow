@@ -2029,3 +2029,21 @@ test("OSP-017: explicit decisions still reach stdout", (t) => {
     assert.equal(JSON.parse(run.stdout).hookSpecificOutput.permissionDecision, expected, JSON.stringify(stdin));
   }
 });
+
+test("REQ-lifecycle-kernel-033: findActiveChangeNameSync reads the real status, not text inside the file", () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-active-change-"));
+  const write = (name, body) => {
+    fs.mkdirSync(path.join(workspace, "openspec", "changes", name), { recursive: true });
+    fs.writeFileSync(path.join(workspace, "openspec", "changes", name, "state.yaml"), body);
+  };
+  write("a-done", "change: a-done\nstatus: done\nnotes: |\n  status: active\nphases:\n  apply:\n    status: active\n");
+  write("b-live", "change: b-live\nstatus: active\nphases:\n");
+  const previous = process.cwd();
+  try {
+    process.chdir(workspace);
+    assert.equal(findActiveChangeNameSync(), "b-live");
+  } finally {
+    process.chdir(previous);
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});

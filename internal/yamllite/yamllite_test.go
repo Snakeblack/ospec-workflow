@@ -444,3 +444,196 @@ func TestSetPhaseSummary_TruncatesByCodePointNotUTF16Unit(t *testing.T) {
 		t.Errorf("expected the 160th code point to be 'A', got %q", runes[159])
 	}
 }
+
+// REQ-lifecycle-kernel-033: no reader looks inside a scalar.
+func TestExtract_SkipsScalarContinuations(t *testing.T) {
+	state := "change: x\n" +
+		"summary: |\n" +
+		"  status: archived\n" +
+		"  next_recommended: sdd-archive\n" +
+		"status: active\n" +
+		"next_recommended: sdd-apply\n" +
+		"route_rationale: \"two\n" +
+		"  current_phase: forged\"\n" +
+		"current_phase: apply\n" +
+		"approvals:\n" +
+		"  - gate: design\n" +
+		"    notes: |\n" +
+		"      - gate: forged\n" +
+		"    decision: approved\n"
+	if got := yamllite.ExtractFirstScalar(state, [][]string{{"change", "status"}, {"status"}}); got != "active" {
+		t.Errorf("status = %q, want active", got)
+	}
+	if got := yamllite.ExtractFirstScalar(state, [][]string{{"next_recommended"}}); got != "sdd-apply" {
+		t.Errorf("next_recommended = %q, want sdd-apply", got)
+	}
+	if got := yamllite.ExtractFirstScalar(state, [][]string{{"current_phase"}}); got != "apply" {
+		t.Errorf("current_phase = %q, want apply", got)
+	}
+	items := yamllite.ExtractListSection(state, "approvals")
+	if len(items) != 1 || items[0].Fields["gate"] != "design" || items[0].Fields["decision"] != "approved" {
+		t.Errorf("approvals = %+v, want one design item", items)
+	}
+}
+
+// REQ-lifecycle-kernel-033: tags, anchors and multi-line flow collections.
+func TestOpaqueScalarLines_TagsAnchorsAndFlowCollections(t *testing.T) {
+	text := strings.Join([]string{
+		"a: !!str |",
+		"  verdict: PASS",
+		"b: &x >-",
+		"  verdict: PASS",
+		"c: !!str \"two",
+		"  verdict: PASS\"",
+		"d: [one,",
+		"  verdict: PASS]",
+		"e: {k: [1,",
+		"    2], verdict: PASS}",
+		"f: [don't, x]",
+		"h:",
+		"  - {k: 1,",
+		"    verdict: PASS}",
+		"g: !!str",
+		"  text",
+		"verdict: FAIL",
+	}, "\n")
+	lines, err := yamllite.OpaqueScalarLines(text)
+	if err != nil {
+		t.Fatalf("OpaqueScalarLines: %v", err)
+	}
+	var verdicts []string
+	for _, line := range lines {
+		if strings.Contains(line, "verdict") {
+			verdicts = append(verdicts, line)
+		}
+	}
+	if strings.Join(verdicts, "|") != "verdict: FAIL" || lines[13] != "" || lines[15] != "" {
+		t.Fatalf("verdict lines = %q, lines 14 and 16 = %q, %q", verdicts, lines[13], lines[15])
+	}
+	for _, bad := range []string{"a: [one,\nverdict: PASS\n", "a: [one,\n  two\n"} {
+		if _, err := yamllite.OpaqueScalarLines(bad); err == nil || !strings.Contains(err.Error(), "flow collection never closes") {
+			t.Errorf("OpaqueScalarLines(%q) error = %v, want flow collection never closes", bad, err)
+		}
+	}
+	if got := yamllite.ExtractFirstScalar(text, [][]string{{"verdict"}}); got != "FAIL" {
+		t.Errorf("verdict = %q, want FAIL", got)
+	}
+}
+
+// REQ-lifecycle-kernel-033: a value that starts on the line after its key.
+func TestOpaqueScalarLines_ValueOnTheNextLine(t *testing.T) {
+	text := strings.Join([]string{
+		"a:",
+		"  |",
+		"  verdict: PASS",
+		"b:",
+		"     >",
+		"   verdict: PASS",
+		"c:",
+		"  \"two",
+		"  verdict: PASS\"",
+		"d:",
+		"  - - |",
+		"      verdict: PASS",
+		"e:",
+		"  [one,",
+		"  verdict: PASS]",
+		"verdict: FAIL",
+	}, "\n")
+	lines, err := yamllite.OpaqueScalarLines(text)
+	if err != nil {
+		t.Fatalf("OpaqueScalarLines: %v", err)
+	}
+	var verdicts []string
+	for _, line := range lines {
+		if strings.Contains(line, "verdict") {
+			verdicts = append(verdicts, line)
+		}
+	}
+	if strings.Join(verdicts, "|") != "verdict: FAIL" {
+		t.Fatalf("verdict lines = %q, want only the top-level one", verdicts)
+	}
+	if got := yamllite.ExtractFirstScalar(text, [][]string{{"verdict"}}); got != "FAIL" {
+		t.Errorf("verdict = %q, want FAIL", got)
+	}
+}
+
+// REQ-lifecycle-kernel-033: a colon without a space, a quoted key and a
+// properties-only value never expose a key inside a value.
+func TestOpaqueScalarLines_ColonsQuotedKeysAndPropertiesOnly(t *testing.T) {
+	text := strings.Join([]string{
+		"a: text",
+		"  verdict:PASS",
+		"\"k: v\": |",
+		"  verdict: PASS",
+		"b: !!str",
+		"  |",
+		"    verdict: PASS",
+		"c: &x",
+		"  \"open",
+		"  verdict: PASS\"",
+		"d:",
+		"  classification:trivial",
+		"e: &y",
+		"  nested: kept",
+		"verdict: FAIL",
+	}, "\n")
+	lines, err := yamllite.OpaqueScalarLines(text)
+	if err != nil {
+		t.Fatalf("OpaqueScalarLines: %v", err)
+	}
+	var visible []string
+	for _, line := range lines {
+		if strings.Contains(line, "verdict") || strings.Contains(line, "classification") {
+			visible = append(visible, line)
+		}
+	}
+	if strings.Join(visible, "|") != "verdict: FAIL" || lines[13] != "  nested: kept" {
+		t.Fatalf("visible = %q, line 14 = %q", visible, lines[13])
+	}
+	continuation, _ := yamllite.ScanScalarContinuations([]string{"d:", "  |", "  x"})
+	if continuation[1] {
+		t.Errorf("the projector must still see a next-line value as a line of its own")
+	}
+}
+
+// REQ-lifecycle-kernel-033: a next-line flow collection whose first line looks
+// like an entry, a colon followed by a Unicode space, and a long line of
+// spaces, scanned the same way as in Node.
+func TestOpaqueScalarLines_NextLineFlowUnicodeSpacesAndLongLines(t *testing.T) {
+	text := strings.Join([]string{
+		"approvals:",
+		"  - gate: other",
+		"    reason:",
+		"      {x: 1,",
+		"       gate: quality-gates",
+		"       ,",
+		"       decision: override",
+		"      }",
+		"notes:",
+		"  !!map {x: 1,",
+		"   classification: trivial",
+		"  }",
+		"reason: first line",
+		"  decision: override",
+		"  gate: quality-gates",
+		"classification: high",
+	}, "\n")
+	lines, err := yamllite.OpaqueScalarLines(text)
+	if err != nil {
+		t.Fatalf("OpaqueScalarLines: %v", err)
+	}
+	var visible []string
+	for _, line := range lines {
+		if strings.Contains(line, "quality-gates") || strings.Contains(line, "override") || strings.Contains(line, "classification") {
+			visible = append(visible, line)
+		}
+	}
+	if strings.Join(visible, "|") != "classification: high" {
+		t.Fatalf("visible = %q, want only the top-level classification", visible)
+	}
+	long := "a" + strings.Repeat(" ", 200000) + "b"
+	if _, err := yamllite.OpaqueScalarLines("x: 1\n" + long + "\n  " + long + "\n- " + long + "\n"); err != nil {
+		t.Fatalf("long line: %v", err)
+	}
+}

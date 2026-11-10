@@ -17,6 +17,7 @@ import (
 
 	"github.com/snakeblack/ospec-workflow/internal/ospecdir"
 	"github.com/snakeblack/ospec-workflow/internal/rules"
+	"github.com/snakeblack/ospec-workflow/internal/store"
 )
 
 // gitCommitPatternRE matches "git commit" in any command string.
@@ -1095,7 +1096,7 @@ func FindActiveChangeName() string {
 			statePath := filepath.Join(changesRoot, entry.Name(), "state.yaml")
 			content, err := os.ReadFile(statePath)
 			if err == nil {
-				if strings.Contains(string(content), "status: active") {
+				if store.ReadStatus(string(content)) == "active" {
 					return entry.Name()
 				}
 			}

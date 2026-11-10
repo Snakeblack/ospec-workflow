@@ -10,6 +10,7 @@ const {
 const { writeFileAtomic } = require("../lib/atomic-write.js");
 const { resolveWorkspaceCwd } = require("../lib/pathsafe.js");
 const { readIddSession, renderIddSummary } = require("./lib/idd-session.js");
+const { opaqueScalarLines } = require("../lib/yaml-lite.js");
 
 const PHASE_RANKS = new Map([
   ["explore", 1],
@@ -69,9 +70,10 @@ function parseScalar(value) {
   return trimmed.replace(/\s+#.*$/, "").trim();
 }
 
+// Continuation lines of a scalar are blank, so no key inside one is read
+// (REQ-lifecycle-kernel-033).
 function parseYamlLines(content) {
-  return content
-    .split(/\r?\n/)
+  return opaqueScalarLines(content).lines
     .map((raw) => ({
       indent: raw.match(/^\s*/)[0].length,
       content: raw.trim(),
@@ -130,7 +132,7 @@ function extractFirstScalar(content, paths) {
 }
 
 function extractTopLevelSection(content, sectionName) {
-  const lines = content.split(/\r?\n/);
+  const { lines } = opaqueScalarLines(content);
   const section = [];
   let sectionIndent = -1;
   let collecting = false;

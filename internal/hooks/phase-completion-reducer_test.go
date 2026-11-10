@@ -436,6 +436,8 @@ func TestProjectPhaseCompletion_MalformedStateFailsClosed(t *testing.T) {
 		{"unparseable document", "::: invalid yaml :::\n\t\t\t][]["},
 		{"invalid revision is not treated as zero", "change: cross-runtime-replay\nstatus: planning\nrevision: not-a-number\nphases:\n"},
 		{"unterminated nested scalar", "change: cross-runtime-replay\nstatus: planning\nphases:\n  design:\n    summary: \"unterminated\n"},
+		// REQ-lifecycle-kernel-033: a flow collection that never closes, too.
+		{"unclosed flow collection", "change: cross-runtime-replay\nstatus: planning\nphases:\n  design:\n    notes: [one,\n  tasks:\n    status: pending\n"},
 	}
 
 	for _, tc := range cases {

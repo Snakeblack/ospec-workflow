@@ -12,6 +12,14 @@ const {
 const { recoverOrphanBak, writeFileAtomic } = require("./atomic-write.js");
 const { mkdirOspec } = require("./ospec-gitignore.js");
 const { reducePhaseCompletion } = require("./lifecycle-kernel/phase-completion-reducer.js");
+const {
+  BLOCK_SCALAR_HEADER,
+  MAPPING_LINE,
+  lineIndent,
+  opaqueScalarLines,
+  opensQuotedScalar,
+  scanScalarContinuations,
+} = require("./yaml-lite.js");
 
 const TERMINAL_STATUSES = new Set([
   "archived",
@@ -49,7 +57,7 @@ function parseScalar(value) {
 }
 
 function readStatus(content) {
-  const lines = content.split(/\r?\n/);
+  const { lines } = opaqueScalarLines(content);
   let inChange = false;
   let topLevelStatus = "";
 
@@ -732,115 +740,6 @@ function setPhaseSummary(content, phase, { summary, keyDecisions = [] } = {}) {
   }
 
   return nextLines.join(eol);
-}
-
-// REQ-lifecycle-kernel-032: a block scalar (`|` or `>`, with chomping and
-// indentation indicators) and a plain or quoted scalar that starts on its
-// key's line and continues on more indented lines are valid YAML the
-// projector never edits inside. The scan marks those continuation lines so
-// validation, parsing and projection treat them as opaque. A value that starts
-// on the next line is not supported, and a quoted scalar that never closes, or
-// whose continuation is not more indented than its key, is malformed.
-const BLOCK_SCALAR_HEADER = /^[|>](?:[1-9][+-]?|[+-][1-9]?)?(?:\s+#.*)?$/;
-const MAPPING_LINE = /^([^:\s][^:]*):\s*(.*)$/;
-
-function lineIndent(raw) {
-  return raw.match(/^ */)[0].length;
-}
-
-// Index just past the quote that closes a scalar opened with `quote`, scanning
-// from `from`; -1 when it does not close in `text`.
-function quoteClose(text, quote, from) {
-  for (let i = from; i < text.length; i += 1) {
-    if (quote === '"' && text[i] === "\\") {
-      i += 1;
-    } else if (text[i] === quote) {
-      if (quote === "'" && text[i + 1] === "'") {
-        i += 1;
-      } else {
-        return i + 1;
-      }
-    }
-  }
-  return -1;
-}
-
-function opensQuotedScalar(value) {
-  const v = String(value).trim();
-  return (v.startsWith('"') || v.startsWith("'")) && quoteClose(v, v[0], 1) === -1;
-}
-
-// The scalar a mapping or sequence line holds, or null for any other line.
-function lineScalarValue(trimmed) {
-  if (trimmed.startsWith("- ")) {
-    const item = trimmed.slice(2).trim();
-    if (item.startsWith('"') || item.startsWith("'")) return item;
-    const entry = item.match(MAPPING_LINE);
-    return entry ? entry[2] : item;
-  }
-  const entry = trimmed.match(MAPPING_LINE);
-  return entry ? entry[2] : null;
-}
-
-function scalarOwner(value, indent) {
-  const v = String(value).trim();
-  if (!v || v.startsWith("#")) return null;
-  if (BLOCK_SCALAR_HEADER.test(v)) return { indent, kind: "block" };
-  if (v.startsWith('"') || v.startsWith("'")) {
-    return quoteClose(v, v[0], 1) === -1 ? { indent, kind: v[0] } : null;
-  }
-  return { indent, kind: "plain" };
-}
-
-function scanScalarContinuations(lines) {
-  const continuation = new Array(lines.length).fill(false);
-  let owner = null;
-
-  for (let i = 0; i < lines.length; i += 1) {
-    const raw = lines[i];
-    const trimmed = raw.trim();
-    const indent = lineIndent(raw);
-
-    if (owner?.kind === "block") {
-      if (!trimmed || indent > owner.indent) {
-        continuation[i] = true;
-        continue;
-      }
-      owner = null;
-    } else if (owner && owner.kind !== "plain") {
-      continuation[i] = true;
-      if (!trimmed) continue;
-      if (indent <= owner.indent) {
-        return { continuation, error: `line ${i + 1}: quoted scalar never closes` };
-      }
-      const end = quoteClose(trimmed, owner.kind, 0);
-      if (end !== -1) {
-        const rest = trimmed.slice(end);
-        if (rest.trim() && !/^\s+#/.test(rest)) {
-          return { continuation, error: `line ${i + 1}: text after a closed quoted scalar` };
-        }
-        owner = null;
-      }
-      continue;
-    } else if (owner) {
-      if (!trimmed) continue;
-      const entry = trimmed.startsWith("- ") || trimmed === "-" || MAPPING_LINE.test(trimmed);
-      if (indent > owner.indent && !entry && !trimmed.startsWith("#")) {
-        continuation[i] = true;
-        continue;
-      }
-      owner = null;
-    }
-
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const value = lineScalarValue(trimmed);
-    owner = value === null ? null : scalarOwner(value, indent);
-  }
-
-  if (owner && owner.kind !== "block" && owner.kind !== "plain") {
-    return { continuation, error: "quoted scalar never closes" };
-  }
-  return { continuation, error: null };
 }
 
 // The one-line form of the scalar that line `index` opens: its continuation
@@ -1759,6 +1658,7 @@ module.exports = {
   readBaselineState,
   readStagedFiles,
   readState,
+  readStatus,
   projectPhaseCompletion,
   resolveTddMode,
   setPhaseSummary,

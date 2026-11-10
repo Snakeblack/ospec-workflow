@@ -20,6 +20,7 @@ const { renameWithFallback } = require("./atomic-write.js");
 const { ignoreOspecDir } = require("./ospec-gitignore.js");
 const { parseRoutingTable } = require("./route-dispatcher.js");
 const { planLineageGate } = require("./review-gate-state.js");
+const { opaqueScalarLines } = require("./yaml-lite.js");
 
 const TERMINAL_STATES = new Set(["done", "failed", "rolled-back"]);
 const NON_TERMINAL = new Set([
@@ -114,6 +115,8 @@ function nextTransactionAction(journal, facts) {
 
 /**
  * Line-oriented reader for archive-relevant gate facts from state.yaml text.
+ * Continuation lines of a scalar never count, and a state.yaml with a quoted
+ * scalar that never closes never satisfies the gates (REQ-lifecycle-kernel-033).
  * Never throws.
  */
 function yamlScalar(raw) {
@@ -124,7 +127,7 @@ function yamlScalar(raw) {
 
 function readArchiveGateFacts(stateYamlText) {
   const text = typeof stateYamlText === "string" ? stateYamlText : "";
-  const lines = text.split(/\r?\n/);
+  const { lines, error: malformed } = opaqueScalarLines(text);
 
   let verdict = null;
   let inVerify = false;
@@ -219,7 +222,9 @@ function readArchiveGateFacts(stateYamlText) {
     if (inPhases && indent === 2 && content.endsWith(":") && content !== "verify:" && content !== "sdd-verify:") {
       inVerify = false;
     }
-    if (inVerify && content.startsWith("verdict:")) {
+    // Only a line at exactly four spaces under a phase is a phase field, as the
+    // projector reads it (REQ-lifecycle-kernel-032 and -033).
+    if (inVerify && indent === 4 && content.startsWith("verdict:")) {
       verdict = yamlScalar(content.slice("verdict:".length));
     }
 
@@ -278,7 +283,7 @@ function readArchiveGateFacts(stateYamlText) {
       overridePresent;
   }
 
-  const gatesSatisfied = verdictOk && qgOk;
+  const gatesSatisfied = !malformed && verdictOk && qgOk;
 
   return {
     verdict,
@@ -293,10 +298,11 @@ function readArchiveGateFacts(stateYamlText) {
 function readPersistedRoute(stateYamlText) {
   let inRoute = false;
 
-  for (const raw of String(stateYamlText || "").split(/\r?\n/)) {
+  for (const raw of opaqueScalarLines(stateYamlText).lines) {
     const content = raw.trim();
     const indent = raw.match(/^\s*/)[0].length;
 
+    if (!content || content.startsWith("#")) continue;
     if (indent === 0) {
       inRoute = content === "route:";
       continue;
@@ -368,7 +374,7 @@ function blockDomains(lines, entry) {
 }
 
 function readReviewGateEntry(stateYamlText) {
-  const lines = String(stateYamlText || "").split(/\r?\n/);
+  const { lines } = opaqueScalarLines(stateYamlText);
   const gates = yamlEntry(lines, 0, lines.length, 0, "gates");
   const entry = gates && yamlEntry(lines, gates.start, gates.end, 2, "quality-review-gate");
   if (!entry) return undefined;
@@ -394,7 +400,7 @@ function selectedDomainCount(domains) {
 // The status of a top-level verify_lineage (one-line JSON or a block), null
 // when there is none, or UNREADABLE.
 function readVerifyLineageStatus(stateYamlText) {
-  const lines = String(stateYamlText || "").split(/\r?\n/);
+  const { lines } = opaqueScalarLines(stateYamlText);
   const entry = yamlEntry(lines, 0, lines.length, 0, "verify_lineage");
   if (!entry) return null;
   if (entry.value) {
@@ -696,7 +702,7 @@ async function aggregateCost(workspace, changeName, fsx) {
  */
 function sumQuestionsAsked(stateYamlText) {
   const text = typeof stateYamlText === "string" ? stateYamlText : "";
-  const lines = text.split(/\r?\n/);
+  const { lines } = opaqueScalarLines(text);
   let inGates = false;
   let sum = 0;
   for (const line of lines) {
