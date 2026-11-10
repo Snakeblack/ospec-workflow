@@ -15,6 +15,7 @@ const {
   detectSpecDrift,
   readStagedFiles,
   matchesGlobs,
+  readStatus,
 } = require("../lib/ospec-state.js");
 const {
   classifySensitiveFile,
@@ -440,7 +441,7 @@ function findActiveChangeNameSync() {
         const statePath = path.join(changesRoot, entry.name, "state.yaml");
         if (fs.existsSync(statePath)) {
           const content = fs.readFileSync(statePath, "utf8");
-          if (content.includes("status: active")) {
+          if (readStatus(content) === "active") {
             return entry.name;
           }
         }

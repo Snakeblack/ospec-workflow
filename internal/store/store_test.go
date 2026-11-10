@@ -461,3 +461,21 @@ func TestAppendPhaseCost_Relaunch(t *testing.T) {
 		t.Errorf("later apply relaunch/index: got relaunch=%v row_index=%v", r4["relaunch"], r4["row_index"])
 	}
 }
+
+// REQ-lifecycle-kernel-033: a status inside a block scalar never ends a change.
+func TestFindActiveChanges_StatusInsideABlockScalar(t *testing.T) {
+	ws := makeOpenSpec(t, "strict_tdd: true\n")
+	makeChange(t, ws, "live", "change: live\nsummary: |\n  status: archived\nstatus: active\n")
+	makeChange(t, ws, "nested", "change:\n  name: nested\n  notes: |\n    status: done\n  status: active\n")
+	changes, err := store.NewStore(ws).FindActiveChanges()
+	if err != nil {
+		t.Fatalf("FindActiveChanges: %v", err)
+	}
+	var names []string
+	for _, change := range changes {
+		names = append(names, change.DirectoryName)
+	}
+	if strings.Join(names, ",") != "live,nested" && strings.Join(names, ",") != "nested,live" {
+		t.Fatalf("active changes = %v, want live and nested", names)
+	}
+}

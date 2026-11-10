@@ -18,6 +18,7 @@ const path = require("node:path");
 const { parseRoutingTable, selectRoute, parsePersistedRouteSection, ClassificationConflictError } = require("./lib/route-dispatcher.js");
 const { isSafeChangeName } = require("./lib/archive-plan.js");
 const { validateAttributionOverride } = require("./lib/review-dimensions.js");
+const { opaqueScalarLines } = require("./lib/yaml-lite.js");
 
 function parseArgs(argv) {
   const flags = {
@@ -93,7 +94,7 @@ function extractStateRouteInfo(stateContent) {
 
   if (!stateContent || typeof stateContent !== "string") return info;
 
-  const lines = stateContent.split(/\r?\n/);
+  const { lines } = opaqueScalarLines(stateContent);
 
   for (const line of lines) {
     const trimmed = line.trim();

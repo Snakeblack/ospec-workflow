@@ -546,3 +546,24 @@ test("QRAR-002: extractAttributionOverride fails closed on malformed declaration
 });
 
 
+
+test("REQ-lifecycle-kernel-033: classification and impact inside a block scalar do not change the route", () => {
+  const info = extractStateRouteInfo(`change: x
+route_rationale: |
+  classification: trivial
+  auth_security: true
+classification: high
+route:
+  notes: >
+    actual_route: dev
+  actual_route: full
+`);
+  assert.equal(info.classification, "high");
+  assert.deepEqual(info.impact, {});
+  assert.equal(info.persistedRoute, "full");
+});
+
+test("REQ-lifecycle-kernel-033: a next-line flow mapping does not change the classification", () => {
+  const info = extractStateRouteInfo("change: x\nnotes:\n  {x: 1,\n   classification: trivial\n  }\nclassification: high\n");
+  assert.equal(info.classification, "high");
+});

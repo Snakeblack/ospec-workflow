@@ -1,0 +1,2203 @@
+{
+  "schema": "idd-state/v1",
+  "change": "state-yaml-opaque-scalars",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Los lectores línea a línea de state.yaml (gate de archivado, ruta persistida, status, clasificación e impacto del dispatcher, YAML-lite de los hooks JS y Go) leen claves dentro de un escalar de bloque o multilínea",
+    "acceptance": "Ningún lector de state.yaml lee una clave dentro de las líneas de continuación de un escalar de bloque o multilínea: un verdict PASS o una aprobación override escritos dentro de notes: | no satisfacen el gate de archivado, un status: archived dentro de un bloque no termina un cambio activo en los hooks JS ni Go, y una classification o un auth_security dentro de un bloque no cambian la ruta"
+  },
+  "facts": {
+    "open": [
+      "Con un state.yaml malformado (una comilla que nunca cierra), ¿el gate de archivado falla cerrado y los demás lectores leen como hoy lo que queda tras el error, o todos leen como hoy?",
+      "Un valor que empieza en la línea de su clave y sigue en líneas más sangradas (verdict: \"PASS WITH\" + WARNINGS), ¿se lee solo con la línea de la clave (un valor partido falla cerrado) o unido como hace parseStateYaml?",
+      "FindActiveChangeName (pre-tool-use.js y pretooluse.go) busca la subcadena status: active en todo el fichero, también dentro de bloques: ¿entra en este cambio leyendo el status real, o queda fuera?",
+      "Los lectores de config.yaml tienen la misma forma (readBackendMode, readBaselineState, parseRoutingTable, extractConfigDefaults, extractAttributionOverride, readYamlScalar y los de Go): ¿entran en esta PR o en una PR propia?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "internal/hooks/phase-completion-reducer.go",
+      "internal/hooks/phase-completion-reducer_test.go",
+      "internal/hooks/pretooluse.go",
+      "internal/store/store.go",
+      "internal/yamllite/continuations.go",
+      "internal/yamllite/yamllite.go",
+      "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "scripts/hooks/pre-compact.js",
+      "scripts/hooks/pre-tool-use.js",
+      "scripts/lib/archive-transaction.js",
+      "scripts/lib/ospec-state.js",
+      "scripts/lib/route-dispatcher.js",
+      "scripts/lib/yaml-lite.js",
+      "scripts/lib/yaml-lite.test.js",
+      "scripts/route-dispatch-run.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El escáner de continuaciones se mueve de ospec-state.js a yaml-lite.js y de internal/hooks a internal/yamllite, para que cada lector lo use sin cargar el proyector",
+      "Cada lector recibe las líneas de continuación en blanco; todos los lectores ya saltan las líneas vacías, así que no cambia su lógica",
+      "Con un state.yaml malformado el gate de archivado falla cerrado (gatesSatisfied false); los demás lectores leen como hoy lo que queda tras el error",
+      "Un valor que sigue en líneas más sangradas se lee solo con la línea de su clave; un verdict partido no da PASS",
+      "FindActiveChangeName (JS y Go) lee el status real con el lector de status en vez de buscar la subcadena status: active",
+      "readPersistedRoute salta las líneas vacías y los comentarios: antes una línea en blanco o un comentario cerraban la sección route:, y con las continuaciones en blanco un escalar de bloque bajo route: la habría cerrado",
+      "store.readStatus pasa a store.ReadStatus para que FindActiveChangeName de Go lea el status igual que FindActiveChanges",
+      "Aviso de la revisión de confianza: una etiqueta o un ancla antes del valor no cambian su clase, y una colección flow que sigue en líneas más sangradas es opaca hasta que cierran sus corchetes; si nunca cierra es malformada, como un escalar entrecomillado sin cerrar, también para el proyector",
+      "Segundo aviso de la revisión de confianza: un valor que empieza en la línea siguiente a su clave (y los elementos - - anidados) es opaco para los lectores, con la línea de la clave como dueña; el proyector lo sigue rechazando como malformed-state",
+      "Tercera revisión de confianza: el escáner lee una clave como YAML (entrecomillada, o plana hasta los primeros dos puntos seguidos de espacio o fin de línea), así que verdict:PASS es texto; un valor de solo etiquetas o anclas cede su valor a la línea siguiente; y los lectores reciben en blanco también la línea de un valor en la línea siguiente, mientras el proyector la sigue rechazando",
+      "El gate de archivado lee verdict solo como campo de fase, a cuatro espacios exactos bajo phases.verify, igual que el proyector lo escribe y lo lee (REQ-lifecycle-kernel-032): ninguna forma que el escáner no reconozca puede colar un verdict más sangrado",
+      "Cuarta revisión de confianza: una línea que abre una colección flow es siempre un valor, aunque su primera línea parezca una entrada; los patrones del escáner nombran el espacio y el tabulador en vez de \\s, para que Node y Go coincidan ante NBSP y otros espacios Unicode; y ENTRY_LINE ya no solapa la clave con el espacio previo a los dos puntos, así que es lineal (200.000 espacios tardaban 99 s en V8)"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: touches scripts/lib/archive-transaction.js and 1 more (matches scripts/lib/archive-*.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/pre-compact.js (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components change-state, hooks: ADR 0002, 0008, 0009, 0010, 0011 and quality scenario contract-compatibility, deterministic-resume, guard-fail-closed",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0002",
+      "impact": "conforms",
+      "reason": "state.yaml sigue siendo la autoridad; los lectores leen solo sus claves reales y no el texto de un escalar"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "el gate de archivado falla cerrado con un state.yaml malformado y un texto dentro de un escalar ya no abre el gate"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "el esquema de state.yaml no cambia; solo se deja de leer dentro de los escalares que REQ-lifecycle-kernel-032 ya admite"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "el escáner vive en scripts/lib/yaml-lite.js, que el runtime incluye por el grafo de require, y en internal/yamllite, sin dependencias nuevas"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "solo toca los lectores del state.yaml de SDD; el de IDD es JSON y no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "un state.yaml sin escalares de bloque o multilínea se lee igual; las suites existentes pasan sin tocar sus fixtures"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "status, fase y siguiente paso se leen de las claves reales, así que reanudar no depende del texto de un escalar"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "el gate de archivado y FindActiveChangeName ya no se dejan engañar por texto; un state.yaml malformado no satisface el gate"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-22"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-24"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-18"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-19"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-23"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 222,
+      "answer": "todas las recomendadas: 1A el gate de archivado falla cerrado con un state.yaml malformado y los demás lectores leen como hoy lo que queda tras el error; 2A un valor multilínea se lee solo con la línea de su clave; 3A FindActiveChangeName entra en este cambio y lee el status real; 4A los lectores de config.yaml van en una PR propia justo detrás de esta",
+      "source": "user",
+      "resolved_turn": 223
+    },
+    {
+      "id": "review-limit",
+      "status": "resolved",
+      "reason": "3 of 3 trust reviews used: ospec check opens the review-limit gate, and only the person's answer authorizes one more",
+      "opened_turn": 226,
+      "answer": "lo recomendado: autorizo una cuarta revisión de confianza",
+      "source": "user",
+      "resolved_turn": 227
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-10T15:12:26.803Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-10T15:12:48.107Z",
+      "detail": {
+        "run": "run-5",
+        "tree": "sha256:5576ecdf2762b5e8e285950ca4d48a9ad00ae2e5214da2f865687c41cf516ee1",
+        "plan": "El formato de state.yaml no cambia y no hay migración: los lectores solo dejan de leer las líneas de continuación de un escalar, así que un state.yaml sin escalares de bloque o multilínea se lee igual que antes; lo prueban, sin tocar sus fixtures, las suites completas del gate de archivado, el proyector, el dispatcher, los hooks JS y el yamllite, store y hooks de Go. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-10T15:15:09.397Z",
+      "detail": {
+        "tree": "sha256:6081fd7b271f0d3d2c44803645e372c489198e647282dbe2b87f5cf9f23b0c01",
+        "runs": [
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-10T15:15:09.397Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:6081fd7b271f0d3d2c44803645e372c489198e647282dbe2b87f5cf9f23b0c01",
+        "fitness": [
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-10T15:15:36.141Z",
+      "detail": {
+        "run": "run-16",
+        "tree": "sha256:21b5fbb04bc61aa99809b78d57613eae8d02ac98c57991db079e909b906ed38a",
+        "plan": "El formato de state.yaml no cambia y no hay migración: los lectores solo dejan de leer las líneas de continuación de un escalar, así que un state.yaml sin escalares de bloque o multilínea se lee igual que antes; lo prueban, sin tocar sus fixtures, las suites completas del gate de archivado, el proyector, el dispatcher, los hooks JS y el yamllite, store y hooks de Go. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-10T15:20:32.958Z",
+      "detail": {
+        "lineage_id": "sha256:2994a650e09aaabfe8afd1e106177c1d5c63568ef363e9504b4ec9a22bb8e9de",
+        "candidate_id": "sha256:d140dcc25758a794a3c5129b796456d81bc2644a9fc7393ea65532feda15c951",
+        "candidate_tree": "197f00f1e449eafa5744fa33516938bdded9bfde",
+        "findings_digest": "sha256:6c9032b8cb94c1a4af80b1028b33fc76e2da59d547f48e37aa66a4558178c1d0",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-10T15:19:24.986Z",
+          "result_digest": "sha256:59eb6585d01b4b7d42f9feacebe591f6b9e426637e3514422343e4821224f120"
+        }
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-10T15:26:16.080Z",
+      "detail": {
+        "tree": "sha256:623eea164f2f67c7636c5cbf5ed646a34db0290722c88d95d8eab8875fb52994",
+        "runs": [
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-10T15:26:16.080Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:623eea164f2f67c7636c5cbf5ed646a34db0290722c88d95d8eab8875fb52994",
+        "fitness": [
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-10T15:26:41.834Z",
+      "detail": {
+        "run": "run-27",
+        "tree": "sha256:924c086c345f0c3d716924a7001309e3df1c64172204d5a04d9e294c846f0fdd",
+        "plan": "El formato de state.yaml no cambia y no hay migración: los lectores solo dejan de leer las líneas de continuación de un escalar o de una colección flow multilínea, así que un state.yaml sin ellos se lee igual que antes; lo prueban, sin tocar sus fixtures, las suites completas del gate de archivado, el proyector, el dispatcher, los hooks JS, yaml-lite y el yamllite, store y hooks de Go. Único cambio visible: una colección flow que nunca cierra (YAML inválido, que el proyector nunca escribe) pasa a malformed-state, como un escalar entrecomillado sin cerrar. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-10T15:31:54.693Z",
+      "detail": {
+        "lineage_id": "sha256:8dfc6761c882b7190081e87475587ba27887711d8b93323e6b7d143983caea4a",
+        "candidate_id": "sha256:d1ebdc24c68845f5bb109a1504fda4a4e3d3fe59c763da15a76d29130fdafe27",
+        "candidate_tree": "3e939b3c294e9cd75f840a7127c98542324551d3",
+        "findings_digest": "sha256:09b99818b96e0fdc50db6d0b4a3f03fe47e4fff203d4a5a425fd629983bb7109",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-10T15:31:32.026Z",
+          "result_digest": "sha256:0f2ed4309605e048dddbe1e6d3b9a8be7a23b9f6747304a6f3528e7bb7edf196"
+        }
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-10T15:34:17.281Z",
+      "detail": {
+        "tree": "sha256:3e9212303e81d18c9b08c85a1c2a23960f5264a1e5018076ad9370b779b92ae8",
+        "runs": [
+          "run-28"
+        ]
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-10T15:34:17.281Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:3e9212303e81d18c9b08c85a1c2a23960f5264a1e5018076ad9370b779b92ae8",
+        "fitness": [
+          "run-29",
+          "run-30",
+          "run-31",
+          "run-32",
+          "run-33",
+          "run-34",
+          "run-35",
+          "run-36",
+          "run-37"
+        ]
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-10T15:34:37.668Z",
+      "detail": {
+        "run": "run-38",
+        "tree": "sha256:767430ac23ba5d4e68b8f45fe5d9869dbfc714183c7750716260a45e4752bdba",
+        "plan": "El formato de state.yaml no cambia y no hay migración: los lectores solo dejan de leer las líneas de continuación de un escalar o de una colección flow multilínea, así que un state.yaml sin ellos se lee igual que antes; lo prueban, sin tocar sus fixtures, las suites completas del gate de archivado, el proyector, el dispatcher, los hooks JS, yaml-lite y el yamllite, store y hooks de Go. Único cambio visible: una colección flow que nunca cierra (YAML inválido, que el proyector nunca escribe) pasa a malformed-state, como un escalar entrecomillado sin cerrar. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-10T15:40:30.523Z",
+      "detail": {
+        "lineage_id": "sha256:b4f9240bab84811f28bf59a63c081bad9f68d170098ea2bc216a07118d3ea3b8",
+        "candidate_id": "sha256:8ae3748ffcab42f61652b310ffa28ddab10963388e41c3e3c31f0f8e58762980",
+        "candidate_tree": "bd7843c4760ab40c039d53618c1a5f9456b3df5a",
+        "findings_digest": "sha256:3ee997f9858e944e8fdae390b7ffed96fdae7eb6f2a36d9c9489f5b5a8fc8733",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-10T15:39:22.734Z",
+          "result_digest": "sha256:18b9490468aa03a14d8aec279c6f7287ed9774f058417eb45352e6d7a04b376a"
+        }
+      }
+    },
+    {
+      "id": "ev-15",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-10T15:43:51.011Z",
+      "detail": {
+        "tree": "sha256:846580baccfd7c2a91319b32b3db0d7023c8111ce9fada690ff1f6e61101a8ec",
+        "runs": [
+          "run-39"
+        ]
+      }
+    },
+    {
+      "id": "ev-16",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-10T15:43:51.011Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:846580baccfd7c2a91319b32b3db0d7023c8111ce9fada690ff1f6e61101a8ec",
+        "fitness": [
+          "run-40",
+          "run-41",
+          "run-42",
+          "run-43",
+          "run-44",
+          "run-45",
+          "run-46",
+          "run-47",
+          "run-48"
+        ]
+      }
+    },
+    {
+      "id": "ev-17",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-10T16:21:09.466Z",
+      "detail": {
+        "run": "run-49",
+        "tree": "sha256:ee0ba11f29a1f9c6b8c0cec78914c6bd487f429b6959d6ad49c085f470c1af59",
+        "plan": "El formato de state.yaml no cambia y no hay migración: los lectores solo dejan de leer las líneas de un valor (continuaciones de un escalar o de una colección flow multilínea y el valor en la línea siguiente a su clave), así que un state.yaml sin ellos se lee igual que antes; lo prueban, sin tocar sus fixtures, las suites completas del gate de archivado, el proyector, el dispatcher, los hooks JS, yaml-lite y el yamllite, store y hooks de Go. Cambios visibles: una colección flow que nunca cierra (YAML inválido, que el proyector nunca escribe) pasa a malformed-state, como un escalar entrecomillado sin cerrar; el gate de archivado solo cuenta un verdict a cuatro espacios bajo phases.verify, donde lo escribe el proyector. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-18",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-10T16:32:03.299Z",
+      "detail": {
+        "run": "run-50",
+        "tree": "sha256:32c92ad9cd19a565e9ec7ffba273af928cab6c273d97d082c0cb05848f0f60db",
+        "plan": "El formato de state.yaml no cambia y no hay migración: los lectores solo dejan de leer las líneas de un valor (continuaciones de un escalar o de una colección flow multilínea y el valor en la línea siguiente a su clave), así que un state.yaml sin ellos se lee igual que antes; lo prueban, sin tocar sus fixtures, las suites completas del gate de archivado, el proyector, el dispatcher, los hooks JS, yaml-lite y el yamllite, store y hooks de Go. Cambios visibles: una colección flow que nunca cierra (YAML inválido, que el proyector nunca escribe) pasa a malformed-state, como un escalar entrecomillado sin cerrar; el gate de archivado solo cuenta un verdict a cuatro espacios bajo phases.verify, donde lo escribe el proyector. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-19",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-10T16:33:03.685Z",
+      "detail": {
+        "lineage_id": "sha256:3e492ec75f3ef1d59170989747b9f3e630d424dc84a807d44db557b19a7b70e6",
+        "candidate_id": "sha256:658157747f1b9117ff8fe4104e4eec83bd4d0700ef23205cd17711f3230c5579",
+        "candidate_tree": "22246b88860fe70e4f7e7ffbf1baf26df65db8b9",
+        "findings_digest": "sha256:89156605d834d84b2995304a781326833bd65dfccdccfc566cde5faff32feacb",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-correction",
+          "recorded_at": "2026-11-10T16:32:38.706Z",
+          "result_digest": "sha256:1b2c4f9342fe688c77ef61b5f438dabac53720579581f4386db228c909e76a8d"
+        }
+      }
+    },
+    {
+      "id": "ev-20",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-10T16:35:21.917Z",
+      "detail": {
+        "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+        "runs": [
+          "run-51"
+        ]
+      }
+    },
+    {
+      "id": "ev-21",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-10T16:35:21.917Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+        "fitness": [
+          "run-52",
+          "run-53",
+          "run-54",
+          "run-55",
+          "run-56",
+          "run-57",
+          "run-58",
+          "run-59",
+          "run-60"
+        ]
+      }
+    },
+    {
+      "id": "ev-22",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-10T16:37:06.659Z",
+      "detail": {
+        "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+        "runs": [
+          "run-61"
+        ]
+      }
+    },
+    {
+      "id": "ev-23",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-10T16:37:06.659Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+        "fitness": [
+          "run-62",
+          "run-63",
+          "run-64",
+          "run-65",
+          "run-66",
+          "run-67",
+          "run-68",
+          "run-69",
+          "run-70"
+        ]
+      }
+    },
+    {
+      "id": "ev-24",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-10T16:37:07.116Z"
+    }
+  ],
+  "base": "1b730d8e39bf2696ba45a446bac21e0808333cd7",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"REQ-lifecycle-kernel-033\" scripts/lib/archive-transaction.test.js scripts/route-dispatch-run.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/hooks/pre-tool-use.test.js && go test ./internal/yamllite/ ./internal/store/ ./internal/hooks/ -run \"TestExtract_SkipsScalarContinuations|TestFindActiveChanges_StatusInsideABlockScalar|TestFindActiveChangeName_ReadsTheRealStatus\"",
+      "exit_code": 1,
+      "output_sha256": "sha256:d9ca91a978df3e0d6057646e5d48f72eadcab750e4b9a954fe2342268bd781f0",
+      "tree": "sha256:04d8b649a6ce7713c9995b6f6ae7423713ed6ef22a352b45534169c9f1df485e",
+      "recorded_at": "2026-11-10T15:09:47.346Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"REQ-lifecycle-kernel-033\" scripts/lib/archive-transaction.test.js scripts/route-dispatch-run.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/hooks/pre-tool-use.test.js && go test ./internal/yamllite/ ./internal/store/ ./internal/hooks/ -run \"TestExtract_SkipsScalarContinuations|TestFindActiveChanges_StatusInsideABlockScalar|TestFindActiveChangeName_ReadsTheRealStatus\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:efe812389889bd46dfaa801a28df232b1bf1cf057e1c2c3a001706e6c6ec61e6",
+      "tree": "sha256:5576ecdf2762b5e8e285950ca4d48a9ad00ae2e5214da2f865687c41cf516ee1",
+      "recorded_at": "2026-11-10T15:12:26.803Z",
+      "tests": 8,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "1b730d8e39bf2696ba45a446bac21e0808333cd7",
+      "mount": "sha256:a468d8d11dd3713b4390f302223020294fcea51326d48227dfc6db85b57c77d7",
+      "command": "node --test --test-name-pattern=\"REQ-lifecycle-kernel-033\" scripts/lib/archive-transaction.test.js scripts/route-dispatch-run.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/hooks/pre-tool-use.test.js && go test ./internal/yamllite/ ./internal/store/ ./internal/hooks/ -run \"TestExtract_SkipsScalarContinuations|TestFindActiveChanges_StatusInsideABlockScalar|TestFindActiveChangeName_ReadsTheRealStatus\"",
+      "exit_code": 1,
+      "output_sha256": "sha256:822772fd468eb91c3634264c7be8c04b13632250b72726a26162f9c88b74c82d",
+      "tree": "sha256:5576ecdf2762b5e8e285950ca4d48a9ad00ae2e5214da2f865687c41cf516ee1",
+      "recorded_at": "2026-11-10T15:12:26.803Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "1b730d8e39bf2696ba45a446bac21e0808333cd7",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"REQ-lifecycle-kernel-033\" scripts/lib/archive-transaction.test.js scripts/route-dispatch-run.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/hooks/pre-tool-use.test.js && go test ./internal/yamllite/ ./internal/store/ ./internal/hooks/ -run \"TestExtract_SkipsScalarContinuations|TestFindActiveChanges_StatusInsideABlockScalar|TestFindActiveChangeName_ReadsTheRealStatus\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:02fcfc4a330262fcbdbbb6b7a7d1069bd113110c8e3c18e04ec3cda58f484b56",
+      "tree": "sha256:5576ecdf2762b5e8e285950ca4d48a9ad00ae2e5214da2f865687c41cf516ee1",
+      "recorded_at": "2026-11-10T15:12:26.803Z",
+      "tests": 5
+    },
+    {
+      "id": "run-5",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/archive-transaction.test.js scripts/lib/ospec-state.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js scripts/hooks/pre-compact.test.js scripts/hooks/pre-tool-use.test.js scripts/hooks/stop.test.js scripts/lib/yaml-lite.test.js && go test ./internal/yamllite/ ./internal/store/ ./internal/hooks/",
+      "exit_code": 0,
+      "output_sha256": "sha256:2c43b801dfe82f6d9fcb5f8b3c9ecb8d2cbf910ec919b09337fc39c129523f3d",
+      "tree": "sha256:5576ecdf2762b5e8e285950ca4d48a9ad00ae2e5214da2f865687c41cf516ee1",
+      "recorded_at": "2026-11-10T15:12:48.107Z",
+      "tests": 400
+    },
+    {
+      "id": "run-6",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:312834e57c5a48ae03242fda3ac10b8408eb7e22a1cb7f8aa710597bdcf6c76a",
+      "tree": "sha256:6081fd7b271f0d3d2c44803645e372c489198e647282dbe2b87f5cf9f23b0c01",
+      "recorded_at": "2026-11-10T15:15:09.397Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ac1fa09a7a939937a6b5d52e3d599bd91c72241ee348b53132c4e3816ff7edbc",
+      "tree": "sha256:6081fd7b271f0d3d2c44803645e372c489198e647282dbe2b87f5cf9f23b0c01",
+      "recorded_at": "2026-11-10T15:15:09.397Z",
+      "tests": 14
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e9ee0ca9895713b3dabd644d33bb53bbbc3969b235e94adc695e73fad45a2851",
+      "tree": "sha256:6081fd7b271f0d3d2c44803645e372c489198e647282dbe2b87f5cf9f23b0c01",
+      "recorded_at": "2026-11-10T15:15:09.397Z",
+      "tests": 99
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:703c3aa821b2806bc8f1c68e34a50902fb0c12f79f8d307d4263feffba31f578",
+      "tree": "sha256:6081fd7b271f0d3d2c44803645e372c489198e647282dbe2b87f5cf9f23b0c01",
+      "recorded_at": "2026-11-10T15:15:09.397Z",
+      "tests": 32
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:6081fd7b271f0d3d2c44803645e372c489198e647282dbe2b87f5cf9f23b0c01",
+      "recorded_at": "2026-11-10T15:15:09.397Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:52e44380252efdef3c998954285352984cd20407998d050736037edadbee7b8d",
+      "tree": "sha256:6081fd7b271f0d3d2c44803645e372c489198e647282dbe2b87f5cf9f23b0c01",
+      "recorded_at": "2026-11-10T15:15:09.397Z",
+      "tests": 26
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:073596a0970a0723d8fa679547f56718f69d15f550fe7743624bac59de8ea335",
+      "tree": "sha256:6081fd7b271f0d3d2c44803645e372c489198e647282dbe2b87f5cf9f23b0c01",
+      "recorded_at": "2026-11-10T15:15:09.397Z",
+      "tests": 89
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:25acc3fcecf1d405dd21e31f6b57aacfd1f9fca5d85a837b1bdfbea6a6598b49",
+      "tree": "sha256:6081fd7b271f0d3d2c44803645e372c489198e647282dbe2b87f5cf9f23b0c01",
+      "recorded_at": "2026-11-10T15:15:09.397Z",
+      "tests": 32
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4cacd7b174cc23ac7d8eeb214c3cf99212ea8494836b36294986cdbec0b907bf",
+      "tree": "sha256:6081fd7b271f0d3d2c44803645e372c489198e647282dbe2b87f5cf9f23b0c01",
+      "recorded_at": "2026-11-10T15:15:09.397Z",
+      "tests": 52
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b198a68ce7f2f5f8264689b536c5278130136b8d51b7937441243227612cb210",
+      "tree": "sha256:6081fd7b271f0d3d2c44803645e372c489198e647282dbe2b87f5cf9f23b0c01",
+      "recorded_at": "2026-11-10T15:15:09.397Z",
+      "tests": 99
+    },
+    {
+      "id": "run-16",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/archive-transaction.test.js scripts/lib/ospec-state.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js scripts/hooks/pre-compact.test.js scripts/hooks/pre-tool-use.test.js scripts/hooks/stop.test.js scripts/lib/yaml-lite.test.js && go test ./internal/yamllite/ ./internal/store/ ./internal/hooks/",
+      "exit_code": 0,
+      "output_sha256": "sha256:634b61d9d5a982e5dc997e47bba0d6d30ad302d1019d332fdc8300027496fc96",
+      "tree": "sha256:21b5fbb04bc61aa99809b78d57613eae8d02ac98c57991db079e909b906ed38a",
+      "recorded_at": "2026-11-10T15:15:36.141Z",
+      "tests": 400
+    },
+    {
+      "id": "run-17",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ac1c6b565f34a949c36634562c92b5c4d12371faea13a02aa8d0bcf7f3304c33",
+      "tree": "sha256:623eea164f2f67c7636c5cbf5ed646a34db0290722c88d95d8eab8875fb52994",
+      "recorded_at": "2026-11-10T15:26:16.080Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:45e54888795c55d33da6d77da55376ecff43adf41eb9777433377882b0e55f17",
+      "tree": "sha256:623eea164f2f67c7636c5cbf5ed646a34db0290722c88d95d8eab8875fb52994",
+      "recorded_at": "2026-11-10T15:26:16.080Z",
+      "tests": 14
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b0cb7d0e7d2fd97a65782d9310a05172c1eadc30c042b2924e25834ca909fece",
+      "tree": "sha256:623eea164f2f67c7636c5cbf5ed646a34db0290722c88d95d8eab8875fb52994",
+      "recorded_at": "2026-11-10T15:26:16.080Z",
+      "tests": 99
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f86838950d908b12ccb6b0a374572c482c0dc7c56d549bccbc1c32232867bdc9",
+      "tree": "sha256:623eea164f2f67c7636c5cbf5ed646a34db0290722c88d95d8eab8875fb52994",
+      "recorded_at": "2026-11-10T15:26:16.080Z",
+      "tests": 32
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:623eea164f2f67c7636c5cbf5ed646a34db0290722c88d95d8eab8875fb52994",
+      "recorded_at": "2026-11-10T15:26:16.080Z"
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f4abdbd16634e0cb800d7034e5994374d73ca8eed1121e67f3d392e80b7a39d7",
+      "tree": "sha256:623eea164f2f67c7636c5cbf5ed646a34db0290722c88d95d8eab8875fb52994",
+      "recorded_at": "2026-11-10T15:26:16.080Z",
+      "tests": 26
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1b3e07c5473a59383e734c91a243da86f52b1a3d5c134c0f44b496d711ce3c67",
+      "tree": "sha256:623eea164f2f67c7636c5cbf5ed646a34db0290722c88d95d8eab8875fb52994",
+      "recorded_at": "2026-11-10T15:26:16.080Z",
+      "tests": 89
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:54fdc4a3dc5b07c395c170ef8a4777c04749078909df24812424a34724c4e9f1",
+      "tree": "sha256:623eea164f2f67c7636c5cbf5ed646a34db0290722c88d95d8eab8875fb52994",
+      "recorded_at": "2026-11-10T15:26:16.080Z",
+      "tests": 32
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:730dd50545c7b30754c34ad928c033417dff80c745ed385236bf346d1c086d41",
+      "tree": "sha256:623eea164f2f67c7636c5cbf5ed646a34db0290722c88d95d8eab8875fb52994",
+      "recorded_at": "2026-11-10T15:26:16.080Z",
+      "tests": 52
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e9ad9a60ad5ac7b94987bc5d06ed563eb560a3258b5e9b3a0c04f3599b66277b",
+      "tree": "sha256:623eea164f2f67c7636c5cbf5ed646a34db0290722c88d95d8eab8875fb52994",
+      "recorded_at": "2026-11-10T15:26:16.080Z",
+      "tests": 99
+    },
+    {
+      "id": "run-27",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/archive-transaction.test.js scripts/lib/ospec-state.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js scripts/hooks/pre-compact.test.js scripts/hooks/pre-tool-use.test.js scripts/hooks/stop.test.js scripts/lib/yaml-lite.test.js && go test ./internal/yamllite/ ./internal/store/ ./internal/hooks/",
+      "exit_code": 0,
+      "output_sha256": "sha256:7bcfe3644e7975d2d20fb3776bf6885ac5a58d63b19823f9c99a3498e9d5f413",
+      "tree": "sha256:924c086c345f0c3d716924a7001309e3df1c64172204d5a04d9e294c846f0fdd",
+      "recorded_at": "2026-11-10T15:26:41.834Z",
+      "tests": 403
+    },
+    {
+      "id": "run-28",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b3c9709991805b1123a6ef99f64aed97592b33d7c99d165b659cc76cbc44a120",
+      "tree": "sha256:3e9212303e81d18c9b08c85a1c2a23960f5264a1e5018076ad9370b779b92ae8",
+      "recorded_at": "2026-11-10T15:34:17.281Z"
+    },
+    {
+      "id": "run-29",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a1d34e60634971f0bdca70f38899c7aa54ff4c7ac4857d204d6133f4e66b0e91",
+      "tree": "sha256:3e9212303e81d18c9b08c85a1c2a23960f5264a1e5018076ad9370b779b92ae8",
+      "recorded_at": "2026-11-10T15:34:17.281Z",
+      "tests": 14
+    },
+    {
+      "id": "run-30",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9b9fe2383cfb661233856c3bbb4bdf6f27f0bafdb35a41b8678223cdc5be0d5a",
+      "tree": "sha256:3e9212303e81d18c9b08c85a1c2a23960f5264a1e5018076ad9370b779b92ae8",
+      "recorded_at": "2026-11-10T15:34:17.281Z",
+      "tests": 99
+    },
+    {
+      "id": "run-31",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:63d7ab5e6ccc990840e04cc3be6a11f7b7bae5e316fc1e6b7225c4b7f3a2797f",
+      "tree": "sha256:3e9212303e81d18c9b08c85a1c2a23960f5264a1e5018076ad9370b779b92ae8",
+      "recorded_at": "2026-11-10T15:34:17.281Z",
+      "tests": 32
+    },
+    {
+      "id": "run-32",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:3e9212303e81d18c9b08c85a1c2a23960f5264a1e5018076ad9370b779b92ae8",
+      "recorded_at": "2026-11-10T15:34:17.281Z"
+    },
+    {
+      "id": "run-33",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ed731a3177da75079558e6947a0f8180b2daa870da6696053d502e126cdb00af",
+      "tree": "sha256:3e9212303e81d18c9b08c85a1c2a23960f5264a1e5018076ad9370b779b92ae8",
+      "recorded_at": "2026-11-10T15:34:17.281Z",
+      "tests": 26
+    },
+    {
+      "id": "run-34",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:075959c940b3466ec9b4b94024b9c6a3e3711f7e82dd0814b1c659e0541abc78",
+      "tree": "sha256:3e9212303e81d18c9b08c85a1c2a23960f5264a1e5018076ad9370b779b92ae8",
+      "recorded_at": "2026-11-10T15:34:17.281Z",
+      "tests": 89
+    },
+    {
+      "id": "run-35",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8be926b7ac3e39b398b224ce15bda6202879cb0ada8633832ca3377dbab65e44",
+      "tree": "sha256:3e9212303e81d18c9b08c85a1c2a23960f5264a1e5018076ad9370b779b92ae8",
+      "recorded_at": "2026-11-10T15:34:17.281Z",
+      "tests": 32
+    },
+    {
+      "id": "run-36",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5d900cb212bebea1b98d8dd68fde3739ea1cdc98f4e3915bd771c8f3fe2b0a94",
+      "tree": "sha256:3e9212303e81d18c9b08c85a1c2a23960f5264a1e5018076ad9370b779b92ae8",
+      "recorded_at": "2026-11-10T15:34:17.281Z",
+      "tests": 52
+    },
+    {
+      "id": "run-37",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3e6cb513ecd92ef7070e8a0774775174dc8f861816d919d99164336b11fb67a0",
+      "tree": "sha256:3e9212303e81d18c9b08c85a1c2a23960f5264a1e5018076ad9370b779b92ae8",
+      "recorded_at": "2026-11-10T15:34:17.281Z",
+      "tests": 99
+    },
+    {
+      "id": "run-38",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/archive-transaction.test.js scripts/lib/ospec-state.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js scripts/hooks/pre-compact.test.js scripts/hooks/pre-tool-use.test.js scripts/hooks/stop.test.js scripts/lib/yaml-lite.test.js && go test ./internal/yamllite/ ./internal/store/ ./internal/hooks/",
+      "exit_code": 0,
+      "output_sha256": "sha256:50f327118a57bbac1d3f275ef061e7d3489364879ebe71d3562141b1e47612f7",
+      "tree": "sha256:767430ac23ba5d4e68b8f45fe5d9869dbfc714183c7750716260a45e4752bdba",
+      "recorded_at": "2026-11-10T15:34:37.668Z",
+      "tests": 405
+    },
+    {
+      "id": "run-39",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:11e7a5361703892243f06d1de7fbb3b2d0e0836a261d76bdfcd3da3c4d70ffb0",
+      "tree": "sha256:846580baccfd7c2a91319b32b3db0d7023c8111ce9fada690ff1f6e61101a8ec",
+      "recorded_at": "2026-11-10T15:43:51.011Z"
+    },
+    {
+      "id": "run-40",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7040928293d9634314a8cb44624ec47af33cdbd6509eb3a15b1ee1faa688f204",
+      "tree": "sha256:846580baccfd7c2a91319b32b3db0d7023c8111ce9fada690ff1f6e61101a8ec",
+      "recorded_at": "2026-11-10T15:43:51.011Z",
+      "tests": 14
+    },
+    {
+      "id": "run-41",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:db352f31a71bef99e5c1512527bca823dff3e8a00a9f0e1f93ad8f41fa92bc52",
+      "tree": "sha256:846580baccfd7c2a91319b32b3db0d7023c8111ce9fada690ff1f6e61101a8ec",
+      "recorded_at": "2026-11-10T15:43:51.011Z",
+      "tests": 99
+    },
+    {
+      "id": "run-42",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f504935d4bd02175dfc0f259886492e184cc7778ee8797a4cdbf523dfb0e7dda",
+      "tree": "sha256:846580baccfd7c2a91319b32b3db0d7023c8111ce9fada690ff1f6e61101a8ec",
+      "recorded_at": "2026-11-10T15:43:51.011Z",
+      "tests": 32
+    },
+    {
+      "id": "run-43",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:846580baccfd7c2a91319b32b3db0d7023c8111ce9fada690ff1f6e61101a8ec",
+      "recorded_at": "2026-11-10T15:43:51.011Z"
+    },
+    {
+      "id": "run-44",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0f716ebb8b686da4c2fb699590f7d25208eac1603135142ccb6d4ee7b6708e6d",
+      "tree": "sha256:846580baccfd7c2a91319b32b3db0d7023c8111ce9fada690ff1f6e61101a8ec",
+      "recorded_at": "2026-11-10T15:43:51.011Z",
+      "tests": 26
+    },
+    {
+      "id": "run-45",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bb04133850a1faf27360b5213609d81f846a5ad845321c27bb539c804e9f0cd2",
+      "tree": "sha256:846580baccfd7c2a91319b32b3db0d7023c8111ce9fada690ff1f6e61101a8ec",
+      "recorded_at": "2026-11-10T15:43:51.011Z",
+      "tests": 89
+    },
+    {
+      "id": "run-46",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:619dff075a206e5b5835ecbeb382a2464808e0437acfd992b1f6bf8c246071a4",
+      "tree": "sha256:846580baccfd7c2a91319b32b3db0d7023c8111ce9fada690ff1f6e61101a8ec",
+      "recorded_at": "2026-11-10T15:43:51.011Z",
+      "tests": 32
+    },
+    {
+      "id": "run-47",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d1534b48c958582fb0ecab61c58718dfcc5fa515ded5560e282eb531bd802f88",
+      "tree": "sha256:846580baccfd7c2a91319b32b3db0d7023c8111ce9fada690ff1f6e61101a8ec",
+      "recorded_at": "2026-11-10T15:43:51.011Z",
+      "tests": 52
+    },
+    {
+      "id": "run-48",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7d8f5bcf035e6a4621e4586228cf87ece9061247304f3f9900b7c9346cacd78c",
+      "tree": "sha256:846580baccfd7c2a91319b32b3db0d7023c8111ce9fada690ff1f6e61101a8ec",
+      "recorded_at": "2026-11-10T15:43:51.011Z",
+      "tests": 99
+    },
+    {
+      "id": "run-49",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/archive-transaction.test.js scripts/lib/ospec-state.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js scripts/hooks/pre-compact.test.js scripts/hooks/pre-tool-use.test.js scripts/hooks/stop.test.js scripts/lib/yaml-lite.test.js && go test ./internal/yamllite/ ./internal/store/ ./internal/hooks/",
+      "exit_code": 0,
+      "output_sha256": "sha256:00488f5e78079b121da428207e00e518a871d562326103e16b2f80d86fc9a8f1",
+      "tree": "sha256:ee0ba11f29a1f9c6b8c0cec78914c6bd487f429b6959d6ad49c085f470c1af59",
+      "recorded_at": "2026-11-10T16:21:09.466Z",
+      "tests": 407
+    },
+    {
+      "id": "run-50",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/archive-transaction.test.js scripts/lib/ospec-state.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js scripts/hooks/pre-compact.test.js scripts/hooks/pre-tool-use.test.js scripts/hooks/stop.test.js scripts/lib/yaml-lite.test.js && go test ./internal/yamllite/ ./internal/store/ ./internal/hooks/",
+      "exit_code": 0,
+      "output_sha256": "sha256:760a8c3cf4549011af5d4f5047e4ef6abea8741b3f1bfa44f7af6c245f175ff7",
+      "tree": "sha256:32c92ad9cd19a565e9ec7ffba273af928cab6c273d97d082c0cb05848f0f60db",
+      "recorded_at": "2026-11-10T16:32:03.299Z",
+      "tests": 412
+    },
+    {
+      "id": "run-51",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7eb07f64cbde0fcdf0c7c4408a11b9c54242db5b92ab79fc4b209d37d1ba0c96",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:35:21.917Z"
+    },
+    {
+      "id": "run-52",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c1c5cebcf79c2462151389d685ab5d8f44a1069cccbadc2ae63d65f94bf7de89",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:35:21.917Z",
+      "tests": 14
+    },
+    {
+      "id": "run-53",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8af0f9b69eb6bfdcc348b69a6c0934da90099986a6aa255d0e4ec93ff654927f",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:35:21.917Z",
+      "tests": 99
+    },
+    {
+      "id": "run-54",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2981e9a8261f81143d81a8984f3545d4cce9e170d4a63a3691aee22748a294ed",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:35:21.917Z",
+      "tests": 32
+    },
+    {
+      "id": "run-55",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:35:21.917Z"
+    },
+    {
+      "id": "run-56",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:04b724b4a4a9b9bc6aa9b6c06ae4e2c7476fc448dcd34aefd08f7e9cf8c69cf3",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:35:21.917Z",
+      "tests": 26
+    },
+    {
+      "id": "run-57",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ea91722347529cb883634af5b3973285c9b53d2a368020a63a5742560c2edcfc",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:35:21.917Z",
+      "tests": 89
+    },
+    {
+      "id": "run-58",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:831ca732f6cd273199224afa0c0b092173df8ccf75f607a9b3e51b1f9105f189",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:35:21.917Z",
+      "tests": 32
+    },
+    {
+      "id": "run-59",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bcfe1f8cc6f8fe90ecfbad90b9eb489a55d6bdd255e0210ef19a97b5675a6180",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:35:21.917Z",
+      "tests": 52
+    },
+    {
+      "id": "run-60",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:910122069978a1f984414389c862bbcf496bd7dfd16c3bbb6a59ac6cdbf4abc7",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:35:21.917Z",
+      "tests": 99
+    },
+    {
+      "id": "run-61",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b4314c11793d20ed6051445283417d542f52a1202ca59f2498878aec14769425",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:37:06.659Z"
+    },
+    {
+      "id": "run-62",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2b7a51ec3475aefd8c12b900a98bbffeb846eb47dcb3d967163e5cd69b46d851",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:37:06.659Z",
+      "tests": 14
+    },
+    {
+      "id": "run-63",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:68bb804eeb1f9de813f55c5602db4b550bf06166d28afe9e86dbb7d9d8aedd1e",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:37:06.659Z",
+      "tests": 99
+    },
+    {
+      "id": "run-64",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0830cacced9bcc7b0bf46ba7f9bc6d48a22723b7d7a40281aa17d7088e7ee083",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:37:06.659Z",
+      "tests": 32
+    },
+    {
+      "id": "run-65",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:37:06.659Z"
+    },
+    {
+      "id": "run-66",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c6aad33c025189fee70fabb1cc5f52b37adcbdcf2f97ca1e77bcc40b823c6412",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:37:06.659Z",
+      "tests": 26
+    },
+    {
+      "id": "run-67",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a1e12d568587323ab672c56f5206325ffe0fea6edd77cf58fce0e47995049127",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:37:06.659Z",
+      "tests": 89
+    },
+    {
+      "id": "run-68",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3943ffff6dd73f403d0e8d43d58b167b6e844666d9daa83123709720c909a95b",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:37:06.659Z",
+      "tests": 32
+    },
+    {
+      "id": "run-69",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a0869cafac83959d42bc561be42a8168ef0fc17494bc508058ba5a54ff7f8c07",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:37:06.659Z",
+      "tests": 52
+    },
+    {
+      "id": "run-70",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:124731c1db342f5f2e52811875b713b5ad6aa176773dfba564a9e4fe1f8c3b34",
+      "tree": "sha256:53b76cfe1185e86fa4a5e4aefdbb5a54da80c8e308f519a0fdacd54be1e8bbb6",
+      "recorded_at": "2026-11-10T16:37:06.659Z",
+      "tests": 99
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:2994a650e09aaabfe8afd1e106177c1d5c63568ef363e9504b4ec9a22bb8e9de",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "f83fed6f66597c7d609894e9af9418643d9675f4",
+          "candidate_tree": "197f00f1e449eafa5744fa33516938bdded9bfde",
+          "paths": [
+            "internal/hooks/phase-completion-reducer.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/store/store.go",
+            "internal/store/store_test.go",
+            "internal/yamllite/continuations.go",
+            "internal/yamllite/yamllite.go",
+            "internal/yamllite/yamllite_test.go",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/hooks/pre-compact.js",
+            "scripts/hooks/pre-compact.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/archive-transaction.js",
+            "scripts/lib/archive-transaction.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/route-dispatcher.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/route-dispatch-run.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "diff_hash": "sha256:5fa05ad48beb955146b6f85ed3ba746d4e47598bceb198c3461f2b24d413cbf4",
+          "paths_digest": "sha256:46aab6625010a5f509f359326d6fc9652b799a8ffbbfa84d6a899ba293d6d4fa",
+          "authored_lines": 559,
+          "original_changed_lines": 832
+        },
+        "candidate_id": "sha256:d140dcc25758a794a3c5129b796456d81bc2644a9fc7393ea65532feda15c951",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/archive-transaction.js",
+          "scripts/lib/archive-transaction.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "197f00f1e449eafa5744fa33516938bdded9bfde",
+        "original_changed_lines": 832,
+        "authored_lines": 559
+      },
+      "current_candidate_id": "sha256:d140dcc25758a794a3c5129b796456d81bc2644a9fc7393ea65532feda15c951",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "f83fed6f66597c7d609894e9af9418643d9675f4",
+        "candidate_tree": "197f00f1e449eafa5744fa33516938bdded9bfde",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/archive-transaction.js",
+          "scripts/lib/archive-transaction.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "diff_hash": "sha256:5fa05ad48beb955146b6f85ed3ba746d4e47598bceb198c3461f2b24d413cbf4",
+        "paths_digest": "sha256:46aab6625010a5f509f359326d6fc9652b799a8ffbbfa84d6a899ba293d6d4fa",
+        "authored_lines": 559,
+        "original_changed_lines": 832
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "state-yaml-opaque-scalars:lens-start:1:0",
+          "result_digest": "sha256:1ce8f5a11220190db9492a2459670ef1603da0df23e021c9df23a5d8d9498f3d",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/lib/yaml-lite.js:121,162-170 (mirrored in internal/yamllite/continuations.go:18,74-89): the scan only treats a bare `|`/`>` header as a block scalar. A header with a tag or anchor (`notes: !!str |`, `notes: &a >-`) is classified as a plain scalar. Plain-scalar continuations that look like `key: value` are not blanked (yaml-lite.js:202-208). Trigger: state.yaml with `phases.verify.verdict: \"FAIL\"` followed by `notes: !!str |` and content `verdict: PASS`. archive-transaction.js:225 (no indent check, last match wins) reads `verdict: PASS`, so readArchiveGateFacts.gatesSatisfied is true. This is the forgery REQ-lifecycle-kernel-033 sets out to close. The same hole exists for a multi-line flow collection (`notes: [` then `verdict: PASS`). Inspected statically; the added tests (archive-transaction.test.js:1786-1831) cover only bare `|` and `>`. Exposure needs an agent or human to write that header form into state.yaml. The projector never emits it, and REQ-032 does not admit it.",
+                "acceptance_criteria": "For a state.yaml with `verdict: \"FAIL\"` and a later `notes: !!str |` (or `&a >-`) whose content holds `verdict: PASS`, readArchiveGateFacts reports verdict FAIL and gatesSatisfied false in Node, and the Go readers do not read the inner key. A value that opens a tag, anchor or multi-line flow collection the scan cannot delimit either reads as opaque or counts as malformed for the archive gate. Tests cover these cases in the Node and Go suites."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "state-yaml-opaque-scalars:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-605dac76e5f879c6",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/lib/yaml-lite.js:121,162-170 (mirrored in internal/yamllite/continuations.go:18,74-89): the scan only treats a bare `|`/`>` header as a block scalar. A header with a tag or anchor (`notes: !!str |`, `notes: &a >-`) is classified as a plain scalar. Plain-scalar continuations that look like `key: value` are not blanked (yaml-lite.js:202-208). Trigger: state.yaml with `phases.verify.verdict: \"FAIL\"` followed by `notes: !!str |` and content `verdict: PASS`. archive-transaction.js:225 (no indent check, last match wins) reads `verdict: PASS`, so readArchiveGateFacts.gatesSatisfied is true. This is the forgery REQ-lifecycle-kernel-033 sets out to close. The same hole exists for a multi-line flow collection (`notes: [` then `verdict: PASS`). Inspected statically; the added tests (archive-transaction.test.js:1786-1831) cover only bare `|` and `>`. Exposure needs an agent or human to write that header form into state.yaml. The projector never emits it, and REQ-032 does not admit it.",
+          "acceptance_criteria": "For a state.yaml with `verdict: \"FAIL\"` and a later `notes: !!str |` (or `&a >-`) whose content holds `verdict: PASS`, readArchiveGateFacts reports verdict FAIL and gatesSatisfied false in Node, and the Go readers do not read the inner key. A value that opens a tag, anchor or multi-line flow collection the scan cannot delimit either reads as opaque or counts as malformed for the archive gate. Tests cover these cases in the Node and Go suites.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:6c9032b8cb94c1a4af80b1028b33fc76e2da59d547f48e37aa66a4558178c1d0",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:8dfc6761c882b7190081e87475587ba27887711d8b93323e6b7d143983caea4a",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:2994a650e09aaabfe8afd1e106177c1d5c63568ef363e9504b4ec9a22bb8e9de",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "f83fed6f66597c7d609894e9af9418643d9675f4",
+          "candidate_tree": "3e939b3c294e9cd75f840a7127c98542324551d3",
+          "paths": [
+            "internal/hooks/phase-completion-reducer.go",
+            "internal/hooks/phase-completion-reducer_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/store/store.go",
+            "internal/store/store_test.go",
+            "internal/yamllite/continuations.go",
+            "internal/yamllite/yamllite.go",
+            "internal/yamllite/yamllite_test.go",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/hooks/pre-compact.js",
+            "scripts/hooks/pre-compact.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/archive-transaction.js",
+            "scripts/lib/archive-transaction.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/route-dispatcher.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js",
+            "scripts/route-dispatch-run.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "diff_hash": "sha256:5e3b3cfc378a6baf86fd0e9a8ae653051262f2f01b8ae3cd7c78a41f22451743",
+          "paths_digest": "sha256:05c82dbd422f6029d8a0ac9d496ffe67fef5ab86d3d3115a509a2456e5e56238",
+          "authored_lines": 779,
+          "original_changed_lines": 1052
+        },
+        "candidate_id": "sha256:d1ebdc24c68845f5bb109a1504fda4a4e3d3fe59c763da15a76d29130fdafe27",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/archive-transaction.js",
+          "scripts/lib/archive-transaction.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "3e939b3c294e9cd75f840a7127c98542324551d3",
+        "original_changed_lines": 1052,
+        "authored_lines": 779
+      },
+      "current_candidate_id": "sha256:d1ebdc24c68845f5bb109a1504fda4a4e3d3fe59c763da15a76d29130fdafe27",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "f83fed6f66597c7d609894e9af9418643d9675f4",
+        "candidate_tree": "3e939b3c294e9cd75f840a7127c98542324551d3",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/archive-transaction.js",
+          "scripts/lib/archive-transaction.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "diff_hash": "sha256:5e3b3cfc378a6baf86fd0e9a8ae653051262f2f01b8ae3cd7c78a41f22451743",
+        "paths_digest": "sha256:05c82dbd422f6029d8a0ac9d496ffe67fef5ab86d3d3115a509a2456e5e56238",
+        "authored_lines": 779,
+        "original_changed_lines": 1052
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "state-yaml-opaque-scalars:lens-start:2:0",
+          "result_digest": "sha256:bf34bfd21a0a7258ba8d950db58f2b103e22dec797ac1a52d8909b4e673b32a7",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "The archive gate still reads a verdict inside a scalar that starts on the line after its key, so REQ-lifecycle-kernel-033 (a key inside a scalar MUST read as absent) is not met for that shape. scripts/lib/yaml-lite.js:185-208 and internal/yamllite/continuations.go:101-140 open a scalar owner only from a `key: value` or `- value` line. Trigger under phases.verify: `verdict: \"FAIL\"`, then `notes:`, then a line `      |`, then `      verdict: PASS`. The empty `notes:` opens no owner, the bare `|` matches no MAPPING_LINE, so the next line stays a real key. readArchiveGateFacts (archive-transaction.js:225-227) keeps the last verdict, reads PASS, and gatesSatisfied is true (:284, used at :977-980). `- - |` and a double-quoted scalar on the next line behave the same. The projector rejects this file (ospec-state.js:785-786) but the gate never runs that validation. REQ-032 calls the form unsupported, yet the gate does not fail closed on it.",
+                "acceptance_criteria": "With `phases.verify.verdict: \"FAIL\"` followed by a later `notes:` whose next-line scalar (`|`, `>`, a double-quoted scalar, or `- - |`) holds `verdict: PASS`, readArchiveGateFacts reports verdict FAIL or gatesSatisfied false in Node, and the same file never satisfies the Go readers' status and route reads. A next-line scalar is either treated as opaque or reported as malformed, and the supported same-line forms in the existing REQ-033 tests still pass."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "state-yaml-opaque-scalars:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-cb2b4c2fb9a2e887",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The archive gate still reads a verdict inside a scalar that starts on the line after its key, so REQ-lifecycle-kernel-033 (a key inside a scalar MUST read as absent) is not met for that shape. scripts/lib/yaml-lite.js:185-208 and internal/yamllite/continuations.go:101-140 open a scalar owner only from a `key: value` or `- value` line. Trigger under phases.verify: `verdict: \"FAIL\"`, then `notes:`, then a line `      |`, then `      verdict: PASS`. The empty `notes:` opens no owner, the bare `|` matches no MAPPING_LINE, so the next line stays a real key. readArchiveGateFacts (archive-transaction.js:225-227) keeps the last verdict, reads PASS, and gatesSatisfied is true (:284, used at :977-980). `- - |` and a double-quoted scalar on the next line behave the same. The projector rejects this file (ospec-state.js:785-786) but the gate never runs that validation. REQ-032 calls the form unsupported, yet the gate does not fail closed on it.",
+          "acceptance_criteria": "With `phases.verify.verdict: \"FAIL\"` followed by a later `notes:` whose next-line scalar (`|`, `>`, a double-quoted scalar, or `- - |`) holds `verdict: PASS`, readArchiveGateFacts reports verdict FAIL or gatesSatisfied false in Node, and the same file never satisfies the Go readers' status and route reads. A next-line scalar is either treated as opaque or reported as malformed, and the supported same-line forms in the existing REQ-033 tests still pass.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:09b99818b96e0fdc50db6d0b4a3f03fe47e4fff203d4a5a425fd629983bb7109",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:b4f9240bab84811f28bf59a63c081bad9f68d170098ea2bc216a07118d3ea3b8",
+      "generation": 3,
+      "predecessor_lineage_id": "sha256:8dfc6761c882b7190081e87475587ba27887711d8b93323e6b7d143983caea4a",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "f83fed6f66597c7d609894e9af9418643d9675f4",
+          "candidate_tree": "bd7843c4760ab40c039d53618c1a5f9456b3df5a",
+          "paths": [
+            "internal/hooks/phase-completion-reducer.go",
+            "internal/hooks/phase-completion-reducer_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/store/store.go",
+            "internal/store/store_test.go",
+            "internal/yamllite/continuations.go",
+            "internal/yamllite/yamllite.go",
+            "internal/yamllite/yamllite_test.go",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/hooks/pre-compact.js",
+            "scripts/hooks/pre-compact.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/archive-transaction.js",
+            "scripts/lib/archive-transaction.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/route-dispatcher.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js",
+            "scripts/route-dispatch-run.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "diff_hash": "sha256:4a9bb440ebc3e949e844fad53bad3de2c786617f13f494952c33e0b31ae4e198",
+          "paths_digest": "sha256:05c82dbd422f6029d8a0ac9d496ffe67fef5ab86d3d3115a509a2456e5e56238",
+          "authored_lines": 883,
+          "original_changed_lines": 1156
+        },
+        "candidate_id": "sha256:8ae3748ffcab42f61652b310ffa28ddab10963388e41c3e3c31f0f8e58762980",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/archive-transaction.js",
+          "scripts/lib/archive-transaction.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "bd7843c4760ab40c039d53618c1a5f9456b3df5a",
+        "original_changed_lines": 1156,
+        "authored_lines": 883
+      },
+      "current_candidate_id": "sha256:8ae3748ffcab42f61652b310ffa28ddab10963388e41c3e3c31f0f8e58762980",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "f83fed6f66597c7d609894e9af9418643d9675f4",
+        "candidate_tree": "bd7843c4760ab40c039d53618c1a5f9456b3df5a",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/archive-transaction.js",
+          "scripts/lib/archive-transaction.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "diff_hash": "sha256:4a9bb440ebc3e949e844fad53bad3de2c786617f13f494952c33e0b31ae4e198",
+        "paths_digest": "sha256:05c82dbd422f6029d8a0ac9d496ffe67fef5ab86d3d3115a509a2456e5e56238",
+        "authored_lines": 883,
+        "original_changed_lines": 1156
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "state-yaml-opaque-scalars:lens-start:3:0",
+          "result_digest": "sha256:4a1f12b6ec8a67cd89d72965ac1ccf138378d79961c42b7d3680fffa8bcc3f72",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "The scanner ends a plain scalar's opacity on any line matching MAPPING_LINE (scripts/lib/yaml-lite.js:127 and :257, internal/yamllite/continuations.go:23 and :199), which accepts a colon NOT followed by a space. In YAML, `verdict:PASS` is plain text and a valid continuation of a multi-line plain scalar. Trigger: `phases.verify.verdict: FAIL` then `notes: text` with continuation line `  verdict:PASS`. The scanner treats it as a key and leaves it visible, so readArchiveGateFacts (archive-transaction.js:225, startsWith('verdict:')) reads PASS and satisfies the archive gate. The dispatcher regexes read `classification:trivial` the same way. A quoted key containing a colon followed by a block scalar (`\"a: b\": |`) fails likewise: it parses as key `\"a` with a plain value, so the block's lines stay visible. This is the exposure REQ-lifecycle-kernel-033 says is closed, via an unhandled valid form. Needs crafted state.yaml text.",
+                "acceptance_criteria": "In Node and Go, with `verdict: FAIL` before a `notes: text` whose continuation line is `verdict:PASS` (also `classification:trivial` and `status:active`), the readers read FAIL / the real value and readArchiveGateFacts.gatesSatisfied is false. A `\"a: b\": |` key followed by an indented `verdict: PASS` line reads that line as absent. Tests in both runtimes cover these inputs and keep the existing REQ-033 cases passing."
+              },
+              {
+                "severity": "WARNING",
+                "summary": "A value consisting only of tag/anchor properties (`notes: !!str` or `notes: &a`) becomes a plain owner in scalarOwner (yaml-lite.js:200-211, continuations.go:127-147), because withoutProperties returns the original text when nothing remains. YAML allows the block scalar header or an opening quote on the NEXT line after the properties. Trigger: `verdict: FAIL`, then `notes: !!str`, then `  |`, then `    verdict: PASS`. The `|` line is blanked as a plain continuation, but the following `verdict: PASS` line matches MAPPING_LINE and ends the plain owner, so it is read as a key. The gate and the Node and Go readers then read PASS. The same happens with `notes: &a` then `  \"open` then `  verdict: PASS\"`. The properties-then-next-line form is in neither spec scenario nor tests (yamllite_test.go:480-554 covers `g: !!str` followed by plain text only). It sits between the two forms REQ-033 says are opaque (tag before a value, value on the next line). Needs crafted state.yaml text.",
+                "acceptance_criteria": "In Node and Go, `verdict: FAIL` followed by `notes: !!str` / `notes: &a` with `|`, `>-` or an opening double quote on the next line and `verdict: PASS` inside it reads FAIL, and readArchiveGateFacts.gatesSatisfied is false. A properties-only value followed by plain text or a nested mapping keeps its current behaviour. Tests in both runtimes cover these inputs."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "state-yaml-opaque-scalars:lens-result:3:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-0be19d8ca9db7626",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The scanner ends a plain scalar's opacity on any line matching MAPPING_LINE (scripts/lib/yaml-lite.js:127 and :257, internal/yamllite/continuations.go:23 and :199), which accepts a colon NOT followed by a space. In YAML, `verdict:PASS` is plain text and a valid continuation of a multi-line plain scalar. Trigger: `phases.verify.verdict: FAIL` then `notes: text` with continuation line `  verdict:PASS`. The scanner treats it as a key and leaves it visible, so readArchiveGateFacts (archive-transaction.js:225, startsWith('verdict:')) reads PASS and satisfies the archive gate. The dispatcher regexes read `classification:trivial` the same way. A quoted key containing a colon followed by a block scalar (`\"a: b\": |`) fails likewise: it parses as key `\"a` with a plain value, so the block's lines stay visible. This is the exposure REQ-lifecycle-kernel-033 says is closed, via an unhandled valid form. Needs crafted state.yaml text.",
+          "acceptance_criteria": "In Node and Go, with `verdict: FAIL` before a `notes: text` whose continuation line is `verdict:PASS` (also `classification:trivial` and `status:active`), the readers read FAIL / the real value and readArchiveGateFacts.gatesSatisfied is false. A `\"a: b\": |` key followed by an indented `verdict: PASS` line reads that line as absent. Tests in both runtimes cover these inputs and keep the existing REQ-033 cases passing.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-831b4228267ea8f1",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "A value consisting only of tag/anchor properties (`notes: !!str` or `notes: &a`) becomes a plain owner in scalarOwner (yaml-lite.js:200-211, continuations.go:127-147), because withoutProperties returns the original text when nothing remains. YAML allows the block scalar header or an opening quote on the NEXT line after the properties. Trigger: `verdict: FAIL`, then `notes: !!str`, then `  |`, then `    verdict: PASS`. The `|` line is blanked as a plain continuation, but the following `verdict: PASS` line matches MAPPING_LINE and ends the plain owner, so it is read as a key. The gate and the Node and Go readers then read PASS. The same happens with `notes: &a` then `  \"open` then `  verdict: PASS\"`. The properties-then-next-line form is in neither spec scenario nor tests (yamllite_test.go:480-554 covers `g: !!str` followed by plain text only). It sits between the two forms REQ-033 says are opaque (tag before a value, value on the next line). Needs crafted state.yaml text.",
+          "acceptance_criteria": "In Node and Go, `verdict: FAIL` followed by `notes: !!str` / `notes: &a` with `|`, `>-` or an opening double quote on the next line and `verdict: PASS` inside it reads FAIL, and readArchiveGateFacts.gatesSatisfied is false. A properties-only value followed by plain text or a nested mapping keeps its current behaviour. Tests in both runtimes cover these inputs.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:3ee997f9858e944e8fdae390b7ffed96fdae7eb6f2a36d9c9489f5b5a8fc8733",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:3e492ec75f3ef1d59170989747b9f3e630d424dc84a807d44db557b19a7b70e6",
+      "generation": 4,
+      "predecessor_lineage_id": "sha256:b4f9240bab84811f28bf59a63c081bad9f68d170098ea2bc216a07118d3ea3b8",
+      "migration": null,
+      "recovery": null,
+      "revision": 6,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "f83fed6f66597c7d609894e9af9418643d9675f4",
+          "candidate_tree": "7985144bba96901b5b26d1dda1cfb37e70188a8f",
+          "paths": [
+            "internal/hooks/phase-completion-reducer.go",
+            "internal/hooks/phase-completion-reducer_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/store/store.go",
+            "internal/store/store_test.go",
+            "internal/yamllite/continuations.go",
+            "internal/yamllite/yamllite.go",
+            "internal/yamllite/yamllite_test.go",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/hooks/pre-compact.js",
+            "scripts/hooks/pre-compact.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/archive-transaction.js",
+            "scripts/lib/archive-transaction.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/route-dispatcher.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js",
+            "scripts/route-dispatch-run.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "diff_hash": "sha256:ebae30b6b716fda1920ea4537f57963334f5e3f35911b1c946b1c6f4ab434b47",
+          "paths_digest": "sha256:05c82dbd422f6029d8a0ac9d496ffe67fef5ab86d3d3115a509a2456e5e56238",
+          "authored_lines": 993,
+          "original_changed_lines": 1267
+        },
+        "candidate_id": "sha256:9b4520775df1854bbebb08376ae7456cba95a7712a105761d5a73ef757e0eab7",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/archive-transaction.js",
+          "scripts/lib/archive-transaction.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "7985144bba96901b5b26d1dda1cfb37e70188a8f",
+        "original_changed_lines": 1267,
+        "authored_lines": 993
+      },
+      "current_candidate_id": "sha256:658157747f1b9117ff8fe4104e4eec83bd4d0700ef23205cd17711f3230c5579",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "f83fed6f66597c7d609894e9af9418643d9675f4",
+        "candidate_tree": "22246b88860fe70e4f7e7ffbf1baf26df65db8b9",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/archive-transaction.js",
+          "scripts/lib/archive-transaction.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "diff_hash": "sha256:6e31e96585ce15c1cd9f295f15c9faa3ddcf186e7ab5c0fbd24fcac0289059d0",
+        "paths_digest": "sha256:05c82dbd422f6029d8a0ac9d496ffe67fef5ab86d3d3115a509a2456e5e56238",
+        "authored_lines": 993,
+        "original_changed_lines": 1267
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "state-yaml-opaque-scalars:lens-start:4:0",
+          "result_digest": "sha256:7a4fb01d71a7a77d975a6f7380f5da2b78b5c2d41bd6d2b8c02345fe9c58dff9",
+          "result": {
+            "findings": [
+              {
+                "severity": "CRITICAL",
+                "summary": "scripts/lib/yaml-lite.js:198 (Go: internal/yamllite/continuations.go:122). lineScalarValue checks for a leading [ or { only in the '- ' branch (line 194). A flow mapping that starts on the line after its key, and whose first line looks like an entry, is read as a mapping entry, so its inner lines stay visible. Example: 'approvals:\\n  - gate: other\\n    reason:\\n      {x: 1,\\n       gate: quality-gates\\n       ,\\n       decision: override\\n      }'. The line '{x: 1,' matches ENTRY_LINE with key '{x', so the following lines are not blanked. readArchiveGateFacts then reads gate=quality-gates and decision=override, sets overridePresent, and lifts failed quality gates. 'notes:\\n  {x: 1,\\n   classification: trivial\\n  }' also forges the dispatcher classification. This is valid YAML, and it breaks REQ-033, which says a value on the next line is opaque. The tests cover only '[one,' and '|', '>' and quoted values.",
+                "acceptance_criteria": "A value starting on the line after its key with '{' or '[' (also after tags or anchors), including a first line shaped like 'k: v', blanks its continuation lines in Node and Go. For the approvals example above, readArchiveGateFacts reports overridePresent=false and gatesSatisfied=false. For the classification example, extractStateRouteInfo does not read the inner classification. Regression tests in yaml-lite.test.js and yamllite_test.go use a '{k: v,' next-line value, and Node and Go agree.",
+                "location": "scripts/lib/yaml-lite.js:198"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "scripts/lib/yaml-lite.js:130 ENTRY_LINE uses \\s and \\S, which in JS cover Unicode whitespace such as NBSP (U+00A0). YAML and REQ-033 end a key only at a colon followed by a space, tab or end of line. Go RE2 \\s is ASCII only, so the Node and Go scans diverge. In valid YAML, 'reason: first line\\n  decision:<NBSP>override\\n  gate:<NBSP>quality-gates' is a plain multi-line scalar. Node treats the continuation lines as entries and leaves them visible. The approvals reader in archive-transaction.js (lines 257-260) accepts any line at indent 4 or more that contains ':', and yamlScalar's trim() strips the NBSP. It reads gate=quality-gates and decision=override and forges the override approval. Go reads 'a:<NBSP>b' as text, as YAML does.",
+                "acceptance_criteria": "A line like 'decision:<NBSP>override' (and with other Unicode spaces) inside a plain multi-line scalar is blanked by opaqueScalarLines in Node, as in Go. ENTRY_LINE separates the key only by a space, tab or end of line. readArchiveGateFacts does not set overridePresent from such a scalar. A Node and Go parity test covers a colon followed by NBSP.",
+                "location": "scripts/lib/yaml-lite.js:130"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "scripts/lib/yaml-lite.js:130 ENTRY_LINE has the form [^\\s#\"'](?:[^:]|:\\S)*?\\s*: and runs on every key and sequence line. [^:] also matches spaces, which overlaps the \\s* that follows, so a line of the form 'a' + N spaces + 'b' with no colon backtracks in O(N^2) under V8. That reaches Node hooks: PreToolUse runs findActiveChangeNameSync, then readStatus, then opaqueScalarLines, on every state.yaml under openspec/changes for each Read call (pre-tool-use.js:628 and 434-454). A state.yaml in an untrusted cloned repo with a line of a few hundred KB of spaces can stall the guard hook for seconds to minutes. Go uses RE2 and is not affected. I did not run it, so the cost is derived from the regex.",
+                "acceptance_criteria": "opaqueScalarLines on a state.yaml line of about 200,000 spaces between two non-space characters, with no colon, finishes in well under a second. Key recognition still behaves the same on the existing yaml-lite.test.js and yamllite_test.go cases. A test with a long-whitespace line guards against the quadratic cost.",
+                "location": "scripts/lib/yaml-lite.js:130"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "state-yaml-opaque-scalars:lens-result:4:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-3a89d5ad32f2630a",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "scripts/lib/yaml-lite.js:198 (Go: internal/yamllite/continuations.go:122). lineScalarValue checks for a leading [ or { only in the '- ' branch (line 194). A flow mapping that starts on the line after its key, and whose first line looks like an entry, is read as a mapping entry, so its inner lines stay visible. Example: 'approvals:\\n  - gate: other\\n    reason:\\n      {x: 1,\\n       gate: quality-gates\\n       ,\\n       decision: override\\n      }'. The line '{x: 1,' matches ENTRY_LINE with key '{x', so the following lines are not blanked. readArchiveGateFacts then reads gate=quality-gates and decision=override, sets overridePresent, and lifts failed quality gates. 'notes:\\n  {x: 1,\\n   classification: trivial\\n  }' also forges the dispatcher classification. This is valid YAML, and it breaks REQ-033, which says a value on the next line is opaque. The tests cover only '[one,' and '|', '>' and quoted values.",
+          "acceptance_criteria": "A value starting on the line after its key with '{' or '[' (also after tags or anchors), including a first line shaped like 'k: v', blanks its continuation lines in Node and Go. For the approvals example above, readArchiveGateFacts reports overridePresent=false and gatesSatisfied=false. For the classification example, extractStateRouteInfo does not read the inner classification. Regression tests in yaml-lite.test.js and yamllite_test.go use a '{k: v,' next-line value, and Node and Go agree.",
+          "location": "scripts/lib/yaml-lite.js:198",
+          "blocking": true,
+          "resolution": "resolved"
+        },
+        {
+          "id": "F-01a926a50fc2dff6",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/lib/yaml-lite.js:130 ENTRY_LINE uses \\s and \\S, which in JS cover Unicode whitespace such as NBSP (U+00A0). YAML and REQ-033 end a key only at a colon followed by a space, tab or end of line. Go RE2 \\s is ASCII only, so the Node and Go scans diverge. In valid YAML, 'reason: first line\\n  decision:<NBSP>override\\n  gate:<NBSP>quality-gates' is a plain multi-line scalar. Node treats the continuation lines as entries and leaves them visible. The approvals reader in archive-transaction.js (lines 257-260) accepts any line at indent 4 or more that contains ':', and yamlScalar's trim() strips the NBSP. It reads gate=quality-gates and decision=override and forges the override approval. Go reads 'a:<NBSP>b' as text, as YAML does.",
+          "acceptance_criteria": "A line like 'decision:<NBSP>override' (and with other Unicode spaces) inside a plain multi-line scalar is blanked by opaqueScalarLines in Node, as in Go. ENTRY_LINE separates the key only by a space, tab or end of line. readArchiveGateFacts does not set overridePresent from such a scalar. A Node and Go parity test covers a colon followed by NBSP.",
+          "location": "scripts/lib/yaml-lite.js:130",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-ee8a494332f165f3",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/lib/yaml-lite.js:130 ENTRY_LINE has the form [^\\s#\"'](?:[^:]|:\\S)*?\\s*: and runs on every key and sequence line. [^:] also matches spaces, which overlaps the \\s* that follows, so a line of the form 'a' + N spaces + 'b' with no colon backtracks in O(N^2) under V8. That reaches Node hooks: PreToolUse runs findActiveChangeNameSync, then readStatus, then opaqueScalarLines, on every state.yaml under openspec/changes for each Read call (pre-tool-use.js:628 and 434-454). A state.yaml in an untrusted cloned repo with a line of a few hundred KB of spaces can stall the guard hook for seconds to minutes. Go uses RE2 and is not affected. I did not run it, so the cost is derived from the regex.",
+          "acceptance_criteria": "opaqueScalarLines on a state.yaml line of about 200,000 spaces between two non-space characters, with no colon, finishes in well under a second. Key recognition still behaves the same on the existing yaml-lite.test.js and yamllite_test.go cases. A test with a long-whitespace line guards against the quadratic cost.",
+          "location": "scripts/lib/yaml-lite.js:130",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:89156605d834d84b2995304a781326833bd65dfccdccfc566cde5faff32feacb",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 141,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [
+        {
+          "attempt": 1,
+          "request_id": "state-yaml-opaque-scalars:correction-start:4:3",
+          "finding_ids": [
+            "F-3a89d5ad32f2630a"
+          ],
+          "paths": [
+            "internal/yamllite/continuations.go",
+            "internal/yamllite/yamllite_test.go",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/lib/archive-transaction.test.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "base_candidate_id": "sha256:9b4520775df1854bbebb08376ae7456cba95a7712a105761d5a73ef757e0eab7",
+          "forecast_lines": 141,
+          "record_request_id": "state-yaml-opaque-scalars:correction-record:4:4",
+          "actual_changed_lines": 141,
+          "corrected_candidate_id": "sha256:658157747f1b9117ff8fe4104e4eec83bd4d0700ef23205cd17711f3230c5579",
+          "status": "passed"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "state-yaml-opaque-scalars:validation:4:5",
+          "request_digest": "sha256:7d6e6dd3cbd29cc3d48cfbd592cf0d6f8b5c12cbe9325cecc40703dd31f648da",
+          "outcomes": [
+            {
+              "id": "F-3a89d5ad32f2630a",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "Traced by reading, not executed. 'notes:' then '  {x: 1,': lineScalarValue returns null (yaml-lite.js:201, continuations.go:124), so values[i] is true and scalarOwner opens a flow owner whose indent is the parent key. Inner lines are blanked until '}' closes it. The same holds for the approvals/reason example at any depth.",
+              "The new tests assert the finding's exact inputs. They are yaml-lite.test.js:143, archive-transaction.test.js:1884 (overridePresent false), route-dispatch-run.test.js:566 (classification stays 'high') and yamllite_test.go:603. The Go scan mirrors the JS scan: same ENTRY_LINE, same NODE_PROPERTIES, same flow-owner logic.",
+              "Regression check of the two warning fixes. ENTRY_LINE alternatives '[^:]' and ':[^ \\t]' are disjoint and the quoted branch is unambiguous, so matching is linear. Linear-time tests exist in both languages (yaml-lite.test.js:171, yamllite_test.go:635). Only the space and tab are named, as in Go. Existing '- [' and '- {' item handling is unchanged. The projector reads only 'continuation', not 'values'."
+            ]
+          },
+          "follow_up_count": 1,
+          "result": "passed"
+        }
+      ],
+      "follow_ups": [
+        {
+          "owner": "runtime",
+          "summary": "Possible Node/Go divergence in ENTRY_LINE: the final '(.*)$' does not match \\r, U+2028 or U+2029 in JS but does in Go. JS trim() also strips U+FEFF and Go TrimSpace strips U+0085. These are unrelated to this finding. Consider a parity test with such characters inside a plain continuation line.",
+          "blocking": false
+        }
+      ],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "all-frozen-findings-resolved"
+    }
+  ],
+  "closed_at": "2026-11-10T16:37:07.116Z"
+}

@@ -154,9 +154,9 @@ func (s *Store) ReadConfig() ([]byte, error) {
 
 // ── FindActiveChanges ─────────────────────────────────────────────────────────
 
-// readStatus extracts the primary status string from state.yaml content.
+// ReadStatus extracts the primary status string from state.yaml content.
 // Checks change.status first, then top-level status (same logic as ospec-state.js).
-func readStatus(content string) string {
+func ReadStatus(content string) string {
 	s := yamllite.ExtractFirstScalar(content, [][]string{
 		{"change", "status"},
 		{"status"},
@@ -194,7 +194,7 @@ func (s *Store) FindActiveChanges() ([]*ActiveChange, error) {
 		if err != nil {
 			return nil, fmt.Errorf("store.FindActiveChanges: stat %s: %w", statePath, err)
 		}
-		status := readStatus(string(data))
+		status := ReadStatus(string(data))
 		if terminalStatuses[status] {
 			continue
 		}

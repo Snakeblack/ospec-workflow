@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Los lectores línea a línea de state.yaml (gate de archivado, ruta persistida, status, clasificación e impacto del dispatcher, YAML-lite de los hooks JS y Go) leen claves dentro de un escalar de bloque o multilínea (state-yaml-opaque-scalars)
+
 ## [2.171.4] - 2026-11-10
 
 ### Fixed

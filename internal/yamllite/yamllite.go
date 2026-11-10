@@ -36,10 +36,12 @@ type stackEntry struct {
 }
 
 // parseYamlLines splits content into trimmed lines with indent levels,
-// discarding blank lines and comment-only lines.
+// discarding blank lines, comment-only lines and the continuation lines of a
+// scalar (REQ-lifecycle-kernel-033).
 func parseYamlLines(content string) []yamlLine {
 	var out []yamlLine
-	for _, raw := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
+	lines, _ := OpaqueScalarLines(content)
+	for _, raw := range lines {
 		raw = strings.TrimRight(raw, "\r")
 		trimmed := strings.TrimSpace(raw)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
@@ -117,7 +119,8 @@ func extractTopLevelSection(content, sectionName string) []string {
 	patternStr := fmt.Sprintf(`^%s:\s*(?:#.*)?$`, regexp.QuoteMeta(sectionName))
 	sectionRe := regexp.MustCompile(patternStr)
 
-	for _, raw := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
+	lines, _ := OpaqueScalarLines(content)
+	for _, raw := range lines {
 		raw = strings.TrimRight(raw, "\r")
 		trimmed := strings.TrimSpace(raw)
 		indent := len(raw) - len(strings.TrimLeft(raw, " \t"))
