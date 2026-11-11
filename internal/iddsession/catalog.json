@@ -98,6 +98,7 @@
   ],
   "gates": [
     "ambiguous-intent",
+    "kind-change",
     "open-facts",
     "adr-amend-or-contradict",
     "irreversible-operation",

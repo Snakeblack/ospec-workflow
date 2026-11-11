@@ -365,10 +365,11 @@ pass", without a recorded execution MUST NOT satisfy any obligation.
 - WHEN the model reports that the tests pass
 - THEN `checks-pass` MUST stay `pending`
 
-### Requirement: Only Six Gates {#REQ-idd-008}
+### Requirement: Only Seven Gates {#REQ-idd-008}
 
-IDD MUST stop for the user only at six gates: `ambiguous-intent` when the
-intent is materially ambiguous, `open-facts` when behavior questions that
+IDD MUST stop for the user only at seven gates: `ambiguous-intent` when the
+intent is materially ambiguous, `kind-change` when a `bug` becomes a `feature`
+and so withdraws `repro-test` (REQ-idd-011), `open-facts` when behavior questions that
 neither the request nor the code settles are open (REQ-idd-018),
 `adr-amend-or-contradict` when the change amends
 or contradicts an ADR, `irreversible-operation` before a destructive or
@@ -610,9 +611,18 @@ rewriting a recorded fact with different content MUST be refused. The one
 exception is a raised kind (E1.44): `record intent` on an open change with a
 resolved intent MAY record a new kind, summary, acceptance and open facts when
 the kind raises the ceremony, from `docs` to `refactor`, `bug` or `feature`, or
-from `refactor` to `bug` or `feature`. A lower kind, or `bug` and `feature` in
-place of each other, MUST still be refused with `intent-conflict`, and while
-`open-facts` is open the raise MUST be refused with `open-facts-open`. The
+from `refactor` to `bug` or `feature`, and from `feature` to `bug`, which adds
+`repro-test`. A lower kind MUST still be refused with `intent-conflict`, and
+while `open-facts` is open the raise MUST be refused with `open-facts-open`. A
+`bug` MAY become a `feature` (#491), but since that withdraws `repro-test` the
+record MUST drop the `bug-fix` signal, withdraw a pending `repro-test` (a
+satisfied one keeps its evidence) and open `kind-change`, which only the
+user's answer resolves and which `record gate --open` MUST refuse with
+`gate-managed-by-intent`. While `kind-change` is open, another kind MUST be
+refused with `kind-change-open`. Once it is answered, the intent MAY go back to
+`bug`, which drops the `open-facts` entry the feature opened and nobody
+answered; the derivation then records `bug-fix` again and reopens
+`repro-test`. The
 raised intent MUST replace `intent` and `facts`, keep the answered gate
 entries, and open a new `open-facts` entry for a question not asked before, and
 always for a `feature`, which asks its categories as a feature recorded from
@@ -635,7 +645,7 @@ check configuration and command suggestion, and before anything is built, the
 project's files. It MUST return the change, its pending
 obligations in work order, the pending decision, the next step and the
 knowledge references. The next step MUST be `resolve-gate` for the first open
-gate in the order `ambiguous-intent`, `open-facts`, `adr-amend-or-contradict`,
+gate in the order `ambiguous-intent`, `kind-change`, `open-facts`, `adr-amend-or-contradict`,
 `irreversible-operation`, `review-limit`, `checks-changed`, because every gate is a decision the user takes
 before the work it decides (REQ-idd-008); else `declare-plan` (with `how`
 naming `ospec signals`) while the change has no recorded `plan`, no signal
@@ -839,6 +849,18 @@ there MUST be no suggestion and no error.
   question was answered before, and another `--request` MUST be refused with
   `intent-conflict`
 
+#### Scenario: A bug becomes a feature only with the user's answer
+
+- GIVEN an open `bug` change with `bug-fix` and a pending `repro-test`
+- WHEN `record intent` runs again with kind `feature` and its categories
+- THEN the intent MUST hold kind `feature`, `bug-fix` MUST be gone, `repro-test`
+  MUST be `withdrawn` naming `kind-change`, and `kind-change` MUST be open
+  before `open-facts`
+- AND `close` MUST be refused while `kind-change` is open
+- AND after the user refuses at `kind-change`, recording kind `bug` again MUST
+  drop the unanswered `open-facts` entry, and the next derivation MUST reopen
+  `repro-test`
+
 #### Scenario: Interrupted record keeps the committed state
 
 - GIVEN a committed `state.yaml`
@@ -897,7 +919,7 @@ there MUST be no suggestion and no error.
 - GIVEN an open change
 - WHEN `record gate --gate bogus --open --json` runs
 - THEN it MUST exit with 1 and the code `unknown-gate`, with a `how` that
-  lists the six gates
+  lists the seven gates
 
 #### Scenario: Next is deterministic for the reference fixtures
 

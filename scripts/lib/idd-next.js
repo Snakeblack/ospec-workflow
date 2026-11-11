@@ -27,6 +27,7 @@ const WORK_ORDER = Object.freeze([
 
 const GATE_QUESTIONS = Object.freeze({
   "ambiguous-intent": "What must this change achieve? Confirm its kind, summary and acceptance.",
+  "kind-change": "This bug became a feature, which withdraws repro-test. Does the user approve the new kind? If not, resolve this gate with their words and record the intent back as a bug.",
   "open-facts": "Before the change is built, answer these behavior questions that neither the request nor the code settles.",
   "adr-amend-or-contradict": "This change amends or contradicts an ADR. Approve the amendment?",
   "irreversible-operation": "This operation is destructive or irreversible. Approve it?",
