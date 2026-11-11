@@ -1,0 +1,81 @@
+{
+  "schema": "idd-state/v1",
+  "change": "friction-items-roadmap",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Registrar en el roadmap los ítems de las fricciones de proyectos reales (#498 a #503) y los issues abiertos sin ítem",
+    "acceptance": "docs/roadmaps/harness-evolution.md tiene un ítem por cada issue, con su problema, la garantía que protege, su alcance y su criterio de hecho, y la tabla de estado, la tabla de issues, el orden y el historial los nombran; node scripts/check.js pasa"
+  },
+  "facts": {
+    "open": [
+      "¿Entran también en este cambio los tres issues abiertos que aún no tienen ítem (#483, #490 y #494), o solo los seis de la auditoría (#498 a #503)?",
+      "¿En qué orden entran los ítems nuevos respecto a lo que queda del bloque C (los lotes de la review general, E1.52, E1.59, E1.60, E1.57, E1.51 y E3.7)?",
+      "¿Este cambio lleva versión propia, o su entrada del changelog sale con la versión del arreglo de #498, como el cambio e1-57-e1-58-roadmap?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 292,
+      "answer": "las regomendqdqs (las recomendadas: 1, entran también #483, #490 y #494; 2, opción A, todos por delante de lo que queda del bloque C en el orden #498, #483, #500, #494, #499, #501, #502, #490, y #503 fuera del orden; 3, sin versión propia, la entrada sale con la versión del arreglo de #498)",
+      "source": "user",
+      "resolved_turn": 294
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T21:06:35.365Z",
+      "detail": {
+        "tree": "sha256:ee73d3db0cc2f85bc6279d4f4d8c90b56e2ca75d15a1afc0dc09b1a7fffe038c",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "ed4d47e8016cd41247ef171104897689b78bde92",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:47638afbc869a6ed8e6ee821a138ef3f020e03901111f0ee53f31b72591925fc",
+      "tree": "sha256:ee73d3db0cc2f85bc6279d4f4d8c90b56e2ca75d15a1afc0dc09b1a7fffe038c",
+      "recorded_at": "2026-11-11T21:06:35.365Z"
+    }
+  ],
+  "closed_at": "2026-11-11T21:06:44.407Z"
+}
