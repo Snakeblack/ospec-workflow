@@ -18,6 +18,7 @@ const {
   lineIndent,
   opaqueScalarLines,
   opensQuotedScalar,
+  readYamlScalar,
   scanScalarContinuations,
 } = require("./yaml-lite.js");
 
@@ -53,7 +54,7 @@ function parseScalar(value) {
     return quoted[2];
   }
 
-  return trimmed.replace(/\s+#.*$/, "").trim();
+  return trimmed.replace(/(?<!\s)\s+#[^\n]*$/, "").trim();
 }
 
 function readStatus(content) {
@@ -108,7 +109,7 @@ function applyBaselineField(trimmed, result) {
     return null;
   }
 
-  const keyValue = trimmed.match(/^(\w+):\s*(.*)$/);
+  const keyValue = trimmed.match(/^(\w+):\s*([^\n]*)$/);
   if (!keyValue) {
     return null;
   }
@@ -125,8 +126,10 @@ function applyBaselineField(trimmed, result) {
   return null;
 }
 
+// REQ-lifecycle-kernel-034: the lines of a value are blank, so a key written
+// inside a value never counts.
 function readBaselineState(content) {
-  const lines = content.split(/\r?\n/);
+  const { lines } = opaqueScalarLines(content);
   let foundBaseline = false;
   let inBaseline = false;
   let currentListKey = null;
@@ -162,7 +165,7 @@ function readBaselineState(content) {
     if (indent === BASELINE_FIELD_INDENT) {
       currentListKey = applyBaselineField(trimmed, result);
     } else if (indent >= BASELINE_LIST_ITEM_INDENT && currentListKey !== null) {
-      const listItem = trimmed.match(/^-\s+(.+)$/);
+      const listItem = trimmed.match(/^-\s+([^\n]+)$/);
       if (listItem) {
         result[currentListKey].push(listItem[1].trim());
       }
@@ -172,36 +175,11 @@ function readBaselineState(content) {
   return foundBaseline ? result : null;
 }
 
+// REQ-lifecycle-kernel-034: only the direct `backend` of `artifact_store`
+// counts, never a key written inside a value.
 function readBackendMode(content) {
-  let inArtifactStore = false;
-
-  for (const raw of String(content).split(/\r?\n/)) {
-    const trimmed = raw.trim();
-    const indent = raw.match(/^\s*/)[0].length;
-
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-
-    if (indent === 0) {
-      inArtifactStore = trimmed === "artifact_store:";
-      continue;
-    }
-
-    if (inArtifactStore) {
-      const match = trimmed.match(/^backend:\s*(.+)$/);
-
-      if (match) {
-        const mode = parseScalar(match[1]);
-
-        return ARTIFACT_STORE_MODES.includes(mode)
-          ? mode
-          : DEFAULT_ARTIFACT_STORE_MODE;
-      }
-    }
-  }
-
-  return DEFAULT_ARTIFACT_STORE_MODE;
+  const mode = readYamlScalar(String(content ?? ""), ["artifact_store", "backend"]);
+  return ARTIFACT_STORE_MODES.includes(mode) ? mode : DEFAULT_ARTIFACT_STORE_MODE;
 }
 
 function resolveWorkspaceFromChange(changePath) {

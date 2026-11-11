@@ -520,27 +520,13 @@ const FEDERATION_AWARE_HOOKS = new Set([
   "stop",
 ]);
 
+// The direct `artifact_store.backend` of openspec/config.yaml, never a key
+// written inside a value (REQ-lifecycle-kernel-034). yaml-lite.js loads only
+// for the hooks that read it, off the hot path of the others.
 function readBackendModeSync(configPath, readFileSync = fs.readFileSync) {
   try {
-    const content = readFileSync(configPath, "utf8");
-    let inArtifactStore = false;
-    for (const raw of content.split(/\r?\n/)) {
-      const trimmed = raw.trim();
-      const indent = raw.match(/^\s*/)[0].length;
-      if (!trimmed || trimmed.startsWith("#")) {
-        continue;
-      }
-      if (indent === 0) {
-        inArtifactStore = trimmed === "artifact_store:";
-        continue;
-      }
-      if (inArtifactStore) {
-        const match = trimmed.match(/^backend:\s*(.+)$/);
-        if (match) {
-          return match[1].replace(/^(["'])([\s\S]*)\1$/, "$2").replace(/\s+#.*$/, "").trim();
-        }
-      }
-    }
+    const { readYamlScalar } = require("../lib/yaml-lite.js");
+    return readYamlScalar(readFileSync(configPath, "utf8"), ["artifact_store", "backend"]) ?? "openspec";
   } catch (err) {
     // Ignore and default
   }

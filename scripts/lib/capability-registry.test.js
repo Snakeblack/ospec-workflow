@@ -143,3 +143,10 @@ test("matchStackSkills: two matched entries returned sorted by id ascending", ()
   assert.equal(result[0].id, "stack-angular");
   assert.equal(result[1].id, "stack-dotnet");
 });
+
+test("REQ-lifecycle-kernel-034: a block scalar inside a capability does not end it", () => {
+  assert.deepEqual(parseCapabilities("capabilities:\n  - name: a\n    notes: |\n      line\n    version: 2\n"), [{ name: "a", version: "2", source: "declared" }]);
+  const started = process.hrtime.bigint();
+  for (const tail of ["b", "b\rc", "b\u2028c"]) parseCapabilities(`capabilities:\n  - name:${" ".repeat(100000)}${tail}\n    version:${" ".repeat(100000)}${tail}\n`);
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
+});

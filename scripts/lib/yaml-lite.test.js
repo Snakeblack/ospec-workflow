@@ -175,3 +175,30 @@ test("REQ-lifecycle-kernel-033: a long line of spaces is scanned in linear time"
   opaqueScalarLines(`x: 1\n${line}\n  ${line}\n- ${line}\n`);
   assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
 });
+
+test("REQ-lifecycle-kernel-034: a long line of spaces in a value or a flow mapping is read in linear time", () => {
+  const { opaqueScalarLines } = require("./yaml-lite.js");
+  const spaces = " ".repeat(100000);
+  const started = process.hrtime.bigint();
+  assert.equal(readYamlScalar(`testing:\n  tdd_mode: a${spaces}b\n`, PATH), `a${spaces}b`);
+  assert.equal(readYamlScalar(`testing: { a${spaces}b }\n`, PATH), null);
+  // A lone CR, U+2028 or a space after the run: `.` stops at the first two.
+  for (const tail of ["b\rc", "b\u2028c", "b c"]) {
+    readYamlScalar(`testing:\n  tdd_mode:${spaces}${tail}\n`, PATH);
+    readYamlScalar(`testing: { tdd_mode:${spaces}${tail} }\n`, PATH);
+    opaqueScalarLines(`x:${spaces}${tail}\n- x:${spaces}${tail}\nx: |\n  ${tail}\n`);
+  }
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
+  assert.equal(readYamlScalar("testing: { tdd_mode   : strict }\n", PATH), "strict");
+  assert.equal(readYamlScalar("testing:\n  tdd_mode: strict\r\n", PATH), "strict");
+});
+
+test("REQ-lifecycle-kernel-034: a lone CR or a U+2028 inside a value reads as in Go", () => {
+  const { opaqueScalarLines } = require("./yaml-lite.js");
+  const { lines, error } = opaqueScalarLines("a: b\rc\n  more\nk: v\u2028w\n  more\nz: 1\n");
+  assert.equal(error, null);
+  assert.deepEqual(lines, ["a: b\rc", "", "k: v\u2028w", "", "z: 1", ""]);
+  // In a block scalar header's comment and after a backslash in a quoted key.
+  const headers = opaqueScalarLines('t: | # c\rx\n  lint: x\nu: | # c\u2028x\n  lint: x\nv: | # c\u2029x\n  lint: x\n"a\\\rb": |\n  lint: x\nz: 1\n');
+  assert.deepEqual(headers.lines, ["t: | # c\rx", "", "u: | # c\u2028x", "", "v: | # c\u2029x", "", '"a\\\rb": |', "", "z: 1", ""]);
+});

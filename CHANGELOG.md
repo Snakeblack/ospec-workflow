@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Los lectores línea a línea de openspec/config.yaml e idd/config.yaml leen claves dentro de un escalar de bloque o multilínea, extractConfigDefaults hace backtracking exponencial y readFlowScalar es cuadrático (config-yaml-opaque-scalars)
+
 ## [2.171.5] - 2026-11-10
 
 ### Fixed
