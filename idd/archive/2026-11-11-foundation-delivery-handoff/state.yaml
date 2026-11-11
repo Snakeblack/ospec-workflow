@@ -1,0 +1,259 @@
+{
+  "schema": "idd-state/v1",
+  "change": "foundation-delivery-handoff",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "ponte con el issue 485. Issue #485: Al final de `foundation`, dentro del mismo paso de aprobación del hand-off: Preguntar la estrategia de entrega, con la recomendación que `ospec team` deduce del perfil, sus motivos y las alternativas con sus pros y contras: `delivery.branching` (`serial` / `parallel`); si hay remoto y dónde (p. ej. crearlo con `gh`, como repo privado si el código es cerrado), o si se trabaja sin PRs. Escribir `delivery:` en `idd/config.yaml` solo tras la aprobación explícita, conservando las demás claves. Ofrecer un commit de la fundación como último paso, siempre con confirmación explícita del usuario: si la rama por defecto no tiene commits, proponer el nombre de la rama (`main`) y un commit inicial con los artefactos de la fundación (`docs/`, `idd/config.yaml`, `openspec/` si existe), en formato Conventional Commits (p. ej. `docs: add architecture foundation`); no hacer push ni crear el remoto sin aprobación. Decisión del usuario: Solo la skill: foundation presenta la estrategia como consecuencia de team.size (se cambia cambiando el tamaño) y pregunta y declara branching, changelog, release e integration_branch, más el remoto y el commit final. No toca el CLI.",
+    "kind": "feature",
+    "summary": "foundation pregunta la entrega (delivery:) y el remoto en el hand-off a IDD y ofrece el commit de sus artefactos al terminar (#485)",
+    "acceptance": "El hand-off de skills/foundation/SKILL.md presenta branching, changelog y release de ospec team con su origen, motivos y alternativas, la estrategia como consecuencia de team.size e integration_branch solo si se integra aparte de producción; escribe delivery: solo tras la aprobación; pregunta por el remoto cuando no lo hay; termina ofreciendo el commit de los artefactos (rama main y commit inicial en un repo sin commits) y no ejecuta git commit, push ni crea el remoto sin un sí explícito; handbook/idd/foundation.md lo documenta; scripts/foundation-federated.test.js lo cubre; node scripts/check.js pasa"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "cite": {
+          "kind": "request",
+          "text": "pregunta y declara branching, changelog, release e integration_branch"
+        }
+      },
+      {
+        "category": "uniqueness",
+        "question": "Si foundation se ejecuta de nuevo en un proyecto cuyo idd/config.yaml ya declara delivery:, ¿muestra los valores declarados y los conserva salvo que el usuario los cambie (sin volver a proponer los del perfil), o vuelve a preguntarlo todo?"
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "request",
+          "text": "Escribir `delivery:` en `idd/config.yaml` solo tras la aprobación explícita, conservando las demás claves"
+        }
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "request",
+          "text": "en formato Conventional Commits (p. ej. `docs: add architecture foundation`)"
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "request",
+          "text": "si hay remoto y dónde (p. ej. crearlo con `gh`, como repo privado si el código es cerrado)"
+        }
+      },
+      {
+        "category": "accessibility",
+        "question": "En modo delegado el agente foundation solo tiene read, search y edit (sin shell): no puede ejecutar ospec team ni git. ¿Devuelve la propuesta de delivery (sacada de la tabla del perfil de equipo), la pregunta del remoto y la oferta de commit al orquestador en open_questions, para que este pregunte y ejecute, o el modo delegado se queda fuera de este cambio?"
+      },
+      {
+        "category": "errors",
+        "question": "Si el proyecto no es un repositorio git, ¿foundation ofrece crearlo (git init -b main) antes del commit, con aprobación, o solo lo señala y no ofrece commit? Y si el usuario no quiere remoto ni PRs, ¿se declara igualmente delivery (branching serial, changelog y release) y el commit va directo a la rama por defecto?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "handbook/idd/foundation.md",
+      "scripts/foundation-federated.test.js",
+      "skills/foundation/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Solo la skill, sin tocar el CLI (decisión del usuario): delivery_strategy no es declarable en IDD y sale de team.size, así que foundation la presenta como consecuencia del tamaño y declara solo branching, changelog, release e integration_branch",
+      "La propuesta de delivery sale de ospec team, que lee el team: escrito, así que se pregunta después de escribir las claves aprobadas; en modo delegado la rellena el orquestador con ospec team en vez de la tabla del perfil en prosa, para no reimplementar la regla en la skill (ADR 0003)",
+      "El commit de la fundación, git init y la creación del remoto son propuestas que solo se ejecutan con un sí explícito; el agente delegado no tiene shell y las devuelve en open_questions"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components foundation, skills: ADR 0003, 0006, 0009 and quality scenario contract-compatibility, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La skill llama a ospec team y presenta su respuesta (valores, origen y motivos) sin reimplementar la tabla del perfil; en modo delegado la rellena el orquestador con ospec team"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "El cambio no toca la memoria entre sesiones"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "none",
+      "reason": "Escribe claves ya existentes de delivery en idd/config.yaml; no añade ni cambia ningún contrato de máquina versionado"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "none",
+      "reason": "No cambia ningún contrato versionado por esquema ni el estado que lee una versión anterior"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "El commit es local; crear el remoto o hacer push solo se ofrece y corre con un sí explícito, y foundation termina sin red ni memoria"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "skills/foundation/SKILL.md (Hand-off to IDD) cita la orden que decide la entrega: ejecuta ospec team y presenta su branching, changelog y release con origen y motivos; no copia la tabla del perfil (BY_SIZE de team-profile.js, REQ-idd-023), y en modo delegado la rellena el orquestador con ospec team. El test [#485] de scripts/foundation-federated.test.js exige 'run `ospec team`'.",
+      "recorded_at": "2026-11-11T11:58:08.450Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El diff solo toca prosa de skills/foundation/SKILL.md, handbook/idd/foundation.md y un test; no añade llamadas de red al CLI ni a los hooks. La única orden con red que nombra la skill (gh repo create, push) es una propuesta que corre solo con un sí explícito del usuario, y git init y el commit son locales: foundation termina igual sin red ni memoria. next, check y close no cambian porque el CLI no se toca.",
+      "recorded_at": "2026-11-11T11:58:08.602Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 250,
+      "answer": "todas las recomendadas: (1) con delivery: ya declarado, foundation muestra los valores y los conserva salvo que el usuario los cambie; (2) en modo delegado el agente devuelve al orquestador en open_questions la propuesta de delivery sacada de la tabla del perfil, la pregunta del remoto y la oferta de commit, y el orquestador pregunta y ejecuta; (3) fuera de un repositorio git ofrece git init -b main con aprobación, y sin remoto ni PRs se declara igualmente delivery (serial, changelog y release) y el commit va directo a la rama por defecto",
+      "source": "user",
+      "resolved_turn": 252
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T11:59:36.845Z",
+      "detail": {
+        "tree": "sha256:9723201b04e453b86e7d553147ede50b7f88325f9df32916dc7ffb5cf36549c5",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T11:59:36.845Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 none",
+          "adr:0009 none",
+          "scenario:contract-compatibility none",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:9723201b04e453b86e7d553147ede50b7f88325f9df32916dc7ffb5cf36549c5",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-11T11:59:57.554Z"
+    }
+  ],
+  "base": "d6d17890c9acc02a42086701468dbe5995f6282a",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f46b6c66e3026ef12eab48d0ff96d6b65280d819b989151b225d434a3568019f",
+      "tree": "sha256:9723201b04e453b86e7d553147ede50b7f88325f9df32916dc7ffb5cf36549c5",
+      "recorded_at": "2026-11-11T11:59:36.845Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8e481b327c3bd6eac008effc57d13d9e7c5afcb8fc1d4f1c97a5435733a00f40",
+      "tree": "sha256:9723201b04e453b86e7d553147ede50b7f88325f9df32916dc7ffb5cf36549c5",
+      "recorded_at": "2026-11-11T11:59:36.845Z",
+      "tests": 2
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:581b4fc7cb9bcb2384e38c0555bd4b4671077149e9bef2ce46de4068d3ef2686",
+      "tree": "sha256:9723201b04e453b86e7d553147ede50b7f88325f9df32916dc7ffb5cf36549c5",
+      "recorded_at": "2026-11-11T11:59:36.845Z",
+      "tests": 32
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:24dce33d690ad65a7fc74b65fd4afaedbcb4914877f37490f5c70e752b4757b5",
+      "tree": "sha256:9723201b04e453b86e7d553147ede50b7f88325f9df32916dc7ffb5cf36549c5",
+      "recorded_at": "2026-11-11T11:59:36.845Z",
+      "tests": 32
+    }
+  ],
+  "closed_at": "2026-11-11T11:59:57.554Z"
+}

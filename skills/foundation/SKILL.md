@@ -175,7 +175,18 @@ explicit approval, preserving its other keys:
   boundaries in the chosen layout, plus `stack:` when services keep their
   manifests below the root;
 - `contracts.documents:` where contract documents (OpenAPI, proto, schemas)
-  live.
+  live;
+- `delivery:` how changes reach the repository, asked once the keys above
+  are written: run `ospec team`, which reads that profile, and present its
+  `branching`, `changelog` and `release`, each with its source, its reasons
+  and the alternatives with their tradeoffs: `serial` (one pull request in
+  flight) or `parallel` (several branches, each integrating the default
+  branch before its merge); a changelog path or `none`; `per-change`,
+  `batched` or `none`. Add `integration_branch` only when the team integrates
+  apart from production. `ospec close` writes the changelog and proposes a
+  release only once they are declared. The delivery strategy `ospec team`
+  names follows from `team.size`: changing it means changing the size. A
+  `delivery:` already declared keeps its values unless the user changes them.
 
 An IDD change declares the ADRs of `docs/architecture/decisions/` and the
 quality scenarios it touches (`ospec signals --adr <id> --quality <id>`) and
@@ -183,6 +194,22 @@ its impact on each, so a later change that amends, supersedes or contradicts
 an ADR stops for the user at the `adr-amend-or-contradict` gate. When the
 project uses SDD, also update `openspec/config.yaml`, its own `team:`
 included, as `references/foundation-details.md` describes.
+
+Then settle where the work goes. Outside a git repository, offer
+`git init -b main`. Without a remote (`git remote -v`), ask whether to create
+one and where (for example `gh repo create --private` for closed code) or to
+work without pull requests; without them `delivery:` is still declared and
+commits go to the default branch. Last, offer to commit the foundation's
+files (`docs/`, `idd/config.yaml`, `openspec/` when it exists) as one
+Conventional Commit, such as `docs: add architecture foundation`. On a branch
+with no commit yet (`git rev-parse --verify HEAD` fails), propose its name
+(`main`) too: the first IDD change needs that base commit for its
+counterproof. With history, propose the commit, or a branch and a pull
+request as the approved delivery says. Run no `git init`, `git commit`, push
+or remote creation without the user's explicit yes. Delegated, run none of
+them: list in `open_questions` the `delivery:` question, answered from
+`ospec team` once `team:` is written, the remote question and the commit
+offer, for the orchestrator to ask and run.
 
 ## Source documents
 
@@ -215,8 +242,9 @@ relaunches you to finish both roadmaps.
 
 ## Result
 
-Direct: summarize the decisions, the ADRs written, the open gaps and the first
-slice, and recommend building that slice as an IDD change. Delegated: return
+Direct: summarize the decisions, the ADRs written, the open gaps, the
+delivery and the commit, and the first slice, and recommend building that
+slice as an IDD change. Delegated: return
 `status`, `executive_summary`, `artifacts`, `next_recommended` (`sdd-new` for
 the first slice; never continue into other phases), `risks`,
 `open_questions` and `skill_resolution`, plus the `question_gate` when
