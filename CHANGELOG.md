@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Registrar en el roadmap los ítems de las fricciones de proyectos reales (#498 a #503) y los issues abiertos sin ítem (friction-items-roadmap)
+
 ## [2.172.2] - 2026-11-11
 
 ### Fixed

@@ -183,6 +183,14 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.60** | `review-refuter` (un agente de solo lectura refuta una vez por linaje los BLOCKER y CRITICAL antes de congelarlos: refutado pasa a advisory con su evidencia; en pie, inconcluso o malformado sigue bloqueando; en el bloque C, detrás de E1.59) | feature |
 | `done` | **E1.61** | `turn-fence-worktree` (en un `git worktree` fuera del directorio del proyecto, la respuesta a un gate quedaba `user-unverified`: el hook de fin de turno cuenta en el repositorio del `cwd` de la sesión y el CLI leía solo el del worktree; ahora suma las dos cuentas; en el bloque C, detrás de E1.58, en v2.170.4) | bugfix |
 | `pending` | **E1.62** | `sdd-review-adoption` (el Quality Review Gate de SDD adopta lo que E1.50, E1.52, E1.59 y E1.60 dan a IDD: sinks por contenido, árbol congelado, dominio runtime y refutador; fuera del orden ▶) | feature |
+| `pending` | **E1.63** | `review-advisory-correction` (#498: arreglar los avisos de una revisión de confianza aprobada, dentro de las rutas congeladas y del presupuesto de líneas, se valida con la corrección acotada y no con una revisión sucesora; el primero de las fricciones de proyectos reales del 2026-11-11, por delante de los lotes de la review general) | feature |
+| `pending` | **E1.64** | `idd-config-in-diff` (#483: `idd/config.yaml` entra en el diff y en la huella del árbol de un cambio, y de `idd/` solo queda fuera lo que escribe ospec; detrás de E1.63) | bugfix |
+| `pending` | **E1.65** | `counterproof-declared-docs` (#500: un Markdown que el proyecto declara en `impact` o en `contracts.documents` cuenta como producto para la contraprueba; detrás de E1.64) | bugfix |
+| `pending` | **E1.66** | `first-gate-turn-fence` (#494: el primer gate de un proyecto sin `.ospec/turns` deja de quedar siempre `user-unverified`; detrás de E1.65) | bugfix |
+| `pending` | **E1.67** | `check-path-scope` (#499: un check de `idd/config.yaml` puede declarar sus rutas, y `ospec check` no lo ejecuta si el diff no toca ninguna; detrás de E1.66) | feature |
+| `pending` | **E1.68** | `build-scripts-declared` (#501: `impact.build_scripts` declara los scripts de herramienta cuyas escrituras no derivan `persistent-data`; detrás de E1.67) | bugfix |
+| `pending` | **E1.69** | `impact-raise` (#502: un impacto declarado se puede subir de `none` o `conforms` a `amends`, `supersedes` o `contradicts` antes de `close`; detrás de E1.68) | bugfix |
+| `pending` | **E1.70** | `fitness-baseline-failing` (#490: un `- Check:` de ADR que ya falla en la base avisa y no bloquea un cambio que no lo empeora; detrás de E1.69) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -222,6 +230,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E5.12** | `progress-snapshot-v3` (`ospec snapshot --schema-version 3` exporta el v2 más la etapa de entrega de cada fase `done`, en pruebas o en producción con su versión y fecha, sacada del changelog que declara `delivery.changelog`; el v1 y el v2 no cambian; en v2.159.0) | feature |
 | `done` | **E5.13** | `progress-snapshot-v4` (`ospec snapshot --schema-version 4` exporta el v3 más la documentación del proyecto para el cliente: el problema, los objetivos, lo que incluye y lo que no, los entregables y las decisiones de sus ADRs aceptados o sustituidos, con el motivo para el cliente del fichero de avance y las fases de la columna `ADRs` del roadmap; el v1, el v2 y el v3 no cambian; en v2.163.0) | feature |
 | `done` | **E5.14** | `delivery-integration-branch` (#458: `delivery` declara una rama de integración aparte de producción; las ramas de trabajo salen de ella, la versión se propone al promover a producción o al cortar `release/x.y`, `next`, `team` y `close` dan sus reglas sin leer git, y sin declararla nada cambia; en v2.168.0) | feature |
+| `pending` | **E5.15** | `registry-plugin-skills` (#503: el skill-registry lista las skills de los plugins activos, para que las fases de SDD reciban las convenciones de un plugin; fuera del orden ▶) | feature |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
 **▶ SIGUIENTE:** el orden que sale de la [auditoría del harness frente a gentle-ai del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Mantiene la decisión del usuario del 2026-10-23 (primero los defectos del harness, el banco después) y la del 2026-10-25: un change por sesión, y todo funciona en los 7 targets. Hasta la v2.151.0, la cola anterior dejó hechos E1.29, E1.31, E1.32 y E1.34–E1.41 y E4.12.
@@ -231,7 +240,7 @@ E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delan
 1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.53 `config-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E1.56 `bench-browser-keyring` → E1.55 `atomic-write-concurrent-rename` → E4.10 `greenfield-foundation-hint`.
 2. **B. Economía**, antes que C porque C añade una ejecución de la suite: E4.15 `cli-chaining` → E4.16 `cli-terse-output` → E4.3 `context-budget-ratchet`, que fija los techos por target después de B.
 3. **E4.17** `bench-knowledge-scenarios`: escribe y congela escenarios sin correrlos. Es una excepción acotada a «banco después», decidida por el usuario el 2026-10-25 para que C no se ajuste sobre ellos.
-4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.58 `contract-content-retract` → E1.61 `turn-fence-worktree` → E1.50 `content-security-signal` → E1.52 `review-frozen-tree` → E1.59 `idd-runtime-review` → E1.60 `review-refuter` → E1.57 `idd-change-abandon` → E1.51 `open-change-nudge` → E3.7 `fact-ledger`. Entre E1.50 y E1.52 van los lotes que quedan de la review general del 2026-10-29 (los lectores de `state.yaml` ante un CR y la paridad de blancos del escáner, PR4c, PR4d y PR5 a PR8; los huecos del guard de atribución quedaron hechos en v2.171.1, PR3b en v2.171.2, PR4a en v2.171.3, PR4b en v2.171.4, los lectores de `state.yaml` en v2.171.5 y los de `config.yaml` en v2.171.6), porque PR4 y PR5 tocan la base de los recibos de E1.52.
+4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.58 `contract-content-retract` → E1.61 `turn-fence-worktree` → E1.50 `content-security-signal` → E1.52 `review-frozen-tree` → E1.59 `idd-runtime-review` → E1.60 `review-refuter` → E1.57 `idd-change-abandon` → E1.51 `open-change-nudge` → E3.7 `fact-ledger`. Entre E1.50 y E1.52 van los lotes que quedan de la review general del 2026-10-29 (los lectores de `state.yaml` ante un CR y la paridad de blancos del escáner, PR4c, PR4d y PR5 a PR8; los huecos del guard de atribución quedaron hechos en v2.171.1, PR3b en v2.171.2, PR4a en v2.171.3, PR4b en v2.171.4, los lectores de `state.yaml` en v2.171.5 y los de `config.yaml` en v2.171.6), porque PR4 y PR5 tocan la base de los recibos de E1.52. Por delante de esos lotes van, desde el 2026-11-11, los ítems de las fricciones de proyectos reales: E1.63 `review-advisory-correction` → E1.64 `idd-config-in-diff` → E1.65 `counterproof-declared-docs` → E1.66 `first-gate-turn-fence` → E1.67 `check-path-scope` → E1.68 `build-scripts-declared` → E1.69 `impact-raise` → E1.70 `fitness-baseline-failing`.
 5. **D. Banco, todo junto.** E4.14 `bench-validation-readiness` (con el doble conteo) → corrida de validación de E4.6 en Claude y agy → medición de E4.10 en `todo-spa` y `receta-spa` → E4.18 `review-detection-bench`, con el escenario de sink de E4.17 → E4.4, recalculando antes su premisa → E4.13 `worker-delegation`, solo si E4.4 da evidencia (decisión del usuario del 2026-10-22) → E4.11 `workspace-root-resolution`, al final de la cola.
 
 E1.54 `lock-reclaim-rename`, residuo de E1.46 anotado el 2026-10-26, tiene prioridad baja y queda fuera del orden ▶ hasta que el usuario lo coloque. E1.55 `atomic-write-concurrent-rename`, otro residuo de E1.46 anotado el 2026-10-27, entró ese mismo día en el bloque A porque su flake ya había roto dos de las cuatro ejecuciones de Windows desde v2.158.0. E1.56 `bench-browser-keyring` entró también el 2026-10-27, por delante de E1.55, porque los checks de Chromium del banco fallaban en local tras cada reinicio y dejaban cientos de navegadores huérfanos.
@@ -239,6 +248,8 @@ E1.54 `lock-reclaim-rename`, residuo de E1.46 anotado el 2026-10-26, tiene prior
 E1.57 `idd-change-abandon` (#409) y E1.58 `contract-content-retract` (#423), los dos únicos issues abiertos sin ítem, entraron el 2026-10-28. El usuario colocó E1.57 en el bloque C, antes de E1.51, porque sin una salida legítima ese nudge pediría continuar un cambio sustituido que no se puede cerrar. E1.58 tenía prioridad baja y quedaba fuera del orden ▶; el 2026-11-03 el usuario lo colocó en el bloque C, por delante de E1.50, después de que app-restaurante topara con un color en prosa que casaba con el patrón de selector y no tenía más salida que reescribirlo.
 
 E1.59 `idd-runtime-review`, E1.60 `review-refuter`, E1.62 `sdd-review-adoption` y E4.18 `review-detection-bench` entraron el 2026-11-03 con el plan para cerrar la brecha del revisor frente a gentle-ai. Como sistema, gentle-ai era mejor: su binario lanza al revisor sin herramientas y admite su veredicto, revisa el árbol congelado, deriva el riesgo del contenido y pasa los hallazgos por un refutador. ospec era mejor en el criterio del prompt (`review-judgment.md`), el coste y la sencillez, y nadie había medido la detección. El usuario fijó el orden E1.50 → E1.52 → E1.59 → E1.60, seguidos, y el alcance solo en IDD, porque los cambios de `review-lineage.js` no dependen del modo. La adopción en SDD queda en E1.62, fuera del orden ▶, y la medición, E4.18, en el bloque D con Haiku.
+
+E1.63 a E1.70 y E5.15 entraron el 2026-11-11 con la auditoría de sinergia entre ospec y dos proyectos reales que lo usan a diario, uno con 40 cambios IDD archivados y otro con 66. Nada estaba roto: el coste estaba en cada cambio. Las dos sesiones de esos proyectos auditaron su `idd/archive`, y lo que le toca a ospec se comprobó contra su código antes de abrir #498 a #503. #483, #490 y #494 eran los tres issues abiertos sin ítem. El usuario colocó los ocho de la Etapa 1 por delante de lo que queda del bloque C, porque hoy los paga cada cambio real. E1.63 va primero porque es lo que más tiempo cuesta: de 116 revisiones de confianza, todas aprobadas, salieron 117 hallazgos, y 113 no bloqueaban. Le siguen E1.64, del que depende un cambio pendiente de uno de los proyectos, y E1.65, que deja sin contraprueba a los proyectos cuyo producto es Markdown. E1.66 afecta al primer cambio de cada proyecto nuevo. E5.15 queda fuera del orden ▶, porque solo afecta a SDD.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -296,6 +307,20 @@ La matriz de eventos por target de la v2.151.0 está en la [auditoría](../analy
 | #409 · OSP-039 | **E1.57** `idd-change-abandon` (nuevo) |
 | #423 · OSP-040 | **E1.58** `contract-content-retract` (nuevo; seguimiento de E1.38 y E1.40) |
 
+**Issues incorporados el 2026-11-11.** Son los seis de la auditoría de sinergia con proyectos reales (#498 a #503) y los tres abiertos que no tenían ítem. Llevan también la etiqueta `roadmap:<ID>`.
+
+| Issue | Cambio que lo cierra |
+| --- | --- |
+| #498 | **E1.63** `review-advisory-correction` (nuevo) |
+| #483 | **E1.64** `idd-config-in-diff` (nuevo) |
+| #500 | **E1.65** `counterproof-declared-docs` (nuevo; seguimiento de E1.48) |
+| #494 | **E1.66** `first-gate-turn-fence` (nuevo; seguimiento de E1.49) |
+| #499 | **E1.67** `check-path-scope` (nuevo) |
+| #501 | **E1.68** `build-scripts-declared` (nuevo; seguimiento de E1.36 y E1.38) |
+| #502 | **E1.69** `impact-raise` (nuevo) |
+| #490 | **E1.70** `fitness-baseline-failing` (nuevo; seguimiento de E3.3) |
+| #503 | **E5.15** `registry-plugin-skills` (nuevo; fuera del orden ▶) |
+
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16, E1.12 en v2.117.17 y E1.14 en v2.117.18. E1.13 y E1.15 quedan hechos: el pre-commit sigue el modo activo y el sucesor de review IDD no pide aprobación. El plugin SDD del marketplace permanece en E5.8, por demanda.
 
 **Prioridades OSP aceptadas para la siguiente sesión:**
@@ -350,7 +375,7 @@ Auditoría del 2026-10-25 (un change por sesión, en este orden):
 A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.56 ─ E1.55 ─ E4.10
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
-C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ (lotes de la review general) ─ E1.52 ─ E1.59 ─ E1.60 ─ E1.57 ─ E1.51 ─ E3.7
+C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ E1.63 ─ E1.64 ─ E1.65 ─ E1.66 ─ E1.67 ─ E1.68 ─ E1.69 ─ E1.70 ─ (lotes de la review general) ─ E1.52 ─ E1.59 ─ E1.60 ─ E1.57 ─ E1.51 ─ E3.7
 D: E4.14 ─ E4.6 (corrida de validación) ─ E4.18 ─ E4.4 ─ E4.13 ─ E4.11
 E1.28 espera a que E1.30 cumpla su criterio de hecho: su plazo del 2026-10-29 quedó fallido el 2026-10-26.
 ```
@@ -1167,6 +1192,82 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 - **Targets:** los 7, con SDD instalado.
 - **Hecho cuando:** un cambio SDD con un sink fuera de `auth/` pasa por la revisión de confianza, y sus hallazgos graves por el refutador.
 
+### E1.63 — `review-advisory-correction` (#498)
+
+- **Origen:** auditoría de sinergia del 2026-11-11 con dos proyectos reales que usan IDD.
+- **Problema:**
+  - Una revisión de confianza aprobada solo prueba el candidato que revisó. Si el agente arregla después uno de sus `WARNING` o `SUGGESTION`, `settleReviewFreshness` (`scripts/lib/idd-review.js`) devuelve `trust-review` a `pending`, y la única salida es una revisión sucesora entera, que cuenta para el tope de tres (`MAX_REVIEWS`).
+  - La corrección acotada no sirve: `ospec review correct` solo actúa con la revisión en `correction-required`, es decir, con un hallazgo bloqueante sin resolver (`correctTrustReview`).
+  - Medido en los `state.yaml` archivados: 63 cambios con revisión de confianza y 116 revisiones, todas aprobadas; 37 cambios necesitaron dos o más y 14 llegaron a tres; de 117 hallazgos, 113 no bloqueaban. Las rondas no convergen (3, 3 y 3 hallazgos en tres revisiones seguidas; 4, 1 y 4), y cada una cuesta unos 20 minutos en el proyecto con los checks más lentos.
+  - El incentivo es contrario a la calidad: tres cambios dejaron avisos sin aplicar para no gastar revisiones, y de ahí salieron tres cambios de seguimiento, cada uno con su PR y su release.
+- **Garantía que protege:** review independiente con hallazgos congelados y una corrección acotada (principio 8), sin ceremonia que no cierre un hueco (principio 1).
+- **Alcance** (recomendación del 2026-11-11, que el cambio confirmará con el usuario):
+  - `ospec review correct` acepta también una revisión `approved` con hallazgos no bloqueantes cuando las rutas revisadas han cambiado. Registra la corrección contra los ids de esos hallazgos, y `ospec review validate` devuelve `trust-review` a `satisfied` si el validador `review-correction` los da por resueltos y no detecta regresión.
+  - Sigue siendo una sola corrección por revisión, con las mismas rutas congeladas y el mismo presupuesto de líneas. Lo que no cabe, una ruta nueva o una regresión siguen pidiendo la revisión sucesora.
+  - `ospec next` y el motivo de `trust-review` nombran esa salida cuando existe. Solo IDD; SDD lo adopta, si acaso, en E1.62.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando:**
+  - tras una revisión aprobada con un `WARNING`, un arreglo dentro de las rutas congeladas y del presupuesto se valida con `review correct` y `review validate`, y `trust-review` vuelve a `satisfied` sin que `reviews` gane una entrada;
+  - un arreglo fuera de las rutas congeladas o por encima del presupuesto sigue pidiendo la sucesora, y una regresión que detecta el validador también;
+  - una revisión admite una sola corrección, también por esta vía, y un retry, un check o un close no la restauran.
+
+### E1.64 — `idd-config-in-diff` (#483)
+
+- **Problema:** `OWN_ROOTS` (`scripts/lib/idd-workspace.js`) trata todo `idd/` como estado propio de ospec, así que `idd/config.yaml` queda fuera de la huella del árbol y del diff. Un cambio cuyo arreglo está solo en ese fichero no cierra su par rojo-verde, porque las dos ejecuciones llevan la misma huella, y la contraprueba se salta por «sin código de producto». Las señales por ruta, el plan y la revisión tampoco ven el fichero que el cambio modifica.
+- **Garantía que protege:** cierre por evidencia (principio 3): el par rojo-verde y la contraprueba prueban el arreglo real.
+- **Alcance:** `idd/config.yaml` cuenta como un fichero más del proyecto en la huella y en el diff. De `idd/` solo queda fuera lo que escribe ospec: `idd/<cambio>/`, `idd/archive/`, los recibos y el contador de turnos. Si `pairRed` no encuentra un rojo porque las huellas coinciden, `next` lo dice.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando:** un cambio cuyo arreglo está solo en `idd/config.yaml` cierra su par sin tocar otro fichero, su contraprueba se ejecuta contra la base y falla allí, y el fichero aparece en el diff del cambio mientras el estado de ospec sigue fuera.
+
+### E1.65 — `counterproof-declared-docs` (#500)
+
+- **Problema:** la contraprueba se salta cuando el diff solo cambia tests y documentación, y `onlyTestsAndDocs` (`scripts/lib/idd-workspace.js`) da por documentación cualquier `.md`, `.mdx`, `.rst` o `.adoc`. En un proyecto cuyo producto es Markdown (instrucciones de agente, skills, el texto de un hook) y que lo declara en `impact`, ospec deriva de esas rutas `public-contract` o `security-boundary`, pero la contraprueba las sigue tratando como documentación. En uno de los proyectos de la auditoría, tres cambios con un test del texto exacto cerraron con la contraprueba omitida.
+- **Garantía que protege:** la contraprueba contra la base de E1.48.
+- **Depende de:** E1.64, que toca la misma decisión de qué es producto.
+- **Alcance:** una ruta que casa con un patrón que el proyecto declara en `impact` (no con los de por defecto) o con `contracts.documents` cuenta como producto para la contraprueba. Los `.md` que el proyecto no declara siguen siendo documentación.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando:** con un `.md` declarado en `impact.public_contract` y un test de su texto, la contraprueba se ejecuta contra la base y falla allí; un cambio que solo toca un `.md` no declarado y tests la sigue omitiendo.
+
+### E1.66 — `first-gate-turn-fence` (#494)
+
+- **Problema:** en un proyecto donde aún no existe `.ospec/turns`, el primer gate se abre con `opened_turn: null`, y `fenceGates` (`scripts/lib/turn-fence.js`) valla cualquier gate sin cuenta de apertura. La respuesta queda `user-unverified` aunque el usuario conteste turnos después y el hook de fin de turno ya haya contado. El primer cambio IDD de cada proyecto nuevo cierra con un aviso que nadie puede evitar.
+- **Garantía que protege:** aprobaciones solo desde respuestas explícitas (principio 8), sin un aviso que no señala nada corregible.
+- **Alcance:** lo decide el cambio entre las salidas de #494: tratar la cuenta ausente al abrir como 0, o crear `.ospec/turns` antes del primer gate. Un gate respondido sin ningún fin de turno contado sigue quedando `user-unverified`. De paso, la skill `idd` dice que el gate se abre antes de preguntar: en los dos proyectos de la auditoría, cuatro gates quedaron `user-unverified` porque la respuesta llegó dentro del mismo turno.
+- **Targets:** los que tienen hook de fin de turno.
+- **Hecho cuando:** en un repositorio sin `.ospec/turns` y con los hooks instalados, un gate abierto en el primer turno y respondido después de que ese turno termine queda `source: user`, sin aviso en `record gate` ni en `close`.
+
+### E1.67 — `check-path-scope` (#499)
+
+- **Problema:** `ospec check` ejecuta siempre todos los checks de `idd/config.yaml`, y `checks:` solo admite `nombre: comando` (`parseChecks` en `scripts/lib/idd-config.js`). Un proyecto no puede decir que su suite de extremo a extremo solo hace falta cuando cambia el código que ejercita. En uno de los proyectos de la auditoría, con seis checks y unos 9 minutos por ejecución, 17 cambios que solo tocaban Markdown ejecutaron 19 veces la suite de extremo a extremo y la de rendimiento: unas 2,8 horas.
+- **Garantía que protege:** ceremonia por impacto (principio 2), sin debilitar `checks-pass`.
+- **Alcance** (recomendación, que el cambio confirmará con el usuario): una forma opcional por check que declara sus rutas; sin ellas corre siempre. Si el diff no toca ninguna, `ospec check` no lo ejecuta y registra el motivo, que `close` lista. Cambiar las rutas abre `checks-changed`. Si ningún check corre, `checks-pass` no se satisface.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando:** con un check acotado a `src/**`, un cambio que solo toca `docs/**` cierra sin ejecutarlo y el estado dice por qué; si después toca `src/**`, lo ejecuta; un `idd/config.yaml` sin rutas se comporta como hoy.
+
+### E1.68 — `build-scripts-declared` (#501)
+
+- **Problema:** `persistentHits` (`scripts/lib/idd-signals.js`) deja fuera de `persistent-data` los scripts de build (#416), pero la lista es fija (`BUILD_SCRIPTS` en `scripts/lib/idd-impact.js`) y con `impact.defaults: false` queda vacía. Un script de herramienta que escribe ficheros del repositorio deriva la señal, y su `migration-compat-and-test`, en cada cambio que lo toca. `impact.exclude` lo sacaría también de `security-boundary`, y la respuesta del usuario vale solo para un cambio. En uno de los proyectos de la auditoría salió en 9 de 40 cambios.
+- **Garantía que protege:** que `persistent-data` señale datos que persisten (E1.36 y E1.38), sin una pregunta repetida que no cierra ningún hueco (principio 1).
+- **Alcance:** una clave `impact.build_scripts` cuyos patrones se suman a los de por defecto, o los sustituyen con `impact.defaults: false`. Cambiarla abre `checks-changed`. Las rutas declaradas siguen derivando las demás señales.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando:** con `impact.build_scripts: ["scripts/**"]`, un cambio que toca un script que escribe no deriva `persistent-data` y sí `security-boundary` si su ruta casa; sin la clave, nada cambia.
+
+### E1.69 — `impact-raise` (#502)
+
+- **Problema:** `ospec record impact` rechaza con `impact-conflict` cualquier declaración distinta de la que ya hay (`scripts/lib/idd-record.js`). Un impacto declarado `conforms` por error no se puede subir a `amends`: la puerta `adr-amend-or-contradict` se abre a mano, pero el estado y los registros de `close` para la memoria conservan `conforms`.
+- **Garantía que protege:** que el impacto registrado sobre un ADR sea el real (E3.1) y que la memoria no herede uno erróneo (E3.5).
+- **Alcance:** antes de `close`, un impacto se puede subir de `none` o `conforms` a `amends`, `supersedes` o `contradicts`, con su motivo, y eso abre la puerta. Bajarlo sigue rechazado.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando:** `conforms` seguido de `amends` deja `amends` en el estado y abre `adr-amend-or-contradict`; `amends` seguido de `conforms` da `impact-conflict`; los registros de `close` llevan el impacto final.
+
+### E1.70 — `fitness-baseline-failing` (#490)
+
+- **Problema:** en un proyecto brownfield, la foundation registra ADR cuyo `- Check:` describe el estado objetivo y ya falla el día en que se escribe. IDD ejecuta ese check en todo cambio que lleve el ADR entre sus impactos (`fitnessPlan` en `scripts/lib/idd-fitness.js`), y `close` se niega aunque el cambio no lo empeore.
+- **Garantía que protege:** las fitness functions de E3.3 bloquean lo que empeora un ADR, no lo que ya estaba incumplido.
+- **Alcance:** lo decide el cambio entre las salidas de #490: ejecutar el check también sobre la base y avisar sin bloquear cuando falla en los dos lados, o no ejecutar los checks de un impacto `none`. La skill `foundation` comprueba cada `- Check:` al registrarlo y ofrece un ratchet o un check manual si ya falla.
+- **Targets:** los 7 (CLI y skill).
+- **Hecho cuando:** un cambio que no empeora un check que ya fallaba en la base cierra con un aviso que nombra el ADR; uno que hace fallar un check que pasaba sigue bloqueado.
+
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
 **Resultado de la etapa:** al crear un proyecto, ospec hace las preguntas que haría un arquitecto con experiencia en proyectos serios. Captura la información funcional, el contexto del equipo, los atributos de calidad y las restricciones, y produce **ADRs de arquitectura agnósticos de tecnología**, separados de la selección tecnológica. Las preguntas no salen de un cuestionario fijo: salen de los huecos de conocimiento que más condicionan las decisiones pendientes. La foundation sirve igual a IDD y al modo SDD.
@@ -1735,6 +1836,14 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 - **Decidido en el gate `open-facts`** (2026-10-30, todas las recomendadas): una clave nueva combinable con `serial` o `parallel` y `production_branch` opcional; nombres con las reglas de `git check-ref-format`, comprobadas sin ejecutar git y comparados exactos; `release` `batched` al promover, `per-change` rechazado y `batched` recomendado; `close` no lee git y devuelve el bloque `delivery` solo con rama de integración. Supuesto: `production_branch` sin `integration_branch` se rechaza.
 - **Entregado en v2.168.0:** `parseDelivery` valida las claves, `resolveTeam` nombra la rama de integración en el branching, resuelve `release` y añade `integration`, y `ospec close` devuelve `delivery`. REQ-idd-013, REQ-idd-023 y REQ-idd-025 recogen las reglas. Hecho con IDD (`idd/archive/2026-10-30-delivery-integration-branch/`).
 
+### E5.15 — `registry-plugin-skills` (#503)
+
+- **Origen:** encargo aplazado del 2026-10-28, al diseñar un plugin privado de convenciones que acompaña a ospec en varios proyectos; con issue desde la auditoría del 2026-11-11.
+- **Problema:** la skill `skill-registry` escanea las skills de usuario y las del proyecto, pero no las de un plugin instalado. Los subagentes de las fases de SDD reciben sus skills del registro, así que trabajan sin las convenciones que un equipo guarda en un plugin. IDD no usa el registro.
+- **Alcance:** el paso de escaneo lista también las skills de los plugins activos en el proyecto, con su nombre calificado (`<plugin>:<skill>`). En los targets sin plugins no hace nada y lo dice en sus avisos.
+- **Criterio de apertura:** antes de usar SDD en un proyecto que lleva sus convenciones en un plugin. Fuera del orden ▶.
+- **Hecho cuando:** en un proyecto de Claude Code con un plugin activo que trae skills, el registro las lista; un plugin instalado pero no activo no aparece; en un target sin plugins el registro sale igual que hoy.
+
 ## Aparcado (con criterio de reapertura)
 
 Se conserva el código y la documentación; no recibe inversión mientras no se cumpla el criterio.
@@ -1783,6 +1892,9 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-11: `friction-items-roadmap` (IDD, solo documentación, sin versión propia). Entran E1.63 a E1.70 y E5.15, de la auditoría de sinergia entre ospec y dos proyectos reales que lo usan a diario.
+  - Las sesiones de los dos proyectos auditaron sus cambios IDD archivados (40 y 66), y lo que le toca a ospec se comprobó contra el código antes de abrir #498 a #503. Con ellos entran #483, #490 y #494, los tres issues abiertos sin ítem.
+  - El usuario colocó E1.63 a E1.70 por delante de lo que queda del bloque C, en ese orden, y dejó E5.15 fuera del orden ▶. Sigue E1.63 `review-advisory-correction`.
 - 2026-11-11: `retract-contract-by-impact-path` (IDD), publicado en v2.172.2. Arregla #496, detectado usando IDD en un proyecto real: `public-contract` derivada por una ruta de `impact` dejaba el cambio sin salida cuando el diff no cambiaba el contrato y el proyecto no tiene documento de contrato.
   - `ospec record retract --signal public-contract` acepta la respuesta del usuario para las rutas que no son documento de contrato, atada a la huella de los cambios de cada una: otro cambio en la ruta u otra ruta de contrato devuelven la señal (REQ-idd-006).
 - 2026-11-11: `yaml-readers-linear-blank-parity` y `review-limit-oversized-correction` (IDD), publicados en v2.172.1. Es la PR propia detrás de los lectores de `config.yaml`.
