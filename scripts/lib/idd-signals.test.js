@@ -826,6 +826,26 @@ test("[E1.53] a comment-only line, or a file without a code extension under a te
   assert.deepStrictEqual(addedTests(diff), ["test/helper.js"]);
 });
 
+// #488: a SQL test (pgTAP, pg_prove, dbt) is code, so it closes a pair like
+// any other test, while a migration stays neither test nor product.
+test("[#488] a SQL test under a test directory or with a test suffix is a test the diff adds; a migration is not", () => {
+  const migration = "supabase/migrations/20260101000000_fix.sql";
+  const diff = {
+    paths: ["supabase/tests/foo_test.sql", "tests/timeline.sql", "db/approval_test.sql", "supabase/tests/notes.sql", migration],
+    addedLines: {
+      "supabase/tests/foo_test.sql": ["SELECT plan(1);", "SELECT ok(true);"],
+      "tests/timeline.sql": ["select is(1, 1);"],
+      "db/approval_test.sql": ["SELECT ok(true);"],
+      "supabase/tests/notes.sql": ["-- only a comment", "  "],
+      [migration]: ["CREATE OR REPLACE FUNCTION f() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;"],
+    },
+  };
+  assert.deepStrictEqual(addedTests(diff), ["supabase/tests/foo_test.sql", "tests/timeline.sql", "db/approval_test.sql"]);
+  assert.strictEqual(classifyPath("db/approval_test.sql"), "test");
+  assert.strictEqual(classifyPath(migration), "other", "a migration is not a test");
+  assert.strictEqual(classifyPath("db/schema.sql"), "other", "nor product code");
+});
+
 // E1.48: the tests of rspec, pytest and the like, and Rust's inline tests,
 // close a pair or boundary-tests like any other test.
 test("[E1.48] classifyPath knows spec/, the _test and _spec suffixes of any code and a tests module", () => {

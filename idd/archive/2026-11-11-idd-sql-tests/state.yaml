@@ -1,0 +1,284 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-sql-tests",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "addedTests descarta los tests SQL (pgTAP) porque exige una extensión de PRODUCT_EXT, que no incluye sql: un arreglo de BD cuyo test es supabase/tests/foo_test.sql no cierra repro-test, no lanza el contraproof y el mensaje dice que el diff no añade ningún test (#488)",
+    "acceptance": "addedTests cuenta un .sql con líneas de código bajo un directorio de tests o con sufijo _test/_spec, y no uno que solo añade comentarios --; una migración .sql fuera de tests sigue sin ser test ni producto; el mensaje de un par rechazado explica qué cuenta como test; handbook/idd/evidencia.md lo documenta; node scripts/check.js pasa"
+  },
+  "facts": {
+    "basis": "El issue #488, aprobado por el mantenedor, fija el comportamiento: SQL como extensión de test sin tocar PRODUCT_EXT (las migraciones siguen como other), comentarios -- excluidos por codePortion, y un mensaje que explique la extensión"
+  },
+  "plan": {
+    "paths": [
+      "handbook/idd/evidencia.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-check.js",
+      "scripts/lib/idd-check.test.js",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-signals.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Una lista TEST_CODE_EXT (sql) que solo cuenta para tests: addedTests y la regla de sufijo de isTestPath la aceptan además de PRODUCT_EXT, y PRODUCT_EXT no cambia, así que una migración .sql sigue como other y no deriva untested-product",
+      "El mensaje de un par o de boundary-tests rechazado explica qué cuenta como test (fichero de test con extensión de código o SQL, sin comentarios, fixtures ni golden) en lugar de nombrar la extensión concreta: checkVerdict no recibe el diff y pasarlo por sus 5 llamadas añade fontanería para un mensaje"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La regla de qué es un test sigue en el CLI (addedTests e isTestPath, con su test) y la prosa del handbook solo la documenta"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "Las señales siguen saliendo del diff; solo cambia qué fichero cuenta como test añadido, y PRODUCT_EXT no cambia, así que una migración .sql no deriva untested-product"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El par rojo-verde sigue exigiendo un test del diff y su contraprueba en la base; un test SQL pasa a poder aportar esa evidencia observada"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "No toca el estado en disco de ningún modo"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "El siguiente paso sigue saliendo del estado y del diff; solo cambia el texto del motivo de un par o de boundary-tests sin test"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-11T09:53:18.308Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T09:54:58.862Z",
+      "detail": {
+        "tree": "sha256:99e0413650275dcfd5c3af23158b043d10f1523aadeaf2962baf8df6edc57230",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T09:54:58.862Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume none"
+        ],
+        "records": [],
+        "tree": "sha256:99e0413650275dcfd5c3af23158b043d10f1523aadeaf2962baf8df6edc57230",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-11T09:55:14.911Z"
+    }
+  ],
+  "base": "e5fa11517ba3d433260f3077a2b8fadfad290896",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-signals.test.js scripts/lib/idd-check.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:e88084b26ee54d424634232b680cc1351f21928af5ed5e41565f09e04f63e019",
+      "tree": "sha256:fce2285a7da55c4695e9ee1339862ea704a78052bf7abc5f2f402e465fc53c9e",
+      "recorded_at": "2026-11-11T09:51:57.360Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-signals.test.js scripts/lib/idd-check.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9b4c3a636aa91b770ee5333aaf51d0ed9c5ea113a39aa7c4dbc032c8542ea407",
+      "tree": "sha256:748d6301f8e9b235689c5445568bc7f93c2c753d8a472856a6ddd961b61c0d37",
+      "recorded_at": "2026-11-11T09:53:18.308Z",
+      "tests": 94,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "e5fa11517ba3d433260f3077a2b8fadfad290896",
+      "mount": "sha256:c298ed5315b33c53e9b5dec0f9ee7846fd5c2fc1a15786c20e321cba142d42d9",
+      "command": "node --test scripts/lib/idd-signals.test.js scripts/lib/idd-check.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:78b01112b94bd585a04240fc4219fb3890585bda67cc7395cc2be9c3dc754794",
+      "tree": "sha256:748d6301f8e9b235689c5445568bc7f93c2c753d8a472856a6ddd961b61c0d37",
+      "recorded_at": "2026-11-11T09:53:18.308Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "e5fa11517ba3d433260f3077a2b8fadfad290896",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/lib/idd-signals.test.js scripts/lib/idd-check.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9d3649b48349647bf0582dbf5f89abfd88eb8f06667feec8bf90d003fef439e0",
+      "tree": "sha256:748d6301f8e9b235689c5445568bc7f93c2c753d8a472856a6ddd961b61c0d37",
+      "recorded_at": "2026-11-11T09:53:18.308Z",
+      "tests": 93
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4186c03523d991c842743cae3ae64c8e2133a81b96b12e14506c39144f746289",
+      "tree": "sha256:99e0413650275dcfd5c3af23158b043d10f1523aadeaf2962baf8df6edc57230",
+      "recorded_at": "2026-11-11T09:54:58.862Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:efd26e7f4740fd8f70ddb636df1c73f280c2d006fa217e8cf52616f620c4ba9d",
+      "tree": "sha256:99e0413650275dcfd5c3af23158b043d10f1523aadeaf2962baf8df6edc57230",
+      "recorded_at": "2026-11-11T09:54:58.862Z",
+      "tests": 60
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b996efd45653c17dd922f29c3ebd3bcae98d05029e46c0cfca8dc33e7d4cf0cf",
+      "tree": "sha256:99e0413650275dcfd5c3af23158b043d10f1523aadeaf2962baf8df6edc57230",
+      "recorded_at": "2026-11-11T09:54:58.862Z",
+      "tests": 18
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:af813df5c0624966e5804277eda54358601efc0f0cd4c2bde2c9484150918fc9",
+      "tree": "sha256:99e0413650275dcfd5c3af23158b043d10f1523aadeaf2962baf8df6edc57230",
+      "recorded_at": "2026-11-11T09:54:58.862Z",
+      "tests": 89
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cd99e75418bad2c2a8bfcb2c4ec5069b7965fce4095e93277d160b2816445697",
+      "tree": "sha256:99e0413650275dcfd5c3af23158b043d10f1523aadeaf2962baf8df6edc57230",
+      "recorded_at": "2026-11-11T09:54:58.862Z",
+      "tests": 52
+    }
+  ],
+  "closed_at": "2026-11-11T09:55:14.911Z"
+}

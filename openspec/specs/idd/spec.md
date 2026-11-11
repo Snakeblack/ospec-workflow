@@ -1026,12 +1026,14 @@ cuts nothing. `--security` on `signals` or `record intent` MUST record
 security boundary", without widening the plan. For an intent of kind `feature` or `bug`, a
 diff that changes product code and adds no code to a test MUST derive
 `untested-product`. Code is a line that is neither blank nor only a comment, in
-a test with a source-file extension: a deleted or emptied test, a comment and a
-fixture or golden file are not one (E1.44, E1.53). A test is a file under a
+a test with a source-file extension or a SQL one (pgTAP, pg_prove, dbt; #488):
+a deleted or emptied test, a comment and a fixture or golden file are not one
+(E1.44, E1.53), and a SQL file outside a test, such as a migration, is neither
+a test nor product code. A test is a file under a
 `test`, `tests` or `__tests__` directory, under the root's `spec` directory,
 or a Ruby file under a `spec` directory at any depth (`src/spec/openapi.js` is
 product), or one named as a test: `*.test.*` and `*.spec.*` in JS and TS, a
-source file with the `_test` or `_spec` suffix or named `tests` (Django's
+source or SQL file with the `_test` or `_spec` suffix or named `tests` (Django's
 `tests.py`, Rust's `tests.rs`), `test_*.py`, `*Test.java`, `*Tests.java` and
 `*Tests.cs`, these three in their case (`Latest.java` and `Contests.cs` are
 product). A line added to a Rust file that

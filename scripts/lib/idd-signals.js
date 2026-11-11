@@ -60,6 +60,9 @@ const COMMENT_LINE = /^\s*(--|#|\/\/)/;
 // Source code of the common languages, scripts included (E1.53).
 const PRODUCT_EXT =
   /\.(js|jsx|mjs|cjs|ts|tsx|py|go|java|kt|kts|cs|rb|php|rs|html|htm|css|vue|svelte|astro|c|h|cc|cpp|cxx|hh|hpp|hxx|m|mm|swift|scala|groovy|dart|lua|ex|exs|erl|hrl|clj|cljs|hs|ml|fs|fsx|vb|pl|pm|r|zig|sh|bash|zsh|ps1|psm1|bat|cmd)$/i;
+// Code that only counts in a test (#488): a SQL test (pgTAP, pg_prove, dbt) is
+// a test, while a migration or a schema file stays outside product code.
+const TEST_CODE_EXT = /\.sql$/i;
 const MANIFESTS = new Set([
   "package.json",
   "package-lock.json",
@@ -137,14 +140,15 @@ function isDocumentation(file) {
 
 // Besides the JS, Python, Java and .NET names, the _test and _spec suffixes of
 // any code (Go, pytest, rspec, ExUnit), a tests module (Django's tests.py,
-// Rust's tests.rs) and rspec's spec directory hold tests (E1.48). The Java and
+// Rust's tests.rs) and rspec's spec directory hold tests (E1.48), as do SQL
+// files with those suffixes (#488). The Java and
 // .NET names keep their case, so Latest.java and Contests.cs stay product, and
 // a spec directory below the root holds tests only for Ruby, so
 // src/spec/openapi.js stays product too.
 function isTestPath(file) {
   return (
     /\.(?:test|spec)\.(?:js|jsx|mjs|cjs|ts|tsx)$/i.test(file) ||
-    (/(?:_(?:test|spec)|(?:^|\/)tests)\.[^./]+$/i.test(file) && PRODUCT_EXT.test(file)) ||
+    (/(?:_(?:test|spec)|(?:^|\/)tests)\.[^./]+$/i.test(file) && (PRODUCT_EXT.test(file) || TEST_CODE_EXT.test(file))) ||
     /(?:^|\/)test_[^/]*\.py$/i.test(file) ||
     /Tests?\.java$/.test(file) ||
     /Tests\.cs$/.test(file) ||
@@ -307,13 +311,15 @@ function inlineTests(diff) {
 }
 
 // The tests the diff adds code to (B3): a line that is neither blank nor only
-// a comment, in a test with a code extension (E1.53) or in a Rust inline test
-// (E1.48). A deleted or emptied test, a fixture or a golden file is not one,
-// so it neither stands for a test nor satisfies boundary-tests.
+// a comment, in a test with a code extension (E1.53) or a SQL one (#488), or in
+// a Rust inline test (E1.48). A deleted or emptied test, a fixture or a golden
+// file is not one, so it neither stands for a test nor satisfies boundary-tests.
 function addedTests(diff) {
   return (diff.paths || []).filter(
     (file) =>
-      (classifyPath(file) === "test" && PRODUCT_EXT.test(file) && (diff.addedLines?.[file] || []).some((line) => codePortion(line).trim() !== "")) ||
+      (classifyPath(file) === "test" &&
+        (PRODUCT_EXT.test(file) || TEST_CODE_EXT.test(file)) &&
+        (diff.addedLines?.[file] || []).some((line) => codePortion(line).trim() !== "")) ||
       isInlineTest(diff, file),
   );
 }
