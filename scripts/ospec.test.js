@@ -1569,6 +1569,63 @@ test("a correction outside one bounded correction escalates and review start ope
   assert.ok(second.genesis.paths.includes("src/auth/expiry.js"), "the successor reviews the new path");
 });
 
+// review-limit-oversized-correction: with the reviews used up and the last
+// one waiting for its correction, a fix outside one bounded correction looped:
+// check asked for review correct, correct for review start, and start refused
+// with review-limit while no gate opened.
+test("an oversized correction of the last allowed review opens review-limit on check", (t) => {
+  const root = openRotation(t);
+  recordAnswer(root, [BLOCKER]);
+  for (let generation = 2; generation <= 3; generation += 1) {
+    // Each fix needs a file the review never froze: review start escalates.
+    writeFile(root, `src/auth/expiry${generation}.js`, "module.exports = (token) => token.exp > Date.now();\n");
+    const frozen = recordAnswer(root, [BLOCKER]);
+    assert.strictEqual(frozen.json.review.generation, generation);
+    assert.strictEqual(frozen.json.review.status, "correction-required");
+  }
+  const [finding] = stateOf(root, "rotate-tokens").reviews.at(-1).findings;
+  writeFile(root, "src/auth/expiry4.js", "module.exports = (token) => token.exp > Date.now();\n");
+  assert.match(review(root, "correct").json.error.message, /does not fit one bounded correction/);
+  assert.strictEqual(review(root, "start").json.error.code, "review-limit");
+
+  const checked = ospec(root, "check", "--change", "rotate-tokens", "--json");
+  assert.strictEqual(checked.code, 0, checked.stderr);
+  assert.match(checked.json.missing.find((entry) => entry.obligation === "trust-review").reason, /review-limit/);
+  const settled = stateOf(root, "rotate-tokens");
+  assert.strictEqual(settled.reviews.at(-1).status, "escalated");
+  assert.match(settled.reviews.at(-1).terminal_reason, /bounded correction/);
+  assert.deepStrictEqual(settled.gates.filter((gate) => gate.id === "review-limit").map((gate) => gate.status), ["open"]);
+  assertGateStep(ospec(root, "next", "--change", "rotate-tokens", "--json").json.next_step, "review-limit");
+
+  ospec(root, "record", "gate", "--change", "rotate-tokens", "--gate", "review-limit", "--resolve", "--answer", "One more review.", "--source", "user", "--json");
+  const fourth = review(root, "start");
+  assert.strictEqual(fourth.code, 0, fourth.stderr);
+  assert.strictEqual(fourth.json.review.generation, 4);
+  assert.deepStrictEqual(fourth.json.review.request.predecessor_findings.map((entry) => entry.id), [finding.id]);
+  assert.ok(fourth.json.review.request.paths.includes("src/auth/expiry4.js"), "the successor reviews the new path");
+});
+
+test("check leaves a correction that fits, or one with reviews left, to ospec review", (t) => {
+  const root = openRotation(t);
+  recordAnswer(root, [BLOCKER]);
+  // Reviews left: review start escalates and opens the successor, not check.
+  writeFile(root, "src/auth/expiry.js", "module.exports = (token) => token.exp > Date.now();\n");
+  ospec(root, "check", "--change", "rotate-tokens", "--json");
+  assert.strictEqual(stateOf(root, "rotate-tokens").reviews.at(-1).status, "correction-required");
+  for (let generation = 2; generation <= 3; generation += 1) {
+    writeFile(root, `src/auth/expiry${generation}.js`, "module.exports = (token) => token.exp > Date.now();\n");
+    recordAnswer(root, [BLOCKER]);
+  }
+  // The last review, with a fix inside its frozen paths: one bounded correction.
+  writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 3600, rejectExpired: true };\n");
+  const checked = ospec(root, "check", "--change", "rotate-tokens", "--json");
+  assert.match(checked.json.missing.find((entry) => entry.obligation === "trust-review").reason, /ospec review correct/);
+  const settled = stateOf(root, "rotate-tokens");
+  assert.strictEqual(settled.reviews.at(-1).status, "correction-required");
+  assert.deepStrictEqual(settled.gates.filter((gate) => gate.id === "review-limit"), []);
+  assert.strictEqual(review(root, "correct").code, 0);
+});
+
 // OSP-029 (#351): a {"findings":[]} the main agent wrote by hand approved the
 // review and let the change close without any reviewer run.
 test("review record refuses a result that does not cite the frozen candidate", (t) => {

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Con las revisiones de confianza agotadas y la última en correction-required, una corrección que no cabe en una corrección acotada deja el cambio en bucle: ospec check pide review correct, review correct pide review start, review start responde review-limit y el gate review-limit no se abre nunca. (review-limit-oversized-correction)
+
 ## [2.172.0] - 2026-11-11
 
 ### Added

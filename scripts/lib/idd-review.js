@@ -207,6 +207,16 @@ function exceedsBoundedCorrection(lineage, changes) {
 
 const OVERSIZED_CORRECTION = "the correction does not fit one bounded correction (line budget or frozen paths)";
 
+/** Ends a review whose fix does not fit one bounded correction. */
+function escalateOversized(state, lineage) {
+  return lineageStep(() => terminateLineage(lineage, {
+    status: "escalated",
+    reason: `${OVERSIZED_CORRECTION}: a successor review checks it`,
+    expected_revision: lineage.revision,
+    request_id: requestId(state, "terminate", lineage),
+  }));
+}
+
 /**
  * Opens the trust review of the current candidate, or resumes the one in
  * progress. `reviewedChanged` says whether the reviewed paths (and any new
@@ -222,13 +232,7 @@ function startTrustReview(state, { candidate, reviewedChanged, correctionChanges
   if (current && current.status === "correction-required" && correctionChanges && correctionChanges.length > 0
     && exceedsBoundedCorrection(current, correctionChanges)) {
     if (reviews.length >= allowedReviews(state)) refuse("review-limit", limitReason(state));
-    const predecessor = current;
-    current = lineageStep(() => terminateLineage(predecessor, {
-      status: "escalated",
-      reason: `${OVERSIZED_CORRECTION}: a successor review checks it`,
-      expected_revision: predecessor.revision,
-      request_id: requestId(state, "terminate", predecessor),
-    }));
+    current = escalateOversized(state, current);
     state = withReview(state, current);
   }
   if (current && current.status === "validating") return { state, changed: false, validate: validationRequest(current) };
@@ -441,13 +445,22 @@ function validateTrustCorrection(state, { result, recordedAt, lineCount, receipt
 /**
  * An approved review proves only the candidate it reviewed: trust-review
  * leaves it when the reviewed paths change and returns when they come back.
- * Once the reviews are used up, the review-limit gate asks the person.
+ * Once the reviews are used up, the review-limit gate asks the person: also
+ * when the last one waits for a correction that does not fit one bounded
+ * correction (`correctionChanges`, the changes since its candidate), which
+ * ends it as escalated here because ospec review start has no review left to
+ * open.
  */
-function settleReviewFreshness(state, { reviewedChanged }) {
+function settleReviewFreshness(state, { reviewedChanged, correctionChanges }) {
   const next = structuredClone(state);
   const target = trustObligation(next);
   if (!target) return next;
-  const current = currentReview(next);
+  let current = currentReview(next);
+  if (current?.status === "correction-required" && correctionChanges?.length > 0
+    && next.reviews.length >= allowedReviews(next) && exceedsBoundedCorrection(current, correctionChanges)) {
+    current = escalateOversized(next, current);
+    next.reviews[next.reviews.length - 1] = current;
+  }
   if (target.status === "satisfied" && reviewedChanged) {
     target.status = "pending";
     target.evidence = [];

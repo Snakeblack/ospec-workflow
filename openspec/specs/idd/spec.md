@@ -1726,7 +1726,10 @@ MUST NOT leave the change without a way on: `ospec review correct` MUST refuse
 it naming `ospec review start`, and `ospec review start` on a review waiting
 for its correction MUST end it as `escalated` with that reason and open the
 successor, which counts toward the 3 reviews of the change. When the changes
-fit, `ospec review start` MUST keep returning the review in progress. The
+fit, `ospec review start` MUST keep returning the review in progress. When no
+review is left for that successor, `ospec review start` MUST refuse with
+`review-limit` and `ospec check` MUST end the review as `escalated` and open
+the `review-limit` gate, so the person's answer authorizes the successor. The
 request of a successor whose predecessor ended with unresolved `BLOCKER` or
 `CRITICAL` findings MUST carry them as `predecessor_findings` (id, severity,
 summary, acceptance criteria) so the reviewer checks them on top of the full

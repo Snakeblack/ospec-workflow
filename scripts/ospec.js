@@ -736,18 +736,22 @@ function readCheckInputs(root, values, current, context) {
 }
 
 // What a check reads once its commands ran: the contract paths of the diff,
-// the new ADRs the impacts attach and whether the reviewed paths changed.
+// the new ADRs the impacts attach, whether the reviewed paths changed and
+// the changes since a candidate waiting for its correction.
 function readCheckOutcome(root, values, current, context, diff) {
   const reviewed = currentReview(current);
   let reviewedChanged = false;
+  let correctionChanges;
   if (reviewed) {
     const trees = reviewTrees(root, values, current);
     reviewedChanged = reviewedPathsChanged(root, reviewed, trees.tree, trees.numstat, context.patterns, diff);
+    if (reviewed.status === "correction-required") correctionChanges = treeNumstat(root, reviewed.current_candidate.candidate_tree, trees.tree);
   }
   return {
     contractPaths: classifyContractPaths(diff.paths, context.contractPatterns),
     records: readDecisionRecords(root, (current.impacts || []).filter((entry) => entry.record).map((entry) => entry.record)),
     reviewedChanged,
+    correctionChanges,
   };
 }
 
@@ -785,7 +789,7 @@ function settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, ch
     ? deferImpacts(contract.state, { tree: checkTree })
     : settleImpacts(contract.state, { records: outcome.records, fitness: { tree: checkTree, runIds: fitnessRecorded.ids }, recordedAt });
   if (impacts.reason) reasons["adr-impact-declaration"] = impacts.reason;
-  const fresh = settleReviewFreshness(impacts.state, { reviewedChanged: outcome.reviewedChanged });
+  const fresh = settleReviewFreshness(impacts.state, { reviewedChanged: outcome.reviewedChanged, correctionChanges: outcome.correctionChanges });
   return { state: fresh, added: derived.added, reasons, runIds: recorded.ids, evidence: settled.evidence, counterproof: counterproved?.outcome ?? null };
 }
 

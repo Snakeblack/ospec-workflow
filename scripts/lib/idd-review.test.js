@@ -453,6 +453,34 @@ test("the escalated successor counts toward the three reviews of a change", () =
     correctionChanges: [{ path: "src/auth/other.js", added: 1, deleted: 0 }],
   }), "review-limit");
   assert.strictEqual(currentReview(state).status, "correction-required", "the refused start leaves the last review as it was");
+
+  // review-limit-oversized-correction: no review is left to escalate into, so
+  // the check ends the review and asks the person through review-limit.
+  const oversized = [{ path: "src/auth/other.js", added: 1, deleted: 0 }];
+  const fits = settleReviewFreshness(state, { reviewedChanged: true, correctionChanges: [{ path: "src/auth/tokens.js", added: 1, deleted: 0 }] });
+  assert.strictEqual(currentReview(fits).status, "correction-required");
+  assert.deepStrictEqual(fits.gates, []);
+  const settled = settleReviewFreshness(state, { reviewedChanged: true, correctionChanges: oversized });
+  assert.strictEqual(currentReview(settled).status, "escalated");
+  assert.match(currentReview(settled).terminal_reason, /bounded correction/);
+  assert.deepStrictEqual(settled.gates.map(({ id, status }) => ({ id, status })), [{ id: "review-limit", status: "open" }]);
+  assert.match(trustReason(settled), /3 of 3 trust reviews used/);
+  valid(settled);
+  assert.deepStrictEqual(settleReviewFreshness(settled, { reviewedChanged: true }).gates, settled.gates, "the gate opens once");
+
+  const { recordGate } = require("./idd-record.js");
+  const answered = recordGate(settled, { id: "review-limit", action: "resolve", answer: "One more.", source: "user" }).state;
+  const fourth = startTrustReview(answered, { candidate: candidate("f".repeat(40), "f".repeat(40)), reviewedChanged: true });
+  assert.strictEqual(fourth.request.generation, MAX_REVIEWS + 1);
+  assert.strictEqual(fourth.request.predecessor_findings.length, 1);
+});
+
+test("a check leaves an oversized correction with reviews left to ospec review start", () => {
+  const started = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
+  const frozen = record(started, [BLOCKER]).state;
+  const settled = settleReviewFreshness(frozen, { reviewedChanged: true, correctionChanges: [{ path: "src/auth/other.js", added: 1, deleted: 0 }] });
+  assert.strictEqual(currentReview(settled).status, "correction-required");
+  assert.deepStrictEqual(settled.gates, []);
 });
 
 // E1.37 (#415): the result_contract names the format limits the CLI enforces,
