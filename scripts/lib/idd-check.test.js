@@ -116,6 +116,7 @@ test("zero tests are not evidence, and boundary-tests needs a test the diff adds
   const suiteOnly = settleBoundary(checked, { tree: TREE_A, runIds: ran.ids, recordedAt: AT });
   assert.strictEqual(obligation(suiteOnly.state, "boundary-tests").status, "pending", "the suite that already passed is not evidence");
   assert.match(suiteOnly.reason, /^the diff adds no line to a test: .*ospec check --change fix-pagination$/);
+  assert.match(suiteOnly.reason, /code or SQL extension.*not a comment, a fixture or a golden file/, "#488: it says what counts as a test");
   const skipped = { skipped: "the change has no base commit to run it on" };
   const settled = settleBoundary(checked, { tree: TREE_A, runIds: ran.ids, recordedAt: AT, tests, counterproof: skipped });
   assert.strictEqual(obligation(settled.state, "checks-pass").status, "satisfied");
@@ -216,6 +217,7 @@ test("[E1.48] a pair needs a test in the diff and a counterproof that failed on 
   const untested = settle(runs.state, { tests: [], counterproof: { skipped: "no base" } });
   assert.strictEqual(untested.evidence, null, "test -f marker: the diff adds no test");
   assert.match(checkVerdict(untested.state, { checks: [] }).missing[0].reason, /^the diff adds no line to a test: .*write the test in a test file, then run the same command again$/);
+  assert.match(checkVerdict(untested.state, { checks: [] }).missing[0].reason, /code or SQL extension.*not a comment, a fixture or a golden file/, "#488: it says what counts as a test");
 
   const passing = recordRuns(runs.state, [counterproofRun({ exit_code: 0 })]);
   const refused = settle(marked(passing.state, ["run-3"]), { tests: PAIR_TESTS, counterproof: { runs: ["run-3"] } });

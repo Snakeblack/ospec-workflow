@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.171.7] - 2026-11-11
+
+### Fixed
+- **Un test SQL (pgTAP, pg_prove, dbt) cuenta como test del diff** (idd-sql-tests, #488, detectado usando IDD en un proyecto real con Supabase).
+  - **El defecto**: `addedTests` solo contaba un test con una extensión de `PRODUCT_EXT`, que no incluye `sql`. Un arreglo de base de datos cuyo test es `supabase/tests/foo_test.sql` no cerraba `repro-test`: el verde se rechazaba sin lanzar la contraprueba, el motivo decía «the diff adds no line to a test» aunque el diff sí añadía código a un fichero bajo `tests/`, y no había salida, porque `bug-fix` sale del propio intent.
+  - **El arreglo**: `TEST_CODE_EXT` (`sql`) cuenta solo para tests. `addedTests` y la regla de sufijo `_test`/`_spec` de `isTestPath` la aceptan además de `PRODUCT_EXT`, así que cuentan un `.sql` bajo `test/`, `tests/` o `__tests__/` y uno con sufijo de test (`db/approval_test.sql`). Una línea que solo es un comentario `--` sigue sin contar.
+  - **Lo que no cambia**: `PRODUCT_EXT` sigue sin `sql`, así que una migración o un esquema `.sql` fuera de los tests no es test ni código de producto y no deriva `untested-product`.
+  - **El motivo**: un par o `boundary-tests` sin test explica ahora qué cuenta como test, un fichero de test con extensión de código o SQL y una línea de código en él, no un comentario, un fixture ni un golden. No nombra la extensión concreta, porque `checkVerdict` no recibe el diff y pasarlo por sus cinco llamadas solo serviría para el mensaje.
+  - **Documentación**: `handbook/idd/evidencia.md` dice qué es un test y avisa de que la contraprueba de un test de BD comparte la base de datos local con el árbol de trabajo, así que necesita un comando hermético como `supabase db reset && supabase test db`. Lo recoge REQ-idd-012.
+
+Hecho con IDD (`idd/archive/2026-11-11-idd-sql-tests/`), con la reproducción en rojo contra `main` y en verde con el arreglo, y la contraprueba sobre la base registrada.
+
+**Verificación directa**: `node scripts/check.js` (4522 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
+
 ## [2.171.6] - 2026-11-11
 
 ### Fixed
