@@ -637,3 +637,25 @@ func TestOpaqueScalarLines_NextLineFlowUnicodeSpacesAndLongLines(t *testing.T) {
 		t.Fatalf("long line: %v", err)
 	}
 }
+
+// REQ-lifecycle-kernel-034: a lone CR or a U+2028 inside a value reads as in
+// Node, whose patterns take any character but a line feed, as `.` does here.
+func TestOpaqueScalarLines_LoneCRAndLineSeparator(t *testing.T) {
+	lines, err := yamllite.OpaqueScalarLines("a: b\rc\n  more\nk: v\u2028w\n  more\nz: 1\n")
+	if err != nil {
+		t.Fatalf("OpaqueScalarLines: %v", err)
+	}
+	want := []string{"a: b\rc", "", "k: v\u2028w", "", "z: 1", ""}
+	if strings.Join(lines, "|") != strings.Join(want, "|") {
+		t.Fatalf("lines = %q, want %q", lines, want)
+	}
+	// In a block scalar header's comment and after a backslash in a quoted key.
+	headers, err := yamllite.OpaqueScalarLines("t: | # c\rx\n  lint: x\nu: | # c\u2028x\n  lint: x\nv: | # c\u2029x\n  lint: x\n\"a\\\rb\": |\n  lint: x\nz: 1\n")
+	if err != nil {
+		t.Fatalf("OpaqueScalarLines: %v", err)
+	}
+	want = []string{"t: | # c\rx", "", "u: | # c\u2028x", "", "v: | # c\u2029x", "", "\"a\\\rb\": |", "", "z: 1", ""}
+	if strings.Join(headers, "|") != strings.Join(want, "|") {
+		t.Fatalf("headers = %q, want %q", headers, want)
+	}
+}

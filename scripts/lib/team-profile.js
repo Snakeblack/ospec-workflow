@@ -9,6 +9,8 @@
 // reads the active mode's declaration, as precommit-strict.js does. Pure: the
 // caller reads the files and parses idd/config.yaml.
 
+const { opaqueScalarLines } = require("./yaml-lite.js");
+
 const TEAM_SIZES = Object.freeze(["solo", "small", "multi-team"]);
 const TEAM_EXPERIENCE = Object.freeze(["junior", "mixed", "senior"]);
 const TEAM_KEYS = Object.freeze(["size", "experience"]);
@@ -159,7 +161,8 @@ function teamDefaults({ size, experience = null }) {
 // Top-level `team:` and `scale:` of openspec/config.yaml. Only these keys are
 // read; the rest of the file belongs to SDD.
 function readOpenspecTeam(text) {
-  const lines = String(text).split(/\r?\n/);
+  // REQ-lifecycle-kernel-034: the lines of a value are blank.
+  const { lines } = opaqueScalarLines(text);
   let team = null;
   let scale = null;
   for (let index = 0; index < lines.length; index += 1) {
@@ -171,12 +174,15 @@ function readOpenspecTeam(text) {
     for (index += 1; index < lines.length; index += 1) {
       const nested = lines[index];
       if (nested.trim() === "" || /^\s*#/.test(nested)) continue;
-      const entry = /^\s+([A-Za-z_-]+):\s*["']?([^\s"'#]*)["']?\s*(#.*)?$/.exec(nested);
-      if (!entry) {
+      // Two linear steps: one pattern with a space run on each side of an
+      // optional value backtracked quadratically (REQ-lifecycle-kernel-034).
+      const entry = /^\s+([A-Za-z_-]+):([^\n]*)$/.exec(nested);
+      const value = entry && /^["']?([^\s"'#]*)["']?\s*(#[^\n]*)?$/.exec(entry[2].trim());
+      if (!value) {
         index -= 1;
         break;
       }
-      team[entry[1]] = entry[2];
+      team[entry[1]] = value[1];
     }
   }
   return { team, scale };

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.171.6] - 2026-11-11
+
+### Fixed
+- **Ningún lector de `config.yaml` lee una clave escrita dentro de un valor** (config-yaml-opaque-scalars, la PR propia detrás de los lectores de `state.yaml` de la review general del 2026-10-29).
+  - **El defecto**: los lectores línea a línea de `openspec/config.yaml` e `idd/config.yaml` leían el texto de un escalar de bloque como si fueran claves:
+    - un `backend: workspace-federated` dentro de un `notes: |` cambiaba el backend, también el del lanzador de hooks;
+    - un `scope:` escrito dentro de la justificación del override de atribución sustituía la lista real;
+    - cada línea `nombre: comando` de un bloque bajo `checks:` se convertía en un check más, y `ospec check` lo ejecutaba;
+    - una línea de bloque cortaba una capacidad o añadía fases, condiciones de ruta, dominios del baseline y claves de team.
+  - **Los lectores de `openspec/config.yaml`** reciben en blanco las líneas de un valor, con el escáner de `yaml-lite`: la tabla de rutas, las capacidades, el baseline (`readBaselineState` y `store.ReadBaselineState` en Go) y el team de SDD. El backend (`readBackendMode` y el lanzador) y los valores por defecto de ruta (`extractConfigDefaults`) se leen con `readYamlScalar`, así que solo cuenta el hijo directo de su sección. Un valor del override de atribución escrito en varias líneas lo deja inválido, con un error que nombra el campo.
+  - **`idd/config.yaml`** rechaza con `config-invalid`, nombrando la línea:
+    - un escalar de bloque;
+    - un valor que sigue en más líneas;
+    - una comilla o una colección flow sin cerrar;
+    - una entrada con otra sangría que la primera de su sección, como una clave más sangrada tras un comando.
+  - **Rendimiento**: `extractConfigDefaults` hacía backtracking exponencial. Una sección `project:` de 16 líneas sangradas sin `status` tardaba 42 s, y con unas 30 colgaba el dispatcher. `readFlowScalar`, el quitador de comentarios `\s+#.*$` y otros patrones de los lectores eran cuadráticos: con 40.000 espacios tardaban de 1 a 4 s. Ahora todos son lineales, también con un CR suelto, U+2028 o U+2029 tras un tramo de espacios. Donde Go tiene `.`, los patrones de Node toman cualquier carácter salvo el salto de línea, así que leen esas líneas como Go, incluida una cabecera de bloque con uno de ellos en su comentario.
+
+Hecho con IDD (`idd/archive/2026-11-11-config-yaml-opaque-scalars/`). Hubo cuatro revisiones de confianza; la cuarta la autorizó el usuario con el gate `review-limit`. Lo recogen REQ-lifecycle-kernel-034 y REQ-idd-013. Detrás va, en una PR propia (decisión del usuario), lo que quedó fuera:
+- los lectores de `state.yaml` con el mismo patrón cuadrático ante un CR, que tardan unos 5 s con 100.000 caracteres;
+- la paridad de blancos del escáner, porque Node y Go discrepan en U+0085 y U+FEFF.
+
+Después, 4c y 4d.
+
+**Verificación directa**: `node scripts/check.js` (4521 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados, y `gofmt -l cmd internal`, `go vet ./...` y `go test ./...` en verde.
+
 ## [2.171.5] - 2026-11-10
 
 ### Fixed

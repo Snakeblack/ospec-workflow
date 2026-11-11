@@ -1641,3 +1641,23 @@ test("[REQ-lifecycle-kernel-033] readState never reads a status inside a block s
   assert.equal(await statusOf("change:\n  name: x\n  notes: |\n    status: archived\n  status: active\n"), "active");
   assert.equal(await statusOf("change: x\nsummary: |\n  status: archived\nstatus: active\n"), "active");
 });
+
+test("REQ-lifecycle-kernel-034: readBackendMode reads artifact_store.backend, never a key inside a value", () => {
+  assert.equal(readBackendMode("artifact_store:\n  notes: |\n    backend: workspace-federated\n  backend: openspec\n"), "openspec");
+  assert.equal(readBackendMode("artifact_store:\n  notes: \"first\n    backend: workspace-federated\"\n"), "openspec");
+  assert.equal(readBackendMode("artifact_store:\n  backend: workspace-federated # federated\n"), "workspace-federated");
+});
+
+test("REQ-lifecycle-kernel-034: readBaselineState skips the lines of a value", () => {
+  const state = readBaselineState("baseline:\n  domains_done:\n    - auth\n    - |\n      - fake\n  status: pending\n");
+  assert.deepEqual([state.domains_done, state.status], [["auth", "|"], "pending"]);
+});
+
+test("REQ-lifecycle-kernel-034: the config readers of ospec-state read a long line in linear time", () => {
+  const started = process.hrtime.bigint();
+  for (const value of [" ".repeat(100000), `a${" #".repeat(50000)}`].flatMap((run) => ["b", "\rb", "\u2028b", " b"].map((tail) => `a${run}${tail}`))) {
+    readBackendMode(`artifact_store:\n  backend: ${value}\n`);
+    readBaselineState(`baseline:\n  status: ${value}\n  domains_done:\n    - ${value}\n`);
+  }
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
+});

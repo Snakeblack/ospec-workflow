@@ -479,3 +479,15 @@ func TestFindActiveChanges_StatusInsideABlockScalar(t *testing.T) {
 		t.Fatalf("active changes = %v, want live and nested", names)
 	}
 }
+
+// REQ-lifecycle-kernel-034: the lines of a value are opaque to ReadBaselineState,
+// as to readBaselineState in Node.
+func TestReadBaselineState_SkipsScalarContinuations(t *testing.T) {
+	bs := store.ReadBaselineState("baseline:\n  domains_done:\n    - auth\n    - |\n      - fake\n  status: pending\n")
+	if bs == nil {
+		t.Fatal("ReadBaselineState returned nil")
+	}
+	if got := strings.Join(bs.DomainsDone, ","); got != "auth,|" || bs.Status != "pending" {
+		t.Fatalf("domains_done = %q, status = %q; want \"auth,|\" and \"pending\"", got, bs.Status)
+	}
+}

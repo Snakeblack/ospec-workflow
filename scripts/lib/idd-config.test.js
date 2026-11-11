@@ -183,3 +183,27 @@ test("REQ-idd-013 names the file, every key and both error codes", () => {
     assert.ok(section.includes(`\`${name}\``), `REQ-idd-013 must name ${name}`);
   }
 });
+
+test("REQ-idd-013: a value that continues on more lines is config-invalid", () => {
+  const refused = (text, pattern) => assert.throws(() => parseIddConfig(text), (error) => error instanceof IddConfigError && error.code === "config-invalid" && pattern.test(error.message));
+  refused("checks:\n  test: |\n    lint: rm -rf build\n", /line 3/);
+  refused("checks:\n  test: |\nmode: idd\n", /block scalar/);
+  refused('checks:\n  test: "npm test\n', /never closes/);
+  refused("checks:\n  test: npm test\n    --coverage\n", /line 3/);
+  for (const brk of ["\r", "\u2028", "\u2029"]) refused(`checks:\n  test: | # c${brk}x\n    lint: rm -rf build\n`, /line 3/);
+  refused("checks:\n  test: npm test\n      lint: rm -rf build\n", /unreadable checks line: lint: rm -rf build \(indented unlike/);
+  refused("checks:\n  test: npm test\n   lint: eslint .\n", /indented unlike the first entry of checks/);
+  assert.deepStrictEqual(parseIddConfig("impact:\n  exclude:\n  - build/**\n  public_contract:\n    - api/**\n").impact.exclude, ["build/**"]);
+  const started = process.hrtime.bigint();
+  for (const value of [" ".repeat(100000), `a${" #".repeat(50000)}`].flatMap((run) => ["b", "\rb", "\u2028b"].map((tail) => `${run}${tail}`))) {
+    for (const text of [`checks:\n  test:${value}\n`, `impact:\n  exclude:\n    -${value}\n`, `mode:${value}\n`]) {
+      try {
+        parseIddConfig(text);
+      } catch (error) {
+        if (!(error instanceof IddConfigError)) throw error;
+      }
+    }
+  }
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
+  assert.deepStrictEqual(parseIddConfig("checks:\n  test: npm test # all of them\n").checks, [{ name: "test", command: "npm test" }]);
+});

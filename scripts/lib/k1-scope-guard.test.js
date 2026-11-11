@@ -309,6 +309,10 @@ const SUCCESSOR_K2_EXACT = new Set([
   // commands<->agents checker anchors on another orchestrator-routed command.
   "scripts/lib/contract-checkers/j1-commands-agents.js",
   "scripts/lib/contract-checkers/j1-commands-agents.test.js",
+  // config-yaml-opaque-scalars: the capabilities reader skips the lines of a
+  // value (REQ-lifecycle-kernel-034).
+  "scripts/lib/capability-registry.js",
+  "scripts/lib/capability-registry.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
