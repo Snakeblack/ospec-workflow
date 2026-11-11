@@ -20,10 +20,12 @@ import (
 // well, with the key's line as its owner. The scan reads a key as YAML does:
 // quoted, or plain up to the first colon that a space, a tab or the end of the
 // line follows. Its patterns name the space and the tab, as the Node scan does
-// (REQ-lifecycle-kernel-033).
+// (REQ-lifecycle-kernel-033). A line is blank, and a line or a value is
+// trimmed, only by the space and the tab of YAML and the CR of a line break,
+// as in Node: U+0085, U+FEFF and any other Unicode space are text
+// (REQ-lifecycle-kernel-035).
 var (
 	BlockScalarHeader = regexp.MustCompile(`^[|>](?:[1-9][+-]?|[+-][1-9]?)?(?:[ \t]+#.*)?$`)
-	MappingLine       = regexp.MustCompile(`^([^:\s][^:]*):\s*(.*)$`)
 	trailingComment   = regexp.MustCompile(`^[ \t]+#`)
 	nodeProperties    = regexp.MustCompile(`^(?:(?:![^ \t]*|&[^ \t]+)(?:[ \t]+|$))+`)
 	entryLine         = regexp.MustCompile(`^(?:(?:"(?:[^"\\]|\\.)*"|'(?:[^']|'')*')[ \t]*|[^ \t#"'](?:[^:]|:[^ \t])*?):(?:[ \t]+(.*))?$`)
@@ -33,6 +35,11 @@ type scalarOwner struct {
 	indent int
 	kind   byte // 'b' block, 'p' plain, 'f' flow collection, '"' or '\'' an open quoted scalar
 	depth  int  // bracket depth of an open flow collection
+}
+
+// TrimSpace returns s without the spaces, tabs and CRs at its ends.
+func TrimSpace(s string) string {
+	return strings.Trim(s, " \t\r")
 }
 
 // SpaceIndent is the number of leading spaces of line.
@@ -59,7 +66,7 @@ func quoteClose(text string, quote byte, from int) int {
 
 // OpensQuotedScalar reports whether value opens a quoted scalar it does not close.
 func OpensQuotedScalar(value string) bool {
-	v := strings.TrimSpace(value)
+	v := TrimSpace(value)
 	return v != "" && (v[0] == '"' || v[0] == '\'') && quoteClose(v, v[0], 1) == -1
 }
 
@@ -104,9 +111,9 @@ func flowClose(text string, depth int) (int, int) {
 // lineScalarValue returns the scalar a mapping or sequence line holds.
 func lineScalarValue(trimmed string) (string, bool) {
 	if strings.HasPrefix(trimmed, "- ") {
-		item := strings.TrimSpace(trimmed[2:])
+		item := TrimSpace(trimmed[2:])
 		for strings.HasPrefix(item, "- ") {
-			item = strings.TrimSpace(item[2:])
+			item = TrimSpace(item[2:])
 		}
 		if item == "-" {
 			item = ""
@@ -131,7 +138,7 @@ func lineScalarValue(trimmed string) (string, bool) {
 }
 
 func newScalarOwner(value string, indent int) *scalarOwner {
-	v := withoutProperties(strings.TrimSpace(value))
+	v := withoutProperties(TrimSpace(value))
 	if v == "" || v[0] == '#' {
 		return nil
 	}
@@ -162,6 +169,14 @@ func ScanScalarContinuations(lines []string) ([]bool, error) {
 	return continuation, err
 }
 
+// ScanScalarLines returns the continuation lines of ScanScalarContinuations
+// and the lines the scan reads as no key (a value on the line after its key,
+// or a colon a space or a tab does not follow), which the projector refuses
+// (REQ-lifecycle-kernel-035).
+func ScanScalarLines(lines []string) ([]bool, []bool, error) {
+	return scanLines(lines)
+}
+
 // scanLines is the scan behind both exports: continuation marks the lines a
 // scalar or a flow collection continues on, values the lines that hold a value
 // on the line after its key.
@@ -171,7 +186,7 @@ func scanLines(lines []string) ([]bool, []bool, error) {
 	var owner *scalarOwner
 	var parents []int
 	for i, raw := range lines {
-		trimmed := strings.TrimSpace(raw)
+		trimmed := TrimSpace(raw)
 		indent := SpaceIndent(raw)
 		switch {
 		case owner != nil && owner.kind == 'b':
@@ -203,7 +218,7 @@ func scanLines(lines []string) ([]bool, []bool, error) {
 				return continuation, values, fmt.Errorf("state YAML line %d: quoted scalar never closes", i+1)
 			}
 			if end := quoteClose(trimmed, owner.kind, 0); end != -1 {
-				if rest := trimmed[end:]; strings.TrimSpace(rest) != "" && !trailingComment.MatchString(rest) {
+				if rest := trimmed[end:]; TrimSpace(rest) != "" && !trailingComment.MatchString(rest) {
 					return continuation, values, fmt.Errorf("state YAML line %d: text after a closed quoted scalar", i+1)
 				}
 				owner = nil

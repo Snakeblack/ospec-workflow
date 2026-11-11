@@ -3,6 +3,9 @@
 package yamllite_test
 
 import (
+	"encoding/json"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -657,5 +660,45 @@ func TestOpaqueScalarLines_LoneCRAndLineSeparator(t *testing.T) {
 	want = []string{"t: | # c\rx", "", "u: | # c\u2028x", "", "v: | # c\u2029x", "", "\"a\\\rb\": |", "", "z: 1", ""}
 	if strings.Join(headers, "|") != strings.Join(want, "|") {
 		t.Fatalf("headers = %q, want %q", headers, want)
+	}
+}
+
+// REQ-lifecycle-kernel-035: the corpus shared with scripts/lib/yaml-lite.test.js;
+// both scans must leave the same lines opaque (Go/JS parity).
+func TestOpaqueScalarLines_SharedCorpus(t *testing.T) {
+	data, err := os.ReadFile("../testdata/yaml-lite-scan/cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var corpus struct {
+		Cases []struct {
+			Name  string   `json:"name"`
+			Input string   `json:"input"`
+			Lines []string `json:"lines"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(data, &corpus); err != nil {
+		t.Fatal(err)
+	}
+	if len(corpus.Cases) == 0 {
+		t.Fatal("empty corpus")
+	}
+	for _, c := range corpus.Cases {
+		lines, err := yamllite.OpaqueScalarLines(c.Input)
+		if err != nil {
+			t.Errorf("%s: %v", c.Name, err)
+			continue
+		}
+		if !reflect.DeepEqual(lines, c.Lines) {
+			t.Errorf("%s: lines = %q, want %q", c.Name, lines, c.Lines)
+		}
+	}
+}
+
+// REQ-lifecycle-kernel-035: a lone CR inside a value reads as part of it, as
+// the Node readers read it with [^\n].
+func TestExtractFirstScalar_LoneCRInsideValue(t *testing.T) {
+	if got := yamllite.ExtractFirstScalar("change: x\nstatus: a\rb\n", [][]string{{"status"}}); got != "a\rb" {
+		t.Fatalf("status = %q, want %q", got, "a\rb")
 	}
 }

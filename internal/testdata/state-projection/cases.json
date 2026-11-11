@@ -1,0 +1,244 @@
+{
+  "description": "Shared corpus of the state.yaml projectors (REQ-lifecycle-kernel-035). scripts/lib/ospec-state.test.js and internal/hooks/phase-completion-reducer_test.go project each input with the design envelope and require the same status from the state readers (readStatus and the pre-compact reader in Node, store.ReadStatus in Go), the same outcome and, when it is not malformed-state, the same bytes with the last_updated line replaced by `last_updated: <now>`; a malformed-state leaves the bytes unchanged. Both projectors trim a line, a key and a value only of the space, the tab and the CR: U+0085, U+FEFF, U+00A0 and every other Unicode space are text.",
+  "envelope": {
+    "status": "success",
+    "executive_summary": "Designed stateless JWT auth.",
+    "artifacts": [
+      "openspec/changes/jwt-auth/design.md"
+    ],
+    "next_recommended": "sdd-tasks",
+    "risks": "None",
+    "skill_resolution": "injected"
+  },
+  "cases": [
+    {
+      "name": "a plain state projects",
+      "input": "change: x\nstatus: planning\nrevision: 1\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: planning\nlast_updated: <now>\nrevision: 2\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a line of only U+0085 after a block scalar is not a mapping",
+      "input": "change: x\nstatus: planning\nnotes: |\n  x\n\u0085\n  evil: y\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "a line of only U+FEFF after a block scalar is not a mapping",
+      "input": "change: x\nstatus: planning\nnotes: |\n  x\n\ufeff\n  evil: y\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "a line of only U+00A0 after a block scalar is not a mapping",
+      "input": "change: x\nstatus: planning\nnotes: |\n  x\n\u00a0\n  evil: y\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "a line of only a lone CR inside a block scalar is blank",
+      "input": "change: x\nstatus: planning\nnotes: |\n  x\n\r\r\n  y\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "advanced",
+      "output": "change: x\r\nstatus: planning\r\nrevision: 1\r\nlast_updated: <now>\r\nnotes: |\r\n  x\r\n\r\r\n  y\r\nphases:\r\n  design:\r\n    status: done\r\n    summary: \"Designed stateless JWT auth.\"\r\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a key that starts with U+00A0 names a key with it",
+      "input": "change: x\nstatus: planning\n\u00a0foo: bar\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: planning\nrevision: 1\nlast_updated: <now>\n\u00a0foo: bar\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a key that starts with U+000B names a key with it",
+      "input": "change: x\nstatus: planning\n\u000bfoo: bar\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: planning\nrevision: 1\nlast_updated: <now>\n\u000bfoo: bar\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a key that starts with U+2028 names a key with it",
+      "input": "change: x\nstatus: planning\n\u2028foo: bar\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: planning\nrevision: 1\nlast_updated: <now>\n\u2028foo: bar\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a key that starts with U+FEFF is not change",
+      "input": "\ufeffchange: x\nstatus: planning\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "a key that starts with U+00A0 is not status",
+      "input": "change: x\n\u00a0status: planning\nphases:\n  design:\n    status: pending\n",
+      "status": "",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "a status of only U+FEFF is a value",
+      "input": "change: x\nstatus: \ufeff\nphases:\n  design:\n    status: pending\n",
+      "status": "\ufeff",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: \ufeff\nrevision: 1\nlast_updated: <now>\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a status of only U+00A0 is a value",
+      "input": "change: x\nstatus: \u00a0\nphases:\n  design:\n    status: pending\n",
+      "status": "\u00a0",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: \u00a0\nrevision: 1\nlast_updated: <now>\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "text after a closed double-quoted status is not a scalar",
+      "input": "change: x\nstatus: \"planning\"\u0085\nphases:\n  design:\n    status: pending\n",
+      "status": "\"planning\"\u0085",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "an empty quoted status is no status",
+      "input": "change: x\nstatus: \"\"\nphases:\n  design:\n    status: pending\n",
+      "status": "",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "a comment after phases is not supported",
+      "input": "change: x\nstatus: planning\nphases: # c\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "top-level keys that start with U+00A0 before the real ones stay as they are",
+      "input": "change: x\n\u00a0status: decoy\n\u00a0revision: 9\n\u00a0phases:\nstatus: planning\nrevision: 1\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "advanced",
+      "output": "change: x\n\u00a0status: decoy\n\u00a0revision: 9\n\u00a0phases:\nstatus: planning\nlast_updated: <now>\nrevision: 2\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "phase keys that start with U+00A0 before the real ones stay as they are",
+      "input": "change: x\nstatus: planning\nrevision: 1\nphases:\n  \u00a0design:\n    \u00a0status: decoy\n  design:\n    \u00a0status: decoy\n    status: pending\n",
+      "status": "planning",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: planning\nlast_updated: <now>\nrevision: 2\nphases:\n  \u00a0design:\n    \u00a0status: decoy\n  design:\n    \u00a0status: decoy\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a key that starts with U+00A0 after blocking_questions survives",
+      "input": "change: x\nstatus: planning\nrevision: 1\nblocking_questions:\n  - \"q\"\n\u00a0foo: bar\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: planning\nlast_updated: <now>\nrevision: 2\nblocking_questions: []\n\u00a0foo: bar\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a comment that starts with a tab inside blocking_questions is indented",
+      "input": "change: x\nstatus: planning\nrevision: 1\nblocking_questions:\n\t# note\n  - \"r\"\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: planning\nlast_updated: <now>\nrevision: 2\nblocking_questions: []\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a comment that starts with a tab before the phase is indented",
+      "input": "change: x\nstatus: planning\nrevision: 1\nphases:\n\t# note\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: planning\nlast_updated: <now>\nrevision: 2\nphases:\n\t# note\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "an empty double-quoted phases is not supported",
+      "input": "change: x\nstatus: planning\nphases: \"\"\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "an empty single-quoted phases is not supported",
+      "input": "change: x\nstatus: planning\nphases: ''\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "a status that starts with U+00A0 before the real one is not the status",
+      "input": "change: x\n\u00a0status: archived\nstatus: planning\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "advanced",
+      "output": "change: x\n\u00a0status: archived\nstatus: planning\nrevision: 1\nlast_updated: <now>\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a colon followed by a letter is no key, for the readers and the projector",
+      "input": "change: x\nstatus: planning\nstatus:archived\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "a colon followed by U+00A0 is no key, for the readers and the projector",
+      "input": "change: x\nstatus: planning\nstatus:\u00a0archived\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "a colon followed by U+FEFF is no key, for the readers and the projector",
+      "input": "change: x\nstatus: planning\nstatus:\ufeffarchived\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "a colon followed by U+000B is no key, for the readers and the projector",
+      "input": "change: x\nstatus: planning\nstatus:\u000barchived\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "a space before the colon still names the status key",
+      "input": "change: x\nstatus : archived\nphases:\n  design:\n    status: pending\n",
+      "status": "archived",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: archived\nrevision: 1\nlast_updated: <now>\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a space before the colon still names the change mapping",
+      "input": "change :\n  status: archived\nstatus: planning\nphases:\n  design:\n    status: pending\n",
+      "status": "archived",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "a comment after a lone CR is stripped",
+      "input": "change: x\nstatus: planning\r# c\nphases:\n  design:\n    status: pending\r# c\n",
+      "status": "planning",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: planning\nrevision: 1\nlast_updated: <now>\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a comment after a form feed is stripped",
+      "input": "change: x\nstatus: planning\f# c\nphases:\n  design:\n    status: pending\f# c\n",
+      "status": "planning",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: planning\nrevision: 1\nlast_updated: <now>\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a status that starts with U+0085 under a change mapping is not the status, and the projector refuses a change mapping",
+      "input": "change:\n  name: x\n\u0085status: archived\n  status: planning\nstatus: planning\nphases:\n  design:\n    status: pending\n",
+      "status": "planning",
+      "outcome": "malformed-state"
+    },
+    {
+      "name": "a status with U+0130 lower-cases to a plain i, one code point at a time as strings.ToLower",
+      "input": "change: x\nstatus: ARCH\u0130VED\nphases:\n  design:\n    status: pending\n",
+      "status": "archived",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: ARCH\u0130VED\nrevision: 1\nlast_updated: <now>\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "an active status written with U+0130 is active for both runtimes",
+      "input": "change: x\nstatus: ACT\u0130VE\nphases:\n  design:\n    status: pending\n",
+      "status": "active",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: ACT\u0130VE\nrevision: 1\nlast_updated: <now>\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    },
+    {
+      "name": "a final capital sigma lower-cases to U+03C3, not to the final form",
+      "input": "change: x\nstatus: A\u03a3\nphases:\n  design:\n    status: pending\n",
+      "status": "a\u03c3",
+      "outcome": "advanced",
+      "output": "change: x\nstatus: A\u03a3\nrevision: 1\nlast_updated: <now>\nphases:\n  design:\n    status: done\n    summary: \"Designed stateless JWT auth.\"\n    last_payload_hash: \"b3a6d8f2428d7094df04f5983c7d569c85d7fcae796c82f1c68bd6445823e08b\""
+    }
+  ]
+}

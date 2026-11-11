@@ -1012,7 +1012,7 @@ function parsePersistedRouteSection(stateContent) {
     if (childIndent !== null) {
       for (const entry of block) {
         if (entry.indent !== childIndent) continue;
-        const match = entry.text.match(/^\s*actual_route:\s*(.*)$/);
+        const match = entry.text.match(/^\s*actual_route:\s*([^\n]*)$/);
         if (!match) continue;
         value = match[1].trim().replace(/^["']|["']$/g, "");
       }

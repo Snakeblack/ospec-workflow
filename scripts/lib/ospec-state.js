@@ -14,12 +14,16 @@ const { mkdirOspec } = require("./ospec-gitignore.js");
 const { reducePhaseCompletion } = require("./lifecycle-kernel/phase-completion-reducer.js");
 const {
   BLOCK_SCALAR_HEADER,
-  MAPPING_LINE,
+  extractFirstScalar,
   lineIndent,
+  lineIndentation,
+  lowerCaseLikeGo,
   opaqueScalarLines,
   opensQuotedScalar,
   readYamlScalar,
   scanScalarContinuations,
+  stateScalar,
+  trimYamlSpace,
 } = require("./yaml-lite.js");
 
 const TERMINAL_STATUSES = new Set([
@@ -57,41 +61,10 @@ function parseScalar(value) {
   return trimmed.replace(/(?<!\s)\s+#[^\n]*$/, "").trim();
 }
 
+// The status of a change, read as store.ReadStatus reads it in Go: change.status
+// first, then the top-level status, lower-cased (REQ-lifecycle-kernel-035).
 function readStatus(content) {
-  const { lines } = opaqueScalarLines(content);
-  let inChange = false;
-  let topLevelStatus = "";
-
-  for (const raw of lines) {
-    const trimmed = raw.trim();
-    const indent = raw.match(/^\s*/)[0].length;
-
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-
-    if (indent === 0) {
-      inChange = trimmed === "change:";
-
-      const match = trimmed.match(/^status:\s*(.+)$/);
-
-      if (match) {
-        topLevelStatus = parseScalar(match[1]).toLowerCase();
-      }
-
-      continue;
-    }
-
-    if (inChange) {
-      const nestedStatus = trimmed.match(/^status:\s*(.+)$/);
-
-      if (nestedStatus) {
-        return parseScalar(nestedStatus[1]).toLowerCase();
-      }
-    }
-  }
-
-  return topLevelStatus;
+  return lowerCaseLikeGo(extractFirstScalar(content, [["change", "status"], ["status"]]));
 }
 
 const BASELINE_LIST_KEYS = new Set(["domains_pending", "domains_done", "stale_domains"]);
@@ -720,16 +693,31 @@ function setPhaseSummary(content, phase, { summary, keyDecisions = [] } = {}) {
   return nextLines.join(eol);
 }
 
+// The projector trims a line, a key and a value like the scan, only of the
+// space, the tab and the CR, as the Go projector does: U+0085, U+FEFF, U+00A0
+// and any other Unicode space are text (REQ-lifecycle-kernel-035).
+
+// The key and the value of a mapping line, split at its first colon as
+// yamlKeyValue does in Go; null without a colon or with an empty key.
+function yamlKeyValue(trimmed) {
+  const index = trimmed.indexOf(":");
+  if (index < 0) return null;
+  const key = trimYamlSpace(trimmed.slice(0, index));
+  return key ? { key, value: trimYamlSpace(trimmed.slice(index + 1)) } : null;
+}
+
+
 // The one-line form of the scalar that line `index` opens: its continuation
 // lines joined by single spaces, then read like any single-line scalar.
 function oneLineScalar(lines, index, value, continuation) {
   const parts = [];
   for (let j = index + 1; j < lines.length && continuation[j]; j += 1) {
-    if (lines[j].trim()) parts.push(lines[j].trim());
+    const part = trimYamlSpace(lines[j]);
+    if (part) parts.push(part);
   }
-  const v = String(value).trim();
+  const v = trimYamlSpace(String(value));
   if (BLOCK_SCALAR_HEADER.test(v)) return parts.join(" ");
-  return parseScalar([v, ...parts].join(" "));
+  return stateScalar([v, ...parts].join(" "));
 }
 
 // This module writes state.yaml with a line-oriented projector rather than a
@@ -741,35 +729,40 @@ function validateProjectableState(content) {
   let phases = false;
 
   const lines = String(content).split(/\r?\n/);
-  const { continuation, error } = scanScalarContinuations(lines);
+  const { continuation, values, error } = scanScalarContinuations(lines);
   if (error) return false;
 
   for (let i = 0; i < lines.length; i += 1) {
     const raw = lines[i];
-    const trimmed = raw.trim();
+    const trimmed = trimYamlSpace(raw);
     if (continuation[i]) {
       if (raw.includes("\t")) return false;
       continue;
     }
     if (!trimmed || trimmed.startsWith("#")) continue;
     if (raw.includes("\t")) return false;
+    // A line the scan reads as no key, which no state reader reads either.
+    if (values[i]) return false;
 
     if (trimmed.startsWith("- ")) {
-      const item = trimmed.slice(2);
+      const item = trimYamlSpace(trimmed.slice(2));
       if (!isValidYamlScalar(item) && !opensQuotedScalar(item)) return false;
       continue;
     }
 
-    const match = trimmed.match(MAPPING_LINE);
-    if (!match) return false;
-    const [, key, value] = match;
+    const entry = yamlKeyValue(trimmed);
+    if (!entry) return false;
+    const { key, value } = entry;
     if (!isValidYamlScalar(value) && !opensQuotedScalar(value)) return false;
-    if (raw.match(/^\s*/)[0].length !== 0) continue;
-    if (key === "change") change = Boolean(value.trim());
-    if (key === "status") status = Boolean(value.trim());
+    if (lineIndentation(raw) !== 0) continue;
+    // As in Go: change and status hold a non-empty scalar, and phases holds
+    // nothing on its line, a comment included, since the writer looks for
+    // `phases:` alone.
+    if (key === "change") change = Boolean(oneLineScalar(lines, i, value, continuation));
+    if (key === "status") status = Boolean(oneLineScalar(lines, i, value, continuation));
     if (key === "revision" && !/^\d+$/.test(oneLineScalar(lines, i, value, continuation))) return false;
     if (key === "phases") {
-      if (value.trim() && !value.trim().startsWith("#")) return false;
+      if (value) return false;
       phases = true;
     }
   }
@@ -778,7 +771,7 @@ function validateProjectableState(content) {
 }
 
 function isValidYamlScalar(rawValue) {
-  const value = String(rawValue).trim();
+  const value = trimYamlSpace(String(rawValue));
   if (!value) return true;
   if (value.startsWith('"')) {
     try {
@@ -807,19 +800,19 @@ function parseStateYaml(content) {
 
   for (let i = 0; i < lines.length; i += 1) {
     const raw = lines[i];
-    const trimmed = raw.trim();
+    const trimmed = trimYamlSpace(raw);
     if (continuation[i] || !trimmed || trimmed.startsWith("#")) continue;
 
-    const indent = raw.match(/^\s*/)[0].length;
+    const indent = lineIndentation(raw);
 
     if (indent === 0) {
       currentTopSection = null;
       currentPhase = null;
 
-      const kv = trimmed.match(/^([^:]+):\s*(.*)$/);
+      const kv = yamlKeyValue(trimmed);
       if (kv) {
-        const key = kv[1].trim();
-        const val = oneLineScalar(lines, i, kv[2], continuation);
+        const { key } = kv;
+        const val = oneLineScalar(lines, i, kv.value, continuation);
 
         if (key === "schema_version") {
           result.schema_version = Number(val) || 1;
@@ -857,14 +850,14 @@ function parseStateYaml(content) {
 
     if (currentTopSection === "approvals") {
       if (trimmed.startsWith("- id:")) {
-        const match = trimmed.match(/- id:\s*(.+)$/);
+        const match = trimmed.match(/- id:\s*([^\n]+)$/);
         if (match) {
-          result.approvals.push({ id: parseScalar(match[1]) });
+          result.approvals.push({ id: stateScalar(match[1]) });
         }
       } else if (trimmed.startsWith("id:") && result.approvals.length > 0) {
-        const match = trimmed.match(/id:\s*(.+)$/);
+        const match = trimmed.match(/id:\s*([^\n]+)$/);
         if (match && !result.approvals[result.approvals.length - 1].id) {
-          result.approvals[result.approvals.length - 1].id = parseScalar(match[1]);
+          result.approvals[result.approvals.length - 1].id = stateScalar(match[1]);
         }
       }
       continue;
@@ -872,16 +865,16 @@ function parseStateYaml(content) {
 
     if (currentTopSection === "phases") {
       if (indent === 2) {
-        const match = trimmed.match(/^([\w-]+):\s*$/);
+        const match = trimmed.match(/^([\w-]+):$/);
         if (match) {
           currentPhase = match[1];
           result.phases[currentPhase] = result.phases[currentPhase] || {};
         }
       } else if (indent === 4 && currentPhase) {
-        const kv = trimmed.match(/^([^:]+):\s*(.*)$/);
+        const kv = yamlKeyValue(trimmed);
         if (kv) {
-          const pKey = kv[1].trim();
-          const pVal = oneLineScalar(lines, i, kv[2], continuation);
+          const pKey = kv.key;
+          const pVal = oneLineScalar(lines, i, kv.value, continuation);
           if (pKey === "status") {
             result.phases[currentPhase].status = pVal;
           } else if (pKey === "summary") {
@@ -912,13 +905,20 @@ function dropRewrittenContinuations(lines) {
       if (!dropping) kept.push(lines[i]);
       continue;
     }
-    if (lines[i].trim()) {
-      const entry = lineIndent(lines[i]) === 0 ? lines[i].trim().match(MAPPING_LINE) : null;
-      dropping = Boolean(entry && REWRITTEN_TOP_LEVEL_KEYS.has(entry[1].trim()));
+    const trimmed = trimYamlSpace(lines[i]);
+    if (trimmed) {
+      const entry = lineIndent(lines[i]) === 0 ? yamlKeyValue(trimmed) : null;
+      dropping = Boolean(entry && REWRITTEN_TOP_LEVEL_KEYS.has(entry.key));
     }
     kept.push(lines[i]);
   }
   return kept;
+}
+
+// The index of the top-level line whose key is `key`, read as the parser and
+// the Go writer read it, or -1 (REQ-lifecycle-kernel-035).
+function topLevelKeyIndex(lines, key) {
+  return lines.findIndex((line) => lineIndentation(line) === 0 && yamlKeyValue(trimYamlSpace(line))?.key === key);
 }
 
 function applyStateProjectionToYaml(content, nextState, phase) {
@@ -926,9 +926,7 @@ function applyStateProjectionToYaml(content, nextState, phase) {
   let lines = dropRewrittenContinuations(content.split(/\r?\n/));
 
   // 1. Top-level status
-  let statusIndex = lines.findIndex(
-    (l) => /^status:\s*/.test(l.trim()) && l.match(/^\s*/)[0].length === 0,
-  );
+  let statusIndex = topLevelKeyIndex(lines, "status");
   if (statusIndex !== -1) {
     lines[statusIndex] = `status: ${nextState.status}`;
   } else {
@@ -937,9 +935,7 @@ function applyStateProjectionToYaml(content, nextState, phase) {
   }
 
   // 2. Top-level last_updated
-  const lastUpdatedIndex = lines.findIndex(
-    (l) => /^last_updated:\s*/.test(l.trim()) && l.match(/^\s*/)[0].length === 0,
-  );
+  const lastUpdatedIndex = topLevelKeyIndex(lines, "last_updated");
   const lastUpdatedLine = `last_updated: "${nextState.last_updated}"`;
   if (lastUpdatedIndex !== -1) {
     lines[lastUpdatedIndex] = lastUpdatedLine;
@@ -949,9 +945,7 @@ function applyStateProjectionToYaml(content, nextState, phase) {
 
   // 3. Top-level revision
   if (nextState.revision !== undefined) {
-    const revIndex = lines.findIndex(
-      (l) => /^revision:\s*/.test(l.trim()) && l.match(/^\s*/)[0].length === 0,
-    );
+    const revIndex = topLevelKeyIndex(lines, "revision");
     const revLine = `revision: ${nextState.revision}`;
     if (revIndex !== -1) {
       lines[revIndex] = revLine;
@@ -961,17 +955,13 @@ function applyStateProjectionToYaml(content, nextState, phase) {
   }
 
   // 4. Top-level blocking_questions
-  const bqStartIndex = lines.findIndex(
-    (l) => /^blocking_questions:\s*(.*)$/.test(l.trim()) && l.match(/^\s*/)[0].length === 0,
-  );
+  const bqStartIndex = topLevelKeyIndex(lines, "blocking_questions");
   if (bqStartIndex !== -1) {
     let bqEndIndex = lines.length;
     for (let i = bqStartIndex + 1; i < lines.length; i += 1) {
       const raw = lines[i];
-      const trimmed = raw.trim();
-      if (!trimmed) continue;
-      const indent = raw.match(/^\s*/)[0].length;
-      if (indent === 0) {
+      if (!trimYamlSpace(raw)) continue;
+      if (lineIndentation(raw) === 0) {
         bqEndIndex = i;
         break;
       }
@@ -998,8 +988,8 @@ function applyStateProjectionToYaml(content, nextState, phase) {
   let phasesStart = -1;
   let phasesEnd = lines.length;
   for (let i = 0; i < lines.length; i += 1) {
-    const trimmed = lines[i].trim();
-    const indent = lines[i].match(/^\s*/)[0].length;
+    const trimmed = trimYamlSpace(lines[i]);
+    const indent = lineIndentation(lines[i]);
     if (indent === 0 && trimmed === "phases:") {
       phasesStart = i;
       continue;
@@ -1019,15 +1009,13 @@ function applyStateProjectionToYaml(content, nextState, phase) {
   let phaseHeaderIndex = -1;
   let phaseBlockEnd = phasesEnd;
   for (let i = phasesStart + 1; i < phasesEnd; i += 1) {
-    const trimmed = lines[i].trim();
-    const indent = lines[i].match(/^\s*/)[0].length;
-    if (trimmed && indent === 2) {
+    const trimmed = trimYamlSpace(lines[i]);
+    if (trimmed && lineIndentation(lines[i]) === 2) {
       if (phaseHeaderIndex !== -1) {
         phaseBlockEnd = i;
         break;
       }
-      const match = trimmed.match(/^([\w-]+):\s*$/);
-      if (match && match[1] === phase) {
+      if (trimmed === `${phase}:`) {
         phaseHeaderIndex = i;
       }
     }
@@ -1096,19 +1084,19 @@ function applyStateProjectionToYaml(content, nextState, phase) {
     while (cursor < phaseBlockEnd) {
       // Exactly four spaces: a deeper line belongs to a nested list or to the
       // continuation of a scalar, never to a phase field.
-      const m = lines[cursor].match(/^ {4}([^\s:#][^:#]*):/);
-      const key = m ? m[1].trim() : null;
+      const entry = lineIndentation(lines[cursor]) === 4 ? yamlKeyValue(trimYamlSpace(lines[cursor])) : null;
+      const key = entry ? entry.key : null;
       const rep = key && !applied.has(key) ? projected.find(([k]) => k === key) : null;
       if (!rep) { cursor += 1; continue; }
       applied.add(key);
       let segEnd = cursor + 1;
-      while (segEnd < phaseBlockEnd && !(lines[segEnd].trim() && lines[segEnd].match(/^\s*/)[0].length <= 4)) segEnd += 1;
+      while (segEnd < phaseBlockEnd && !(trimYamlSpace(lines[segEnd]) && lineIndentation(lines[segEnd]) <= 4)) segEnd += 1;
       lines.splice(cursor, segEnd - cursor, ...rep[1]);
       phaseBlockEnd += rep[1].length - (segEnd - cursor);
       cursor += rep[1].length;
     }
     let appendAt = phaseBlockEnd;
-    while (appendAt > phaseHeaderIndex + 1 && !lines[appendAt - 1].trim()) appendAt -= 1;
+    while (appendAt > phaseHeaderIndex + 1 && !trimYamlSpace(lines[appendAt - 1])) appendAt -= 1;
     lines.splice(appendAt, 0, ...projected.filter(([k]) => !applied.has(k)).flatMap(([, ls]) => ls));
   } else {
     lines.splice(phasesStart + 1, 0, ...newPhaseLines);

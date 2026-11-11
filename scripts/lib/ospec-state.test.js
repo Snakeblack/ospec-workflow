@@ -1661,3 +1661,75 @@ test("REQ-lifecycle-kernel-034: the config readers of ospec-state read a long li
   }
   assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
 });
+
+// --- REQ-lifecycle-kernel-035: linear readers and blank lines as in Go -------
+
+// A run of spaces right after a key's colon followed by a lone CR or a U+2028,
+// which `.` in Node does not match, and a run of ` #` pairs before a lone CR:
+// with `.` each such line took time that grew with the square of its length.
+function longStateValues(length) {
+  const LS = String.fromCharCode(0x2028);
+  return [`${" ".repeat(length)}b\rc`, `${" ".repeat(length)}b${LS}c`, `${" #".repeat(length / 2)}b\rc`];
+}
+
+test("REQ-lifecycle-kernel-035: readStatus reads a long line in linear time", () => {
+  const { readStatus } = require("./ospec-state.js");
+  const started = process.hrtime.bigint();
+  for (const value of longStateValues(60000)) {
+    readStatus(`change: x\nstatus:${value}\n`);
+    readStatus(`change:\n  status:${value}\n`);
+  }
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
+});
+
+test("REQ-lifecycle-kernel-035: readState and the projector read a long line in linear time", async (t) => {
+  let elapsed = 0n;
+  for (const value of longStateValues(30000)) {
+    const state = [
+      "change: jwt-auth",
+      "status: planning",
+      `classification:${value}`,
+      "revision: 1",
+      "approvals:",
+      `  - id:${value}`,
+      "phases:",
+      "  design:",
+      "    status: pending",
+      `    summary:${value}`,
+      "blocking_questions: []",
+      "",
+    ].join("\n");
+    const { changeDir } = await writeChangeState(t, state);
+    const started = process.hrtime.bigint();
+    await readState(changeDir);
+    await projectPhaseCompletion({ changePath: changeDir, phase: "design", envelope: DESIGN_ENVELOPE });
+    elapsed += process.hrtime.bigint() - started;
+  }
+  assert.ok(Number(elapsed) / 1e6 < 1000, `${Number(elapsed) / 1e6} ms`);
+});
+
+test("REQ-lifecycle-kernel-035: readStatus reads a lone CR inside the value as Go does", () => {
+  const { readStatus } = require("./ospec-state.js");
+  assert.equal(readStatus("change: x\nstatus: a\rb\n"), "a\rb");
+  assert.equal(readStatus("change: x\nstatus: active\r\n"), "active");
+});
+
+// Shared with internal/hooks/phase-completion-reducer_test.go: both projectors
+// must reach the same outcome (Go/JS parity).
+test("REQ-lifecycle-kernel-035: the state readers and the projector read and write as Go over the shared corpus", async (t) => {
+  const { readStatus } = require("./ospec-state.js");
+  const { extractFirstScalar } = require("../hooks/pre-compact.js");
+  const { lowerCaseLikeGo } = require("./yaml-lite.js");
+  const corpus = path.join(__dirname, "..", "..", "internal", "testdata", "state-projection", "cases.json");
+  const { envelope, cases } = JSON.parse(await fs.readFile(corpus, "utf8"));
+  for (const entry of cases) {
+    assert.equal(readStatus(entry.input), entry.status, entry.name);
+    assert.equal(lowerCaseLikeGo(extractFirstScalar(entry.input, [["change", "status"], ["status"]])), entry.status, entry.name);
+    const { changeDir, statePath } = await writeChangeState(t, entry.input);
+    const result = await projectPhaseCompletion({ changePath: changeDir, phase: "design", envelope });
+    assert.equal(result.outcome, entry.outcome, entry.name);
+    const after = await fs.readFile(statePath, "utf8");
+    const expected = entry.outcome === "malformed-state" ? entry.input : entry.output;
+    assert.equal(after.replace(/^last_updated: .*$/m, "last_updated: <now>"), expected, entry.name);
+  }
+});

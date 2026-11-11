@@ -37,13 +37,15 @@ type stackEntry struct {
 
 // parseYamlLines splits content into trimmed lines with indent levels,
 // discarding blank lines, comment-only lines and the continuation lines of a
-// scalar (REQ-lifecycle-kernel-033).
+// scalar (REQ-lifecycle-kernel-033). A line and a key are trimmed like the
+// scan and the projector, so U+00A0 or U+0085 before a key is part of it
+// (REQ-lifecycle-kernel-035).
 func parseYamlLines(content string) []yamlLine {
 	var out []yamlLine
 	lines, _ := OpaqueScalarLines(content)
 	for _, raw := range lines {
 		raw = strings.TrimRight(raw, "\r")
-		trimmed := strings.TrimSpace(raw)
+		trimmed := TrimSpace(raw)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
@@ -54,9 +56,10 @@ func parseYamlLines(content string) []yamlLine {
 }
 
 // parseScalar strips surrounding matching quotes or inline trailing comments.
-// Ports parseScalar from scripts/hooks/pre-compact.js.
+// Ports parseScalar from scripts/hooks/pre-compact.js. A value is trimmed like
+// the scan (REQ-lifecycle-kernel-035).
 func parseScalar(value string) string {
-	trimmed := strings.TrimSpace(value)
+	trimmed := TrimSpace(value)
 	if trimmed == "" {
 		return ""
 	}
@@ -67,7 +70,7 @@ func parseScalar(value string) string {
 			return trimmed[1 : n-1]
 		}
 	}
-	return strings.TrimSpace(inlineCommentRe.ReplaceAllString(trimmed, ""))
+	return TrimSpace(inlineCommentRe.ReplaceAllString(trimmed, ""))
 }
 
 // extractScalarAtPath searches content for a scalar at the given YAML key path.
@@ -86,7 +89,7 @@ func extractScalarAtPath(content string, expectedPath []string) string {
 		for len(stack) > 0 && stack[len(stack)-1].indent >= line.indent {
 			stack = stack[:len(stack)-1]
 		}
-		key := strings.TrimSpace(m[1])
+		key := TrimSpace(m[1])
 		value := ""
 		if len(m) > 2 {
 			value = m[2]
@@ -122,7 +125,7 @@ func extractTopLevelSection(content, sectionName string) []string {
 	lines, _ := OpaqueScalarLines(content)
 	for _, raw := range lines {
 		raw = strings.TrimRight(raw, "\r")
-		trimmed := strings.TrimSpace(raw)
+		trimmed := TrimSpace(raw)
 		indent := len(raw) - len(strings.TrimLeft(raw, " \t"))
 
 		if !collecting {
@@ -163,7 +166,7 @@ func ExtractListSection(content, sectionName string) []ListItem {
 	itemIndent := -1
 
 	for _, raw := range section {
-		trimmed := strings.TrimSpace(raw)
+		trimmed := TrimSpace(raw)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
@@ -176,10 +179,10 @@ func ExtractListSection(content, sectionName string) []ListItem {
 			if indent != itemIndent {
 				continue
 			}
-			item := strings.TrimSpace(trimmed[2:])
+			item := TrimSpace(trimmed[2:])
 			if fm := fieldRe.FindStringSubmatch(item); fm != nil {
 				li := ListItem{Fields: map[string]string{
-					strings.TrimSpace(fm[1]): parseScalar(fm[2]),
+					TrimSpace(fm[1]): parseScalar(fm[2]),
 				}}
 				items = append(items, li)
 				current = &items[len(items)-1]
@@ -192,7 +195,7 @@ func ExtractListSection(content, sectionName string) []ListItem {
 		// Continuation field of the current object item.
 		if current != nil && current.Fields != nil && itemIndent >= 0 && indent == itemIndent+2 {
 			if fm := fieldRe.FindStringSubmatch(trimmed); fm != nil {
-				current.Fields[strings.TrimSpace(fm[1])] = parseScalar(fm[2])
+				current.Fields[TrimSpace(fm[1])] = parseScalar(fm[2])
 			}
 		}
 	}

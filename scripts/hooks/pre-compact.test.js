@@ -356,3 +356,25 @@ approvals:
   assert.equal(extractFirstScalar(state, [["next_recommended"]]), "sdd-apply");
   assert.deepEqual(extractListSection(state, "approvals"), [{ gate: "design", notes: "|", decision: "approved" }]);
 });
+
+test("REQ-lifecycle-kernel-033: a phase status inside a block scalar does not move the current phase", () => {
+  const { resolveCurrentPhase } = require("./pre-compact.js");
+  const state = "change: x\nroute:\n  actual_route: lite\nphases:\n  proposal:\n    status: pending\n  notes: |\n    status: done\n  tasks:\n    status: pending\ncurrent_phase: other\n";
+  assert.equal(resolveCurrentPhase(state), "proposal");
+});
+
+test("REQ-lifecycle-kernel-035: the YAML-lite reader reads a long line in linear time", () => {
+  const { extractFirstScalar, extractListSection, resolveCurrentPhase } = require("./pre-compact.js");
+  const LS = String.fromCharCode(0x2028);
+  const run = " ".repeat(20000);
+  const values = [`${run}b\rc`, `${run}b${LS}c`, `${" #".repeat(10000)}b\rc`];
+  const started = process.hrtime.bigint();
+  for (const value of values) {
+    extractFirstScalar(`current_phase:${value}\n`, [["current_phase"]]);
+    extractListSection(`approvals:\n  - gate:${value}\n`, "approvals");
+    resolveCurrentPhase(`route:\n  actual_route: lite\nphases:\n  proposal:\n    status:${value}\n`);
+  }
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
+  // A comment after a value is still stripped.
+  assert.equal(extractFirstScalar("current_phase: apply # now\n", [["current_phase"]]), "apply");
+});

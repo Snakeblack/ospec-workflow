@@ -1577,3 +1577,14 @@ test("REQ-lifecycle-kernel-034: parseRoutingTable skips the lines of a value", (
   }
   assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
 });
+
+test("REQ-lifecycle-kernel-035: parsePersistedRouteSection reads a long line in linear time", () => {
+  const LS = String.fromCharCode(0x2028);
+  const run = " ".repeat(60000);
+  const started = process.hrtime.bigint();
+  for (const value of [`${run}b\rc`, `${run}b${LS}c`, `${" #".repeat(30000)}b\rc`]) {
+    parsePersistedRouteSection(`change: x\nroute:\n  actual_route:${value}\n`);
+  }
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
+  assert.equal(parsePersistedRouteSection("route:\n  actual_route: st\randard\n").persistedRoute, "st\randard");
+});

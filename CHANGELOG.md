@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Con las revisiones de confianza agotadas y la última en correction-required, una corrección que no cabe en una corrección acotada deja el cambio en bucle: ospec check pide review correct, review correct pide review start, review start responde review-limit y el gate review-limit no se abre nunca. (review-limit-oversized-correction)
+- Los lectores de state.yaml con capturas \s*(.+)$ o \s+#.*$ tardan de forma cuadrática ante un tramo de espacios seguido de un CR suelto o U+2028 (readStatus, el parser y el escritor del proyector, extractStateRouteInfo, parsePersistedRouteSection, el lector YAML-lite de pre-compact), y el escáner de escalares de Node (trim) y el de Go (TrimSpace) deciden distinto si una línea de solo U+0085 o U+FEFF está en blanco. (yaml-readers-linear-blank-parity)
 
 ## [2.172.0] - 2026-11-11
 
