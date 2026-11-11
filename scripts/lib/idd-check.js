@@ -24,6 +24,11 @@ const PAIR_MOMENT = Object.freeze({ "repro-test": "the fix", "tdd-red-green": "t
 // Why a pair skips its counterproof while its diff changes only tests, test
 // data and documentation (E1.48).
 const PRODUCT_FREE_SKIP = "the diff changes no product code, only tests, test data or documentation, so the base runs the same product and its red would prove nothing";
+// What a test the diff adds is (B3, E1.53, #488), for the refusals that find
+// none: without it an agent whose test has an extension ospec does not count
+// cannot tell why.
+const NO_TEST_ADDED =
+  "the diff adds no line to a test: ospec counts a test file (under test/, tests/ or __tests__/, or named as a test) with a code or SQL extension, and a line of code in it, not a comment, a fixture or a golden file";
 const MIGRATION = "migration-compat-and-test";
 const CONTRACT = "contract-spec-and-test";
 const COUNTERPROOF = "counterproof";
@@ -111,7 +116,7 @@ function settleBoundary(state, { tree, runIds, recordedAt, tests = [], counterpr
     target.evidence = [];
     let reason = null;
     const same = proof && counterproof?.runs?.length ? sameRed(next, counterproof.runs) : null;
-    if (tests.length === 0) reason = `the diff adds no line to a test: write the test of the product code, then ospec check --change ${state.change}`;
+    if (tests.length === 0) reason = `${NO_TEST_ADDED}; write the test of the product code, then ospec check --change ${state.change}`;
     else if (same) {
       reason = `the checks fail the same way on the base without the tests the diff adds (${same}): the red does not come from them; make the checks run them, then ospec check --change ${state.change}`;
     } else if (proof && counterproof?.runs?.length) {
@@ -494,7 +499,7 @@ function pairReason(state, obligationId) {
     return `the test passes against the base product too (counterproof ${refused.counterproof.join(", ")}): it does not detect the change; make it fail on the base, then run the same command again`;
   }
   if (refused) {
-    return "the diff adds no line to a test: the counterproof runs the tests of the diff against the base product; write the test in a test file, then run the same command again";
+    return `${NO_TEST_ADDED}; the counterproof runs the tests of the diff against the base product, so write the test in a test file, then run the same command again`;
   }
   return `a failing run is recorded: run the same command again after ${moment}`;
 }

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- addedTests descarta los tests SQL (pgTAP) porque exige una extensión de PRODUCT_EXT, que no incluye sql: un arreglo de BD cuyo test es supabase/tests/foo_test.sql no cierra repro-test, no lanza el contraproof y el mensaje dice que el diff no añade ningún test (#488) (idd-sql-tests)
+
 ## [2.171.5] - 2026-11-10
 
 ### Fixed
