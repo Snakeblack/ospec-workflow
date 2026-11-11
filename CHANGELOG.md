@@ -7,8 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.171.8] - 2026-11-11
+
 ### Fixed
-- Un cambio IDD no puede pasar de bug a feature ni al revés: KIND_RANK les da el mismo rango y record intent lo rechaza con intent-conflict, así que un cambio abierto con el kind equivocado queda atascado sin poder abandonarse (#491) (idd-kind-change)
+- **Un cambio IDD puede pasar de `bug` a `feature`, con la aprobación del usuario en la puerta nueva `kind-change`, y de `feature` a `bug` sin preguntar** (idd-kind-change, #491, detectado usando IDD en un proyecto real).
+  - **El defecto**: `KIND_RANK` daba el mismo rango a `bug` y a `feature`, y `record intent` rechazaba uno en lugar del otro con `intent-conflict`. Un cambio abierto con el `kind` equivocado quedaba atascado: `bug-fix` sale del propio intent y no se puede retirar, y un cambio no se puede abandonar (#409).
+  - **`feature` → `bug`** cuenta como una subida más, porque añade `repro-test`.
+  - **`bug` → `feature`** retira `repro-test`, así que no basta con pedirlo. `record intent` reemplaza el intent como en una subida (el `feature` vuelve a preguntar sus categorías y conserva el `request`), quita la señal `bug-fix`, retira `repro-test` si está pendiente, con un motivo que nombra el cambio de `kind`, y abre `kind-change`. Una `repro-test` ya satisfecha conserva su evidencia.
+  - **La puerta `kind-change`** va detrás de `ambiguous-intent` y antes de `open-facts`, para que el usuario apruebe el `kind` antes de contestar las categorías del `feature`. Solo la resuelve la respuesta del usuario, con el turn fence de las demás puertas, y bloquea `close`. `record gate --open` la rechaza con `gate-managed-by-intent`, y otro `kind` mientras sigue abierta, con `kind-change-open`. El catálogo de los hooks de Go la incluye.
+  - **Si el usuario dice que no**: se resuelve `kind-change` con sus palabras y se vuelve a `bug` con `record intent`, que descarta las categorías del `feature` que nadie contestó. La derivación repone `bug-fix` y reabre `repro-test`.
+  - **Documentación**: REQ-idd-008 pasa a siete puertas y REQ-idd-011 recoge el cambio de `kind`, con su escenario. El handbook, los README y el onboarding del tech lead nombran la puerta nueva. `skills/idd/SKILL.md` no cambia: una viñeta más superaba los techos de contexto versionados, y la pregunta de la puerta en `ospec next` ya dice qué hacer si el usuario la rechaza.
+
+Hecho con IDD (`idd/archive/2026-11-11-idd-kind-change/`), con la reproducción en rojo contra `main` y en verde con el arreglo, y la contraprueba sobre la base registrada.
+
+**Verificación directa**: `node scripts/check.js` (4523 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados, y `gofmt -l cmd internal`, `go vet ./...` y `go test ./...` en verde.
 
 ## [2.171.7] - 2026-11-11
 
