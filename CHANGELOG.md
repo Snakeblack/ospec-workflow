@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.172.0] - 2026-11-11
+
 ### Added
-- foundation pregunta la entrega (delivery:) y el remoto en el hand-off a IDD y ofrece el commit de sus artefactos al terminar (#485) (foundation-delivery-handoff)
+- **`foundation` pregunta cómo llegan los cambios al repositorio y termina ofreciendo el commit de la fundación** (foundation-delivery-handoff, #485).
+  - **El hueco**: el hand-off a IDD proponía `checks:`, `team:`, `impact:` y `contracts.documents:`, pero no `delivery:`. Sin `delivery.changelog` ni `delivery.release` declarados, `ospec close` no escribe el changelog ni propone la versión, y `ospec next` lo sugiere más tarde, en el primer cambio. Además la fundación dejaba `docs/` e `idd/` sin commit: en un repositorio recién creado, el primer cambio IDD arrancaba sin commit base para su contraprueba y sin remoto donde abrir PRs.
+  - **`delivery:`**: se pregunta después de escribir las claves aprobadas, porque `ospec team` lee ese perfil. Foundation presenta su `branching`, `changelog` y `release`, cada uno con su origen, sus motivos y las alternativas, y `integration_branch` solo si el equipo integra aparte de producción. La estrategia de entrega (`single-pr`, `ask-on-risk` o `auto-chain`) sale de `team.size`, que es como se cambia. Un `delivery:` ya declarado conserva sus valores salvo que el usuario los cambie. Solo se escribe con la aprobación del usuario.
+  - **El repositorio**: sin repositorio git ofrece `git init -b main`. Sin remoto pregunta si se crea y dónde (por ejemplo `gh repo create --private` si el código es cerrado) o si se trabaja sin PRs; sin ellas `delivery:` se declara igual y los commits van a la rama por defecto.
+  - **El commit**: al final ofrece un único commit en Conventional Commits, como `docs: add architecture foundation`, con `docs/`, `idd/config.yaml` y `openspec/` si existe. En un repositorio sin commits propone además la rama `main`; con historial, el commit o una rama y una PR según la entrega aprobada. No ejecuta `git init`, `git commit`, push ni crea el remoto sin un sí explícito.
+  - **Modo delegado**: el agente `foundation` no tiene shell, así que devuelve la pregunta de `delivery:`, la del remoto y la oferta de commit en `open_questions`, y el orquestador las pregunta y las ejecuta.
+  - **Sin cambios en el CLI** (decisión del usuario): `delivery_strategy` sigue sin ser declarable en IDD. La skill no copia la tabla del perfil y cita `ospec team`, que la calcula (ADR 0003).
+  - `handbook/idd/foundation.md` documenta `delivery:` y el paso del remoto y el commit, y un test de `scripts/foundation-federated.test.js` lo cubre.
+
+Hecho con IDD (`idd/archive/2026-11-11-foundation-delivery-handoff/`), con el impacto declarado sobre las ADR 0003, 0006 y 0009 y los escenarios `contract-compatibility` y `offline-operation`.
+
+**Verificación directa**: `node scripts/check.js` (4524 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
 
 ## [2.171.8] - 2026-11-11
 
