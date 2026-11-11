@@ -12,7 +12,7 @@
       "memory_flow_bytes": 17074,
       "agent_read_bytes": {
         "review-change": 4757,
-        "review-correction": 5197,
+        "review-correction": 5375,
         "review-efficiency": 14551,
         "review-evolution": 14757,
         "review-runtime": 14619,
@@ -30,7 +30,7 @@
       "memory_flow_bytes": 17314,
       "agent_read_bytes": {
         "review-change": 4754,
-        "review-correction": 5192,
+        "review-correction": 5370,
         "review-efficiency": 14548,
         "review-evolution": 14754,
         "review-runtime": 14616,
@@ -48,7 +48,7 @@
       "memory_flow_bytes": 17314,
       "agent_read_bytes": {
         "review-change": 4740,
-        "review-correction": 5178,
+        "review-correction": 5356,
         "review-efficiency": 14534,
         "review-evolution": 14740,
         "review-runtime": 14602,
@@ -66,7 +66,7 @@
       "memory_flow_bytes": 16992,
       "agent_read_bytes": {
         "review-change": 4752,
-        "review-correction": 5190,
+        "review-correction": 5368,
         "review-efficiency": 14544,
         "review-evolution": 14750,
         "review-runtime": 14612,
@@ -84,7 +84,7 @@
       "memory_flow_bytes": 16995,
       "agent_read_bytes": {
         "review-change": 4797,
-        "review-correction": 5235,
+        "review-correction": 5413,
         "review-efficiency": 14589,
         "review-evolution": 14795,
         "review-runtime": 14657,
@@ -102,7 +102,7 @@
       "memory_flow_bytes": 17322,
       "agent_read_bytes": {
         "review-change": 4706,
-        "review-correction": 5144,
+        "review-correction": 5322,
         "review-efficiency": 14498,
         "review-evolution": 14704,
         "review-runtime": 14566,
@@ -120,7 +120,7 @@
       "memory_flow_bytes": 17324,
       "agent_read_bytes": {
         "review-change": 4761,
-        "review-correction": 5199,
+        "review-correction": 5377,
         "review-efficiency": 14565,
         "review-evolution": 14771,
         "review-runtime": 14633,
@@ -443,6 +443,41 @@
         ]
       },
       "reason": "claude-router: el router dice que se ignore si falta la entrada IDD, porque el fichero de reglas de Claude sobrevive a la desinstalación del plugin"
+    },
+    {
+      "version": "2.172.2",
+      "metric": "agent_read_bytes.review-correction",
+      "targets": {
+        "claude": [
+          5197,
+          5375
+        ],
+        "vscode": [
+          5192,
+          5370
+        ],
+        "github-copilot": [
+          5178,
+          5356
+        ],
+        "opencode": [
+          5190,
+          5368
+        ],
+        "codex": [
+          5235,
+          5413
+        ],
+        "cursor": [
+          5144,
+          5322
+        ],
+        "antigravity": [
+          5199,
+          5377
+        ]
+      },
+      "reason": "E1.63: el validador recibe también los avisos de una revisión aprobada de IDD, con sus criterios en la petición"
     }
   ]
 }

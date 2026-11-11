@@ -14,7 +14,7 @@ sidebar:
 | Lo que hay | Cuándo | Quién |
 | --- | --- | --- |
 | **Revisión de confianza** (`trust-review`) | El cambio toca una frontera de seguridad (señal `security-boundary`) | `review-trust`, un agente de solo lectura |
-| **Validación de la corrección** | La revisión encontró un `BLOCKER` o un `CRITICAL` y el agente lo corrigió | `review-correction`, de solo lectura |
+| **Validación de la corrección** | La revisión encontró un `BLOCKER` o un `CRITICAL` y el agente lo corrigió, o quedó aprobada con avisos y el agente los arregló después | `review-correction`, de solo lectura |
 | **Evidencia** | Siempre | El CLI: tests, checks, contraprueba y fitness checks de los ADR ([Evidencia y tests](/handbook/idd/evidencia.md)) |
 | **Revisión de la PR** | Cuando abres la PR | Tú o tu equipo; ospec no la sustituye |
 
@@ -49,13 +49,23 @@ flowchart TD
 4. **Si hay hallazgos graves, se permite una corrección.** `ospec review correct` solo la acepta dentro de las rutas congeladas y de un presupuesto de líneas: la mitad de las líneas cambiadas, con un máximo de 200.
 5. **`review-correction`** comprueba solo esos hallazgos congelados, sin buscar problemas nuevos, y `ospec review validate` aplica su veredicto. Si la validación falla, esa revisión termina.
 
+### Arreglar los avisos de una revisión aprobada
+
+Una revisión aprobada puede dejar avisos (`WARNING`) y sugerencias (`SUGGESTION`), que no bloquean. Si el agente los arregla después, el código revisado cambia y la aprobación deja de valer. Para eso no hace falta otra revisión entera: la revisión aprobada gasta en ellos su corrección.
+
+1. **`ospec review correct`** registra el arreglo con las mismas reglas que la corrección de un hallazgo grave: dentro de las rutas congeladas y del presupuesto de líneas. Por defecto nombra todos los avisos; `--finding <id>`, que se puede repetir, nombra solo los que el arreglo resuelve.
+2. **`review-correction`** recibe esos avisos con su criterio de aceptación y comprueba cada uno, y que el arreglo no rompe nada.
+3. **`ospec review validate`** aplica el veredicto. Si todos los avisos nombrados quedan resueltos y no hay regresión, `trust-review` vuelve a estar satisfecha, ahora para el árbol corregido, y no cuenta como revisión. Si no, queda pendiente y hace falta una revisión sucesora.
+
+Esta vía no existe si la revisión no dejó avisos o si ya gastó su corrección en un hallazgo grave.
+
 ---
 
 ## Límites
 
-- **Una corrección por revisión.** Una corrección que no cabe (demasiadas líneas o rutas fuera del candidato) cierra la revisión y abre la siguiente, que hereda los hallazgos bloqueantes.
-- **Tres revisiones por cambio como máximo.** Cuando se agotan, `ospec check` abre el gate `review-limit`, y solo tu respuesta autoriza una más. Una revisión nueva exige que el código revisado haya cambiado.
-- **Una aprobación vale para su candidato.** Si las rutas revisadas cambian después, `trust-review` vuelve a pendiente. Si vuelven al contenido aprobado, se satisface otra vez sin revisar de nuevo.
+- **Una corrección por revisión**, sea de hallazgos graves o de avisos. Una corrección de hallazgos graves que no cabe (demasiadas líneas o rutas fuera del candidato) cierra la revisión y abre la siguiente, que hereda los hallazgos bloqueantes. Un arreglo de avisos que no cabe pide también la revisión siguiente.
+- **Tres revisiones por cambio como máximo.** Cuando se agotan, `ospec check` abre el gate `review-limit`, y solo tu respuesta autoriza una más. Una revisión nueva exige que el código revisado haya cambiado. La corrección de avisos no gasta ninguna, y mientras la última revisión pueda usarla el gate no se abre.
+- **Una aprobación vale para su candidato**, o para el árbol corregido si la corrección de avisos pasó. Si las rutas revisadas cambian después, `trust-review` vuelve a pendiente. Si vuelven al contenido aprobado, se satisface otra vez sin revisar de nuevo.
 
 ---
 

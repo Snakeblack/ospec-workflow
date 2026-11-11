@@ -1545,6 +1545,93 @@ test("a blocker gets one bounded correction validated against its frozen id", (t
   assert.strictEqual(ospec(root, "check", "--change", "rotate-tokens", "--json").json.verdict, "ready");
 });
 
+// E1.63 (#498): fixing a WARNING of an approved review needed a whole
+// successor review. The approved review now spends its one bounded correction
+// on its advisory findings, validated by review-correction.
+const WARNING = { severity: "WARNING", summary: "The TTL is a magic number.", acceptance_criteria: "The TTL has a name." };
+
+test("a warning of an approved review is fixed with its bounded correction, not a successor review", (t) => {
+  const root = openRotation(t);
+  review(root, "start");
+  const frozen = recordAnswer(root, [WARNING]);
+  assert.strictEqual(frozen.json.review.status, "approved");
+  const [finding] = frozen.json.review.findings;
+  assert.strictEqual(ospec(root, "check", "--change", "rotate-tokens", "--json").json.verdict, "ready");
+
+  writeFile(root, "src/auth/tokens.js", "const TTL = 3600; module.exports = { ttl: TTL };\n");
+  const stale = ospec(root, "check", "--change", "rotate-tokens", "--json");
+  assert.strictEqual(stale.json.verdict, "missing");
+  assert.match(stale.json.missing.find((entry) => entry.obligation === "trust-review").reason, /ospec review correct \(--finding <id> names some of them\)/);
+
+  const unknown = review(root, "correct", "--finding", "F-0000000000000000");
+  assert.strictEqual(unknown.json.error.code, "review-refused");
+  assert.match(unknown.json.error.message, /is not an advisory finding of the approved review/);
+
+  const corrected = review(root, "correct", "--finding", finding.id);
+  assert.strictEqual(corrected.code, 0, corrected.stderr);
+  assert.strictEqual(corrected.json.review.status, "approved");
+  assert.deepStrictEqual(corrected.json.review.correction, { kind: "advisory", status: "validating", finding_ids: [finding.id] });
+  const { validate } = corrected.json.review;
+  assert.strictEqual(validate.validator, "review-correction");
+  assert.deepStrictEqual(validate.findings, [{ id: finding.id, severity: "WARNING", summary: WARNING.summary, acceptance_criteria: WARNING.acceptance_criteria }]);
+  assert.deepStrictEqual(validate.paths, ["src/auth/tokens.js"]);
+  assert.deepStrictEqual(review(root, "start").json.review.validate, validate, "review start returns the validation request again");
+  const text = ospec(root, "review", "start", "--change", "rotate-tokens").stdout;
+  assert.match(text, new RegExp(`dispatch review-correction for ${finding.id} on: src/auth/tokens\\.js`));
+  assert.match(text, new RegExp(`${finding.id} is resolved when: The TTL has a name\\.`));
+  assert.match(text, new RegExp(`advisory correction of ${finding.id}: validating`));
+
+  const verdict = {
+    request_digest: validate.request_digest,
+    reviewed: [{ path: "src/auth/tokens.js", cites: ["src/auth/tokens.js:1"] }],
+    outcomes: [{ id: finding.id, status: "resolved" }],
+    regression: { detected: false, evidence: ["the exported ttl is still 3600"] },
+  };
+  assert.match(review(root, "validate", "--result", JSON.stringify({ ...verdict, reviewed: [{ path: "src/auth/tokens.js", cites: ["src/auth/tokens.js:2"] }] })).json.error.message, /src\/auth\/tokens\.js:2/);
+  const validated = review(root, "validate", "--result", JSON.stringify(verdict));
+  assert.strictEqual(validated.code, 0, validated.stderr);
+  assert.ok(validated.json.evidence);
+  assert.strictEqual(validated.json.review.correction.status, "passed");
+  assert.strictEqual(ospec(root, "check", "--change", "rotate-tokens", "--json").json.verdict, "ready");
+  const state = stateOf(root, "rotate-tokens");
+  assert.strictEqual(state.reviews.length, 1, "no successor review ran");
+  assert.strictEqual(state.evidence.find((entry) => entry.id === validated.json.evidence).detail.correction, "advisory");
+
+  // The approval covers the corrected tree, and the review has no correction left.
+  writeFile(root, "src/auth/tokens.js", "const TTL = 7200; module.exports = { ttl: TTL };\n");
+  const again = ospec(root, "check", "--change", "rotate-tokens", "--json");
+  assert.doesNotMatch(again.json.missing.find((entry) => entry.obligation === "trust-review").reason, /ospec review correct/);
+  assert.match(review(root, "correct").json.error.message, /already used its one bounded correction: run ospec review start/);
+  assert.strictEqual(review(root, "start").json.review.generation, 2);
+});
+
+test("an advisory correction that does not pass, or does not fit, leaves the change to a successor review", (t) => {
+  const root = openRotation(t);
+  review(root, "start");
+  const [finding] = recordAnswer(root, [WARNING]).json.review.findings;
+
+  // A file the review never froze does not fit the bounded correction.
+  writeFile(root, "src/auth/tokens.js", "const TTL = 3600; module.exports = { ttl: TTL };\n");
+  writeFile(root, "src/auth/ttl.js", "module.exports = 3600;\n");
+  assert.match(review(root, "correct").json.error.message, /does not fit one bounded correction.*ospec review start/);
+  fs.rmSync(path.join(root, "src/auth/ttl.js"));
+
+  const { validate } = review(root, "correct").json.review;
+  const failed = review(root, "validate", "--result", JSON.stringify({
+    request_digest: validate.request_digest,
+    reviewed: [{ path: "src/auth/tokens.js", cites: ["src/auth/tokens.js:1"] }],
+    outcomes: [{ id: finding.id, status: "resolved" }],
+    regression: { detected: true, evidence: ["the module no longer exports ttl"] },
+  }));
+  assert.strictEqual(failed.code, 0, failed.stderr);
+  assert.ok(!failed.json.evidence, "a failed correction records no evidence");
+  assert.strictEqual(failed.json.review.correction.status, "failed");
+  const checked = ospec(root, "check", "--change", "rotate-tokens", "--json");
+  assert.strictEqual(checked.json.verdict, "missing");
+  assert.match(checked.json.missing.find((entry) => entry.obligation === "trust-review").reason, /^the reviewed paths changed after the review: change the code and run ospec review start/);
+  assert.strictEqual(review(root, "start").json.review.generation, 2);
+});
+
 test("a correction outside one bounded correction escalates and review start opens the successor", (t) => {
   const root = openRotation(t);
   review(root, "start");

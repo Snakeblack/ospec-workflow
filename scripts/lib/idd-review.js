@@ -6,7 +6,10 @@
 // frozen once, at most one bounded correction validated against the frozen
 // IDs. A successor review needs a changed candidate and a change runs at most
 // MAX_REVIEWS of them, plus one per review-limit gate the person resolves;
-// no other approval is asked (REQ-idd-008). Pure: the
+// no other approval is asked (REQ-idd-008). An approved review that froze
+// advisory findings and used no correction takes that one bounded correction
+// for them (E1.63, #498): it lives in `advisory_corrections` of the change's
+// state, beside the lineage, which stays approved and untouched. Pure: the
 // CLI reads the trees from git and dispatches the reviewers.
 
 const crypto = require("node:crypto");
@@ -34,6 +37,8 @@ const LIMIT_GATE = "review-limit";
 const TERMINAL = new Set(["approved", "exhausted", "escalated", "invalidated"]);
 const BLOCKING = new Set(["BLOCKER", "CRITICAL"]);
 const PROJECTION = "idd-tree-diff/v1";
+const OUTCOMES = new Set(["resolved", "unresolved"]);
+const FOLLOW_UP_OWNERS = new Set(["trust", "runtime", "evolution", "efficiency"]);
 // The CLI does not see the reviewer run: it checks what the result cites and
 // records that the result was relayed to it, or that the SubagentStop hook
 // left a receipt of the same result (OSP-029).
@@ -80,6 +85,34 @@ function requestId(state, operation, lineage) {
 
 function currentReview(state) {
   return (state.reviews || []).at(-1) || null;
+}
+
+/** The advisory correction of a review (E1.63), or null: a review takes one. */
+function advisoryCorrection(state, lineage) {
+  if (!lineage) return null;
+  return (state.advisory_corrections || []).find((entry) => entry.lineage_id === lineage.lineage_id) || null;
+}
+
+function advisoryIds(lineage) {
+  return lineage.findings.filter((finding) => !finding.blocking).map((finding) => finding.id).sort();
+}
+
+// An approved review can still take its one correction: it froze advisory
+// findings and neither a blocking nor an advisory correction used it.
+function advisoryAvailable(state, lineage) {
+  return Boolean(lineage) && lineage.status === "approved" && advisoryIds(lineage).length > 0
+    && lineage.correction_history.length === 0 && !advisoryCorrection(state, lineage);
+}
+
+/**
+ * The tree the approval of the current review covers: its candidate, or the
+ * tree of its validated advisory correction. Null without a review.
+ */
+function reviewedTree(state) {
+  const lineage = currentReview(state);
+  if (!lineage) return null;
+  const correction = advisoryCorrection(state, lineage);
+  return correction && correction.status === "passed" ? correction.candidate_tree : lineage.current_candidate.candidate_tree;
 }
 
 // Each review-limit gate the person resolves authorizes one more review.
@@ -173,6 +206,35 @@ function validationRequest(lineage) {
   };
 }
 
+/** Digest of an advisory validation request: the corrected tree, the correction's paths and the advisory IDs it fixes. */
+function advisoryDigest(lineage, correction) {
+  return sha256(JSON.stringify({
+    lineage_id: lineage.lineage_id,
+    generation: lineage.generation,
+    operation: "validate-advisory",
+    candidate_tree: correction.candidate_tree,
+    paths: [...correction.paths],
+    finding_ids: [...correction.finding_ids],
+  }));
+}
+
+// The request for the read-only validator of an advisory correction. It
+// carries the findings, which no blocking lifecycle hands to the validator.
+function advisoryRequest(lineage, correction) {
+  const ids = new Set(correction.finding_ids);
+  return {
+    lineage_id: lineage.lineage_id,
+    generation: lineage.generation,
+    validator: VALIDATOR,
+    finding_ids: [...correction.finding_ids],
+    findings: lineage.findings.filter((finding) => ids.has(finding.id))
+      .map(({ id, severity, summary, acceptance_criteria }) => ({ id, severity, summary, acceptance_criteria })),
+    paths: [...correction.paths],
+    request_digest: advisoryDigest(lineage, correction),
+    result_contract: VALIDATION_CONTRACT,
+  };
+}
+
 // A successor whose predecessor ended with unresolved blocking findings hands
 // them to the reviewer, who checks them on top of the full review.
 function reviewRequest(state, lineage) {
@@ -236,6 +298,8 @@ function startTrustReview(state, { candidate, reviewedChanged, correctionChanges
     state = withReview(state, current);
   }
   if (current && current.status === "validating") return { state, changed: false, validate: validationRequest(current) };
+  const advisory = advisoryCorrection(state, current);
+  if (advisory && advisory.status === "validating") return { state, changed: false, validate: advisoryRequest(current, advisory) };
   if (current && !TERMINAL.has(current.status)) return { state, changed: false, request: reviewRequest(state, current) };
   if (current) {
     if (trustObligation(state).status === "satisfied") refuse("review-current", "the trust review of the current candidate is already approved");
@@ -254,7 +318,8 @@ function startTrustReview(state, { candidate, reviewedChanged, correctionChanges
   return { state: next, changed: true, request: reviewRequest(next, lineage) };
 }
 
-function approve(state, lineage, recordedAt, attestation) {
+// `correction` is the validated advisory correction the approval now covers.
+function approve(state, lineage, recordedAt, attestation, correction) {
   const next = withReview(state, lineage);
   const target = trustObligation(next);
   const id = `ev-${next.evidence.length + 1}`;
@@ -266,8 +331,9 @@ function approve(state, lineage, recordedAt, attestation) {
     detail: {
       lineage_id: lineage.lineage_id,
       candidate_id: lineage.current_candidate_id,
-      candidate_tree: lineage.current_candidate.candidate_tree,
+      candidate_tree: correction ? correction.candidate_tree : lineage.current_candidate.candidate_tree,
       findings_digest: lineage.findings_digest,
+      ...(correction ? { correction: "advisory" } : {}),
       ...attestation.detail,
     },
   });
@@ -374,18 +440,19 @@ function recordTrustFindings(state, { result, recordedAt, lineCount, receiptFor 
  * Records the one bounded correction: the changes since the reviewed
  * candidate, which must stay inside the frozen paths and the line budget.
  */
-function correctTrustReview(state, { changes, candidateTree, diffHash }) {
+function correctTrustReview(state, { changes, candidateTree, diffHash, findingIds = [], recordedAt }) {
   requireReviewable(state);
   const current = currentReview(state);
+  if (current && current.status === "approved") return correctAdvisory(state, current, { changes, candidateTree, diffHash, findingIds, recordedAt });
   if (!current || current.status !== "correction-required") refuse("review-refused", "no frozen blocking finding is waiting for a correction");
+  if (findingIds.length > 0) refuse("review-refused", "--finding names advisory findings of an approved review: this correction covers every frozen blocking finding");
   if (changes.length === 0) refuse("review-refused", "nothing changed since the reviewed candidate");
   if (exceedsBoundedCorrection(current, changes)) refuse("review-refused", `${OVERSIZED_CORRECTION}: run ospec review start for a successor review`);
   const paths = changes.map((entry) => entry.path).sort();
   const lines = changes.reduce((sum, entry) => sum + entry.added + entry.deleted, 0);
-  const findingIds = unresolvedIds(current);
   const corrected = lineageStep(() => {
     const begun = beginCorrection(current, {
-      finding_ids: findingIds,
+      finding_ids: unresolvedIds(current),
       paths,
       base_candidate_id: current.current_candidate_id,
       forecast_lines: lines,
@@ -404,6 +471,98 @@ function correctTrustReview(state, { changes, candidateTree, diffHash }) {
   return { state: withReview(state, corrected), validate: validationRequest(corrected) };
 }
 
+const SUCCESSOR = "run ospec review start for a successor review";
+
+/**
+ * Records the one bounded correction of an approved review for the advisory
+ * findings it froze (E1.63): `findingIds` names them, all of them by default.
+ * It takes the same frozen paths and line budget as a blocking correction,
+ * and the lineage stays approved: the correction waits for its validation in
+ * `advisory_corrections`, and trust-review is pending until it passes.
+ */
+function correctAdvisory(state, lineage, { changes, candidateTree, diffHash, findingIds, recordedAt }) {
+  if (lineage.correction_history.length > 0 || advisoryCorrection(state, lineage)) {
+    refuse("review-refused", `this review already used its one bounded correction: ${SUCCESSOR}`);
+  }
+  const advisory = advisoryIds(lineage);
+  if (advisory.length === 0) refuse("review-refused", `the approved review froze no advisory finding to correct: ${SUCCESSOR}`);
+  if (changes.length === 0) refuse("review-refused", "nothing changed since the reviewed candidate");
+  const ids = findingIds.length > 0 ? [...new Set(findingIds)].sort() : advisory;
+  const unknown = ids.filter((id) => !advisory.includes(id));
+  if (unknown.length > 0) {
+    refuse("review-refused", `${unknown.join(", ")} is not an advisory finding of the approved review: it froze ${advisory.join(", ")}`);
+  }
+  if (exceedsBoundedCorrection(lineage, changes)) refuse("review-refused", `${OVERSIZED_CORRECTION}: ${SUCCESSOR}`);
+  const correction = {
+    lineage_id: lineage.lineage_id,
+    status: "validating",
+    finding_ids: ids,
+    paths: changes.map((entry) => entry.path).sort(),
+    changed_lines: changes.reduce((sum, entry) => sum + entry.added + entry.deleted, 0),
+    candidate_tree: candidateTree,
+    diff_hash: diffHash,
+    recorded_at: recordedAt,
+  };
+  const next = structuredClone(state);
+  next.advisory_corrections = [...(next.advisory_corrections || []), correction];
+  const target = trustObligation(next);
+  target.status = "pending";
+  target.evidence = [];
+  return { state: next, validate: advisoryRequest(lineage, correction) };
+}
+
+// The verdict of an advisory validation, in the shape the lineage asks of a
+// blocking one: an outcome per requested ID, the regression and follow-ups.
+function advisoryVerdict(result, findingIds) {
+  const bad = (what) => refuse("review-refused", `the validation result ${what}`);
+  if (!Array.isArray(result.outcomes)) bad("needs outcomes, one {id, status} per finding_ids entry");
+  const outcomes = result.outcomes.map((outcome) => {
+    if (!outcome || Object.keys(outcome).sort().join(",") !== "id,status" || typeof outcome.id !== "string" || !OUTCOMES.has(outcome.status)) {
+      bad("needs each outcome as exactly {id, status: resolved|unresolved}");
+    }
+    return { id: outcome.id, status: outcome.status };
+  });
+  const answered = outcomes.map((outcome) => outcome.id).sort();
+  if (new Set(answered).size !== answered.length || answered.join("\n") !== [...findingIds].sort().join("\n")) {
+    bad("must cover every finding_ids entry exactly once");
+  }
+  const regression = result.regression;
+  const text = (item) => typeof item === "string" && item.length > 0 && item.length <= 500;
+  if (!regression || typeof regression.detected !== "boolean" || !Array.isArray(regression.evidence) || regression.evidence.length === 0 || !regression.evidence.every(text)) {
+    bad("needs regression {detected, evidence}, with a non-empty list of strings of at most 500 characters");
+  }
+  const followUps = result.follow_ups === undefined ? [] : result.follow_ups;
+  if (!Array.isArray(followUps) || followUps.some((entry) => !entry || Object.keys(entry).sort().join(",") !== "owner,summary"
+    || !FOLLOW_UP_OWNERS.has(entry.owner) || !text(entry.summary) || entry.summary.trim().length === 0)) {
+    bad("needs follow_ups as a list of {owner: trust|runtime|evolution|efficiency, summary} with a summary of at most 500 characters");
+  }
+  return {
+    outcomes,
+    regression: { detected: regression.detected, evidence: [...regression.evidence] },
+    follow_ups: followUps.map((entry) => ({ owner: entry.owner, summary: entry.summary.trim() })),
+  };
+}
+
+/**
+ * Applies the validator's verdict on an advisory correction: it passes when
+ * every named finding is resolved and no regression is detected, and then the
+ * approval covers the corrected tree. A failure leaves trust-review pending:
+ * a review takes one correction, so a successor review checks the change.
+ */
+function validateAdvisory(state, lineage, correction, { result, recordedAt, lineCount, receiptFor }) {
+  const digest = advisoryDigest(lineage, correction);
+  const fix = `hand ${VALIDATOR} the request_digest and result_contract of ospec review correct (ospec review start returns them again)`;
+  checkCoverage(result, { digest, paths: correction.paths, lineCount, fix });
+  const verdict = advisoryVerdict(result, correction.finding_ids);
+  const attestation = attest(result, { digest, agent: VALIDATOR, receiptFor });
+  const passed = !verdict.regression.detected && verdict.outcomes.every((outcome) => outcome.status === "resolved");
+  const next = structuredClone(state);
+  const stored = advisoryCorrection(next, lineage);
+  Object.assign(stored, { status: passed ? "passed" : "failed", validation: { recorded_at: recordedAt, ...verdict } });
+  if (!passed) return { state: next, evidence: null, lineage, warnings: attestation.warnings };
+  return { ...approve(next, lineage, recordedAt, attestation, stored), lineage, warnings: attestation.warnings };
+}
+
 /**
  * Applies the correction validator's verdict on the frozen IDs, once the
  * result answers the validation request and cites the corrected paths
@@ -413,6 +572,8 @@ function correctTrustReview(state, { changes, candidateTree, diffHash }) {
 function validateTrustCorrection(state, { result, recordedAt, lineCount, receiptFor }) {
   requireReviewable(state);
   const current = currentReview(state);
+  const advisory = advisoryCorrection(state, current);
+  if (advisory && advisory.status === "validating") return validateAdvisory(state, current, advisory, { result, recordedAt, lineCount, receiptFor });
   if (!current || current.status !== "validating") refuse("review-refused", "no correction is waiting for validation");
   const digest = validationDigest(current);
   const fix = `hand ${VALIDATOR} the request_digest and result_contract of ospec review correct (ospec review start returns them again)`;
@@ -449,7 +610,10 @@ function validateTrustCorrection(state, { result, recordedAt, lineCount, receipt
  * when the last one waits for a correction that does not fit one bounded
  * correction (`correctionChanges`, the changes since its candidate), which
  * ends it as escalated here because ospec review start has no review left to
- * open.
+ * open. `reviewedChanged` compares with `reviewedTree`, so a validated
+ * advisory correction keeps the review current. The gate waits while the
+ * approved review can still take its advisory correction for those changes,
+ * or while that correction waits for its validation: neither uses a review.
  */
 function settleReviewFreshness(state, { reviewedChanged, correctionChanges }) {
   const next = structuredClone(state);
@@ -465,15 +629,19 @@ function settleReviewFreshness(state, { reviewedChanged, correctionChanges }) {
     target.status = "pending";
     target.evidence = [];
   } else if (target.status === "pending" && !reviewedChanged && current?.status === "approved") {
+    const tree = reviewedTree(next);
     const approval = next.evidence.find((entry) =>
-      entry.kind === "frozen-review" && entry.obligation === OBLIGATION && entry.detail?.lineage_id === current.lineage_id);
+      entry.kind === "frozen-review" && entry.obligation === OBLIGATION && entry.detail?.lineage_id === current.lineage_id
+      && entry.detail.candidate_tree === tree);
     if (approval) {
       target.status = "satisfied";
       target.evidence = [approval.id];
     }
   }
   const asking = next.gates.some((gate) => gate.id === LIMIT_GATE && gate.status === "open");
-  if (target.status === "pending" && current && TERMINAL.has(current.status) && !asking
+  const correctable = advisoryCorrection(next, current)?.status === "validating"
+    || (advisoryAvailable(next, current) && correctionChanges?.length > 0 && !exceedsBoundedCorrection(current, correctionChanges));
+  if (target.status === "pending" && current && TERMINAL.has(current.status) && !asking && !correctable
     && next.reviews.length >= allowedReviews(next)) {
     next.gates.push({ id: LIMIT_GATE, status: "open", reason: limitReason(next) });
   }
@@ -493,9 +661,17 @@ function trustReason(state) {
   if (action.type === "targeted-validation") {
     return `dispatch ${VALIDATOR} for ${action.finding_ids.join(", ")} with the request ospec review start returns, and record its verdict with ospec review validate`;
   }
-  if (reviews.length >= allowedReviews(state)) return limitReason(state);
+  const advisory = advisoryCorrection(state, current);
+  if (advisory && advisory.status === "validating") {
+    return `dispatch ${VALIDATOR} for ${advisory.finding_ids.join(", ")} with the request ospec review start returns, and record its verdict with ospec review validate`;
+  }
+  // The one correction an approved review still has for its advisory findings.
+  const correct = advisoryAvailable(state, current)
+    ? "a fix of its advisory findings inside the frozen paths and the line budget takes ospec review correct (--finding <id> names some of them), then its validation; otherwise "
+    : "";
+  if (reviews.length >= allowedReviews(state)) return `${correct}${limitReason(state)}`;
   const why = current.status === "approved" ? "the reviewed paths changed after the review" : "the review was not approved";
-  return `${why}: change the code and run ospec review start for a successor review (${reviews.length + 1} of ${allowedReviews(state)})`;
+  return `${why}: ${correct}change the code and run ospec review start for a successor review (${reviews.length + 1} of ${allowedReviews(state)})`;
 }
 
 module.exports = {
@@ -503,11 +679,13 @@ module.exports = {
   MAX_REVIEWS,
   REVIEWER,
   VALIDATOR,
+  advisoryCorrection,
   buildCandidate,
   candidateDiffHash,
   correctTrustReview,
   currentReview,
   recordTrustFindings,
+  reviewedTree,
   settleReviewFreshness,
   startTrustReview,
   trustReason,

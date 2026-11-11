@@ -73,11 +73,13 @@ const {
   reopenDerived,
 } = require("./lib/idd-record.js");
 const {
+  advisoryCorrection,
   buildCandidate,
   candidateDiffHash,
   correctTrustReview,
   currentReview,
   recordTrustFindings,
+  reviewedTree,
   settleReviewFreshness,
   startTrustReview,
   validateTrustCorrection,
@@ -152,7 +154,8 @@ const USAGE = `Usage:
   ospec run --change <id> --obligation <repro-test|tdd-red-green|migration-compat-and-test> --command <cmd>
             [--unit <name>] [--plan <compatibility or rollback plan>]
             a --command equal to the only declared check also counts as that check
-  ospec review start|correct --change <id> [--base <ref>]
+  ospec review start --change <id> [--base <ref>]
+  ospec review correct --change <id> [--finding <id>]... [--base <ref>]
   ospec review record|validate --change <id> --result <json>|@<file>
   ospec close --change <id>
   ospec doctor [--target <host>] [--repair] [--json]
@@ -242,6 +245,7 @@ const OPTIONS = {
   unit: { type: "string" },
   plan: { type: "string" },
   result: { type: "string" },
+  finding: { type: "string", multiple: true },
   root: { type: "string" },
   target: { type: "string" },
   repair: { type: "boolean" },
@@ -740,15 +744,18 @@ function readCheckInputs(root, values, current, context) {
 
 // What a check reads once its commands ran: the contract paths of the diff,
 // the new ADRs the impacts attach, whether the reviewed paths changed and
-// the changes since a candidate waiting for its correction.
+// the changes since a candidate that waits for its correction, or that an
+// approved review could still correct for its advisory findings (E1.63).
 function readCheckOutcome(root, values, current, context, diff) {
   const reviewed = currentReview(current);
   let reviewedChanged = false;
   let correctionChanges;
   if (reviewed) {
     const trees = reviewTrees(root, values, current);
-    reviewedChanged = reviewedPathsChanged(root, reviewed, trees.tree, trees.numstat, context.patterns, diff);
-    if (reviewed.status === "correction-required") correctionChanges = treeNumstat(root, reviewed.current_candidate.candidate_tree, trees.tree);
+    reviewedChanged = reviewedPathsChanged(root, reviewed, reviewedTree(current), trees.tree, trees.numstat, context.patterns, diff);
+    if (reviewed.status === "correction-required" || reviewed.status === "approved") {
+      correctionChanges = treeNumstat(root, reviewed.current_candidate.candidate_tree, trees.tree);
+    }
   }
   return {
     contractPaths: classifyContractPaths(diff.paths, context.contractPatterns),
@@ -1231,15 +1238,16 @@ function readResult(raw) {
 }
 
 // Whether the reviewed paths, any security-boundary path the diff now touches
-// or any file whose added lines hold a security sink (E1.50) differ from the
-// last reviewed candidate.
-function reviewedPathsChanged(root, lineage, tree, numstat, patterns, diff) {
+// or any file whose added lines hold a security sink (E1.50) differ from
+// `approvedTree`, the tree the approval of the last review covers: its
+// candidate, or the tree of its validated advisory correction (E1.63).
+function reviewedPathsChanged(root, lineage, approvedTree, tree, numstat, patterns, diff) {
   if (!lineage) return true;
   const paths = new Set([...lineage.genesis.paths, ...securityHits(diff, patterns).map((hit) => hit.file)]);
   for (const { path: file } of numstat) {
     if (matchImpact(file, patterns).some((hit) => hit.signal === "security-boundary")) paths.add(file);
   }
-  const reviewed = treeBlobs(root, lineage.current_candidate.candidate_tree);
+  const reviewed = treeBlobs(root, approvedTree);
   const current = treeBlobs(root, tree);
   return [...paths].some((file) => reviewed.get(file) !== current.get(file));
 }
@@ -1284,7 +1292,7 @@ async function review(root, positionals, values) {
           baseBlobs: treeBlobs(root, baseTree),
           candidateBlobs: treeBlobs(root, tree),
         });
-        const reviewedChanged = reviewedPathsChanged(root, lineage, tree, numstat, context.patterns, startDiff);
+        const reviewedChanged = reviewedPathsChanged(root, lineage, reviewedTree(stored), tree, numstat, context.patterns, startDiff);
         // A review waiting for its correction: the changes since the reviewed
         // candidate decide whether they still fit one bounded correction.
         const correctionChanges = lineage && lineage.status === "correction-required"
@@ -1300,10 +1308,12 @@ async function review(root, positionals, values) {
         const { tree } = trees;
         const changes = treeNumstat(root, lineage.current_candidate.candidate_tree, tree);
         const diffHash = candidateDiffHash(lineage.genesis.paths, treeBlobs(root, lineage.genesis.candidate.base_tree), treeBlobs(root, tree));
-        outcome = correctTrustReview(stored, { changes, candidateTree: tree, diffHash });
+        outcome = correctTrustReview(stored, { changes, candidateTree: tree, diffHash, findingIds: values.finding || [], recordedAt });
       } else {
         // Cites resolve in the corrected tree, or in the reviewed one for a path the correction deletes.
-        const trees = lineage ? [lineage.current_candidate.candidate_tree, lineage.genesis.candidate.candidate_tree] : [];
+        const advisory = advisoryCorrection(stored, lineage);
+        const corrected = advisory && advisory.status === "validating" ? advisory.candidate_tree : lineage?.current_candidate.candidate_tree;
+        const trees = lineage ? [corrected, lineage.genesis.candidate.candidate_tree] : [];
         outcome = validateTrustCorrection(stored, { result, recordedAt, lineCount: treeLineCounter(root, trees), receiptFor });
       }
       return { state: outcome.state, changed: outcome.changed !== false };
@@ -1315,6 +1325,8 @@ async function review(root, positionals, values) {
   if (outcome.request) summary.request = outcome.request;
   if (outcome.validate) summary.validate = outcome.validate;
   if (lineage.findings.length) summary.findings = lineage.findings.map(({ id, severity, summary: text, blocking }) => ({ id, severity, summary: text, blocking }));
+  const correction = advisoryCorrection(state, lineage);
+  if (correction) summary.correction = { kind: "advisory", status: correction.status, finding_ids: correction.finding_ids };
   return {
     change: state.change,
     action,
@@ -1753,10 +1765,12 @@ function describeReview(result) {
   }
   if (review.validate) {
     lines.push(`dispatch ${review.validate.validator} for ${review.validate.finding_ids.join(", ")} on: ${review.validate.paths.join(", ")}`);
+    for (const finding of review.validate.findings || []) lines.push(`${finding.id} is resolved when: ${finding.acceptance_criteria}`);
     lines.push(`hand it request_digest ${review.validate.request_digest} and: ${review.validate.result_contract}`);
     lines.push(`then: ospec review validate --change ${result.change} --result '{"request_digest":"...","reviewed":[...],"outcomes":[...],"regression":{...}}'`);
   }
   for (const finding of review.findings || []) lines.push(`${finding.id} ${finding.severity}: ${finding.summary}`);
+  if (review.correction) lines.push(`advisory correction of ${review.correction.finding_ids.join(", ")}: ${review.correction.status}`);
   if (result.evidence) lines.push(`recorded evidence ${result.evidence}`);
   for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
   lines.push(...describeStep(result.next));

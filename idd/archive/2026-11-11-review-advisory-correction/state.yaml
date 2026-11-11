@@ -1,0 +1,526 @@
+{
+  "schema": "idd-state/v1",
+  "change": "review-advisory-correction",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "Issues, roadmap y primer arreglo: empiezo en esta misma sesión el arreglo del bucle de revisión como segundo PR",
+    "kind": "feature",
+    "summary": "Los avisos de una revisión de confianza aprobada se corrigen con la corrección acotada, sin una revisión sucesora (E1.63)",
+    "acceptance": "Tras una revisión aprobada con un WARNING, un arreglo dentro de las rutas congeladas y del presupuesto se valida con ospec review correct y ospec review validate, y trust-review vuelve a satisfied sin que reviews gane una entrada; un arreglo fuera de las rutas o del presupuesto, o una regresión, siguen pidiendo la sucesora; una revisión admite una sola corrección"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Qué avisos cubre la corrección de una revisión aprobada? (A) Los que el agente declare con --finding, por defecto todos, y pasa solo si el validador da por resueltos todos los declarados y no detecta regresión. (B) Siempre todos los avisos de la revisión. (C) Basta con que no haya regresión, sin mirar si los avisos quedan resueltos."
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1206
+        }
+      },
+      {
+        "category": "persistence",
+        "question": "¿Dónde se guarda la corrección? (A) El linaje aprobado no se toca, porque el motor de linajes es común con SDD: la corrección va en un campo nuevo y opcional del estado del cambio, con otra evidencia frozen-review para el árbol corregido. (B) Se cambia el motor de linajes para que un linaje approved admita una corrección."
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/idd-review.js",
+          "line": 498
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1207
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1208
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Si desde el candidato revisado cambia un fichero fuera de las rutas congeladas, ¿qué pasa? (A) La misma regla que la corrección acotada de hoy: no cabe y pide la revisión sucesora. (B) Los ficheros nuevos que no son frontera de seguridad, como un test nuevo, no cuentan y la corrección se valida solo sobre las rutas revisadas."
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "AGENTS.md",
+      "docs/README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/agentes/catalogo.md",
+      "handbook/idd/estado.md",
+      "handbook/idd/revision.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-review.js",
+      "scripts/lib/idd-review.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md",
+      "skills/review-correction/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "La corrección de avisos se guarda en advisory_corrections del estado del cambio y el linaje aprobado no se toca, porque review-lineage.js es común con SDD y da por terminal un linaje approved (usuario, 2026-11-11). Descartado, cambiar el motor de linajes.",
+      "La corrección nombra los avisos con --finding, por defecto todos, y pasa solo si el validador da por resueltos todos los nombrados y no detecta regresión (usuario, 2026-11-11). Descartado, exigir siempre todos los avisos, y que baste con no haber regresión.",
+      "Vale la misma regla que la corrección de bloqueantes, las rutas congeladas y el presupuesto de líneas, y una sola corrección por revisión (usuario, 2026-11-11). En los archivos de tres proyectos, 72 de 88 sucesoras tras una aprobada con avisos se quedaron dentro de esas rutas.",
+      "Cuando la corrección pasa, la aprobación cubre el árbol corregido, con otra evidencia frozen-review marcada correction advisory, y las rutas revisadas se comparan con ese árbol. La evidencia de la primera aprobación se queda en el estado.",
+      "review-limit no se abre mientras la última revisión pueda gastar su corrección en los avisos para los cambios desde su candidato, o mientras esa corrección espere su validación. Sin esto, la tercera revisión aprobada con un aviso abriría el gate antes de poder usarla.",
+      "La petición de validación de avisos lleva los hallazgos con su criterio de aceptación, porque el validador no los recibe de otro sitio. La de bloqueantes no cambia.",
+      "Solo IDD. SDD lo adopta, si acaso, en E1.62."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "El CLI decide cuándo cabe la corrección de avisos, qué avisos cubre y cuándo pasa (scripts/lib/idd-review.js, con tests); la skill solo nombra ospec review correct."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "Un arreglo de avisos dentro de las rutas revisadas pasa por una validación acotada en vez de una revisión entera: menos ceremonia donde el impacto no la pide, sin quitar la revisión."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "trust-review se sigue satisfaciendo solo con evidencia frozen-review que el CLI registra al aplicar el veredicto del validador, atada al árbol corregido."
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "El cambio no lee ni escribe memoria entre sesiones."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "No añade dependencias ni cambia el runtime de los hooks."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "La corrección vive en el estado IDD del cambio (idd/<cambio>/state.yaml); el motor de linajes que comparte SDD no cambia."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "La corrección queda en state.yaml como validating, y ospec review start devuelve otra vez su petición al reanudar."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "No añade llamadas de red al CLI, a los hooks ni a las skills."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "La regla de la corrección de avisos está en scripts/lib/idd-review.js y scripts/lib/idd-contract.js, con tests en idd-review.test.js y ospec.test.js; skills/idd/SKILL.md solo nombra ospec review correct y --finding.",
+      "recorded_at": "2026-11-11T23:02:09.647Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El diff no añade llamadas de red: idd-review.js y idd-contract.js son puros y ospec.js solo lee árboles de git locales.",
+      "recorded_at": "2026-11-11T23:02:09.814Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 298,
+      "answer": "todas las recomendadas (1A: los avisos que el agente declare con --finding, por defecto todos, y pasa solo si el validador da por resueltos todos los declarados y no detecta regresión; 2A: el linaje aprobado no se toca, la corrección va en un campo nuevo y opcional del estado con otra evidencia frozen-review; 3A: la misma regla que la corrección acotada de hoy, un fichero fuera de las rutas congeladas pide la sucesora)",
+      "source": "user",
+      "resolved_turn": 299
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T23:04:11.697Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 none",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:aa3d5ec81e8ab9851fa2f38995f5193c247633dfa19982cdab237f657922afe6",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-11T23:05:17.137Z",
+      "detail": {
+        "run": "run-9",
+        "tree": "sha256:3c81ac7dd0b5f9f2ab4e5bf28dac716f6f6e0ae5fbb05a29763f3f2e393b4536",
+        "plan": "advisory_corrections es un campo nuevo y opcional de state.yaml: un estado sin él sigue siendo válido (REQ-idd-003), así que los cambios abiertos y los archivados se leen igual y no hay migración. Solo esta versión lo escribe, al registrar una corrección de avisos. Vuelta atrás: una CLI anterior rechaza por campo desconocido un cambio abierto que ya lo lleve, así que antes de volver a ella se cierran esos cambios, o se sigue con la versión nueva hasta cerrarlos."
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T23:06:53.478Z",
+      "detail": {
+        "tree": "sha256:1c3833f153e61f2bcc271fc5dd7add906e0a748273f6bcebde8148827f1d88dd",
+        "runs": [
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-11T23:06:53.478Z",
+      "detail": {
+        "tree": "sha256:1c3833f153e61f2bcc271fc5dd7add906e0a748273f6bcebde8148827f1d88dd",
+        "check": "ev-3",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-review.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T23:06:53.478Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 none",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:1c3833f153e61f2bcc271fc5dd7add906e0a748273f6bcebde8148827f1d88dd",
+        "fitness": [
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-11T23:07:16.215Z"
+    }
+  ],
+  "base": "ba7c89faba9ed4d9993d6ad8bff6ea92ffab0376",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:198906940038f423f90454817f1db422e2dd8a5877641f6303ad61d9d175f2e9",
+      "tree": "sha256:aa3d5ec81e8ab9851fa2f38995f5193c247633dfa19982cdab237f657922afe6",
+      "recorded_at": "2026-11-11T23:04:11.697Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:45ca3f1186177ada4f1e5a3998037dffd7f4c987f299caa263096916f943a2ce",
+      "tree": "sha256:aa3d5ec81e8ab9851fa2f38995f5193c247633dfa19982cdab237f657922afe6",
+      "recorded_at": "2026-11-11T23:04:11.697Z",
+      "tests": 61
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ee1a104ad11fde6672d07801ce6caa2079c6ce7a7f40a5f5565a9e54d5b1204a",
+      "tree": "sha256:aa3d5ec81e8ab9851fa2f38995f5193c247633dfa19982cdab237f657922afe6",
+      "recorded_at": "2026-11-11T23:04:11.697Z",
+      "tests": 18
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5f74043264b9196fdd98571457f204844e5bb0485747a7754e9ffd170ead7610",
+      "tree": "sha256:aa3d5ec81e8ab9851fa2f38995f5193c247633dfa19982cdab237f657922afe6",
+      "recorded_at": "2026-11-11T23:04:11.697Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:aa3d5ec81e8ab9851fa2f38995f5193c247633dfa19982cdab237f657922afe6",
+      "recorded_at": "2026-11-11T23:04:11.697Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:85678c4b9de5215ffdc72de045697524a3142c60cfcfac13dd90c1699fc1e419",
+      "tree": "sha256:aa3d5ec81e8ab9851fa2f38995f5193c247633dfa19982cdab237f657922afe6",
+      "recorded_at": "2026-11-11T23:04:11.697Z",
+      "tests": 26
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0834825afdcaaa01abae492ea6c61ec905d143b9fcb701d32bca13401e517b0e",
+      "tree": "sha256:aa3d5ec81e8ab9851fa2f38995f5193c247633dfa19982cdab237f657922afe6",
+      "recorded_at": "2026-11-11T23:04:11.697Z",
+      "tests": 96
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8780635e18d7e5a25ca3a57d47ec12b74cedeb39ecdacaa6ffe8bf361d41b5a6",
+      "tree": "sha256:aa3d5ec81e8ab9851fa2f38995f5193c247633dfa19982cdab237f657922afe6",
+      "recorded_at": "2026-11-11T23:04:11.697Z",
+      "tests": 52
+    },
+    {
+      "id": "run-9",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-review.test.js scripts/lib/idd-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0b1bde4d7ac31ce6286e033340f59e04bd46ccca926097b82610200c62ed1f06",
+      "tree": "sha256:3c81ac7dd0b5f9f2ab4e5bf28dac716f6f6e0ae5fbb05a29763f3f2e393b4536",
+      "recorded_at": "2026-11-11T23:05:17.137Z",
+      "tests": 73
+    },
+    {
+      "id": "run-10",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dc775a98655665afa8885bcdd3059eeba59f0e9023935cfb280ed1b5ee14be47",
+      "tree": "sha256:1c3833f153e61f2bcc271fc5dd7add906e0a748273f6bcebde8148827f1d88dd",
+      "recorded_at": "2026-11-11T23:06:53.478Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:44a9f2b77a3e49701d05a90c350b9b25737af65b3e5b585917d84303266c2136",
+      "tree": "sha256:1c3833f153e61f2bcc271fc5dd7add906e0a748273f6bcebde8148827f1d88dd",
+      "recorded_at": "2026-11-11T23:06:53.478Z",
+      "tests": 61
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ef046a2b6fba55233775d6a862987b586f2b3c97c7d7955847ed9e70c313cbf9",
+      "tree": "sha256:1c3833f153e61f2bcc271fc5dd7add906e0a748273f6bcebde8148827f1d88dd",
+      "recorded_at": "2026-11-11T23:06:53.478Z",
+      "tests": 18
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e297881bc555d995c800015dbf9d08b71d1c7649838ae0bc17a43c7159ec68ac",
+      "tree": "sha256:1c3833f153e61f2bcc271fc5dd7add906e0a748273f6bcebde8148827f1d88dd",
+      "recorded_at": "2026-11-11T23:06:53.478Z",
+      "tests": 2
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:1c3833f153e61f2bcc271fc5dd7add906e0a748273f6bcebde8148827f1d88dd",
+      "recorded_at": "2026-11-11T23:06:53.478Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a5d0c024ed31a9eea274d46ea1200e7f0c498e53ababbf510a042135974730fc",
+      "tree": "sha256:1c3833f153e61f2bcc271fc5dd7add906e0a748273f6bcebde8148827f1d88dd",
+      "recorded_at": "2026-11-11T23:06:53.478Z",
+      "tests": 26
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c401ba0c7b31a734a957cb4b64a4376def95b35884fe931a328c473a3e08d6bc",
+      "tree": "sha256:1c3833f153e61f2bcc271fc5dd7add906e0a748273f6bcebde8148827f1d88dd",
+      "recorded_at": "2026-11-11T23:06:53.478Z",
+      "tests": 96
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d4ecff07aac0750686d770bbb4bcc1edfba1c29f9ddee5f2462ee4f1c93d9607",
+      "tree": "sha256:1c3833f153e61f2bcc271fc5dd7add906e0a748273f6bcebde8148827f1d88dd",
+      "recorded_at": "2026-11-11T23:06:53.478Z",
+      "tests": 52
+    }
+  ],
+  "closed_at": "2026-11-11T23:07:16.215Z"
+}

@@ -43,7 +43,7 @@ La revisión de confianza solo aparece cuando el cambio cruza una frontera de se
 
 1. `ospec review start` abre la revisión y devuelve la petición.
 2. `review-trust` devuelve sus hallazgos, que el asistente pasa sin modificar a `ospec review record` y después corrige lo bloqueante.
-3. `ospec review correct` pide la validación: `review-correction` comprueba la corrección contra los hallazgos congelados, sin buscar problemas nuevos.
+3. `ospec review correct` pide la validación: `review-correction` comprueba la corrección contra los hallazgos congelados, sin buscar problemas nuevos. Vale para los hallazgos graves de una revisión y para los avisos de una ya aprobada.
 4. `ospec review validate` registra el resultado.
 
 Un cambio admite como máximo 3 revisiones de confianza. Cuando se agotan, `ospec check` abre el gate `review-limit` (uno de los seis gates de IDD): solo la respuesta explícita de la persona autoriza una revisión más. Una nueva revisión exige código cambiado.

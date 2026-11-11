@@ -7,8 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.173.0] - 2026-11-12
+
+### Added
+- **Los avisos de una revisión de confianza aprobada se corrigen con la corrección acotada, sin una revisión sucesora** (review-advisory-correction, E1.63, #498, de la auditoría con dos proyectos reales que usan IDD).
+  - **El problema**: una revisión aprobada solo prueba el candidato que revisó. Arreglar después uno de sus `WARNING` o `SUGGESTION` devolvía `trust-review` a pendiente, y la única salida era una revisión sucesora entera, que cuenta para el tope de tres. En 116 revisiones de dos proyectos, todas aprobadas, 113 de 117 hallazgos no bloqueaban; 37 cambios necesitaron dos o más revisiones y 14 llegaron a tres.
+  - **La vía nueva**: `ospec review correct` acepta también una revisión aprobada que congeló avisos y no gastó su corrección. Registra el arreglo con las reglas de la corrección de hallazgos graves, dentro de las rutas congeladas y del presupuesto de líneas, y devuelve la petición para `review-correction`, con los avisos y su criterio de aceptación. `--finding <id>`, que se puede repetir, nombra los avisos que el arreglo resuelve; sin él, todos.
+  - **Cuándo pasa**: `ospec review validate` aplica el veredicto. Si todos los avisos nombrados quedan resueltos y no hay regresión, `trust-review` se satisface con otra evidencia `frozen-review`, la del árbol corregido (`correction: advisory`), y `reviews` no gana ninguna entrada. Si no, queda pendiente y una revisión sucesora comprueba el cambio.
+  - **Lo que no cambia**: una sola corrección por revisión, sea de hallazgos graves o de avisos; un arreglo fuera de las rutas congeladas o por encima del presupuesto sigue pidiendo la sucesora; un retry, un check o un close no restauran la corrección. El linaje aprobado no se toca: el motor de linajes es común con SDD, y la corrección va en `advisory_corrections` del estado del cambio.
+  - **El gate `review-limit`**: no se abre mientras la última revisión pueda gastar su corrección en los avisos para los cambios desde su candidato, ni mientras esa corrección espere su validación.
+  - **El motivo de `trust-review`**: `ospec check` y `ospec next` nombran `ospec review correct` cuando la revisión aprobada aún puede usarlo. La skill `idd` no cambia.
+  - **Contrato y compatibilidad**: REQ-idd-003 y REQ-idd-016, con dos escenarios nuevos. `advisory_corrections` es un campo opcional de `state.yaml`: los cambios abiertos y los archivados se leen igual. Una CLI anterior rechaza por campo desconocido un cambio abierto que ya lo lleve, así que antes de volver a ella hay que cerrar esos cambios.
+  - **Contexto**: la skill del validador `review-correction` crece unos 180 bytes, con su aumento de techo concedido en `scripts/fixtures/context-baseline.json`.
+
 ### Changed
-- Registrar en el roadmap los ítems de las fricciones de proyectos reales (#498 a #503) y los issues abiertos sin ítem (friction-items-roadmap)
+- **El roadmap registra E1.63 a E1.70 y E5.15** (friction-items-roadmap). Son los seis issues de la auditoría de sinergia con proyectos reales (#498 a #503) y los tres abiertos que no tenían ítem (#483, #490 y #494). E1.63 a E1.70 van por delante de lo que queda del bloque C, y E5.15 queda fuera del orden.
+
+**Verificación directa**: `node scripts/check.js` (4548 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
 
 ## [2.172.2] - 2026-11-11
 
