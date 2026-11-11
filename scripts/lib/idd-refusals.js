@@ -81,7 +81,7 @@ const REFUSALS = Object.freeze({
   "progress-missing": "pass --progress <path> to read another progress file, or leave it out to read docs/progress.md when it exists",
   "reason-required": 'pass --reason "<why>"',
   "reference-not-declared": "declare it first: ospec signals --change <id> --adr <adr> or --quality <scenario>",
-  "retract-answer-refused": "the user's answer retracts only persistent-data, or public-contract outside a contract document, that the content of the diff alone derives: keep the signal and satisfy its obligation",
+  "retract-answer-refused": "the user's answer retracts only persistent-data or security-boundary that the content of the diff alone derives, and public-contract outside a contract document: keep the signal and satisfy its obligation",
   "retract-conflict": `nothing to record: the signal stays retracted with its first reason; ${NEXT}`,
   "review-current": `nothing to review: the trust review of this candidate is approved; ${NEXT}`,
   "review-limit": "the trust reviews are used up: ospec check --change <id> opens review-limit, and only the user's answer grants one more",

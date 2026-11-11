@@ -265,12 +265,27 @@ content hit of the diff for that signal at that moment, each as `<reason>:
 <line>`), `answer` and `answer_source`, and the derivation MUST leave the
 signal out while every content hit of the diff is one of those `hits`; a new
 or changed write, contract line or security sink, or a path, MUST bring it
-back. A contract
-line in a contract document (REQ-idd-015) states the contract itself, as a
-path does. The answer MUST be refused (`retract-answer-refused`) for any other
-signal, when a path or nothing derives it, and when a contract line lies in a
-contract document, naming that document; the refusal of a plain retraction of
-a signal the answer may retract MUST say how to give the answer.
+back.
+
+`public-contract` that a changed path derives (an impact pattern of the
+project, the base or the stack, or a published path, REQ-idd-012) MUST be
+retractable the same way, alone or along with contract lines, with each such
+path as a hit, `<path> changes: sha256:<hex>`, the SHA-256 of the lines the
+diff adds to and removes from that path. The derivation MUST leave the signal
+out while every such path of the diff is one of those `hits`, and while every
+planned path that matches is a path of those `hits`: another change to an
+answered path, or a contract path the answer did not cover, in the diff or in
+the plan, MUST bring it back.
+
+A contract line in a contract document (REQ-idd-015), or a changed path that
+is a contract document, states the contract itself. The answer MUST be refused
+(`retract-answer-refused`) for any other signal, when a path derives
+`persistent-data` or `security-boundary`, when nothing derives the signal,
+when a contract line lies in a contract document or a path that derives the
+signal is one, naming that document, and when the diff holds no line of a path
+that derives `public-contract` (a renamed or binary file), naming that path;
+the refusal of a plain retraction of a signal the answer may retract MUST say
+how to give the answer.
 
 #### Scenario: Overstated plan is corrected before the diff confirms it
 
@@ -324,6 +339,27 @@ a signal the answer may retract MUST say how to give the answer.
 - AND a line added later that cites `GET /api/reports` MUST bring it back
 - AND the same line added to `docs/api/contact.md`, a contract document, MUST
   refuse the answer with `retract-answer-refused`, naming that document
+
+#### Scenario: The user's answer retracts a public contract a path derives
+
+- GIVEN `impact.public_contract` with `functions/*/index.ts`, no contract
+  document in the project, and `public-contract` active because the diff
+  changes only the import line of `functions/a/index.ts`
+- WHEN `record retract --signal public-contract --reason <text>` runs without
+  an answer
+- THEN it MUST be refused with `signal-confirmed-by-diff`, saying how to give
+  the answer
+- WHEN it runs with `--answer "No route, request or response changes."
+  --source user`
+- THEN `contract-spec-and-test` MUST be `withdrawn`, the retraction MUST record
+  the path with the fingerprint of its changes as a hit, and neither a later
+  `ospec check` nor planning `functions/a/index.ts` again MUST bring the signal
+  back
+- AND another change to `functions/a/index.ts`, a change to
+  `functions/b/index.ts` or planning `functions/c/index.ts` MUST bring it back
+- AND when the diff also changes `openapi.yaml`, a contract document, or only
+  renames `functions/b/index.ts`, the answer MUST be refused with
+  `retract-answer-refused`, naming that path
 
 #### Scenario: The user's answer retracts a security sink the content alone derives
 

@@ -895,3 +895,27 @@ test("[E1.48] code added inside a Rust #[cfg(test)] module is a test the diff ad
   const untested = (added) => deriveSignals({ intent: { kind: "bug" }, diff: diff(added), patterns: patternsFor() }).signals.some((signal) => signal.id === "untested-product");
   assert.deepStrictEqual([untested(["    n.max(1)", "        assert_eq!(page(0), 1);"]), untested(["    n.max(1)"])], [false, true]);
 });
+
+// #496: a path that derives public-contract is a hit the user's answer may
+// cover, tied to the lines the diff changes in it.
+test("[#496] a contract path the user's answer covered stays out until it changes again or another path joins", () => {
+  const { contractPathHits } = require("./idd-signals.js");
+  const patterns = patternsFor();
+  const diffOf = (files) => ({ paths: Object.keys(files), addedLines: Object.fromEntries(Object.entries(files).map(([file, [added]]) => [file, added])), removedLines: Object.fromEntries(Object.entries(files).map(([file, [, removed]]) => [file, removed])) });
+  const seen = diffOf({ "src/api/search.js": [['import x from "npm:x";'], ['import x from "https://cdn/x";']], "src/util.js": [["const a = 1;"], []] });
+  const hits = contractPathHits(seen, patterns);
+  assert.deepStrictEqual(hits.map((hit) => [hit.file, hit.lines]), [["src/api/search.js", true]]);
+  assert.match(hits[0].key, /^src\/api\/search\.js changes: sha256:[0-9a-f]{64}$/);
+  assert.deepStrictEqual(contractPathHits({ paths: ["src/api/logo.png"] }, patterns).map((hit) => hit.lines), [false], "no line of a binary or renamed path");
+
+  const retracted = [{ id: "public-contract", answer: "No route changes.", hits: hits.map((hit) => hit.key) }];
+  const contract = (input) => deriveSignals({ intent: { kind: "bug" }, patterns, retracted, ...input }).signals.find((signal) => signal.id === "public-contract");
+  assert.strictEqual(contract({ diff: seen }), undefined, "the answered changes");
+  assert.strictEqual(contract({ diff: seen, declaration: { paths: ["src/api/search.js"] } }), undefined, "the answered path, planned again");
+  assert.strictEqual(contract({ diff: seen, declaration: { paths: ["src/api/users.js"] } }).source, "declaration", "a planned path the answer did not see");
+  const edited = diffOf({ "src/api/search.js": [['import x from "npm:x";', 'app.get("/gone", gone);'], ['import x from "https://cdn/x";']] });
+  assert.strictEqual(contract({ diff: edited }).source, "diff", "another change to the answered path");
+  const joined = diffOf({ "src/api/search.js": [['import x from "npm:x";'], ['import x from "https://cdn/x";']], "src/api/users.js": [["// sorted"], []] });
+  assert.strictEqual(contract({ diff: joined }).reason, "public contract: touches src/api/search.js and 1 more (matches **/api/**)");
+  assert.strictEqual(deriveSignals({ intent: { kind: "bug" }, patterns, diff: seen, retracted: [{ id: "public-contract", retract_reason: "no API change" }] }).signals.some((signal) => signal.id === "public-contract"), true, "a plain retraction covers no path");
+});

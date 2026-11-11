@@ -40,10 +40,12 @@ const KIND_CHANGE_REASON = "the kind moved from bug to feature, which kind-chang
 // The prefix of the reasons the derivation gives irreversible-operation.
 const IRREVERSIBLE_PREFIX = "irreversible operation: ";
 // What the user confirms when their answer retracts one of the
-// ANSWER_RETRACTABLE_SIGNALS that only the content of the diff derives.
+// ANSWER_RETRACTABLE_SIGNALS: persistent-data or security-boundary that only
+// the content of the diff derives, or public-contract from contract lines or
+// paths outside a contract document (#496).
 const ANSWER_CONFIRMS = Object.freeze({
   "persistent-data": "there is no persistent data",
-  "public-contract": "the documentation changes no contract",
+  "public-contract": "the diff changes no contract: no route, request, response or published API",
   "security-boundary": "no added sink takes untrusted input",
 });
 
@@ -478,12 +480,13 @@ function recordPlan(state, { paths = [], workUnits = 1, nonObviousDecision = fal
 // longer derives it (#418). `confirmedBy` is the reason the current diff
 // derives the signal, or null; idd-workspace.js reads the diff. A later
 // diff or declaration that derives the signal again reopens its obligation
-// (REQ-idd-006). With the user's `answer`, persistent-data (#416),
-// public-contract (E1.58) or security-boundary (E1.50) that only the content of the diff derives
-// (`contentOnly`) is retracted too, with the `hits` the answer covers; the
-// derivation keeps it out while the diff holds no other. `refusedBecause` says
-// why content the diff alone derives still refuses the answer.
-function recordRetract(state, { id, reason, confirmedBy = null, contentOnly = false, hits = [], refusedBecause = null, answer, source } = {}) {
+// (REQ-idd-006). With the user's `answer`, persistent-data (#416) or
+// security-boundary (E1.50) that only the content of the diff derives, and
+// public-contract from contract lines (E1.58) or paths (#496), is retracted
+// too (`answerable`), with the `hits` the answer covers; the derivation keeps
+// it out while the diff holds no other. `refusedBecause` says why the diff
+// still refuses the answer.
+function recordRetract(state, { id, reason, confirmedBy = null, answerable = false, hits = [], refusedBecause = null, answer, source } = {}) {
   requireOpen(state);
   if (!SIGNAL_BY_ID.has(id)) refuse("unknown-signal", `unknown signal: ${id}`);
   if (!RETRACTABLE_SIGNALS.includes(id)) {
@@ -503,13 +506,13 @@ function recordRetract(state, { id, reason, confirmedBy = null, contentOnly = fa
     refuse("retract-conflict", `signal ${id} was retracted with a different reason`);
   }
   if (answered) {
-    if (!contentOnly || hits.length === 0 || !ANSWER_CONFIRMS[id]) {
+    if (!answerable || hits.length === 0 || !ANSWER_CONFIRMS[id]) {
       const why = refusedBecause ?? (confirmedBy ? `the diff derives it: ${confirmedBy}` : "the diff does not derive it; retract it without an answer");
       const signals = `${ANSWER_RETRACTABLE_SIGNALS.slice(0, -1).join(", ")} or ${ANSWER_RETRACTABLE_SIGNALS.at(-1)}`;
-      refuse("retract-answer-refused", `only ${signals} that the content of the diff alone derives is retracted with the user's answer; ${why}`);
+      refuse("retract-answer-refused", `only ${signals} that the content of the diff alone derives, or public-contract from paths outside a contract document, is retracted with the user's answer; ${why}`);
     }
   } else {
-    const how = contentOnly && ANSWER_CONFIRMS[id] ? `if the user confirms ${ANSWER_CONFIRMS[id]}, add --answer "<their words>" --source user` : undefined;
+    const how = answerable && ANSWER_CONFIRMS[id] ? `if the user confirms ${ANSWER_CONFIRMS[id]}, add --answer "<their words>" --source user` : undefined;
     if (confirmedBy) refuse("signal-confirmed-by-diff", `the diff confirms signal ${id}: ${confirmedBy}`, how);
   }
   const obligationId = SIGNAL_BY_ID.get(id).obligation;
