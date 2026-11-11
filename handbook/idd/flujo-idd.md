@@ -89,6 +89,7 @@ El agente se detiene en estos gates y en ningún otro sitio. Cada gate abierto s
 | Gate | Se abre cuando |
 | --- | --- |
 | `ambiguous-intent` | La petición no permite fijar un criterio de aceptación. |
+| `kind-change` | Un cambio `bug` pasa a `feature`, lo que retira `repro-test`. Si dices que no, el agente resuelve el gate con tu respuesta y vuelve a `bug`. Pasar de `feature` a `bug` no pregunta, porque añade la reproducción. |
 | `open-facts` | Hay comportamientos abiertos sin respuesta. Se preguntan todos a la vez. |
 | `adr-amend-or-contradict` | El cambio enmienda, sustituye o contradice un ADR. |
 | `irreversible-operation` | Va a ocurrir una operación destructiva o irreversible: borrar una tabla o datos, truncar, reescribir historia publicada. La respuesta aprueba solo las operaciones por las que se preguntó. |

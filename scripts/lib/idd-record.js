@@ -34,6 +34,9 @@ const SIGNAL_BY_ID = new Map(SIGNALS.map((signal) => [signal.id, signal]));
 const OBLIGATION_BY_ID = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation]));
 const ALWAYS_REASON = "every change with a resolved intent";
 const IRREVERSIBLE_GATE = "irreversible-operation";
+const KIND_CHANGE_GATE = "kind-change";
+// Why repro-test leaves when a bug becomes a feature (#491).
+const KIND_CHANGE_REASON = "the kind moved from bug to feature, which kind-change asks the user to approve";
 // The prefix of the reasons the derivation gives irreversible-operation.
 const IRREVERSIBLE_PREFIX = "irreversible operation: ";
 // What the user confirms when their answer retracts one of the
@@ -152,18 +155,32 @@ function applyFacts(state, facts) {
 }
 
 // The kinds a resolved intent may move to (E1.44, B9): only up, from docs to a
-// refactor, a bug or a feature, and from a refactor to a bug or a feature.
+// refactor, a bug or a feature, and from a refactor to a bug or a feature. A bug
+// and a feature hold the same rank but take each other's place (#491): a
+// feature that becomes a bug adds repro-test, so it rises; a bug that becomes a
+// feature withdraws it, so it opens kind-change for the user.
 const KIND_RANK = Object.freeze({ docs: 0, refactor: 1, bug: 2, feature: 2 });
 
 function raisesKind(from, to) {
+  if (from === "feature" && to === "bug") return true;
   return Object.hasOwn(KIND_RANK, to) && KIND_RANK[to] > KIND_RANK[from];
+}
+
+function becomesFeature(from, to) {
+  return from === "bug" && to === "feature";
 }
 
 // A raised intent replaces the intent and its open facts. The answers already
 // given stay recorded, and only a question not asked before opens a new
 // open-facts entry.
 function raiseIntent(state, input) {
-  if (state.gates.some((gate) => gate.id === "open-facts" && gate.status === "open")) {
+  if (state.gates.some((gate) => gate.id === KIND_CHANGE_GATE && gate.status === "open")) {
+    refuse("kind-change-open", "the user has not answered kind-change yet: resolve it with their words before the intent changes again");
+  }
+  // A feature that came from a bug goes back once the user answered
+  // kind-change, and drops the categories it asked and nobody answered.
+  const reverting = state.intent.kind === "feature" && input.kind === "bug" && state.gates.some((gate) => gate.id === KIND_CHANGE_GATE);
+  if (!reverting && state.gates.some((gate) => gate.id === "open-facts" && gate.status === "open")) {
     refuse("open-facts-open", "the open facts already asked have no answer yet: resolve open-facts before the intent changes");
   }
   validateResolvedIntent(input);
@@ -172,6 +189,16 @@ function raiseIntent(state, input) {
   const next = structuredClone(state);
   next.intent = resolvedIntent(input);
   next.facts = facts;
+  if (reverting) next.gates = next.gates.filter((gate) => !(gate.id === "open-facts" && gate.status === "open"));
+  if (becomesFeature(state.intent.kind, input.kind)) {
+    next.signals = next.signals.filter((signal) => signal.id !== "bug-fix");
+    const repro = next.obligations.find((entry) => entry.id === "repro-test");
+    if (repro?.status === "pending") {
+      repro.status = "withdrawn";
+      repro.withdrawn_reason = KIND_CHANGE_REASON;
+    }
+    next.gates.push({ id: KIND_CHANGE_GATE, status: "open", reason: "bug → feature: repro-test is withdrawn, so the user must approve the new kind" });
+  }
   // A feature asks its categories as one recorded from scratch does (E1.53),
   // even a question answered for the lower kind.
   const asks = input.kind === "feature" ? questionsOf(facts).length > 0 : questionsOf(facts).some((question) => !asked.has(question));
@@ -184,7 +211,7 @@ function recordIntent(state, input = {}) {
     requireOpen(state);
     if (!isIntentAmbiguous(state)) {
       const { request = state.intent.request, ...rest } = input;
-      if (!input.ambiguous && raisesKind(state.intent.kind, input.kind)) {
+      if (!input.ambiguous && (raisesKind(state.intent.kind, input.kind) || becomesFeature(state.intent.kind, input.kind))) {
         // The request holds the user's words that quotes come from (E1.53).
         if (state.intent.request != null && request !== state.intent.request) {
           refuse("intent-conflict", `change ${state.change} already has a different request; a raised kind keeps it`);
@@ -282,6 +309,9 @@ function recordGate(state, { id, action, reason, answer, source } = {}) {
   }
   if (id === "open-facts" && action === "open") {
     refuse("gate-managed-by-intent", "open-facts is opened by the open facts of record intent");
+  }
+  if (id === KIND_CHANGE_GATE && action === "open") {
+    refuse("gate-managed-by-intent", "kind-change is opened by record intent when a bug becomes a feature");
   }
   if (id === "review-limit" && action === "open") {
     refuse("gate-managed-by-review", "review-limit is opened by ospec check once the trust reviews of the change are used up");

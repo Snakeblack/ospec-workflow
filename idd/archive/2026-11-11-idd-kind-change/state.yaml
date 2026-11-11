@@ -1,0 +1,413 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-kind-change",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Un cambio IDD no puede pasar de bug a feature ni al revés: KIND_RANK les da el mismo rango y record intent lo rechaza con intent-conflict, así que un cambio abierto con el kind equivocado queda atascado sin poder abandonarse (#491)",
+    "acceptance": "feature → bug se acepta como subida; bug → feature reemplaza el intent, quita bug-fix, retira repro-test pendiente y abre la puerta kind-change, que solo el usuario resuelve y que bloquea close; volver a bug restaura bug-fix y reabre repro-test; record gate --open rechaza kind-change; un kind menor sigue rechazado; el catálogo de Go incluye la puerta; node scripts/check.js y el gate de Go pasan"
+  },
+  "facts": {
+    "basis": "El issue #491, aprobado por el mantenedor, fija el comportamiento: feature → bug libre, bug → feature con la puerta kind-change abierta por record intent, en el orden detrás de ambiguous-intent, y repro-test satisfecha se conserva"
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/en/README.md",
+      "docs/onboarding/tech-lead.md",
+      "handbook/idd/flujo-idd.md",
+      "handbook/proteccion/hooks.md",
+      "internal/iddsession/catalog.json",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "bug → feature no se permite sin más porque retira repro-test: record intent lo aplica y abre kind-change, que bloquea close hasta la respuesta del usuario, con el turn fence de cualquier puerta; feature → bug sube la exigencia de tests y se acepta como una subida",
+      "Un rechazo no necesita deshacer nada especial: se resuelve kind-change con las palabras del usuario y se vuelve a bug, que la derivación devuelve a bug-fix y addSignal reabre repro-test",
+      "kind-change va en GATES detrás de ambiguous-intent y antes de open-facts, para que el usuario apruebe el kind antes de contestar las categorías del feature",
+      "skills/idd/SKILL.md no gana una viñeta para kind-change: excedía los techos de contexto versionados (E4.3) y la pregunta de la puerta en next ya dice qué hacer si el usuario lo rechaza, así que la regla queda en el CLI (ADR 0003)"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La regla del kind y la puerta kind-change viven en el CLI (idd-record.js, idd-contract.js) con su test; la skill y el handbook solo dicen cuándo preguntar"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "La ceremonia sigue saliendo de las señales: bug → feature retira repro-test solo con la puerta del usuario y feature → bug la sube; nada baja sin respuesta"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "close sigue negándose con una puerta abierta: kind-change abierta bloquea el cierre hasta la respuesta del usuario"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "El estado sigue en idd/; kind-change es una entrada más de gates del mismo esquema"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "kind-change vive en state.yaml como cualquier puerta: tras /clear, next devuelve resolve-gate kind-change igual que antes"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "No añade dependencias de red ni de memoria"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-11T10:16:40.862Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T10:18:47.108Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:cde3422c1d768f0107f47ec05953ba67f53e96e93f2f16a8b96e46e46542aab2",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T10:22:26.580Z",
+      "detail": {
+        "tree": "sha256:5c1a308de955e1be444bfe8b488e8d85d1fd35b8fbe43c734ab5433c38c11d46",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T10:22:26.580Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:5c1a308de955e1be444bfe8b488e8d85d1fd35b8fbe43c734ab5433c38c11d46",
+        "fitness": [
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-11T10:22:36.294Z"
+    }
+  ],
+  "base": "480f328cf1b4e680bf8e54be56cf6ceb797f1b9d",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:40c8e6a2167b532c4ebe6bdf4a4df2098ece0e71e5b84771e1e39ee040a5fe1a",
+      "tree": "sha256:88218145d86a66a8b4f6a8d48d5e10d39a708b7cfc1580685acac7501397d101",
+      "recorded_at": "2026-11-11T10:15:05.164Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:54fba3498fd76265f460aeec5d3b38cb16c56de367845a6fdda88a89bbcc416b",
+      "tree": "sha256:fd7d696b4fd3e2d9fbd5ec4922cf6f7bc76d1978f58b0d87c718ca449c8130e6",
+      "recorded_at": "2026-11-11T10:16:40.862Z",
+      "tests": 52,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "480f328cf1b4e680bf8e54be56cf6ceb797f1b9d",
+      "mount": "sha256:8041a93a62b7398b5db41dd5424f6400655b5c7750e6aec84fd04ed32f7ae612",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:6bb951b338252ce7bd047b92705355abbac6db678244925248de02420b8209d2",
+      "tree": "sha256:fd7d696b4fd3e2d9fbd5ec4922cf6f7bc76d1978f58b0d87c718ca449c8130e6",
+      "recorded_at": "2026-11-11T10:16:40.862Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "480f328cf1b4e680bf8e54be56cf6ceb797f1b9d",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2bdb89050bfa9c0f9a2e4bb4b58b3505360530757eb43831a03bf7cb188dc177",
+      "tree": "sha256:fd7d696b4fd3e2d9fbd5ec4922cf6f7bc76d1978f58b0d87c718ca449c8130e6",
+      "recorded_at": "2026-11-11T10:16:40.862Z",
+      "tests": 51
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:9ee37a518bc150dd39a42bc7497a7509fa2f897582549d44bb20d9e9b4794ffb",
+      "tree": "sha256:cde3422c1d768f0107f47ec05953ba67f53e96e93f2f16a8b96e46e46542aab2",
+      "recorded_at": "2026-11-11T10:18:47.108Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d04e6dc8ac89c3d251f75cb551be01b699b2c7905b26ab4c9eb535ae8a8f97b2",
+      "tree": "sha256:cde3422c1d768f0107f47ec05953ba67f53e96e93f2f16a8b96e46e46542aab2",
+      "recorded_at": "2026-11-11T10:18:47.108Z",
+      "tests": 59
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:46c1eda459364aed3a504bf8970ab74d8e6e6b5f12ef1a5755fbe0a0640850bb",
+      "tree": "sha256:cde3422c1d768f0107f47ec05953ba67f53e96e93f2f16a8b96e46e46542aab2",
+      "recorded_at": "2026-11-11T10:18:47.108Z",
+      "tests": 18
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:756ae05cccd9b70558ab42ce797840de080dde4954709ef2b239b98b61587483",
+      "tree": "sha256:cde3422c1d768f0107f47ec05953ba67f53e96e93f2f16a8b96e46e46542aab2",
+      "recorded_at": "2026-11-11T10:18:47.108Z",
+      "tests": 2
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d198c88e892f93081119c94692e6c3d9084f817ddf13a355fdec25e4ea76a0eb",
+      "tree": "sha256:cde3422c1d768f0107f47ec05953ba67f53e96e93f2f16a8b96e46e46542aab2",
+      "recorded_at": "2026-11-11T10:18:47.108Z",
+      "tests": 92
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3fc6b4020c9f91409958a3f75a80b4b574b0c93e9b1123ba8a2a22c093d29a07",
+      "tree": "sha256:cde3422c1d768f0107f47ec05953ba67f53e96e93f2f16a8b96e46e46542aab2",
+      "recorded_at": "2026-11-11T10:18:47.108Z",
+      "tests": 52
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fbc39d69a149356d9efc0ea38ee742759ab7b91e18457afc4632e6683d82abcf",
+      "tree": "sha256:5c1a308de955e1be444bfe8b488e8d85d1fd35b8fbe43c734ab5433c38c11d46",
+      "recorded_at": "2026-11-11T10:22:26.580Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d51d9abd474a78669729c432eac6ee51ca2378703e3ab2f92019b76234222219",
+      "tree": "sha256:5c1a308de955e1be444bfe8b488e8d85d1fd35b8fbe43c734ab5433c38c11d46",
+      "recorded_at": "2026-11-11T10:22:26.580Z",
+      "tests": 59
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0f0d6bd3801f758fc221affe80dddc2559f909ccf2b10fcdcceede0b05959c12",
+      "tree": "sha256:5c1a308de955e1be444bfe8b488e8d85d1fd35b8fbe43c734ab5433c38c11d46",
+      "recorded_at": "2026-11-11T10:22:26.580Z",
+      "tests": 18
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0978f3a8d4d4c155269ba315ad9e37b12e4661c82a870a435de85058c3505f23",
+      "tree": "sha256:5c1a308de955e1be444bfe8b488e8d85d1fd35b8fbe43c734ab5433c38c11d46",
+      "recorded_at": "2026-11-11T10:22:26.580Z",
+      "tests": 2
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:11e64ed3288e910fe56725e88bad4cb66a9be9827e742de1996cdc3e0aaf6e8f",
+      "tree": "sha256:5c1a308de955e1be444bfe8b488e8d85d1fd35b8fbe43c734ab5433c38c11d46",
+      "recorded_at": "2026-11-11T10:22:26.580Z",
+      "tests": 92
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a8905912a259df8fd0ff0fb1721b7d77c0c5c85ab9ad72b8d74f2a7ae2d61748",
+      "tree": "sha256:5c1a308de955e1be444bfe8b488e8d85d1fd35b8fbe43c734ab5433c38c11d46",
+      "recorded_at": "2026-11-11T10:22:26.580Z",
+      "tests": 52
+    }
+  ],
+  "closed_at": "2026-11-11T10:22:36.294Z"
+}

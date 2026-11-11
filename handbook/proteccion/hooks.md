@@ -63,6 +63,6 @@ Cuenta el turno y deja la traza"]
 
 ### 6. `Stop` (Fin de Turno)
 - Se ejecuta al terminar cada turno del agente.
-- Suma uno a `.ospec/turns` en la raíz del proyecto, el primer directorio hacia arriba que tiene `.git`, aunque la sesión esté en un subdirectorio. Con esa cuenta el CLI comprueba que una respuesta a un gate llegó en un turno posterior a la pregunta ([Los seis gates](/handbook/idd/flujo-idd.md#quién-responde)).
+- Suma uno a `.ospec/turns` en la raíz del proyecto, el primer directorio hacia arriba que tiene `.git`, aunque la sesión esté en un subdirectorio. Con esa cuenta el CLI comprueba que una respuesta a un gate llegó en un turno posterior a la pregunta ([Los siete gates](/handbook/idd/flujo-idd.md#quién-responde)).
 - Escribe la traza de la sesión en `.ospec/session/latest.md`, con el cambio abierto y el siguiente paso.
 - No bloquea: si no puede contar el turno o escribir la traza, deja continuar con un aviso.

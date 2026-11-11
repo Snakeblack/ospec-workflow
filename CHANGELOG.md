@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Un cambio IDD no puede pasar de bug a feature ni al revés: KIND_RANK les da el mismo rango y record intent lo rechaza con intent-conflict, así que un cambio abierto con el kind equivocado queda atascado sin poder abandonarse (#491) (idd-kind-change)
+
 ## [2.171.6] - 2026-11-11
 
 ### Fixed

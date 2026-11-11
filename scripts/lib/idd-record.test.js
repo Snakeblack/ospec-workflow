@@ -824,7 +824,7 @@ test("[REQ-idd-022] fitness evidence needs a manual item, a reference and text",
 
 const DOCS_INTENT = Object.freeze({ ...BUG_INTENT, kind: "docs", summary: "Fix a typo.", acceptance: "No typo." });
 
-test("a resolved intent rises to a kind with more ceremony, never down or sideways", () => {
+test("a resolved intent rises to a kind with more ceremony, never down", () => {
   const docs = opened(DOCS_INTENT);
   const refactor = recordIntent(docs, { ...BUG_INTENT, kind: "refactor", summary: "Move the page count.", acceptance: "Two pages, as before." });
   assert.strictEqual(refactor.changed, true);
@@ -835,8 +835,52 @@ test("a resolved intent rises to a kind with more ceremony, never down or sidewa
   assertCode(() => recordIntent(refactor.state, DOCS_INTENT), "intent-conflict");
   const bug = recordIntent(refactor.state, BUG_INTENT).state;
   assert.strictEqual(bug.intent.kind, "bug");
-  assertCode(() => recordIntent(bug, { ...BUG_INTENT, kind: "feature" }), "intent-conflict");
+  assertCode(() => recordIntent(bug, { ...BUG_INTENT, kind: "refactor", summary: "Move the page count.", acceptance: "Two pages, as before." }), "intent-conflict");
   assertCode(() => recordIntent(docs, { ...BUG_INTENT, kind: "refactor", noOpenFacts: undefined, basis: undefined }), "facts-undeclared");
+});
+
+// #491: bug and feature take each other's place. A feature that becomes a bug
+// adds repro-test, so it rises; a bug that becomes a feature withdraws it, so
+// it opens kind-change, which only the user's answer resolves.
+test("[#491] a bug becomes a feature through kind-change, and a feature becomes a bug freely", () => {
+  const { citedCoverage } = require("./idd-facts.js");
+  const coverage = citedCoverage().map((entry, index) => (index === 0 ? { category: "inputs", question: "¿Cuántos jobs añade?" } : entry));
+  const feature = { ...FEATURE, change: BUG_INTENT.change, request: "Add the CI jobs.", coverage };
+  const repro = (state) => state.obligations.find((entry) => entry.id === "repro-test");
+  const bug = recordSignal(opened(), { id: "bug-fix", reason: "the intent is a bug fix", source: "declaration" }).state;
+
+  const moved = recordIntent(bug, feature).state;
+  assert.strictEqual(moved.intent.kind, "feature");
+  assert.ok(!moved.signals.some((signal) => signal.id === "bug-fix"), "bug-fix leaves with the bug");
+  assert.strictEqual(repro(moved).status, "withdrawn");
+  assert.match(repro(moved).withdrawn_reason, /kind-change/);
+  assert.deepStrictEqual(moved.gates.map((gate) => [gate.id, gate.status]), [["kind-change", "open"], ["open-facts", "open"]]);
+  assert.match(moved.gates[0].reason, /bug → feature.*repro-test/);
+  assertValid(moved);
+  assertCode(() => recordGate(bug, { id: "kind-change", action: "open", reason: "bug → feature" }), "gate-managed-by-intent");
+  assertCode(() => recordIntent(moved, BUG_INTENT), "kind-change-open");
+
+  // The user refuses: kind-change keeps their words, and the bug comes back
+  // without the feature's unanswered categories.
+  const refused = recordGate(moved, { id: "kind-change", action: "resolve", answer: "No, sigue siendo un bug.", source: "user" }).state;
+  const back = recordIntent(refused, { ...BUG_INTENT, request: "Add the CI jobs." }).state;
+  assert.strictEqual(back.intent.kind, "bug");
+  assert.deepStrictEqual(back.gates.map((gate) => [gate.id, gate.status]), [["kind-change", "resolved"]]);
+  assertValid(back);
+  const reopened = recordSignal(back, { id: "bug-fix", reason: "the intent is a bug fix", source: "declaration" }).state;
+  assert.strictEqual(repro(reopened).status, "pending", "the derivation brings repro-test back");
+
+  // A satisfied repro-test keeps its evidence when the bug becomes a feature.
+  const satisfied = structuredClone(bug);
+  repro(satisfied).status = "satisfied";
+  assert.strictEqual(repro(recordIntent(satisfied, feature).state).status, "satisfied");
+
+  // A feature recorded as such becomes a bug like any raise.
+  const answered = recordGate(opened(feature), { id: "open-facts", action: "resolve", answer: "Dos.", source: "user" }).state;
+  const raised = recordIntent(answered, { ...BUG_INTENT, request: "Add the CI jobs." }).state;
+  assert.strictEqual(raised.intent.kind, "bug");
+  assert.ok(!raised.gates.some((gate) => gate.id === "kind-change"), "a raise needs no kind-change");
+  assertValid(raised);
 });
 
 test("a raised intent asks only the questions not asked before, after the open ones are answered", () => {

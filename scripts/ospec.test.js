@@ -391,7 +391,7 @@ test("a refusal without its own how carries the one of its code", (t) => {
   const json = ospec(root, "record", "gate", "--change", "fix-pagination", "--gate", "bogus", "--open", "--json");
   assert.strictEqual(json.code, 1);
   assert.strictEqual(json.json.error.code, "unknown-gate");
-  assert.match(json.json.error.how, /ambiguous-intent, open-facts, adr-amend-or-contradict, irreversible-operation, review-limit, checks-changed/);
+  assert.match(json.json.error.how, /ambiguous-intent, kind-change, open-facts, adr-amend-or-contradict, irreversible-operation, review-limit, checks-changed/);
 
   const text = ospec(root, "record", "withdraw", "--change", "fix-pagination", "--obligation", "nope", "--reason", "r");
   assert.strictEqual(text.code, 1);
