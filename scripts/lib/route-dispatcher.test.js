@@ -1566,3 +1566,14 @@ test("selectRoute merges root HARD_FLOORS signals even when ctx.impact is empty 
   assert.equal(result.floor, "critical");
   assert.equal(result.name, "standard");
 });
+
+test("REQ-lifecycle-kernel-034: parseRoutingTable skips the lines of a value", () => {
+  const [route] = parseRoutingTable("routing:\n  - name: a\n    conditions:\n      note: |\n        auth_security: true\n    phases:\n      - |\n        - fake\n      - apply\n");
+  assert.equal(route.conditions.auth_security, undefined);
+  assert.deepEqual(route.phases, ["|", "apply"]);
+  const started = process.hrtime.bigint();
+  for (const value of [" ".repeat(100000), `a${" #".repeat(50000)}`].flatMap((run) => ["b", "\rb", "\u2028b"].map((tail) => `${run}${tail}`))) {
+    parseRoutingTable(`routing:\n  - name:${value}\n    phases:${value}\n    conditions:\n      a:${value}\n    gates:\n      -${value}\n`);
+  }
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
+});

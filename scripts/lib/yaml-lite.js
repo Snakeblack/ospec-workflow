@@ -8,8 +8,8 @@
 // cannot see reads as absent, so each caller keeps its default.
 //
 // It also holds the scan of scalar continuation lines that the state.yaml
-// projector and every line reader of state.yaml share (REQ-lifecycle-kernel-032
-// and -033).
+// projector and every line reader of state.yaml and config.yaml share
+// (REQ-lifecycle-kernel-032 to -034).
 
 // Drops a comment: a `#` at the start of the text or after whitespace, outside
 // quotes.
@@ -59,11 +59,14 @@ function splitFlow(body) {
   return parts.map((part) => part.trim()).filter(Boolean);
 }
 
-// Reads the rest of a key path inside a one-line flow mapping.
+// Reads the rest of a key path inside a one-line flow mapping. A plain key
+// ends in a character other than a space, so the key never overlaps the
+// spaces before the colon and a long entry is read in linear time
+// (REQ-lifecycle-kernel-034).
 function readFlowScalar(value, keyPath) {
   if (!value.startsWith("{") || !value.endsWith("}")) return null;
   for (const part of splitFlow(value.slice(1, -1))) {
-    const entry = /^([^\s:'"{}[\],][^:]*?|"[^"]*"|'[^']*')\s*:(?:\s+(.*))?$/.exec(part);
+    const entry = /^([^\s:'"{}[\],](?:[^:]*[^\s:])?|"[^"]*"|'[^']*')\s*:(?:\s+([^\n]*))?$/.exec(part);
     if (!entry || unquote(entry[1].trim()) !== keyPath[0]) continue;
     const inner = (entry[2] || "").trim();
     if (keyPath.length === 1) return inner === "" || inner.startsWith("{") ? null : unquote(inner);
@@ -88,13 +91,13 @@ function readYamlScalar(text, keyPath) {
   const keyIndent = [];
   const childIndent = [0];
   for (const raw of String(text).split(/\r?\n/)) {
-    const line = stripComment(raw).replace(/\s+$/, "");
+    const line = stripComment(raw).trimEnd();
     if (line.trim() === "") continue;
     const indent = line.length - line.trimStart().length;
     while (depth > 0 && indent <= keyIndent[depth - 1]) depth -= 1;
     if (childIndent[depth] === undefined) childIndent[depth] = indent;
     if (indent !== childIndent[depth]) continue;
-    const entry = /^\s*([^\s:#'"-][^:]*?|"[^"]*"|'[^']*'):(?:\s+(.*))?$/.exec(line);
+    const entry = /^\s*([^\s:#'"-][^:]*?|"[^"]*"|'[^']*'):(?:\s+([^\n]*))?$/.exec(line);
     if (!entry || unquote(entry[1].trim()) !== keyPath[depth]) continue;
     const value = (entry[2] || "").trim();
     if (depth === keyPath.length - 1) return value === "" || value.startsWith("{") ? null : unquote(value);
@@ -125,11 +128,13 @@ function readYamlScalar(text, keyPath) {
 // The scan reads a key as YAML does: quoted, or plain up to the first colon
 // that a space, a tab or the end of the line follows. Its patterns name the
 // space and the tab, never \s, so Node matches Go, and none of them backtracks
-// more than linearly on a long line (REQ-lifecycle-kernel-033).
-const BLOCK_SCALAR_HEADER = /^[|>](?:[1-9][+-]?|[+-][1-9]?)?(?:[ \t]+#.*)?$/;
-const MAPPING_LINE = /^([^:\s][^:]*):\s*(.*)$/;
+// more than linearly on a long line (REQ-lifecycle-kernel-033). Where Go has
+// `.` they take [^\n], since `.` in Node also stops at CR, U+2028 and U+2029
+// (REQ-lifecycle-kernel-034).
+const BLOCK_SCALAR_HEADER = /^[|>](?:[1-9][+-]?|[+-][1-9]?)?(?:[ \t]+#[^\n]*)?$/;
+const MAPPING_LINE = /^([^:\s][^:]*):\s*([^\n]*)$/;
 const NODE_PROPERTIES = /^(?:(?:![^ \t]*|&[^ \t]+)(?:[ \t]+|$))+/;
-const ENTRY_LINE = /^(?:(?:"(?:[^"\\]|\\.)*"|'(?:[^']|'')*')[ \t]*|[^ \t#"'](?:[^:]|:[^ \t])*?):(?:[ \t]+(.*))?$/;
+const ENTRY_LINE = /^(?:(?:"(?:[^"\\]|\\[^\n])*"|'(?:[^']|'')*')[ \t]*|[^ \t#"'](?:[^:]|:[^ \t])*?):(?:[ \t]+([^\n]*))?$/;
 
 function lineIndent(raw) {
   return raw.match(/^ */)[0].length;
@@ -161,6 +166,12 @@ function opensQuotedScalar(value) {
 // is empty, so what follows on the next line is its value.
 function withoutProperties(value) {
   return value.replace(NODE_PROPERTIES, "");
+}
+
+// Whether a value is the header of a block scalar (`|`, `>-`, `!!str |`), whose
+// content is on the lines after it.
+function isBlockScalarHeader(value) {
+  return BLOCK_SCALAR_HEADER.test(withoutProperties(String(value).trim()));
 }
 
 // The bracket depth of a flow collection after `text`, starting at `depth`,
@@ -314,6 +325,7 @@ function opaqueScalarLines(text) {
 module.exports = {
   BLOCK_SCALAR_HEADER,
   MAPPING_LINE,
+  isBlockScalarHeader,
   lineIndent,
   opaqueScalarLines,
   opensQuotedScalar,

@@ -1156,7 +1156,15 @@ profile decides or recommends them), `checks` (the checks
 means none), `impact` (the impact section of REQ-idd-012) and `contracts`
 (where contract documents and their tests live, REQ-idd-015). An unknown or repeated key, a value outside its
 domain or an unreadable line MUST be refused with the code `config-invalid`;
-invalid contents of `impact` keep the code `impact-config-invalid`.
+invalid contents of `impact` keep the code `impact-config-invalid`. Every value
+is written on its key's line: a block scalar (`|`, `>-`), a value that
+continues on more lines (a multi-line quoted or flow scalar, a value on the
+line after its key) and a quoted scalar or flow collection that never closes
+MUST be refused with `config-invalid`, naming the line when it has one, and
+the lines of such a value MUST NOT be read as keys or checks. Every entry of a
+section sits at the indentation of its first entry; an entry indented
+otherwise, as a key under a plain scalar, is an unreadable line, while the
+`- item` lines of a list may sit at any indentation.
 
 Optional configuration does not mean optional check evidence: without at
 least one declared check no IDD change can close. The IDD skill MUST ask the
@@ -1187,6 +1195,14 @@ placeholder MUST produce no candidate; the guidance MUST ask for a command.
 - GIVEN an `idd/config.yaml` with the top-level key `workflow`
 - WHEN `ospec signals` reads the project context
 - THEN it MUST exit with 1 and the error code `config-invalid`
+
+#### Scenario: A value on more lines is refused
+
+- GIVEN an `idd/config.yaml` whose check `test: |` holds `lint: rm -rf build`
+  on the next line
+- WHEN the configuration is read
+- THEN it MUST be refused with `config-invalid` naming line 3, and no check
+  `lint` MUST run
 
 ### Requirement: Check And Run Record Observed Executions {#REQ-idd-014}
 

@@ -73,7 +73,7 @@ function parseScalar(value) {
     return quoted[2];
   }
 
-  return trimmed.replace(/\s+#.*$/, "").trim();
+  return trimmed.replace(/(?<!\s)\s+#[^\n]*$/, "").trim();
 }
 
 /**
@@ -453,7 +453,7 @@ const SUBFIELD_INDENT = 6; // "      key: value" / "      - item"
 // sequence named by currentArrayKey.
 function applySubfieldLine(trimmed, { inConditions, currentArrayKey, currentEntry }) {
   if (inConditions) {
-    const kvMatch = trimmed.match(/^([\w.\-]+):\s*(.*)$/);
+    const kvMatch = trimmed.match(/^([\w.\-]+):\s*([^\n]*)$/);
     if (!kvMatch) {
       return;
     }
@@ -470,7 +470,7 @@ function applySubfieldLine(trimmed, { inConditions, currentArrayKey, currentEntr
   }
 
   if (currentArrayKey !== null) {
-    const itemMatch = trimmed.match(/^-\s+(.+)$/);
+    const itemMatch = trimmed.match(/^-\s+([^\n]+)$/);
     if (!itemMatch) {
       return;
     }
@@ -482,7 +482,8 @@ function applySubfieldLine(trimmed, { inConditions, currentArrayKey, currentEntr
 }
 
 function parseRoutingTable(content) {
-  const lines = String(content).split(/\r?\n/);
+  // REQ-lifecycle-kernel-034: the lines of a value are blank.
+  const { lines } = opaqueScalarLines(content);
   let inRouting = false;
   let currentEntry = null;
   const entries = [];
@@ -542,7 +543,7 @@ function parseRoutingTable(content) {
 
       // The first field may be inlined on the same line after "- "
       const rest = trimmed.slice(2).trim();
-      const kvMatch = rest.match(/^([\w.\-]+):\s*(.*)$/);
+      const kvMatch = rest.match(/^([\w.\-]+):\s*([^\n]*)$/);
 
       if (kvMatch) {
         const key = kvMatch[1];
@@ -567,7 +568,7 @@ function parseRoutingTable(content) {
       currentArrayKey = null;
       inConditions = false;
 
-      const kvMatch = trimmed.match(/^([\w.\-]+):\s*(.*)$/);
+      const kvMatch = trimmed.match(/^([\w.\-]+):\s*([^\n]*)$/);
 
       if (!kvMatch) {
         continue;
@@ -1023,7 +1024,7 @@ function parsePersistedRouteSection(stateContent) {
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
-    const text = line.replace(/\s+#.*$/, "");
+    const text = line.replace(/(?<!\s)\s+#[^\n]*$/, "");
     const indent = (line.match(/^\s*/) || [""])[0].length;
     if (indent === 0) {
       finishBlock();

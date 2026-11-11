@@ -6,6 +6,8 @@
 // and no external runtime dependencies. Zero side effects.
 // ============================================================================
 
+const { opaqueScalarLines } = require("./yaml-lite.js");
+
 /**
  * Compare two strings lexicographically.
  * Matches the compareStrings helper in skill-registry.js.
@@ -18,7 +20,7 @@ function compareStrings(left, right) {
 }
 
 function parseKeyValue(str, entry) {
-  const kvMatch = str.match(/^([\w.\-]+):\s*(.*)$/);
+  const kvMatch = str.match(/^([\w.\-]+):\s*([^\n]*)$/);
   if (!kvMatch) {
     return;
   }
@@ -49,7 +51,8 @@ function parseCapabilities(configContent) {
   if (configContent === null || configContent === undefined) {
     return [];
   }
-  const lines = String(configContent).split(/\r?\n/);
+  // REQ-lifecycle-kernel-034: the lines of a value are blank.
+  const { lines } = opaqueScalarLines(configContent);
   const entries = [];
   let inCapabilities = false;
   let currentEntry = null;

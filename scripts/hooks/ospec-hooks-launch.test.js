@@ -1173,3 +1173,12 @@ test("cursor hooks run from the first workspace root that exists", (t) => {
   const rootless = runLauncher(t, { argv: ["stop"], stdin: JSON.stringify({ conversation_id: "c-1", cursor_version: "1.7", workspace_roots: [missing, file] }), outcome, target: null });
   assert.equal(rootless.options.cwd, undefined, "without a root that exists the hook keeps its own directory");
 });
+
+test("REQ-lifecycle-kernel-034: resolveInvocation ignores a backend written inside a value of artifact_store", () => {
+  const suffix = { goos: "linux", goarch: "amd64", ext: "" };
+  const platform = path.join(HOOKS_DIR, "ospec-hooks-linux-amd64");
+  const configPath = path.join(process.cwd(), "openspec", "config.yaml");
+  const exists = (p) => p === platform || p === configPath;
+  const readFileSync = () => "artifact_store:\n  notes: |\n    backend: workspace-federated\n  backend: openspec\n";
+  assert.deepEqual(resolveInvocation("session-start", HOOKS_DIR, suffix, exists, readFileSync, {}), { command: platform, args: ["session-start"] });
+});

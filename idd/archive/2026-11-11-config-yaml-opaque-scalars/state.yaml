@@ -1,0 +1,2511 @@
+{
+  "schema": "idd-state/v1",
+  "change": "config-yaml-opaque-scalars",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Los lectores línea a línea de openspec/config.yaml e idd/config.yaml leen claves dentro de un escalar de bloque o multilínea, extractConfigDefaults hace backtracking exponencial y readFlowScalar es cuadrático",
+    "acceptance": "Ningún lector de config.yaml lee una clave dentro de las líneas de continuación de un valor: un backend: workspace-federated dentro de notes: | bajo artifact_store no cambia el backend (Node ni lanzador), un scope dentro de un justification: | no cambia el override de atribución, un name: cmd dentro de un bloque de checks no se ejecuta como check, una línea de bloque no corta una capacidad ni añade fases, dominios o claves de team; extractConfigDefaults y readFlowScalar terminan en tiempo lineal (una sección project: de 30 líneas sin status y 80.000 espacios en un mapa flow tardan mucho menos de un segundo); y Go ReadBaselineState lee igual que Node"
+  },
+  "facts": {
+    "open": [
+      "quality_review.attribution_override con un valor que sigue en más líneas (justification: | con el texto debajo): ¿el override pasa a inválido (fail-closed), se lee el contenido del bloque como justificación, o se lee solo la línea de la clave (justification = \"|\")?",
+      "idd/config.yaml con un valor que sigue en más líneas (test: | con el comando debajo, o un escalar entrecomillado multilínea): ¿se rechaza con config-invalid nombrando la línea, o se ignoran las continuaciones y se lee la línea de la clave (check test = \"|\")?",
+      "extractConfigDefaults (condiciones de ruta project.status, baseline.status, artifact_store.backend): ¿se lee con readYamlScalar, solo el hijo directo de la sección de primer nivel (un status más anidado o bajo un project: anidado o subproject: deja de contar), o se conserva la semántica actual con una regex lineal?",
+      "openspec/config.yaml malformado (un escalar entrecomillado o una colección flow que nunca cierra): ¿los lectores leen como hoy las líneas que siguen al error (como los lectores de state.yaml que no son el gate), o toman todo el fichero como ausente y usan sus valores por defecto?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "internal/store/store.go",
+      "internal/store/store_test.go",
+      "internal/yamllite/yamllite_test.go",
+      "openspec/specs/idd/spec.md",
+      "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/ospec-hooks-launch.test.js",
+      "scripts/lib/capability-registry.js",
+      "scripts/lib/capability-registry.test.js",
+      "scripts/lib/idd-config.js",
+      "scripts/lib/idd-config.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/ospec-state.js",
+      "scripts/lib/ospec-state.test.js",
+      "scripts/lib/route-dispatcher.js",
+      "scripts/lib/route-dispatcher.test.js",
+      "scripts/lib/team-profile.js",
+      "scripts/lib/team-profile.test.js",
+      "scripts/lib/yaml-lite.js",
+      "scripts/lib/yaml-lite.test.js",
+      "scripts/route-dispatch-run.js",
+      "scripts/route-dispatch-run.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Cada lector línea a línea de openspec/config.yaml recibe las líneas de opaqueScalarLines (el escáner de REQ-lifecycle-kernel-033), así que no cambia su lógica: todos ya saltan las líneas vacías",
+      "Un valor del override de atribución que sigue en más líneas (escalar de bloque, entrecomillado o flow multilínea, o valor en la línea siguiente) deja el override inválido y el error nombra el campo (decisión 1A del usuario)",
+      "idd/config.yaml rechaza con config-invalid, nombrando la línea, un escalar de bloque y un valor que sigue en más líneas (decisión 2A del usuario)",
+      "extractConfigDefaults lee project.status, baseline.status y artifact_store.backend con readYamlScalar: solo el hijo directo de la sección de primer nivel (decisión 3A del usuario); el backtracking exponencial desaparece con la regex",
+      "Con un openspec/config.yaml malformado los lectores leen como hoy las líneas que siguen al error (decisión 4A del usuario)",
+      "countDeclaredChecks (Node y Go) no cambia: solo se usa si cuenta más de cero, y la línea de la clave de un bloque bajo checks ya cuenta, así que un bloque no cambia esa respuesta",
+      "El lanzador de hooks usa opaqueScalarLines de yaml-lite.js en su lector del backend, sin cargar ospec-state.js en la ruta caliente de cada hook",
+      "El contrato de los lectores de openspec/config.yaml va en REQ-lifecycle-kernel-034, junto al 033, porque comparten el escáner; el de idd/config.yaml amplía REQ-idd-013",
+      "readFlowScalar casa la clave sin solapar el espacio previo a los dos puntos, como ENTRY_LINE, así que es lineal",
+      "readBackendMode y el lector del backend del lanzador leen artifact_store.backend con readYamlScalar, solo el hijo directo como extractConfigDefaults tras 3A, en vez de recorrer las líneas opacas: un backend más anidado deja de contar y los tres lectores del backend coinciden",
+      "Los patrones \\s+#.*$ de los lectores tocados pasan a (?<!\\s)\\s+#.*$, que quita el mismo comentario y solo empieza a casar al principio de un tramo de espacios, y el \\s+$ de readYamlScalar pasa a trimEnd(): con 40.000 espacios en un valor tardaban de 1 a 3 s y crecían al cuadrado",
+      "Aviso de la revisión de confianza: con un CR suelto o un U+2028 tras un tramo de espacios, el (.*)$ final no llega al final de la línea en Node y el motor reintentaba cada reparto del tramo; la última captura de los patrones de yaml-lite y de los lectores de config pasa a [^\\n], igual que . en Go, así que Node lee esa línea como Go y en tiempo lineal",
+      "El lector de team de openspec/config.yaml lee cada entrada en dos pasos lineales (clave y resto, y después el valor sobre el resto recortado), porque su patrón con un tramo de espacios a cada lado de un valor opcional era cuadrático también sin CR",
+      "Los lectores de state.yaml de REQ-lifecycle-kernel-033 (readStatus, extractStateRouteInfo, la ruta persistida, archive-transaction y los hooks) tienen el mismo patrón con CR; quedan fuera de este cambio, que solo toca los de config.yaml y el escáner, y se proponen al usuario como cambio aparte",
+      "Segunda revisión de confianza: el quitador de comentarios (?<!\\s)\\s+#.*$ era cuadrático con pares ' #' seguidos de un CR suelto o un U+2028, porque cada ' #' pasa el lookbehind y el punto no llega al final; pasa a (?<!\\s)\\s+#[^\\n]*$ en los siete sitios, y un fuzzer de 29 unidades repetidas por 13 colas sobre los 11 lectores no encuentra ningún caso superlineal con 100.000 caracteres",
+      "Tercera revisión de confianza: BLOCK_SCALAR_HEADER terminaba en #.* y la clave entrecomillada de ENTRY_LINE en \\\\.; en Node el punto no casa CR, U+2028 ni U+2029, así que una cabecera | # c<U+2028>x o una clave \"a\\<CR>b\" eran bloque en Go y no en Node, y el contenido del bloque se leía como claves (un check lint en idd/config.yaml); los dos pasan a [^\\n], igual que el punto de Go, con un test gemelo Node/Go",
+      "Decisión del usuario (2A): los lectores de state.yaml con el mismo patrón cuadrático ante un CR (readStatus, extractStateRouteInfo, la ruta persistida, archive-transaction, pre-compact y pre-tool-use) van en una PR propia justo detrás de esta, antes de PR4c",
+      "Decisión del usuario (3A): parseIddConfig exige que las entradas de una sección vayan a la sangría de la primera; una entrada con otra sangría (una clave más sangrada tras un escalar simple, YAML inválido) es una línea ilegible con config-invalid, y los elementos - de una lista siguen admitiéndose a cualquier sangría, también a la de su clave",
+      "Cuarta revisión de confianza (aviso no bloqueante): el escáner decide si una línea está en blanco con trim() en Node y strings.TrimSpace en Go, que discrepan en U+0085 (solo Go lo quita) y U+FEFF (solo Node); decisión del usuario (A): va en la PR siguiente de los lectores de state.yaml, donde los dos escáneres recortarán solo espacio y tabulador, los blancos de YAML 1.2, con un test diferencial Node/Go"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/lib/idd-config.js (matches scripts/lib/idd-config.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: touches scripts/lib/ospec-state.js (matches scripts/lib/ospec-state.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components change-state, hooks, idd-engine: ADR 0002, 0003, 0004, 0005, 0008, 0009, 0010, 0011 and quality scenario contract-compatibility, deterministic-resume, guard-fail-closed",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0002",
+      "impact": "conforms",
+      "reason": "openspec/config.yaml e idd/config.yaml siguen siendo la autoridad en disco; los lectores leen solo sus claves reales y no el texto de un valor"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "la lectura de idd/config.yaml y del override sigue en el CLI y sus librerías, con la regla del escáner compartido; la skill no cambia"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "la ceremonia se sigue derivando de impact: en idd/config.yaml; un valor multilínea ya no puede colar claves de impacto o checks, se rechaza con config-invalid"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "los checks que ospec check ejecuta son solo los que idd/config.yaml declara en la línea de su clave; un bloque ya no añade checks ni vale | como comando"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "el override de atribución falla cerrado ante un valor multilínea y un scope escrito dentro de la justificación ya no amplía el override; el lanzador no cambia de binario por texto de un bloque"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "los esquemas de config no cambian; idd/config.yaml rechaza formas que su subconjunto YAML nunca admitió bien, con el código config-invalid que REQ-idd-013 ya define"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "el escáner vive en scripts/lib/yaml-lite.js e internal/yamllite, que el runtime ya incluye; el lanzador lo carga solo para los hooks que leen el backend, sin dependencias nuevas"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "cada modo sigue leyendo su propia configuración: los lectores SDD leen openspec/config.yaml e IDD lee idd/config.yaml; el arreglo toca cada lector en su modo sin cruzarlos"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "los 16 config.yaml versionados se leen igual en main y en la rama y las suites pasan sin tocar fixtures; solo cambian formas multilínea que antes se leían mal"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "ruta, backend, baseline y checks se leen de las claves reales, así que la reanudación no depende del texto de un valor"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "el override de atribución queda inválido ante un valor multilínea y idd/config.yaml rechaza un bloque en vez de ejecutarlo como checks"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-22"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-23"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-25"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-26"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-24"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-27"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 233,
+      "answer": "todas las recomendadas (1A override inválido fail-closed; 2A config-invalid con la línea; 3A readYamlScalar, solo hijo directo; 4A leer como hoy las líneas tras el error)",
+      "source": "user",
+      "resolved_turn": 234
+    },
+    {
+      "id": "review-limit",
+      "status": "resolved",
+      "reason": "3 of 3 trust reviews used: ospec check opens the review-limit gate, and only the person's answer authorizes one more",
+      "opened_turn": 238,
+      "answer": "todas las recomendadas (1A: autorizo una cuarta revisión de confianza)",
+      "source": "user",
+      "resolved_turn": 239
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-10T23:50:34.981Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-10T23:55:30.257Z",
+      "detail": {
+        "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+        "runs": [
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-10T23:55:30.257Z",
+      "detail": {
+        "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md"
+        ],
+        "tests": [
+          "internal/store/store_test.go",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-10T23:56:25.571Z",
+      "detail": {
+        "run": "run-29",
+        "tree": "sha256:cb83304a85e11ce4d3479616f52eb19f10943862ede48c3ca743c48cd2ee4e7c",
+        "plan": "Los formatos de openspec/config.yaml e idd/config.yaml no cambian y no hay migración: los lectores de openspec/config.yaml solo dejan de leer las líneas de un valor (continuaciones de un escalar o de una colección flow multilínea y el valor en la línea siguiente) y el backend y los valores por defecto de ruta pasan a ser el hijo directo de su sección, así que una configuración sin ellos se lee igual; los 16 config.yaml versionados (el del repo y los fixtures) dan lecturas idénticas en main y en la rama, y lo prueban sin tocar fixtures las suites completas de los lectores, sus llamadores (session-start, artifact-store, validate-phase) y store y hooks de Go. Cambios visibles: idd/config.yaml rechaza con config-invalid un escalar de bloque, un valor multilínea y un escalar entrecomillado o flow sin cerrar (antes un check podía valer | o leer el bloque como más checks); un override de atribución con un valor multilínea queda inválido. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-10T23:58:31.779Z",
+      "detail": {
+        "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+        "runs": [
+          "run-30"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-10T23:58:31.779Z",
+      "detail": {
+        "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+        "check": "ev-5",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md"
+        ],
+        "tests": [
+          "internal/store/store_test.go",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-10T23:58:31.779Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+        "fitness": [
+          "run-31",
+          "run-32",
+          "run-33",
+          "run-34",
+          "run-35",
+          "run-36",
+          "run-37",
+          "run-38",
+          "run-39",
+          "run-40",
+          "run-41"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-11T00:05:45.539Z",
+      "detail": {
+        "lineage_id": "sha256:4c7f9b2026deaba4815eaaf0b01266688a0af6d68ab62273f0a9054cba592766",
+        "candidate_id": "sha256:b3faa120ce12a05eabd80ec4f33318b58d4eb8f0355e7dd8f0f38e171cabebe2",
+        "candidate_tree": "1ef59ed3f6e1886635a3a2e9e91554ecc2b5f294",
+        "findings_digest": "sha256:9736b1fb88f67b896b3c3472afc9251e44712c96eac082df026900c54385f4bf",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-11T00:03:54.117Z",
+          "result_digest": "sha256:b6e7288e8bd21b2d6922b534f99fc513b7f8323a44985a94195300b8bc84260d"
+        }
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T00:10:22.576Z",
+      "detail": {
+        "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+        "runs": [
+          "run-42"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-11T00:10:22.576Z",
+      "detail": {
+        "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+        "check": "ev-9",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md"
+        ],
+        "tests": [
+          "internal/store/store_test.go",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T00:10:22.576Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+        "fitness": [
+          "run-43",
+          "run-44",
+          "run-45",
+          "run-46",
+          "run-47",
+          "run-48",
+          "run-49",
+          "run-50",
+          "run-51",
+          "run-52",
+          "run-53"
+        ]
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-11T00:10:46.360Z",
+      "detail": {
+        "run": "run-54",
+        "tree": "sha256:0adcbe797271262ee3e518ef24f39dc98bafe32274d817d01270198010eba751",
+        "plan": "Los formatos de openspec/config.yaml e idd/config.yaml no cambian y no hay migración: los lectores de openspec/config.yaml solo dejan de leer las líneas de un valor (continuaciones de un escalar o de una colección flow multilínea y el valor en la línea siguiente) y el backend y los valores por defecto de ruta pasan a ser el hijo directo de su sección, así que una configuración sin ellos se lee igual; los 16 config.yaml versionados (el del repo y los fixtures) dan lecturas idénticas en main y en la rama, y lo prueban sin tocar fixtures las suites completas de los lectores, sus llamadores (session-start, artifact-store, validate-phase) y yamllite, store y hooks de Go. Cambios visibles: idd/config.yaml rechaza con config-invalid un escalar de bloque, un valor multilínea y un escalar entrecomillado o flow sin cerrar (antes un check podía valer | o leer el bloque como más checks); un override de atribución con un valor multilínea queda inválido; Node lee una línea con un CR suelto o un U+2028 como ya la leía Go. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-11T00:16:01.438Z",
+      "detail": {
+        "lineage_id": "sha256:d3ee1664e0745a677a18afd7e312335c6b5d0d264925629405bdd353f47e6ac0",
+        "candidate_id": "sha256:b4f63869ce59a8f13fe1bc62dc65fa80f52f988ea3a3b8c6803b68ec0284c1b8",
+        "candidate_tree": "696c6e61faa054c4a0efacf13b77a7d2aed97987",
+        "findings_digest": "sha256:40338bcf8994f85d23addc9362aa500c4092d9890c0c8282f5efbf7872d4c004",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-11T00:15:38.181Z",
+          "result_digest": "sha256:d2c09f37bb120bd816c80a328e5f5c7b9aa813c0906b9b756a451997a6b485bb"
+        }
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T00:19:19.646Z",
+      "detail": {
+        "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+        "runs": [
+          "run-55"
+        ]
+      }
+    },
+    {
+      "id": "ev-15",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-11T00:19:19.646Z",
+      "detail": {
+        "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+        "check": "ev-14",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md"
+        ],
+        "tests": [
+          "internal/store/store_test.go",
+          "internal/yamllite/yamllite_test.go",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-16",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T00:19:19.646Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+        "fitness": [
+          "run-56",
+          "run-57",
+          "run-58",
+          "run-59",
+          "run-60",
+          "run-61",
+          "run-62",
+          "run-63",
+          "run-64",
+          "run-65",
+          "run-66"
+        ]
+      }
+    },
+    {
+      "id": "ev-17",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-11T00:19:43.193Z",
+      "detail": {
+        "run": "run-67",
+        "tree": "sha256:b0305e55d885a610f8cd2afe2d2a27a5a13cd7a51fe21ad5ecbae08eaa64d98b",
+        "plan": "Los formatos de openspec/config.yaml e idd/config.yaml no cambian y no hay migración: los lectores de openspec/config.yaml solo dejan de leer las líneas de un valor (continuaciones de un escalar o de una colección flow multilínea y el valor en la línea siguiente) y el backend y los valores por defecto de ruta pasan a ser el hijo directo de su sección, así que una configuración sin ellos se lee igual; los 16 config.yaml versionados (el del repo y los fixtures) dan lecturas idénticas en main y en la rama, y lo prueban sin tocar fixtures las suites completas de los lectores, sus llamadores (session-start, artifact-store, validate-phase) y yamllite, store y hooks de Go. Cambios visibles: idd/config.yaml rechaza con config-invalid un escalar de bloque, un valor multilínea y un escalar entrecomillado o flow sin cerrar (antes un check podía valer | o leer el bloque como más checks); un override de atribución con un valor multilínea queda inválido; Node lee una línea con un CR suelto o un U+2028 como ya la leía Go. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-18",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-11T00:23:09.012Z",
+      "detail": {
+        "lineage_id": "sha256:b2cac6ac78373074224be47f730ee8082607aaa95e90d4df5c0a638f3c4e5306",
+        "candidate_id": "sha256:90dbc026676b9be7a7b2647f05a7a432927eaa8f150e42b509b3bd5e046b0e9a",
+        "candidate_tree": "a3e6a9d9121c7a7eadcf8287a11c0e2911e5d1e1",
+        "findings_digest": "sha256:5ee357234e2b12caafd0b88e35e14994b218ea1c85a9d5672060e440cb18e87e",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-11T00:22:37.090Z",
+          "result_digest": "sha256:6982f2502f0d75a89ce34637618e1c11c316536306ec70d4fff3d9e2a41b8741"
+        }
+      }
+    },
+    {
+      "id": "ev-19",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T00:26:17.822Z",
+      "detail": {
+        "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+        "runs": [
+          "run-68"
+        ]
+      }
+    },
+    {
+      "id": "ev-20",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-11T00:26:17.822Z",
+      "detail": {
+        "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+        "check": "ev-19",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md"
+        ],
+        "tests": [
+          "internal/store/store_test.go",
+          "internal/yamllite/yamllite_test.go",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-21",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T00:26:17.822Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+        "fitness": [
+          "run-69",
+          "run-70",
+          "run-71",
+          "run-72",
+          "run-73",
+          "run-74",
+          "run-75",
+          "run-76",
+          "run-77",
+          "run-78",
+          "run-79"
+        ]
+      }
+    },
+    {
+      "id": "ev-22",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T00:32:41.133Z",
+      "detail": {
+        "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+        "runs": [
+          "run-80"
+        ]
+      }
+    },
+    {
+      "id": "ev-23",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-11T00:32:41.133Z",
+      "detail": {
+        "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+        "check": "ev-22",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md"
+        ],
+        "tests": [
+          "internal/store/store_test.go",
+          "internal/yamllite/yamllite_test.go",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-24",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T00:32:41.133Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+        "fitness": [
+          "run-81",
+          "run-82",
+          "run-83",
+          "run-84",
+          "run-85",
+          "run-86",
+          "run-87",
+          "run-88",
+          "run-89",
+          "run-90",
+          "run-91"
+        ]
+      }
+    },
+    {
+      "id": "ev-25",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-11T00:32:51.656Z",
+      "detail": {
+        "run": "run-92",
+        "tree": "sha256:a45d17d4be44214ca3762f467db86298839a4d5b6c920db605eaf8d32549a07d",
+        "plan": "Los formatos de openspec/config.yaml e idd/config.yaml no cambian y no hay migración: los lectores de openspec/config.yaml solo dejan de leer las líneas de un valor (continuaciones de un escalar o de una colección flow multilínea y el valor en la línea siguiente) y el backend y los valores por defecto de ruta pasan a ser el hijo directo de su sección, así que una configuración sin ellos se lee igual; los 16 config.yaml versionados (el del repo y los fixtures) dan lecturas idénticas en main y en la rama, y lo prueban sin tocar fixtures las suites completas de los lectores, sus llamadores (session-start, artifact-store, validate-phase) y yamllite, store y hooks de Go. Cambios visibles: idd/config.yaml rechaza con config-invalid un escalar de bloque, un valor multilínea, un escalar entrecomillado o flow sin cerrar y una entrada de sección con otra sangría que la primera (antes un check podía valer | o leer el bloque o una clave más sangrada como más checks); un override de atribución con un valor multilínea queda inválido; Node lee una línea con un CR suelto, U+2028 o U+2029 como ya la leía Go. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-26",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-11T00:37:33.425Z",
+      "detail": {
+        "lineage_id": "sha256:306d4652c863bd28f318b669e1bf10d04ba13c704fbebae01faee6e6a25bf4f3",
+        "candidate_id": "sha256:75c28eeb477fe97eaae3d2fb54cf1f58f7f4cb21722615260d831eddd5936425",
+        "candidate_tree": "6dadc23cb79974b700f4a089f37fa140b38cd6e7",
+        "findings_digest": "sha256:25a10627d43bd28cc40adf32264ddc8ad3bb578671a2b43b3f338a2711939ddf",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-11T00:36:15.602Z",
+          "result_digest": "sha256:40a53ba4ec21a4be56efede6269956efd766884826008be7be114d97e74299e8"
+        }
+      }
+    },
+    {
+      "id": "ev-27",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-11T08:09:47.023Z"
+    }
+  ],
+  "base": "e5fa11517ba3d433260f3077a2b8fadfad290896",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"REQ-lifecycle-kernel-034|REQ-idd-013: a value\" scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/lib/route-dispatcher.test.js scripts/route-dispatch-run.test.js scripts/lib/capability-registry.test.js scripts/lib/team-profile.test.js scripts/lib/idd-config.test.js && go test ./internal/store/ -run TestReadBaselineState_SkipsScalarContinuations",
+      "exit_code": 1,
+      "output_sha256": "sha256:c5983034dc3edddb35df7949ebc58567169558fb74ce8b5349d5114530907194",
+      "tree": "sha256:9ad1d3bbdd60071dfe98715eb19eef734a3a80217d1fffd848acc0ece9d20973",
+      "recorded_at": "2026-11-10T23:47:24.770Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"REQ-lifecycle-kernel-034|REQ-idd-013: a value\" scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/lib/route-dispatcher.test.js scripts/route-dispatch-run.test.js scripts/lib/capability-registry.test.js scripts/lib/team-profile.test.js scripts/lib/idd-config.test.js && go test ./internal/store/ -run TestReadBaselineState_SkipsScalarContinuations",
+      "exit_code": 0,
+      "output_sha256": "sha256:f09c2a4f464c10295ea9b6f34bb2ad998f62c1f1a71e703c3d62c3d9a4c375d9",
+      "tree": "sha256:e445e46ea2e116ce4ef6ced54906e0159ec8603d818a977050ed0064e185458a",
+      "recorded_at": "2026-11-10T23:50:34.981Z",
+      "tests": 11,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "e5fa11517ba3d433260f3077a2b8fadfad290896",
+      "mount": "sha256:c0b7e0dc8b84ca128c2b1b8c823df2d7e4409a33d78fa679404c9053730464c5",
+      "command": "node --test --test-name-pattern=\"REQ-lifecycle-kernel-034|REQ-idd-013: a value\" scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/lib/route-dispatcher.test.js scripts/route-dispatch-run.test.js scripts/lib/capability-registry.test.js scripts/lib/team-profile.test.js scripts/lib/idd-config.test.js && go test ./internal/store/ -run TestReadBaselineState_SkipsScalarContinuations",
+      "exit_code": 1,
+      "output_sha256": "sha256:94778475b744937090ba677651516ffe9398eb1f75993bc4ed0ce4abc2dc5b8e",
+      "tree": "sha256:e445e46ea2e116ce4ef6ced54906e0159ec8603d818a977050ed0064e185458a",
+      "recorded_at": "2026-11-10T23:50:34.981Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "e5fa11517ba3d433260f3077a2b8fadfad290896",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"REQ-lifecycle-kernel-034|REQ-idd-013: a value\" scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/lib/route-dispatcher.test.js scripts/route-dispatch-run.test.js scripts/lib/capability-registry.test.js scripts/lib/team-profile.test.js scripts/lib/idd-config.test.js && go test ./internal/store/ -run TestReadBaselineState_SkipsScalarContinuations",
+      "exit_code": 0,
+      "output_sha256": "sha256:713d63e077cb3013ce7ff7b4fad2532bcaf7827b2f827a05533c9afa46de59cb",
+      "tree": "sha256:e445e46ea2e116ce4ef6ced54906e0159ec8603d818a977050ed0064e185458a",
+      "recorded_at": "2026-11-10T23:50:34.981Z",
+      "tests": 8
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d7c70dda34b6ebb124e5791d211964e4567477785f6ea16ad24d163354f160d3",
+      "tree": "sha256:5d433162602e691958fd89c7e18690c793b59f0da593aeaf9d1ea5f54ec0021f",
+      "recorded_at": "2026-11-10T23:52:57.731Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dbba9ab10ba50c663a9b5e6b4f17f30bde162f4a95e46d02117ac55166b59dc2",
+      "tree": "sha256:5d433162602e691958fd89c7e18690c793b59f0da593aeaf9d1ea5f54ec0021f",
+      "recorded_at": "2026-11-10T23:52:57.731Z",
+      "tests": 14
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4081da6e5b1e3c6e6c29d3eb5c6e9b226a2071cf767b8a566e19d9faddbad577",
+      "tree": "sha256:5d433162602e691958fd89c7e18690c793b59f0da593aeaf9d1ea5f54ec0021f",
+      "recorded_at": "2026-11-10T23:52:57.731Z",
+      "tests": 59
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:375e8c06c39fb80f77482c3983f740767b8dcf8c763a9fa24e4b94b41da28670",
+      "tree": "sha256:5d433162602e691958fd89c7e18690c793b59f0da593aeaf9d1ea5f54ec0021f",
+      "recorded_at": "2026-11-10T23:52:57.731Z",
+      "tests": 18
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:26e20c16f998f095f8e914f94f4a0c29cc86e3232eae28a0ec128e44e0f6a46d",
+      "tree": "sha256:5d433162602e691958fd89c7e18690c793b59f0da593aeaf9d1ea5f54ec0021f",
+      "recorded_at": "2026-11-10T23:52:57.731Z",
+      "tests": 99
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9fd1a99dbc5d739c8b1d61f1a7886521eee5061329d13dcb6781794857e84f69",
+      "tree": "sha256:5d433162602e691958fd89c7e18690c793b59f0da593aeaf9d1ea5f54ec0021f",
+      "recorded_at": "2026-11-10T23:52:57.731Z",
+      "tests": 32
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:5d433162602e691958fd89c7e18690c793b59f0da593aeaf9d1ea5f54ec0021f",
+      "recorded_at": "2026-11-10T23:52:57.731Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7007b482b68dafa5b1d14527121b947866e60f1f7dfceaea0c5fc50b63e13c68",
+      "tree": "sha256:5d433162602e691958fd89c7e18690c793b59f0da593aeaf9d1ea5f54ec0021f",
+      "recorded_at": "2026-11-10T23:52:57.731Z",
+      "tests": 26
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f6e26f613de406435a27487eefd3e476fc707d1fe3c46efb4ac234870f10fc22",
+      "tree": "sha256:5d433162602e691958fd89c7e18690c793b59f0da593aeaf9d1ea5f54ec0021f",
+      "recorded_at": "2026-11-10T23:52:57.731Z",
+      "tests": 92
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d584679587361cb4ed940cdc7be17d1075fde5eb28582f97b9bf88bad9ed2571",
+      "tree": "sha256:5d433162602e691958fd89c7e18690c793b59f0da593aeaf9d1ea5f54ec0021f",
+      "recorded_at": "2026-11-10T23:52:57.731Z",
+      "tests": 32
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d4af7b12d73379d5db701b79c8567d698762172c6d3a58e38f4a145b971a5bcc",
+      "tree": "sha256:5d433162602e691958fd89c7e18690c793b59f0da593aeaf9d1ea5f54ec0021f",
+      "recorded_at": "2026-11-10T23:52:57.731Z",
+      "tests": 52
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bf641e655760dbc46a24fac356ed46732c9bcd04ef3f12d1dec50173dc9bc97c",
+      "tree": "sha256:5d433162602e691958fd89c7e18690c793b59f0da593aeaf9d1ea5f54ec0021f",
+      "recorded_at": "2026-11-10T23:52:57.731Z",
+      "tests": 99
+    },
+    {
+      "id": "run-17",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4988ab4a38ac69ea367a32a0576419d58a8fa2b7cc0438dd015a0716869a3fc4",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:55:30.257Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d4858e29cbc0a197976d6380507a94743e618d059e5b3c1ca97b57feea61d7eb",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:55:30.257Z",
+      "tests": 14
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2fb74cb4d74831c8abdad17ba7438944180750cad018daa8357e6d891a8bcb6c",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:55:30.257Z",
+      "tests": 59
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6b5e6d0487f9ae9a5207cd99772ed5ada2cf93fef6a71f95980a97b939e349ea",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:55:30.257Z",
+      "tests": 18
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e7425fabdc9e3e424f621e47112841544f00950d5aa7fedb6513d1d7c3074b8c",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:55:30.257Z",
+      "tests": 99
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:02bc81f2253faaef3bdd83d2791acae07a80d432e9eafa1e5b2bc07508679794",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:55:30.257Z",
+      "tests": 32
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:55:30.257Z"
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5be43d7f926f98c434f63055605253e2c7c505b22b1c811ee3ced70caa8244b9",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:55:30.257Z",
+      "tests": 26
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:69951f7164ee26e24269e6f56dbc21cc2f7838df0edd5ba377c0e434a3ef2672",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:55:30.257Z",
+      "tests": 92
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c342aa7b8d855227cdab471fd0150e6fbe9005ff34f0a9e28e0a75189796712d",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:55:30.257Z",
+      "tests": 32
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cb8b2a6b237b803ee29195e02f1a1b006c4586d665c7232dfb7cea65e0eb135d",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:55:30.257Z",
+      "tests": 52
+    },
+    {
+      "id": "run-28",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b8d1ef5bfdd53779288532583040bb760f5ce184c64da7e18ddcdce82f098e5b",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:55:30.257Z",
+      "tests": 99
+    },
+    {
+      "id": "run-29",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/lib/route-dispatcher.test.js scripts/route-dispatch-run.test.js scripts/lib/capability-registry.test.js scripts/lib/team-profile.test.js scripts/lib/idd-config.test.js scripts/hooks/session-start.test.js scripts/lib/artifact-store.test.js scripts/configure/validate-phase.test.js && go test ./internal/store/ ./internal/hooks/",
+      "exit_code": 0,
+      "output_sha256": "sha256:9236587d161e335e211ffd06db6d45251bc76453732d4e8fc5b4534f2aef1ea2",
+      "tree": "sha256:cb83304a85e11ce4d3479616f52eb19f10943862ede48c3ca743c48cd2ee4e7c",
+      "recorded_at": "2026-11-10T23:56:25.571Z",
+      "tests": 396
+    },
+    {
+      "id": "run-30",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:980ae4df5a67566a432c0636f7a66c839a6d085e663dba258dd38ce3ca226d49",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:58:31.779Z"
+    },
+    {
+      "id": "run-31",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:181a181a043ffdffb0945f5ff94196422aaf353a458a4313cdc2426c0f8ff2cf",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:58:31.779Z",
+      "tests": 14
+    },
+    {
+      "id": "run-32",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:76de46ef508676fe09f9648a295e6dff0a0fbba10489a9c140897d97396c1543",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:58:31.779Z",
+      "tests": 59
+    },
+    {
+      "id": "run-33",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eac907ddc8a4f22f35990148975843b698aefb6ad60358c9f325c9acda5c6cbf",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:58:31.779Z",
+      "tests": 18
+    },
+    {
+      "id": "run-34",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:51f89ecbe44621c52e4e2c2ee1f4dbeeb8099b090e756cdabf352db7f84bd224",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:58:31.779Z",
+      "tests": 99
+    },
+    {
+      "id": "run-35",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f1bbcb215f0a76921c64bd29eadc39bd2a7900215bf52e3c44968d601e0b1586",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:58:31.779Z",
+      "tests": 32
+    },
+    {
+      "id": "run-36",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:58:31.779Z"
+    },
+    {
+      "id": "run-37",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1b884e8e74ae634617bd4eacc85061aed00d4cf6aae46177ed3d7d055193a808",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:58:31.779Z",
+      "tests": 26
+    },
+    {
+      "id": "run-38",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a13ad021f6c4c70236bc94d4ba60a40ee8ffb4e9d98857c49927e1b5796df411",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:58:31.779Z",
+      "tests": 92
+    },
+    {
+      "id": "run-39",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9c1824968830b89fa28b706bea83835ef9cf8324f7db390d9fa4de93bafb258e",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:58:31.779Z",
+      "tests": 32
+    },
+    {
+      "id": "run-40",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e058e4f2c414b865a92758616d11272e27af6dc1a71d8cc3faa1422cc1bf96d9",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:58:31.779Z",
+      "tests": 52
+    },
+    {
+      "id": "run-41",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:18c341363094f2dc90d63ef3954262c4e25d65c438a0df7375dcaf5282bfa200",
+      "tree": "sha256:d90b80dbb821d9806286812470c35a7bca403c66ac1c15bdbad554575e7c74e4",
+      "recorded_at": "2026-11-10T23:58:31.779Z",
+      "tests": 99
+    },
+    {
+      "id": "run-42",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9f093fa23eb32e917f8a2c38338e3ffa0437956fd2375fee581bb5e48dd9462e",
+      "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+      "recorded_at": "2026-11-11T00:10:22.576Z"
+    },
+    {
+      "id": "run-43",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:462e1159e948f6e9c6e09fabb3e389f10736b1d16be448fe70f9f177d8be187f",
+      "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+      "recorded_at": "2026-11-11T00:10:22.576Z",
+      "tests": 14
+    },
+    {
+      "id": "run-44",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5a82f3c9375d806b3e7e544a163c0e4f140141a08e2dad0852e43433f571a88f",
+      "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+      "recorded_at": "2026-11-11T00:10:22.576Z",
+      "tests": 59
+    },
+    {
+      "id": "run-45",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c12f68c59f0ce0f9c9f7f3a0653f944d0c9679b5511c52a1464a6d58816abf4f",
+      "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+      "recorded_at": "2026-11-11T00:10:22.576Z",
+      "tests": 18
+    },
+    {
+      "id": "run-46",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4dc54981658d467690e816640d723c5c93029ebfc261bbce9a547061fae27ea4",
+      "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+      "recorded_at": "2026-11-11T00:10:22.576Z",
+      "tests": 99
+    },
+    {
+      "id": "run-47",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d65fbaf6567058ef6bc9333028066822681994dd758cbdcf0df02eae21b3d0a9",
+      "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+      "recorded_at": "2026-11-11T00:10:22.576Z",
+      "tests": 32
+    },
+    {
+      "id": "run-48",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+      "recorded_at": "2026-11-11T00:10:22.576Z"
+    },
+    {
+      "id": "run-49",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eeb38a59af471201cc9374130b189f991b5d3c00c9e7aa228d011c820a7035d4",
+      "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+      "recorded_at": "2026-11-11T00:10:22.576Z",
+      "tests": 26
+    },
+    {
+      "id": "run-50",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7d16882359ac4993d7ca267e2b6101067e54c16c637282d47f7f0d09675d7b19",
+      "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+      "recorded_at": "2026-11-11T00:10:22.576Z",
+      "tests": 92
+    },
+    {
+      "id": "run-51",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3f72f01a89bb813340e22242f683dfdd39689c04b39aec0fd2f74f2e160406ea",
+      "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+      "recorded_at": "2026-11-11T00:10:22.576Z",
+      "tests": 32
+    },
+    {
+      "id": "run-52",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:01d8c3de8da3eca491a77b86faf94650289e1d8a55f39fcbf5f24b05cc6a8a13",
+      "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+      "recorded_at": "2026-11-11T00:10:22.576Z",
+      "tests": 52
+    },
+    {
+      "id": "run-53",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2baa19a5edc7b7d3fbb3e6e9f58ea742b82fd78b15f880726729ac73f8a0ec2d",
+      "tree": "sha256:7b43ad3883c6050892a7462d728e73b44077ea73a123d536676206a5cac8c11a",
+      "recorded_at": "2026-11-11T00:10:22.576Z",
+      "tests": 99
+    },
+    {
+      "id": "run-54",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/lib/route-dispatcher.test.js scripts/route-dispatch-run.test.js scripts/lib/capability-registry.test.js scripts/lib/team-profile.test.js scripts/lib/idd-config.test.js scripts/hooks/session-start.test.js scripts/lib/artifact-store.test.js scripts/configure/validate-phase.test.js && go test ./internal/yamllite/ ./internal/store/ ./internal/hooks/",
+      "exit_code": 0,
+      "output_sha256": "sha256:068232cc991cc131109fd43409737fcc22726e6be7ba9d516202ae8f3661fb60",
+      "tree": "sha256:0adcbe797271262ee3e518ef24f39dc98bafe32274d817d01270198010eba751",
+      "recorded_at": "2026-11-11T00:10:46.360Z",
+      "tests": 396
+    },
+    {
+      "id": "run-55",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3012ffd629a6fae1170374be5380776a9228add05726c164145b591f77baec2d",
+      "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+      "recorded_at": "2026-11-11T00:19:19.646Z"
+    },
+    {
+      "id": "run-56",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d8cf9b619efa473af94829cb545dafb2d5cd681d2670847bfe2a07bfbc7a1edc",
+      "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+      "recorded_at": "2026-11-11T00:19:19.646Z",
+      "tests": 14
+    },
+    {
+      "id": "run-57",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:98f4a6f45614989155334a47bce70f561c56c3b45c62b022232cc6c0647e11a0",
+      "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+      "recorded_at": "2026-11-11T00:19:19.646Z",
+      "tests": 59
+    },
+    {
+      "id": "run-58",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b8dbccb558f858051032318a4f36c232b3a8bf349e9e2d957ec618de09a49ea9",
+      "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+      "recorded_at": "2026-11-11T00:19:19.646Z",
+      "tests": 18
+    },
+    {
+      "id": "run-59",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a5cf5b540366a0a601686caee3eb81eb3c3a67859321efca4922763f2c58761e",
+      "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+      "recorded_at": "2026-11-11T00:19:19.646Z",
+      "tests": 99
+    },
+    {
+      "id": "run-60",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5b685f3aaed1671d4f211ef7f8ec5141a6cd99718eb92f173bc255b019e8c598",
+      "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+      "recorded_at": "2026-11-11T00:19:19.646Z",
+      "tests": 32
+    },
+    {
+      "id": "run-61",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+      "recorded_at": "2026-11-11T00:19:19.646Z"
+    },
+    {
+      "id": "run-62",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7ff3bacbd85aaa5501a139c73fd8eb57218d0c371c0b2f37f73ddebd23805386",
+      "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+      "recorded_at": "2026-11-11T00:19:19.646Z",
+      "tests": 26
+    },
+    {
+      "id": "run-63",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0e22f0cebb0765fede4d2e1ba48e08138fbf07d97ab86916473b863b245d1eb9",
+      "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+      "recorded_at": "2026-11-11T00:19:19.646Z",
+      "tests": 92
+    },
+    {
+      "id": "run-64",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bd3c86da83a8b14a6e079cff5df50f3f8da0173b1ca0d0e91470ab5f74ce2544",
+      "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+      "recorded_at": "2026-11-11T00:19:19.646Z",
+      "tests": 32
+    },
+    {
+      "id": "run-65",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b46d2622909da364c1383f22e09fd09a3b3738ba5877cf1725ea16aabb510ade",
+      "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+      "recorded_at": "2026-11-11T00:19:19.646Z",
+      "tests": 52
+    },
+    {
+      "id": "run-66",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a8db0f2b7b6148c5003479c1b38eeb55357a623beeb6e62b4b11193455c09d7a",
+      "tree": "sha256:397aed6e99925e23e674e4eac6bf72d732ef5c452b5d94b3805fdf9b0a3591c0",
+      "recorded_at": "2026-11-11T00:19:19.646Z",
+      "tests": 99
+    },
+    {
+      "id": "run-67",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/lib/route-dispatcher.test.js scripts/route-dispatch-run.test.js scripts/lib/capability-registry.test.js scripts/lib/team-profile.test.js scripts/lib/idd-config.test.js scripts/hooks/session-start.test.js scripts/lib/artifact-store.test.js scripts/configure/validate-phase.test.js && go test ./internal/yamllite/ ./internal/store/ ./internal/hooks/",
+      "exit_code": 0,
+      "output_sha256": "sha256:6c7b4acf56463a0bf15ff4b8b840f7294f5d7828407f7083ecab3f3f0d42fcf5",
+      "tree": "sha256:b0305e55d885a610f8cd2afe2d2a27a5a13cd7a51fe21ad5ecbae08eaa64d98b",
+      "recorded_at": "2026-11-11T00:19:43.193Z",
+      "tests": 397
+    },
+    {
+      "id": "run-68",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:31d6f7f4460ea02cdcf203c22bc7708fb5219a0d24c571b2773a80a77c234f65",
+      "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+      "recorded_at": "2026-11-11T00:26:17.822Z"
+    },
+    {
+      "id": "run-69",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:53196d767565320d6b53dc024e2a068ba557762338d8088a9c306cad13de1c37",
+      "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+      "recorded_at": "2026-11-11T00:26:17.822Z",
+      "tests": 14
+    },
+    {
+      "id": "run-70",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e1b222cf047aba2ca7574b9f654fdc634c9634cdb8a306e6af5be3488c49e5aa",
+      "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+      "recorded_at": "2026-11-11T00:26:17.822Z",
+      "tests": 59
+    },
+    {
+      "id": "run-71",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a319d14eaa9294b88587e73df2bb8712c48354987a9cfc163fba51a7177df79a",
+      "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+      "recorded_at": "2026-11-11T00:26:17.822Z",
+      "tests": 18
+    },
+    {
+      "id": "run-72",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:df5938931e76a79d87a9dc4fe5bfde2d6e3b798d8b60eefe3ef8c58d2d0c66d6",
+      "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+      "recorded_at": "2026-11-11T00:26:17.822Z",
+      "tests": 99
+    },
+    {
+      "id": "run-73",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:69992eea2e58d4c7a95f768e94f678c88fc2a8e08ad3cfa72e19222f439dee4b",
+      "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+      "recorded_at": "2026-11-11T00:26:17.822Z",
+      "tests": 32
+    },
+    {
+      "id": "run-74",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+      "recorded_at": "2026-11-11T00:26:17.822Z"
+    },
+    {
+      "id": "run-75",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b8ae158b0fb19320d85e7de271511121b61c0706b3fe032ce6465340d8369a0e",
+      "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+      "recorded_at": "2026-11-11T00:26:17.822Z",
+      "tests": 26
+    },
+    {
+      "id": "run-76",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:88809b8b623601fef428c76a9ba245830fa22ce6bd67c20544732ba91da96f20",
+      "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+      "recorded_at": "2026-11-11T00:26:17.822Z",
+      "tests": 92
+    },
+    {
+      "id": "run-77",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:685ecb802f962254d87768421cb9e3a90010f8dafa24b660cf033306093bb79c",
+      "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+      "recorded_at": "2026-11-11T00:26:17.822Z",
+      "tests": 32
+    },
+    {
+      "id": "run-78",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eed308c86cfe4469642fe0a1caa65f1c0e1ec2d6575bf12ce08f739847f9876c",
+      "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+      "recorded_at": "2026-11-11T00:26:17.822Z",
+      "tests": 52
+    },
+    {
+      "id": "run-79",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2504923bb220bc6f9bbd71ce13c72c91bc6ef74ebb054d392683529400080bd0",
+      "tree": "sha256:b7c354f3b1cc3346d4fb2a18cf5a6676e3b958daaafdf5536d3872465eb2337b",
+      "recorded_at": "2026-11-11T00:26:17.822Z",
+      "tests": 99
+    },
+    {
+      "id": "run-80",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:37140f055b4d24086e201d0cd1a2c5645b0828eb45ad17fc42aa5e888ca9e287",
+      "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+      "recorded_at": "2026-11-11T00:32:41.133Z"
+    },
+    {
+      "id": "run-81",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:148cf87e672f201486ba06a5fe1977047ec3cc0e1ca23938838f7255145042e0",
+      "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+      "recorded_at": "2026-11-11T00:32:41.133Z",
+      "tests": 14
+    },
+    {
+      "id": "run-82",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8bd029a20a797302d6af61df9f3ad1a5008b03a7dc94342126ec0127067b7c19",
+      "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+      "recorded_at": "2026-11-11T00:32:41.133Z",
+      "tests": 59
+    },
+    {
+      "id": "run-83",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:47c08da4c7dcaa5ab29f79f4d355a5806321b206b024fcb7bef38f91172be300",
+      "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+      "recorded_at": "2026-11-11T00:32:41.133Z",
+      "tests": 18
+    },
+    {
+      "id": "run-84",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:76c1bb6dbc277efd56cda3e75467305af67cedc1429683b511f845783e0190c6",
+      "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+      "recorded_at": "2026-11-11T00:32:41.133Z",
+      "tests": 99
+    },
+    {
+      "id": "run-85",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2a60880b826d8bf5210651aebb165bae7ee4040481dbd05e7c756aae3554f343",
+      "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+      "recorded_at": "2026-11-11T00:32:41.133Z",
+      "tests": 32
+    },
+    {
+      "id": "run-86",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+      "recorded_at": "2026-11-11T00:32:41.133Z"
+    },
+    {
+      "id": "run-87",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:afc93bbca682e6252e1a29294f3dddf3a0648fb50e573e5ca1596573c1c10668",
+      "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+      "recorded_at": "2026-11-11T00:32:41.133Z",
+      "tests": 26
+    },
+    {
+      "id": "run-88",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:de2cc4beee221b27aab53b083ccc8610971555a1c9593d1338b9a4d6c7fb9a41",
+      "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+      "recorded_at": "2026-11-11T00:32:41.133Z",
+      "tests": 92
+    },
+    {
+      "id": "run-89",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:80d18421c6f8d56de29f79b2ab813ace215e17a452537d8f8c8fbe2ab7cb149a",
+      "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+      "recorded_at": "2026-11-11T00:32:41.133Z",
+      "tests": 32
+    },
+    {
+      "id": "run-90",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1d0f2eed23138f43e33c8f78d03366debdae1e885202f0e0bf4e8e4853bba78b",
+      "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+      "recorded_at": "2026-11-11T00:32:41.133Z",
+      "tests": 52
+    },
+    {
+      "id": "run-91",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b84e45c25511aade58bfdc6c4ff8716f2346cfefffcf5bfcc99108349de5c1c5",
+      "tree": "sha256:017e83caacc3077cb0fdcee2f2db81ec236609b82f0e2a4e748fb68c5976f5e1",
+      "recorded_at": "2026-11-11T00:32:41.133Z",
+      "tests": 99
+    },
+    {
+      "id": "run-92",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/lib/route-dispatcher.test.js scripts/route-dispatch-run.test.js scripts/lib/capability-registry.test.js scripts/lib/team-profile.test.js scripts/lib/idd-config.test.js scripts/hooks/session-start.test.js scripts/lib/artifact-store.test.js scripts/configure/validate-phase.test.js && go test ./internal/yamllite/ ./internal/store/ ./internal/hooks/",
+      "exit_code": 0,
+      "output_sha256": "sha256:d82b5774b5ef5dd6e76ae677c25602ee19a7881b4b18c462f79e80bb442c3dbc",
+      "tree": "sha256:a45d17d4be44214ca3762f467db86298839a4d5b6c920db605eaf8d32549a07d",
+      "recorded_at": "2026-11-11T00:32:51.656Z",
+      "tests": 397
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:4c7f9b2026deaba4815eaaf0b01266688a0af6d68ab62273f0a9054cba592766",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "451c4b3ff8f297e0a5a1742105edf866a2bbbecb",
+          "candidate_tree": "1ef59ed3f6e1886635a3a2e9e91554ecc2b5f294",
+          "paths": [
+            "internal/store/store.go",
+            "internal/store/store_test.go",
+            "openspec/specs/idd/spec.md",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/lib/capability-registry.js",
+            "scripts/lib/capability-registry.test.js",
+            "scripts/lib/idd-config.js",
+            "scripts/lib/idd-config.test.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/route-dispatcher.js",
+            "scripts/lib/route-dispatcher.test.js",
+            "scripts/lib/team-profile.js",
+            "scripts/lib/team-profile.test.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js",
+            "scripts/route-dispatch-run.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "diff_hash": "sha256:3eb77ad7c7a251baf5039b0630e0d8d9561436873f4bb91cdd9f544e081a6e45",
+          "paths_digest": "sha256:6b7e1d25e9bf4cbb42e36f08e22ae61000ae8b93ee6bc4ff1b42fa92017858f9",
+          "authored_lines": 220,
+          "original_changed_lines": 305
+        },
+        "candidate_id": "sha256:b3faa120ce12a05eabd80ec4f33318b58d4eb8f0355e7dd8f0f38e171cabebe2",
+        "paths": [
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "1ef59ed3f6e1886635a3a2e9e91554ecc2b5f294",
+        "original_changed_lines": 305,
+        "authored_lines": 220
+      },
+      "current_candidate_id": "sha256:b3faa120ce12a05eabd80ec4f33318b58d4eb8f0355e7dd8f0f38e171cabebe2",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "451c4b3ff8f297e0a5a1742105edf866a2bbbecb",
+        "candidate_tree": "1ef59ed3f6e1886635a3a2e9e91554ecc2b5f294",
+        "paths": [
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "diff_hash": "sha256:3eb77ad7c7a251baf5039b0630e0d8d9561436873f4bb91cdd9f544e081a6e45",
+        "paths_digest": "sha256:6b7e1d25e9bf4cbb42e36f08e22ae61000ae8b93ee6bc4ff1b42fa92017858f9",
+        "authored_lines": 220,
+        "original_changed_lines": 305
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "config-yaml-opaque-scalars:lens-start:1:0",
+          "result_digest": "sha256:c2ca58ca7dad7457e26ff7a7d96da9d8996b2f6895dbdbba82700ccc0e77654d",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/lib/yaml-lite.js:100 (readYamlScalar, used by the hooks launcher for artifact_store.backend) and :135 (ENTRY_LINE, used by scanLines/opaqueScalarLines) still backtrack quadratically on a line with a run of whitespace right after the key's colon, then a non-space character, then a lone CR. Lines split on /\\r?\\n/, so a lone CR stays in the line. JS `.` does not match CR, so `(.*)$` fails after `\\s+` or `[ \\t]+` took the whole run, and the engine retries every shorter split. Example: `backend:` + 100,000 spaces + `b` + CR + `c`. REQ-lifecycle-kernel-034 and the tests claim linear time on any line, but no test input has a CR. A cloned repo's openspec/config.yaml is untrusted; the launcher parses it in-process with no timeout (ospec-hooks-launch.js:526-531), so a crafted config can stall session-start, pre-compact and stop until the host kills the hook. Conditional availability risk, not run.",
+                "acceptance_criteria": "readYamlScalar, opaqueScalarLines and the readers built on them finish in well under a second on a line made of `key:` + 100,000 spaces + `b` + a lone CR + `c`, in both a value and a flow mapping, with a test that covers a lone CR. Results for ordinary input (LF and CRLF, with or without trailing comments) stay unchanged. Node and Go still read the same lines as opaque."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "config-yaml-opaque-scalars:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-0d377d0973afeefb",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/lib/yaml-lite.js:100 (readYamlScalar, used by the hooks launcher for artifact_store.backend) and :135 (ENTRY_LINE, used by scanLines/opaqueScalarLines) still backtrack quadratically on a line with a run of whitespace right after the key's colon, then a non-space character, then a lone CR. Lines split on /\\r?\\n/, so a lone CR stays in the line. JS `.` does not match CR, so `(.*)$` fails after `\\s+` or `[ \\t]+` took the whole run, and the engine retries every shorter split. Example: `backend:` + 100,000 spaces + `b` + CR + `c`. REQ-lifecycle-kernel-034 and the tests claim linear time on any line, but no test input has a CR. A cloned repo's openspec/config.yaml is untrusted; the launcher parses it in-process with no timeout (ospec-hooks-launch.js:526-531), so a crafted config can stall session-start, pre-compact and stop until the host kills the hook. Conditional availability risk, not run.",
+          "acceptance_criteria": "readYamlScalar, opaqueScalarLines and the readers built on them finish in well under a second on a line made of `key:` + 100,000 spaces + `b` + a lone CR + `c`, in both a value and a flow mapping, with a test that covers a lone CR. Results for ordinary input (LF and CRLF, with or without trailing comments) stay unchanged. Node and Go still read the same lines as opaque.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:9736b1fb88f67b896b3c3472afc9251e44712c96eac082df026900c54385f4bf",
+      "correction_budget": {
+        "limit_lines": 153,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:d3ee1664e0745a677a18afd7e312335c6b5d0d264925629405bdd353f47e6ac0",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:4c7f9b2026deaba4815eaaf0b01266688a0af6d68ab62273f0a9054cba592766",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "451c4b3ff8f297e0a5a1742105edf866a2bbbecb",
+          "candidate_tree": "696c6e61faa054c4a0efacf13b77a7d2aed97987",
+          "paths": [
+            "internal/store/store.go",
+            "internal/store/store_test.go",
+            "openspec/specs/idd/spec.md",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/lib/capability-registry.js",
+            "scripts/lib/capability-registry.test.js",
+            "scripts/lib/idd-config.js",
+            "scripts/lib/idd-config.test.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/route-dispatcher.js",
+            "scripts/lib/route-dispatcher.test.js",
+            "scripts/lib/team-profile.js",
+            "scripts/lib/team-profile.test.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js",
+            "scripts/route-dispatch-run.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "diff_hash": "sha256:3009fe8cb1855c61143a10ae03cb9bad907602407c83981b5a0409301c95420a",
+          "paths_digest": "sha256:6b7e1d25e9bf4cbb42e36f08e22ae61000ae8b93ee6bc4ff1b42fa92017858f9",
+          "authored_lines": 272,
+          "original_changed_lines": 375
+        },
+        "candidate_id": "sha256:b4f63869ce59a8f13fe1bc62dc65fa80f52f988ea3a3b8c6803b68ec0284c1b8",
+        "paths": [
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "696c6e61faa054c4a0efacf13b77a7d2aed97987",
+        "original_changed_lines": 375,
+        "authored_lines": 272
+      },
+      "current_candidate_id": "sha256:b4f63869ce59a8f13fe1bc62dc65fa80f52f988ea3a3b8c6803b68ec0284c1b8",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "451c4b3ff8f297e0a5a1742105edf866a2bbbecb",
+        "candidate_tree": "696c6e61faa054c4a0efacf13b77a7d2aed97987",
+        "paths": [
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "diff_hash": "sha256:3009fe8cb1855c61143a10ae03cb9bad907602407c83981b5a0409301c95420a",
+        "paths_digest": "sha256:6b7e1d25e9bf4cbb42e36f08e22ae61000ae8b93ee6bc4ff1b42fa92017858f9",
+        "authored_lines": 272,
+        "original_changed_lines": 375
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "config-yaml-opaque-scalars:lens-start:2:0",
+          "result_digest": "sha256:69179c24cae0da3bdee6bb29401e05a51ecc699438476b70a9f1d0af942123d8",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "The inline-comment stripper /(?<!\\s)\\s+#.*$/ backtracks quadratically when a lone CR or U+2028 follows a run of ' #' pairs. It is in idd-config.js:28, route-dispatcher.js:76, route-dispatch-run.js:158 (extractAttributionOverride) and ospec-state.js:57 (readBaselineState). Trigger: a value 'a' + ' #'.repeat(50000) + '\\rb'. `.` stops at the CR and `$` matches only at the string end, so each ' #' start (the lookbehind passes after '#') scans to the CR and backtracks: O(n^2). The line passes opaqueScalarLines as a plain scalar. REQ-lifecycle-kernel-034 (spec.md:171, 179) requires linear time with a lone CR. The tests (e.g. idd-config.test.js:194-204) only use space runs. Impact: a crafted config.yaml can hang the CLI or hooks.",
+                "acceptance_criteria": "A value or list item holding 'a' + ' #'.repeat(50000) + one of ('\\rb', '\\u2028b'), written to openspec/config.yaml or idd/config.yaml, is read by parseIddConfig (mode, a check, an impact list item), parseRoutingTable, extractAttributionOverride and readBaselineState (status) in well under a second. Its comment is still stripped as before on lines without CR or U+2028, and the outputs match Go on a CR line. A regression test covers the ' #' repetition with each tail for these readers."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "config-yaml-opaque-scalars:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-ce9a8c791c908ac5",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The inline-comment stripper /(?<!\\s)\\s+#.*$/ backtracks quadratically when a lone CR or U+2028 follows a run of ' #' pairs. It is in idd-config.js:28, route-dispatcher.js:76, route-dispatch-run.js:158 (extractAttributionOverride) and ospec-state.js:57 (readBaselineState). Trigger: a value 'a' + ' #'.repeat(50000) + '\\rb'. `.` stops at the CR and `$` matches only at the string end, so each ' #' start (the lookbehind passes after '#') scans to the CR and backtracks: O(n^2). The line passes opaqueScalarLines as a plain scalar. REQ-lifecycle-kernel-034 (spec.md:171, 179) requires linear time with a lone CR. The tests (e.g. idd-config.test.js:194-204) only use space runs. Impact: a crafted config.yaml can hang the CLI or hooks.",
+          "acceptance_criteria": "A value or list item holding 'a' + ' #'.repeat(50000) + one of ('\\rb', '\\u2028b'), written to openspec/config.yaml or idd/config.yaml, is read by parseIddConfig (mode, a check, an impact list item), parseRoutingTable, extractAttributionOverride and readBaselineState (status) in well under a second. Its comment is still stripped as before on lines without CR or U+2028, and the outputs match Go on a CR line. A regression test covers the ' #' repetition with each tail for these readers.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:40338bcf8994f85d23addc9362aa500c4092d9890c0c8282f5efbf7872d4c004",
+      "correction_budget": {
+        "limit_lines": 188,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:b2cac6ac78373074224be47f730ee8082607aaa95e90d4df5c0a638f3c4e5306",
+      "generation": 3,
+      "predecessor_lineage_id": "sha256:d3ee1664e0745a677a18afd7e312335c6b5d0d264925629405bdd353f47e6ac0",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "451c4b3ff8f297e0a5a1742105edf866a2bbbecb",
+          "candidate_tree": "a3e6a9d9121c7a7eadcf8287a11c0e2911e5d1e1",
+          "paths": [
+            "internal/store/store.go",
+            "internal/store/store_test.go",
+            "internal/yamllite/yamllite_test.go",
+            "openspec/specs/idd/spec.md",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/lib/capability-registry.js",
+            "scripts/lib/capability-registry.test.js",
+            "scripts/lib/idd-config.js",
+            "scripts/lib/idd-config.test.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/route-dispatcher.js",
+            "scripts/lib/route-dispatcher.test.js",
+            "scripts/lib/team-profile.js",
+            "scripts/lib/team-profile.test.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js",
+            "scripts/route-dispatch-run.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "diff_hash": "sha256:65423ae990d88d1831b23ef550c52a2bfec9f443983ca799a29ad0187bd1c2b0",
+          "paths_digest": "sha256:91f9f5f2b40aefd3a5b98e54e3b0b0111a473302abbd5a91a9aeed7169f63ec3",
+          "authored_lines": 290,
+          "original_changed_lines": 393
+        },
+        "candidate_id": "sha256:90dbc026676b9be7a7b2647f05a7a432927eaa8f150e42b509b3bd5e046b0e9a",
+        "paths": [
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "a3e6a9d9121c7a7eadcf8287a11c0e2911e5d1e1",
+        "original_changed_lines": 393,
+        "authored_lines": 290
+      },
+      "current_candidate_id": "sha256:90dbc026676b9be7a7b2647f05a7a432927eaa8f150e42b509b3bd5e046b0e9a",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "451c4b3ff8f297e0a5a1742105edf866a2bbbecb",
+        "candidate_tree": "a3e6a9d9121c7a7eadcf8287a11c0e2911e5d1e1",
+        "paths": [
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "diff_hash": "sha256:65423ae990d88d1831b23ef550c52a2bfec9f443983ca799a29ad0187bd1c2b0",
+        "paths_digest": "sha256:91f9f5f2b40aefd3a5b98e54e3b0b0111a473302abbd5a91a9aeed7169f63ec3",
+        "authored_lines": 290,
+        "original_changed_lines": 393
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "config-yaml-opaque-scalars:lens-start:3:0",
+          "result_digest": "sha256:8b1085886cfb27ecd26917fea4e8a66e89cd4972ee0ba106ebe0b60f34ccac2a",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/lib/yaml-lite.js:132: BLOCK_SCALAR_HEADER ends in `(?:[ \\t]+#.*)?$`. In Node `.` also stops at CR, U+2028 and U+2029, but Go's `.` (internal/yamllite/continuations.go:25) only stops at LF. A header such as `test: | # c<U+2028>x` is a block scalar in Go but plain in Node. In Node the content lines then read as keys. Example: `checks:\\n  test: | # c<U+2028>x\\n    lint: rm -rf build` makes refuseMultiLineValues (idd-config.js:147-153) pass. parseIddConfig then declares a check `lint` that `ospec check` runs. The same applies to the attribution override, capabilities, routing and team readers. This breaks REQ-idd-013, REQ-lifecycle-kernel-034 (spec.md:171 says every capture takes any character but LF so Node reads as Go) and the hidden-key acceptance. The impact is limited to anyone who can already write the config file.",
+                "acceptance_criteria": "A block-scalar header whose trailing comment contains a lone CR, U+2028 or U+2029 is a block scalar in Node as in Go. parseIddConfig refuses `checks:\\n  test: | # c<U+2028>x\\n    lint: x` with config-invalid. opaqueScalarLines blanks the content line in Node and Go alike, and a Node/Go parity test covers CR, U+2028 and U+2029 after the header's `#`."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "config-yaml-opaque-scalars:lens-result:3:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-1c8b3395dcf77644",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/lib/yaml-lite.js:132: BLOCK_SCALAR_HEADER ends in `(?:[ \\t]+#.*)?$`. In Node `.` also stops at CR, U+2028 and U+2029, but Go's `.` (internal/yamllite/continuations.go:25) only stops at LF. A header such as `test: | # c<U+2028>x` is a block scalar in Go but plain in Node. In Node the content lines then read as keys. Example: `checks:\\n  test: | # c<U+2028>x\\n    lint: rm -rf build` makes refuseMultiLineValues (idd-config.js:147-153) pass. parseIddConfig then declares a check `lint` that `ospec check` runs. The same applies to the attribution override, capabilities, routing and team readers. This breaks REQ-idd-013, REQ-lifecycle-kernel-034 (spec.md:171 says every capture takes any character but LF so Node reads as Go) and the hidden-key acceptance. The impact is limited to anyone who can already write the config file.",
+          "acceptance_criteria": "A block-scalar header whose trailing comment contains a lone CR, U+2028 or U+2029 is a block scalar in Node as in Go. parseIddConfig refuses `checks:\\n  test: | # c<U+2028>x\\n    lint: x` with config-invalid. opaqueScalarLines blanks the content line in Node and Go alike, and a Node/Go parity test covers CR, U+2028 and U+2029 after the header's `#`.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:5ee357234e2b12caafd0b88e35e14994b218ea1c85a9d5672060e440cb18e87e",
+      "correction_budget": {
+        "limit_lines": 197,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:306d4652c863bd28f318b669e1bf10d04ba13c704fbebae01faee6e6a25bf4f3",
+      "generation": 4,
+      "predecessor_lineage_id": "sha256:b2cac6ac78373074224be47f730ee8082607aaa95e90d4df5c0a638f3c4e5306",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "451c4b3ff8f297e0a5a1742105edf866a2bbbecb",
+          "candidate_tree": "6dadc23cb79974b700f4a089f37fa140b38cd6e7",
+          "paths": [
+            "internal/store/store.go",
+            "internal/store/store_test.go",
+            "internal/yamllite/yamllite_test.go",
+            "openspec/specs/idd/spec.md",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/lib/capability-registry.js",
+            "scripts/lib/capability-registry.test.js",
+            "scripts/lib/idd-config.js",
+            "scripts/lib/idd-config.test.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/route-dispatcher.js",
+            "scripts/lib/route-dispatcher.test.js",
+            "scripts/lib/team-profile.js",
+            "scripts/lib/team-profile.test.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js",
+            "scripts/route-dispatch-run.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "diff_hash": "sha256:9106ce980c2ecef64612ef84c3fd2d7ab2ccd321a9b7ecac9b32bb8473f76087",
+          "paths_digest": "sha256:91f9f5f2b40aefd3a5b98e54e3b0b0111a473302abbd5a91a9aeed7169f63ec3",
+          "authored_lines": 319,
+          "original_changed_lines": 424
+        },
+        "candidate_id": "sha256:75c28eeb477fe97eaae3d2fb54cf1f58f7f4cb21722615260d831eddd5936425",
+        "paths": [
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "6dadc23cb79974b700f4a089f37fa140b38cd6e7",
+        "original_changed_lines": 424,
+        "authored_lines": 319
+      },
+      "current_candidate_id": "sha256:75c28eeb477fe97eaae3d2fb54cf1f58f7f4cb21722615260d831eddd5936425",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "451c4b3ff8f297e0a5a1742105edf866a2bbbecb",
+        "candidate_tree": "6dadc23cb79974b700f4a089f37fa140b38cd6e7",
+        "paths": [
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/capability-registry.js",
+          "scripts/lib/capability-registry.test.js",
+          "scripts/lib/idd-config.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/team-profile.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "diff_hash": "sha256:9106ce980c2ecef64612ef84c3fd2d7ab2ccd321a9b7ecac9b32bb8473f76087",
+        "paths_digest": "sha256:91f9f5f2b40aefd3a5b98e54e3b0b0111a473302abbd5a91a9aeed7169f63ec3",
+        "authored_lines": 319,
+        "original_changed_lines": 424
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "config-yaml-opaque-scalars:lens-start:4:0",
+          "result_digest": "sha256:07d2555bb75936b7999bc72786f8016acc38504d6529060df1d410b20ab6902f",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/lib/yaml-lite.js:242-243,246,253 (scanLines) decides whether a line is blank with JS String.trim(). internal/yamllite/continuations.go:174,178 uses strings.TrimSpace. The two disagree on U+0085, which only Go trims, and U+FEFF, which only JS trims. Trigger: `a: |`, then a line holding only U+0085, then `  evil: y`. Go treats the U+0085 line as blank and blanks `evil: y`. Node ends the block and reads `evil: y` as a key, so the Node config readers (capabilities, routing, team, baseline) see a key inside a block scalar. U+FEFF gives the reverse split, which hits Go's ReadBaselineState. REQ-lifecycle-kernel-033/-034 promise Node reads a line as Go does, and no test covers U+0085 or U+FEFF.",
+                "acceptance_criteria": "Node and Go classify a line as blank by the same character set, so they blank the same lines. Parity tests in yaml-lite.test.js and yamllite_test.go use a block scalar followed by a U+0085-only line and by a U+FEFF-only line, then a more indented `key: v` line. Both implementations blank that key, or both read it. parseIddConfig refuses the U+0085 input with config-invalid."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "config-yaml-opaque-scalars:lens-result:4:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-93e128dc1495d5f5",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/lib/yaml-lite.js:242-243,246,253 (scanLines) decides whether a line is blank with JS String.trim(). internal/yamllite/continuations.go:174,178 uses strings.TrimSpace. The two disagree on U+0085, which only Go trims, and U+FEFF, which only JS trims. Trigger: `a: |`, then a line holding only U+0085, then `  evil: y`. Go treats the U+0085 line as blank and blanks `evil: y`. Node ends the block and reads `evil: y` as a key, so the Node config readers (capabilities, routing, team, baseline) see a key inside a block scalar. U+FEFF gives the reverse split, which hits Go's ReadBaselineState. REQ-lifecycle-kernel-033/-034 promise Node reads a line as Go does, and no test covers U+0085 or U+FEFF.",
+          "acceptance_criteria": "Node and Go classify a line as blank by the same character set, so they blank the same lines. Parity tests in yaml-lite.test.js and yamllite_test.go use a block scalar followed by a U+0085-only line and by a U+FEFF-only line, then a more indented `key: v` line. Both implementations blank that key, or both read it. parseIddConfig refuses the U+0085 input with config-invalid.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:25a10627d43bd28cc40adf32264ddc8ad3bb578671a2b43b3f338a2711939ddf",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-11-11T08:09:47.023Z"
+}

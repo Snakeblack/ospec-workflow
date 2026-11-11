@@ -567,3 +567,34 @@ test("REQ-lifecycle-kernel-033: a next-line flow mapping does not change the cla
   const info = extractStateRouteInfo("change: x\nnotes:\n  {x: 1,\n   classification: trivial\n  }\nclassification: high\n");
   assert.equal(info.classification, "high");
 });
+
+test("REQ-lifecycle-kernel-034: extractConfigDefaults reads the direct child of a top-level section in linear time", () => {
+  const defaults = extractConfigDefaults("project:\n  notes: |\n    status: archived\n  status: paused\nsubbaseline:\n  status: pending\n");
+  assert.deepEqual([defaults["project.status"], defaults["baseline.status"]], ["paused", "done"]);
+  const started = process.hrtime.bigint();
+  extractConfigDefaults(`project:\n${"    x\n".repeat(15)}other: 1\n`);
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
+});
+
+test("REQ-lifecycle-kernel-034: a value of the attribution override written on more lines leaves it invalid", () => {
+  const extracted = extractAttributionOverride([
+    "quality_review:",
+    "  attribution_override:",
+    "    scope:",
+    '      - "schemas/kernel/**"',
+    "    applies_to:",
+    '      - "public-kernel-contract-unattributed"',
+    "    justification: |",
+    "      Reviewed by hand",
+    "      scope:",
+    '        - "**"',
+  ].join("\n"));
+  assert.deepEqual([extracted.valid, extracted.block.scope], [false, ["schemas/kernel/**"]]);
+  assert.ok(extracted.errors.includes("justification must be written on one line"), extracted.errors.join("; "));
+  assert.equal(extractAttributionOverride(DECLARED_CONFIG.replace(/justification: .*/, "justification: |")).valid, false);
+  const started = process.hrtime.bigint();
+  for (const value of [" ".repeat(100000), `a${" #".repeat(50000)}`].flatMap((run) => ["b", "\rb", "\u2028b"].map((tail) => `${run}${tail}`))) {
+    extractAttributionOverride(DECLARED_CONFIG.replace(/justification: .*/, () => `justification: ${value}`).replace('- "schemas/kernel/**"', () => `- ${value}`));
+  }
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
+});

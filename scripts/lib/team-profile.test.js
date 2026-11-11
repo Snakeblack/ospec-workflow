@@ -211,3 +211,12 @@ test("[REQ-idd-023] an integration branch moves work branches to it and cuts a v
   const sdd = resolveTeam({ idd: parseIddConfig("mode: sdd\ndelivery:\n  integration_branch: dev\n"), openspecText: "team:\n  size: solo\n" });
   assert.deepStrictEqual(["integration" in sdd, sdd.release.value], [false, "per-change"]);
 });
+
+test("REQ-lifecycle-kernel-034: readOpenspecTeam skips the lines of a value", () => {
+  assert.equal(readOpenspecTeam("team:\n  notes: |\n    size: multi-team\n  size: solo\n").team.size, "solo");
+  assert.equal(readOpenspecTeam("team:\n  size: solo\n  notes: |\n    size: multi-team\n").team.size, "solo");
+  assert.deepStrictEqual(readOpenspecTeam("team:\n  size: \"solo\" # one\n  experience: senior\n").team, { size: "solo", experience: "senior" });
+  const started = process.hrtime.bigint();
+  for (const tail of ["b c", "b\rc", "b\u2028c"]) readOpenspecTeam(`team:\n  size:${" ".repeat(100000)}${tail}\n`);
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
+});

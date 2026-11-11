@@ -18,7 +18,7 @@ const path = require("node:path");
 const { parseRoutingTable, selectRoute, parsePersistedRouteSection, ClassificationConflictError } = require("./lib/route-dispatcher.js");
 const { isSafeChangeName } = require("./lib/archive-plan.js");
 const { validateAttributionOverride } = require("./lib/review-dimensions.js");
-const { opaqueScalarLines } = require("./lib/yaml-lite.js");
+const { isBlockScalarHeader, opaqueScalarLines, readYamlScalar } = require("./lib/yaml-lite.js");
 
 function parseArgs(argv) {
   const flags = {
@@ -100,7 +100,7 @@ function extractStateRouteInfo(stateContent) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
 
-    const lineWithoutInlineComment = line.replace(/\s+#.*$/, "");
+    const lineWithoutInlineComment = line.replace(/(?<!\s)\s+#[^\n]*$/, "");
 
     const classMatch = lineWithoutInlineComment.match(/^\s*classification:\s*(.+)$/);
     if (classMatch && !info.classification) {
@@ -124,6 +124,8 @@ function extractStateRouteInfo(stateContent) {
   return info;
 }
 
+// REQ-lifecycle-kernel-034: each default is the direct child of its top-level
+// section, read in linear time; a key inside a value never counts.
 function extractConfigDefaults(configContent) {
   const defaults = {
     "project.status": "active",
@@ -133,21 +135,10 @@ function extractConfigDefaults(configContent) {
 
   if (!configContent || typeof configContent !== "string") return defaults;
 
-  const projStatusMatch = configContent.match(/project:\s*(?:\r?\n)(?:[ \t]+[^\r\n]+(?:\r?\n))*?[ \t]+status:\s*([^\r\n#]+)/);
-  if (projStatusMatch) {
-    defaults["project.status"] = projStatusMatch[1].trim().replace(/^["']|["']$/g, "");
+  for (const key of Object.keys(defaults)) {
+    const value = readYamlScalar(configContent, key.split("."));
+    if (value !== null) defaults[key] = value;
   }
-
-  const baselineMatch = configContent.match(/baseline:\s*(?:\r?\n)(?:[ \t]+[^\r\n]+(?:\r?\n))*?[ \t]+status:\s*([^\r\n#]+)/);
-  if (baselineMatch) {
-    defaults["baseline.status"] = baselineMatch[1].trim().replace(/^["']|["']$/g, "");
-  }
-
-  const backendMatch = configContent.match(/artifact_store:\s*(?:\r?\n)(?:[ \t]+[^\r\n]+(?:\r?\n))*?[ \t]+backend:\s*([^\r\n#]+)/);
-  if (backendMatch) {
-    defaults["artifact_store.backend"] = backendMatch[1].trim().replace(/^["']|["']$/g, "");
-  }
-
   return defaults;
 }
 
@@ -156,11 +147,15 @@ function extractConfigDefaults(configContent) {
 // fail-closed, and surfaces it so the orchestrator can pass the block to
 // planQualityReviewGate({ attributionOverride }). Kernel libs stay pure; this
 // CLI remains the only I/O adapter. Recognized subset: scalar values and
-// `- item` lists under the block keys (justification, scope, applies_to).
+// `- item` lists under the block keys (justification, scope, applies_to). A
+// value written on more lines (a block scalar, a multi-line quoted or flow
+// scalar, a value on the line after its key) leaves the block invalid, and the
+// keys inside it never count (REQ-lifecycle-kernel-034).
 function extractAttributionOverride(configContent) {
   if (!configContent || typeof configContent !== "string") return null;
-  const lines = configContent.split(/\r?\n/);
-  const stripComment = (line) => line.replace(/\s+#.*$/, "");
+  const original = configContent.split(/\r?\n/);
+  const { lines } = opaqueScalarLines(configContent);
+  const stripComment = (line) => line.replace(/(?<!\s)\s+#[^\n]*$/, "");
   let qualityReviewIndex = -1;
   for (let index = 0; index < lines.length; index += 1) {
     if (stripComment(lines[index]).trim() === "quality_review:") { qualityReviewIndex = index; break; }
@@ -179,25 +174,32 @@ function extractAttributionOverride(configContent) {
   }
   if (overrideIndex === -1) return null;
   const block = {};
+  const multiLine = new Set();
   let currentKey = null;
   for (let index = overrideIndex + 1; index < lines.length; index += 1) {
     const line = stripComment(lines[index]);
-    if (!line.trim()) continue;
+    if (!line.trim()) {
+      if (currentKey && !lines[index] && original[index].trim()) multiLine.add(currentKey);
+      continue;
+    }
     const indent = line.match(/^\s*/)[0].length;
     if (indent <= overrideIndent) break;
-    const scalar = line.match(/^\s*([a-z_]+):\s*(.*)$/);
-    const item = line.match(/^\s*-\s*(.*)$/);
+    const scalar = line.match(/^\s*([a-z_]+):\s*([^\n]*)$/);
+    const item = line.match(/^\s*-\s*([^\n]*)$/);
     if (scalar) {
       currentKey = scalar[1];
       const value = scalar[2].trim();
       block[currentKey] = value ? unquote(value) : undefined;
+      if (isBlockScalarHeader(value)) multiLine.add(currentKey);
     } else if (item && currentKey) {
       if (!Array.isArray(block[currentKey])) block[currentKey] = [];
       block[currentKey].push(unquote(item[1].trim()));
+      if (isBlockScalarHeader(item[1])) multiLine.add(currentKey);
     }
   }
   const validation = validateAttributionOverride(block);
-  return { ...validation, block };
+  const errors = [...validation.errors, ...[...multiLine].map((key) => `${key} must be written on one line`)];
+  return { valid: errors.length === 0, errors, block };
 }
 
 function unquote(value) {

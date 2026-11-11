@@ -433,14 +433,16 @@ func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
 
 // ReadBaselineState parses the baseline: section from config.yaml content.
 // Returns nil if no baseline section is found.
-// Ports readBaselineState from scripts/lib/ospec-state.js.
+// Ports readBaselineState from scripts/lib/ospec-state.js: the lines of a value
+// are blank, so a key written inside a value never counts
+// (REQ-lifecycle-kernel-034).
 func ReadBaselineState(configContent string) *BaselineState {
 	const (
 		topKey      = "baseline:"
 		fieldIndent = 2
 		listIndent  = 4
 	)
-	lines := strings.Split(strings.ReplaceAll(configContent, "\r\n", "\n"), "\n")
+	lines, _ := yamllite.OpaqueScalarLines(configContent)
 	foundBaseline := false
 	inBaseline := false
 	currentListKey := ""
