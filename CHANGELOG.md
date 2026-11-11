@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.172.2] - 2026-11-11
+
 ### Fixed
-- public-contract derivada por una ruta de impact que no es documento de contrato no se puede retirar con la respuesta del usuario, aunque el diff no cambie el contrato (#496) (retract-contract-by-impact-path)
+- **`public-contract` derivada por una ruta se retira con la respuesta del usuario cuando el diff no cambia el contrato** (retract-contract-by-impact-path, #496, detectado usando IDD en un proyecto real).
+  - **El defecto**: un proyecto sin documento de contrato que declara en `impact.public_contract` los ficheros de entrada de sus funciones HTTP quedaba sin salida al cambiar en ellos algo que no es contrato, como un import. `ospec record retract` respondía `signal-confirmed-by-diff` sin respuesta y `retract-answer-refused` con ella, y `contract-spec-and-test` pedía un documento de contrato que el proyecto no tiene.
+  - **El arreglo**: `ospec record retract --signal public-contract --answer "<sus palabras>" --source user` retira la señal que deriva una ruta de `impact`, de los patrones por defecto (base y stack) o publicada por `package.json`, sola o junto a líneas de contrato de la documentación. Sin respuesta se sigue rechazando, y el `how` ofrece la respuesta.
+  - **Atada a lo que el usuario vio**: cada ruta queda como un hit `<ruta> changes: sha256:<hex>`, la huella de las líneas que el diff añade y quita en ella. Otro cambio en esa ruta, u otra ruta de contrato en el diff o en el plan, devuelve la señal; volver a planificar una ruta ya respondida no.
+  - **Lo que sigue rechazando la respuesta**: un documento de contrato entre las rutas (`contracts.documents`, la base o el stack) y una ruta de la que el diff no trae líneas (renombrada o binaria), nombrándola. `persistent-data` y `security-boundary` derivadas por ruta no cambian.
+  - **Contrato y compatibilidad**: REQ-idd-006, con un escenario nuevo. El esquema del estado no cambia: los hits siguen siendo textos, y un cambio abierto con la CLI anterior se lee igual.
+
+**Verificación directa**: `node scripts/check.js` (4539 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
 
 ## [2.172.1] - 2026-11-11
 
