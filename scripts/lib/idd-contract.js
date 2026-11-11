@@ -45,6 +45,7 @@ const STATE_FIELDS = Object.freeze([
   "base",
   "runs",
   "reviews",
+  "advisory_corrections",
   "assumptions",
   "closed_at",
 ]);
@@ -172,6 +173,7 @@ function validateState(state) {
   }
   if ("runs" in state && !Array.isArray(state.runs)) fail("runs must be a list");
   if ("reviews" in state && !Array.isArray(state.reviews)) fail("reviews must be a list");
+  if ("advisory_corrections" in state && !Array.isArray(state.advisory_corrections)) fail("advisory_corrections must be a list");
   if ("retracted" in state && !Array.isArray(state.retracted)) fail("retracted must be a list");
   if ("impacts" in state && !Array.isArray(state.impacts)) fail("impacts must be a list");
   if ("attestations" in state && !Array.isArray(state.attestations)) fail("attestations must be a list");
@@ -251,9 +253,11 @@ function validateState(state) {
       fail("a review must be a schema v2 review lineage with its id and status");
     }
   }
+  const corrections = Array.isArray(state.advisory_corrections) ? state.advisory_corrections : [];
+  validateAdvisoryCorrections(corrections, reviews, fail);
   for (const entry of state.evidence) {
     if (entry.kind === "contract-spec-and-test") validateContractEvidence(entry, evidenceById, fail);
-    if (entry.kind === "frozen-review") validateReviewEvidence(entry, reviews, fail);
+    if (entry.kind === "frozen-review") validateReviewEvidence(entry, reviews, corrections, fail);
     if (entry.kind === "adr-impact-declaration") validateImpactEvidence(entry, runs, runIndex, fail);
   }
 
@@ -454,11 +458,57 @@ function validateContractEvidence(entry, evidenceById, fail) {
   }
 }
 
+// The advisory correction of an approved review (REQ-idd-016, E1.63): at most
+// one per review, of a review that used no blocking correction, naming
+// advisory findings it froze and paths it reviewed. A decided one keeps the
+// validator's verdict, and it passed only without a regression or an
+// unresolved finding.
+const CORRECTION_STATUSES = Object.freeze(["validating", "passed", "failed"]);
+function validateAdvisoryCorrections(corrections, reviews, fail) {
+  const seen = new Set();
+  const strings = (value) => Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string" && item.length > 0);
+  for (const correction of corrections) {
+    const id = correction?.lineage_id;
+    const review = reviews.find((lineage) => lineage?.lineage_id === id);
+    if (!review || review.status !== "approved" || (review.correction_history || []).length > 0) {
+      fail("an advisory correction needs an approved trust review that used no correction");
+      continue;
+    }
+    if (seen.has(id)) fail("a trust review takes one advisory correction");
+    seen.add(id);
+    if (!CORRECTION_STATUSES.includes(correction.status)) fail(`an advisory correction status must be one of ${CORRECTION_STATUSES.join(", ")}`);
+    const advisory = new Set((review.findings || []).filter((finding) => !finding.blocking).map((finding) => finding.id));
+    if (!strings(correction.finding_ids) || correction.finding_ids.some((finding) => !advisory.has(finding))) {
+      fail("an advisory correction names advisory findings of its review");
+    }
+    const frozen = new Set(review.genesis?.paths || []);
+    if (!strings(correction.paths) || correction.paths.some((file) => !frozen.has(file))) {
+      fail("an advisory correction stays inside the frozen paths of its review");
+    }
+    const budget = review.correction_budget || {};
+    if (!Number.isInteger(correction.changed_lines) || correction.changed_lines < 0 || correction.changed_lines > budget.limit_lines) {
+      fail("an advisory correction stays inside the line budget of its review");
+    }
+    if (typeof correction.candidate_tree !== "string" || typeof correction.diff_hash !== "string" || typeof correction.recorded_at !== "string") {
+      fail("an advisory correction needs its candidate_tree, diff_hash and recorded_at");
+    }
+    const validation = correction.validation;
+    if (correction.status === "validating" ? validation !== undefined : !validation || typeof validation !== "object") {
+      fail("an advisory correction keeps the validator's verdict once it is decided, and only then");
+    } else if (validation) {
+      const outcomes = Array.isArray(validation.outcomes) ? validation.outcomes : [];
+      const clean = validation.regression?.detected === false && outcomes.length === (correction.finding_ids || []).length
+        && outcomes.every((outcome) => outcome?.status === "resolved");
+      if ((correction.status === "passed") !== clean) fail("an advisory correction passes only without a regression or an unresolved finding");
+    }
+  }
+}
+
 // frozen-review must name an approved review of the candidate it names, with
 // the findings it froze (REQ-idd-016). Evidence recorded before OSP-029 has no
 // attestation; newer evidence says the result was relayed, or names the
 // SubagentStop receipt of the same result (REQ-hooks-027).
-function validateReviewEvidence(entry, reviews, fail) {
+function validateReviewEvidence(entry, reviews, corrections, fail) {
   const detail = entry.detail || {};
   const review = reviews.find((lineage) => lineage?.lineage_id === detail.lineage_id);
   const approved =
@@ -467,6 +517,13 @@ function validateReviewEvidence(entry, reviews, fail) {
     review.current_candidate_id === detail.candidate_id &&
     review.findings_digest === detail.findings_digest;
   if (!approved) fail(`evidence ${entry.id} needs an approved trust review of its candidate`);
+  // An approval that covers a corrected tree names the advisory correction
+  // that passed on it (E1.63).
+  if (detail.correction !== undefined) {
+    const passed = detail.correction === "advisory" && corrections.some((correction) =>
+      correction?.lineage_id === detail.lineage_id && correction.status === "passed" && correction.candidate_tree === detail.candidate_tree);
+    if (!passed) fail(`evidence ${entry.id} needs a passed advisory correction of its review on its tree`);
+  }
   if (detail.attestation !== undefined && !["relayed", "subagent-stop"].includes(detail.attestation)) fail(`evidence ${entry.id} has an unknown attestation`);
   const receipt = detail.receipt;
   const receipted = receipt !== undefined;

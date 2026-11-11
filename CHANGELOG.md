@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Los avisos de una revisión de confianza aprobada se corrigen con la corrección acotada, sin una revisión sucesora (E1.63) (review-advisory-correction)
+
 ### Changed
 - Registrar en el roadmap los ítems de las fricciones de proyectos reales (#498 a #503) y los issues abiertos sin ítem (friction-items-roadmap)
 

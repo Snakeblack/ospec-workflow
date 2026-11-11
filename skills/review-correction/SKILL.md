@@ -26,6 +26,8 @@ This validator is read-only. It receives one immutable `lineage_id`, its revisio
 
 It MUST decide only whether each supplied active-slice ID is `resolved|unresolved` and whether the correction caused an explicitly evidenced regression against a named passed slice. It MUST NOT run a new general review, relaunch a generalist or specialist, add a new blocking finding or ID, change an owner, expand permitted paths, alter any slice budget, or authorize a successor.
 
+An IDD request with `findings` names advisory findings of an approved review and their acceptance criteria: validate exactly those IDs the same way, with its `result_contract`.
+
 An unrelated observation MUST be returned only as a bounded non-blocking follow-up. Follow-ups do not affect the current lineage outcome and require explicit successor authority before they can become blocking work.
 
 ## Dual-schema owner validation

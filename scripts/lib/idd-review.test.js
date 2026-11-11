@@ -12,10 +12,12 @@ const { validateState } = require("./idd-contract.js");
 const { IddRecordError, recordIntent, recordSignal } = require("./idd-record.js");
 const {
   MAX_REVIEWS,
+  advisoryCorrection,
   buildCandidate,
   correctTrustReview,
   currentReview,
   recordTrustFindings,
+  reviewedTree,
   settleReviewFreshness,
   startTrustReview,
   trustReason,
@@ -387,7 +389,7 @@ test("REQ-idd-016 names the review commands, the reviewer and the limits", () =>
   assert.ok(start !== -1, "REQ-idd-016 is missing");
   const end = spec.indexOf("### Requirement:", start);
   const section = spec.slice(start, end === -1 ? undefined : end);
-  for (const name of ["ospec review start", "ospec review record", "ospec review correct", "ospec review validate", "review-trust", "review-correction", "reviews", "frozen-review", "trust", "request_digest", "reviewed", "location", "attestation: relayed", "attestation: subagent-stop", "result_contract", "review-refused"]) {
+  for (const name of ["ospec review start", "ospec review record", "ospec review correct", "ospec review validate", "review-trust", "review-correction", "reviews", "frozen-review", "trust", "request_digest", "reviewed", "location", "attestation: relayed", "attestation: subagent-stop", "result_contract", "review-refused", "advisory_corrections", "--finding <id>", "correction: advisory", "findings"]) {
     assert.ok(section.includes(`\`${name}\``), `REQ-idd-016 must name ${name}`);
   }
   assert.ok(section.includes(String(MAX_REVIEWS)), "REQ-idd-016 must state the review limit");
@@ -494,4 +496,251 @@ test("each result_contract states the format limits the CLI enforces", () => {
   for (const limit of [/cites a non-empty list/, /evidence: a non-empty list of strings of at most 500 characters/, /\{owner: trust\|runtime\|evolution\|efficiency, summary\}/, /summary of at most 500 characters/]) {
     assert.match(validate.result_contract, limit);
   }
+});
+
+// E1.63 (#498): fixing a WARNING or SUGGESTION of an approved review used to
+// need a whole successor review, which counts toward the three of a change.
+// An approved review that froze advisory findings and used no correction now
+// takes its one bounded correction for them, validated by review-correction,
+// and the lineage stays approved and untouched.
+const WARNING = { severity: "WARNING", summary: "The TTL is read on every call.", acceptance_criteria: "The TTL is read once." };
+const FIX = [{ path: "src/auth/tokens.js", added: 2, deleted: 1 }];
+const CORRECTED = "d".repeat(40);
+
+// An approved review of the given advisory findings whose reviewed paths changed.
+function approvedThenChanged(findings = [ADVICE]) {
+  const started = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
+  return settleReviewFreshness(record(started, findings).state, { reviewedChanged: true, correctionChanges: FIX });
+}
+
+function correctAdvisory(state, overrides = {}) {
+  return correctTrustReview(state, { changes: FIX, candidateTree: CORRECTED, diffHash: `sha256:${"9".repeat(64)}`, recordedAt: AT, ...overrides });
+}
+
+function validate(state, result, extra = {}) {
+  return validateTrustCorrection(state, { result, recordedAt: AT, lineCount, ...extra });
+}
+
+test("an approved review corrects its advisory findings with one bounded correction, without a successor", () => {
+  const changed = approvedThenChanged();
+  assert.strictEqual(obligation(changed).status, "pending");
+  assert.match(trustReason(changed), /ospec review correct \(--finding <id> names some of them\).*ospec review start for a successor review \(2 of 3\)/);
+  const lineage = currentReview(changed);
+  const [advice] = lineage.findings;
+
+  const corrected = correctAdvisory(changed);
+  const { request_digest: digest, result_contract: contract, ...rest } = corrected.validate;
+  assert.deepStrictEqual(rest, {
+    lineage_id: lineage.lineage_id,
+    generation: 1,
+    validator: "review-correction",
+    finding_ids: [advice.id],
+    findings: [{ id: advice.id, severity: "SUGGESTION", summary: ADVICE.summary, acceptance_criteria: ADVICE.acceptance_criteria }],
+    paths: ["src/auth/tokens.js"],
+  });
+  assert.match(digest, /^sha256:[0-9a-f]{64}$/);
+  assert.match(contract, /outcomes with one \{id, status: resolved\|unresolved\}/);
+  assert.strictEqual(obligation(corrected.state).status, "pending");
+  assert.deepStrictEqual(currentReview(corrected.state), lineage, "the approved lineage is not touched");
+  assert.strictEqual(advisoryCorrection(corrected.state, lineage).status, "validating");
+  assert.strictEqual(reviewedTree(corrected.state), lineage.current_candidate.candidate_tree);
+  assert.match(trustReason(corrected.state), new RegExp(`dispatch review-correction for ${advice.id} .*ospec review validate`));
+  valid(corrected.state);
+
+  // The request comes back while the correction waits, and no successor opens.
+  const again = startTrustReview(corrected.state, { candidate: candidate("e".repeat(40), "e".repeat(40)), reviewedChanged: true });
+  assert.strictEqual(again.changed, false);
+  assert.deepStrictEqual(again.validate, corrected.validate);
+
+  const passed = validate(corrected.state, verdict(corrected.validate, "resolved"));
+  assert.strictEqual(passed.evidence, "ev-2");
+  assert.strictEqual(obligation(passed.state).status, "satisfied");
+  assert.deepStrictEqual(obligation(passed.state).evidence, ["ev-2"]);
+  assert.strictEqual(passed.state.reviews.length, 1, "no successor review");
+  assert.strictEqual(currentReview(passed.state).status, "approved");
+  const { detail } = passed.state.evidence[1];
+  assert.deepStrictEqual(
+    { tree: detail.candidate_tree, correction: detail.correction, attestation: detail.attestation, candidate: detail.candidate_id },
+    { tree: CORRECTED, correction: "advisory", attestation: "relayed", candidate: lineage.current_candidate_id },
+  );
+  const stored = advisoryCorrection(passed.state, lineage);
+  assert.strictEqual(stored.status, "passed");
+  assert.deepStrictEqual(stored.validation.outcomes, [{ id: advice.id, status: "resolved" }]);
+  assert.strictEqual(reviewedTree(passed.state), CORRECTED);
+  valid(passed.state);
+
+  // One correction per review: neither a retry nor a check restores it.
+  assertCode(() => correctAdvisory(passed.state, { candidateTree: "e".repeat(40) }), "review-refused");
+  assert.throws(() => correctAdvisory(passed.state), /already used its one bounded correction: run ospec review start/);
+  assertCode(() => validate(passed.state, verdict(corrected.validate, "resolved")), "review-refused");
+  assert.strictEqual(obligation(settleReviewFreshness(passed.state, { reviewedChanged: false })).status, "satisfied");
+
+  // The approval covers the corrected tree: leaving it and coming back restores its evidence.
+  const stale = settleReviewFreshness(passed.state, { reviewedChanged: true, correctionChanges: FIX });
+  assert.strictEqual(obligation(stale).status, "pending");
+  assert.doesNotMatch(trustReason(stale), /ospec review correct/);
+  const back = settleReviewFreshness(stale, { reviewedChanged: false });
+  assert.deepStrictEqual(obligation(back).evidence, ["ev-2"]);
+  valid(back);
+});
+
+test("--finding names the advisory findings a correction fixes, and nothing else", () => {
+  const changed = approvedThenChanged([ADVICE, WARNING]);
+  const lineage = currentReview(changed);
+  const warning = lineage.findings.find((finding) => finding.severity === "WARNING");
+
+  const all = correctAdvisory(changed);
+  assert.deepStrictEqual(all.validate.finding_ids, lineage.findings.map((finding) => finding.id).sort());
+
+  const one = correctAdvisory(changed, { findingIds: [warning.id, warning.id] });
+  assert.deepStrictEqual(one.validate.finding_ids, [warning.id]);
+  assert.deepStrictEqual(one.validate.findings.map((finding) => finding.severity), ["WARNING"]);
+  assert.notStrictEqual(one.validate.request_digest, all.validate.request_digest);
+  // The verdict covers exactly the named findings.
+  assertCode(() => validate(one.state, verdict(all.validate, "resolved", { request_digest: one.validate.request_digest })), "review-refused");
+  assert.strictEqual(validate(one.state, verdict(one.validate, "resolved")).evidence, "ev-2");
+
+  assert.throws(() => correctAdvisory(changed, { findingIds: ["F-0000000000000000"] }), /F-0000000000000000 is not an advisory finding of the approved review/);
+
+  // A blocking correction covers every frozen blocking finding: --finding is refused there.
+  const blocked = record(startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state, [BLOCKER, ADVICE]).state;
+  const advice = currentReview(blocked).findings.find((finding) => !finding.blocking);
+  assert.throws(() => correctAdvisory(blocked, { findingIds: [advice.id] }), /--finding names advisory findings of an approved review/);
+});
+
+test("a failed advisory validation leaves trust-review pending and a successor review checks the change", () => {
+  for (const result of [
+    (request) => verdict(request, "unresolved"),
+    (request) => verdict(request, "resolved", { regression: { detected: true, evidence: ["expired tokens pass again"] } }),
+  ]) {
+    const corrected = correctAdvisory(approvedThenChanged());
+    const failed = validate(corrected.state, result(corrected.validate));
+    assert.strictEqual(failed.evidence, null);
+    assert.strictEqual(obligation(failed.state).status, "pending");
+    assert.strictEqual(advisoryCorrection(failed.state, currentReview(failed.state)).status, "failed");
+    assert.strictEqual(currentReview(failed.state).status, "approved");
+    assert.strictEqual(failed.state.evidence.length, 1);
+    valid(failed.state);
+    assertCode(() => correctAdvisory(failed.state), "review-refused");
+    assert.match(trustReason(failed.state), /^the reviewed paths changed after the review: change the code and run ospec review start/);
+
+    const successor = startTrustReview(failed.state, { candidate: candidate("e".repeat(40), "e".repeat(40)), reviewedChanged: true });
+    assert.strictEqual(successor.request.generation, 2);
+    // Back on the reviewed candidate, the first approval still holds.
+    assert.deepStrictEqual(obligation(settleReviewFreshness(failed.state, { reviewedChanged: false })).evidence, ["ev-1"]);
+  }
+});
+
+test("an advisory correction keeps the frozen paths, the line budget and the one correction of its review", () => {
+  const changed = approvedThenChanged();
+  // The budget is half of the 12 reviewed lines.
+  assert.throws(() => correctAdvisory(changed, { changes: [{ path: "src/auth/tokens.js", added: 5, deleted: 2 }] }), /does not fit one bounded correction.*ospec review start for a successor review/);
+  assert.throws(() => correctAdvisory(changed, { changes: [...FIX, { path: "src/auth/session.js", added: 1, deleted: 0 }] }), /does not fit one bounded correction/);
+  assert.throws(() => correctAdvisory(changed, { changes: [] }), /nothing changed since the reviewed candidate/);
+  assert.strictEqual(correctAdvisory(changed, { changes: [{ path: "src/auth/tokens.js", added: 4, deleted: 2 }] }).validate.paths.length, 1);
+
+  // A review without advisory findings has nothing to correct.
+  const clean = settleReviewFreshness(record(startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state, []).state, { reviewedChanged: true });
+  assert.throws(() => correctAdvisory(clean), /froze no advisory finding to correct: run ospec review start/);
+  assert.doesNotMatch(trustReason(clean), /ospec review correct/);
+
+  // A review approved through its blocking correction already used it.
+  let state = record(startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state, [BLOCKER, ADVICE]).state;
+  const blocking = correct(state);
+  state = validate(blocking.state, verdict(blocking.validate, "resolved")).state;
+  assert.strictEqual(currentReview(state).status, "approved");
+  state = settleReviewFreshness(state, { reviewedChanged: true, correctionChanges: FIX });
+  assert.throws(() => correctAdvisory(state, { changes: [{ path: "src/auth/tokens.js", added: 1, deleted: 0 }] }), /already used its one bounded correction/);
+  assert.doesNotMatch(trustReason(state), /ospec review correct/);
+});
+
+test("an advisory validation answers its request, cites the corrected paths and takes the validator's receipt", () => {
+  const corrected = correctAdvisory(approvedThenChanged());
+  const request = corrected.validate;
+  const good = verdict(request, "resolved");
+  for (const result of [
+    { ...good, request_digest: `sha256:${"0".repeat(64)}` },
+    { ...good, reviewed: [] },
+    { ...good, reviewed: [{ path: "src/auth/tokens.js", cites: ["src/auth/tokens.js:99"] }] },
+    { ...good, outcomes: [] },
+    { ...good, outcomes: [...good.outcomes, { id: "F-0000000000000000", status: "resolved" }] },
+    { ...good, outcomes: [{ ...good.outcomes[0], note: "extra" }] },
+    { ...good, regression: { detected: false, evidence: [] } },
+    { ...good, follow_ups: [{ owner: "risk", summary: "Old owner." }] },
+  ]) {
+    assertCode(() => validate(corrected.state, result), "review-refused");
+  }
+  const followed = { ...good, follow_ups: [{ owner: "trust", summary: " Rotate the signing key. " }] };
+  const stored = advisoryCorrection(validate(corrected.state, followed).state, currentReview(corrected.state));
+  assert.deepStrictEqual(stored.validation.follow_ups, [{ owner: "trust", summary: "Rotate the signing key." }]);
+
+  // The receipt of review-correction attests it; another result under that digest is refused.
+  const receipted = validate(corrected.state, good, { receiptFor: receiptOf("review-correction", good) });
+  assert.strictEqual(receipted.state.evidence[1].detail.attestation, "subagent-stop");
+  assert.strictEqual(receipted.state.evidence[1].detail.receipt.agent, "review-correction");
+  assert.deepStrictEqual(receipted.warnings, []);
+  valid(receipted.state);
+  assertCode(() => validate(corrected.state, followed, { receiptFor: receiptOf("review-correction", good) }), "review-refused");
+  assert.match(validate(corrected.state, good).warnings[0], /no SubagentStop receipt of review-correction/);
+});
+
+test("the review-limit gate waits while the last review can take its advisory correction", () => {
+  let state = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
+  for (let generation = 1; generation <= MAX_REVIEWS; generation += 1) {
+    if (generation > 1) {
+      state = settleReviewFreshness(state, { reviewedChanged: true });
+      state = startTrustReview(state, { candidate: candidate("e".repeat(39) + generation, String(generation).repeat(40)), reviewedChanged: true }).state;
+    }
+    state = record(state, generation === MAX_REVIEWS ? [ADVICE] : []).state;
+  }
+  const gates = (settled) => settled.gates.map(({ id, status }) => `${id}:${status}`);
+
+  // The fix fits the correction: no gate, and the reason offers it before the limit.
+  const fits = settleReviewFreshness(state, { reviewedChanged: true, correctionChanges: FIX });
+  assert.deepStrictEqual(gates(fits), []);
+  assert.match(trustReason(fits), /takes ospec review correct .*otherwise 3 of 3 trust reviews used/);
+  // Waiting for its validation: still no gate.
+  const waiting = settleReviewFreshness(correctAdvisory(fits).state, { reviewedChanged: true, correctionChanges: FIX });
+  assert.deepStrictEqual(gates(waiting), []);
+  // A passed correction keeps the change inside its three reviews.
+  const passed = validate(waiting, verdict(correctAdvisory(fits).validate, "resolved")).state;
+  assert.strictEqual(passed.reviews.length, MAX_REVIEWS);
+  assert.strictEqual(obligation(settleReviewFreshness(passed, { reviewedChanged: false })).status, "satisfied");
+
+  // A fix that does not fit, one the check cannot measure or a failed correction asks the person.
+  const oversized = [...FIX, { path: "src/auth/session.js", added: 1, deleted: 0 }];
+  assert.deepStrictEqual(gates(settleReviewFreshness(state, { reviewedChanged: true, correctionChanges: oversized })), ["review-limit:open"]);
+  assert.deepStrictEqual(gates(settleReviewFreshness(state, { reviewedChanged: true })), ["review-limit:open"]);
+  const failed = validate(waiting, verdict(correctAdvisory(fits).validate, "unresolved")).state;
+  assert.deepStrictEqual(gates(settleReviewFreshness(failed, { reviewedChanged: true, correctionChanges: FIX })), ["review-limit:open"]);
+});
+
+test("an advisory correction in the state must belong to an approved review and back its evidence", () => {
+  const corrected = correctAdvisory(approvedThenChanged());
+  const passed = validate(corrected.state, verdict(corrected.validate, "resolved")).state;
+  valid(passed);
+  const invalid = (mutate) => {
+    const forged = structuredClone(passed);
+    mutate(forged);
+    assert.strictEqual(validateState(forged).ok, false);
+  };
+  invalid((state) => { state.advisory_corrections = "none"; });
+  invalid((state) => { state.advisory_corrections[0].lineage_id = `sha256:${"0".repeat(64)}`; });
+  invalid((state) => { state.advisory_corrections.push(structuredClone(state.advisory_corrections[0])); });
+  invalid((state) => { state.advisory_corrections[0].status = "approved"; });
+  invalid((state) => { state.advisory_corrections[0].finding_ids = ["F-0000000000000000"]; });
+  invalid((state) => { state.advisory_corrections[0].paths = ["src/auth/session.js"]; });
+  invalid((state) => { state.advisory_corrections[0].changed_lines = 7; });
+  invalid((state) => { delete state.advisory_corrections[0].validation; });
+  invalid((state) => { state.advisory_corrections[0].validation.regression.detected = true; });
+  invalid((state) => { state.advisory_corrections[0].validation.outcomes[0].status = "unresolved"; });
+  // The approval of a corrected tree needs the passed correction on that tree.
+  invalid((state) => { state.advisory_corrections[0].candidate_tree = "e".repeat(40); });
+  invalid((state) => { state.advisory_corrections = []; });
+  invalid((state) => { state.evidence[1].detail.correction = "blocking"; });
+  // A validating correction carries no verdict yet.
+  valid(corrected.state);
+  const early = structuredClone(corrected.state);
+  early.advisory_corrections[0].validation = { outcomes: [], regression: { detected: false, evidence: ["x"] }, follow_ups: [] };
+  assert.strictEqual(validateState(early).ok, false);
 });

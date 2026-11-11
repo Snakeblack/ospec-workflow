@@ -103,10 +103,14 @@ declared and, for an ADR amended or superseded, the `record` that does it),
 `attestations` (the manual evidence of a fitness function no command checks,
 REQ-idd-022: one per declared reference, with its `kind`, `id`, `evidence` and
 `recorded_at`), `runs` (each
-CLI-observed execution of REQ-idd-014) and `reviews` (the trust review
-lineages of REQ-idd-016, oldest first), plus `closed_at` once the change is
+CLI-observed execution of REQ-idd-014), `reviews` (the trust review
+lineages of REQ-idd-016, oldest first) and `advisory_corrections` (the
+advisory correction of an approved review, REQ-idd-016: at most one per
+lineage, with its `lineage_id`, `status`, `finding_ids`, `paths`,
+`changed_lines`, `candidate_tree`, `diff_hash`, `recorded_at` and, once
+decided, the `validation` it got), plus `closed_at` once the change is
 closed (REQ-idd-017), an ISO 8601 UTC timestamp, since it names the archive. A state without `base`, `plan`, `retracted`, `impacts`,
-`attestations`, `runs`, `reviews`, `facts` or `assumptions` MUST stay valid, as the states written before they existed. While the
+`attestations`, `runs`, `reviews`, `advisory_corrections`, `facts` or `assumptions` MUST stay valid, as the states written before they existed. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
 request, and `signals` and `obligations` MUST be empty. `state.yaml` MUST be
@@ -1781,10 +1785,44 @@ at most 3 reviews plus one for each resolved `review-limit` gate. Once they are
 used up while `trust-review` is pending after a terminal review, `ospec check`
 MUST open `review-limit`, one entry per authorization that only the CLI opens,
 and `ospec review start` MUST refuse with `review-limit` until the person
-resolves it. When the reviewed paths come back to the candidate of an approved
-current review, `ospec check` MUST satisfy `trust-review` again with that
-review's evidence. All lineages stay in `reviews`, each successor naming its
-predecessor.
+resolves it. When the reviewed paths come back to the tree the approval of the
+current review covers, `ospec check` MUST satisfy `trust-review` again with
+the evidence of that tree. All lineages stay in `reviews`, each successor
+naming its predecessor.
+
+An approved review that froze `WARNING` or `SUGGESTION` findings and used no
+correction MAY spend its one bounded correction on them, so that fixing an
+advisory finding does not cost a whole successor review. On such a review
+`ospec review correct` MUST record the changes since the reviewed candidate in
+`advisory_corrections` of the state and return the validation request for
+`review-correction`; `--finding <id>`, which MAY be repeated, names the
+advisory findings the change fixes, and without it the correction names all of
+them. It MUST refuse with `review-refused`, recording nothing: changes outside
+the frozen paths or over the line budget, naming `ospec review start`, as for a
+blocking correction; a review that froze no advisory finding; a review that
+already used its correction, blocking or advisory; and a `--finding` that is
+not an advisory finding of that review, or any `--finding` on a review that
+waits for its blocking correction. The lineage MUST stay `approved` and
+unchanged, and `trust-review` MUST be `pending` until the validation passes.
+The request MUST carry those IDs, their severity, summary and acceptance
+criteria as `findings`, the corrected paths, the same `result_contract` and a
+`request_digest` of the lineage, generation, corrected tree, paths and IDs that
+differs from the digest of a blocking validation; `ospec review start` MUST
+return it again while the correction waits, opening no successor.
+`ospec review validate` MUST check the result as for a blocking correction: its
+`request_digest`, a `reviewed` entry that cites each corrected path and no
+other, one outcome for each named ID and no other, the regression evidence and
+the follow-ups, attested with a receipt from `review-correction`. When every
+named finding is `resolved` and no regression is detected the correction
+passes: `frozen-review` evidence MUST be recorded for the corrected tree, with
+`correction: advisory`, `trust-review` MUST be satisfied without a new entry in
+`reviews`, and from then on the approval covers the corrected tree. Otherwise
+the correction fails and `trust-review` MUST stay `pending`, so a successor
+review checks the change. Neither outcome counts toward the 3 reviews, and a
+retry, a check or a close MUST NOT restore the correction. While the current
+review can take its advisory correction for the changes since its candidate,
+or that correction waits for its validation, `ospec check` MUST NOT open
+`review-limit`.
 
 #### Scenario: A hand-written empty result is refused
 
@@ -1842,6 +1880,25 @@ predecessor.
   MUST be refused
 - AND a validation that resolves it MUST approve the review, while one that
   does not MUST end the lineage
+
+#### Scenario: Advisory findings are corrected without a successor
+
+- GIVEN an approved trust review of `src/auth/tokens.js` that froze one
+  `WARNING`, whose file is then fixed inside the line budget
+- WHEN `ospec review correct` runs and `review-correction` resolves that
+  finding without a regression
+- THEN `trust-review` MUST be satisfied by `frozen-review` evidence of the
+  corrected tree, with `correction: advisory`
+- AND `reviews` MUST still hold one review, and a second
+  `ospec review correct` MUST be refused naming `ospec review start`
+
+#### Scenario: A failed or oversized advisory correction needs a successor
+
+- GIVEN an approved trust review that froze one `SUGGESTION`
+- WHEN the fix also changes a file the review never froze
+- THEN `ospec review correct` MUST refuse naming `ospec review start`
+- AND a correction whose validation detects a regression MUST leave
+  `trust-review` `pending`, and `ospec review start` MUST open review 2
 
 #### Scenario: Oversized correction escalates to a successor
 

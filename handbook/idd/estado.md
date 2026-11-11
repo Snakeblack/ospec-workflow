@@ -36,7 +36,7 @@ flowchart LR
 ## state.yaml: solo lo escribe el CLI
 
 - Es JSON válido (YAML 1.2) con `schema: idd-state/v1`. El modelo no lo edita nunca.
-- Guarda `change`, `mode`, `status` (`open` o `closed`), `intent` (tipo, resumen y criterio de aceptación), `facts` (preguntas abiertas), `assumptions`, `signals`, `obligations`, `gates`, `evidence` y, cuando aplica, `base`, `plan`, `runs`, `reviews`, `impacts` y `closed_at`.
+- Guarda `change`, `mode`, `status` (`open` o `closed`), `intent` (tipo, resumen y criterio de aceptación), `facts` (preguntas abiertas), `assumptions`, `signals`, `obligations`, `gates`, `evidence` y, cuando aplica, `base`, `plan`, `runs`, `reviews`, `advisory_corrections` (la corrección de avisos de una revisión aprobada), `impacts` y `closed_at`.
 - `base` es el commit `HEAD` en el momento de abrir el cambio. No se mueve después.
 - Cada escritura va bajo un lock y reemplaza el fichero de forma atómica. Un `record` repetido que no cambia nada deja el fichero byte a byte igual.
 - Si una escritura se interrumpe, el último estado válido sigue legible. Si solo queda `state.yaml.bak`, `ospec doctor` lo señala y recomienda `ospec status`.
