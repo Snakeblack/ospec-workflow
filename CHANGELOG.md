@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- public-contract derivada por una ruta de impact que no es documento de contrato no se puede retirar con la respuesta del usuario, aunque el diff no cambie el contrato (#496) (retract-contract-by-impact-path)
+
 ## [2.172.1] - 2026-11-11
 
 ### Fixed

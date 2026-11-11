@@ -2320,6 +2320,101 @@ test("record retract refuses the user's answer for a contract line in a contract
   assert.strictEqual(stateOf(root, "fix-readme").obligations.find((o) => o.id === "contract-spec-and-test").status, "pending");
 });
 
+// #496: public-contract that an impact path outside a contract document
+// derives is retracted with the user's answer, tied to the lines the diff
+// changes in that path; a later edit of it or another path brings it back.
+const FUNCTIONS_CONFIG = "checks:\n  test: node verify.js\nimpact:\n  public_contract:\n    - functions/*/index.ts\n";
+const HANDLER = 'import { serve } from "https://cdn.example/serve.ts";\nserve(() => new Response("ok"));\n';
+const HANDLER_NPM = HANDLER.replace("https://cdn.example/serve.ts", "npm:serve");
+const PATH_HIT = (file) => new RegExp(`^${file.replaceAll("/", "\\/").replaceAll(".", "\\.")} changes: sha256:[0-9a-f]{64}$`);
+
+function functionsProject(t) {
+  const { root, git } = project(t, { checks: FUNCTIONS_CONFIG });
+  for (const name of ["a", "b"]) writeFile(root, `functions/${name}/index.ts`, HANDLER);
+  writeFile(root, "src/api/users.js", "module.exports = () => [];\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "functions");
+  ospec(root, "record", "intent", "--change", "npm-imports", "--kind", "bug", "--summary", "Import serve from npm.", "--acceptance", "The functions import npm:serve.", "--no-open-facts", "--basis", "The request fixes every behavior.", "--path", "functions/a/index.ts");
+  return { root, git };
+}
+
+const RETRACT_CONTRACT = ["record", "retract", "--change", "npm-imports", "--signal", "public-contract", "--reason", "only an import specifier changes"];
+const contractOf = (root) => stateOf(root, "npm-imports").obligations.find((o) => o.id === "contract-spec-and-test").status;
+const hasContract = (root) => stateOf(root, "npm-imports").signals.some((signal) => signal.id === "public-contract");
+
+test("[#496] record retract takes the user's answer for a public contract an impact path outside a contract document derives", (t) => {
+  const { root } = functionsProject(t);
+  writeFile(root, "functions/a/index.ts", HANDLER_NPM);
+  ospec(root, "check", "--change", "npm-imports", "--json");
+  assert.strictEqual(contractOf(root), "pending");
+
+  const plain = ospec(root, ...RETRACT_CONTRACT, "--json");
+  assert.strictEqual(plain.json.error.code, "signal-confirmed-by-diff");
+  assert.match(plain.json.error.how, /the diff changes no contract: .*, add --answer "<their words>" --source user/);
+  const answered = ospec(root, ...RETRACT_CONTRACT, "--answer", "No route, request or response changes.", "--source", "user", "--json");
+  assert.strictEqual(answered.code, 0, answered.stderr);
+  let entry = stateOf(root, "npm-imports").retracted.at(-1);
+  assert.strictEqual(entry.confirmed_by, "public contract: touches functions/a/index.ts (matches functions/*/index.ts)");
+  assert.strictEqual(entry.hits.length, 1);
+  assert.match(entry.hits[0], PATH_HIT("functions/a/index.ts"));
+  assert.strictEqual(contractOf(root), "withdrawn");
+
+  // Neither a later check nor declaring the answered path again brings it back.
+  assert.strictEqual(ospec(root, "check", "--change", "npm-imports", "--json").code, 0);
+  assert.strictEqual(ospec(root, "signals", "--change", "npm-imports", "--path", "functions/a/index.ts", "--json").code, 0);
+  assert.ok(!hasContract(root), "the answered path stays retracted");
+  assert.strictEqual(contractOf(root), "withdrawn");
+
+  // Another contract path brings it back, and the answer then covers both.
+  writeFile(root, "functions/b/index.ts", HANDLER_NPM);
+  assert.ok(ospec(root, "check", "--change", "npm-imports", "--json").json.added.signals.includes("public-contract"));
+  assert.strictEqual(contractOf(root), "pending");
+  assert.strictEqual(ospec(root, ...RETRACT_CONTRACT, "--answer", "No route changes in b either.", "--source", "user", "--json").code, 0);
+  entry = stateOf(root, "npm-imports").retracted.at(-1);
+  assert.strictEqual(entry.hits.length, 2);
+  assert.match(entry.hits[1], PATH_HIT("functions/b/index.ts"));
+
+  // A later edit of an answered path brings it back too.
+  writeFile(root, "functions/a/index.ts", `${HANDLER_NPM}serve(() => new Response("gone", { status: 410 }));\n`);
+  assert.ok(ospec(root, "check", "--change", "npm-imports", "--json").json.added.signals.includes("public-contract"));
+  assert.strictEqual(contractOf(root), "pending");
+
+  // So does a planned contract path the answer did not see.
+  assert.strictEqual(ospec(root, ...RETRACT_CONTRACT, "--answer", "The new line keeps the routes.", "--source", "user", "--json").code, 0);
+  assert.ok(ospec(root, "signals", "--change", "npm-imports", "--path", "functions/c/index.ts", "--json").json.added.signals.includes("public-contract"));
+});
+
+test("[#496] the user's answer covers a default contract path and the contract lines of a doc, but no contract document nor a path without lines", (t) => {
+  const { root, git } = functionsProject(t);
+  // A base pattern (**/api/**) and a doc line that cites an endpoint: one answer, both hits.
+  writeFile(root, "src/api/users.js", "module.exports = () => []; // sorted elsewhere\n");
+  writeFile(root, "SECURITY.md", "Report it through `POST /api/contact/`.\n");
+  ospec(root, "check", "--change", "npm-imports", "--json");
+  assert.strictEqual(ospec(root, ...RETRACT_CONTRACT, "--answer", "Nothing public changes.", "--source", "user", "--json").code, 0);
+  const { hits } = stateOf(root, "npm-imports").retracted.at(-1);
+  assert.strictEqual(hits.length, 2);
+  assert.match(hits[0], PATH_HIT("src/api/users.js"));
+  assert.strictEqual(hits[1], "SECURITY.md adds API: Report it through `POST /api/contact/`.");
+  assert.ok(!hasContract(root));
+
+  // A contract document among the paths is the contract itself.
+  writeFile(root, "openapi.yaml", "openapi: 3.1.0\n");
+  assert.ok(ospec(root, "check", "--change", "npm-imports", "--json").json.added.signals.includes("public-contract"));
+  const document = ospec(root, ...RETRACT_CONTRACT, "--answer", "Nothing public changes.", "--source", "user", "--json");
+  assert.strictEqual(document.json.error.code, "retract-answer-refused");
+  assert.match(document.json.error.message, /openapi\.yaml is a contract document/);
+  assert.doesNotMatch(ospec(root, ...RETRACT_CONTRACT, "--json").json.error.how ?? "", /--answer/);
+  fs.rmSync(path.join(root, "openapi.yaml"));
+
+  // A renamed function changes no line the answer could be tied to.
+  git("mv", "functions/b", "functions/c");
+  ospec(root, "check", "--change", "npm-imports", "--json");
+  const renamed = ospec(root, ...RETRACT_CONTRACT, "--answer", "Nothing public changes.", "--source", "user", "--json");
+  assert.strictEqual(renamed.json.error.code, "retract-answer-refused");
+  assert.match(renamed.json.error.message, /functions\/[bc]\/index\.ts changes no line/);
+  assert.strictEqual(contractOf(root), "pending");
+});
+
 // #418: a signal from the diff that the current diff no longer derives is
 // retracted with a reason, as a declared one; one the diff derives is refused.
 test("record retract withdraws persistent data from the diff once the diff is back to the answered hits", (t) => {
@@ -2394,14 +2489,15 @@ test("record retract withdraws a public contract from the diff once the diff no 
   ]);
 });
 
-test("record retract refuses the user's answer for a public contract a path derives", (t) => {
+// #496: a new file under a path that derives public-contract is answered as a changed one.
+test("record retract takes the user's answer for a public contract a new file under a contract path derives", (t) => {
   const { root } = project(t);
   openFeature(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...FEATURE_COVER);
   ospec(root, "signals", "--change", "add-index", "--path", "src/api/search.js");
   writeFile(root, "src/api/search.js", "module.exports = {};\n");
-  const refused = ospec(root, "record", "retract", "--change", "add-index", "--signal", "public-contract", "--reason", "internal", "--answer", "Not public.", "--source", "user", "--json");
-  assert.strictEqual(refused.json.error.code, "retract-answer-refused");
-  assert.strictEqual(stateOf(root, "add-index").obligations.find((o) => o.id === "contract-spec-and-test").status, "pending");
+  const answered = ospec(root, "record", "retract", "--change", "add-index", "--signal", "public-contract", "--reason", "internal", "--answer", "Not public.", "--source", "user", "--json");
+  assert.strictEqual(answered.code, 0, answered.stderr);
+  assert.strictEqual(stateOf(root, "add-index").obligations.find((o) => o.id === "contract-spec-and-test").status, "withdrawn");
 });
 
 test("record retract withdraws a declared work-unit signal, which the diff never confirms", (t) => {

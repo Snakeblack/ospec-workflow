@@ -7,6 +7,7 @@
 // the K1 hard floors of PP1/PP2 under their IDD names, so the K1 floor is
 // reported alongside. Pure: idd-workspace.js reads the diff and the config.
 
+const crypto = require("node:crypto");
 const { classifyChange } = require("./change-classification.js");
 const { SIGNALS, isIntentAmbiguous } = require("./idd-contract.js");
 const { classifyContractPaths } = require("./idd-contracts.js");
@@ -109,6 +110,8 @@ const CONTRACT_PATTERNS = Object.freeze([
 const NO_RED_TEST_KINDS = Object.freeze(["docs", "refactor"]);
 const ALWAYS_REASON = "every change with a resolved intent";
 const SIGNAL_ORDER = SIGNALS.map((signal) => signal.id);
+// Between a changed path and the fingerprint of its changes, in a path hit (#496).
+const PATH_HIT = " changes: sha256:";
 
 function sortedPaths(paths) {
   return [...new Set((paths || []).map(normalizePath))].sort();
@@ -220,7 +223,8 @@ function persistentHits(diff, patterns) {
 }
 
 // The hits a user's answer retracted (#416) stay out while the diff holds no
-// other: a new write, a changed one or a path brings the signal back.
+// other: a new write, a changed one or a path it did not cover brings the
+// signal back.
 function userRetracted(retracted, id, hits) {
   const answered = (retracted || []).filter((entry) => entry.id === id && entry.answer && Array.isArray(entry.hits));
   return answered.some((entry) => {
@@ -271,6 +275,36 @@ function contentHits(signalId, diff, patterns) {
   if (signalId === "public-contract") return contractHits(diff.addedLines);
   if (signalId === "security-boundary") return securityHits(diff, patterns);
   return [];
+}
+
+// Public contract by path (#496): every changed path a public-contract pattern
+// matches, published ones included, as "<file> changes: sha256:<hex>", the
+// SHA-256 of the lines the diff adds to and removes from it, so a user's
+// answer covers only the changes it saw, as for contract lines (E1.58):
+// another change to that path or a new path brings the signal back. `lines`
+// says whether the diff holds any line of the path: a binary or renamed one
+// has none, so nothing ties an answer to it.
+function contractPathHits(diff, patterns) {
+  const paths = impactHits(diff.paths, patterns).get("public-contract")?.paths || [];
+  return paths.map((file) => {
+    const changes = [diff.addedLines?.[file] || [], diff.removedLines?.[file] || []];
+    const fingerprint = crypto.createHash("sha256").update(JSON.stringify(changes)).digest("hex");
+    return { file, reason: `${file} changes`, key: `${file}${PATH_HIT}${fingerprint}`, lines: changes.some((lines) => lines.length > 0) };
+  });
+}
+
+// Whether a user's answer covered a change to `file` (#496): planning that
+// path again says nothing the answer did not see.
+function answeredPath(retracted, file) {
+  const answered = (retracted || []).filter((entry) => entry.id === "public-contract" && entry.answer && Array.isArray(entry.hits));
+  return answered.some((entry) => entry.hits.some((key) => key.startsWith(`${file}${PATH_HIT}`)));
+}
+
+// The hits a user's answer covers when it retracts a signal: its content hits
+// and, for public-contract, its changed paths (#496).
+function answerHits(signalId, diff, patterns) {
+  const hits = contentHits(signalId, diff, patterns);
+  return signalId === "public-contract" ? [...contractPathHits(diff, patterns), ...hits] : hits;
 }
 
 // The lines of a Rust file inside and outside its inline test modules: from
@@ -524,7 +558,13 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
   ]) {
     const hits = impactHits(paths, patterns);
     for (const signal of IMPACT_SIGNALS) {
-      if (hits.has(signal)) add(signal, impactReason(signal, hits.get(signal), patterns), source);
+      if (!hits.has(signal)) continue;
+      // The path changes a user's answer covered stay out, in the diff and in the plan (#496).
+      if (signal === "public-contract") {
+        const covered = source === "diff" ? userRetracted(retracted, signal, contractPathHits(diff, patterns)) : hits.get(signal).paths.every((file) => answeredPath(retracted, file));
+        if (covered) continue;
+      }
+      add(signal, impactReason(signal, hits.get(signal), patterns), source);
     }
   }
   // After the paths, so a planned or matching path names the signal (E1.50).
@@ -600,11 +640,13 @@ module.exports = {
   FLOOR_SIGNALS,
   IRREVERSIBLE_OPERATIONS,
   addedTests,
+  answerHits,
   applyDerivation,
   citesOutsidePlan,
   classifyPath,
   contentHits,
   contractHits,
+  contractPathHits,
   deriveSignals,
   inlineTests,
   isTestPath,

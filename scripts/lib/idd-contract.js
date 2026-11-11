@@ -218,7 +218,7 @@ function validateState(state) {
     const answered = entry !== null && typeof entry === "object" && ["answer", "answer_source", "confirmed_by", "hits"].some((key) => key in entry);
     if (!RETRACTABLE_SIGNALS.includes(entry?.id)) fail(`retracted signal ${entry?.id} is not retractable`);
     else if (answered) {
-      // #416, E1.58, E1.50: a signal only the content derives, retracted with the user's answer.
+      // #416, E1.58, E1.50, #496: a signal the user's answer retracted, with the hits it covered.
       if (!ANSWER_RETRACTABLE_SIGNALS.includes(entry.id) || !isText(entry.reason) || !SIGNAL_SOURCES.includes(entry.source) || !isText(entry.retract_reason)
         || !isText(entry.confirmed_by) || !Array.isArray(entry.hits) || entry.hits.length === 0 || !entry.hits.every(isText)
         || !isText(entry.answer) || !GATE_SOURCES.includes(entry.answer_source)) {

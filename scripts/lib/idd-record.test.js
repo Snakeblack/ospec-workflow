@@ -608,20 +608,20 @@ test("the user's answer retracts content-only persistent data, and the state kee
   const state = recordSignal(opened(), { id: "persistent-data", reason, source: "diff" }).state;
   const hits = [`${reason.replace("persistent data: ", "")}: await writeFile(path, header);`];
   const answer = { id: "persistent-data", reason: "build output", confirmedBy: reason, hits, answer: "Only dist/ is written.", source: "user" };
-  assertCode(() => recordRetract(state, { ...answer, contentOnly: false }), "retract-answer-refused");
-  assertCode(() => recordRetract(state, { ...answer, contentOnly: true, hits: [] }), "retract-answer-refused");
-  assertCode(() => recordRetract(state, { ...answer, contentOnly: true, source: undefined }), "gate-answer-required");
-  assertCode(() => recordRetract(state, { ...answer, contentOnly: true, source: "agent" }), "invalid-source");
-  assertCode(() => recordRetract(state, { id: "persistent-data", reason: "build output", confirmedBy: reason, contentOnly: true }), "signal-confirmed-by-diff");
+  assertCode(() => recordRetract(state, { ...answer, answerable: false }), "retract-answer-refused");
+  assertCode(() => recordRetract(state, { ...answer, answerable: true, hits: [] }), "retract-answer-refused");
+  assertCode(() => recordRetract(state, { ...answer, answerable: true, source: undefined }), "gate-answer-required");
+  assertCode(() => recordRetract(state, { ...answer, answerable: true, source: "agent" }), "invalid-source");
+  assertCode(() => recordRetract(state, { id: "persistent-data", reason: "build output", confirmedBy: reason, answerable: true }), "signal-confirmed-by-diff");
 
-  const { state: retracted } = recordRetract(state, { ...answer, contentOnly: true });
+  const { state: retracted } = recordRetract(state, { ...answer, answerable: true });
   assertValid(retracted);
   assert.deepStrictEqual(retracted.retracted, [
     { id: "persistent-data", reason, source: "diff", retract_reason: "build output", confirmed_by: reason, hits, answer: "Only dist/ is written.", answer_source: "user" },
   ]);
   assert.strictEqual(retracted.obligations.find((o) => o.id === "migration-compat-and-test").status, "withdrawn");
-  assert.strictEqual(recordRetract(retracted, { ...answer, contentOnly: true }).changed, false);
-  assertCode(() => recordRetract(retracted, { ...answer, contentOnly: true, answer: "Other words." }), "retract-conflict");
+  assert.strictEqual(recordRetract(retracted, { ...answer, answerable: true }).changed, false);
+  assertCode(() => recordRetract(retracted, { ...answer, answerable: true, answer: "Other words." }), "retract-conflict");
 
   for (const broken of [
     { answer: "" },
@@ -645,16 +645,16 @@ test("the user's answer retracts a content-only public contract, but not one in 
   const hits = ["SECURITY.md adds API: Report it through `POST /api/contact/`."];
   const answer = { id: "public-contract", reason: "it cites the existing form", confirmedBy: reason, hits, answer: "It is the existing form.", source: "user" };
   assert.throws(
-    () => recordRetract(state, { id: "public-contract", reason: "cited", confirmedBy: reason, contentOnly: true, hits }),
-    (error) => error.code === "signal-confirmed-by-diff" && /confirms the documentation changes no contract, add --answer/.test(error.how),
+    () => recordRetract(state, { id: "public-contract", reason: "cited", confirmedBy: reason, answerable: true, hits }),
+    (error) => error.code === "signal-confirmed-by-diff" && /confirms the diff changes no contract: .*, add --answer/.test(error.how),
   );
   const document = "docs/api/contact.md is a contract document, so the contract itself changes";
   assert.throws(
-    () => recordRetract(state, { ...answer, contentOnly: false, hits: [], refusedBecause: document }),
+    () => recordRetract(state, { ...answer, answerable: false, hits: [], refusedBecause: document }),
     (error) => error.code === "retract-answer-refused" && error.message.endsWith(document) && /persistent-data, public-contract or security-boundary/.test(error.message),
   );
 
-  const { state: retracted } = recordRetract(state, { ...answer, contentOnly: true });
+  const { state: retracted } = recordRetract(state, { ...answer, answerable: true });
   assertValid(retracted);
   assert.deepStrictEqual(retracted.retracted, [
     { id: "public-contract", reason, source: "diff", retract_reason: "it cites the existing form", confirmed_by: reason, hits, answer: "It is the existing form.", answer_source: "user" },
@@ -662,7 +662,7 @@ test("the user's answer retracts a content-only public contract, but not one in 
   assert.strictEqual(retracted.obligations.find((o) => o.id === "contract-spec-and-test").status, "withdrawn");
 
   const units = recordSignal(opened(), { id: "multi-unit-or-decision", reason: "declared 2 work units", source: "declaration" }).state;
-  assertCode(() => recordRetract(units, { ...answer, id: "multi-unit-or-decision", contentOnly: true }), "retract-answer-refused");
+  assertCode(() => recordRetract(units, { ...answer, id: "multi-unit-or-decision", answerable: true }), "retract-answer-refused");
 });
 
 // E1.50: the user's answer retracts a security boundary that only a sink in the
@@ -674,12 +674,12 @@ test("the user's answer retracts a content-only security boundary, but not one a
   const hits = ["src/report.js adds code evaluation (CWE-94): const total = eval(FORMULA);"];
   const answer = { id: "security-boundary", reason: "a constant formula", confirmedBy: reason, hits, answer: "FORMULA is a constant.", source: "user" };
   assert.throws(
-    () => recordRetract(state, { id: "security-boundary", reason: "constant", confirmedBy: reason, contentOnly: true, hits }),
+    () => recordRetract(state, { id: "security-boundary", reason: "constant", confirmedBy: reason, answerable: true, hits }),
     (error) => error.code === "signal-confirmed-by-diff" && /confirms no added sink takes untrusted input, add --answer/.test(error.how),
   );
-  assertCode(() => recordRetract(state, { ...answer, contentOnly: false, hits: [] }), "retract-answer-refused");
+  assertCode(() => recordRetract(state, { ...answer, answerable: false, hits: [] }), "retract-answer-refused");
 
-  const { state: retracted } = recordRetract(state, { ...answer, contentOnly: true });
+  const { state: retracted } = recordRetract(state, { ...answer, answerable: true });
   assertValid(retracted);
   assert.deepStrictEqual(retracted.retracted, [
     { id: "security-boundary", reason, source: "diff", retract_reason: "a constant formula", confirmed_by: reason, hits, answer: "FORMULA is a constant.", answer_source: "user" },
