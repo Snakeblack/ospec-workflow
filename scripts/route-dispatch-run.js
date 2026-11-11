@@ -102,7 +102,7 @@ function extractStateRouteInfo(stateContent) {
 
     const lineWithoutInlineComment = line.replace(/(?<!\s)\s+#[^\n]*$/, "");
 
-    const classMatch = lineWithoutInlineComment.match(/^\s*classification:\s*(.+)$/);
+    const classMatch = lineWithoutInlineComment.match(/^\s*classification:\s*([^\n]+)$/);
     if (classMatch && !info.classification) {
       info.classification = classMatch[1].trim().replace(/^["']|["']$/g, "");
     }

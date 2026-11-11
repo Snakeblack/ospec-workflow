@@ -9,7 +9,7 @@
 //
 // It also holds the scan of scalar continuation lines that the state.yaml
 // projector and every line reader of state.yaml and config.yaml share
-// (REQ-lifecycle-kernel-032 to -034).
+// (REQ-lifecycle-kernel-032 to -035).
 
 // Drops a comment: a `#` at the start of the text or after whitespace, outside
 // quotes.
@@ -130,14 +130,35 @@ function readYamlScalar(text, keyPath) {
 // space and the tab, never \s, so Node matches Go, and none of them backtracks
 // more than linearly on a long line (REQ-lifecycle-kernel-033). Where Go has
 // `.` they take [^\n], since `.` in Node also stops at CR, U+2028 and U+2029
-// (REQ-lifecycle-kernel-034).
+// (REQ-lifecycle-kernel-034). A line is blank, and a line or a value is
+// trimmed, only by the space and the tab of YAML and the CR of a line break,
+// as in Go: U+0085, U+FEFF and any other Unicode space are text
+// (REQ-lifecycle-kernel-035).
 const BLOCK_SCALAR_HEADER = /^[|>](?:[1-9][+-]?|[+-][1-9]?)?(?:[ \t]+#[^\n]*)?$/;
-const MAPPING_LINE = /^([^:\s][^:]*):\s*([^\n]*)$/;
 const NODE_PROPERTIES = /^(?:(?:![^ \t]*|&[^ \t]+)(?:[ \t]+|$))+/;
 const ENTRY_LINE = /^(?:(?:"(?:[^"\\]|\\[^\n])*"|'(?:[^']|'')*')[ \t]*|[^ \t#"'](?:[^:]|:[^ \t])*?):(?:[ \t]+([^\n]*))?$/;
 
 function lineIndent(raw) {
   return raw.match(/^ */)[0].length;
+}
+
+// The leading spaces and tabs of a line, as the Go projector and YAML-lite
+// reader count its indentation; a tab is malformed anywhere but in a comment.
+function lineIndentation(raw) {
+  return raw.length - raw.replace(/^[ \t]+/, "").length;
+}
+
+function isYamlSpace(code) {
+  return code === 0x20 || code === 0x09 || code === 0x0d;
+}
+
+// The text without the spaces, tabs and CRs at its ends.
+function trimYamlSpace(text) {
+  let start = 0;
+  let end = text.length;
+  while (start < end && isYamlSpace(text.charCodeAt(start))) start += 1;
+  while (end > start && isYamlSpace(text.charCodeAt(end - 1))) end -= 1;
+  return text.slice(start, end);
 }
 
 // Index just past the quote that closes a scalar opened with `quote`, scanning
@@ -158,7 +179,7 @@ function quoteClose(text, quote, from) {
 }
 
 function opensQuotedScalar(value) {
-  const v = String(value).trim();
+  const v = trimYamlSpace(String(value));
   return (v.startsWith('"') || v.startsWith("'")) && quoteClose(v, v[0], 1) === -1;
 }
 
@@ -171,7 +192,7 @@ function withoutProperties(value) {
 // Whether a value is the header of a block scalar (`|`, `>-`, `!!str |`), whose
 // content is on the lines after it.
 function isBlockScalarHeader(value) {
-  return BLOCK_SCALAR_HEADER.test(withoutProperties(String(value).trim()));
+  return BLOCK_SCALAR_HEADER.test(withoutProperties(trimYamlSpace(String(value))));
 }
 
 // The bracket depth of a flow collection after `text`, starting at `depth`,
@@ -201,8 +222,8 @@ function flowClose(text, depth) {
 // The scalar a mapping or sequence line holds, or null for any other line.
 function lineScalarValue(trimmed) {
   if (trimmed.startsWith("- ")) {
-    let item = trimmed.slice(2).trim();
-    while (item.startsWith("- ")) item = item.slice(2).trim();
+    let item = trimYamlSpace(trimmed.slice(2));
+    while (item.startsWith("- ")) item = trimYamlSpace(item.slice(2));
     item = withoutProperties(item === "-" ? "" : item);
     if (/^[[{]/.test(item)) return item;
     const entry = item.match(ENTRY_LINE);
@@ -215,7 +236,7 @@ function lineScalarValue(trimmed) {
 }
 
 function scalarOwner(value, indent) {
-  const v = withoutProperties(String(value).trim());
+  const v = withoutProperties(trimYamlSpace(String(value)));
   if (!v || v.startsWith("#")) return null;
   if (BLOCK_SCALAR_HEADER.test(v)) return { indent, kind: "block" };
   if (v.startsWith("[") || v.startsWith("{")) {
@@ -239,7 +260,7 @@ function scanLines(lines) {
 
   for (let i = 0; i < lines.length; i += 1) {
     const raw = lines[i];
-    const trimmed = raw.trim();
+    const trimmed = trimYamlSpace(raw);
     const indent = lineIndent(raw);
 
     if (owner?.kind === "block") {
@@ -267,7 +288,7 @@ function scanLines(lines) {
       const end = quoteClose(trimmed, owner.kind, 0);
       if (end !== -1) {
         const rest = trimmed.slice(end);
-        if (rest.trim() && !/^[ \t]+#/.test(rest)) {
+        if (trimYamlSpace(rest) && !/^[ \t]+#/.test(rest)) {
           return { continuation, values, error: `line ${i + 1}: text after a closed quoted scalar` };
         }
         owner = null;
@@ -302,12 +323,70 @@ function scanLines(lines) {
 }
 
 // The continuation lines of every scalar, for the projector, which keeps them
-// byte for byte and still refuses a value on the line after its key. `error`
-// names a quoted scalar or flow collection that never closes; the lines before
-// it are marked.
+// byte for byte, and the lines the scan reads as no key (a value on the line
+// after its key, or a colon a space or a tab does not follow), which the
+// projector refuses (REQ-lifecycle-kernel-035). `error` names a quoted scalar
+// or flow collection that never closes; the lines before it are marked.
 function scanScalarContinuations(lines) {
-  const { continuation, error } = scanLines(lines);
-  return { continuation, error };
+  const { continuation, values, error } = scanLines(lines);
+  return { continuation, values, error };
+}
+
+// The YAML-lite reader of state.yaml behind readStatus and the pre-compact
+// hook, mirrored from internal/yamllite (ExtractFirstScalar, parseScalar):
+// lines and keys trimmed like the scan, spaces and tabs as indentation, a key
+// up to the first colon and a value after ASCII white space, as Go's \s
+// matches it (REQ-lifecycle-kernel-033 and -035).
+
+// Lower-cases as strings.ToLower does in Go: one code point at a time. On the
+// whole string toLowerCase turns U+0130 into an i plus U+0307 and a final
+// capital sigma into U+03C2, so a status would differ between the runtimes.
+function lowerCaseLikeGo(text) {
+  let lowered = "";
+  for (const char of String(text)) lowered += char === "\u0130" ? "i" : char.toLowerCase();
+  return lowered;
+}
+
+// A single-line scalar of state.yaml, unquoted and without its comment.
+function stateScalar(value) {
+  const trimmed = trimYamlSpace(String(value));
+  const quoted = trimmed.match(/^(["'])([\s\S]*)\1$/);
+  if (quoted) return quoted[2];
+  return trimYamlSpace(trimmed.replace(/(?<![\t\n\f\r ])[\t\n\f\r ]+#[^\n]*$/, ""));
+}
+
+// The key and the raw value of a trimmed mapping line, as keyValueRe splits it
+// in Go; null without a colon.
+function stateKeyValue(trimmed) {
+  const match = /^([^:]+):(?:[\t\n\f\r ]*([^\n]*))?$/.exec(trimmed);
+  return match ? { key: trimYamlSpace(match[1]), value: match[2] || "" } : null;
+}
+
+function extractScalarAtPath(content, expectedPath) {
+  const stack = [];
+  for (const raw of opaqueScalarLines(content).lines) {
+    const text = trimYamlSpace(raw);
+    if (!text || text.startsWith("#") || text.startsWith("- ")) continue;
+    const entry = stateKeyValue(text);
+    if (!entry) continue;
+    const indent = lineIndentation(raw);
+    while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
+    const path = [...stack.map((item) => item.key), entry.key];
+    if (entry.value && path.length === expectedPath.length && path.every((part, index) => part === expectedPath[index])) {
+      return stateScalar(entry.value);
+    }
+    if (!entry.value) stack.push({ indent, key: entry.key });
+  }
+  return "";
+}
+
+// The scalar at the first of `paths` that holds one, or "".
+function extractFirstScalar(content, paths) {
+  for (const expectedPath of paths) {
+    const value = extractScalarAtPath(content, expectedPath);
+    if (value) return value;
+  }
+  return "";
 }
 
 // The lines of a YAML text with every line of a value left blank (the
@@ -324,11 +403,16 @@ function opaqueScalarLines(text) {
 
 module.exports = {
   BLOCK_SCALAR_HEADER,
-  MAPPING_LINE,
+  extractFirstScalar,
   isBlockScalarHeader,
   lineIndent,
+  lineIndentation,
+  lowerCaseLikeGo,
   opaqueScalarLines,
   opensQuotedScalar,
   readYamlScalar,
   scanScalarContinuations,
+  stateKeyValue,
+  stateScalar,
+  trimYamlSpace,
 };

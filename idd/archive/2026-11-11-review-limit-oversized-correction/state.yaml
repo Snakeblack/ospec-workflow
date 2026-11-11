@@ -1,0 +1,383 @@
+{
+  "schema": "idd-state/v1",
+  "change": "review-limit-oversized-correction",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Con las revisiones de confianza agotadas y la última en correction-required, una corrección que no cabe en una corrección acotada deja el cambio en bucle: ospec check pide review correct, review correct pide review start, review start responde review-limit y el gate review-limit no se abre nunca.",
+    "acceptance": "En ese estado, ospec check termina la revisión como escalated, abre el gate review-limit y next pide resolverlo; resuelto el gate, ospec review start abre la revisión sucesora con los hallazgos bloqueantes sin resolver como predecessor_findings."
+  },
+  "facts": {
+    "basis": "Decisión del usuario (1A, 2026-11-11): la CLI debe abrir review-limit en este caso; REQ-idd-016 ya fija que ospec check abre el gate cuando las revisiones se agotan y que una corrección fuera de presupuesto no deja el cambio sin salida."
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-review.js",
+      "scripts/lib/idd-review.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El gate se abre en ospec check y no en ospec review start: un rechazo de start no persiste estado, y REQ-idd-016 ya dice que check abre review-limit. check termina la revisión como escalated a la vez, para que el gate solo exista con la revisión actual terminal."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine: ADR 0003, 0004, 0005, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "la regla del límite de revisiones sigue en el CLI con su test: ospec check termina la revisión y abre review-limit"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "las señales y las obligaciones derivadas no cambian; solo cambia cuándo se abre el gate review-limit"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "trust-review sigue satisfaciéndose solo con frozen-review; el gate abierto bloquea el cierre hasta la respuesta de la persona"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "sin dependencias nuevas; el arreglo vive en scripts/lib/idd-review.js y scripts/ospec.js"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "solo cambia el estado IDD (reviews y gates de idd/<change>/state.yaml), en su esquema actual"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "con el mismo estado y árbol, ospec check da el mismo paso: resolver review-limit en vez de un bucle entre review correct y review start"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "el arreglo no añade llamadas de red: lee los árboles de git locales como ya hacía review start"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-11T16:52:46.219Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T16:55:57.567Z",
+      "detail": {
+        "tree": "sha256:35412e2ced8597c9d28386c252b9397021f88f145457b211885c89569cb9f182",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-11T16:55:57.567Z",
+      "detail": {
+        "tree": "sha256:35412e2ced8597c9d28386c252b9397021f88f145457b211885c89569cb9f182",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-review.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T16:55:57.567Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:35412e2ced8597c9d28386c252b9397021f88f145457b211885c89569cb9f182",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-11T16:57:28.056Z",
+      "detail": {
+        "run": "run-12",
+        "tree": "sha256:91c8c73d5c3219f4c30576e5c42518966fb3a377eee3017b9b8cff21d8ee57be",
+        "plan": "El esquema idd-state/v1 no cambia: la revisión terminada como escalated y el gate review-limit abierto son valores que el esquema ya admite (validateState los valida en el test). Un cambio abierto que la CLI anterior dejó en el bucle (última revisión en correction-required, corrección fuera de presupuesto, revisiones agotadas) sale de él en el siguiente ospec check, sin migrar nada. Vuelta atrás: revertir el commit; un estado ya escalado sigue siendo válido para la CLI anterior."
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-11T16:57:38.403Z"
+    }
+  ],
+  "base": "58d0e0e35843a30e289ae13ca7c33fa3edbd795a",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern='oversized correction of the last allowed review|escalated successor counts' scripts/ospec.test.js scripts/lib/idd-review.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:acbffe664a9ff339dc6f33c971a32125c5d98287b21ad8defc377d31a7e39225",
+      "tree": "sha256:1bf0a2da751f228cedcb4ee3436a1d062598a76ceefcbba52c92f08abc70d340",
+      "recorded_at": "2026-11-11T16:52:25.626Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern='oversized correction of the last allowed review|escalated successor counts' scripts/ospec.test.js scripts/lib/idd-review.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0004a2e54ffbdf1f9603fa9a2004db17cd667b28d0ed2bfe811b7e0dcb615cce",
+      "tree": "sha256:cdcc5ac694465e078bbef81d7a595df7197a38160cbc3e942b586cf1e7eb7983",
+      "recorded_at": "2026-11-11T16:52:46.219Z",
+      "tests": 2,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "58d0e0e35843a30e289ae13ca7c33fa3edbd795a",
+      "mount": "sha256:8408cb745e582b99f15d2c9e41a65b99404dde3c1198f6af17808c5f97dfffe8",
+      "command": "node --test --test-name-pattern='oversized correction of the last allowed review|escalated successor counts' scripts/ospec.test.js scripts/lib/idd-review.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:2a07ee0631f25922be229a25d5624809465a78c239e3775a015a528f3e767797",
+      "tree": "sha256:cdcc5ac694465e078bbef81d7a595df7197a38160cbc3e942b586cf1e7eb7983",
+      "recorded_at": "2026-11-11T16:52:46.219Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "58d0e0e35843a30e289ae13ca7c33fa3edbd795a",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern='oversized correction of the last allowed review|escalated successor counts' scripts/ospec.test.js scripts/lib/idd-review.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:03c5e74858fe39a4cc3db3378192abbe8f748d8141bdd3442932e399ac8e5cac",
+      "tree": "sha256:cdcc5ac694465e078bbef81d7a595df7197a38160cbc3e942b586cf1e7eb7983",
+      "recorded_at": "2026-11-11T16:52:46.219Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8abdb8ee875d8293505b5cf65ca82858a4d3f14609a2d8ceb71d4e077169291b",
+      "tree": "sha256:35412e2ced8597c9d28386c252b9397021f88f145457b211885c89569cb9f182",
+      "recorded_at": "2026-11-11T16:55:57.567Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:583017947fe0a45a931f97385d250856f874933bf25eca57cd91a7ac1c336986",
+      "tree": "sha256:35412e2ced8597c9d28386c252b9397021f88f145457b211885c89569cb9f182",
+      "recorded_at": "2026-11-11T16:55:57.567Z",
+      "tests": 60
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7714f2344756915b5177aa7afe8e38636d74766841e19be19beb5b7b1ea994e6",
+      "tree": "sha256:35412e2ced8597c9d28386c252b9397021f88f145457b211885c89569cb9f182",
+      "recorded_at": "2026-11-11T16:55:57.567Z",
+      "tests": 18
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:35412e2ced8597c9d28386c252b9397021f88f145457b211885c89569cb9f182",
+      "recorded_at": "2026-11-11T16:55:57.567Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:038a107e2db3484a9e01b2469417fb8d0e30fde1ecf5779520af6c3314ea83b2",
+      "tree": "sha256:35412e2ced8597c9d28386c252b9397021f88f145457b211885c89569cb9f182",
+      "recorded_at": "2026-11-11T16:55:57.567Z",
+      "tests": 26
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1526f41e09a01234cf106026d7126738a123ce1ac563295adeeefdeb11023d8d",
+      "tree": "sha256:35412e2ced8597c9d28386c252b9397021f88f145457b211885c89569cb9f182",
+      "recorded_at": "2026-11-11T16:55:57.567Z",
+      "tests": 96
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a5d7d28476413440e0e1def6d44b90ec049c45ce97092c3cb145948cf5b1e7c1",
+      "tree": "sha256:35412e2ced8597c9d28386c252b9397021f88f145457b211885c89569cb9f182",
+      "recorded_at": "2026-11-11T16:55:57.567Z",
+      "tests": 52
+    },
+    {
+      "id": "run-12",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-review.test.js scripts/lib/idd-contract.test.js scripts/lib/idd-store.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:68ab2a70bd9a8731b3fb08d7433143bdd2b2904fe7ec4188fa8c6411ebb4004b",
+      "tree": "sha256:91c8c73d5c3219f4c30576e5c42518966fb3a377eee3017b9b8cff21d8ee57be",
+      "recorded_at": "2026-11-11T16:57:28.056Z",
+      "tests": 235
+    }
+  ],
+  "closed_at": "2026-11-11T16:57:38.403Z"
+}

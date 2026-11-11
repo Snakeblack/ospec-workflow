@@ -202,3 +202,17 @@ test("REQ-lifecycle-kernel-034: a lone CR or a U+2028 inside a value reads as in
   const headers = opaqueScalarLines('t: | # c\rx\n  lint: x\nu: | # c\u2028x\n  lint: x\nv: | # c\u2029x\n  lint: x\n"a\\\rb": |\n  lint: x\nz: 1\n');
   assert.deepEqual(headers.lines, ["t: | # c\rx", "", "u: | # c\u2028x", "", "v: | # c\u2029x", "", '"a\\\rb": |', "", "z: 1", ""]);
 });
+
+// Shared with internal/yamllite/yamllite_test.go: both scans must leave the
+// same lines opaque (Go/JS parity).
+test("REQ-lifecycle-kernel-035: the scan blanks the same lines as Go over the shared corpus", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const { opaqueScalarLines } = require("./yaml-lite.js");
+  const corpus = path.join(__dirname, "..", "..", "internal", "testdata", "yaml-lite-scan", "cases.json");
+  for (const entry of JSON.parse(fs.readFileSync(corpus, "utf8")).cases) {
+    const { lines, error } = opaqueScalarLines(entry.input);
+    assert.equal(error, null, entry.name);
+    assert.deepEqual(lines, entry.lines, entry.name);
+  }
+});

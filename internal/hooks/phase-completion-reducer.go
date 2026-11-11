@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -595,7 +596,7 @@ func parsePhaseCompletionState(content string) (phaseCompletionState, error) {
 	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
 	continuation, _ := yamllite.ScanScalarContinuations(lines)
 	for lineNumber, line := range lines {
-		trimmed := strings.TrimSpace(line)
+		trimmed := yamllite.TrimSpace(line)
 		if continuation[lineNumber] || trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
@@ -623,7 +624,9 @@ func parsePhaseCompletionState(content string) (phaseCompletionState, error) {
 				}
 				state.Revision = revision
 			case "phases":
-				if yamlScalar(value) != "" {
+				// Nothing on the line, a comment or an empty quoted scalar
+				// included, since the writer looks for `phases:` alone.
+				if value != "" {
 					return state, fmt.Errorf("state YAML line %d has a non-mapping phases value", lineNumber+1)
 				}
 				section, seenPhases = key, true
@@ -683,7 +686,7 @@ func applyPhaseCompletionProjection(content string, state phaseCompletionState, 
 func replaceOrInsertTopLevel(lines *[]string, key, replacement string, at int) int {
 	for i, line := range *lines {
 		if lineIndentation(line) == 0 {
-			if found, _, ok := yamlKeyValue(strings.TrimSpace(line)); ok && found == key {
+			if found, _, ok := yamlKeyValue(yamllite.TrimSpace(line)); ok && found == key {
 				(*lines)[i] = replacement
 				return i
 			}
@@ -700,7 +703,7 @@ func applyBlockingQuestions(lines *[]string, questions []string, at int) {
 	start := -1
 	for i, line := range *lines {
 		if lineIndentation(line) == 0 {
-			if key, _, ok := yamlKeyValue(strings.TrimSpace(line)); ok && key == "blocking_questions" {
+			if key, _, ok := yamlKeyValue(yamllite.TrimSpace(line)); ok && key == "blocking_questions" {
 				start = i
 				break
 			}
@@ -722,7 +725,7 @@ func applyBlockingQuestions(lines *[]string, questions []string, at int) {
 	}
 	end := start + 1
 	for end < len(*lines) {
-		if strings.TrimSpace((*lines)[end]) != "" && lineIndentation((*lines)[end]) == 0 {
+		if yamllite.TrimSpace((*lines)[end]) != "" && lineIndentation((*lines)[end]) == 0 {
 			break
 		}
 		end++
@@ -733,10 +736,10 @@ func applyBlockingQuestions(lines *[]string, questions []string, at int) {
 func applyPhaseProjection(lines *[]string, state phaseCompletionState, phase string) {
 	phasesStart, phasesEnd := -1, len(*lines)
 	for i, line := range *lines {
-		if lineIndentation(line) != 0 || strings.TrimSpace(line) == "" {
+		if lineIndentation(line) != 0 || yamllite.TrimSpace(line) == "" {
 			continue
 		}
-		if strings.TrimSpace(line) == "phases:" {
+		if yamllite.TrimSpace(line) == "phases:" {
 			phasesStart = i
 			continue
 		}
@@ -751,14 +754,14 @@ func applyPhaseProjection(lines *[]string, state phaseCompletionState, phase str
 	}
 	header, blockEnd := -1, phasesEnd
 	for i := phasesStart + 1; i < phasesEnd; i++ {
-		if strings.TrimSpace((*lines)[i]) == "" || lineIndentation((*lines)[i]) != 2 {
+		if yamllite.TrimSpace((*lines)[i]) == "" || lineIndentation((*lines)[i]) != 2 {
 			continue
 		}
 		if header != -1 {
 			blockEnd = i
 			break
 		}
-		if strings.TrimSpace((*lines)[i]) == phase+":" {
+		if yamllite.TrimSpace((*lines)[i]) == phase+":" {
 			header = i
 		}
 	}
@@ -779,7 +782,7 @@ func applyPhaseProjection(lines *[]string, state phaseCompletionState, phase str
 	applied := map[string]bool{}
 	for cursor := header + 1; cursor < blockEnd; {
 		line := (*lines)[cursor]
-		key, _, ok := yamlKeyValue(strings.TrimSpace(line))
+		key, _, ok := yamlKeyValue(yamllite.TrimSpace(line))
 		if !ok || lineIndentation(line) != 4 || applied[key] {
 			cursor++
 			continue
@@ -791,7 +794,7 @@ func applyPhaseProjection(lines *[]string, state phaseCompletionState, phase str
 		}
 		applied[key] = true
 		end := cursor + 1
-		for end < blockEnd && (strings.TrimSpace((*lines)[end]) == "" || lineIndentation((*lines)[end]) > 4) {
+		for end < blockEnd && (yamllite.TrimSpace((*lines)[end]) == "" || lineIndentation((*lines)[end]) > 4) {
 			end++
 		}
 		*lines = append((*lines)[:cursor], append(replacement, (*lines)[end:]...)...)
@@ -799,7 +802,7 @@ func applyPhaseProjection(lines *[]string, state phaseCompletionState, phase str
 		cursor += len(replacement)
 	}
 	appendAt := blockEnd
-	for appendAt > header+1 && strings.TrimSpace((*lines)[appendAt-1]) == "" {
+	for appendAt > header+1 && yamllite.TrimSpace((*lines)[appendAt-1]) == "" {
 		appendAt--
 	}
 	for _, key := range []string{"status", "summary", "verdict", "key_decisions", "blocker_type", "last_payload_hash"} {
@@ -866,11 +869,11 @@ func artifactLines(artifacts any) []string {
 func oneLineScalar(lines []string, index int, value string, continuation []bool) string {
 	parts := []string{}
 	for j := index + 1; j < len(lines) && continuation[j]; j++ {
-		if part := strings.TrimSpace(lines[j]); part != "" {
+		if part := yamllite.TrimSpace(lines[j]); part != "" {
 			parts = append(parts, part)
 		}
 	}
-	v := strings.TrimSpace(value)
+	v := yamllite.TrimSpace(value)
 	if yamllite.BlockScalarHeader.MatchString(v) {
 		return strings.Join(parts, " ")
 	}
@@ -892,9 +895,9 @@ func dropRewrittenContinuations(lines []string) []string {
 			}
 			continue
 		}
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			entry := yamllite.MappingLine.FindStringSubmatch(trimmed)
-			dropping = yamllite.SpaceIndent(line) == 0 && entry != nil && rewrittenTopLevelKeys[strings.TrimSpace(entry[1])]
+		if trimmed := yamllite.TrimSpace(line); trimmed != "" {
+			key, _, ok := yamlKeyValue(trimmed)
+			dropping = yamllite.SpaceIndent(line) == 0 && ok && rewrittenTopLevelKeys[key]
 		}
 		kept = append(kept, line)
 	}
@@ -907,12 +910,12 @@ func dropRewrittenContinuations(lines []string) []string {
 // rewrite opaque state bytes.
 func validatePhaseCompletionYAML(content string) error {
 	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
-	continuation, err := yamllite.ScanScalarContinuations(lines)
+	continuation, values, err := yamllite.ScanScalarLines(lines)
 	if err != nil {
 		return err
 	}
 	for lineNumber, line := range lines {
-		trimmed := strings.TrimSpace(line)
+		trimmed := yamllite.TrimSpace(line)
 		if continuation[lineNumber] {
 			if strings.Contains(line, "\t") {
 				return fmt.Errorf("state YAML line %d contains a tab", lineNumber+1)
@@ -925,8 +928,12 @@ func validatePhaseCompletionYAML(content string) error {
 		if strings.Contains(line, "\t") {
 			return fmt.Errorf("state YAML line %d contains a tab", lineNumber+1)
 		}
+		// A line the scan reads as no key, which no state reader reads either.
+		if values[lineNumber] {
+			return fmt.Errorf("state YAML line %d is not a mapping", lineNumber+1)
+		}
 		if strings.HasPrefix(trimmed, "- ") {
-			item := strings.TrimSpace(strings.TrimPrefix(trimmed, "- "))
+			item := yamllite.TrimSpace(strings.TrimPrefix(trimmed, "- "))
 			if err := validateYAMLScalar(item); err != nil && !yamllite.OpensQuotedScalar(item) {
 				return fmt.Errorf("state YAML line %d has an invalid sequence scalar: %w", lineNumber+1, err)
 			}
@@ -944,7 +951,7 @@ func validatePhaseCompletionYAML(content string) error {
 }
 
 func validateYAMLScalar(value string) error {
-	value = strings.TrimSpace(value)
+	value = yamllite.TrimSpace(value)
 	if value == "" {
 		return nil
 	}
@@ -966,11 +973,11 @@ func yamlKeyValue(line string) (string, string, bool) {
 	if index < 0 {
 		return "", "", false
 	}
-	return strings.TrimSpace(line[:index]), strings.TrimSpace(line[index+1:]), true
+	return yamllite.TrimSpace(line[:index]), yamllite.TrimSpace(line[index+1:]), true
 }
 
 func yamlScalar(value string) string {
-	value = strings.TrimSpace(value)
+	value = yamllite.TrimSpace(value)
 	if len(value) >= 2 && ((value[0] == '"' && value[len(value)-1] == '"') || (value[0] == '\'' && value[len(value)-1] == '\'')) {
 		if value[0] == '"' {
 			var decoded string
@@ -980,8 +987,12 @@ func yamlScalar(value string) string {
 		}
 		return value[1 : len(value)-1]
 	}
-	return strings.TrimSpace(strings.SplitN(value, " #", 2)[0])
+	return yamllite.TrimSpace(projectorInlineComment.ReplaceAllString(value, ""))
 }
+
+// A comment starts after ASCII white space, as the YAML-lite reader and the
+// Node projector read it (REQ-lifecycle-kernel-035).
+var projectorInlineComment = regexp.MustCompile(`\s+#.*$`)
 
 func yamlQuote(value string) string {
 	encoded, _ := json.Marshal(truncateRunes(value, 160))

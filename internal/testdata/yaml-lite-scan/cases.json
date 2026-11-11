@@ -1,0 +1,133 @@
+{
+  "description": "Shared corpus of the scan of scalar continuation lines (REQ-lifecycle-kernel-035). scripts/lib/yaml-lite.test.js and internal/yamllite/yamllite_test.go pass each input through opaqueScalarLines and OpaqueScalarLines and require the same lines, with no error. Only a space, a tab and a CR are blank: U+0085, U+FEFF and every other Unicode space are text in Node as in Go.",
+  "cases": [
+    {
+      "name": "a line of only U+0085 after a block scalar is text and ends the block",
+      "input": "a: |\n  x\n\u0085\n  evil: y\nz: 1\n",
+      "lines": [
+        "a: |",
+        "",
+        "",
+        "  evil: y",
+        "z: 1",
+        ""
+      ]
+    },
+    {
+      "name": "a line of only U+FEFF after a block scalar is text and ends the block",
+      "input": "a: |\n  x\n\ufeff\n  evil: y\nz: 1\n",
+      "lines": [
+        "a: |",
+        "",
+        "",
+        "  evil: y",
+        "z: 1",
+        ""
+      ]
+    },
+    {
+      "name": "a line of only U+00A0 after a block scalar is text and ends the block",
+      "input": "a: |\n  x\n\u00a0\n  evil: y\nz: 1\n",
+      "lines": [
+        "a: |",
+        "",
+        "",
+        "  evil: y",
+        "z: 1",
+        ""
+      ]
+    },
+    {
+      "name": "a line of only U+2028 after a block scalar is text and ends the block",
+      "input": "a: |\n  x\n\u2028\n  evil: y\nz: 1\n",
+      "lines": [
+        "a: |",
+        "",
+        "",
+        "  evil: y",
+        "z: 1",
+        ""
+      ]
+    },
+    {
+      "name": "a line of only spaces and tabs inside a block scalar is blank",
+      "input": "a: |\n  x\n \t \n  evil: y\nz: 1\n",
+      "lines": [
+        "a: |",
+        "",
+        "",
+        "",
+        "z: 1",
+        ""
+      ]
+    },
+    {
+      "name": "a line of only a lone CR inside a block scalar is blank",
+      "input": "a: |\n  x\n\r\r\n  evil: y\nz: 1\n",
+      "lines": [
+        "a: |",
+        "",
+        "",
+        "",
+        "z: 1",
+        ""
+      ]
+    },
+    {
+      "name": "a key line that ends in a lone CR is still a key",
+      "input": "notes:\r\r\n  - x\nk: v\n",
+      "lines": [
+        "notes:\r",
+        "  - x",
+        "k: v",
+        ""
+      ]
+    },
+    {
+      "name": "a quoted scalar closed before a lone CR is not malformed",
+      "input": "k: \"a\n  b\"\r\r\nz: 1\n",
+      "lines": [
+        "k: \"a",
+        "",
+        "z: 1",
+        ""
+      ]
+    },
+    {
+      "name": "a sequence item of U+0085 and | is a plain scalar, not a block",
+      "input": "- \u0085|\n  evil: y\n",
+      "lines": [
+        "- \u0085|",
+        "  evil: y",
+        ""
+      ]
+    },
+    {
+      "name": "a | followed by U+0085 is a plain scalar, not a block header",
+      "input": "a: |\u0085\n  evil: y\n",
+      "lines": [
+        "a: |\u0085",
+        "  evil: y",
+        ""
+      ]
+    },
+    {
+      "name": "a sequence item of U+FEFF and | is a plain scalar, not a block",
+      "input": "- \ufeff|\n  evil: y\n",
+      "lines": [
+        "- \ufeff|",
+        "  evil: y",
+        ""
+      ]
+    },
+    {
+      "name": "a | followed by U+FEFF is a plain scalar, not a block header",
+      "input": "a: |\ufeff\n  evil: y\n",
+      "lines": [
+        "a: |\ufeff",
+        "  evil: y",
+        ""
+      ]
+    }
+  ]
+}

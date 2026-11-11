@@ -1,0 +1,2674 @@
+{
+  "schema": "idd-state/v1",
+  "change": "yaml-readers-linear-blank-parity",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Los lectores de state.yaml con capturas \\s*(.+)$ o \\s+#.*$ tardan de forma cuadrática ante un tramo de espacios seguido de un CR suelto o U+2028 (readStatus, el parser y el escritor del proyector, extractStateRouteInfo, parsePersistedRouteSection, el lector YAML-lite de pre-compact), y el escáner de escalares de Node (trim) y el de Go (TrimSpace) deciden distinto si una línea de solo U+0085 o U+FEFF está en blanco.",
+    "acceptance": "Con 100.000 espacios seguidos de b, CR y c (o U+2028, o b espacio c) en cualquier valor de state.yaml, cada lector termina muy por debajo de un segundo y Node lee la línea como Go; el escáner de Node y el de Go dejan las mismas líneas opacas sobre un corpus compartido que pasan los dos, con líneas de solo U+0085 o U+FEFF tras un escalar de bloque."
+  },
+  "facts": {
+    "open": [
+      "Recorte del escáner: con solo espacio y tabulador (lo decidido), una línea que acaba en un CR suelto (fichero con CR CR LF) deja de leerse igual que hoy en Node y en Go: 'notes:<CR>' ya no es una clave y '\"abc\"<CR>' da malformed-state. ¿Recortar espacio, tabulador y CR (el CR es salto de línea en YAML, nunca contenido) o solo espacio y tabulador?",
+      "Alcance de la paridad de blancos: hoy, tras un bloque, una línea de solo U+0085 hace que el validador del proyector de Node rechace el fichero y el de Go lo acepte, y con U+FEFF al revés. Si solo cambia el escáner, esa divergencia sigue y el lado que acepta leería la clave siguiente. ¿Cambiar solo el escáner, o también los validadores, parsers y dropRewrittenContinuations del proyector en Node y en Go, que deciden la línea en blanco después del escáner?",
+      "extractPhaseStatuses de pre-compact (Node) no usa el escáner: un 'status: done' dentro de un 'notes: |' bajo phases cuenta para la fase anterior y adelanta la fase actual (probado: proposal pasa a tasks). ¿Entra en esta PR, al ser un lector de state.yaml de REQ-lifecycle-kernel-033 que ya toco por su patrón status:\\s*(.+)$, o va en PR5, que portará esa función a Go?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "internal/hooks/phase-completion-reducer.go",
+      "internal/hooks/phase-completion-reducer_test.go",
+      "internal/testdata/state-projection/cases.json",
+      "internal/testdata/yaml-lite-scan/cases.json",
+      "internal/yamllite/continuations.go",
+      "internal/yamllite/yamllite.go",
+      "internal/yamllite/yamllite_test.go",
+      "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "scripts/hooks/pre-compact.js",
+      "scripts/hooks/pre-compact.test.js",
+      "scripts/lib/ospec-state.js",
+      "scripts/lib/ospec-state.test.js",
+      "scripts/lib/route-dispatcher.js",
+      "scripts/lib/route-dispatcher.test.js",
+      "scripts/lib/yaml-lite.js",
+      "scripts/lib/yaml-lite.test.js",
+      "scripts/route-dispatch-run.js",
+      "scripts/route-dispatch-run.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Donde Go tiene . los patrones de los lectores de state.yaml toman [^\\n], como los de config.yaml en REQ-lifecycle-kernel-034, y el quitador de comentarios pasa a (?<!\\s)\\s+#[^\\n]*$.",
+      "El corpus compartido vive en internal/testdata/yaml-lite-scan/cases.json y lo leen scripts/lib/yaml-lite.test.js e internal/yamllite/yamllite_test.go, como el de secret-redaction.",
+      "Decisión del usuario (1A): el escáner recorta solo espacio, tabulador y CR (trimYamlSpace en Node, yamllite.TrimSpace en Go); el CR es salto de línea en YAML, así que un CR final y una línea de solo un CR siguen siendo blancos, y U+0085, U+FEFF, U+00A0 y el resto de espacios Unicode son texto en los dos lados.",
+      "Decisión del usuario (2A): el validador, el parser (con las partes de oneLineScalar) y dropRewrittenContinuations de los dos proyectores deciden la línea en blanco con ese mismo recorte, así que Node y Go rechazan con malformed-state el mismo state.yaml; los recortes de un valor dentro de los lectores (parseScalar, yamlScalar, readStatus) no cambian.",
+      "Decisión del usuario (3A): extractPhaseStatuses de pre-compact lee las líneas de opaqueScalarLines, como el resto del lector YAML-lite, así que un status dentro de un escalar de bloque bajo phases ya no adelanta la fase; PR5 portará a Go la versión arreglada.",
+      "El contrato va en un requisito nuevo, REQ-lifecycle-kernel-035, tras el 034: tiempo lineal de los lectores de state.yaml y paridad de blancos del escáner y del proyector, con el corpus compartido.",
+      "Los tests de tiempo usan tramos de 20.000 a 60.000 caracteres con una sola línea larga por llamada: sobre la base cada test tarda de 3 a 8 s frente al presupuesto de 1 s, y con 100.000 caracteres y varias líneas largas la ejecución en rojo pasaba de un minuto.",
+      "Los lectores de archive-transaction no cambian: el fuzzer (unidades repetidas por colas con CR, U+2028 y ' #' sobre cada lector) no halló en ellos nada superlineal, porque leen con indexOf y slice.",
+      "Aviso de la primera revisión de confianza: con el recorte nuevo, el MAPPING_LINE de Node (cuyo \\s es Unicode) rechazaba una clave que empieza por U+00A0, U+000B o U+2028 que Go aceptaba, y status: <U+FEFF> discrepaba. Los dos proyectores separan ahora la línea en su primer dos puntos con yamlKeyValue y recortan clave y valor como el escáner; en Node el valor lo lee projectedScalar (parseScalar sigue para readStatus y la baseline), y MAPPING_LINE y MappingLine desaparecen. Un corpus compartido (internal/testdata/state-projection/cases.json) fija el resultado de 13 proyecciones en los dos runtimes.",
+      "Aviso de la segunda revisión de confianza: los escritores de los dos proyectores buscaban claves, cabeceras de fase y el fin de una sección con TrimSpace/trim() y un sangrado por \\s, así que en Go un U+00A0 status: señuelo se reescribía en lugar del real tras el arreglo del parser. Los escritores leen ahora como el parser (topLevelKeyIndex y yamlKeyValue en Node, yamllite.TrimSpace en Go, sangrado solo por espacios). Por su sugerencia y una divergencia hallada al revisar, el validador de Node exige como Go un change y un status con escalar no vacío (status: \"\" falla) y rechaza phases: # c, porque los dos escritores buscan phases: solo y Node añadía un segundo bloque phases:. El corpus del proyector compara también los bytes escritos (18 casos), con el sobre dentro del corpus.",
+      "Tercera revisión de confianza, respuestas del usuario («las recomendadas»): (1A) el proyector de Node cuenta como sangrado espacios y tabuladores (lineIndentation de yaml-lite.js, como Go), porque un comentario que empieza por tabulador pasa el validador y el escritor de Node lo tomaba como de nivel 0; y Go rechaza cualquier valor en la línea de phases (phases: \"\" o '' duplicaban el bloque phases).",
+      "(2A) Los lectores de state.yaml que eligen el estado o un campo (readStatus y el lector YAML-lite de pre-compact en Node, el de internal/yamllite tras store.ReadStatus en Go) leen línea, clave y valor como el proyector: recorte del escáner, sangrado por espacios y tabuladores y comentario tras un blanco ASCII. Así un <U+00A0>status: señuelo no es el status para ningún lector ni proyector. Sustituye, para estos lectores, a la decisión de no cambiar sus recortes de valor; readBaselineState (config.yaml) sigue igual. Los demás lectores de puerta (archive-transaction, el dispatcher, extractStateRouteInfo) no se unifican en esta PR.",
+      "(3A) Las divergencias previas que no son de blancos van a PR5 (paridad Go/JS): desescapado JSON de comillas dobles (yamlScalar de Go frente a stateScalar de Node), revision +5/-0/>19 dígitos, clave de fase con espacios, claves repetidas (los lectores toman la última, el escritor la primera). (4A) El usuario autoriza una cuarta revisión de confianza (gate review-limit).",
+      "El corpus del proyector (24 casos) fija también el status que leen readStatus, el lector de pre-compact y store.ReadStatus sobre cada entrada; REQ-lifecycle-kernel-035 pasa a «Node And Go Agree On White Space» y describe lectores, proyectores, sangrado y la línea de phases.",
+      "CRITICAL de la cuarta revisión de confianza: readStatus y extractPhaseStatuses casaban ^status:\\s* con el \\s Unicode de Node y una clave literal, así que status:<U+00A0>archived y status : archived se leían distinto que en store.ReadStatus. Node tiene ahora un solo lector YAML-lite de state.yaml en yaml-lite.js (extractFirstScalar, stateKeyValue y stateScalar), copia de internal/yamllite (clave hasta el primer dos puntos como keyValueRe, valor tras blanco ASCII, pila de rutas); lo usan readStatus, que pasa a ser extractFirstScalar([change,status],[status]) en minúsculas como store.ReadStatus, el proyector de Node y pre-compact, que deja su copia. Con dos status de primer nivel Node lee ahora el primero, como Go: en los 419 YAML versionados solo cambia un state.yaml archivado (2026-09-03-k6d-complexity-architecture-delta), de approved a archived, que es lo que ya leía Go.",
+      "Al cubrir ese CRITICAL apareció que los dos proyectores tomaban como clave una línea que el escáner no lee como clave (status:archived, o dos puntos seguidos de U+00A0, U+FEFF o U+000B), que ningún lector lee. Los dos validadores rechazan ahora esa línea (scanScalarContinuations devuelve values en Node y ScanScalarLines en Go). Aviso de la misma revisión: yamlScalar del proyector de Go partía el comentario solo en ' #' y Node tras cualquier blanco ASCII; Go usa ahora \\s+#.*$ como su lector YAML-lite. El corpus del proyector llega a 31 casos.",
+      "Bloqueo tras la cuarta revisión: la corrección del CRITICAL pasa de las 200 líneas de una corrección acotada y la CLI entra en bucle (check pide review correct, correct pide review start, start responde review-limit y el gate no se abre), porque startTrustReview rechaza por el límite antes de escalar la revisión anterior. Respuestas del usuario («las recomendadas», 2026-11-11): (1A) el arreglo de la CLI va en esta misma PR como un segundo cambio IDD de tipo bug con test de reproducción, cerrado antes que este, y este sigue después con bin/ospec del repo; (2A) autoriza una quinta revisión de confianza; (3A) la PR no se parte. Se continúa en otra sesión.",
+      "CRITICAL de la quinta revisión de confianza (hecha con review-trust en Fable 5.2 a petición del usuario): readStatus pasaba el status a minúsculas con toLowerCase, que sobre la cadena entera convierte U+0130 en i más U+0307 y una sigma mayúscula final en U+03C2, y store.ReadStatus con strings.ToLower, que va punto de código a punto de código; status: ARCH<U+0130>VED era archived solo para Go. Node usa ahora lowerCaseLikeGo (yaml-lite.js), que baja cada punto de código por separado y da i para U+0130; Go no cambia. El corpus del proyector llega a 34 casos. El aviso de la misma revisión (revision +1/-0/20 dígitos, desescapado JSON, línea de secuencia bajo una fase) son divergencias que no son de blancos y siguen en PR5 (decisión 3A).",
+      "El arreglo del bucle de review-limit (cambio review-limit-oversized-correction, cerrado) va en esta misma PR sobre un commit WIP de este cambio (decisión del usuario, opción A), así que el diff de este cambio incluye también scripts/lib/idd-review.js, scripts/ospec.js y REQ-idd-016, y la quinta revisión los cubrió."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: touches scripts/lib/ospec-state.js (matches scripts/lib/ospec-state.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/pre-compact.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components change-state, hooks: ADR 0002, 0008, 0009, 0010, 0011 and quality scenario contract-compatibility, deterministic-resume, guard-fail-closed",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0002",
+      "impact": "conforms",
+      "reason": "state.yaml sigue siendo la autoridad en disco; los lectores leen sus claves reales en tiempo lineal y Node y Go deciden igual qué línea está en blanco, sin cambiar el formato"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "el proyector falla cerrado (malformed-state) en Node y en Go ante una línea de solo U+0085, U+FEFF o U+00A0 tras un bloque, y PreToolUse lee el estado activo sin tardar de forma cuadrática ante un valor largo"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "el esquema de state.yaml no cambia; el contrato del escáner se amplía con REQ-lifecycle-kernel-035 y un corpus compartido que pasan Node y Go"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "el arreglo vive en scripts/lib/yaml-lite.js e internal/yamllite, que el runtime ya incluye; sin dependencias nuevas"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "solo cambian los lectores de state.yaml de SDD y el escáner compartido; el estado IDD (idd/<change>/state.yaml, JSON) no se toca"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "los 419 YAML versionados se leen igual en main y en la rama con los lectores de Node y el escáner, validador y parser de Go; solo cambian entradas con U+0085, U+FEFF u otros espacios Unicode en el borde de una línea"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "estado, ruta y fase se leen de las claves reales igual en Node y en Go, y pre-compact ya no adelanta la fase por un status escrito dentro de un bloque"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "el proyector rechaza en los dos runtimes un state.yaml cuya línea de solo un espacio Unicode cierra un bloque, en vez de aceptarlo en uno y leer la clave siguiente"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "el arreglo del bucle de review-limit que acompaña a esta PR (cambio review-limit-oversized-correction) mantiene la regla del límite de revisiones en el CLI con su test"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "las señales y las obligaciones derivadas no cambian; el cambio hermano solo fija cuándo ospec check abre review-limit"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "ninguna obligación se satisface sin evidencia observada; el gate review-limit abierto sigue bloqueando el cierre"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "ni los lectores de state.yaml ni el arreglo de la CLI añaden llamadas de red"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-25"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-28"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-24"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-23"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-27"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-26"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 259,
+      "answer": "las recomendadas: 1A el escáner recorta espacio, tabulador y CR; 2A la paridad de blancos cubre el escáner y el validador, el parser y dropRewrittenContinuations del proyector en Node y en Go; 3A extractPhaseStatuses de pre-compact se arregla en esta PR",
+      "source": "user",
+      "resolved_turn": 263
+    },
+    {
+      "id": "review-limit",
+      "status": "resolved",
+      "reason": "3 of 3 trust reviews used: ospec check opens the review-limit gate, and only the person's answer authorizes one more",
+      "opened_turn": 267,
+      "answer": "las recomendadas (a la pregunta 4: A, autorizar una cuarta revisión de confianza)",
+      "source": "user-unverified",
+      "resolved_turn": 267,
+      "declared_source": "user",
+      "unverified_reason": "no turn ended between the gate's opening and the answer"
+    },
+    {
+      "id": "review-limit",
+      "status": "resolved",
+      "reason": "4 of 4 trust reviews used: ospec check opens the review-limit gate, and only the person's answer authorizes one more",
+      "opened_turn": 273,
+      "answer": "Sesión anterior (2A): «las recomendadas», que autoriza una quinta revisión de confianza. En esta sesión: «continua con lo que estabamos haciendo en la otra sesion, pero me pediste una quinta pasada de reviewer, pero creo que el agente funciona con opus, queria que funcionase con fable 5.2 para esta ocasion».",
+      "source": "user-unverified",
+      "resolved_turn": 273,
+      "declared_source": "user",
+      "unverified_reason": "no turn ended between the gate's opening and the answer"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-11T15:33:35.258Z",
+      "detail": {
+        "red": "run-2",
+        "green": "run-3",
+        "counterproof": [
+          "run-4",
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-11T15:34:56.466Z",
+      "detail": {
+        "run": "run-6",
+        "tree": "sha256:d9cfb6864e7cc153cfa9af98aa62f5256b518e2a63caf9ece76d3f468e2a5aa1",
+        "plan": "El formato de state.yaml y de los config.yaml no cambia y no hay migración. Los 419 YAML versionados (state.yaml de openspec/changes y de fixtures, config.yaml y el resto) dan lecturas idénticas en main y en la rama con los lectores de Node (escáner, readStatus, parser, validador y dropRewrittenContinuations del proyector, extractStateRouteInfo, parsePersistedRouteSection, puertas de archivado y lector YAML-lite de pre-compact) y con el escáner, el validador y el parser del proyector de Go; lo prueban sin tocar fixtures las suites completas de los lectores y sus llamadores. Cambios visibles, solo ante entradas raras: una línea o el borde de un valor con U+0085, U+FEFF, U+00A0 u otro espacio Unicode es texto en Node y en Go, de modo que una línea de solo uno de ellos tras un bloque cierra el bloque y el proyector la rechaza con malformed-state en los dos; un CR suelto dentro de un valor se lee como parte de él, como ya hacía Go; un status dentro de un escalar de bloque bajo phases ya no adelanta la fase actual de pre-compact. Un CR final y una línea de solo un CR siguen siendo blancos. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T15:38:05.147Z",
+      "detail": {
+        "tree": "sha256:50ef248d037f2079446c01162183b59b0ee12d0547df8602243ba86d968f7cc2",
+        "runs": [
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T15:38:05.147Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:50ef248d037f2079446c01162183b59b0ee12d0547df8602243ba86d968f7cc2",
+        "fitness": [
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-11T15:38:27.496Z",
+      "detail": {
+        "run": "run-17",
+        "tree": "sha256:c481d2a0db205b2a0404658cfd1c86a002da08740067fbaf6cdd2b4ebf364f31",
+        "plan": "El formato de state.yaml y de los config.yaml no cambia y no hay migración. Los 419 YAML versionados (state.yaml de openspec/changes y de fixtures, config.yaml y el resto) dan lecturas idénticas en main y en la rama con los lectores de Node (escáner, readStatus, parser, validador y dropRewrittenContinuations del proyector, extractStateRouteInfo, parsePersistedRouteSection, puertas de archivado y lector YAML-lite de pre-compact) y con el escáner, el validador y el parser del proyector de Go; lo prueban sin tocar fixtures las suites completas de los lectores y sus llamadores. Cambios visibles, solo ante entradas raras: una línea o el borde de un valor con U+0085, U+FEFF, U+00A0 u otro espacio Unicode es texto en Node y en Go, de modo que una línea de solo uno de ellos tras un bloque cierra el bloque y el proyector la rechaza con malformed-state en los dos; un CR suelto dentro de un valor se lee como parte de él, como ya hacía Go; un status dentro de un escalar de bloque bajo phases ya no adelanta la fase actual de pre-compact. Un CR final y una línea de solo un CR siguen siendo blancos. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-11T15:49:13.753Z",
+      "detail": {
+        "lineage_id": "sha256:4c234990bcd981f8115579f7c1fd2608eb10e58547b030f7482f634e8424f5e3",
+        "candidate_id": "sha256:4e000605286e94b049b4aacadb25b119445ba9f89c67d2be51637a4829398145",
+        "candidate_tree": "0d1d0894b89a587ffe4ba3c236109c19ea6e0c13",
+        "findings_digest": "sha256:86e9ce52d5d0d473437960b5c885c1b8339b0f4bac61ca87b80676654a5968b6",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-11T15:41:54.846Z",
+          "result_digest": "sha256:66de640a784fa1e6317d558c0f00f1c07128b61cf8a5553c7d06d4582bd64e5c"
+        }
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T15:50:56.632Z",
+      "detail": {
+        "tree": "sha256:44ec411dca962954fbcd7d9c68a411e92983283f6397825195b68bd245caf881",
+        "runs": [
+          "run-18"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T15:50:56.632Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:44ec411dca962954fbcd7d9c68a411e92983283f6397825195b68bd245caf881",
+        "fitness": [
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26",
+          "run-27"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-11T15:51:43.960Z",
+      "detail": {
+        "run": "run-28",
+        "tree": "sha256:6b0ddc3a8b2b360df4063fb4f8626b7b37322d80b2423f216e033362933f3078",
+        "plan": "El formato de state.yaml y de los config.yaml no cambia y no hay migración. Los 419 YAML versionados (state.yaml de openspec/changes y de fixtures, config.yaml y el resto) dan lecturas idénticas en main y en la rama con los lectores de Node (escáner, readStatus, parser, validador y dropRewrittenContinuations del proyector, extractStateRouteInfo, parsePersistedRouteSection, puertas de archivado y lector YAML-lite de pre-compact) y con el escáner, el validador y el parser del proyector de Go; lo prueban sin tocar fixtures las suites completas de los lectores y sus llamadores. Cambios visibles, solo ante entradas raras y en los dos runtimes por igual: U+0085, U+FEFF, U+00A0 y los demás espacios Unicode son texto en el escáner y en el proyector, así que una línea de solo uno de ellos tras un bloque cierra el bloque y el proyector la rechaza con malformed-state, una clave que empieza por uno de ellos los conserva (un change con BOM inicial o un status con U+00A0 delante ya no cuentan), y un valor de solo uno de ellos no está vacío; un CR suelto dentro de un valor se lee como parte de él, como ya hacía Go; un status dentro de un escalar de bloque bajo phases ya no adelanta la fase actual de pre-compact. Un CR final y una línea de solo un CR siguen siendo blancos. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-11T15:58:57.246Z",
+      "detail": {
+        "lineage_id": "sha256:a6059de0363c84b1534e2f90823056fd004236d9e42924b1537b36aafbde75f1",
+        "candidate_id": "sha256:c6b60a4f45d22b3a20935896b723098c4d3585cbc10843a08ee807ba416790b4",
+        "candidate_tree": "e4c2e1e40c912048030d21630b39b255b38572f0",
+        "findings_digest": "sha256:1699be40a6a4912f7cce31fa2a894858495be845153c899baf873d925792e669",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-11T15:54:52.885Z",
+          "result_digest": "sha256:d01e3c21cedf37bbaebb5a568182014646e046ce89c6fc12f643bc8262afb8b8"
+        }
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-11T15:59:23.492Z",
+      "detail": {
+        "run": "run-29",
+        "tree": "sha256:0d0a83c415325c395baa874d44795052cf908621ce5dceb07f767b1741efe8bc",
+        "plan": "El formato de state.yaml y de los config.yaml no cambia y no hay migración. Los 419 YAML versionados (state.yaml de openspec/changes y de fixtures, config.yaml y el resto) dan lecturas idénticas en main y en la rama con los lectores de Node (escáner, readStatus, parser, validador y dropRewrittenContinuations del proyector, extractStateRouteInfo, parsePersistedRouteSection, puertas de archivado y lector YAML-lite de pre-compact) y con el escáner, el validador y el parser del proyector de Go; lo prueban sin tocar fixtures las suites completas de los lectores y sus llamadores, SubagentStop y el contrato de paridad de hooks incluidos. Cambios visibles, solo ante entradas raras y en los dos runtimes por igual: U+0085, U+FEFF, U+00A0 y los demás espacios Unicode son texto en el escáner y en el proyector (validador, parser y escritor), así que una línea de solo uno de ellos tras un bloque cierra el bloque y el proyector la rechaza con malformed-state, una clave que empieza por uno de ellos los conserva (un change con BOM inicial o un status con U+00A0 delante ya no cuentan, y el escritor ya no reescribe esa línea en lugar de la real) y un valor de solo uno de ellos no está vacío; el proyector de Node rechaza como el de Go status: \"\" y phases: # c; un CR suelto dentro de un valor se lee como parte de él, como ya hacía Go; un status dentro de un escalar de bloque bajo phases ya no adelanta la fase actual de pre-compact. Un CR final y una línea de solo un CR siguen siendo blancos. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T16:00:58.862Z",
+      "detail": {
+        "tree": "sha256:3796b6025d3e0d8c114163604d783c5ba1ae3fb73d382c365a5ebd88ebd946cf",
+        "runs": [
+          "run-30"
+        ]
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T16:00:58.862Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:3796b6025d3e0d8c114163604d783c5ba1ae3fb73d382c365a5ebd88ebd946cf",
+        "fitness": [
+          "run-31",
+          "run-32",
+          "run-33",
+          "run-34",
+          "run-35",
+          "run-36",
+          "run-37",
+          "run-38",
+          "run-39"
+        ]
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-11T16:06:42.879Z",
+      "detail": {
+        "lineage_id": "sha256:58c559431ad9fe7a15183ed88e42805d4e8c26f59cffb4f4a1b37b1f8222d422",
+        "candidate_id": "sha256:1f51d80521f3137b95d353a497f3a00655065260b9e1a8de51496cbfce767556",
+        "candidate_tree": "3a66df5032896dfc956bb69485834c6c1c5007de",
+        "findings_digest": "sha256:a0d29849df45562a3afa5f4e67eaea7649d654815a30411327a078a58dbe61a2",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-11T16:05:34.200Z",
+          "result_digest": "sha256:7be4c853920a4274ad6417808134ceb51b3f47231811a9a8e14ea3ce9b691f9e"
+        }
+      }
+    },
+    {
+      "id": "ev-15",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-11T16:22:50.182Z",
+      "detail": {
+        "run": "run-40",
+        "tree": "sha256:9bec12abe571611574f21633222281369a1b2a4e522b5d35ab4ec04285c6a05e",
+        "plan": "El formato de state.yaml y de los config.yaml no cambia y no hay migración. Los 419 YAML versionados (state.yaml de openspec/changes y de fixtures, config.yaml y el resto) dan lecturas idénticas en main y en la rama con los lectores de Node (escáner, readStatus, parser, validador y dropRewrittenContinuations del proyector, extractStateRouteInfo, parsePersistedRouteSection, puertas de archivado y lector YAML-lite de pre-compact) y con el escáner, el validador, el parser del proyector y el lector YAML-lite de Go (ExtractFirstScalar, tras store.ReadStatus); lo prueban sin tocar fixtures las suites completas de los lectores y sus llamadores, SubagentStop, Stop y el contrato de paridad de hooks incluidos. Cambios visibles, solo ante entradas raras y en los dos runtimes por igual: U+0085, U+FEFF, U+00A0 y los demás espacios Unicode son texto en el escáner, en el proyector (validador, parser y escritor) y en los lectores de estado, así que una línea de solo uno de ellos tras un bloque cierra el bloque y el proyector la rechaza con malformed-state, una clave que empieza por uno de ellos los conserva (un change con BOM inicial o un status con U+00A0 delante no cuentan para ningún lector ni proyector) y un valor que acaba en uno de ellos lo conserva; el proyector rechaza en los dos runtimes status: \"\" y phases con cualquier valor en su línea; un comentario que empieza por tabulador cuenta como sangrado en los dos escritores; un CR suelto dentro de un valor se lee como parte de él, como ya hacía Go; un status dentro de un escalar de bloque bajo phases ya no adelanta la fase actual de pre-compact. Un CR final y una línea de solo un CR siguen siendo blancos. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-16",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T16:24:15.340Z",
+      "detail": {
+        "tree": "sha256:1dae87711845f6fcd06e3a6765b4b80bd4db714c87620312d4c39a35324962bd",
+        "runs": [
+          "run-41"
+        ]
+      }
+    },
+    {
+      "id": "ev-17",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T16:24:15.340Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:1dae87711845f6fcd06e3a6765b4b80bd4db714c87620312d4c39a35324962bd",
+        "fitness": [
+          "run-42",
+          "run-43",
+          "run-44",
+          "run-45",
+          "run-46",
+          "run-47",
+          "run-48",
+          "run-49",
+          "run-50"
+        ]
+      }
+    },
+    {
+      "id": "ev-18",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T16:34:58.494Z",
+      "detail": {
+        "tree": "sha256:fd13699072f0b19a04bda99392ad4f2fc9069d014327a0cac1f0971b90869381",
+        "runs": [
+          "run-51"
+        ]
+      }
+    },
+    {
+      "id": "ev-19",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T16:34:58.494Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:fd13699072f0b19a04bda99392ad4f2fc9069d014327a0cac1f0971b90869381",
+        "fitness": [
+          "run-52",
+          "run-53",
+          "run-54",
+          "run-55",
+          "run-56",
+          "run-57",
+          "run-58",
+          "run-59",
+          "run-60"
+        ]
+      }
+    },
+    {
+      "id": "ev-20",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-11T16:58:02.022Z",
+      "detail": {
+        "run": "run-61",
+        "tree": "sha256:8dfc6444abc38b634288e3a0bddcf6bf70cbc498de0c3ffbaa50f0b171d8317d",
+        "plan": "El formato de state.yaml y de los config.yaml no cambia y no hay migración. Los 419 YAML versionados (state.yaml de openspec/changes y de fixtures, config.yaml y el resto) dan lecturas idénticas en main y en la rama con los lectores de Node (escáner, readStatus, parser, validador y dropRewrittenContinuations del proyector, extractStateRouteInfo, parsePersistedRouteSection, puertas de archivado y lector YAML-lite de pre-compact) y con el escáner, el validador, el parser del proyector y el lector YAML-lite de Go (ExtractFirstScalar, tras store.ReadStatus), salvo un state.yaml archivado con dos status de primer nivel (2026-09-03-k6d-complexity-architecture-delta), que Node lee ahora como archived, el primero, igual que ya hacía Go; lo prueban sin tocar fixtures las suites completas de los lectores y sus llamadores, SubagentStop, Stop y el contrato de paridad de hooks incluidos. Cambios visibles, solo ante entradas raras y en los dos runtimes por igual: U+0085, U+FEFF, U+00A0 y los demás espacios Unicode son texto en el escáner, en el proyector (validador, parser y escritor) y en los lectores de estado, así que una línea de solo uno de ellos tras un bloque cierra el bloque y el proyector la rechaza con malformed-state, una clave que empieza por uno de ellos los conserva (un change con BOM inicial o un status con U+00A0 delante no cuentan para ningún lector ni proyector) y un valor que acaba en uno de ellos lo conserva; el proyector rechaza en los dos runtimes status: \"\", phases con cualquier valor en su línea y una línea que el escáner no lee como clave (status:archived); readStatus lee la clave hasta el primer dos puntos y el valor tras un blanco ASCII, y con dos status de primer nivel toma el primero, como store.ReadStatus; un comentario que empieza por tabulador cuenta como sangrado en los dos escritores; un CR suelto dentro de un valor se lee como parte de él, como ya hacía Go; un status dentro de un escalar de bloque bajo phases ya no adelanta la fase actual de pre-compact. Un CR final y una línea de solo un CR siguen siendo blancos. Vuelta atrás: revertir el commit, sin datos que deshacer."
+      }
+    },
+    {
+      "id": "ev-21",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T16:59:36.278Z",
+      "detail": {
+        "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+        "runs": [
+          "run-62"
+        ]
+      }
+    },
+    {
+      "id": "ev-22",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-11T16:59:36.278Z",
+      "detail": {
+        "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+        "check": "ev-21",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/yamllite/yamllite_test.go",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/lib/idd-review.test.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/ospec.test.js",
+          "scripts/route-dispatch-run.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-23",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-11T17:08:53.466Z",
+      "detail": {
+        "lineage_id": "sha256:1375c8b3baa3a10c09600425ad3c6d69cb01dacc5dbc45ccc2a346ca81d69c8a",
+        "candidate_id": "sha256:acea4f5286d7ebf70eb47c18d2ec6e5ea49c0f2086b0bb710a597b97e79060c3",
+        "candidate_tree": "c690041b26bf08e55b588a3e1ed0c6d6acaea828",
+        "findings_digest": "sha256:c1351d63f2b6a1c6c883a2e864467c4f95b3d31fc754ab8419a4615c5ba813a7",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-correction",
+          "recorded_at": "2026-11-11T17:08:44.831Z",
+          "result_digest": "sha256:21eba18151cb4231867d09cfc6bf9e82410c451933024fa268a93044d8fa4275"
+        }
+      }
+    },
+    {
+      "id": "ev-24",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-11T17:09:12.883Z",
+      "detail": {
+        "run": "run-74",
+        "tree": "sha256:826846a31f657a48d60a597bf59750067d28e8d74ad3c15db21daf2b8c5e5355",
+        "plan": "El formato de state.yaml y de los config.yaml no cambia y no hay migración. Los 419 YAML versionados (state.yaml de openspec/changes y de fixtures, config.yaml y el resto) dan lecturas idénticas en main y en la rama con los lectores de Node (escáner, readStatus, parser, validador y dropRewrittenContinuations del proyector, extractStateRouteInfo, parsePersistedRouteSection, puertas de archivado y lector YAML-lite de pre-compact) y con el escáner, el validador, el parser del proyector y el lector YAML-lite de Go (ExtractFirstScalar, tras store.ReadStatus), salvo un state.yaml archivado con dos status de primer nivel (2026-09-03-k6d-complexity-architecture-delta), que Node lee ahora como archived, el primero, igual que ya hacía Go; lo prueban sin tocar fixtures las suites completas de los lectores y sus llamadores, SubagentStop, Stop y el contrato de paridad de hooks incluidos. Cambios visibles, solo ante entradas raras y en los dos runtimes por igual: U+0085, U+FEFF, U+00A0 y los demás espacios Unicode son texto en el escáner, en el proyector (validador, parser y escritor) y en los lectores de estado, así que una línea de solo uno de ellos tras un bloque cierra el bloque y el proyector la rechaza con malformed-state, una clave que empieza por uno de ellos los conserva (un change con BOM inicial o un status con U+00A0 delante no cuentan para ningún lector ni proyector) y un valor que acaba en uno de ellos lo conserva; el proyector rechaza en los dos runtimes status: \"\", phases con cualquier valor en su línea y una línea que el escáner no lee como clave (status:archived); readStatus lee la clave hasta el primer dos puntos y el valor tras un blanco ASCII, y con dos status de primer nivel toma el primero, como store.ReadStatus; un comentario que empieza por tabulador cuenta como sangrado en los dos escritores; un CR suelto dentro de un valor se lee como parte de él, como ya hacía Go; un status dentro de un escalar de bloque bajo phases ya no adelanta la fase actual de pre-compact. Un CR final y una línea de solo un CR siguen siendo blancos. Vuelta atrás: revertir el commit, sin datos que deshacer. readStatus pasa el status a minúsculas punto de código a punto de código, como strings.ToLower: U+0130 da i en los dos runtimes."
+      }
+    },
+    {
+      "id": "ev-25",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-11T17:10:45.779Z",
+      "detail": {
+        "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+        "runs": [
+          "run-75"
+        ]
+      }
+    },
+    {
+      "id": "ev-26",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-11T17:10:45.779Z",
+      "detail": {
+        "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+        "check": "ev-25",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/yamllite/yamllite_test.go",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/lib/idd-review.test.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/ospec.test.js",
+          "scripts/route-dispatch-run.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-27",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-11T17:10:45.779Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0008 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+        "fitness": [
+          "run-76",
+          "run-77",
+          "run-78",
+          "run-79",
+          "run-80",
+          "run-81",
+          "run-82",
+          "run-83",
+          "run-84",
+          "run-85",
+          "run-86"
+        ]
+      }
+    },
+    {
+      "id": "ev-28",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-11T17:10:56.447Z"
+    }
+  ],
+  "base": "5d325b889b10d2b5eda9eadddb5ded4e38343e68",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"REQ-lifecycle-kernel-035|REQ-lifecycle-kernel-033: a phase status\" scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js && go test ./internal/yamllite/ ./internal/hooks/ -run 'TestOpaqueScalarLines_SharedCorpus|TestExtractFirstScalar_LoneCRInsideValue|TestProjectPhaseCompletion_MalformedStateFailsClosed|TestValidatePhaseCompletionYAML_LoneCRLineIsBlank'",
+      "exit_code": 1,
+      "output_sha256": "sha256:f0b88da04bef74b29ce8b01d78135e8fa18e1a49649b885eceefd8fba6248ca8",
+      "tree": "sha256:463019ae0da1786fc288494fd488a3805b30aea9b351030024967067735361ec",
+      "recorded_at": "2026-11-11T15:27:35.993Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"REQ-lifecycle-kernel-035|REQ-lifecycle-kernel-033: a phase status\" scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js && go test ./internal/yamllite/ ./internal/hooks/ -run 'TestOpaqueScalarLines_SharedCorpus|TestExtractFirstScalar_LoneCRInsideValue|TestProjectPhaseCompletion_MalformedStateFailsClosed|TestValidatePhaseCompletionYAML_LoneCRLineIsBlank'",
+      "exit_code": 1,
+      "output_sha256": "sha256:f67e4501d2dff51fa3609708b73bce84ad113e8f4e74382ddb41323f33aed212",
+      "tree": "sha256:ec47f40b01973356969f147d83269f995d9d560d4ae8dfd4e58db5fb6e08abc6",
+      "recorded_at": "2026-11-11T15:31:53.667Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"REQ-lifecycle-kernel-035|REQ-lifecycle-kernel-033: a phase status\" scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js && go test ./internal/yamllite/ ./internal/hooks/ -run 'TestOpaqueScalarLines_SharedCorpus|TestExtractFirstScalar_LoneCRInsideValue|TestProjectPhaseCompletion_MalformedStateFailsClosed|TestValidatePhaseCompletionYAML_LoneCRLineIsBlank'",
+      "exit_code": 0,
+      "output_sha256": "sha256:0736bd82f0f234bf6f1072dc64adc0d2a2dbf7dfcdc5d83a9d583230cea3ba63",
+      "tree": "sha256:d9cfb6864e7cc153cfa9af98aa62f5256b518e2a63caf9ece76d3f468e2a5aa1",
+      "recorded_at": "2026-11-11T15:33:35.258Z",
+      "tests": 9,
+      "counterproof": [
+        "run-4",
+        "run-5"
+      ]
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "5d325b889b10d2b5eda9eadddb5ded4e38343e68",
+      "mount": "sha256:0db7e238adba76c74ec86e962cb7041edaed62e10231461731975ce76090ec56",
+      "command": "node --test --test-name-pattern=\"REQ-lifecycle-kernel-035|REQ-lifecycle-kernel-033: a phase status\" scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js && go test ./internal/yamllite/ ./internal/hooks/ -run 'TestOpaqueScalarLines_SharedCorpus|TestExtractFirstScalar_LoneCRInsideValue|TestProjectPhaseCompletion_MalformedStateFailsClosed|TestValidatePhaseCompletionYAML_LoneCRLineIsBlank'",
+      "exit_code": 1,
+      "output_sha256": "sha256:f598ed6807a87dd0ecbfd0bb87c4f271af4dbfd31b3cc63fb30eaeda6eda24d0",
+      "tree": "sha256:d9cfb6864e7cc153cfa9af98aa62f5256b518e2a63caf9ece76d3f468e2a5aa1",
+      "recorded_at": "2026-11-11T15:33:35.258Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "5d325b889b10d2b5eda9eadddb5ded4e38343e68",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"REQ-lifecycle-kernel-035|REQ-lifecycle-kernel-033: a phase status\" scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js && go test ./internal/yamllite/ ./internal/hooks/ -run 'TestOpaqueScalarLines_SharedCorpus|TestExtractFirstScalar_LoneCRInsideValue|TestProjectPhaseCompletion_MalformedStateFailsClosed|TestValidatePhaseCompletionYAML_LoneCRLineIsBlank'",
+      "exit_code": 0,
+      "output_sha256": "sha256:6f06602d26cd7ee854d3e918a53e6197d34495e9622df9ebc414ec06e4575313",
+      "tree": "sha256:d9cfb6864e7cc153cfa9af98aa62f5256b518e2a63caf9ece76d3f468e2a5aa1",
+      "recorded_at": "2026-11-11T15:33:35.258Z",
+      "tests": 5
+    },
+    {
+      "id": "run-6",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js scripts/lib/archive-transaction.test.js scripts/hooks/pre-tool-use.test.js scripts/lib/idd-config.test.js scripts/lib/team-profile.test.js scripts/lib/capability-registry.test.js scripts/hooks/session-start.test.js scripts/lib/artifact-store.test.js && go test ./internal/yamllite/ ./internal/hooks/ ./internal/store/",
+      "exit_code": 0,
+      "output_sha256": "sha256:34022b3fae9babbe090dab8b36a634f1e7317e463f1dba96ccf574148d4170be",
+      "tree": "sha256:d9cfb6864e7cc153cfa9af98aa62f5256b518e2a63caf9ece76d3f468e2a5aa1",
+      "recorded_at": "2026-11-11T15:34:56.466Z",
+      "tests": 514
+    },
+    {
+      "id": "run-7",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3f1913b13445fee3ac976ecb42fe6bc723755e4c1990cda654461ee289c6124f",
+      "tree": "sha256:50ef248d037f2079446c01162183b59b0ee12d0547df8602243ba86d968f7cc2",
+      "recorded_at": "2026-11-11T15:38:05.147Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0478852b91a2f4c0e5518f907525fb86c9feac4ef1d0392e13c2a62cc3bc6ed7",
+      "tree": "sha256:50ef248d037f2079446c01162183b59b0ee12d0547df8602243ba86d968f7cc2",
+      "recorded_at": "2026-11-11T15:38:05.147Z",
+      "tests": 14
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:47ab7299d44818632f05608ebd217a4359f26823a5e3d3996029dbdb22bd87ea",
+      "tree": "sha256:50ef248d037f2079446c01162183b59b0ee12d0547df8602243ba86d968f7cc2",
+      "recorded_at": "2026-11-11T15:38:05.147Z",
+      "tests": 99
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:28a33b1d16875aa36e46ef7f0aaf022b3f29b4ab5a053d67a967c02c21e6abe0",
+      "tree": "sha256:50ef248d037f2079446c01162183b59b0ee12d0547df8602243ba86d968f7cc2",
+      "recorded_at": "2026-11-11T15:38:05.147Z",
+      "tests": 32
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:50ef248d037f2079446c01162183b59b0ee12d0547df8602243ba86d968f7cc2",
+      "recorded_at": "2026-11-11T15:38:05.147Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:81682bfc2c030f9c4d2483d94b6f6e27e05463bf601521728244f2d2ce7dd4f7",
+      "tree": "sha256:50ef248d037f2079446c01162183b59b0ee12d0547df8602243ba86d968f7cc2",
+      "recorded_at": "2026-11-11T15:38:05.147Z",
+      "tests": 26
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e37d9f8e38e5be94c8f899d183776f0f8d4eddf47b0f5e87f91293ca46107145",
+      "tree": "sha256:50ef248d037f2079446c01162183b59b0ee12d0547df8602243ba86d968f7cc2",
+      "recorded_at": "2026-11-11T15:38:05.147Z",
+      "tests": 96
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:117a3a6558082e0d684ef846d2c790d4ba560c9564f695218011b64ddb26bb6d",
+      "tree": "sha256:50ef248d037f2079446c01162183b59b0ee12d0547df8602243ba86d968f7cc2",
+      "recorded_at": "2026-11-11T15:38:05.147Z",
+      "tests": 32
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2765a6c640f9ec3c1d023d9c53cf0a2400ce7c2bc15de10fdb6cfd50c99fb8c7",
+      "tree": "sha256:50ef248d037f2079446c01162183b59b0ee12d0547df8602243ba86d968f7cc2",
+      "recorded_at": "2026-11-11T15:38:05.147Z",
+      "tests": 52
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e15ce819dd9c34815ac1b84f5e7210386933d46a780ecfd3633818b7a2382b68",
+      "tree": "sha256:50ef248d037f2079446c01162183b59b0ee12d0547df8602243ba86d968f7cc2",
+      "recorded_at": "2026-11-11T15:38:05.147Z",
+      "tests": 99
+    },
+    {
+      "id": "run-17",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js scripts/lib/archive-transaction.test.js scripts/hooks/pre-tool-use.test.js scripts/lib/idd-config.test.js scripts/lib/team-profile.test.js scripts/lib/capability-registry.test.js scripts/hooks/session-start.test.js scripts/lib/artifact-store.test.js && go test ./internal/yamllite/ ./internal/hooks/ ./internal/store/",
+      "exit_code": 0,
+      "output_sha256": "sha256:d83bcd98cbd869e6d9bcebeb982e246780db05b2b776be9526cea4b4eb09afb6",
+      "tree": "sha256:c481d2a0db205b2a0404658cfd1c86a002da08740067fbaf6cdd2b4ebf364f31",
+      "recorded_at": "2026-11-11T15:38:27.496Z",
+      "tests": 514
+    },
+    {
+      "id": "run-18",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9915cbac93dc5d6b999ffc877da37fd5cfdf0c16f0546612fe359612e1d0ea66",
+      "tree": "sha256:44ec411dca962954fbcd7d9c68a411e92983283f6397825195b68bd245caf881",
+      "recorded_at": "2026-11-11T15:50:56.632Z"
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6225e3ea8b3841a1cf7c16ab35bcccef8999bd36c3138a95ac1deb850d82563d",
+      "tree": "sha256:44ec411dca962954fbcd7d9c68a411e92983283f6397825195b68bd245caf881",
+      "recorded_at": "2026-11-11T15:50:56.632Z",
+      "tests": 14
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:66c8b0e52d4ec81ea25c416c72ba2cb826b2f8c92cd928502b071ef7a31607f7",
+      "tree": "sha256:44ec411dca962954fbcd7d9c68a411e92983283f6397825195b68bd245caf881",
+      "recorded_at": "2026-11-11T15:50:56.632Z",
+      "tests": 99
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d14c6d44c94a307387e9f8140772d5fef793a6a5734f0081b41e1634ac97b9a9",
+      "tree": "sha256:44ec411dca962954fbcd7d9c68a411e92983283f6397825195b68bd245caf881",
+      "recorded_at": "2026-11-11T15:50:56.632Z",
+      "tests": 32
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:44ec411dca962954fbcd7d9c68a411e92983283f6397825195b68bd245caf881",
+      "recorded_at": "2026-11-11T15:50:56.632Z"
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7c5b54918a126590d6b357b2cf439ac1ebd184cb9b2d2a67c71028b52c221131",
+      "tree": "sha256:44ec411dca962954fbcd7d9c68a411e92983283f6397825195b68bd245caf881",
+      "recorded_at": "2026-11-11T15:50:56.632Z",
+      "tests": 26
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0bc7bf4e8124d05ea5d943b35b955cec401e57ecebcf0e6266e327bc8c289691",
+      "tree": "sha256:44ec411dca962954fbcd7d9c68a411e92983283f6397825195b68bd245caf881",
+      "recorded_at": "2026-11-11T15:50:56.632Z",
+      "tests": 96
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2788c66ab87f7bb9d5763076b6a8a1102da24887668cbbb4ad6a3a46d323dd2c",
+      "tree": "sha256:44ec411dca962954fbcd7d9c68a411e92983283f6397825195b68bd245caf881",
+      "recorded_at": "2026-11-11T15:50:56.632Z",
+      "tests": 32
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:355979823c6c5e01e0edcd39dd201d8893a01b85251f0278c9a8980d378e261d",
+      "tree": "sha256:44ec411dca962954fbcd7d9c68a411e92983283f6397825195b68bd245caf881",
+      "recorded_at": "2026-11-11T15:50:56.632Z",
+      "tests": 52
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e509e60f3c97bd21988944f00ff2c6c0a779b8d388923830a16790c659b82b9c",
+      "tree": "sha256:44ec411dca962954fbcd7d9c68a411e92983283f6397825195b68bd245caf881",
+      "recorded_at": "2026-11-11T15:50:56.632Z",
+      "tests": 99
+    },
+    {
+      "id": "run-28",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js scripts/lib/archive-transaction.test.js scripts/hooks/pre-tool-use.test.js scripts/lib/idd-config.test.js scripts/lib/team-profile.test.js scripts/lib/capability-registry.test.js scripts/hooks/session-start.test.js scripts/lib/artifact-store.test.js && go test ./internal/yamllite/ ./internal/hooks/ ./internal/store/",
+      "exit_code": 0,
+      "output_sha256": "sha256:5cac2daa14803e7e9d7ca235c51df402008b1c4aeece893ca862e0c3de7bdffb",
+      "tree": "sha256:6b0ddc3a8b2b360df4063fb4f8626b7b37322d80b2423f216e033362933f3078",
+      "recorded_at": "2026-11-11T15:51:43.960Z",
+      "tests": 514
+    },
+    {
+      "id": "run-29",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js scripts/lib/archive-transaction.test.js scripts/hooks/pre-tool-use.test.js scripts/lib/idd-config.test.js scripts/lib/team-profile.test.js scripts/lib/capability-registry.test.js scripts/hooks/session-start.test.js scripts/lib/artifact-store.test.js scripts/hooks/subagent-stop.test.js scripts/hooks/parity-contract.test.js && go test ./internal/yamllite/ ./internal/hooks/ ./internal/store/",
+      "exit_code": 0,
+      "output_sha256": "sha256:1960b48a8292b5f511b5e087d1b8ca86082164da0a847fbdc2f2fab74eaa9476",
+      "tree": "sha256:0d0a83c415325c395baa874d44795052cf908621ce5dceb07f767b1741efe8bc",
+      "recorded_at": "2026-11-11T15:59:23.492Z",
+      "tests": 632
+    },
+    {
+      "id": "run-30",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2d05cc0333e675d48991a66eaaf519bb52a9960e9b4f2297bfd765d83e037bf4",
+      "tree": "sha256:3796b6025d3e0d8c114163604d783c5ba1ae3fb73d382c365a5ebd88ebd946cf",
+      "recorded_at": "2026-11-11T16:00:58.862Z"
+    },
+    {
+      "id": "run-31",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ab8856127e25a05d58ca74bd2ec6ec225905c4bd378737cd63bf58c1235ed683",
+      "tree": "sha256:3796b6025d3e0d8c114163604d783c5ba1ae3fb73d382c365a5ebd88ebd946cf",
+      "recorded_at": "2026-11-11T16:00:58.862Z",
+      "tests": 14
+    },
+    {
+      "id": "run-32",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3a4becaf3e3f23c234a319777145a00351ae9c1438fd5d67e7e996c28127303a",
+      "tree": "sha256:3796b6025d3e0d8c114163604d783c5ba1ae3fb73d382c365a5ebd88ebd946cf",
+      "recorded_at": "2026-11-11T16:00:58.862Z",
+      "tests": 99
+    },
+    {
+      "id": "run-33",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d13217d7e1a185922bf6ece6f3577dd6f9e579e6942d9b78f2bdfee2d56b82e0",
+      "tree": "sha256:3796b6025d3e0d8c114163604d783c5ba1ae3fb73d382c365a5ebd88ebd946cf",
+      "recorded_at": "2026-11-11T16:00:58.862Z",
+      "tests": 32
+    },
+    {
+      "id": "run-34",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:3796b6025d3e0d8c114163604d783c5ba1ae3fb73d382c365a5ebd88ebd946cf",
+      "recorded_at": "2026-11-11T16:00:58.862Z"
+    },
+    {
+      "id": "run-35",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bf5296b0707b30b7ded45447d08fe1485187b7cd853af6c70a5e9df7064943eb",
+      "tree": "sha256:3796b6025d3e0d8c114163604d783c5ba1ae3fb73d382c365a5ebd88ebd946cf",
+      "recorded_at": "2026-11-11T16:00:58.862Z",
+      "tests": 26
+    },
+    {
+      "id": "run-36",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b5180c67939062ffd468e07766291e6836e5e51ac8f73c19934748ac6946dfcf",
+      "tree": "sha256:3796b6025d3e0d8c114163604d783c5ba1ae3fb73d382c365a5ebd88ebd946cf",
+      "recorded_at": "2026-11-11T16:00:58.862Z",
+      "tests": 96
+    },
+    {
+      "id": "run-37",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e9ff8a0b57a338f61e7decfab04b54fb88987562b440a9fd0c1ef9327b93a912",
+      "tree": "sha256:3796b6025d3e0d8c114163604d783c5ba1ae3fb73d382c365a5ebd88ebd946cf",
+      "recorded_at": "2026-11-11T16:00:58.862Z",
+      "tests": 32
+    },
+    {
+      "id": "run-38",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0d83b424ab84e215c58771194829f68d47bd4bea2dfedb851617c55c43b97d08",
+      "tree": "sha256:3796b6025d3e0d8c114163604d783c5ba1ae3fb73d382c365a5ebd88ebd946cf",
+      "recorded_at": "2026-11-11T16:00:58.862Z",
+      "tests": 52
+    },
+    {
+      "id": "run-39",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f76b108b5a182ec6fc0ce1658243fbb93b5e3ecbac02ef56a044c0389f411a4e",
+      "tree": "sha256:3796b6025d3e0d8c114163604d783c5ba1ae3fb73d382c365a5ebd88ebd946cf",
+      "recorded_at": "2026-11-11T16:00:58.862Z",
+      "tests": 99
+    },
+    {
+      "id": "run-40",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js scripts/lib/archive-transaction.test.js scripts/hooks/pre-tool-use.test.js scripts/lib/idd-config.test.js scripts/lib/team-profile.test.js scripts/lib/capability-registry.test.js scripts/hooks/session-start.test.js scripts/lib/artifact-store.test.js scripts/hooks/subagent-stop.test.js scripts/hooks/parity-contract.test.js scripts/hooks/stop.test.js && go test ./internal/yamllite/ ./internal/hooks/ ./internal/store/",
+      "exit_code": 0,
+      "output_sha256": "sha256:ba03d4e68255a01a77208ab0732d0b83cc43c2ef1fa4c277f29ec3708331e33b",
+      "tree": "sha256:9bec12abe571611574f21633222281369a1b2a4e522b5d35ab4ec04285c6a05e",
+      "recorded_at": "2026-11-11T16:22:50.182Z",
+      "tests": 644
+    },
+    {
+      "id": "run-41",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c5a2d9b5d1215549a97d70a98c2fd1df3947322b06aa82b8e6b5767ae56921d2",
+      "tree": "sha256:1dae87711845f6fcd06e3a6765b4b80bd4db714c87620312d4c39a35324962bd",
+      "recorded_at": "2026-11-11T16:24:15.340Z"
+    },
+    {
+      "id": "run-42",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2682387a90b7903fc3a6b363634caf946685899da7538896faa3cb8c9c323b10",
+      "tree": "sha256:1dae87711845f6fcd06e3a6765b4b80bd4db714c87620312d4c39a35324962bd",
+      "recorded_at": "2026-11-11T16:24:15.340Z",
+      "tests": 14
+    },
+    {
+      "id": "run-43",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9e7ff1f5bf6c2a814a5357e4359d9c633af202da77986cf1f1e4bb349d8393b9",
+      "tree": "sha256:1dae87711845f6fcd06e3a6765b4b80bd4db714c87620312d4c39a35324962bd",
+      "recorded_at": "2026-11-11T16:24:15.340Z",
+      "tests": 99
+    },
+    {
+      "id": "run-44",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3e582375332949c2f04e84971692c89997f5fe2197cf85b7c39685cd79598185",
+      "tree": "sha256:1dae87711845f6fcd06e3a6765b4b80bd4db714c87620312d4c39a35324962bd",
+      "recorded_at": "2026-11-11T16:24:15.340Z",
+      "tests": 32
+    },
+    {
+      "id": "run-45",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:1dae87711845f6fcd06e3a6765b4b80bd4db714c87620312d4c39a35324962bd",
+      "recorded_at": "2026-11-11T16:24:15.340Z"
+    },
+    {
+      "id": "run-46",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a2ecce1af6242778b9672c8afe286d165b2daadb8ffddd094c29f04dcd5c5b1d",
+      "tree": "sha256:1dae87711845f6fcd06e3a6765b4b80bd4db714c87620312d4c39a35324962bd",
+      "recorded_at": "2026-11-11T16:24:15.340Z",
+      "tests": 26
+    },
+    {
+      "id": "run-47",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b1393fe832250b6ac508c6da2672d424b15f5d5d1be45b940e43b6502668494b",
+      "tree": "sha256:1dae87711845f6fcd06e3a6765b4b80bd4db714c87620312d4c39a35324962bd",
+      "recorded_at": "2026-11-11T16:24:15.340Z",
+      "tests": 96
+    },
+    {
+      "id": "run-48",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:da12ae3bc8af80795534881b6301f59da860afc28008d2b4ae5e1f7a05128376",
+      "tree": "sha256:1dae87711845f6fcd06e3a6765b4b80bd4db714c87620312d4c39a35324962bd",
+      "recorded_at": "2026-11-11T16:24:15.340Z",
+      "tests": 32
+    },
+    {
+      "id": "run-49",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:36adf14bb7f381d87dee4e1c558a0225ddf81b9ea5ecfb35c30bf8c4aa432cdf",
+      "tree": "sha256:1dae87711845f6fcd06e3a6765b4b80bd4db714c87620312d4c39a35324962bd",
+      "recorded_at": "2026-11-11T16:24:15.340Z",
+      "tests": 52
+    },
+    {
+      "id": "run-50",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:36641bb0c43a94bc3dc2c9ce119fd7ce685a6ad9e29385fdfd071b25f20dff4b",
+      "tree": "sha256:1dae87711845f6fcd06e3a6765b4b80bd4db714c87620312d4c39a35324962bd",
+      "recorded_at": "2026-11-11T16:24:15.340Z",
+      "tests": 99
+    },
+    {
+      "id": "run-51",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:12ed0eedd6b905002008eddb57dfaaaf623b136a0d4860f5a58028e07947e5f7",
+      "tree": "sha256:fd13699072f0b19a04bda99392ad4f2fc9069d014327a0cac1f0971b90869381",
+      "recorded_at": "2026-11-11T16:34:58.494Z"
+    },
+    {
+      "id": "run-52",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:038ccd71e6cd1390c3366c2b079910afe3767209ab1af79d6c351895147ff97a",
+      "tree": "sha256:fd13699072f0b19a04bda99392ad4f2fc9069d014327a0cac1f0971b90869381",
+      "recorded_at": "2026-11-11T16:34:58.494Z",
+      "tests": 14
+    },
+    {
+      "id": "run-53",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b497836b7df3d3d8741d530e24b27810ac38dddf1fe3d6c1797dd40fab44fb54",
+      "tree": "sha256:fd13699072f0b19a04bda99392ad4f2fc9069d014327a0cac1f0971b90869381",
+      "recorded_at": "2026-11-11T16:34:58.494Z",
+      "tests": 99
+    },
+    {
+      "id": "run-54",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3e9b0c10c95991a085bab2d8be1870772f30a64df3d3bc3e044e2d8251592881",
+      "tree": "sha256:fd13699072f0b19a04bda99392ad4f2fc9069d014327a0cac1f0971b90869381",
+      "recorded_at": "2026-11-11T16:34:58.494Z",
+      "tests": 32
+    },
+    {
+      "id": "run-55",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:fd13699072f0b19a04bda99392ad4f2fc9069d014327a0cac1f0971b90869381",
+      "recorded_at": "2026-11-11T16:34:58.494Z"
+    },
+    {
+      "id": "run-56",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9a14d68cb5b5c0baf43ae916a99b35808a60b106a12d0cbd1d805e81d4c6c126",
+      "tree": "sha256:fd13699072f0b19a04bda99392ad4f2fc9069d014327a0cac1f0971b90869381",
+      "recorded_at": "2026-11-11T16:34:58.494Z",
+      "tests": 26
+    },
+    {
+      "id": "run-57",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0234b8c9c42ec7b36c2531038a105370349418acd7e644257a6fa8a7e756c319",
+      "tree": "sha256:fd13699072f0b19a04bda99392ad4f2fc9069d014327a0cac1f0971b90869381",
+      "recorded_at": "2026-11-11T16:34:58.494Z",
+      "tests": 96
+    },
+    {
+      "id": "run-58",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9e7a44482569f179be20cc8a3001ef811fbea8ad5d9a29ef962945404fccfb08",
+      "tree": "sha256:fd13699072f0b19a04bda99392ad4f2fc9069d014327a0cac1f0971b90869381",
+      "recorded_at": "2026-11-11T16:34:58.494Z",
+      "tests": 32
+    },
+    {
+      "id": "run-59",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:80f7c0604cf53d51a42e37eb6e96ff8977a01cdff7b0a091e3c153f644d29c58",
+      "tree": "sha256:fd13699072f0b19a04bda99392ad4f2fc9069d014327a0cac1f0971b90869381",
+      "recorded_at": "2026-11-11T16:34:58.494Z",
+      "tests": 52
+    },
+    {
+      "id": "run-60",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4031b3c9d33fba425691f4d8c9b3464ad6913985817578f5f5e2c6785d3c9af9",
+      "tree": "sha256:fd13699072f0b19a04bda99392ad4f2fc9069d014327a0cac1f0971b90869381",
+      "recorded_at": "2026-11-11T16:34:58.494Z",
+      "tests": 99
+    },
+    {
+      "id": "run-61",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js scripts/lib/archive-transaction.test.js scripts/hooks/pre-tool-use.test.js scripts/lib/idd-config.test.js scripts/lib/team-profile.test.js scripts/lib/capability-registry.test.js scripts/hooks/session-start.test.js scripts/lib/artifact-store.test.js scripts/hooks/subagent-stop.test.js scripts/hooks/parity-contract.test.js scripts/hooks/stop.test.js && go test ./internal/yamllite/ ./internal/hooks/ ./internal/store/",
+      "exit_code": 0,
+      "output_sha256": "sha256:9dd002dbfdf3bea6eea1f8995186a29003b475e799f984b42f6099a018f4f7ea",
+      "tree": "sha256:8dfc6444abc38b634288e3a0bddcf6bf70cbc498de0c3ffbaa50f0b171d8317d",
+      "recorded_at": "2026-11-11T16:58:02.022Z",
+      "tests": 644
+    },
+    {
+      "id": "run-62",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:04e65ffbba629021d227a34f6768b07b2d7ebdc4d2434c55a3c1914dc3f851dd",
+      "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+      "recorded_at": "2026-11-11T16:59:36.278Z"
+    },
+    {
+      "id": "run-63",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:97be2a7c96840cd3a5c6742039438dc6dd885da65dc63e899e5c1afb83603356",
+      "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+      "recorded_at": "2026-11-11T16:59:36.278Z",
+      "tests": 14
+    },
+    {
+      "id": "run-64",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:60e8d0744f9cf7273ae7287648d5226747e3873a8d86aebec35fb08f75eec390",
+      "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+      "recorded_at": "2026-11-11T16:59:36.278Z",
+      "tests": 99
+    },
+    {
+      "id": "run-65",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1b01175f777ce76f5f82d353f5eeb80b63ade5b174b68a30d31ecd23717f2edc",
+      "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+      "recorded_at": "2026-11-11T16:59:36.278Z",
+      "tests": 32
+    },
+    {
+      "id": "run-66",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+      "recorded_at": "2026-11-11T16:59:36.278Z"
+    },
+    {
+      "id": "run-67",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0bd576223aac29042618863aea3a0d106aae06a17561ead2b5b371d9874b5c09",
+      "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+      "recorded_at": "2026-11-11T16:59:36.278Z",
+      "tests": 26
+    },
+    {
+      "id": "run-68",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7bff6be8e6d8cbe80b7b023046040f25405294a77b70045a05142a784fbe8419",
+      "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+      "recorded_at": "2026-11-11T16:59:36.278Z",
+      "tests": 96
+    },
+    {
+      "id": "run-69",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e13c1fe8cc470f652cc3a49f558f5d771d4a0511ac3e0183402ea090b3232055",
+      "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+      "recorded_at": "2026-11-11T16:59:36.278Z",
+      "tests": 32
+    },
+    {
+      "id": "run-70",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ec60dfc334a7b16264a7c22402e600f30e4fddbe8afa21a3599685cd904d4d20",
+      "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+      "recorded_at": "2026-11-11T16:59:36.278Z",
+      "tests": 52
+    },
+    {
+      "id": "run-71",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:51e1780af63572d876cbe9b1dc2762700eba6bd763d58f4b7f31da4ed4a71c25",
+      "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+      "recorded_at": "2026-11-11T16:59:36.278Z",
+      "tests": 99
+    },
+    {
+      "id": "run-72",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0a4090bc0f4b60292e98906e6d55117674a6492cf65fa3fe85f09b27161c8503",
+      "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+      "recorded_at": "2026-11-11T16:59:36.278Z",
+      "tests": 60
+    },
+    {
+      "id": "run-73",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7cdd13714ccaa3340fd8df62bb2702627df404e91c7a7a455af55a6853b98600",
+      "tree": "sha256:fdc031b356b16a5d26cce585fed2ad7c25168b742774bb2b71f97b1ac0584245",
+      "recorded_at": "2026-11-11T16:59:36.278Z",
+      "tests": 18
+    },
+    {
+      "id": "run-74",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/yaml-lite.test.js scripts/lib/ospec-state.test.js scripts/hooks/pre-compact.test.js scripts/route-dispatch-run.test.js scripts/lib/route-dispatcher.test.js scripts/lib/archive-transaction.test.js scripts/hooks/pre-tool-use.test.js scripts/lib/idd-config.test.js scripts/lib/team-profile.test.js scripts/lib/capability-registry.test.js scripts/hooks/session-start.test.js scripts/lib/artifact-store.test.js scripts/hooks/subagent-stop.test.js scripts/hooks/parity-contract.test.js scripts/hooks/stop.test.js && go test ./internal/yamllite/ ./internal/hooks/ ./internal/store/",
+      "exit_code": 0,
+      "output_sha256": "sha256:6afc39104bf28de6b8781d52f9b2bdcac7e14f719c56310c060ad471c3beba1d",
+      "tree": "sha256:826846a31f657a48d60a597bf59750067d28e8d74ad3c15db21daf2b8c5e5355",
+      "recorded_at": "2026-11-11T17:09:12.883Z",
+      "tests": 644
+    },
+    {
+      "id": "run-75",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:88ada8ccc1ff282933a45eabde6ad4ce6a919d0e30f017a135e9bdeb158ace42",
+      "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+      "recorded_at": "2026-11-11T17:10:45.779Z"
+    },
+    {
+      "id": "run-76",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d7a6391acf766115e0e621232bdc954c53c0ad80b806d0e9d78261659f201157",
+      "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+      "recorded_at": "2026-11-11T17:10:45.779Z",
+      "tests": 14
+    },
+    {
+      "id": "run-77",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c7e9696aefdc44fe0e8600b758949bb1080e7e89bd5a1a8cddc4049a475bb6c7",
+      "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+      "recorded_at": "2026-11-11T17:10:45.779Z",
+      "tests": 99
+    },
+    {
+      "id": "run-78",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:93f6b69d4895353be695741c2579d57587a9e93f59e58377e2dbe5bf97dd5f98",
+      "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+      "recorded_at": "2026-11-11T17:10:45.779Z",
+      "tests": 32
+    },
+    {
+      "id": "run-79",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+      "recorded_at": "2026-11-11T17:10:45.779Z"
+    },
+    {
+      "id": "run-80",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dc409e0fcae6fc74e803d905b526aa4b31209c79db262c7099e5bdc27eb839cf",
+      "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+      "recorded_at": "2026-11-11T17:10:45.779Z",
+      "tests": 26
+    },
+    {
+      "id": "run-81",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:52e127a42c8c360b040fd7915f35bda32b6159a91c33991bb979d5b717866cc4",
+      "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+      "recorded_at": "2026-11-11T17:10:45.779Z",
+      "tests": 96
+    },
+    {
+      "id": "run-82",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e502b248e99818851ae899ff53826870c7e3851ef79488bc7f7ac0ff09414026",
+      "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+      "recorded_at": "2026-11-11T17:10:45.779Z",
+      "tests": 32
+    },
+    {
+      "id": "run-83",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e9b98ae83e7c8558de92414e0f1afe7d186e8e0b4981d1ad3e4bf25e70b7c274",
+      "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+      "recorded_at": "2026-11-11T17:10:45.779Z",
+      "tests": 52
+    },
+    {
+      "id": "run-84",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fdf1e43aa8397e7d9156aa53088855c2fbb01b85ea12fda132fcd143c2e8b141",
+      "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+      "recorded_at": "2026-11-11T17:10:45.779Z",
+      "tests": 99
+    },
+    {
+      "id": "run-85",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:577346898775004590d1fbda33a739213384facd23e4760f172b46c296c25da4",
+      "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+      "recorded_at": "2026-11-11T17:10:45.779Z",
+      "tests": 60
+    },
+    {
+      "id": "run-86",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4941b69e3d4a0ff09216f8bb2fadad9d46710609bf4c93301e2d94496796d465",
+      "tree": "sha256:8861d77cf8b6abc95b5782c94976da84eda452cb30dd2b40db3f598ee38984b4",
+      "recorded_at": "2026-11-11T17:10:45.779Z",
+      "tests": 18
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:4c234990bcd981f8115579f7c1fd2608eb10e58547b030f7482f634e8424f5e3",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "d86f28ca5f96a7d7ded10f7ff3ef7047fbfe43b8",
+          "candidate_tree": "0d1d0894b89a587ffe4ba3c236109c19ea6e0c13",
+          "paths": [
+            "internal/hooks/phase-completion-reducer.go",
+            "internal/hooks/phase-completion-reducer_test.go",
+            "internal/testdata/yaml-lite-scan/cases.json",
+            "internal/yamllite/continuations.go",
+            "internal/yamllite/yamllite_test.go",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/hooks/pre-compact.js",
+            "scripts/hooks/pre-compact.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/route-dispatcher.js",
+            "scripts/lib/route-dispatcher.test.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js",
+            "scripts/route-dispatch-run.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "diff_hash": "sha256:eaa38ef926c8a60f5262397d173bb8449e113555a4edc5f42580cf559a1c156e",
+          "paths_digest": "sha256:6d78ff32b3d460e786d398a510cb4ffed477e52ad6efd1245c138ed6f22e955c",
+          "authored_lines": 395,
+          "original_changed_lines": 436
+        },
+        "candidate_id": "sha256:4e000605286e94b049b4aacadb25b119445ba9f89c67d2be51637a4829398145",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/testdata/yaml-lite-scan/cases.json",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "0d1d0894b89a587ffe4ba3c236109c19ea6e0c13",
+        "original_changed_lines": 436,
+        "authored_lines": 395
+      },
+      "current_candidate_id": "sha256:4e000605286e94b049b4aacadb25b119445ba9f89c67d2be51637a4829398145",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "d86f28ca5f96a7d7ded10f7ff3ef7047fbfe43b8",
+        "candidate_tree": "0d1d0894b89a587ffe4ba3c236109c19ea6e0c13",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/testdata/yaml-lite-scan/cases.json",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "diff_hash": "sha256:eaa38ef926c8a60f5262397d173bb8449e113555a4edc5f42580cf559a1c156e",
+        "paths_digest": "sha256:6d78ff32b3d460e786d398a510cb4ffed477e52ad6efd1245c138ed6f22e955c",
+        "authored_lines": 395,
+        "original_changed_lines": 436
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "yaml-readers-linear-blank-parity:lens-start:1:0",
+          "result_digest": "sha256:2b0c894fcf9d2e1d47f769fee8edecdaf6aa821d45f5ad66088f4c22cd570cd9",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "The change trims a line only of space, tab and CR (trimYamlSpace / yamllite.TrimSpace), but the validators still disagree on the line's first character. scripts/lib/ospec-state.js:765 matches the trimmed line with MAPPING_LINE (yaml-lite.js:138), whose `[^:\\s]` rejects a leading U+00A0, U+FEFF, VT or U+2028, because Node `\\s` includes them. Go's validatePhaseCompletionYAML (phase-completion-reducer.go:935) uses yamlKeyValue, which accepts any line holding a colon, and dropRewrittenContinuations uses MappingLine, whose Go `\\s` is ASCII-only. Trigger: a top-level line `\\u00a0foo: bar`, or a state.yaml that starts with a BOM. Before the change, trim() removed these characters in both runtimes. Now Node validateProjectableState returns false (malformed-state, so the projector refuses) and Go accepts and projects. `status: \\ufeff` is also empty in Node (`:\\s*`) and non-empty in Go. No test covers this: the corpus only compares opaque lines for lines made only of such a character.",
+                "acceptance_criteria": "For top-level lines `\\u00a0foo: bar`, `\\ufeffchange: x` and `\\u000bfoo: bar`, and for `status: \\ufeff`, validateProjectableState (Node), validatePhaseCompletionYAML and parsePhaseCompletionState (Go) and dropRewrittenContinuations (Node and Go) give the same verdict: all accept or all reject, and they agree on which key a line names. A test shared by the Node and Go suites, in the style of cases.json, pins that verdict."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "yaml-readers-linear-blank-parity:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-ed9eee329c1170ad",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The change trims a line only of space, tab and CR (trimYamlSpace / yamllite.TrimSpace), but the validators still disagree on the line's first character. scripts/lib/ospec-state.js:765 matches the trimmed line with MAPPING_LINE (yaml-lite.js:138), whose `[^:\\s]` rejects a leading U+00A0, U+FEFF, VT or U+2028, because Node `\\s` includes them. Go's validatePhaseCompletionYAML (phase-completion-reducer.go:935) uses yamlKeyValue, which accepts any line holding a colon, and dropRewrittenContinuations uses MappingLine, whose Go `\\s` is ASCII-only. Trigger: a top-level line `\\u00a0foo: bar`, or a state.yaml that starts with a BOM. Before the change, trim() removed these characters in both runtimes. Now Node validateProjectableState returns false (malformed-state, so the projector refuses) and Go accepts and projects. `status: \\ufeff` is also empty in Node (`:\\s*`) and non-empty in Go. No test covers this: the corpus only compares opaque lines for lines made only of such a character.",
+          "acceptance_criteria": "For top-level lines `\\u00a0foo: bar`, `\\ufeffchange: x` and `\\u000bfoo: bar`, and for `status: \\ufeff`, validateProjectableState (Node), validatePhaseCompletionYAML and parsePhaseCompletionState (Go) and dropRewrittenContinuations (Node and Go) give the same verdict: all accept or all reject, and they agree on which key a line names. A test shared by the Node and Go suites, in the style of cases.json, pins that verdict.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:86e9ce52d5d0d473437960b5c885c1b8339b0f4bac61ca87b80676654a5968b6",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:a6059de0363c84b1534e2f90823056fd004236d9e42924b1537b36aafbde75f1",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:4c234990bcd981f8115579f7c1fd2608eb10e58547b030f7482f634e8424f5e3",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "d86f28ca5f96a7d7ded10f7ff3ef7047fbfe43b8",
+          "candidate_tree": "e4c2e1e40c912048030d21630b39b255b38572f0",
+          "paths": [
+            "internal/hooks/phase-completion-reducer.go",
+            "internal/hooks/phase-completion-reducer_test.go",
+            "internal/testdata/state-projection/cases.json",
+            "internal/testdata/yaml-lite-scan/cases.json",
+            "internal/yamllite/continuations.go",
+            "internal/yamllite/yamllite_test.go",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/hooks/pre-compact.js",
+            "scripts/hooks/pre-compact.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/route-dispatcher.js",
+            "scripts/lib/route-dispatcher.test.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js",
+            "scripts/route-dispatch-run.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "diff_hash": "sha256:ec84d92e5f703df571732ba438ff566bb5e4203ae2f450f948fad82e2a96930c",
+          "paths_digest": "sha256:77018508e19fe5dd5ffe9a5f3d8ecb3014d9c86699c5c46434605d8a82041b23",
+          "authored_lines": 537,
+          "original_changed_lines": 610
+        },
+        "candidate_id": "sha256:c6b60a4f45d22b3a20935896b723098c4d3585cbc10843a08ee807ba416790b4",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/testdata/state-projection/cases.json",
+          "internal/testdata/yaml-lite-scan/cases.json",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "e4c2e1e40c912048030d21630b39b255b38572f0",
+        "original_changed_lines": 610,
+        "authored_lines": 537
+      },
+      "current_candidate_id": "sha256:c6b60a4f45d22b3a20935896b723098c4d3585cbc10843a08ee807ba416790b4",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "d86f28ca5f96a7d7ded10f7ff3ef7047fbfe43b8",
+        "candidate_tree": "e4c2e1e40c912048030d21630b39b255b38572f0",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/testdata/state-projection/cases.json",
+          "internal/testdata/yaml-lite-scan/cases.json",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "diff_hash": "sha256:ec84d92e5f703df571732ba438ff566bb5e4203ae2f450f948fad82e2a96930c",
+        "paths_digest": "sha256:77018508e19fe5dd5ffe9a5f3d8ecb3014d9c86699c5c46434605d8a82041b23",
+        "authored_lines": 537,
+        "original_changed_lines": 610
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "yaml-readers-linear-blank-parity:lens-start:2:0",
+          "result_digest": "sha256:36b203f4960c5f1268250d62b7d87e6caf433714a8c1236e78eaa29440708e27",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "The generation-1 fix aligned the validator, parser and dropRewrittenContinuations, but the projector's write-side lookups still trim with Unicode TrimSpace/trim() and \\s, so they disagree with the parser and with each other. Go: replaceOrInsertTopLevel (reducer.go:686), applyBlockingQuestions (703), applyPhaseProjection (736-802). Node: applyStateProjectionToYaml (ospec-state.js:953-1129). Trigger: both runtimes accept \"\\u00a0status: x\" before the real \"status:\", and the parser reads it as key \"\\u00a0status\". Go trims it to \"status\" (indent 0) and rewrites the decoy, so the real status, revision or phase field stays stale. Node skips it, because its \\s indent is 1. Likewise \"\\u00a0phases:\", \"  \\u00a0design:\" and \"    \\u00a0status:\" retarget Go. Node deletes \"\\u00a0foo: bar\" after blocking_questions, which Go keeps. The corpus compares only outcome, so none of this is caught.",
+                "acceptance_criteria": "For top-level \"\\u00a0status:\", \"\\u00a0revision:\" and \"\\u00a0phases:\" placed before the real key, and for \"  \\u00a0design:\" and \"    \\u00a0status:\" before the real phase key, a projection MUST change the real key and leave the decoy bytes alone, in Node and in Go. A \"\\u00a0foo: bar\" line after blocking_questions MUST survive in both. Add cases to internal/testdata/state-projection/cases.json that compare the projected bytes (an \"output\" field), not only the outcome, and are read by both test suites."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "Pre-existing divergence that the new shared corpus does not cover: for \"phases: # comment\" the Node validator accepts it (ospec-state.js:794-796 takes a value that starts with \"#\"), while Go parsePhaseCompletionState rejects it (reducer.go:625-628). Go's yamlScalar only strips \" #\", so \"# comment\" stays non-empty and gives \"non-mapping phases value\". Node projects the file and Go returns malformed-state, which contradicts REQ-lifecycle-kernel-035's claim that both reach the same outcome. The direction is fail-closed in Go, but the runtimes disagree on the same state.yaml.",
+                "acceptance_criteria": "A corpus case with input \"change: x\\nstatus: planning\\nphases: # c\\n  design:\\n    status: pending\\n\" gives the same outcome in Node and in Go. Accepting or rejecting it is a maintainer decision, but both runtimes must agree."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "yaml-readers-linear-blank-parity:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-b48685215b7bc206",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The generation-1 fix aligned the validator, parser and dropRewrittenContinuations, but the projector's write-side lookups still trim with Unicode TrimSpace/trim() and \\s, so they disagree with the parser and with each other. Go: replaceOrInsertTopLevel (reducer.go:686), applyBlockingQuestions (703), applyPhaseProjection (736-802). Node: applyStateProjectionToYaml (ospec-state.js:953-1129). Trigger: both runtimes accept \"\\u00a0status: x\" before the real \"status:\", and the parser reads it as key \"\\u00a0status\". Go trims it to \"status\" (indent 0) and rewrites the decoy, so the real status, revision or phase field stays stale. Node skips it, because its \\s indent is 1. Likewise \"\\u00a0phases:\", \"  \\u00a0design:\" and \"    \\u00a0status:\" retarget Go. Node deletes \"\\u00a0foo: bar\" after blocking_questions, which Go keeps. The corpus compares only outcome, so none of this is caught.",
+          "acceptance_criteria": "For top-level \"\\u00a0status:\", \"\\u00a0revision:\" and \"\\u00a0phases:\" placed before the real key, and for \"  \\u00a0design:\" and \"    \\u00a0status:\" before the real phase key, a projection MUST change the real key and leave the decoy bytes alone, in Node and in Go. A \"\\u00a0foo: bar\" line after blocking_questions MUST survive in both. Add cases to internal/testdata/state-projection/cases.json that compare the projected bytes (an \"output\" field), not only the outcome, and are read by both test suites.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-13d998cc279605e8",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "Pre-existing divergence that the new shared corpus does not cover: for \"phases: # comment\" the Node validator accepts it (ospec-state.js:794-796 takes a value that starts with \"#\"), while Go parsePhaseCompletionState rejects it (reducer.go:625-628). Go's yamlScalar only strips \" #\", so \"# comment\" stays non-empty and gives \"non-mapping phases value\". Node projects the file and Go returns malformed-state, which contradicts REQ-lifecycle-kernel-035's claim that both reach the same outcome. The direction is fail-closed in Go, but the runtimes disagree on the same state.yaml.",
+          "acceptance_criteria": "A corpus case with input \"change: x\\nstatus: planning\\nphases: # c\\n  design:\\n    status: pending\\n\" gives the same outcome in Node and in Go. Accepting or rejecting it is a maintainer decision, but both runtimes must agree.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:1699be40a6a4912f7cce31fa2a894858495be845153c899baf873d925792e669",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:58c559431ad9fe7a15183ed88e42805d4e8c26f59cffb4f4a1b37b1f8222d422",
+      "generation": 3,
+      "predecessor_lineage_id": "sha256:a6059de0363c84b1534e2f90823056fd004236d9e42924b1537b36aafbde75f1",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "d86f28ca5f96a7d7ded10f7ff3ef7047fbfe43b8",
+          "candidate_tree": "3a66df5032896dfc956bb69485834c6c1c5007de",
+          "paths": [
+            "internal/hooks/phase-completion-reducer.go",
+            "internal/hooks/phase-completion-reducer_test.go",
+            "internal/testdata/state-projection/cases.json",
+            "internal/testdata/yaml-lite-scan/cases.json",
+            "internal/yamllite/continuations.go",
+            "internal/yamllite/yamllite_test.go",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/hooks/pre-compact.js",
+            "scripts/hooks/pre-compact.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/route-dispatcher.js",
+            "scripts/lib/route-dispatcher.test.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js",
+            "scripts/route-dispatch-run.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "diff_hash": "sha256:9f9ba6125fc01bf532983734dabbd6d66474fc553a4a5aeba3884911c4095b12",
+          "paths_digest": "sha256:77018508e19fe5dd5ffe9a5f3d8ecb3014d9c86699c5c46434605d8a82041b23",
+          "authored_lines": 629,
+          "original_changed_lines": 738
+        },
+        "candidate_id": "sha256:1f51d80521f3137b95d353a497f3a00655065260b9e1a8de51496cbfce767556",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/testdata/state-projection/cases.json",
+          "internal/testdata/yaml-lite-scan/cases.json",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "3a66df5032896dfc956bb69485834c6c1c5007de",
+        "original_changed_lines": 738,
+        "authored_lines": 629
+      },
+      "current_candidate_id": "sha256:1f51d80521f3137b95d353a497f3a00655065260b9e1a8de51496cbfce767556",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "d86f28ca5f96a7d7ded10f7ff3ef7047fbfe43b8",
+        "candidate_tree": "3a66df5032896dfc956bb69485834c6c1c5007de",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/testdata/state-projection/cases.json",
+          "internal/testdata/yaml-lite-scan/cases.json",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "diff_hash": "sha256:9f9ba6125fc01bf532983734dabbd6d66474fc553a4a5aeba3884911c4095b12",
+        "paths_digest": "sha256:77018508e19fe5dd5ffe9a5f3d8ecb3014d9c86699c5c46434605d8a82041b23",
+        "authored_lines": 629,
+        "original_changed_lines": 738
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "yaml-readers-linear-blank-parity:lens-start:3:0",
+          "result_digest": "sha256:b2e677e7ea051d4ad50382926bc26a5a35c31611560c79d5e0417993a0fd2c57",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "El arreglo de la generación 3 dejó el sangrado distinto entre proyectores. Node cuenta solo espacios (lineIndent, scripts/lib/ospec-state.js:997,1025,1046,1120,1126), pero Go sigue contando espacios y tabuladores (lineIndentation, internal/hooks/phase-completion-reducer.go:999-1001, usada en 725,736,754,783,794). Un comentario con tabulador al inicio (`<TAB># nota`) pasa el validador de los dos runtimes, porque el comentario se salta antes de la comprobación del tabulador. Con ese comentario dentro de blocking_questions, Node termina la sección ahí y deja huérfano el `  - \"r\"` siguiente tras `blocking_questions: []`; Go lo borra. Con él entre `phases:` y la fase destino, Node cierra phases, no halla la cabecera e inserta un bloque duplicado; Go reescribe la fase real. Antes Node usaba \\s y coincidía con Go. Ningún caso del corpus lo cubre.",
+                "acceptance_criteria": "Dado un state.yaml con un comentario que empieza por tabulador (`<TAB># c`, y `  <TAB># c`) dentro de blocking_questions y entre `phases:` y la fase proyectada, Node y Go escriben los mismos bytes o ambos devuelven malformed-state. El caso entra en internal/testdata/state-projection/cases.json y pasa en ambos tests. Un escritor que cuente tabuladores y otro que no ya no coexisten, y el spec REQ-035 dice lo mismo que hace el código."
+              },
+              {
+                "severity": "WARNING",
+                "summary": "Los lectores de puerta no recibieron el recorte nuevo de los proyectores. Node readStatus (scripts/lib/ospec-state.js:60-95) usa trim() y \\s como sangrado. Go ReadStatus (internal/yamllite/yamllite.go:41-54,75-111) usa TrimSpace y cuenta solo espacios y tabuladores. Una línea `<U+00A0>status: archived` (o con U+0085) antes del `status: planning` real es sangrada para Node, que lee `planning`. Go la recorta, la lee como clave de nivel 0 y devuelve `archived` por ser la primera coincidencia. Ahora el proyector trata esa línea como texto y reescribe la línea real. Antes Go reescribía el señuelo y lector y escritor coincidían. Con el arreglo, el estado que lee el Go (FindActiveChanges, estado activo de PreToolUse) deja de seguir al que escribe el proyector. Pre-compact repite el patrón (scripts/hooks/pre-compact.js:75-82,140-142,232-234).",
+                "acceptance_criteria": "Con `change: x`, `<U+00A0>status: archived` y `status: planning`, readStatus de Node, store.ReadStatus de Go y el proyector eligen la misma línea como status, y un caso compartido lo comprueba en ambos runtimes. Se unifica el recorte y el sangrado de los lectores (extractScalarAtPath, readStatus, pre-compact) con el de los proyectores, o se rechaza esa línea en el validador. Tras proyectar, el estado que lee cada runtime es el que se escribió."
+              },
+              {
+                "severity": "WARNING",
+                "summary": "`phases: \"\"` y `phases: ''` (la rama hermana del `phases: # c` de la generación 2) siguen sin acuerdo. Go acepta: parsePhaseCompletionState usa `yamlScalar(value) != \"\"` (internal/hooks/phase-completion-reducer.go:625-628) y yamlScalar devuelve \"\" para un escalar entre comillas vacío. Node rechaza con `if (value) return false` (scripts/lib/ospec-state.js:797-798). En Go, applyPhaseProjection solo reconoce la línea `phases:` exacta (739), no la halla y añade una segunda clave `phases:` al final, con claves duplicadas en el archivo escrito. Node devuelve malformed-state con la misma entrada. Ningún caso del corpus la cubre.",
+                "acceptance_criteria": "Dada una entrada con `phases: \"\"` o `phases: ''`, Node y Go devuelven el mismo resultado (malformed-state y bytes intactos, de preferencia, porque el escritor solo reconoce `phases:` sola). El caso entra en internal/testdata/state-projection/cases.json y pasa en ambos tests. Go ya no escribe dos claves phases."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "Divergencias previas, ajenas a los espacios. (a) Go yamlScalar (internal/hooks/phase-completion-reducer.go:972-984) desescapa JSON en un escalar entre comillas dobles y projectedScalar de Node (scripts/lib/ospec-state.js:738-743) no, así que `status: \"d\\u006fne\"` es `done` en Go y texto crudo en Node. (b) El validador de revision acepta `+5` o `-0` en Go (strconv.Atoi, línea 620) y los rechaza en Node (/^\\d+$/, línea 796). Node acepta más dígitos que un int64, que Go rechaza. (c) Go toma como fase cualquier línea de nivel 2 que acabe en `:` (línea 635, por ejemplo `  note: x:`) y Node exige [\\w-]+ (línea 901). (d) Con claves repetidas, los lectores toman la última y el escritor reescribe la primera.",
+                "acceptance_criteria": "Cada divergencia se resuelve o se documenta como excepción en REQ-035, con un caso del corpus compartido que Node y Go lean y que da igual resultado: escalar con escape JSON, revision `+5` y de más de 19 dígitos, `  note: x:` bajo phases, y status repetido."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "yaml-readers-linear-blank-parity:lens-result:3:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-1148b68a696abeb9",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "El arreglo de la generación 3 dejó el sangrado distinto entre proyectores. Node cuenta solo espacios (lineIndent, scripts/lib/ospec-state.js:997,1025,1046,1120,1126), pero Go sigue contando espacios y tabuladores (lineIndentation, internal/hooks/phase-completion-reducer.go:999-1001, usada en 725,736,754,783,794). Un comentario con tabulador al inicio (`<TAB># nota`) pasa el validador de los dos runtimes, porque el comentario se salta antes de la comprobación del tabulador. Con ese comentario dentro de blocking_questions, Node termina la sección ahí y deja huérfano el `  - \"r\"` siguiente tras `blocking_questions: []`; Go lo borra. Con él entre `phases:` y la fase destino, Node cierra phases, no halla la cabecera e inserta un bloque duplicado; Go reescribe la fase real. Antes Node usaba \\s y coincidía con Go. Ningún caso del corpus lo cubre.",
+          "acceptance_criteria": "Dado un state.yaml con un comentario que empieza por tabulador (`<TAB># c`, y `  <TAB># c`) dentro de blocking_questions y entre `phases:` y la fase proyectada, Node y Go escriben los mismos bytes o ambos devuelven malformed-state. El caso entra en internal/testdata/state-projection/cases.json y pasa en ambos tests. Un escritor que cuente tabuladores y otro que no ya no coexisten, y el spec REQ-035 dice lo mismo que hace el código.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-3b25997d3a9d7b04",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "Los lectores de puerta no recibieron el recorte nuevo de los proyectores. Node readStatus (scripts/lib/ospec-state.js:60-95) usa trim() y \\s como sangrado. Go ReadStatus (internal/yamllite/yamllite.go:41-54,75-111) usa TrimSpace y cuenta solo espacios y tabuladores. Una línea `<U+00A0>status: archived` (o con U+0085) antes del `status: planning` real es sangrada para Node, que lee `planning`. Go la recorta, la lee como clave de nivel 0 y devuelve `archived` por ser la primera coincidencia. Ahora el proyector trata esa línea como texto y reescribe la línea real. Antes Go reescribía el señuelo y lector y escritor coincidían. Con el arreglo, el estado que lee el Go (FindActiveChanges, estado activo de PreToolUse) deja de seguir al que escribe el proyector. Pre-compact repite el patrón (scripts/hooks/pre-compact.js:75-82,140-142,232-234).",
+          "acceptance_criteria": "Con `change: x`, `<U+00A0>status: archived` y `status: planning`, readStatus de Node, store.ReadStatus de Go y el proyector eligen la misma línea como status, y un caso compartido lo comprueba en ambos runtimes. Se unifica el recorte y el sangrado de los lectores (extractScalarAtPath, readStatus, pre-compact) con el de los proyectores, o se rechaza esa línea en el validador. Tras proyectar, el estado que lee cada runtime es el que se escribió.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-1ed32c2a626dccfb",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "`phases: \"\"` y `phases: ''` (la rama hermana del `phases: # c` de la generación 2) siguen sin acuerdo. Go acepta: parsePhaseCompletionState usa `yamlScalar(value) != \"\"` (internal/hooks/phase-completion-reducer.go:625-628) y yamlScalar devuelve \"\" para un escalar entre comillas vacío. Node rechaza con `if (value) return false` (scripts/lib/ospec-state.js:797-798). En Go, applyPhaseProjection solo reconoce la línea `phases:` exacta (739), no la halla y añade una segunda clave `phases:` al final, con claves duplicadas en el archivo escrito. Node devuelve malformed-state con la misma entrada. Ningún caso del corpus la cubre.",
+          "acceptance_criteria": "Dada una entrada con `phases: \"\"` o `phases: ''`, Node y Go devuelven el mismo resultado (malformed-state y bytes intactos, de preferencia, porque el escritor solo reconoce `phases:` sola). El caso entra en internal/testdata/state-projection/cases.json y pasa en ambos tests. Go ya no escribe dos claves phases.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-983bdeeba8a321a0",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "Divergencias previas, ajenas a los espacios. (a) Go yamlScalar (internal/hooks/phase-completion-reducer.go:972-984) desescapa JSON en un escalar entre comillas dobles y projectedScalar de Node (scripts/lib/ospec-state.js:738-743) no, así que `status: \"d\\u006fne\"` es `done` en Go y texto crudo en Node. (b) El validador de revision acepta `+5` o `-0` en Go (strconv.Atoi, línea 620) y los rechaza en Node (/^\\d+$/, línea 796). Node acepta más dígitos que un int64, que Go rechaza. (c) Go toma como fase cualquier línea de nivel 2 que acabe en `:` (línea 635, por ejemplo `  note: x:`) y Node exige [\\w-]+ (línea 901). (d) Con claves repetidas, los lectores toman la última y el escritor reescribe la primera.",
+          "acceptance_criteria": "Cada divergencia se resuelve o se documenta como excepción en REQ-035, con un caso del corpus compartido que Node y Go lean y que da igual resultado: escalar con escape JSON, revision `+5` y de más de 19 dígitos, `  note: x:` bajo phases, y status repetido.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:a0d29849df45562a3afa5f4e67eaea7649d654815a30411327a078a58dbe61a2",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:a07194a20593f60ec2271004f4ab73cc3e92a85c11925ec954ec333ce99786fe",
+      "generation": 4,
+      "predecessor_lineage_id": "sha256:58c559431ad9fe7a15183ed88e42805d4e8c26f59cffb4f4a1b37b1f8222d422",
+      "migration": null,
+      "recovery": null,
+      "revision": 4,
+      "status": "escalated",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "d86f28ca5f96a7d7ded10f7ff3ef7047fbfe43b8",
+          "candidate_tree": "b661aa511ce8a5ac1134add2fecbe3265ddbdbd4",
+          "paths": [
+            "internal/hooks/phase-completion-reducer.go",
+            "internal/hooks/phase-completion-reducer_test.go",
+            "internal/testdata/state-projection/cases.json",
+            "internal/testdata/yaml-lite-scan/cases.json",
+            "internal/yamllite/continuations.go",
+            "internal/yamllite/yamllite.go",
+            "internal/yamllite/yamllite_test.go",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/hooks/pre-compact.js",
+            "scripts/hooks/pre-compact.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/route-dispatcher.js",
+            "scripts/lib/route-dispatcher.test.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js",
+            "scripts/route-dispatch-run.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "diff_hash": "sha256:db1cfee8e42b7390b670f100ce183ec595ea9379c3bc919bc0461bcb4193210a",
+          "paths_digest": "sha256:1840913297448814f63e48bf6077fa324439b22c042c65a2942b596d0223b2fc",
+          "authored_lines": 750,
+          "original_changed_lines": 891
+        },
+        "candidate_id": "sha256:b6ca752894be4211c342401ca3846b9d37c28a2c53b27a0a065ec4c18a1dc1a4",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/testdata/state-projection/cases.json",
+          "internal/testdata/yaml-lite-scan/cases.json",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "b661aa511ce8a5ac1134add2fecbe3265ddbdbd4",
+        "original_changed_lines": 891,
+        "authored_lines": 750
+      },
+      "current_candidate_id": "sha256:b6ca752894be4211c342401ca3846b9d37c28a2c53b27a0a065ec4c18a1dc1a4",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "d86f28ca5f96a7d7ded10f7ff3ef7047fbfe43b8",
+        "candidate_tree": "b661aa511ce8a5ac1134add2fecbe3265ddbdbd4",
+        "paths": [
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/testdata/state-projection/cases.json",
+          "internal/testdata/yaml-lite-scan/cases.json",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "diff_hash": "sha256:db1cfee8e42b7390b670f100ce183ec595ea9379c3bc919bc0461bcb4193210a",
+        "paths_digest": "sha256:1840913297448814f63e48bf6077fa324439b22c042c65a2942b596d0223b2fc",
+        "authored_lines": 750,
+        "original_changed_lines": 891
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "yaml-readers-linear-blank-parity:lens-start:4:0",
+          "result_digest": "sha256:cae637f40913a64eea860799f47660b5fb94341754ae77fba50228c26956e17c",
+          "result": {
+            "findings": [
+              {
+                "severity": "CRITICAL",
+                "summary": "readStatus (ospec-state.js:79,89) and extractPhaseStatuses (pre-compact.js:249,255) match with `^status:\\s*([^\\n]+)$` and the literal key `status:`/`change:`/`phases:`. Node `\\s` includes U+00A0, U+FEFF, VT and other Unicode spaces, and an exact key does not trim a space before the colon. `status:\\u00a0archived` reads `archived` in Node, but `\\u00a0archived` in store.ReadStatus (keyValueRe `\\s` is ASCII; TrimSpace keeps NBSP). `status : archived` reads `` in Node and `archived` in Go, where the projectors and the pre-compact extractScalarAtPath treat it as the status key. The terminal-status gate (ospec-state.js:1500, store.go:197) and active-change selection then decide differently by runtime. The corpus misses both: its only NBSP/FEFF status case is a value of only that character, where backtracking hides the over-match.",
+                "acceptance_criteria": "For `status:` followed by U+00A0, U+FEFF or VT and then `archived`, and for `status : archived` and `change :` with a nested `status`, readStatus, the pre-compact readers and store.ReadStatus return the same string, matching the projector's key and value split. Each input is a case in internal/testdata/state-projection/cases.json, checked by both the Node and Go tests.",
+                "location": "scripts/lib/ospec-state.js:79"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "Node's stateScalar (ospec-state.js:742-747) and parseScalar (pre-compact.js:72) strip a comment after any of [\\t\\n\\f\\r ], but the Go projector's yamlScalar (phase-completion-reducer.go:985) splits only on the literal \" #\". The validators accept a lone CR or FF before `#`, and tabs are rejected. So `status: planning\\r# c` or a phase `status: done\\f# c` reads `planning` or `done` in Node and `planning\\r# c` or `done\\f# c` in Go. The projector then writes different bytes (`status: planning` in Node, the CR and comment in Go), and any decision on the phase status can differ. The corpus has no CR/FF-before-comment case. Go yamllite's parseScalar (`\\s+#`) already agrees with Node, so only yamlScalar diverges.",
+                "acceptance_criteria": "A state.yaml with `status: planning` followed by a lone CR (or FF) and `# c`, and a phase `status: done` with the same suffix, gives the same parsed status, projection outcome and written bytes in Node and Go. Add these inputs to internal/testdata/state-projection/cases.json so both test suites check them."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "yaml-readers-linear-blank-parity:lens-result:4:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-1eab9f0da5349724",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "readStatus (ospec-state.js:79,89) and extractPhaseStatuses (pre-compact.js:249,255) match with `^status:\\s*([^\\n]+)$` and the literal key `status:`/`change:`/`phases:`. Node `\\s` includes U+00A0, U+FEFF, VT and other Unicode spaces, and an exact key does not trim a space before the colon. `status:\\u00a0archived` reads `archived` in Node, but `\\u00a0archived` in store.ReadStatus (keyValueRe `\\s` is ASCII; TrimSpace keeps NBSP). `status : archived` reads `` in Node and `archived` in Go, where the projectors and the pre-compact extractScalarAtPath treat it as the status key. The terminal-status gate (ospec-state.js:1500, store.go:197) and active-change selection then decide differently by runtime. The corpus misses both: its only NBSP/FEFF status case is a value of only that character, where backtracking hides the over-match.",
+          "acceptance_criteria": "For `status:` followed by U+00A0, U+FEFF or VT and then `archived`, and for `status : archived` and `change :` with a nested `status`, readStatus, the pre-compact readers and store.ReadStatus return the same string, matching the projector's key and value split. Each input is a case in internal/testdata/state-projection/cases.json, checked by both the Node and Go tests.",
+          "location": "scripts/lib/ospec-state.js:79",
+          "blocking": true,
+          "resolution": "unresolved"
+        },
+        {
+          "id": "F-b5b9385835a7a225",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "Node's stateScalar (ospec-state.js:742-747) and parseScalar (pre-compact.js:72) strip a comment after any of [\\t\\n\\f\\r ], but the Go projector's yamlScalar (phase-completion-reducer.go:985) splits only on the literal \" #\". The validators accept a lone CR or FF before `#`, and tabs are rejected. So `status: planning\\r# c` or a phase `status: done\\f# c` reads `planning` or `done` in Node and `planning\\r# c` or `done\\f# c` in Go. The projector then writes different bytes (`status: planning` in Node, the CR and comment in Go), and any decision on the phase status can differ. The corpus has no CR/FF-before-comment case. Go yamllite's parseScalar (`\\s+#`) already agrees with Node, so only yamlScalar diverges.",
+          "acceptance_criteria": "A state.yaml with `status: planning` followed by a lone CR (or FF) and `# c`, and a phase `status: done` with the same suffix, gives the same parsed status, projection outcome and written bytes in Node and Go. Add these inputs to internal/testdata/state-projection/cases.json so both test suites check them.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:f82149764526ab815cfb92a9261769668835114d93e933f8c768bb391b9bfc3a",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "the correction does not fit one bounded correction (line budget or frozen paths): a successor review checks it"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:1375c8b3baa3a10c09600425ad3c6d69cb01dacc5dbc45ccc2a346ca81d69c8a",
+      "generation": 5,
+      "predecessor_lineage_id": "sha256:a07194a20593f60ec2271004f4ab73cc3e92a85c11925ec954ec333ce99786fe",
+      "migration": null,
+      "recovery": null,
+      "revision": 6,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "d86f28ca5f96a7d7ded10f7ff3ef7047fbfe43b8",
+          "candidate_tree": "81a215d49fccacae08e0e24da20da290f600ddbe",
+          "paths": [
+            "CHANGELOG.md",
+            "internal/hooks/phase-completion-reducer.go",
+            "internal/hooks/phase-completion-reducer_test.go",
+            "internal/testdata/state-projection/cases.json",
+            "internal/testdata/yaml-lite-scan/cases.json",
+            "internal/yamllite/continuations.go",
+            "internal/yamllite/yamllite.go",
+            "internal/yamllite/yamllite_test.go",
+            "openspec/specs/idd/spec.md",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/hooks/pre-compact.js",
+            "scripts/hooks/pre-compact.test.js",
+            "scripts/lib/idd-review.js",
+            "scripts/lib/idd-review.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/route-dispatcher.js",
+            "scripts/lib/route-dispatcher.test.js",
+            "scripts/lib/yaml-lite.js",
+            "scripts/lib/yaml-lite.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js",
+            "scripts/route-dispatch-run.js",
+            "scripts/route-dispatch-run.test.js"
+          ],
+          "diff_hash": "sha256:ff034ac8093c4ebb90a66bbd48d7ab5daf8592ca1cd644f9c8b6d821c5f6e339",
+          "paths_digest": "sha256:e5b4a0f68fe7d6e8645c9bf52cab973db6781600d0abf010e6269c9a6d4e192e",
+          "authored_lines": 989,
+          "original_changed_lines": 1249
+        },
+        "candidate_id": "sha256:a459e82ee0066ca3a190e5785839ce56b145c3d7576369ec615ff37bdf874c31",
+        "paths": [
+          "CHANGELOG.md",
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/testdata/state-projection/cases.json",
+          "internal/testdata/yaml-lite-scan/cases.json",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/lib/idd-review.js",
+          "scripts/lib/idd-review.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "81a215d49fccacae08e0e24da20da290f600ddbe",
+        "original_changed_lines": 1249,
+        "authored_lines": 989
+      },
+      "current_candidate_id": "sha256:acea4f5286d7ebf70eb47c18d2ec6e5ea49c0f2086b0bb710a597b97e79060c3",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "d86f28ca5f96a7d7ded10f7ff3ef7047fbfe43b8",
+        "candidate_tree": "c690041b26bf08e55b588a3e1ed0c6d6acaea828",
+        "paths": [
+          "CHANGELOG.md",
+          "internal/hooks/phase-completion-reducer.go",
+          "internal/hooks/phase-completion-reducer_test.go",
+          "internal/testdata/state-projection/cases.json",
+          "internal/testdata/yaml-lite-scan/cases.json",
+          "internal/yamllite/continuations.go",
+          "internal/yamllite/yamllite.go",
+          "internal/yamllite/yamllite_test.go",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/lifecycle-kernel-runtime/spec.md",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/pre-compact.test.js",
+          "scripts/lib/idd-review.js",
+          "scripts/lib/idd-review.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/ospec-state.test.js",
+          "scripts/lib/route-dispatcher.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/lib/yaml-lite.js",
+          "scripts/lib/yaml-lite.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "scripts/route-dispatch-run.js",
+          "scripts/route-dispatch-run.test.js"
+        ],
+        "diff_hash": "sha256:3c0d7f4ecbaac496db3ebc6ded0bbd24b6481e875f324c842ff136e7c0bb3a9a",
+        "paths_digest": "sha256:e5b4a0f68fe7d6e8645c9bf52cab973db6781600d0abf010e6269c9a6d4e192e",
+        "authored_lines": 989,
+        "original_changed_lines": 1249
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "yaml-readers-linear-blank-parity:lens-start:5:0",
+          "result_digest": "sha256:17d35b0102bc314a2e33532f49d676b8f26bcf5d2f7b5ae5bbe98b541b36b993",
+          "result": {
+            "findings": [
+              {
+                "severity": "CRITICAL",
+                "summary": "readStatus lower-cases with toLowerCase (scripts/lib/ospec-state.js:66) and store.ReadStatus with strings.ToLower (internal/store/store.go:164). They differ on U+0130: Go maps it to plain `i` (simple case mapping), Node to `i` plus U+0307 (full mapping). `status: ARCH` U+0130 `VED` so reads `archived` in Go and `archi` U+0307 `ved` in Node: Go FindActiveChanges (store.go:197-198, used by the stop, precompact and subagentstop hooks) drops the change as terminal while Node findActiveChanges and the terminal check (ospec-state.js:255, 1462) keep it active. `ACT` U+0130 `VE` is `active` only for Go (pretooluse.go:1099 vs pre-tool-use.js:444). REQ-lifecycle-kernel-035 requires the same lower-cased status; the shared corpus has no such case. Established from the source and the case-mapping rules of both languages, not from a run. Predecessor F-1eab9f0da5349724 no longer holds: both runtimes now share one key and value split and the corpus covers its inputs.",
+                "acceptance_criteria": "For a `status:` value holding U+0130 (at least `ARCH` U+0130 `VED` and `ACT` U+0130 `VE`), readStatus, the pre-compact reader lower-cased as the corpus test does, and store.ReadStatus return the same string, and neither runtime reads a terminal status or `active` where the other does not. Each input is a case in internal/testdata/state-projection/cases.json, checked by both the Node and Go tests.",
+                "location": "scripts/lib/ospec-state.js:66"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "The two projectors still accept different states outside the shared corpus. (1) `revision: +1` or `revision: -0`: Go parses with strconv.Atoi and only rejects an error or a negative (internal/hooks/phase-completion-reducer.go:621-622), so it advances; Node requires /^\\d+$/ (scripts/lib/ospec-state.js:762) and returns malformed-state. A 20-digit revision is the reverse: Atoi overflows, Node accepts. (2) A sequence line at indent 4 under a phase (`    - x` after `  design:`): Go fails with `not a phase mapping` (reducer.go:646-650), Node validates it as a sequence item (ospec-state.js:746-750) and its parser ignores it (872-874), so it advances. (3) Go yamlScalar JSON-decodes a double-quoted scalar (reducer.go:982-986) while Node stateScalar keeps the raw inner text (scripts/lib/yaml-lite.js:344-345), so `revision: \"\\u0031\"` advances only in Go. One side always fails closed, so no gate is bypassed; established by source inspection, not by a run.",
+                "acceptance_criteria": "For `revision: +1`, `revision: -0`, a 20-digit revision, a `    - x` line under the projected phase and `revision: \"\\u0031\"`, both projectors reach the same outcome and, when they advance, write the same bytes. Each input is a case in internal/testdata/state-projection/cases.json, checked by both the Node and Go tests."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "yaml-readers-linear-blank-parity:lens-result:5:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-e344e02d73e08fdc",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "readStatus lower-cases with toLowerCase (scripts/lib/ospec-state.js:66) and store.ReadStatus with strings.ToLower (internal/store/store.go:164). They differ on U+0130: Go maps it to plain `i` (simple case mapping), Node to `i` plus U+0307 (full mapping). `status: ARCH` U+0130 `VED` so reads `archived` in Go and `archi` U+0307 `ved` in Node: Go FindActiveChanges (store.go:197-198, used by the stop, precompact and subagentstop hooks) drops the change as terminal while Node findActiveChanges and the terminal check (ospec-state.js:255, 1462) keep it active. `ACT` U+0130 `VE` is `active` only for Go (pretooluse.go:1099 vs pre-tool-use.js:444). REQ-lifecycle-kernel-035 requires the same lower-cased status; the shared corpus has no such case. Established from the source and the case-mapping rules of both languages, not from a run. Predecessor F-1eab9f0da5349724 no longer holds: both runtimes now share one key and value split and the corpus covers its inputs.",
+          "acceptance_criteria": "For a `status:` value holding U+0130 (at least `ARCH` U+0130 `VED` and `ACT` U+0130 `VE`), readStatus, the pre-compact reader lower-cased as the corpus test does, and store.ReadStatus return the same string, and neither runtime reads a terminal status or `active` where the other does not. Each input is a case in internal/testdata/state-projection/cases.json, checked by both the Node and Go tests.",
+          "location": "scripts/lib/ospec-state.js:66",
+          "blocking": true,
+          "resolution": "resolved"
+        },
+        {
+          "id": "F-c6e6c86c0a10a046",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The two projectors still accept different states outside the shared corpus. (1) `revision: +1` or `revision: -0`: Go parses with strconv.Atoi and only rejects an error or a negative (internal/hooks/phase-completion-reducer.go:621-622), so it advances; Node requires /^\\d+$/ (scripts/lib/ospec-state.js:762) and returns malformed-state. A 20-digit revision is the reverse: Atoi overflows, Node accepts. (2) A sequence line at indent 4 under a phase (`    - x` after `  design:`): Go fails with `not a phase mapping` (reducer.go:646-650), Node validates it as a sequence item (ospec-state.js:746-750) and its parser ignores it (872-874), so it advances. (3) Go yamlScalar JSON-decodes a double-quoted scalar (reducer.go:982-986) while Node stateScalar keeps the raw inner text (scripts/lib/yaml-lite.js:344-345), so `revision: \"\\u0031\"` advances only in Go. One side always fails closed, so no gate is bypassed; established by source inspection, not by a run.",
+          "acceptance_criteria": "For `revision: +1`, `revision: -0`, a 20-digit revision, a `    - x` line under the projected phase and `revision: \"\\u0031\"`, both projectors reach the same outcome and, when they advance, write the same bytes. Each input is a case in internal/testdata/state-projection/cases.json, checked by both the Node and Go tests.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:c1351d63f2b6a1c6c883a2e864467c4f95b3d31fc754ab8419a4615c5ba813a7",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 39,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [
+        {
+          "attempt": 1,
+          "request_id": "yaml-readers-linear-blank-parity:correction-start:5:3",
+          "finding_ids": [
+            "F-e344e02d73e08fdc"
+          ],
+          "paths": [
+            "internal/testdata/state-projection/cases.json",
+            "openspec/specs/lifecycle-kernel-runtime/spec.md",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/ospec-state.test.js",
+            "scripts/lib/yaml-lite.js"
+          ],
+          "base_candidate_id": "sha256:a459e82ee0066ca3a190e5785839ce56b145c3d7576369ec615ff37bdf874c31",
+          "forecast_lines": 39,
+          "record_request_id": "yaml-readers-linear-blank-parity:correction-record:5:4",
+          "actual_changed_lines": 39,
+          "corrected_candidate_id": "sha256:acea4f5286d7ebf70eb47c18d2ec6e5ea49c0f2086b0bb710a597b97e79060c3",
+          "status": "passed"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "yaml-readers-linear-blank-parity:validation:5:5",
+          "request_digest": "sha256:626d1ba551e6b328f0d12dfbf887d2a90eed35c461615aad021869d8a7c672dd",
+          "outcomes": [
+            {
+              "id": "F-e344e02d73e08fdc",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "No test was run; judged from source only. scripts/lib/yaml-lite.js:344-348 lowerCaseLikeGo lower-cases one code point at a time and maps U+0130 to a plain i, which is what strings.ToLower returns at internal/store/store.go:164. U+0130 is the only unconditional multi-character lower-case mapping, and a lone capital sigma gives U+03C3 in both runtimes.",
+              "scripts/lib/ospec-state.js:67 readStatus now returns lowerCaseLikeGo of the same extractFirstScalar value. It feeds readState (line 218), the terminal checks at lines 256 and 1463, and the `active` check at scripts/hooks/pre-tool-use.js:444. The second toLowerCase at 256 and 1463 runs on an already lower-cased string and cannot change membership in the ASCII terminal set. For ASCII statuses lowerCaseLikeGo equals toLowerCase, so earlier corpus cases are unaffected.",
+              "internal/testdata/state-projection/cases.json:222-242 adds ARCH U+0130 VED expecting `archived`, ACT U+0130 VE expecting `active`, and A U+03A3 expecting a U+03C3. scripts/lib/ospec-state.test.js:1726-1727 asserts each case's status for readStatus and for the pre-compact reader lower-cased with lowerCaseLikeGo; internal/hooks/phase-completion-reducer_test.go:672 asserts store.ReadStatus against the same field.",
+              "Not confirmed by a run: the three new cases expect outcome `advanced` with the status line written back unchanged. TERMINAL_STATUSES is used only at scripts/lib/ospec-state.js:256 and 1463 and terminalStatuses only at internal/store/store.go:198, so neither projector gates on a terminal status, which is consistent with that expectation."
+            ]
+          },
+          "follow_up_count": 2,
+          "result": "passed"
+        }
+      ],
+      "follow_ups": [
+        {
+          "owner": "trust",
+          "summary": "lowerCaseLikeGo relies on Node (ICU) and Go carrying the same Unicode simple lower-case tables. A code point added in a Unicode version that only one runtime ships would lower-case differently; no corpus case pins this beyond U+0130 and the sigma.",
+          "blocking": false
+        },
+        {
+          "owner": "evolution",
+          "summary": "scripts/lib/ospec-state.js:256 and 1463 still call toLowerCase on a status that readStatus already lower-cased; the call is redundant and could be dropped so one function owns the lowering.",
+          "blocking": false
+        }
+      ],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "all-frozen-findings-resolved"
+    }
+  ],
+  "closed_at": "2026-11-11T17:10:56.447Z"
+}

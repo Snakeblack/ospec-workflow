@@ -598,3 +598,14 @@ test("REQ-lifecycle-kernel-034: a value of the attribution override written on m
   }
   assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
 });
+
+test("REQ-lifecycle-kernel-035: extractStateRouteInfo reads a long line in linear time", () => {
+  const LS = String.fromCharCode(0x2028);
+  const run = " ".repeat(60000);
+  const started = process.hrtime.bigint();
+  for (const value of [`${run}b\rc`, `${run}b${LS}c`, `${" #".repeat(30000)}b\rc`]) {
+    extractStateRouteInfo(`change: x\nclassification:${value}\nimpact:\n  auth_security:${value}\nroute:\n  actual_route:${value}\n`);
+  }
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
+  assert.equal(extractStateRouteInfo("change: x\nclassification: hi\rgh\n").classification, "hi\rgh");
+});

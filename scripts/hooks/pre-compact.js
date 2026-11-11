@@ -10,7 +10,16 @@ const {
 const { writeFileAtomic } = require("../lib/atomic-write.js");
 const { resolveWorkspaceCwd } = require("../lib/pathsafe.js");
 const { readIddSession, renderIddSummary } = require("./lib/idd-session.js");
-const { opaqueScalarLines } = require("../lib/yaml-lite.js");
+// The YAML-lite reader of state.yaml, shared with readStatus and mirrored from
+// internal/yamllite (REQ-lifecycle-kernel-033 and -035).
+const {
+  extractFirstScalar,
+  lineIndentation,
+  opaqueScalarLines,
+  stateKeyValue,
+  stateScalar: parseScalar,
+  trimYamlSpace,
+} = require("../lib/yaml-lite.js");
 
 const PHASE_RANKS = new Map([
   ["explore", 1],
@@ -54,82 +63,6 @@ function toPortablePath(filePath) {
   return filePath.split(path.sep).join("/");
 }
 
-function parseScalar(value) {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return "";
-  }
-
-  const quoted = trimmed.match(/^(["'])([\s\S]*)\1$/);
-
-  if (quoted) {
-    return quoted[2];
-  }
-
-  return trimmed.replace(/\s+#.*$/, "").trim();
-}
-
-// Continuation lines of a scalar are blank, so no key inside one is read
-// (REQ-lifecycle-kernel-033).
-function parseYamlLines(content) {
-  return opaqueScalarLines(content).lines
-    .map((raw) => ({
-      indent: raw.match(/^\s*/)[0].length,
-      content: raw.trim(),
-    }))
-    .filter((line) => line.content && !line.content.startsWith("#"));
-}
-
-function extractScalarAtPath(content, expectedPath) {
-  const stack = [];
-
-  for (const line of parseYamlLines(content)) {
-    if (line.content.startsWith("- ")) {
-      continue;
-    }
-
-    const match = line.content.match(/^([^:]+):(?:\s*(.*))?$/);
-
-    if (!match) {
-      continue;
-    }
-
-    while (stack.length && stack[stack.length - 1].indent >= line.indent) {
-      stack.pop();
-    }
-
-    const key = match[1].trim();
-    const value = match[2] || "";
-    const currentPath = [...stack.map((entry) => entry.key), key];
-
-    if (
-      currentPath.length === expectedPath.length &&
-      currentPath.every((part, index) => part === expectedPath[index]) &&
-      value
-    ) {
-      return parseScalar(value);
-    }
-
-    if (!value) {
-      stack.push({ indent: line.indent, key });
-    }
-  }
-
-  return "";
-}
-
-function extractFirstScalar(content, paths) {
-  for (const expectedPath of paths) {
-    const value = extractScalarAtPath(content, expectedPath);
-
-    if (value) {
-      return value;
-    }
-  }
-
-  return "";
-}
 
 function extractTopLevelSection(content, sectionName) {
   const { lines } = opaqueScalarLines(content);
@@ -138,13 +71,13 @@ function extractTopLevelSection(content, sectionName) {
   let collecting = false;
 
   for (const raw of lines) {
-    const trimmed = raw.trim();
-    const indent = raw.match(/^\s*/)[0].length;
+    const trimmed = trimYamlSpace(raw);
+    const indent = lineIndentation(raw);
 
     if (!collecting) {
       if (
         indent === 0 &&
-        new RegExp(`^${sectionName}:\\s*(?:#.*)?$`).test(trimmed)
+        new RegExp(`^${sectionName}:[\\t\\n\\f\\r ]*(?:#[^\\n]*)?$`).test(trimmed)
       ) {
         collecting = true;
         sectionIndent = indent;
@@ -169,8 +102,8 @@ function extractListSection(content, sectionName) {
   let itemIndent = null;
 
   for (const raw of section) {
-    const trimmed = raw.trim();
-    const indent = raw.match(/^\s*/)[0].length;
+    const trimmed = trimYamlSpace(raw);
+    const indent = lineIndentation(raw);
 
     if (!trimmed || trimmed.startsWith("#")) {
       continue;
@@ -185,11 +118,11 @@ function extractListSection(content, sectionName) {
         continue;
       }
 
-      const item = trimmed.slice(2).trim();
-      const field = item.match(/^([^:]+):\s*(.*)$/);
+      const item = trimYamlSpace(trimmed.slice(2));
+      const field = item.match(/^([^:]+):[\t\n\f\r ]*([^\n]*)$/);
 
       if (field) {
-        current = { [field[1].trim()]: parseScalar(field[2]) };
+        current = { [trimYamlSpace(field[1])]: parseScalar(field[2]) };
         values.push(current);
       } else {
         current = null;
@@ -204,10 +137,10 @@ function extractListSection(content, sectionName) {
       itemIndent !== null &&
       indent === itemIndent + 2
     ) {
-      const field = trimmed.match(/^([^:]+):\s*(.*)$/);
+      const field = trimmed.match(/^([^:]+):[\t\n\f\r ]*([^\n]*)$/);
 
       if (field) {
-        current[field[1].trim()] = parseScalar(field[2]);
+        current[trimYamlSpace(field[1])] = parseScalar(field[2]);
       }
     }
   }
@@ -222,14 +155,16 @@ function normalizePhase(value) {
     .toLowerCase();
 }
 
+// The lines of a value are blank, so a status inside one never counts
+// (REQ-lifecycle-kernel-033 and -035).
 function extractPhaseStatuses(content) {
   const statuses = new Map();
   let inPhases = false;
   let phase = "";
 
-  for (const raw of content.split(/\r?\n/)) {
-    const trimmed = raw.trim();
-    const indent = raw.match(/^\s*/)[0].length;
+  for (const raw of opaqueScalarLines(content).lines) {
+    const trimmed = trimYamlSpace(raw);
+    const indent = lineIndentation(raw);
 
     if (!inPhases) {
       inPhases = indent === 0 && trimmed === "phases:";
@@ -240,15 +175,15 @@ function extractPhaseStatuses(content) {
       break;
     }
 
-    const phaseMatch = indent === 2 && trimmed.match(/^([\w-]+):\s*$/);
+    const phaseMatch = indent === 2 && trimmed.match(/^([\w-]+):$/);
     if (phaseMatch) {
       phase = normalizePhase(phaseMatch[1]);
       continue;
     }
 
-    const statusMatch = phase && indent === 4 && trimmed.match(/^status:\s*(.+)$/);
-    if (statusMatch) {
-      statuses.set(phase, normalizePhase(parseScalar(statusMatch[1])));
+    const field = phase && indent === 4 ? stateKeyValue(trimmed) : null;
+    if (field && field.key === "status" && field.value) {
+      statuses.set(phase, normalizePhase(parseScalar(field.value)));
     }
   }
 

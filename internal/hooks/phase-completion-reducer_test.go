@@ -9,9 +9,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/snakeblack/ospec-workflow/internal/store"
 )
 
 func testProjectionEnvelope() map[string]any {
@@ -636,5 +639,58 @@ projectPhaseCompletion({ changePath: process.argv[2], phase: "design", envelope:
 	}
 	if !strings.Contains(goState, "    status: inside a block\n\n    tail\n") || !strings.Contains(goState, "    notes: >-\n      summary: fake\n") {
 		t.Fatalf("opaque scalars changed:\n%s", goState)
+	}
+}
+
+var lastUpdatedLine = regexp.MustCompile(`(?m)^last_updated: [^\r\n]*`)
+
+// REQ-lifecycle-kernel-035: the corpus shared with scripts/lib/ospec-state.test.js;
+// the state readers and both projectors must read and write the same (Go/JS
+// parity).
+func TestProjectPhaseCompletion_SharedCorpus(t *testing.T) {
+	data, err := os.ReadFile("../testdata/state-projection/cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var corpus struct {
+		Envelope map[string]any `json:"envelope"`
+		Cases    []struct {
+			Name    string `json:"name"`
+			Input   string `json:"input"`
+			Status  string `json:"status"`
+			Outcome string `json:"outcome"`
+			Output  string `json:"output"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(data, &corpus); err != nil {
+		t.Fatal(err)
+	}
+	if len(corpus.Cases) == 0 {
+		t.Fatal("empty corpus")
+	}
+	for _, c := range corpus.Cases {
+		if got := store.ReadStatus(c.Input); got != c.Status {
+			t.Errorf("%s: store.ReadStatus = %q, want %q", c.Name, got, c.Status)
+		}
+		statePath := filepath.Join(t.TempDir(), "state.yaml")
+		if err := os.WriteFile(statePath, []byte(c.Input), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		result := ProjectPhaseCompletion(statePath, "design", corpus.Envelope, nil)
+		if result.Outcome != c.Outcome {
+			t.Errorf("%s: outcome = %q, want %q (%+v)", c.Name, result.Outcome, c.Outcome, result)
+			continue
+		}
+		after, err := os.ReadFile(statePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := c.Output
+		if c.Outcome == "malformed-state" {
+			want = c.Input
+		}
+		if got := lastUpdatedLine.ReplaceAllString(string(after), "last_updated: <now>"); got != want {
+			t.Errorf("%s: projected bytes differ:\n got %q\nwant %q", c.Name, got, want)
+		}
 	}
 }
