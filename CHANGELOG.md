@@ -7,9 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.172.1] - 2026-11-11
+
 ### Fixed
-- Con las revisiones de confianza agotadas y la última en correction-required, una corrección que no cabe en una corrección acotada deja el cambio en bucle: ospec check pide review correct, review correct pide review start, review start responde review-limit y el gate review-limit no se abre nunca. (review-limit-oversized-correction)
-- Los lectores de state.yaml con capturas \s*(.+)$ o \s+#.*$ tardan de forma cuadrática ante un tramo de espacios seguido de un CR suelto o U+2028 (readStatus, el parser y el escritor del proyector, extractStateRouteInfo, parsePersistedRouteSection, el lector YAML-lite de pre-compact), y el escáner de escalares de Node (trim) y el de Go (TrimSpace) deciden distinto si una línea de solo U+0085 o U+FEFF está en blanco. (yaml-readers-linear-blank-parity)
+- **Los lectores de `state.yaml` leen en tiempo lineal ante un CR suelto, y Node y Go deciden igual qué es un blanco, una clave y un valor** (yaml-readers-linear-blank-parity). Es la PR propia que quedó detrás de los lectores de `config.yaml` (v2.171.6).
+  - **El defecto de tiempo**: los lectores con capturas `\s*(.+)$` o `\s+#.*$` tardaban de forma cuadrática ante un tramo largo de espacios seguido de un CR suelto o U+2028: `readStatus`, el parser y el escritor del proyector, `extractStateRouteInfo`, `parsePersistedRouteSection` y el lector YAML-lite de pre-compact. Ahora toman `[^\n]` donde Go tiene un punto.
+  - **El defecto de paridad**: el escáner de Node recortaba con `trim` y el de Go con `TrimSpace`, que no coinciden en U+0085 ni en U+FEFF, así que un runtime rechazaba un `state.yaml` que el otro aceptaba. El escáner, los proyectores (validador, parser y escritor) y los lectores de estado recortan ahora solo espacio, tabulador y CR en los dos runtimes; los demás espacios Unicode son texto.
+  - **Un solo lector en Node**: `scripts/lib/yaml-lite.js` tiene el lector YAML-lite de `state.yaml`, copia de `internal/yamllite`, y lo usan `readStatus`, el proyector y pre-compact. La clave llega hasta el primer dos puntos y el valor va tras un blanco ASCII, así que un `status:` seguido de U+00A0 o un `status :` se leen igual que en Go. Con dos `status` de primer nivel Node lee el primero, como Go.
+  - **Los proyectores fallan cerrados igual**: los dos validadores rechazan con `malformed-state` una línea que el escáner no lee como clave (`status:archived`), un `status` vacío y cualquier valor en la línea de `phases`. Los escritores cuentan como sangrado espacios y tabuladores.
+  - **Minúsculas**: `readStatus` pasa el status a minúsculas punto de código a punto de código, como `strings.ToLower`. Antes `status: ARCH` + U+0130 + `VED` era `archived` solo para Go.
+  - **pre-compact**: `extractPhaseStatuses` lee las líneas opacas, así que un `status: done` dentro de un escalar de bloque bajo `phases` ya no adelanta la fase.
+  - **Contrato**: REQ-lifecycle-kernel-035, con dos corpus compartidos que pasan Node y Go (`internal/testdata/yaml-lite-scan/cases.json` y `internal/testdata/state-projection/cases.json`, 34 proyecciones con el status leído, el resultado y los bytes escritos).
+  - **Compatibilidad**: los 419 YAML versionados se leen igual que antes, salvo un `state.yaml` archivado con dos `status` de primer nivel, que Node lee ahora como Go.
+  - **Fuera de esta PR**: las divergencias entre Node y Go que no son de blancos (desescapado JSON de comillas dobles, `revision` con signo o de 20 dígitos, clave de fase con espacios, claves repetidas y una línea de secuencia bajo una fase) van en PR5.
+- **`ospec check` abre `review-limit` cuando la corrección no cabe y no quedan revisiones** (review-limit-oversized-correction, detectado al cerrar el cambio anterior).
+  - **El defecto**: con las revisiones de confianza agotadas y la última en `correction-required`, una corrección fuera de la corrección acotada (más líneas que el presupuesto o una ruta no congelada) dejaba el cambio en bucle: `ospec check` pedía `review correct`, `review correct` pedía `review start` y `review start` respondía `review-limit`, sin que el gate se abriera.
+  - **El arreglo**: `ospec check` lee los cambios desde el candidato revisado y, en ese caso, termina la revisión como `escalated` y abre `review-limit`. Resuelto el gate, `ospec review start` abre la sucesora con los hallazgos bloqueantes sin resolver. Con revisiones libres sigue escalando `ospec review start`.
+  - **Contrato**: REQ-idd-016 recoge el caso. Un cambio que la CLI anterior dejó en el bucle sale de él en el siguiente `ospec check`.
+
+Hecho con IDD (`idd/archive/2026-11-11-yaml-readers-linear-blank-parity/` e `idd/archive/2026-11-11-review-limit-oversized-correction/`), con las reproducciones en rojo y en verde y cinco revisiones de confianza en el primero.
+
+**Verificación directa**: `node scripts/check.js` (4536 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados, y `gofmt -l cmd internal`, `go vet ./...` y `go test ./...` en verde.
 
 ## [2.172.0] - 2026-11-11
 
