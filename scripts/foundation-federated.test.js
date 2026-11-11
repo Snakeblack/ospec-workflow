@@ -86,6 +86,26 @@ test("foundation records architecture ADRs and hands IDD its configuration after
   assert.doesNotMatch(skill, /disable-model-invocation|delegate_only/, "foundation runs outside SDD too");
 });
 
+// #485: the hand-off also settles how changes reach the repository, and ends
+// offering the commit of the foundation, which runs only on the user's yes.
+test("[#485] the hand-off asks the delivery and the remote, and commits only on an explicit yes", () => {
+  const skill = read(SKILL);
+  const handoff = skill.slice(skill.indexOf("## Hand-off to IDD"), skill.indexOf("## Source documents"));
+  assert.ok(handoff.includes("`delivery:`"), "the hand-off proposes delivery:");
+  assert.match(handoff, /run `ospec team`/, "the values come from the CLI, not from prose (ADR 0003)");
+  for (const key of ["`branching`", "`changelog`", "`release`", "`integration_branch`"]) {
+    assert.ok(handoff.includes(key), `the delivery proposal covers ${key}`);
+  }
+  assert.match(handoff, /follows from `team\.size`/, "the strategy is a consequence of the size, not a key");
+  assert.match(handoff, /already declared keeps its values unless the user changes them/);
+  assert.match(handoff, /`git init -b main`/, "outside a repository it offers one");
+  assert.match(handoff, /Without a remote \(`git remote -v`\)/);
+  assert.match(handoff, /`docs: add architecture\s+foundation`/, "one Conventional Commit of the foundation's files");
+  assert.match(handoff, /`git rev-parse --verify HEAD` fails\), propose its name\s+\(`main`\)/);
+  assert.match(handoff, /Run no `git init`, `git commit`, push\s+or remote creation without the user's explicit yes/);
+  assert.match(handoff, /Delegated, run none of\s+them: list in `open_questions`/, "the delegated agent has no shell");
+});
+
 test("SKILL.md documents synthesizing the 'Mapa de Contratos e Interacciones' section", () => {
   const text = read(SKILL);
   assert.match(

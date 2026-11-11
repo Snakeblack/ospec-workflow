@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- foundation pregunta la entrega (delivery:) y el remoto en el hand-off a IDD y ofrece el commit de sus artefactos al terminar (#485) (foundation-delivery-handoff)
+
 ## [2.171.8] - 2026-11-11
 
 ### Fixed

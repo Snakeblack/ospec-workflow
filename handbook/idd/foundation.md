@@ -227,6 +227,10 @@ impact:
     - db/migrations/**
   security_boundary:
     - src/auth/**
+delivery:
+  branching: parallel
+  changelog: CHANGELOG.md
+  release: batched
 ```
 
 | Clave | Para qué sirve en IDD |
@@ -235,8 +239,19 @@ impact:
 | `team:` | El perfil de equipo de la ronda de equipo. `ospec team` deriva de él la entrega, la revisión, Strict TDD y la mentoría. `strict_tdd:` solo se añade si tu listón de tests se aparta de ese valor por defecto. |
 | `impact:` | Las rutas de contratos públicos, datos persistentes y fronteras de seguridad de la estructura elegida, más `stack:` si los servicios tienen sus manifiestos por debajo de la raíz. Activan `public-contract`, `persistent-data` y `security-boundary`. |
 | `contracts.documents:` | Dónde viven los documentos de contrato (OpenAPI, proto, esquemas). |
+| `delivery:` | Cómo llegan los cambios al repositorio: `branching`, `changelog`, `release` y, si integras aparte de producción, `integration_branch` (ver [Entrega](/handbook/idd/entrega.md)). Se pregunta después de escribir las claves anteriores: foundation ejecuta `ospec team`, que lee ese perfil, y te presenta cada valor con su origen, sus motivos y las alternativas. Solo con estos valores declarados `ospec close` escribe el CHANGELOG y propone la versión. La estrategia de entrega (`single-pr`, `ask-on-risk` o `auto-chain`) sale del tamaño del equipo: para cambiarla se cambia `team.size`. Si `delivery:` ya estaba declarado, conserva sus valores salvo que tú los cambies. |
 
 Como cualquier cambio de checks o de ajustes de ceremonia, el primer `ospec check` abre el gate `checks-changed` y no ejecuta nada hasta que apruebas esos valores.
+
+### El remoto y el commit de la fundación
+
+Al final, foundation deja el repositorio listo para el primer cambio. Cada paso es una propuesta, y **sin tu sí no ejecuta ningún `git init`, `git commit`, push ni creación del remoto**:
+
+1. **Sin repositorio git**, te ofrece crearlo con `git init -b main`.
+2. **Sin remoto** (`git remote -v` vacío), te pregunta si lo creas y dónde (por ejemplo `gh repo create --private` si el código es cerrado) o si trabajas sin PRs. Sin PRs, `delivery:` se declara igual y los commits van a la rama por defecto.
+3. **El commit**: te propone un único commit en formato Conventional Commits, como `docs: add architecture foundation`, con los ficheros de la fundación (`docs/`, `idd/config.yaml` y `openspec/` si existe). En un repositorio sin commits propone además el nombre de la rama (`main`): el primer cambio IDD necesita ese commit base para su contraprueba. Si ya hay historial, propone el commit, o una rama y una PR según la entrega que aprobaste.
+
+En SDD, el agente `foundation` no tiene shell: devuelve la pregunta de `delivery:`, la del remoto y la oferta de commit en `open_questions`, y el orquestador te las pregunta y las ejecuta.
 
 ---
 
