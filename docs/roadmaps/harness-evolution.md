@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.173.0, 2026-11-12.
+> **Versión de referencia:** v2.173.1, 2026-11-12.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -184,12 +184,12 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.61** | `turn-fence-worktree` (en un `git worktree` fuera del directorio del proyecto, la respuesta a un gate quedaba `user-unverified`: el hook de fin de turno cuenta en el repositorio del `cwd` de la sesión y el CLI leía solo el del worktree; ahora suma las dos cuentas; en el bloque C, detrás de E1.58, en v2.170.4) | bugfix |
 | `pending` | **E1.62** | `sdd-review-adoption` (el Quality Review Gate de SDD adopta lo que E1.50, E1.52, E1.59 y E1.60 dan a IDD: sinks por contenido, árbol congelado, dominio runtime y refutador; fuera del orden ▶) | feature |
 | `done` | **E1.63** | `review-advisory-correction` (#498: una revisión de confianza aprobada gasta su corrección acotada en los avisos que congeló, con `ospec review correct --finding` y la validación de `review-correction`, dentro de las rutas congeladas y del presupuesto de líneas; pasa sin revisión sucesora y sin contar para el tope, y el linaje aprobado no se toca; el primero de las fricciones de proyectos reales del 2026-11-11, en v2.173.0) | feature |
-| `pending` | **E1.64** | `idd-config-in-diff` (#483: `idd/config.yaml` entra en el diff y en la huella del árbol de un cambio, y de `idd/` solo queda fuera lo que escribe ospec; detrás de E1.63) | bugfix |
-| `pending` | **E1.65** | `counterproof-declared-docs` (#500: un Markdown que el proyecto declara en `impact` o en `contracts.documents` cuenta como producto para la contraprueba; detrás de E1.64) | bugfix |
-| `pending` | **E1.66** | `first-gate-turn-fence` (#494: el primer gate de un proyecto sin `.ospec/turns` deja de quedar siempre `user-unverified`; detrás de E1.65) | bugfix |
+| `done` | **E1.64** | `idd-config-in-diff` (#483: `idd/config.yaml` entra en el diff, en la huella del árbol y en la instantánea de la revisión de un cambio, y de `idd/` solo queda fuera lo que escribe ospec, el directorio de cada cambio y el archivo; con E1.65, E1.66, E1.68 y E1.69 en el cambio `idd-friction-fixes`, en v2.173.1) | bugfix |
+| `done` | **E1.65** | `counterproof-declared-docs` (#500: un documento que el proyecto declara en una lista propia de `impact` de la que sale una señal, o en `contracts.documents`, cuenta como producto para la contraprueba; en v2.173.1) | bugfix |
+| `done` | **E1.66** | `first-gate-turn-fence` (#494: un gate que se abre sin cuenta de turnos guarda `opened_turn: 0`, así que el primer gate de un proyecto sin `.ospec/turns` queda `user` en cuanto termina un turno; en v2.173.1) | bugfix |
 | `pending` | **E1.67** | `check-path-scope` (#499: un check de `idd/config.yaml` puede declarar sus rutas, y `ospec check` no lo ejecuta si el diff no toca ninguna; detrás de E1.66) | feature |
-| `pending` | **E1.68** | `build-scripts-declared` (#501: `impact.build_scripts` declara los scripts de herramienta cuyas escrituras no derivan `persistent-data`; detrás de E1.67) | bugfix |
-| `pending` | **E1.69** | `impact-raise` (#502: un impacto declarado se puede subir de `none` o `conforms` a `amends`, `supersedes` o `contradicts` antes de `close`; detrás de E1.68) | bugfix |
+| `done` | **E1.68** | `build-scripts-declared` (#501: `impact.build_scripts` declara los scripts de herramienta cuyas escrituras no derivan `persistent-data`, sumados a los de por defecto y sin quitar las señales por ruta; adelantado a E1.67, en v2.173.1) | bugfix |
+| `done` | **E1.69** | `impact-raise` (#502: un impacto declarado se puede subir antes de `close`, de `none` a `conforms` o de cualquiera de los dos a `amends`, `supersedes` o `contradicts`, con el valor anterior en `previous`; la subida tras la respuesta abre otra entrada de `adr-amend-or-contradict`; adelantado a E1.67, en v2.173.1) | bugfix |
 | `pending` | **E1.70** | `fitness-baseline-failing` (#490: un `- Check:` de ADR que ya falla en la base avisa y no bloquea un cambio que no lo empeora; detrás de E1.69) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
@@ -249,7 +249,7 @@ E1.57 `idd-change-abandon` (#409) y E1.58 `contract-content-retract` (#423), los
 
 E1.59 `idd-runtime-review`, E1.60 `review-refuter`, E1.62 `sdd-review-adoption` y E4.18 `review-detection-bench` entraron el 2026-11-03 con el plan para cerrar la brecha del revisor frente a gentle-ai. Como sistema, gentle-ai era mejor: su binario lanza al revisor sin herramientas y admite su veredicto, revisa el árbol congelado, deriva el riesgo del contenido y pasa los hallazgos por un refutador. ospec era mejor en el criterio del prompt (`review-judgment.md`), el coste y la sencillez, y nadie había medido la detección. El usuario fijó el orden E1.50 → E1.52 → E1.59 → E1.60, seguidos, y el alcance solo en IDD, porque los cambios de `review-lineage.js` no dependen del modo. La adopción en SDD queda en E1.62, fuera del orden ▶, y la medición, E4.18, en el bloque D con Haiku.
 
-E1.63 a E1.70 y E5.15 entraron el 2026-11-11 con la auditoría de sinergia entre ospec y dos proyectos reales que lo usan a diario, uno con 40 cambios IDD archivados y otro con 66. Nada estaba roto: el coste estaba en cada cambio. Las dos sesiones de esos proyectos auditaron su `idd/archive`, y lo que le toca a ospec se comprobó contra su código antes de abrir #498 a #503. #483, #490 y #494 eran los tres issues abiertos sin ítem. El usuario colocó los ocho de la Etapa 1 por delante de lo que queda del bloque C, porque hoy los paga cada cambio real. E1.63 va primero porque es lo que más tiempo cuesta: de 116 revisiones de confianza, todas aprobadas, salieron 117 hallazgos, y 113 no bloqueaban. Le siguen E1.64, del que depende un cambio pendiente de uno de los proyectos, y E1.65, que deja sin contraprueba a los proyectos cuyo producto es Markdown. E1.66 afecta al primer cambio de cada proyecto nuevo. E5.15 queda fuera del orden ▶, porque solo afecta a SDD. E1.63 quedó hecho en v2.173.0: sigue E1.64 `idd-config-in-diff`.
+E1.63 a E1.70 y E5.15 entraron el 2026-11-11 con la auditoría de sinergia entre ospec y dos proyectos reales que lo usan a diario, uno con 40 cambios IDD archivados y otro con 66. Nada estaba roto: el coste estaba en cada cambio. Las dos sesiones de esos proyectos auditaron su `idd/archive`, y lo que le toca a ospec se comprobó contra su código antes de abrir #498 a #503. #483, #490 y #494 eran los tres issues abiertos sin ítem. El usuario colocó los ocho de la Etapa 1 por delante de lo que queda del bloque C, porque hoy los paga cada cambio real. E1.63 va primero porque es lo que más tiempo cuesta: de 116 revisiones de confianza, todas aprobadas, salieron 117 hallazgos, y 113 no bloqueaban. Le siguen E1.64, del que depende un cambio pendiente de uno de los proyectos, y E1.65, que deja sin contraprueba a los proyectos cuyo producto es Markdown. E1.66 afecta al primer cambio de cada proyecto nuevo. E5.15 queda fuera del orden ▶, porque solo afecta a SDD. E1.63 quedó hecho en v2.173.0. E1.64, E1.65, E1.66, E1.68 y E1.69, los cinco arreglos acotados, quedaron hechos en v2.173.1 en un solo cambio, `idd-friction-fixes`, por decisión del usuario del 2026-11-12: sigue E1.67 `check-path-scope`, y después E1.70 `fitness-baseline-failing`.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -1220,6 +1220,7 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 - **Alcance:** `idd/config.yaml` cuenta como un fichero más del proyecto en la huella y en el diff. De `idd/` solo queda fuera lo que escribe ospec: `idd/<cambio>/`, `idd/archive/`, los recibos y el contador de turnos. Si `pairRed` no encuentra un rojo porque las huellas coinciden, `next` lo dice.
 - **Targets:** los 7 (CLI).
 - **Hecho cuando:** un cambio cuyo arreglo está solo en `idd/config.yaml` cierra su par sin tocar otro fichero, su contraprueba se ejecuta contra la base y falla allí, y el fichero aparece en el diff del cambio mientras el estado de ospec sigue fuera.
+- **Entregado en v2.173.1:** `OWN_EXCLUDES` e `isIddState` (`scripts/lib/idd-workspace.js`) dejan fuera solo lo que cuelga de un subdirectorio de `idd/`; un fichero directamente bajo `idd/` cuenta en el diff, en la huella y en la instantánea de la revisión (REQ-idd-012, REQ-idd-014 y REQ-idd-016). Por eso un cambio de `idd/config.yaml` mueve la huella como el de cualquier fichero e invalida también la evidencia de los checks. Cuando el verde corre sobre el mismo árbol que el rojo, el motivo de la obligación lo dice (`pairReason` en `scripts/lib/idd-check.js`). Hecho con IDD (`idd/archive/2026-11-12-idd-friction-fixes/`), como E1.65, E1.66, E1.68 y E1.69.
 
 ### E1.65 — `counterproof-declared-docs` (#500)
 
@@ -1229,6 +1230,7 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 - **Alcance:** una ruta que casa con un patrón que el proyecto declara en `impact` (no con los de por defecto) o con `contracts.documents` cuenta como producto para la contraprueba. Los `.md` que el proyecto no declara siguen siendo documentación.
 - **Targets:** los 7 (CLI).
 - **Hecho cuando:** con un `.md` declarado en `impact.public_contract` y un test de su texto, la contraprueba se ejecuta contra la base y falla allí; un cambio que solo toca un `.md` no declarado y tests la sigue omitiendo.
+- **Entregado en v2.173.1:** `onlyTestsAndDocs` recibe el contexto del proyecto, e `isDeclaredProduct` (`scripts/lib/idd-workspace.js`) da por producto un documento que casa con `contracts.documents` o del que un patrón propio de `impact` deriva una señal (`matchesDeclaredImpact` en `scripts/lib/idd-impact.js`). Los patrones por defecto no declaran nada, y `impact.exclude` y las exclusiones por defecto siguen ganando (REQ-idd-014).
 
 ### E1.66 — `first-gate-turn-fence` (#494)
 
@@ -1237,6 +1239,8 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 - **Alcance:** lo decide el cambio entre las salidas de #494: tratar la cuenta ausente al abrir como 0, o crear `.ospec/turns` antes del primer gate. Un gate respondido sin ningún fin de turno contado sigue quedando `user-unverified`. De paso, la skill `idd` dice que el gate se abre antes de preguntar: en los dos proyectos de la auditoría, cuatro gates quedaron `user-unverified` porque la respuesta llegó dentro del mismo turno.
 - **Targets:** los que tienen hook de fin de turno.
 - **Hecho cuando:** en un repositorio sin `.ospec/turns` y con los hooks instalados, un gate abierto en el primer turno y respondido después de que ese turno termine queda `source: user`, sin aviso en `record gate` ni en `close`.
+- **Decidido en el gate `open-facts`** (2026-11-12, todas las recomendadas): la cuenta ausente al abrir se guarda como `opened_turn: 0` (salida 1 de #494), y un gate ya abierto con `opened_turn: null` por una CLI anterior cuenta desde 0 al responderlo.
+- **Entregado en v2.173.1:** `fenceGates` (`scripts/lib/turn-fence.js`) guarda 0 sin cuenta y solo valla una respuesta sin cuenta o con la misma cuenta que la apertura; el motivo «no turn count when the gate opened» desaparece (REQ-idd-008, con un escenario). La regla de abrir el gate antes de preguntar va en `skills/idd/references/approvals.md` y no en `SKILL.md`, que está en su techo de bytes.
 
 ### E1.67 — `check-path-scope` (#499)
 
@@ -1253,6 +1257,7 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 - **Alcance:** una clave `impact.build_scripts` cuyos patrones se suman a los de por defecto, o los sustituyen con `impact.defaults: false`. Cambiarla abre `checks-changed`. Las rutas declaradas siguen derivando las demás señales.
 - **Targets:** los 7 (CLI).
 - **Hecho cuando:** con `impact.build_scripts: ["scripts/**"]`, un cambio que toca un script que escribe no deriva `persistent-data` y sí `security-boundary` si su ruta casa; sin la clave, nada cambia.
+- **Entregado en v2.173.1:** `resolvePatterns` (`scripts/lib/idd-impact.js`) suma `impact.build_scripts` a `BUILD_SCRIPTS`, o lo deja solo con `impact.defaults: false`, y `validateImpact` admite la clave (REQ-idd-012, con un escenario). Como el resto de `impact`, cambiarla abre `checks-changed`.
 
 ### E1.69 — `impact-raise` (#502)
 
@@ -1261,6 +1266,8 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 - **Alcance:** antes de `close`, un impacto se puede subir de `none` o `conforms` a `amends`, `supersedes` o `contradicts`, con su motivo, y eso abre la puerta. Bajarlo sigue rechazado.
 - **Targets:** los 7 (CLI).
 - **Hecho cuando:** `conforms` seguido de `amends` deja `amends` en el estado y abre `adr-amend-or-contradict`; `amends` seguido de `conforms` da `impact-conflict`; los registros de `close` llevan el impacto final.
+- **Decidido en el gate `open-facts`** (2026-11-12, todas las recomendadas): también se acepta subir de `none` a `conforms`; y si `adr-amend-or-contradict` ya estaba resuelto, la subida abre el gate otra vez en una entrada nueva, mientras que una primera declaración tardía sigue rechazada con `gate-resolved`.
+- **Entregado en v2.173.1:** `recordImpact` (`scripts/lib/idd-record.js`) sube un impacto en el orden `none` < `conforms` < `amends`, `supersedes` o `contradicts`, guarda el anterior en `previous` y devuelve `adr-impact-declaration` a pendiente; `validateImpacts` valida `previous` (REQ-idd-003 y REQ-idd-020, con un escenario). La exención de fitness (`isExempt`) y el motivo de `adr-impact-declaration` exigen todas las entradas del gate resueltas.
 
 ### E1.70 — `fitness-baseline-failing` (#490)
 
@@ -1894,6 +1901,9 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-12: `idd-friction-fixes` (IDD), publicado en v2.173.1. Son E1.64, E1.65, E1.66, E1.68 y E1.69, los cinco arreglos acotados de las fricciones de proyectos reales (#483, #500, #494, #501 y #502), en un solo cambio por decisión del usuario.
+  - `idd/config.yaml` entra en el diff y en la huella; un documento declarado es producto para la contraprueba; el primer gate de un repositorio cuenta desde 0; `impact.build_scripts` declara los scripts de herramienta; y un impacto declarado de menos se puede subir antes de cerrar.
+  - E1.68 y E1.69 se adelantan a E1.67 `check-path-scope`, que es una feature con su propio gate de alcance. Sigue E1.67, y después E1.70 `fitness-baseline-failing`.
 - 2026-11-12: `review-advisory-correction` (IDD), publicado en v2.173.0. Es E1.63, el primero de las fricciones de proyectos reales (#498).
   - Una revisión de confianza aprobada que congeló avisos gasta en ellos su corrección acotada: `ospec review correct --finding <id>` registra el arreglo y `review-correction` lo valida, sin revisión sucesora y sin contar para el tope de tres (REQ-idd-016). El linaje aprobado no se toca.
   - La versión lleva también la entrada de `friction-items-roadmap`, que no tuvo versión propia.

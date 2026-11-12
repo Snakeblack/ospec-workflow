@@ -7,8 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.173.1] - 2026-11-12
+
 ### Fixed
-- Corregir en un solo cambio las fricciones de IDD de proyectos reales que son arreglos acotados: E1.64 idd-config-in-diff (#483), E1.65 counterproof-declared-docs (#500), E1.66 first-gate-turn-fence (#494), E1.68 build-scripts-declared (#501) y E1.69 impact-raise (#502) (idd-friction-fixes)
+- **Cinco fricciones de IDD que pagaba cada cambio de un proyecto real, en un solo cambio** (idd-friction-fixes; E1.64, E1.65, E1.66, E1.68 y E1.69, de la auditoría con dos proyectos reales que usan IDD).
+  - **`idd/config.yaml` entra en el diff y en la huella del árbol** (E1.64, #483): antes todo `idd/` quedaba fuera, así que un arreglo que vivía solo en ese fichero no cerraba su par rojo-verde, porque las dos ejecuciones llevaban la misma huella, y su contraprueba se omitía. Ahora de `idd/` solo queda fuera lo que escribe ospec: el directorio de cada cambio y `idd/archive/`. El fichero cuenta también en las señales por ruta y en la instantánea que congela la revisión.
+  - **Consecuencia de E1.64**: cambiar `idd/config.yaml` mueve la huella como cambiar cualquier otro fichero, así que también invalida la evidencia de los checks aunque la lista de verificadores sea la misma.
+  - **Un documento declarado es producto para la contraprueba** (E1.65, #500): la contraprueba se omitía cuando el diff solo cambiaba tests y documentación, y daba por documentación cualquier Markdown. Deja de omitirse si el documento casa con `contracts.documents` o si una lista propia de `impact` deriva de él una señal. Los patrones por defecto no declaran nada, y `impact.exclude` sigue ganando.
+  - **El primer gate de un repositorio ya puede quedar `user`** (E1.66, #494): sin `.ospec/turns` al abrirlo, el gate guardaba `opened_turn: null` y su respuesta quedaba siempre `user-unverified`. Ahora guarda 0, y un gate ya abierto con `null` cuenta desde 0 al responderlo. Una respuesta sin ningún fin de turno contado sigue quedando `user-unverified`. El motivo «no turn count when the gate opened» desaparece.
+  - **`impact.build_scripts` declara los scripts de herramienta del proyecto** (E1.68, #501): sus escrituras dejan de derivar `persistent-data` por contenido, y con ella `migration-compat-and-test`, en cada cambio que los toca. La lista se suma a los patrones por defecto, o los sustituye con `impact.defaults: false`. Las rutas declaradas siguen contando para las demás señales, y cambiar la clave abre `checks-changed`, como el resto de `impact`.
+  - **Un impacto declarado de menos se puede subir antes de cerrar** (E1.69, #502): de `none` a `conforms`, o de cualquiera de los dos a `amends`, `supersedes` o `contradicts`, con su motivo nuevo. El valor anterior queda en `previous` y `adr-impact-declaration` vuelve a pendiente. Bajarlo, o moverlo entre `amends`, `supersedes` y `contradicts`, sigue dando `impact-conflict`.
+  - **La subida y el gate**: si `adr-amend-or-contradict` ya estaba resuelto, la subida lo abre otra vez en una entrada nueva, porque el usuario respondió con el impacto declarado más bajo. Una primera declaración tardía sigue rechazada con `gate-resolved`. La exención de fitness y `adr-impact-declaration` exigen todas las entradas del gate resueltas.
+  - **Un par que no cierra dice por qué**: cuando el verde corre sobre el mismo árbol que el rojo, el motivo de la obligación dice que nada de lo que ve git cambió entre las dos ejecuciones, en lugar de pedir otra.
+  - **La skill `idd`**: `references/approvals.md` dice que el gate se abre antes de preguntar, porque una respuesta dada antes de abrirlo se registra en el mismo turno y queda `user-unverified`. `SKILL.md` no cambia.
+  - **Contrato y compatibilidad**: REQ-idd-003, REQ-idd-008, REQ-idd-012, REQ-idd-014, REQ-idd-016 y REQ-idd-020, con tres escenarios nuevos. `previous` y `impact.build_scripts` son opcionales, y el esquema `idd-state/v1` lee todo lo anterior sin migración. Una CLI anterior rechaza por campo desconocido un cambio abierto cuyo impacto lleve `previous`, y rechaza `impact.build_scripts` como clave desconocida.
+
+**Verificación directa**: `node scripts/check.js` (4559 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
 
 ## [2.173.0] - 2026-11-12
 
