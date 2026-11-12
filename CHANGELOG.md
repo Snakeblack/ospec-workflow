@@ -7,8 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.174.0] - 2026-11-12
+
 ### Added
-- Un check de idd/config.yaml puede declarar sus rutas, y ospec check no lo ejecuta si el diff del cambio no toca ninguna (E1.67, #499) (check-path-scope)
+- **Un check lento se acota a las rutas que lo justifican** (check-path-scope, E1.67, #499, de la auditoría con dos proyectos reales que usan IDD).
+  - **El problema**: `ospec check` ejecutaba siempre todos los checks de `idd/config.yaml`. En un proyecto con seis checks y unos 9 minutos por ejecución, 17 cambios que solo tocaban Markdown ejecutaron 19 veces la suite de extremo a extremo y la de rendimiento: unas 2,8 horas en cambios que no podían afectarlas.
+  - **La forma**: un check se escribe anidado, con `run:` y `paths:` debajo (`e2e:` → `run: pnpm test:e2e`, `paths: ["src/**", "tests/e2e/**"]`). `paths` admite una lista en línea, en bloque o una sola ruta. Sin `paths`, el check corre siempre, como hasta ahora.
+  - **Cuándo corre**: mientras alguna ruta del diff del cambio contra su base (añadida, cambiada, borrada, los dos lados de un renombre o sin seguimiento) case con sus `paths`, con la sintaxis glob de `impact`. Un `--base` más estrecho no cambia el alcance. Un check que el cambio añade, o cuyo comando o rutas cambian, corre una vez aunque el diff no toque sus rutas, para que el comando aprobado se ejecute al menos una vez.
+  - **Lo que queda de un check omitido**: la evidencia `check-run` de `checks-pass` lo nombra en `skipped` con su motivo (`no path of the diff matches its paths (…)`), la salida de `ospec check` lo lista y `ospec close` lo avisa. No corre tampoco en la contraprueba ni como control de entorno, ni en `check` ni en la contraprueba de un par de `ospec run`.
+  - **Los límites**: una lista vacía, una ruta absoluta o con `..`, otra clave bajo el check y un check sin `run` dan `config-invalid`. Una configuración con todos los checks acotados también: al menos uno corre siempre, así que `checks-pass` nunca se queda sin ejecuciones.
+  - **La aprobación**: las rutas cuentan en la identidad de los checks y en lo que aprueba `checks-changed`, así que añadirlas, quitarlas o cambiarlas abre el gate, como cambiar un comando.
+  - **La skill `idd`**: `references/checks.md` muestra la forma y pide proponer rutas solo cuando el usuario quiere acotar un check. El handbook la explica en «El ciclo de un cambio».
+  - **Contrato y compatibilidad**: REQ-idd-013 y REQ-idd-014, con dos escenarios nuevos. Un check sin rutas conserva la forma `{name, command}` en el estado y en la huella de los checks, así que la evidencia y las aprobaciones de los cambios abiertos siguen valiendo, y `paths` y `skipped` solo aparecen con un check acotado. Una CLI anterior rechaza como línea ilegible un check anidado, y como `checks-changed` inválido un gate que apruebe rutas.
+
+**Verificación directa**: `node scripts/check.js` (4566 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
 
 ## [2.173.1] - 2026-11-12
 
