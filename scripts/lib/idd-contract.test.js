@@ -117,6 +117,16 @@ test("declared impacts are validated with the state", () => {
   assert.ok(impacts([{ kind: "adr", id: "0004", impact: null }]).ok);
   assert.ok(impacts([{ kind: "adr", id: "0004", impact: "amends", reason: "r", record: "docs/architecture/decisions/0012-x.md" }]).ok);
   assert.ok(impacts([{ kind: "scenario", id: "deterministic-resume", impact: "conforms", reason: "r" }]).ok);
+  // E1.69: what a raised impact replaced, oldest first.
+  const raised = (previous, impact = "amends") => impacts([{ kind: "adr", id: "0004", impact, reason: "r", previous }]);
+  assert.ok(raised([{ impact: "conforms", reason: "a" }]).ok);
+  assert.ok(raised([{ impact: "none", reason: "a" }, { impact: "conforms", reason: "b" }]).ok);
+  assert.ok(raised([{ impact: "none", reason: "a" }], "conforms").ok);
+  for (const previous of [[], "conforms", [{ impact: "conforms" }], [{ impact: "amends", reason: "a" }], [{ impact: "conforms", reason: "a" }, { impact: "none", reason: "b" }], [{ impact: "conforms", reason: "a", extra: 1 }]]) {
+    assert.strictEqual(raised(previous).ok, false, JSON.stringify(previous));
+  }
+  assert.strictEqual(raised([{ impact: "conforms", reason: "a" }], "conforms").ok, false, "a raise ends higher than it started");
+  assert.strictEqual(impacts([{ kind: "adr", id: "0004", impact: null, previous: [{ impact: "none", reason: "a" }] }]).ok, false);
   const rejected = [
     [{ kind: "module", id: "x", impact: null }],
     [{ kind: "adr", id: "0004", impact: "improves", reason: "r" }],

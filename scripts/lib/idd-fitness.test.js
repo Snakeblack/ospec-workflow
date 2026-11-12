@@ -57,6 +57,9 @@ test("[REQ-idd-022] a superseded ADR, a reference absent at the base and an appr
   assert.deepEqual(open.checks.map((check) => check.id), ["0002"]);
   const resolved = fitnessPlan(state(impacts, { gates: [{ id: "adr-amend-or-contradict", status: "resolved", answer: "yes", source: "user" }] }), sources());
   assert.deepEqual(resolved, { checks: [], manual: [] });
+  // E1.69: a raise opened the gate again, so the departure is not approved yet.
+  const again = [{ id: "adr-amend-or-contradict", status: "resolved", answer: "yes", source: "user" }, { id: "adr-amend-or-contradict", status: "open" }];
+  assert.deepEqual(fitnessPlan(state(impacts, { gates: again }), sources()).checks.map((check) => check.id), ["0002"]);
 });
 
 test("[REQ-idd-022] a manual item carries the evidence recorded for it", () => {

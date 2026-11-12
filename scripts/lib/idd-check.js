@@ -393,13 +393,16 @@ function settleContract(state, { tree, checkEvidence, documents, tests, recorded
 // its id and the ADR ids it cites.
 function impactReason(state, records) {
   const label = (entry) => (entry.kind === "adr" ? `ADR ${entry.id}` : `scenario ${entry.id}`);
-  const gate = state.gates.find((entry) => entry.id === "adr-amend-or-contradict");
+  // An impact raised after an answer opens the gate again (E1.69): every
+  // entry is answered before a departure counts as approved.
+  const gates = state.gates.filter((entry) => entry.id === "adr-amend-or-contradict");
+  const answered = gates.length > 0 && gates.every((entry) => entry.status === "resolved");
   for (const entry of state.impacts || []) {
     const flag = entry.kind === "adr" ? "--adr" : "--quality";
     if (entry.impact == null) {
       return `declare the impact on ${label(entry)}: ospec record impact --change ${state.change} ${flag} ${entry.id} --impact <none|conforms|amends|supersedes|contradicts> --reason <why>`;
     }
-    if (GATED_IMPACTS.includes(entry.impact) && gate?.status !== "resolved") {
+    if (GATED_IMPACTS.includes(entry.impact) && !answered) {
       return `${label(entry)} ${entry.impact}: the user answers adr-amend-or-contradict first`;
     }
     if (entry.kind !== "adr" || !RECORDED_IMPACTS.includes(entry.impact)) continue;
@@ -500,6 +503,13 @@ function pairReason(state, obligationId) {
   }
   if (refused) {
     return `${NO_TEST_ADDED}; the counterproof runs the tests of the diff against the base product, so write the test in a test file, then run the same command again`;
+  }
+  // The latest run passed on the tree of its failing run: no pair, since
+  // nothing the tree fingerprint covers changed between them (E1.64).
+  const latest = runs.at(-1);
+  const sameTree = latest.exit_code === 0 ? all.slice(0, all.indexOf(latest)).findLast((run) => samePairKey(run, latest) && run.exit_code !== 0 && run.tree === latest.tree) : null;
+  if (sameTree) {
+    return `the passing run ${latest.id} ran on the same tree as the failing run ${sameTree.id}: nothing git sees changed between them, so an ignored file or something outside the repository made it pass; put the fix in a file of the project, then run the same command again`;
   }
   return `a failing run is recorded: run the same command again after ${moment}`;
 }

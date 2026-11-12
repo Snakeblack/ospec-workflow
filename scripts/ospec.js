@@ -609,16 +609,17 @@ const COUNTERPROOF_TIMEOUT_MS = 10 * 60 * 1000;
  * or controlled on the same base, reuses that run. It runs outside the state
  * lock; without a base, when the diff adds code to a Rust inline test or
  * changes no product code, or when the base cannot be mounted, it is skipped
- * with the reason.
+ * with the reason. A document the project `context` declares is product
+ * (E1.65).
  */
-function runCounterproof(root, state, { diff, commands, checks = [] }) {
+function runCounterproof(root, state, { diff, commands, checks = [], context }) {
   if (!state.base) return { skipped: "the change has no base commit to run it on" };
   const inline = inlineTests(diff);
   if (inline.length > 0) return { skipped: `the inline tests of ${inline.join(", ")} share the file with the product, so the base cannot run them without the change` };
   // A fix confined to its tests leaves the base product as the candidate's,
   // so nothing tells the two apart; check reopens the pair once the diff
   // changes product code.
-  if (onlyTestsAndDocs(diff)) return { skipped: PRODUCT_FREE_SKIP };
+  if (onlyTestsAndDocs(diff, context)) return { skipped: PRODUCT_FREE_SKIP };
   const paths = counterproofPaths(diff);
   const mount = counterproofMount(root, paths);
   const controlMount = counterproofMount(root, []);
@@ -792,7 +793,7 @@ function settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, ch
   const settled = settleChecks(counterproved?.state ?? fitnessRecorded.state, { tree: checkTree, runIds: recorded.ids, recordedAt });
   const tested = settleBoundary(settled.state, { tree: checkTree, runIds: recorded.ids, recordedAt, tests: addedTests(inputs.diff), counterproof: counterproved?.proof ?? null });
   if (tested.reason) reasons["boundary-tests"] = tested.reason;
-  const bound = settleTreeBound(settleProductFreePairs(tested.state, { productFree: onlyTestsAndDocs(inputs.diff) }), { tree });
+  const bound = settleTreeBound(settleProductFreePairs(tested.state, { productFree: onlyTestsAndDocs(inputs.diff, context) }), { tree });
   const contract = settleContract(bound, { tree: checkTree, checkEvidence: settled.evidence, ...outcome.contractPaths, recordedAt });
   if (contract.reason) reasons["contract-spec-and-test"] = contract.reason;
   const impacts = fitnessDeferred
@@ -842,7 +843,7 @@ async function check(root, values) {
     return result;
   });
   const fitnessRuns = inputs.fitness.checks.map(({ kind, id, command }) => ({ ref: `${kind}:${id}`, command, ...runCommand(command, { cwd: root }) }));
-  const counterproof = settlesBoundary(current, inputs.diff, checks) ? runCounterproof(root, current, { diff: inputs.diff, commands: context.checks, checks: context.checks }) : null;
+  const counterproof = settlesBoundary(current, inputs.diff, checks) ? runCounterproof(root, current, { diff: inputs.diff, commands: context.checks, checks: context.checks, context }) : null;
   const tree = readTreeFingerprint(root);
   const checkTree = readCheckTreeFingerprint(root);
   const recordedAt = new Date().toISOString();
@@ -956,11 +957,11 @@ async function runObligation(root, values) {
   if (!migration && result.exit_code === 0 && pairRed(current.runs || [], { purpose, command: values.command, unit: values.unit, tree })) {
     const diff = inputs?.diff ?? readGitDiff(root, { base: diffBase(values, current) });
     tests = addedTests(diff);
-    if (tests.length > 0) pairCounterproof = runCounterproof(root, current, { diff, commands: [{ command: values.command }], checks: context.checks });
+    if (tests.length > 0) pairCounterproof = runCounterproof(root, current, { diff, commands: [{ command: values.command }], checks: context.checks, context });
   }
   const boundaryCounterproof =
     inputs && settlesBoundary(current, inputs.diff, [checkResult])
-      ? (pairCounterproof ?? runCounterproof(root, current, { diff: inputs.diff, commands: [{ command: onlyCheck.command, name: onlyCheck.name }], checks: context.checks }))
+      ? (pairCounterproof ?? runCounterproof(root, current, { diff: inputs.diff, commands: [{ command: onlyCheck.command, name: onlyCheck.name }], checks: context.checks, context }))
       : null;
 
   let runId;

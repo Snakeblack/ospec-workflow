@@ -53,6 +53,7 @@ flowchart LR
 ## idd/config.yaml: configuración, no estado
 
 - Claves permitidas: `mode`, `strict_tdd`, `team`, `delivery`, `checks`, `impact` y `contracts`. Cualquier otra clave se rechaza con `config-invalid`. Qué decide cada una: [El ciclo de un cambio](/handbook/idd/flujo-idd.md#la-configuración-iddconfigyaml).
+- Es un fichero más del proyecto: entra en el diff del cambio, en la huella del árbol de cada ejecución y en lo que congela la revisión. De `idd/` solo queda fuera lo que escribe ospec, que son el directorio de cada cambio y `idd/archive/`.
 - Es opcional, pero sin al menos un `checks:` ningún cambio IDD puede cerrarse. `ospec next` propone el paso `configure-checks` y el agente pide aprobación antes de escribir el comando. Ni `record`, `next`, `check` ni `doctor` crean este fichero.
 - El mínimo para que un cambio pueda cerrar:
 

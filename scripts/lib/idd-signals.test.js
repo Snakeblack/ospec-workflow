@@ -316,6 +316,14 @@ test("a build script derives no persistent data from content unless impact.defau
   };
   assert.strictEqual(persistent(importsBuild), undefined, "a product file that imports a build script");
   assert.strictEqual(persistent(constantEdit, { defaults: false })?.reason, "persistent data: scripts/postbuild.mjs uses writeFile");
+  // E1.68: a tool script the project declares writes no persistent data.
+  const scanner = { paths: ["scripts/scan.mjs"], addedLines: { "scripts/scan.mjs": [postbuild[3]] }, sources: { "scripts/scan.mjs": { lines: postbuild, imports: {} } } };
+  assert.strictEqual(persistent(scanner)?.reason, "persistent data: scripts/scan.mjs adds writeFile", "undeclared");
+  assert.strictEqual(persistent(scanner, { build_scripts: ["scripts/**"] }), undefined, "declared");
+  assert.strictEqual(persistent(scanner, { defaults: false, build_scripts: ["scripts/**"] }), undefined, "declared, without the defaults");
+  assert.strictEqual(persistent(constantEdit, { defaults: false, build_scripts: ["tools/**"] })?.reason, "persistent data: scripts/postbuild.mjs uses writeFile", "only the declared ones");
+  const guarded = deriveSignals({ intent, diff: scanner, patterns: resolvePatterns({ impact: { build_scripts: ["scripts/**"], security_boundary: ["scripts/**"] } }) }).signals;
+  assert.deepStrictEqual(guarded.map((s) => s.id).filter((id) => id === "security-boundary" || id === "persistent-data"), ["security-boundary"], "the path still derives its other signals");
   const store = { ...constantEdit, paths: ["src/store.js"], addedLines: { "src/store.js": [postbuild[2]] }, sources: { "src/store.js": { lines: postbuild, imports: {} } } };
   assert.strictEqual(persistent(store)?.reason, "persistent data: src/store.js uses writeFile", "a module that is not a build script still counts");
   const productBuild = { paths: ["src/build.ts"], addedLines: { "src/build.ts": [postbuild[3]] }, sources: { "src/build.ts": { lines: postbuild, imports: {} } } };

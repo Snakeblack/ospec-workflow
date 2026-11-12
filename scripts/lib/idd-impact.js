@@ -69,7 +69,8 @@ const DEFAULT_EXCLUDE = Object.freeze(["**/*.md", "**/*.mdx", "docs/**"]);
 // Build scripts and bundler configs write the build output, not persistent
 // data (#416): their content derives no persistent-data. Paths still count. A
 // bare build.* counts only at the root or under scripts/ and tools/, since a
-// product module may share the name.
+// product module may share the name. impact.build_scripts adds the project's
+// own tool scripts (E1.68).
 const BUILD_SCRIPTS = Object.freeze([
   "**/{prebuild,postbuild}.*",
   "build.*",
@@ -194,7 +195,7 @@ function resolvePatterns({ stacks = [], impact = {}, published = [] } = {}) {
   }
   resolved.published = useDefaults ? [...published] : [];
   resolved.exclude = [...new Set([...(useDefaults ? DEFAULT_EXCLUDE : []), ...(impact.exclude || [])])];
-  resolved.build_scripts = useDefaults ? [...BUILD_SCRIPTS] : [];
+  resolved.build_scripts = [...new Set([...(useDefaults ? BUILD_SCRIPTS : []), ...(impact.build_scripts || [])])];
   return resolved;
 }
 
@@ -220,11 +221,24 @@ function matchImpact(file, patterns) {
   return found;
 }
 
+/**
+ * Whether a pattern the project itself declares under impact:, never a
+ * default one, derives a signal from `file` (E1.65). `patterns` are the
+ * resolved ones, whose exclude still wins.
+ */
+function matchesDeclaredImpact(file, impact = {}, patterns) {
+  const normalized = normalizePath(file);
+  if (isExcluded(normalized, patterns)) return false;
+  return Object.keys(CONFIG_KEYS).some((key) => (impact[key] || []).some((glob) => matches(normalized, glob)));
+}
+
 // --- impact: section of idd/config.yaml, parsed by idd-config.js ----------
+
+const LIST_KEYS = Object.freeze(["exclude", "build_scripts", ...Object.keys(CONFIG_KEYS)]);
 
 function validateImpact(impact) {
   for (const key of Object.keys(impact)) {
-    if (!["stack", "defaults", "exclude", ...Object.keys(CONFIG_KEYS)].includes(key)) {
+    if (!["stack", "defaults", ...LIST_KEYS].includes(key)) {
       throw new IddImpactError(`unknown impact key: ${key}`);
     }
   }
@@ -240,7 +254,7 @@ function validateImpact(impact) {
       if (!STACKS.includes(stack)) throw new IddImpactError(`unknown stack: ${stack}`);
     }
   }
-  for (const key of ["exclude", ...Object.keys(CONFIG_KEYS)]) {
+  for (const key of LIST_KEYS) {
     if (key in impact && !Array.isArray(impact[key])) impact[key] = impact[key] === "" ? [] : [impact[key]];
   }
   return impact;
@@ -260,6 +274,7 @@ module.exports = {
   isBuildScript,
   isExcluded,
   matchImpact,
+  matchesDeclaredImpact,
   normalizePath,
   publishedPaths,
   resolvePatterns,

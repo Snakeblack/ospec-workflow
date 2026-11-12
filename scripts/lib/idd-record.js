@@ -34,6 +34,7 @@ const SIGNAL_BY_ID = new Map(SIGNALS.map((signal) => [signal.id, signal]));
 const OBLIGATION_BY_ID = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation]));
 const ALWAYS_REASON = "every change with a resolved intent";
 const IRREVERSIBLE_GATE = "irreversible-operation";
+const IMPACT_GATE = "adr-amend-or-contradict";
 const KIND_CHANGE_GATE = "kind-change";
 // Why repro-test leaves when a bug becomes a feature (#491).
 const KIND_CHANGE_REASON = "the kind moved from bug to feature, which kind-change asks the user to approve";
@@ -321,9 +322,11 @@ function recordGate(state, { id, action, reason, answer, source } = {}) {
   if (id === "checks-changed" && action === "open") {
     refuse("gate-managed-by-check", "checks-changed is opened by ospec check when the checks in idd/config.yaml differ from the change's base");
   }
-  // review-limit, checks-changed and irreversible-operation repeat, one entry
-  // per authorized review (REQ-idd-016), approved set of checks or set of
-  // operations: the open entry is the one to answer, else the latest.
+  // review-limit, checks-changed, irreversible-operation and
+  // adr-amend-or-contradict repeat, one entry per authorized review
+  // (REQ-idd-016), approved set of checks, set of operations or impact raised
+  // after the answer (E1.69): the open entry is the one to answer, else the
+  // latest.
   let index = state.gates.findIndex((gate) => gate.id === id && gate.status === "open");
   if (index === -1) index = state.gates.findLastIndex((gate) => gate.id === id);
   const existing = index === -1 ? null : state.gates[index];
@@ -546,12 +549,17 @@ function recordReferences(state, refs = []) {
   if (missing.length === 0) return unchanged(state);
   const next = structuredClone(state);
   next.impacts = [...(next.impacts || []), ...missing.map(({ kind, id }) => ({ kind, id, impact: null }))];
+  reopenDeclaration(next);
+  return { state: next, changed: true };
+}
+
+// A satisfied adr-impact-declaration covers the impacts it was settled with.
+function reopenDeclaration(next) {
   const declaration = next.obligations.find((entry) => entry.id === "adr-impact-declaration");
   if (declaration?.status === "satisfied") {
     declaration.status = "pending";
     declaration.evidence = [];
   }
-  return { state: next, changed: true };
 }
 
 function requireRecordPath(record) {
@@ -566,19 +574,29 @@ function requireRecordPath(record) {
 // An amendment, a supersession or a contradiction is the user's decision
 // (REQ-idd-008): it opens adr-amend-or-contradict, or adds its reason while
 // the gate is still open. Once the user answered, a new one is refused, so
-// no departure from an ADR passes without being asked.
-function openImpactGate(next, reason) {
-  const gate = next.gates.find((entry) => entry.id === "adr-amend-or-contradict");
-  if (!gate) next.gates.push({ id: "adr-amend-or-contradict", status: "open", reason });
-  else if (gate.status === "open") gate.reason = gate.reason ? `${gate.reason}; ${reason}` : reason;
-  else refuse("gate-resolved", `adr-amend-or-contradict is already resolved (${gate.answer}); declare every amendment before the user answers`);
+// no departure from an ADR passes without being asked; an impact raised then
+// (E1.69) opens the gate again, in another entry, since the user answered
+// while it was declared lower.
+function openImpactGate(next, reason, { raised = false } = {}) {
+  const gates = next.gates.filter((entry) => entry.id === IMPACT_GATE);
+  const open = gates.find((entry) => entry.status === "open");
+  if (open) open.reason = open.reason ? `${open.reason}; ${reason}` : reason;
+  else if (gates.length === 0 || raised) next.gates.push({ id: IMPACT_GATE, status: "open", reason });
+  else refuse("gate-resolved", `${IMPACT_GATE} is already resolved (${gates.at(-1).answer}); declare every amendment before the user answers`);
+}
+
+// An impact is only raised (E1.69): from none to conforms, and from either to
+// an amendment, a supersession or a contradiction.
+function impactRank(impact) {
+  return GATED_IMPACTS.includes(impact) ? 2 : IMPACTS.indexOf(impact);
 }
 
 /**
  * Declares the impact of a change on one declared architecture reference
  * (E3.1, REQ-idd-005): none, conforms, amends, supersedes or contradicts, with
- * its reason. An impact is declared once; afterwards only the new ADR that
- * amends or supersedes an ADR can be attached with `record`.
+ * its reason. An impact is declared once; afterwards it can only be raised,
+ * keeping what it replaces in `previous` (E1.69), and the new ADR that amends
+ * or supersedes an ADR can be attached with `record`.
  */
 function recordImpact(state, { kind, id, impact, reason, record } = {}) {
   requireOpen(state);
@@ -600,10 +618,14 @@ function recordImpact(state, { kind, id, impact, reason, record } = {}) {
   } else {
     if (!IMPACTS.includes(impact)) refuse("invalid-impact", `impact must be one of ${IMPACTS.join(", ")}, got ${impact}`);
     requireText(reason, "reason-required", `the impact on ${label} needs a reason`);
-    if (entry.impact != null && (entry.impact !== impact || entry.reason !== reason)) {
+    if (entry.impact != null && entry.impact !== impact && impactRank(impact) <= impactRank(entry.impact)) {
+      refuse("impact-conflict", `${label} is already declared as ${entry.impact}: ${entry.reason}; an impact is only raised, from none or conforms`);
+    }
+    if (entry.impact === impact && entry.reason !== reason) {
       refuse("impact-conflict", `${label} is already declared as ${entry.impact}: ${entry.reason}`);
     }
   }
+  const raised = impact != null && entry.impact != null && entry.impact !== impact;
   const value = impact ?? entry.impact;
   if (file !== undefined && !canRecord(value)) {
     refuse("invalid-record", `only an ADR amended or superseded names its new ADR; ${label} is ${value}`);
@@ -611,14 +633,18 @@ function recordImpact(state, { kind, id, impact, reason, record } = {}) {
   if (file !== undefined && entry.record !== undefined && entry.record !== file) {
     refuse("impact-conflict", `${label} already names its new ADR ${entry.record}`);
   }
-  if (entry.impact != null && (file === undefined || entry.record === file)) return unchanged(state);
+  if (entry.impact != null && !raised && (file === undefined || entry.record === file)) return unchanged(state);
 
   const next = structuredClone(state);
   const target = next.impacts.find((item) => item.kind === kind && item.id === id);
-  if (target.impact == null) {
+  if (target.impact == null || raised) {
+    if (raised) {
+      target.previous = [...(target.previous || []), { impact: target.impact, reason: target.reason }];
+      reopenDeclaration(next);
+    }
     target.impact = impact;
     target.reason = reason;
-    if (GATED_IMPACTS.includes(impact)) openImpactGate(next, `${label} ${impact}: ${reason}`);
+    if (GATED_IMPACTS.includes(impact)) openImpactGate(next, `${label} ${impact}: ${reason}`, { raised });
   }
   if (file !== undefined) target.record = file;
   return { state: next, changed: true };

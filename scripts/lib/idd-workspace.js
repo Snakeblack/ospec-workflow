@@ -18,11 +18,11 @@ const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
 const { candidateCheckCommand } = require("./idd-checks-config.js");
 const { MAP_RELATIVE } = require("./decision-gap.js");
 const { lintDecisionRecord, parseAdrMarkdown, parseFitnessChecks } = require("./decision-records.js");
-const { resolveContractPatterns } = require("./idd-contracts.js");
+const { classifyContractPaths, resolveContractPatterns } = require("./idd-contracts.js");
 const { validateComponentMap } = require("./component-map.js");
 const { COMPONENT_MAP_RELATIVE, GLOSSARY_RELATIVE, parseGlossaryTerms } = require("./idd-knowledge.js");
 const { evidenceProblem } = require("./repository-evidence.js");
-const { detectStacks, normalizePath, publishedPaths, resolvePatterns } = require("./idd-impact.js");
+const { detectStacks, matchesDeclaredImpact, normalizePath, publishedPaths, resolvePatterns } = require("./idd-impact.js");
 const { classifyPath, isTestPath } = require("./idd-signals.js");
 
 const MAX_UNTRACKED_BYTES = 1024 * 1024;
@@ -207,13 +207,17 @@ function nulList(output) {
   return output.split("\0").filter(Boolean);
 }
 
-// Never part of a change's diff: its own state under idd/, the review
-// receipts the SubagentStop hook writes (REQ-hooks-027) and the turn count of
-// the Stop hook (E1.49), even where .ospec/ is not ignored.
-const OWN_ROOTS = [CHANGE_ROOT, RECEIPTS_DIR, TURNS_FILE];
-const OWN_EXCLUDES = OWN_ROOTS.map((own) => `:(exclude)${own}`);
+// Never part of a change's diff: what ospec writes. Under idd/ that is each
+// change and the archive, a directory apiece; a file directly under idd/, as
+// idd/config.yaml, is the project's (E1.64). Outside it, the review receipts
+// the SubagentStop hook writes (REQ-hooks-027) and the turn count of the Stop
+// hook (E1.49), even where .ospec/ is not ignored.
+const OWN_ROOTS = [RECEIPTS_DIR, TURNS_FILE];
+const CHANGE_DIRS = `:(exclude,glob)${CHANGE_ROOT}/*/**`;
+const OWN_EXCLUDES = [CHANGE_DIRS, ...OWN_ROOTS.map((own) => `:(exclude)${own}`)];
 
 function isIddState(file) {
+  if (file.startsWith(`${CHANGE_ROOT}/`) && file.includes("/", CHANGE_ROOT.length + 1)) return true;
   return OWN_ROOTS.some((own) => file === own || file.startsWith(`${own}/`));
 }
 
@@ -524,7 +528,8 @@ const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 /**
  * Digest of the working tree a run executed on (REQ-idd-014): HEAD, the binary
  * diff of tracked files against it and the content of every untracked file.
- * The change's own state under idd/ and the review receipts never count.
+ * The changes and the archive under idd/, the review receipts and the turn
+ * count never count; idd/config.yaml does (E1.64).
  */
 function readTreeFingerprint(root) {
   requireWorkTree(root);
@@ -575,7 +580,8 @@ function readCheckTreeFingerprint(root, checks = parseIddConfig(readIddConfig(ro
 
 /**
  * The working tree as a git tree object (REQ-idd-016): tracked and untracked
- * files, never ignored ones, idd/, the review receipts nor the turn count. A throwaway index keeps the real index
+ * files, never ignored ones, the changes and the archive under idd/, the
+ * review receipts nor the turn count. A throwaway index keeps the real index
  * untouched; the tree lands in the object store, so a later diff can compare
  * the reviewed candidate with the current tree.
  */
@@ -586,7 +592,7 @@ function snapshotTree(root) {
   const env = { GIT_INDEX_FILE: path.join(dir, "index") };
   try {
     git(root, head ? ["read-tree", head] : ["read-tree", "--empty"], { env });
-    git(root, ["add", "-A", "--", ".", `:(exclude)${CHANGE_ROOT}`], { env });
+    git(root, ["add", "-A", "--", ".", CHANGE_DIRS], { env });
     // git add refuses an exclude pathspec that names an ignored path, so the
     // receipts and the turn count go back to their HEAD state in the
     // throwaway index instead.
@@ -703,13 +709,23 @@ function counterproofPaths(diff) {
   return (diff.paths || []).filter((file) => isTestPath(file) || TEST_DATA.test(file));
 }
 
+// A document the project declares as its product (E1.65): one of its
+// contracts.documents, or a path one of its own impact patterns derives a
+// signal from. The default patterns declare nothing.
+function isDeclaredProduct(file, { impact, patterns, contracts } = {}) {
+  if (classifyContractPaths([file], { documents: contracts?.documents || [], tests: [] }).documents.length > 0) return true;
+  return Boolean(patterns) && matchesDeclaredImpact(file, impact, patterns);
+}
+
 /**
  * Whether the diff changes only tests, test data and documentation: on the
- * base, a counterproof would run the candidate's own product.
+ * base, a counterproof would run the candidate's own product. `context` is
+ * the project context, whose declared documents are product.
  */
-function onlyTestsAndDocs(diff) {
+function onlyTestsAndDocs(diff, context) {
   const tests = new Set(counterproofPaths(diff));
-  return tests.size > 0 && (diff.paths || []).every((file) => tests.has(file) || classifyPath(file) === "docs");
+  const documentation = (file) => classifyPath(file) === "docs" && !isDeclaredProduct(file, context);
+  return tests.size > 0 && (diff.paths || []).every((file) => tests.has(file) || documentation(file));
 }
 
 /**

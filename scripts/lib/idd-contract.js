@@ -652,14 +652,22 @@ function validateImpacts(impacts, fail) {
     if (seen.has(`${entry.kind}:${entry.id}`)) fail(`${label} is declared twice`);
     seen.add(`${entry.kind}:${entry.id}`);
     for (const key of Object.keys(entry)) {
-      if (!["kind", "id", "impact", "reason", "record"].includes(key)) fail(`${label} has unknown field ${key}`);
+      if (!["kind", "id", "impact", "reason", "previous", "record"].includes(key)) fail(`${label} has unknown field ${key}`);
     }
     if (entry.impact === null) {
-      if (entry.reason !== undefined || entry.record !== undefined) fail(`${label} has a reason or record before its impact`);
+      if (entry.reason !== undefined || entry.record !== undefined || entry.previous !== undefined) fail(`${label} has a reason, record or previous impact before its impact`);
       continue;
     }
     if (!IMPACTS.includes(entry.impact)) fail(`${label} must be one of ${IMPACTS.join(", ")}`);
     if (!isText(entry.reason)) fail(`${label} needs the reason for its impact`);
+    // E1.69: what a raised impact replaced, oldest first, each lower than the next.
+    if (entry.previous !== undefined) {
+      const steps = Array.isArray(entry.previous) ? [...entry.previous, entry] : [];
+      const rank = (step) => (GATED_IMPACTS.includes(step?.impact) ? 2 : ["none", "conforms"].indexOf(step?.impact));
+      const raised = steps.length > 1 && steps.every((step, index) => isText(step?.reason) && (index === 0 ? rank(step) >= 0 : rank(step) > rank(steps[index - 1])));
+      const plain = steps.slice(0, -1).every((step) => Object.keys(step).every((key) => ["impact", "reason"].includes(key)));
+      if (!raised || !plain) fail(`${label}: previous lists the lower impacts it was raised from, each with its reason`);
+    }
     if (entry.record !== undefined && (!isText(entry.record) || entry.kind !== "adr" || !RECORDED_IMPACTS.includes(entry.impact))) {
       fail(`${label}: only an ADR amended or superseded names its new record`);
     }

@@ -530,6 +530,33 @@ test("an undeclared impact or an unanswered gate keeps the declaration pending w
   const amended = recordImpact(declaring(), { kind: "adr", id: "0002", impact: "amends", reason: "events" }).state;
   const waiting = settleImpacts(amended, { records: {}, recordedAt: AT });
   assert.match(waiting.reason, /ADR 0002 amends: the user answers adr-amend-or-contradict first/);
+
+  // E1.69: a raise after the answer opened the gate again.
+  let raised = recordImpact(declaring([{ kind: "adr", id: "0002" }, { kind: "adr", id: "0004" }]), { kind: "adr", id: "0002", impact: "contradicts", reason: "events" }).state;
+  raised = recordImpact(raised, { kind: "adr", id: "0004", impact: "conforms", reason: "one store" }).state;
+  raised = recordGate(raised, { id: "adr-amend-or-contradict", action: "resolve", answer: "accepted", source: "user" }).state;
+  assert.strictEqual(settleImpacts(raised, { records: {}, recordedAt: AT }).reason, null);
+  raised = recordImpact(raised, { kind: "adr", id: "0004", impact: "contradicts", reason: "two stores" }).state;
+  assert.match(settleImpacts(raised, { records: {}, recordedAt: AT }).reason, /ADR 0002 contradicts: the user answers adr-amend-or-contradict first/);
+  raised = recordGate(raised, { id: "adr-amend-or-contradict", action: "resolve", answer: "accepted too", source: "user" }).state;
+  const settled = settleImpacts(raised, { records: {}, recordedAt: AT });
+  assert.strictEqual(settled.reason, null);
+  assert.deepStrictEqual(settled.state.evidence.at(-1).detail.refs, ["adr:0002 contradicts", "adr:0004 contradicts"]);
+});
+
+// E1.64 idd-config-in-diff: a passing run on the tree of its failing run
+// closes no pair, and the reason says so.
+test("[E1.64] a passing run on the same tree as its failing run says nothing the tree covers changed", () => {
+  const same = recordRuns(openBug(), [reproRun(), reproRun({ exit_code: 0 })]).state;
+  assert.strictEqual(
+    checkVerdict(same, { checks: [] }).missing[0].reason,
+    "the passing run run-2 ran on the same tree as the failing run run-1: nothing git sees changed between them, so an ignored file or something outside the repository made it pass; put the fix in a file of the project, then run the same command again",
+  );
+  const red = recordRuns(openBug(), [reproRun()]).state;
+  assert.strictEqual(checkVerdict(red, { checks: [] }).missing[0].reason, "a failing run is recorded: run the same command again after the fix");
+  // A later failing run on another tree is the one to pair.
+  const moved = recordRuns(same, [reproRun({ tree: TREE_B })]).state;
+  assert.strictEqual(checkVerdict(moved, { checks: [] }).missing[0].reason, "a failing run is recorded: run the same command again after the fix");
 });
 
 test("an amendment needs its new ADR to exist, pass the lint, be new and cite the amended ADR", () => {
@@ -672,6 +699,10 @@ test("[E1.53] ceremony settings that differ from the base open checks-changed wi
   assert.strictEqual(settleChecksChange(resolved, { baseChecks: checks, checks, baseConfig: base, config: lowered }).gates.length, 1, "the answer approves these settings");
   const other = settleChecksChange(resolved, { baseChecks: checks, checks, baseConfig: base, config: ceremonyConfig({ strictTdd: false }) });
   assert.deepStrictEqual(other.gates.map((gate) => gate.status), ["resolved", "open"], "other settings need another answer");
+
+  // E1.68: the build scripts a project declares are ceremony too.
+  const declared = settleChecksChange(openBug(), { baseChecks: checks, checks, baseConfig: base, config: ceremonyConfig({ strictTdd: true, impact: { exclude: ["a/**", "b/**"], build_scripts: ["scripts/**"] } }) });
+  assert.strictEqual(declared.gates[0].reason, "impact declares build_scripts [scripts/**], exclude [a/**, b/**], and the base declares exclude [a/**, b/**]");
 
   // An entry recorded before E1.53 approved its checks with the base settings.
   const legacy = { ...structuredClone(resolved), gates: [{ ...resolved.gates[0], config: undefined }] };

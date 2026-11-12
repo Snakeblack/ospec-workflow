@@ -737,8 +737,71 @@ test("none and conforms open no gate, and an impact is declared once", () => {
   assert.deepStrictEqual(first.state.impacts, [{ kind: "adr", id: "0002", impact: "conforms", reason: "keeps direct calls" }]);
   assertValid(first.state);
   assert.strictEqual(recordImpact(first.state, { ...ADR_0002, impact: "conforms", reason: "keeps direct calls" }).changed, false);
-  assertCode(() => recordImpact(first.state, { ...ADR_0002, impact: "amends", reason: "keeps direct calls" }), "impact-conflict");
+  assertCode(() => recordImpact(first.state, { ...ADR_0002, impact: "none", reason: "keeps direct calls" }), "impact-conflict");
   assertCode(() => recordImpact(first.state, { ...ADR_0002, impact: "conforms", reason: "other" }), "impact-conflict");
+});
+
+// E1.69 impact-raise: an impact declared too low is raised before close.
+test("[E1.69] an impact is raised from none or conforms, keeping what it replaces, and never lowered", () => {
+  const conforms = recordImpact(withReferences(), { ...ADR_0002, impact: "conforms", reason: "keeps direct calls" }).state;
+  const raised = recordImpact(conforms, { ...ADR_0002, impact: "amends", reason: "events between modules" });
+  assert.strictEqual(raised.changed, true);
+  assert.deepStrictEqual(raised.state.impacts, [
+    { kind: "adr", id: "0002", impact: "amends", reason: "events between modules", previous: [{ impact: "conforms", reason: "keeps direct calls" }] },
+  ]);
+  assert.deepStrictEqual(raised.state.gates, [{ id: "adr-amend-or-contradict", status: "open", reason: "ADR 0002 amends: events between modules" }]);
+  assertValid(raised.state);
+  assert.strictEqual(recordImpact(raised.state, { ...ADR_0002, impact: "amends", reason: "events between modules" }).changed, false);
+  for (const impact of ["none", "conforms", "supersedes", "contradicts"]) {
+    assertCode(() => recordImpact(raised.state, { ...ADR_0002, impact, reason: "other" }), "impact-conflict");
+  }
+  assertCode(() => recordImpact(conforms, { ...ADR_0002, impact: "amends" }), "reason-required");
+
+  const none = recordImpact(withReferences(), { ...ADR_0002, impact: "none", reason: "untouched" }).state;
+  const step = recordImpact(none, { ...ADR_0002, impact: "conforms", reason: "keeps direct calls" }).state;
+  assert.deepStrictEqual(step.gates, [], "none to conforms opens no gate");
+  assertCode(() => recordImpact(step, { ...ADR_0002, impact: "none", reason: "untouched" }), "impact-conflict");
+  const top = recordImpact(step, { ...ADR_0002, impact: "supersedes", reason: "events", record: RECORD }).state;
+  assert.deepStrictEqual(top.impacts[0], {
+    kind: "adr",
+    id: "0002",
+    impact: "supersedes",
+    reason: "events",
+    previous: [{ impact: "none", reason: "untouched" }, { impact: "conforms", reason: "keeps direct calls" }],
+    record: RECORD,
+  });
+  assertValid(top);
+});
+
+test("[E1.69] a raise reopens a satisfied declaration, and one after the user answered opens the gate again", () => {
+  const SCENARIO = { kind: "scenario", id: "deterministic-resume" };
+  let state = withReferences([ADR_0002, SCENARIO, { kind: "adr", id: "0004" }, { kind: "adr", id: "0005" }]);
+  state = recordImpact(state, { ...ADR_0002, impact: "amends", reason: "events" }).state;
+  state = recordImpact(state, { ...SCENARIO, impact: "conforms", reason: "replays the same" }).state;
+  state = recordImpact(state, { kind: "adr", id: "0004", impact: "none", reason: "untouched" }).state;
+  state = recordGate(state, { id: "adr-amend-or-contradict", action: "resolve", answer: "amend it", source: "user" }).state;
+  state = recordEvidence(state, { id: "ev-1", kind: "adr-impact-declaration", obligation: "adr-impact-declaration", recordedAt: "t", detail: { refs: ["adr:0002 amends"], records: [] } }).state;
+
+  const raised = recordImpact(state, { ...SCENARIO, impact: "contradicts", reason: "replays differ" }).state;
+  assert.deepStrictEqual(raised.gates, [
+    { id: "adr-amend-or-contradict", status: "resolved", reason: "ADR 0002 amends: events", answer: "amend it", source: "user" },
+    { id: "adr-amend-or-contradict", status: "open", reason: "scenario deterministic-resume contradicts: replays differ" },
+  ]);
+  const obligation = raised.obligations.find((entry) => entry.id === "adr-impact-declaration");
+  assert.deepStrictEqual([obligation.status, obligation.evidence], ["pending", []]);
+  assertValid(raised);
+
+  // While it is open again, another raise and a first declaration add their reasons.
+  const both = recordImpact(raised, { kind: "adr", id: "0004", impact: "amends", reason: "one store" }).state;
+  const three = recordImpact(both, { kind: "adr", id: "0005", impact: "contradicts", reason: "no evidence" }).state;
+  assert.strictEqual(three.gates.length, 2);
+  assert.strictEqual(three.gates[1].reason, "scenario deterministic-resume contradicts: replays differ; ADR 0004 amends: one store; ADR 0005 contradicts: no evidence");
+
+  // The answer goes to the open entry; afterwards a first declaration is refused as before.
+  const answered = recordGate(raised, { id: "adr-amend-or-contradict", action: "resolve", answer: "approved too", source: "user" }).state;
+  assert.deepStrictEqual(answered.gates.map((gate) => [gate.status, gate.answer]), [["resolved", "amend it"], ["resolved", "approved too"]]);
+  assertCode(() => recordImpact(answered, { kind: "adr", id: "0005", impact: "amends", reason: "late" }), "gate-resolved");
+  assertCode(() => recordImpact(state, { kind: "adr", id: "0005", impact: "amends", reason: "late" }), "gate-resolved");
 });
 
 test("amends, supersedes and contradicts open adr-amend-or-contradict naming the reference", () => {
