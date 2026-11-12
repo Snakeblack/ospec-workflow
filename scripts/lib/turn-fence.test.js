@@ -119,7 +119,7 @@ test("a gate opened by the command takes the turn, one it left as it was keeps i
 
   const opened = state({ id: "ambiguous-intent", status: "open" });
   fenceGates(null, opened, null);
-  assert.strictEqual(opened.gates[0].opened_turn, null, "no count: the gate opens with none");
+  assert.strictEqual(opened.gates[0].opened_turn, 0, "E1.66: no count yet, so no turn has ended");
 });
 
 test("a checks-changed asked again about other checks opens again at the new turn", () => {
@@ -158,7 +158,8 @@ test("an answer declared user without a turn end after the opening is recorded u
   const cases = [
     { opened: 3, turn: 3, reason: /^no turn ended between the gate's opening and the answer$/, remedy: /^ask the next gate by ending your turn/ },
     { opened: 3, turn: null, reason: /^no turn count in \.ospec\/turns: no end-of-turn hook ran/, remedy: /^install or repair the host's ospec hooks/ },
-    { opened: null, turn: 1, reason: /^no turn count in \.ospec\/turns when the gate opened$/, remedy: /^the turns are counted now/ },
+    { opened: 0, turn: null, reason: /^no turn count in \.ospec\/turns: no end-of-turn hook ran/, remedy: /^install or repair the host's ospec hooks/ },
+    { opened: 0, turn: 0, reason: /^no turn ended between the gate's opening and the answer$/, remedy: /^ask the next gate by ending your turn/ },
   ];
   for (const { opened, turn, reason, remedy } of cases) {
     const before = state({ id: "irreversible-operation", status: "open", opened_turn: opened });
@@ -173,6 +174,28 @@ test("an answer declared user without a turn end after the opening is recorded u
     assert.deepStrictEqual([unverified[0].gate, unverified[0].reason], ["irreversible-operation", gate.unverified_reason]);
     assert.match(unverified[0].remedy, remedy, "the remedy fits the reason");
   }
+});
+
+// E1.66 first-gate-turn-fence: .ospec/turns appears with the first turn end,
+// so a gate opened before it counts from 0.
+test("[E1.66] a gate opened before any turn was counted keeps user once a turn ended", () => {
+  const opened = state({ id: "open-facts", status: "open" });
+  fenceGates(null, opened, null);
+  const after = state({ ...opened.gates[0], status: "resolved", answer: "20", source: "user" });
+  assert.deepStrictEqual(fenceGates(opened, after, 1), []);
+  assert.deepStrictEqual(after.gates[0], { id: "open-facts", status: "resolved", answer: "20", source: "user", opened_turn: 0, resolved_turn: 1 });
+
+  // A gate an earlier CLI opened without a count holds null: it counts from 0 too.
+  const before = state({ id: "open-facts", status: "open", opened_turn: null });
+  const legacy = state({ id: "open-facts", status: "resolved", answer: "20", source: "user", opened_turn: null });
+  assert.deepStrictEqual(fenceGates(before, legacy, 3), []);
+  assert.deepStrictEqual([legacy.gates[0].source, legacy.gates[0].opened_turn, legacy.gates[0].resolved_turn], ["user", 0, 3]);
+
+  // Still without a count at the answer, no hook ever ran.
+  const uncounted = state({ id: "open-facts", status: "resolved", answer: "20", source: "user", opened_turn: null });
+  const [fenced] = fenceGates(before, uncounted, null);
+  assert.match(fenced.reason, /^no turn count in \.ospec\/turns: no end-of-turn hook ran/);
+  assert.deepStrictEqual([uncounted.gates[0].source, uncounted.gates[0].opened_turn, uncounted.gates[0].resolved_turn], ["user-unverified", 0, null]);
 });
 
 test("a relayed answer, an earlier answer and a gate opened before E1.49 are left as they are", () => {

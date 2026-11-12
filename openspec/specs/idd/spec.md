@@ -99,7 +99,9 @@ REQ-idd-006, with its `id`, `reason`, `source` and `retract_reason`, plus
 retracted it), `impacts`
 (each declared architecture reference of REQ-idd-020, with its `kind`, `adr` or
 `scenario`, its `id`, its `impact`, null until declared, the `reason` once
-declared and, for an ADR amended or superseded, the `record` that does it),
+declared, the `previous` impacts it was raised from, oldest first, each with
+its `impact` and `reason` (REQ-idd-020), and, for an ADR amended or
+superseded, the `record` that does it),
 `attestations` (the manual evidence of a fitness function no command checks,
 REQ-idd-022: one per declared reference, with its `kind`, `id`, `evidence` and
 `recorded_at`), `runs` (each
@@ -454,11 +456,13 @@ that one. A sibling worktree adds nothing, and neither does a bare main
 repository nor a `.git` file without `commondir`. A gate the write opens, or changes while
 open (a `checks-changed` asked again about other checks, an
 `irreversible-operation` that takes in another operation), MUST keep the count
-as `opened_turn`, null without one; an open gate the write leaves as it was
-keeps its own. A gate the write resolves MUST keep the count as
-`resolved_turn` when it has an `opened_turn`, and an answer declared `user`
-MUST be recorded `user-unverified`, with `declared_source` `user` and an
-`unverified_reason`, unless both counts exist and differ. A count lower than
+as `opened_turn`, 0 without one, since `.ospec/turns` appears with the first
+turn end; an open gate the write leaves as it was keeps its own. A gate the
+write resolves MUST keep the count as `resolved_turn` when it has an
+`opened_turn`, counting from 0 one that an earlier CLI opened as null, and an
+answer declared `user` MUST be recorded `user-unverified`, with
+`declared_source` `user` and an `unverified_reason`, unless the answer has a
+count and it differs from `opened_turn`. A count lower than
 `opened_turn` started again after `.ospec/turns` was lost, and a Stop has
 counted since, so it is a turn end too. A gate opened before E1.49 has no
 `opened_turn` and keeps the source it is answered with; `record retract` opens
@@ -468,9 +472,8 @@ source, it MUST be refused with `gate-conflict`, whose message says which of
 the two differs. `record gate` and `record intent` MUST warn about each answer
 they recorded so, naming the gate, the reason, that the answer stays
 `user-unverified`, and the remedy for the next answers: without a count,
-installing or repairing the host's hooks; without a count at the opening,
-none, since the turns are counted now; without a turn end in between, ending
-the turn with the next gate's questions. `close` MUST warn about every gate
+installing or repairing the host's hooks; without a turn end in between,
+ending the turn with the next gate's questions. `close` MUST warn about every gate
 answered `user-unverified`, with the reason of a fenced one. Nothing of this
 blocks. `validateState` MUST refuse a turn that is not a whole number or null,
 a `resolved_turn` without an `opened_turn` or on an open gate, a
@@ -494,6 +497,16 @@ leaves the review receipts.
 - AND had the count been 4 at the answer, the gate MUST keep `source` `user`
   with `resolved_turn` 4 and no warning, and so had `.ospec/turns` been lost
   and counted again to 1
+
+#### Scenario: The first gate of a repository keeps user once a turn ended
+
+- GIVEN a repository without `.ospec/turns` when `irreversible-operation` opens
+- WHEN the turn ends, so `.ospec/turns` holds 1, and the gate is resolved with
+  `--source user`
+- THEN the gate MUST hold `source` `user`, `opened_turn` 0 and `resolved_turn`
+  1, and neither `record gate` nor `close` MUST warn about it
+- AND had no turn end been counted at the answer, the gate MUST hold `source`
+  `user-unverified` with the reason that no end-of-turn hook ran
 
 #### Scenario: A worktree outside the project reads the main repository's count
 
@@ -1003,13 +1016,14 @@ path-driven signal and brings only the lines it changes, and one that keeps its
 content, staged, committed or moved without `git add` (an untracked file with
 the content of a file the diff deletes, one untracked file for each deleted
 one), MUST bring no lines and MUST NOT count as a changed product file. A signal both planned and in the
-diff MUST keep `source: declaration`. Paths under `idd/` MUST NOT count. Every signal MUST
+diff MUST keep `source: declaration`. Paths under a directory of `idd/` (a change or the archive, which ospec writes) MUST NOT count; a file directly under `idd/`, as `idd/config.yaml`, is a path of the project like any other. Every signal MUST
 carry a reason naming why it fired, and a path-driven reason MUST name a
 matching path and the pattern it matched. The impact patterns MUST be base
 patterns for any project plus defaults for each stack detected from its
 manifest at the project root (`node`, `jvm`, `dotnet`, `python`, `go`), plus the
 lists of the `impact:` section of `idd/config.yaml` (`public_contract`,
-`persistent_data`, `security_boundary`). The `public-contract` defaults MUST
+`persistent_data`, `security_boundary`) and, for the build scripts, of its
+`build_scripts` list. The `public-contract` defaults MUST
 also hold, by exact path, the files a `package.json` at the project root
 publishes unless it is `private` (`main`, `types`, `typings`, `bin` and every
 path of `exports`), and their reason MUST say "published by package.json"
@@ -1040,7 +1054,8 @@ content, and the import is never followed through a symlink or out of the
 repository. Build scripts write the build output, not persistent data: unless
 `impact.defaults` is `false`, a file matching `**/{prebuild,postbuild}.*`,
 `build.*` at the root, `**/{scripts,tools}/**/build.*`, `**/scripts/build/**`
-or `**/{vite,astro,webpack,rollup}.config.*` MUST NOT
+or `**/{vite,astro,webpack,rollup}.config.*`, and in any case a file matching
+a pattern of `impact.build_scripts`, the project's own tool scripts, MUST NOT
 derive `persistent-data` by content, as the touched file or as the imported
 module, while its path still counts for every path-driven signal. Added lines MUST derive `public-contract` when documentation
 states a selector contract (`getElementById`, `querySelector`, `` `#id` ``) or
@@ -1165,6 +1180,16 @@ irreversible operation no entry lists opens its own (REQ-idd-008). While
 - AND with `impact.defaults: false` it MUST be recorded with the reason
   "persistent data: scripts/postbuild.mjs uses writeFile"
 
+#### Scenario: A tool script the project declares derives no persistent data
+
+- GIVEN `impact.build_scripts: ["scripts/**"]` and
+  `impact.security_boundary: ["scripts/**"]` in `idd/config.yaml`, and a diff
+  that adds a `writeFile` call to `scripts/scan.mjs`
+- WHEN its signals are derived
+- THEN `persistent-data` MUST NOT be active and `security-boundary` MUST be
+- AND without `impact.build_scripts` it MUST be recorded with the reason
+  "persistent data: scripts/scan.mjs adds writeFile"
+
 #### Scenario: Documentation about a boundary derives nothing
 
 - GIVEN a `docs` change that only touches `docs/security/token-rotation.md` in a
@@ -1283,14 +1308,16 @@ ambiguous intent. A run MUST hold `id`, `purpose` (`checks`, `repro-test`,
 fitness check of REQ-idd-022, the `ref` (`adr:<id>` or `scenario:<id>`) it
 checks. `tree` MUST digest the
 working tree the run executed on: `HEAD`, the binary diff of tracked files
-against it and the content of untracked files, never the change state under
-`idd/`. A check run MUST also bind the effective verifier list from
-`idd/config.yaml`: each check's name, command and declared order. Missing
-configuration is an empty list. Other IDD configuration and state MUST NOT
-change this check identity. `ospec run` evidence MUST continue to exclude all
-of `idd/`, so changing a verifier cannot create a different tree for a
-reproduction pair. The source-tree identity used to settle migration-test
-evidence MUST also remain independent of the verifier list. A command that
+against it and the content of untracked files, never what ospec writes under
+`idd/`: the directory of each change and the archive. `idd/config.yaml`, as
+any file directly under `idd/`, is a file of the project: it MUST count in the
+tree, in the diff of the change and in the snapshot a review freezes, so a
+fix that lives only in it moves the tree of its reproduction pair and is
+product for its counterproof. A check run MUST also bind the effective
+verifier list from `idd/config.yaml`: each check's name, command and declared
+order. Missing configuration is an empty list. The state of a change MUST NOT
+change this check identity. The source-tree identity used to settle
+migration-test evidence MUST remain independent of the verifier list. A command that
 cannot start or ends by a signal MUST NOT count as passing.
 
 `check-run` evidence MUST name its tree and the runs of one `check` in which
@@ -1352,7 +1379,11 @@ pair names its counterproof runs. Without a base commit, when the diff adds
 code to a Rust inline test, which shares its file with the product, when the
 diff changes only tests, test data and documentation, so the base runs the
 candidate's own product, or when the base cannot be mounted, the counterproof
-MUST be skipped: the evidence records the reason in `counterproof_skipped`,
+MUST be skipped. A document the project declares is its product, not
+documentation: one matching `contracts.documents` of `idd/config.yaml`, or one
+a pattern of its own `impact:` lists derives a signal from (never a default
+pattern, and never a path `impact.exclude` or the default exclusions remove).
+When skipped, the evidence records the reason in `counterproof_skipped`,
 and `run`, `check` and `close` MUST warn about it, as `close` warns about a
 counterproof that timed out. A pair skipped for a diff without product code
 says nothing of product code the diff changes later: once it does, `check`
@@ -1587,7 +1618,9 @@ one `ospec review` returns.
 - AND its control, without the reproduction test, MUST pass or fail another way
 - AND `repro-run-pair` evidence MUST name both runs, that counterproof and its
   control, and `repro-test` MUST be `satisfied`
-- AND a passing run on the same tree as the failing one MUST NOT record it
+- AND a passing run on the same tree as the failing one MUST NOT record it,
+  and the reason of the pending obligation MUST say that nothing git sees
+  changed between the two runs
 - AND a check on the same base and tests MUST reuse the counterproof without
   running it again
 
@@ -1713,7 +1746,7 @@ does. `ospec review start` MUST freeze the candidate (the paths the diff
 changes against the change's base, the empty tree at a null base so that what
 the change commits stays in it, a digest of their content on both sides and
 the changed line counts, from a snapshot of the working tree that excludes
-`idd/`) and return the request for the independent `review-trust` reviewer;
+the changes and the archive under `idd/`) and return the request for the independent `review-trust` reviewer;
 while a review is in progress it MUST return that review instead.
 The request MUST carry a `request_digest` of its lineage, generation,
 candidate tree and paths, and the `result_contract` the result follows. Each
@@ -2267,10 +2300,19 @@ signal (REQ-idd-021).
 
 `ospec record impact --adr <id>|--quality <id> --impact <value> --reason <text>`
 MUST declare the impact on one declared reference: `none`, `conforms`,
-`amends`, `supersedes` or `contradicts`. An impact MUST be declared once; a
-different value or reason for it MUST be refused. `amends`, `supersedes` and
+`amends`, `supersedes` or `contradicts`. An impact MUST be declared once;
+afterwards it MAY only be raised, with its new reason: from `none` to
+`conforms`, and from either to `amends`, `supersedes` or `contradicts`. The
+impact it replaces MUST be kept, with its reason, in `previous`, and a
+satisfied `adr-impact-declaration` MUST return to `pending`. A lower value, a
+move among `amends`, `supersedes` and `contradicts`, or another reason for the
+same value MUST be refused with `impact-conflict`. `amends`, `supersedes` and
 `contradicts` MUST open `adr-amend-or-contradict`, or add their reason to it
-while it is open; once the gate is resolved, a new one MUST be refused. An ADR
+while it is open; once the gate is resolved, a first declaration of one MUST
+be refused, and an impact raised to one MUST open the gate again in a new
+entry, since the user answered while it was declared lower. The declaration
+and the fitness exemption of REQ-idd-022 hold only while every entry of the
+gate is resolved. An ADR
 amended or superseded MUST name, with `--record <path>`, the new ADR under
 `docs/architecture/decisions/` that does it, in the same call or a later one;
 an accepted ADR is never rewritten.
@@ -2310,6 +2352,16 @@ write a file.
 - GIVEN a change that declares `--adr 0004` and records `--impact conforms`
 - WHEN `ospec check` runs
 - THEN `adr-impact-declaration` MUST be satisfied with no gate opened
+
+#### Scenario: An impact declared too low is raised before close
+
+- GIVEN a change that declared `conforms` on ADR 0002
+- WHEN `ospec record impact --adr 0002 --impact amends --reason "<why>"` runs
+- THEN the impact MUST be `amends` with the new reason, `previous` MUST hold
+  `conforms` with its reason, and `adr-amend-or-contradict` MUST open
+- AND declaring `conforms` again MUST be refused with `impact-conflict`
+- AND had the user already answered the gate for another reference, the raise
+  MUST open it again in a new entry
 
 #### Scenario: A boundary without a declared ADR suggests one
 

@@ -1208,6 +1208,61 @@ test("[E1.48] a bug fixed in its test alone closes its pair with the counterproo
   );
 });
 
+// E1.64 idd-config-in-diff: idd/config.yaml is a file of the project, so a
+// fix confined to it moves the tree and is product for the counterproof.
+test("[E1.64] a fix that lives only in idd/config.yaml closes its pair, and its counterproof fails on the base", (t) => {
+  const { root } = project(t, { checks: "checks:\n  test: node -e 0\n" });
+  ospec(root, ...OPEN_BUG);
+  ospec(root, "signals", "--change", "fix-pagination", "--path", "idd/config.yaml", "--path", "test/config.js");
+  writeFile(
+    root,
+    "test/config.js",
+    ["const fs = require('fs');", "if (!/^  changelog: CHANGELOG\\.md$/m.test(fs.readFileSync('idd/config.yaml', 'utf8'))) { console.error('no changelog declared'); process.exit(1); }", ""].join("\n"),
+  );
+  const run = () => ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", "node test/config.js", "--json").json;
+  assert.strictEqual(run().run.exit_code, 1);
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node -e 0\ndelivery:\n  changelog: CHANGELOG.md\n");
+  const green = run();
+  assert.strictEqual(green.run.exit_code, 0);
+  assert.strictEqual(green.evidence, "ev-1", JSON.stringify(green.missing));
+  // The base holds its own configuration, so the test fails there; without
+  // the test the command fails another way, and the base passes its check.
+  assert.deepStrictEqual(green.counterproof.runs.map((entry) => [entry.exit_code, entry.control === true]), [[1, false], [1, true], [0, true]]);
+  const state = stateOf(root, "fix-pagination");
+  const [red, passing] = state.runs.filter((entry) => entry.purpose === "repro-test");
+  assert.notStrictEqual(red.tree, passing.tree, "the configuration is part of the tree");
+  const checked = ospec(root, "check", "--change", "fix-pagination", "--json").json;
+  assert.strictEqual(checked.verdict, "ready", JSON.stringify(checked.missing));
+});
+
+// E1.65 counterproof-declared-docs: a document the project declares in impact
+// is its product, so the test of its text must fail on the base.
+test("[E1.65] the test of a document declared in impact runs its counterproof on the base, and one of an undeclared document skips it", (t) => {
+  const declared = "checks:\n  test: node -e 0\nimpact:\n  defaults: false\n  public_contract:\n    - rules/**\n";
+  const testOf = (file) =>
+    ["const fs = require('fs');", `if (!fs.readFileSync('${file}', 'utf8').includes('Never force push.')) { console.error('${file} lacks the rule'); process.exit(1); }`, ""].join("\n");
+  const pair = (config, file) => {
+    const { root, git } = project(t, { checks: config });
+    writeFile(root, file, "Never push.\n");
+    git("add", "-A");
+    git("commit", "-q", "--no-verify", "-m", "the rule");
+    ospec(root, ...OPEN_BUG);
+    ospec(root, "signals", "--change", "fix-pagination", "--path", file, "--path", "test/block.js");
+    writeFile(root, "test/block.js", testOf(file));
+    const run = () => ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", "node test/block.js", "--json").json;
+    assert.strictEqual(run().run.exit_code, 1);
+    writeFile(root, file, "Never force push.\n");
+    return run();
+  };
+
+  const product = pair(declared, "rules/block.md");
+  assert.strictEqual(product.evidence, "ev-1", JSON.stringify(product.missing));
+  assert.deepStrictEqual(product.counterproof.runs.map((entry) => [entry.exit_code, entry.control === true]), [[1, false], [1, true], [0, true]]);
+
+  const documentation = pair(declared, "notes/block.md");
+  assert.deepStrictEqual([documentation.evidence, documentation.counterproof], ["ev-1", { skipped: PRODUCT_FREE_SKIP }]);
+});
+
 test("run is refused for an obligation it cannot prove and needs a command", (t) => {
   const { root } = project(t);
   ospec(root, ...OPEN_DOCS);
@@ -2707,6 +2762,28 @@ test("an amendment stops at the gate and settles once its new ADR passes the lin
   assert.match(broken.json.missing.find((entry) => entry.obligation === "adr-impact-declaration").reason, /fails the decision-record lint/);
 });
 
+// E1.69 impact-raise: an impact declared too low is raised before close.
+test("[E1.69] record impact raises conforms to amends, which opens the gate, and refuses to lower it", (t) => {
+  const { root } = architectureProject(t);
+  openFeature(root, ...OPEN_EVENTS);
+  ospec(root, "signals", "--change", "order-events", "--path", "src/orders.js", "--adr", "0002");
+  const impact = (...args) => ospec(root, "record", "impact", "--change", "order-events", "--adr", "0002", ...args, "--json");
+  assert.strictEqual(impact("--impact", "conforms", "--reason", "keeps sync calls").code, 0);
+
+  const raised = impact("--impact", "amends", "--reason", "billing consumes order-placed asynchronously");
+  assert.strictEqual(raised.code, 0, raised.stderr);
+  assertGateStep(raised.json.next.next_step, "adr-amend-or-contradict");
+  assert.strictEqual(raised.json.next.pending_decision.reason, "ADR 0002 amends: billing consumes order-placed asynchronously");
+  assert.deepStrictEqual(stateOf(root, "order-events").impacts, [
+    { kind: "adr", id: "0002", impact: "amends", reason: "billing consumes order-placed asynchronously", previous: [{ impact: "conforms", reason: "keeps sync calls" }] },
+  ]);
+
+  const lowered = impact("--impact", "conforms", "--reason", "keeps sync calls");
+  assert.strictEqual(lowered.code, 1);
+  assert.strictEqual(lowered.json.error.code, "impact-conflict");
+  assert.strictEqual(lowered.json.error.message, "ADR 0002 is already declared as amends: billing consumes order-placed asynchronously; an impact is only raised, from none or conforms");
+});
+
 test("next suggests an ADR for a boundary without a declared one, without blocking", (t) => {
   const { root } = architectureProject(t);
   openFeature(root, ...OPEN_EVENTS);
@@ -4114,6 +4191,26 @@ test("[E1.49] an answer declared user before a turn ends after the gate opened i
   assert.match(closed.stdout, /^warning: gate irreversible-operation was answered user-unverified: no turn ended between the gate's opening and the answer$/m);
 });
 
+// E1.66 first-gate-turn-fence: the first gate of a repository opens before
+// any turn end wrote .ospec/turns.
+test("[E1.66] the first gate of a repository without .ospec/turns keeps user once a turn ended, with no warning", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  ospec(root, ...OPEN_IRREVERSIBLE);
+  assert.strictEqual(stateOf(root, "fix-readme").gates[0].opened_turn, 0);
+  writeTurns(root, 1);
+  const resolved = ospec(root, ...RESOLVE_IRREVERSIBLE, "--json");
+  assert.strictEqual(resolved.code, 0, resolved.stderr);
+  assert.strictEqual(resolved.json.warnings, undefined);
+  const gate = stateOf(root, "fix-readme").gates[0];
+  assert.deepStrictEqual([gate.source, gate.opened_turn, gate.resolved_turn], ["user", 0, 1]);
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  const closed = ospec(root, "close", "--change", "fix-readme");
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  assert.doesNotMatch(closed.stdout, /user-unverified/);
+});
+
 test("[E1.49] an answer after a turn end keeps user, and a gate opened before E1.49 keeps the source it is answered with", (t) => {
   const { root } = project(t);
   writeTurns(root, 3);
@@ -4145,7 +4242,7 @@ test("[E1.49] without a turn count the ambiguous intent answered user is recorde
   assert.strictEqual(resolved.code, 0, resolved.stderr);
   assert.match(resolved.stdout, /^warning: gate ambiguous-intent recorded user-unverified: no turn count in \.ospec\/turns: no end-of-turn hook ran in this workspace; this answer stays user-unverified and close lists it; install or repair the host's ospec hooks so the next answers can be verified$/m);
   const [gate] = stateOf(root, "improve-login").gates;
-  assert.deepStrictEqual([gate.source, gate.declared_source, gate.opened_turn, gate.resolved_turn], ["user-unverified", "user", null, null]);
+  assert.deepStrictEqual([gate.source, gate.declared_source, gate.opened_turn, gate.resolved_turn], ["user-unverified", "user", 0, null]);
 });
 
 // E1.61 turn-fence-worktree: in a linked worktree outside the project the

@@ -17,10 +17,12 @@ function referenceLabel(entry) {
 }
 
 // A departure the user approved: the change amends, supersedes or contradicts
-// the reference and adr-amend-or-contradict is resolved.
+// the reference and adr-amend-or-contradict is resolved, in every entry an
+// impact raised after an answer opened (E1.69).
 function isExempt(state, entry) {
   if (!GATED_IMPACTS.includes(entry.impact)) return false;
-  return state.gates.some((gate) => gate.id === "adr-amend-or-contradict" && gate.status === "resolved");
+  const gates = state.gates.filter((gate) => gate.id === "adr-amend-or-contradict");
+  return gates.length > 0 && gates.every((gate) => gate.status === "resolved");
 }
 
 function fitnessOf(entry, sources) {

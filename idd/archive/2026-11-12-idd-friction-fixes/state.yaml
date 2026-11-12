@@ -1,0 +1,625 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-friction-fixes",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Corregir en un solo cambio las fricciones de IDD de proyectos reales que son arreglos acotados: E1.64 idd-config-in-diff (#483), E1.65 counterproof-declared-docs (#500), E1.66 first-gate-turn-fence (#494), E1.68 build-scripts-declared (#501) y E1.69 impact-raise (#502)",
+    "acceptance": "Se cumple el «Hecho cuando» de cada ítem en docs/roadmaps/harness-evolution.md: un arreglo solo en idd/config.yaml cierra su par y su contraprueba corre en la base; un .md declarado en impact o contracts.documents cuenta como producto para la contraprueba; el primer gate de un repositorio sin .ospec/turns, respondido tras un fin de turno, queda source user; impact.build_scripts evita persistent-data sin quitar las demás señales; y un impacto conforms se sube a amends abriendo adr-amend-or-contradict"
+  },
+  "facts": {
+    "open": [
+      "Alcance: ¿van en este cambio E1.64, E1.65, E1.66, E1.68 y E1.69 (los cinco arreglos acotados), dejando E1.67 (feature) y E1.70 (fitness sobre la base y skill foundation) para después, o prefieres otro grupo?",
+      "E1.66: ¿la cuenta ausente al abrir un gate se guarda como opened_turn 0 (salida 1 de #494), o el CLI crea .ospec/turns con 0 antes del primer gate (salida 2)?",
+      "E1.66: un gate ya abierto con opened_turn null en un state.yaml existente, ¿se verifica también al responderlo con cuenta (pasando su opened_turn a 0) o sigue quedando user-unverified?",
+      "E1.69: ¿subir un impacto de none a conforms también se acepta, o solo la subida a amends, supersedes o contradicts?",
+      "E1.69: si adr-amend-or-contradict ya está resuelto cuando un impacto sube a amends, supersedes o contradicts, ¿la puerta se abre otra vez o la subida se rechaza con gate-resolved, como hoy una enmienda nueva?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/estado.md",
+      "handbook/idd/evidencia.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-check.js",
+      "scripts/lib/idd-check.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-fitness.js",
+      "scripts/lib/idd-fitness.test.js",
+      "scripts/lib/idd-impact.js",
+      "scripts/lib/idd-impact.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/lib/idd-signals.test.js",
+      "scripts/lib/idd-workspace.js",
+      "scripts/lib/idd-workspace.test.js",
+      "scripts/lib/turn-fence.js",
+      "scripts/lib/turn-fence.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md",
+      "skills/idd/references/approvals.md"
+    ],
+    "work_units": 5,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "E1.64: de idd/ queda fuera todo lo que cuelga de un subdirectorio (idd/<cambio>/ e idd/archive/, lo que escribe ospec); un fichero directamente bajo idd/, como idd/config.yaml, cuenta como del proyecto en el diff, la huella y la instantánea de la revisión",
+      "E1.65: una ruta de documentación es producto para la contraprueba cuando ospec deriva de ella una señal por un patrón que el proyecto declara en impact (no uno por defecto, y fuera de los exclude resueltos) o cuando casa con contracts.documents del proyecto",
+      "E1.66 (respuesta del usuario): sin cuenta al abrir, el gate guarda opened_turn 0; un gate ya abierto con opened_turn null pasa a 0 al responderlo; el motivo «no turn count when the gate opened» desaparece",
+      "E1.68: impact.build_scripts se suma a los scripts de build por defecto, o los sustituye con impact.defaults: false; solo deja de derivar persistent-data por contenido, las señales por ruta siguen",
+      "E1.69 (respuesta del usuario): un impacto sube en el orden none < conforms < amends, supersedes o contradicts; el valor anterior queda en previous del impacto; la subida con adr-amend-or-contradict ya resuelta añade otra entrada abierta de la puerta, y una declaración nueva tardía sigue rechazada con gate-resolved",
+      "La regla de abrir el gate antes de preguntar va en skills/idd/references/approvals.md y no en SKILL.md: el protocolo está en su techo de bytes (idd_protocol_bytes) y su frase sobre los gates la fija un test",
+      "Tras E1.64, un cambio de idd/config.yaml mueve la huella del árbol como el de cualquier fichero, así que también invalida la evidencia de los checks aunque no cambie la lista de verificadores",
+      "Si un par no cierra porque el verde corrió sobre el mismo árbol que el rojo, el motivo de la obligación lo dice en lugar de pedir otra ejecución",
+      "isExempt de fitness y el motivo de adr-impact-declaration exigen todas las entradas de adr-amend-or-contradict resueltas, no solo una"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 5 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "las reglas nuevas (qué es estado de ospec bajo idd/, qué documento es producto, la cuenta 0 de la valla, la subida de un impacto, los scripts de build declarados) viven en el CLI con sus tests; la skill solo dice que el gate se abre antes de preguntar"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "las obligaciones siguen saliendo de las señales de impacto: idd/config.yaml entra en el diff del que se derivan e impact.build_scripts quita una señal persistent-data que no señalaba datos"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "el cierre sigue ligado a evidencia observada: la huella del árbol cubre ahora idd/config.yaml y la contraprueba corre para los documentos que el proyecto declara producto"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "no toca la memoria entre sesiones ni su frontera"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "no añade dependencias ni toca los hooks compilados; el cambio usa solo la biblioteca estándar de Node"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "idd/ sigue siendo el árbol de IDD: idd/config.yaml es su configuración, que pasa a contar como fichero del proyecto, y el estado de los cambios y el archivo siguen fuera del diff"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "todo lo nuevo se lee del estado en disco (opened_turn 0, previous de un impacto, otra entrada de adr-amend-or-contradict): next devuelve el mismo paso tras una interrupción"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "no añade llamadas de red al CLI, los hooks ni las skills"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 309,
+      "answer": "todas las recomendadas: (1) A, van E1.64, E1.65, E1.66, E1.68 y E1.69; (2) salida 1, opened_turn 0 sin cuenta al abrir; (3) los gates ya abiertos con opened_turn null también se verifican y pasan a 0; (4) none a conforms se acepta; (5) la subida con la puerta ya resuelta la abre otra vez y la declaración nueva tardía sigue rechazada",
+      "source": "user",
+      "resolved_turn": 310
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-12T07:24:02.156Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-12T07:32:57.409Z",
+      "detail": {
+        "tree": "sha256:b34b87f6e05d27cffd5bd29f19263e00bbb49ae7e6a2bcab00725636a3ae3bfd",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-12T07:32:57.409Z",
+      "detail": {
+        "tree": "sha256:b34b87f6e05d27cffd5bd29f19263e00bbb49ae7e6a2bcab00725636a3ae3bfd",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-fitness.test.js",
+          "scripts/lib/idd-impact.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-12T07:32:57.409Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 none",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:b34b87f6e05d27cffd5bd29f19263e00bbb49ae7e6a2bcab00725636a3ae3bfd",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-12T07:33:35.605Z",
+      "detail": {
+        "run": "run-13",
+        "tree": "sha256:e46dfee32c9da2d0644d1941dcabe9e63024eb405f3bb1afe830bb0faa798313",
+        "plan": "El esquema idd-state/v1 sigue leyendo todo lo anterior y no hay migración: un impacto sin previous, un gate con opened_turn null y una sola entrada de adr-amend-or-contradict siguen siendo válidos (tests de idd-contract y turn-fence), así que los cambios abiertos y los archivados se leen igual. Lo nuevo es aditivo: previous es un campo opcional de un impacto que solo se escribe al subirlo, opened_turn pasa a 0 en los gates que se abren sin cuenta (valor que el esquema ya admitía) y una subida tras la respuesta añade otra entrada de la puerta, como ya hacen review-limit y checks-changed. idd/config.yaml no cambia de formato: impact.build_scripts es una clave opcional. Vuelta atrás: una CLI anterior rechaza por campo desconocido un cambio abierto cuyo impacto ya lleve previous, y rechaza impact.build_scripts como clave desconocida; antes de volver a ella se cierran esos cambios y se quita la clave, o se sigue con la versión nueva."
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-12T07:36:12.547Z",
+      "detail": {
+        "tree": "sha256:9898a1e0f08f9981fb34f82c8b1ce2b880bbf5a6156dd4ed636f4d2310723050",
+        "runs": [
+          "run-14"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-12T07:36:12.547Z",
+      "detail": {
+        "tree": "sha256:9898a1e0f08f9981fb34f82c8b1ce2b880bbf5a6156dd4ed636f4d2310723050",
+        "check": "ev-6",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-fitness.test.js",
+          "scripts/lib/idd-impact.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-12T07:36:12.547Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 none",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:9898a1e0f08f9981fb34f82c8b1ce2b880bbf5a6156dd4ed636f4d2310723050",
+        "fitness": [
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-12T07:36:26.509Z",
+      "detail": {
+        "run": "run-22",
+        "tree": "sha256:1169130b44e06d3db28e4dac5fe42ab9d4d89d4816f688288536778d0e29799d",
+        "plan": "El esquema idd-state/v1 sigue leyendo todo lo anterior y no hay migración: un impacto sin previous, un gate con opened_turn null y una sola entrada de adr-amend-or-contradict siguen siendo válidos (tests de idd-contract y turn-fence), así que los cambios abiertos y los archivados se leen igual. Lo nuevo es aditivo: previous es un campo opcional de un impacto que solo se escribe al subirlo, opened_turn pasa a 0 en los gates que se abren sin cuenta (valor que el esquema ya admitía) y una subida tras la respuesta añade otra entrada de la puerta, como ya hacen review-limit y checks-changed. idd/config.yaml no cambia de formato: impact.build_scripts es una clave opcional. Vuelta atrás: una CLI anterior rechaza por campo desconocido un cambio abierto cuyo impacto ya lleve previous, y rechaza impact.build_scripts como clave desconocida; antes de volver a ella se cierran esos cambios y se quita la clave, o se sigue con la versión nueva."
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-12T07:36:26.712Z"
+    }
+  ],
+  "base": "a743fe4936a84d8e5e180530b196bc189ff6bb63",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-workspace.test.js scripts/lib/idd-check.test.js scripts/lib/turn-fence.test.js scripts/lib/idd-impact.test.js scripts/lib/idd-signals.test.js scripts/lib/idd-record.test.js scripts/lib/idd-contract.test.js scripts/lib/idd-fitness.test.js scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:07577860513c3c3e5d7e3c5484eb271cae7fa47aa3e47d405c1253ec6c35d39b",
+      "tree": "sha256:8b53c9af8b84f2d70f27e79dd16a622f8ec5514628732592faa0357fa24da964",
+      "recorded_at": "2026-11-12T07:18:54.463Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-workspace.test.js scripts/lib/idd-check.test.js scripts/lib/turn-fence.test.js scripts/lib/idd-impact.test.js scripts/lib/idd-signals.test.js scripts/lib/idd-record.test.js scripts/lib/idd-contract.test.js scripts/lib/idd-fitness.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:300965d6d2c8cfed2b3796a9d89b045fe881395cf83089590410ac77260d3352",
+      "tree": "sha256:21ada1e91b651966e6f1e08c12813ec04fa2d49ba9bd2db7fb76febd834db0c0",
+      "recorded_at": "2026-11-12T07:24:02.156Z",
+      "tests": 421,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "a743fe4936a84d8e5e180530b196bc189ff6bb63",
+      "mount": "sha256:5f65635a5155a9151e4de5231d1e43700b9ab0240d76fe82c65360c970b2dac3",
+      "command": "node --test scripts/lib/idd-workspace.test.js scripts/lib/idd-check.test.js scripts/lib/turn-fence.test.js scripts/lib/idd-impact.test.js scripts/lib/idd-signals.test.js scripts/lib/idd-record.test.js scripts/lib/idd-contract.test.js scripts/lib/idd-fitness.test.js scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:73bb986d1bff2eeacde1ed5f51a40052a3187315f2d224f3fdf0210e004c3b4d",
+      "tree": "sha256:21ada1e91b651966e6f1e08c12813ec04fa2d49ba9bd2db7fb76febd834db0c0",
+      "recorded_at": "2026-11-12T07:24:02.156Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "a743fe4936a84d8e5e180530b196bc189ff6bb63",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/lib/idd-workspace.test.js scripts/lib/idd-check.test.js scripts/lib/turn-fence.test.js scripts/lib/idd-impact.test.js scripts/lib/idd-signals.test.js scripts/lib/idd-record.test.js scripts/lib/idd-contract.test.js scripts/lib/idd-fitness.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:713b6ce8d65ba093e3d508f7b3d2c4e161a5ab904d9aab3fa234a0593cbce2ad",
+      "tree": "sha256:21ada1e91b651966e6f1e08c12813ec04fa2d49ba9bd2db7fb76febd834db0c0",
+      "recorded_at": "2026-11-12T07:24:02.156Z",
+      "tests": 410
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8435dd4b89d8d13e53d94d5b119220bb01990646aa995a8ee160541c140e16a7",
+      "tree": "sha256:b34b87f6e05d27cffd5bd29f19263e00bbb49ae7e6a2bcab00725636a3ae3bfd",
+      "recorded_at": "2026-11-12T07:32:57.409Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:be608569dbbc1f2af28aa3878d525bfe7f16bfb3a6f1b5a43b4a31de6f955fc3",
+      "tree": "sha256:b34b87f6e05d27cffd5bd29f19263e00bbb49ae7e6a2bcab00725636a3ae3bfd",
+      "recorded_at": "2026-11-12T07:32:57.409Z",
+      "tests": 61
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:43db59921a9dc1c71fecf9da765289dab39a7302443364f4c24b7532a6588353",
+      "tree": "sha256:b34b87f6e05d27cffd5bd29f19263e00bbb49ae7e6a2bcab00725636a3ae3bfd",
+      "recorded_at": "2026-11-12T07:32:57.409Z",
+      "tests": 18
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:752572dca7eb58def4e48abf858e8ad029bdac3f472c5d1f75608d4de744ef17",
+      "tree": "sha256:b34b87f6e05d27cffd5bd29f19263e00bbb49ae7e6a2bcab00725636a3ae3bfd",
+      "recorded_at": "2026-11-12T07:32:57.409Z",
+      "tests": 2
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:b34b87f6e05d27cffd5bd29f19263e00bbb49ae7e6a2bcab00725636a3ae3bfd",
+      "recorded_at": "2026-11-12T07:32:57.409Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:21066a0c268af5c193595d19dce82a62da3c031cf807ca162902a61407516581",
+      "tree": "sha256:b34b87f6e05d27cffd5bd29f19263e00bbb49ae7e6a2bcab00725636a3ae3bfd",
+      "recorded_at": "2026-11-12T07:32:57.409Z",
+      "tests": 26
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1dcca36b23c011bc79ec8309d9da25e34c862edbae227169da0a4e9176c8c21f",
+      "tree": "sha256:b34b87f6e05d27cffd5bd29f19263e00bbb49ae7e6a2bcab00725636a3ae3bfd",
+      "recorded_at": "2026-11-12T07:32:57.409Z",
+      "tests": 96
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cc232748084605d15f7bed8f538399839a81908cf783fd1f66cda5ba874bc60e",
+      "tree": "sha256:b34b87f6e05d27cffd5bd29f19263e00bbb49ae7e6a2bcab00725636a3ae3bfd",
+      "recorded_at": "2026-11-12T07:32:57.409Z",
+      "tests": 52
+    },
+    {
+      "id": "run-13",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-contract.test.js scripts/lib/idd-record.test.js scripts/lib/turn-fence.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9ca881b1ff83195a41cccbdb9d4189daad6746ae20b18dfbbc67c77273974406",
+      "tree": "sha256:e46dfee32c9da2d0644d1941dcabe9e63024eb405f3bb1afe830bb0faa798313",
+      "recorded_at": "2026-11-12T07:33:35.605Z",
+      "tests": 128
+    },
+    {
+      "id": "run-14",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c83489cfd7a01764ca115aa0c472b8e39a8c7b8452543ac893af81847511dbc8",
+      "tree": "sha256:9898a1e0f08f9981fb34f82c8b1ce2b880bbf5a6156dd4ed636f4d2310723050",
+      "recorded_at": "2026-11-12T07:36:12.547Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0e649a868750df73b7aa84ce21fefbddb4e0d8390b0f1ecff2992bf3b1a438ae",
+      "tree": "sha256:9898a1e0f08f9981fb34f82c8b1ce2b880bbf5a6156dd4ed636f4d2310723050",
+      "recorded_at": "2026-11-12T07:36:12.547Z",
+      "tests": 61
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d5630f1a5574f6186094c8277539e1b7ddc5f65ec6955386c5d165478413b81f",
+      "tree": "sha256:9898a1e0f08f9981fb34f82c8b1ce2b880bbf5a6156dd4ed636f4d2310723050",
+      "recorded_at": "2026-11-12T07:36:12.547Z",
+      "tests": 18
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ba843805f8fbe85f3576530e3cf1601404b8cfe7a44f50bcd8c9fb019f77ec14",
+      "tree": "sha256:9898a1e0f08f9981fb34f82c8b1ce2b880bbf5a6156dd4ed636f4d2310723050",
+      "recorded_at": "2026-11-12T07:36:12.547Z",
+      "tests": 2
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:9898a1e0f08f9981fb34f82c8b1ce2b880bbf5a6156dd4ed636f4d2310723050",
+      "recorded_at": "2026-11-12T07:36:12.547Z"
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e2b3f3d0b1a485fe48ee43f1162b5accd46b3c7f1ee828fded18d40fdaf34d33",
+      "tree": "sha256:9898a1e0f08f9981fb34f82c8b1ce2b880bbf5a6156dd4ed636f4d2310723050",
+      "recorded_at": "2026-11-12T07:36:12.547Z",
+      "tests": 26
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:49636c4cfdaa8c7615c7d3f1374e2e66e15b4a1a9c4ed2461d8549879ff7ef6b",
+      "tree": "sha256:9898a1e0f08f9981fb34f82c8b1ce2b880bbf5a6156dd4ed636f4d2310723050",
+      "recorded_at": "2026-11-12T07:36:12.547Z",
+      "tests": 96
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e49b226ed390ad671dc21a4644b24aa1856a5c64ed0641eca6f50caf078350df",
+      "tree": "sha256:9898a1e0f08f9981fb34f82c8b1ce2b880bbf5a6156dd4ed636f4d2310723050",
+      "recorded_at": "2026-11-12T07:36:12.547Z",
+      "tests": 52
+    },
+    {
+      "id": "run-22",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-contract.test.js scripts/lib/idd-record.test.js scripts/lib/turn-fence.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f3d26d583a3a8e3731d9a859927c8fdbd5bfa80d9061169bbceb99f24c4d6134",
+      "tree": "sha256:1169130b44e06d3db28e4dac5fe42ab9d4d89d4816f688288536778d0e29799d",
+      "recorded_at": "2026-11-12T07:36:26.509Z",
+      "tests": 128
+    }
+  ],
+  "closed_at": "2026-11-12T07:36:26.712Z"
+}

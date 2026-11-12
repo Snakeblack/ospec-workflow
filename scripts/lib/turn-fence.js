@@ -96,17 +96,15 @@ function gateKey(gate) {
   return JSON.stringify(rest);
 }
 
-function unverifiedReason(gate, turn) {
+function unverifiedReason(turn) {
   if (turn === null) return `no turn count in ${TURNS_FILE}: no end-of-turn hook ran in this workspace`;
-  if (gate.opened_turn === null) return `no turn count in ${TURNS_FILE} when the gate opened`;
   return "no turn ended between the gate's opening and the answer";
 }
 
 // The answer stays user-unverified (resolving it again changes nothing), so
 // the remedy is for the next gates.
-function unverifiedRemedy(gate, turn) {
+function unverifiedRemedy(turn) {
   if (turn === null) return "install or repair the host's ospec hooks so the next answers can be verified";
-  if (gate.opened_turn === null) return "the turns are counted now, so the next answers can be verified";
   return "ask the next gate by ending your turn with its questions, and record its answer after the user replies";
 }
 
@@ -114,9 +112,11 @@ function unverifiedRemedy(gate, turn) {
  * Stamps, in `after`, the turn of each gate the command opened or changed
  * while open, and of each one it resolved. An answer declared `user` without
  * a turn end after the gate opened is recorded `user-unverified`, keeping the
- * declared source and the reason. A gate opened before E1.49 has no turn and
- * keeps the source it is answered with. Returns the gates it recorded so,
- * with the reason and its remedy.
+ * declared source and the reason. A gate opened before any turn end was
+ * counted opens at 0, since .ospec/turns appears with the first one (E1.66);
+ * one an earlier CLI opened so holds null and counts from 0 as well. A gate
+ * opened before E1.49 has no turn and keeps the source it is answered with.
+ * Returns the gates it recorded so, with the reason and its remedy.
  */
 function fenceGates(before, after, turn) {
   const previous = (before?.gates || []).map(gateKey);
@@ -128,19 +128,20 @@ function fenceGates(before, after, turn) {
       continue;
     }
     if (gate.status === "open") {
-      gate.opened_turn = turn;
+      gate.opened_turn = turn ?? 0;
       continue;
     }
     if (!Object.hasOwn(gate, "opened_turn")) continue;
+    gate.opened_turn ??= 0;
     gate.resolved_turn = turn;
     // Any other count is a turn end: one that started again (.ospec/turns
     // lost) only counts up from 1 through Stop.
-    const fenced = turn === null || gate.opened_turn === null || turn === gate.opened_turn;
+    const fenced = turn === null || turn === gate.opened_turn;
     if (gate.source === "user" && fenced) {
       gate.declared_source = gate.source;
       gate.source = "user-unverified";
-      gate.unverified_reason = unverifiedReason(gate, turn);
-      unverified.push({ gate: gate.id, reason: gate.unverified_reason, remedy: unverifiedRemedy(gate, turn) });
+      gate.unverified_reason = unverifiedReason(turn);
+      unverified.push({ gate: gate.id, reason: gate.unverified_reason, remedy: unverifiedRemedy(turn) });
     }
   }
   return unverified;

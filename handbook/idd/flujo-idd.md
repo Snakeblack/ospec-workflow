@@ -104,7 +104,7 @@ Solo una respuesta explícita tuya resuelve un gate. El agente la registra con t
 ospec record gate --change <id> --gate <gate> --resolve --answer "<tus palabras>" --source user
 ```
 
-`--source` vale `user`, o `user-unverified` si la respuesta le llegó reenviada. El CLI no puede comprobar quién respondió, pero pone una valla: el hook de fin de turno cuenta los turnos en `.ospec/turns`, y una respuesta registrada como `user` sin que haya terminado ningún turno desde que se abrió el gate queda como `user-unverified`, con un aviso en `record` y en `close`. En un `git worktree`, el CLI suma la cuenta del worktree y la del repositorio principal, donde cuenta una sesión que sigue en el proyecto. No bloquea, pero deja constancia. Por eso el agente pregunta un gate terminando su turno, no dentro de él.
+`--source` vale `user`, o `user-unverified` si la respuesta le llegó reenviada. El CLI no puede comprobar quién respondió, pero pone una valla: el hook de fin de turno cuenta los turnos en `.ospec/turns`, y una respuesta registrada como `user` sin que haya terminado ningún turno desde que se abrió el gate queda como `user-unverified`, con un aviso en `record` y en `close`. En un `git worktree`, el CLI suma la cuenta del worktree y la del repositorio principal, donde cuenta una sesión que sigue en el proyecto. No bloquea, pero deja constancia. Por eso el agente abre el gate, pregunta terminando su turno y registra la respuesta en el turno siguiente. El primer gate de un repositorio se abre antes de que exista `.ospec/turns` y cuenta desde 0: su respuesta queda `user` en cuanto ha terminado un turno.
 
 ---
 
@@ -144,7 +144,7 @@ contracts:
 | `strict_tdd` | Si cada unidad de trabajo exige un par rojo-verde. Sin declarar, lo decide `team` y, sin perfil, vale `false`. |
 | `team` | El perfil de equipo y sus valores por defecto. |
 | `delivery` | Ramas, CHANGELOG y versiones. Ver [Entrega](/handbook/idd/entrega.md). |
-| `impact` | Las rutas de `public_contract`, `persistent_data` y `security_boundary`, además de `stack` (sustituye a los stacks detectados), `defaults: false` (quita los patrones base) y `exclude`. |
+| `impact` | Las rutas de `public_contract`, `persistent_data` y `security_boundary`, además de `stack` (sustituye a los stacks detectados), `defaults: false` (quita los patrones base), `exclude` y `build_scripts` (los scripts de herramienta del proyecto, cuyas escrituras no activan `persistent-data`; sus rutas siguen contando para las demás señales). |
 | `contracts` | Dónde viven los documentos de contrato (`documents`). |
 | `mode` | `sdd` apaga IDD en el proyecto. |
 
@@ -174,7 +174,7 @@ team:
 
 Un proyecto sin código todavía, o una petición de definir la arquitectura de un sistema, empieza con la skill `foundation`. Mientras el proyecto no tenga código ni nada bajo `docs/product/` o `docs/architecture/`, `ospec next` y `ospec record intent` la sugieren sin bloquear. Registra la documentación de producto, un ADR por decisión estructural y, con tu aprobación, la configuración de IDD.
 
-IDD trabaja después con el impacto de cada cambio sobre esos ADR: el cambio declara los que toca, su impacto sobre cada uno (`none`, `conforms`, `amends`, `supersedes`, `contradicts`) y `ospec check` ejecuta los checks de sus fitness functions. Un cambio que se aparta de un ADR se detiene en `adr-amend-or-contradict`. Detalle: [Foundation: las decisiones que IDD hace cumplir](/handbook/idd/foundation.md).
+IDD trabaja después con el impacto de cada cambio sobre esos ADR: el cambio declara los que toca, su impacto sobre cada uno (`none`, `conforms`, `amends`, `supersedes`, `contradicts`) y `ospec check` ejecuta los checks de sus fitness functions. Un cambio que se aparta de un ADR se detiene en `adr-amend-or-contradict`. Un impacto declarado de menos se puede subir antes de cerrar (de `none` a `conforms`, o de cualquiera de los dos a `amends`, `supersedes` o `contradicts`); nunca bajar. Si la subida llega cuando ya respondiste el gate, el gate se abre otra vez. Detalle: [Foundation: las decisiones que IDD hace cumplir](/handbook/idd/foundation.md).
 
 ---
 

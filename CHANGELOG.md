@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Corregir en un solo cambio las fricciones de IDD de proyectos reales que son arreglos acotados: E1.64 idd-config-in-diff (#483), E1.65 counterproof-declared-docs (#500), E1.66 first-gate-turn-fence (#494), E1.68 build-scripts-declared (#501) y E1.69 impact-raise (#502) (idd-friction-fixes)
+
 ## [2.173.0] - 2026-11-12
 
 ### Added

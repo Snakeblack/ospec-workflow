@@ -79,6 +79,7 @@ Además corre un control, la base sin los tests nuevos: si falla igual, el fallo
 - **El control:** si la contraprueba falla, el mismo comando corre sobre la base sola. La contraprueba solo vale si el control pasó, o falló de otra forma (otro código de salida u otra salida).
 - **Rojo no concluyente:** si en la base sola fallan también los checks declarados, al directorio temporal le falta algo que los tests necesitan (un build, una dependencia). Entonces no bloquea, pero la evidencia lleva `counterproof_skipped` y `run`, `check` y `close` lo avisan.
 - **Cuándo se omite, con aviso:** sin commit base, cuando la base no se puede montar, con tests inline de Rust, o cuando el diff solo cambia tests y documentación. Si después el diff cambia código de producto, `check` reabre la pareja.
+- **Qué documentación es producto:** un documento que el proyecto declara en `contracts.documents`, o en una lista propia de `impact` de la que sale una señal, no cuenta como documentación: su test tiene que fallar en la base. `idd/config.yaml` también es producto, así que un arreglo que vive solo en él cierra su pareja con contraprueba.
 - **Límites:** 10 minutos de timeout, que cuentan como fallo. El resultado se reutiliza mientras no cambien la base, el comando y los tests.
 
 </details>

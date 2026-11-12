@@ -51,7 +51,7 @@ const REFUSALS = Object.freeze({
   "gate-resolved": 'the user already answered adr-amend-or-contradict for this change: take this amendment to a new change with ospec record intent --change <new-id>',
   "git-not-found": "install git and put it on PATH, then run the command again",
   "impact-config-invalid": "fix the impact: section of idd/config.yaml as the message says, keeping its other keys",
-  "impact-conflict": "nothing to record: the declared impact stands; an amended or superseded ADR names its new ADR once, with --record",
+  "impact-conflict": "nothing to record: the declared impact stands; it is only raised, with its new reason, from none to conforms or from either to amends, supersedes or contradicts, and an amended or superseded ADR names its new ADR once, with --record",
   "impact-required": `add --impact <${IMPACTS.join("|")}> --reason "<why>", or --record <new ADR> once the impact amends or supersedes`,
   "intent-conflict": "record intent again with the same --summary, --acceptance and --request, or open a new change for another one; only a raised --kind, or a bug that becomes a feature, changes it",
   "kind-change-open": 'ask the user the kind-change question of ospec next, resolve it with ospec record gate --change <id> --gate kind-change --resolve --answer "<their words>" --source user, then record the intent again',

@@ -9,11 +9,13 @@ const assert = require("node:assert");
 
 const {
   BASE_PATTERNS,
+  BUILD_SCRIPTS,
   DEFAULT_EXCLUDE,
   IMPACT_SIGNALS,
   STACK_PATTERNS,
   detectStacks,
   globToRegExp,
+  isBuildScript,
   matchImpact,
   publishedPaths,
   resolvePatterns,
@@ -133,6 +135,22 @@ test("validateImpact normalizes the parsed impact section", () => {
     { stack: ["node"], defaults: false, public_contract: ["api/**"], exclude: [] },
   );
   assert.deepStrictEqual(validateImpact({}), {});
+});
+
+// E1.68 build-scripts-declared: the project names its own tool scripts.
+test("[E1.68] impact.build_scripts adds to the default build scripts, or replaces them with defaults: false", () => {
+  assert.deepStrictEqual(validateImpact({ build_scripts: "scripts/**" }), { build_scripts: ["scripts/**"] });
+  assert.deepStrictEqual(validateImpact({ build_scripts: "" }), { build_scripts: [] });
+  const added = resolvePatterns({ impact: { build_scripts: ["scripts/**", "build.*"], security_boundary: ["scripts/**"] } });
+  assert.deepStrictEqual(added.build_scripts, [...BUILD_SCRIPTS, "scripts/**"]);
+  assert.strictEqual(isBuildScript("scripts/scan.mjs", added), true);
+  assert.strictEqual(isBuildScript("src/store.js", added), false);
+  assert.deepStrictEqual(matchImpact("scripts/scan.mjs", added), [{ signal: "security-boundary", pattern: "scripts/**" }], "a declared build script keeps its path signals");
+  const only = resolvePatterns({ impact: { defaults: false, build_scripts: ["tools/**"] } });
+  assert.deepStrictEqual(only.build_scripts, ["tools/**"]);
+  assert.strictEqual(isBuildScript("scripts/postbuild.mjs", only), false);
+  assert.deepStrictEqual(resolvePatterns({ impact: { defaults: false } }).build_scripts, []);
+  assert.deepStrictEqual(resolvePatterns({ impact: {} }).build_scripts, [...BUILD_SCRIPTS], "without the key, as before");
 });
 
 test("validateImpact rejects unknown impact keys and stacks", () => {

@@ -11,6 +11,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
+const { resolvePatterns } = require("./idd-impact.js");
 const {
   EMPTY_TREE,
   IddWorkspaceError,
@@ -18,6 +19,7 @@ const {
   counterproofMount,
   counterproofPaths,
   mountCounterproof,
+  onlyTestsAndDocs,
   readArchitecture,
   readCheckTreeFingerprint,
   readDecisionRecords,
@@ -292,9 +294,10 @@ test("the head commit is the change base, and null outside git or before the fir
   assert.strictEqual(readHead(root), git(root, "rev-parse", "HEAD").trim());
 });
 
-test("the source tree ignores idd/ while check-tree identity tracks only effective checks", (t) => {
+test("the source tree ignores the changes under idd/ and counts idd/config.yaml, and check-tree identity adds the effective checks", (t) => {
   const root = gitRepo(t);
   write(root, "src/app.js", "module.exports = 1;\n");
+  write(root, "idd/config.yaml", "strict_tdd: true\n");
   commitAll(root, "base");
 
   const clean = readTreeFingerprint(root);
@@ -302,23 +305,33 @@ test("the source tree ignores idd/ while check-tree identity tracks only effecti
   assert.strictEqual(readTreeFingerprint(root), clean, "stable for the same tree");
 
   write(root, "idd/fix/state.yaml", "{}\n");
-  write(root, "idd/config.yaml", "strict_tdd: true\n");
+  write(root, "idd/fix/change.md", "# fix\n");
+  write(root, "idd/archive/2026-01-01-old/state.yaml", "{}\n");
   assert.strictEqual(readTreeFingerprint(root), clean, "IDD state is not part of the tree");
   const noChecks = readCheckTreeFingerprint(root);
   assert.strictEqual(readCheckTreeFingerprint(root), noChecks, "check identity is stable");
-
-  write(root, "idd/config.yaml", "# verifier config\nstrict_tdd: false\n");
-  assert.strictEqual(readCheckTreeFingerprint(root), noChecks, "unrelated config and formatting do not invalidate checks");
-  write(root, "idd/config.yaml", "strict_tdd: false\nchecks:\n  test: npm test\n");
-  const configured = readCheckTreeFingerprint(root);
-  assert.notStrictEqual(configured, noChecks, "adding a check changes check identity");
-  write(root, "idd/config.yaml", "strict_tdd: true # unrelated\nchecks:\n  test: npm test\n");
-  assert.strictEqual(readCheckTreeFingerprint(root), configured, "unrelated fields and formatting preserve check identity");
-  write(root, "idd/config.yaml", "checks:\n  test: npm run test\n");
-  assert.notStrictEqual(readCheckTreeFingerprint(root), configured, "changing a command invalidates check identity");
-  const changedChecks = readCheckTreeFingerprint(root);
   write(root, "idd/fix/state.yaml", "{\"status\":\"closed\"}\n");
-  assert.strictEqual(readCheckTreeFingerprint(root), changedChecks, "CLI state writes do not invalidate check evidence");
+  assert.strictEqual(readCheckTreeFingerprint(root), noChecks, "CLI state writes do not invalidate check evidence");
+
+  // E1.64: idd/config.yaml is a file of the project, tracked or not.
+  write(root, "idd/config.yaml", "strict_tdd: false\n");
+  const configured = readTreeFingerprint(root);
+  assert.notStrictEqual(configured, clean, "a change to idd/config.yaml changes the tree");
+  assert.notStrictEqual(readCheckTreeFingerprint(root), noChecks, "and the tree a check ran on");
+  write(root, "idd/config.yaml", "strict_tdd: true\n");
+  assert.strictEqual(readTreeFingerprint(root), clean, "back to the committed configuration");
+  write(root, "idd/notes.txt", "kept by the team\n");
+  assert.notStrictEqual(readTreeFingerprint(root), clean, "an untracked file directly under idd/ counts too");
+  fs.rmSync(path.join(root, "idd/notes.txt"));
+
+  // The verifier list is part of a check's identity on the same tree.
+  assert.strictEqual(readCheckTreeFingerprint(root, []), noChecks);
+  assert.notStrictEqual(readCheckTreeFingerprint(root, [{ name: "test", command: "npm test" }]), noChecks, "adding a check changes check identity");
+  assert.notStrictEqual(
+    readCheckTreeFingerprint(root, [{ name: "test", command: "npm run test" }]),
+    readCheckTreeFingerprint(root, [{ name: "test", command: "npm test" }]),
+    "changing a command invalidates check identity",
+  );
 
   write(root, "src/app.js", "module.exports = 2;\n");
   const edited = readTreeFingerprint(root);
@@ -337,7 +350,7 @@ test("the source tree ignores idd/ while check-tree identity tracks only effecti
   assert.throws(() => readTreeFingerprint(tempDir(t)), (error) => error.code === "not-a-git-repo");
 });
 
-test("a snapshot tree holds tracked and untracked files without touching the index, idd/, the receipts or the turn count", (t) => {
+test("a snapshot tree holds tracked and untracked files, idd/config.yaml among them, without touching the index, the changes under idd/, the receipts or the turn count", (t) => {
   const root = gitRepo(t);
   write(root, "src/app.js", "one\n");
   write(root, ".gitignore", "*.log\n");
@@ -349,6 +362,8 @@ test("a snapshot tree holds tracked and untracked files without touching the ind
   write(root, "src/new.js", "fresh\n");
   write(root, "debug.log", "ignored\n");
   write(root, "idd/fix/state.yaml", "{}\n");
+  write(root, "idd/archive/2026-01-01-old/change.md", "# old\n");
+  write(root, "idd/config.yaml", "strict_tdd: true\n");
   write(root, ".ospec/review-receipts/abc.json", "{}\n");
   write(root, ".ospec/turns", "7\n");
   const before = git(root, "status", "--porcelain");
@@ -358,8 +373,9 @@ test("a snapshot tree holds tracked and untracked files without touching the ind
   const blobs = treeBlobs(root, tree);
   assert.ok(blobs.has("src/new.js"));
   assert.ok(!blobs.has("debug.log"));
-  assert.ok(![...blobs.keys()].some((file) => file.startsWith("idd/") || file.startsWith(".ospec/")));
+  assert.deepStrictEqual([...blobs.keys()].filter((file) => file.startsWith("idd/") || file.startsWith(".ospec/")), ["idd/config.yaml"], "E1.64: of idd/, only the project's own files");
   assert.deepStrictEqual(treeNumstat(root, base, tree), [
+    { path: "idd/config.yaml", added: 1, deleted: 0 },
     { path: "src/app.js", added: 1, deleted: 0 },
     { path: "src/new.js", added: 1, deleted: 0 },
   ]);
@@ -611,6 +627,53 @@ test("a rename brings only the lines it changes, and a pure one derives no conte
   const copies = ["copy/a.md", "new/a.md"].filter((file) => file in diff.addedLines);
   assert.strictEqual(copies.length, 1, "one deleted file pairs with one untracked file");
   assert.deepStrictEqual(signalsOf(root, diff), ["always", "public-contract"]);
+});
+
+// E1.64 idd-config-in-diff: idd/config.yaml is a file of the project; of idd/,
+// only what ospec writes stays out of the diff.
+test("[E1.64] the diff holds idd/config.yaml, tracked or untracked, and nothing of a change or the archive", (t) => {
+  const root = gitRepo(t);
+  write(root, "src/app.js", "module.exports = 1;\n");
+  write(root, "idd/config.yaml", "impact:\n  defaults: true\n");
+  write(root, "idd/archive/2026-01-01-old/state.yaml", "{}\n");
+  commitAll(root, "base");
+
+  write(root, "idd/config.yaml", "impact:\n  defaults: false\n");
+  write(root, "idd/fix/state.yaml", "{}\n");
+  write(root, "idd/fix/change.md", "# fix\n");
+  fs.rmSync(path.join(root, "idd/archive/2026-01-01-old/state.yaml"));
+  write(root, "idd/archive/2026-01-02-new/state.yaml", "{}\n");
+  const diff = readGitDiff(root);
+  assert.deepStrictEqual(diff.paths, ["idd/config.yaml"]);
+  assert.deepStrictEqual(diff.addedLines, { "idd/config.yaml": ["  defaults: false"] });
+  assert.deepStrictEqual(diff.removedLines, { "idd/config.yaml": ["  defaults: true"] });
+
+  const fresh = gitRepo(t);
+  write(fresh, "README.md", "x\n");
+  commitAll(fresh, "base");
+  write(fresh, "idd/config.yaml", "checks:\n  test: npm test\n");
+  write(fresh, "idd/fix/state.yaml", "{}\n");
+  assert.deepStrictEqual(readGitDiff(fresh).paths, ["idd/config.yaml"], "untracked");
+});
+
+// E1.65 counterproof-declared-docs: a document the project declares as a
+// contract or an impact path is its product.
+test("[E1.65] a document the project declares in impact or in contracts.documents is product for the counterproof", () => {
+  const diff = { paths: ["rules/block.md", "test/block.test.mjs"] };
+  const context = (impact = {}, contracts = {}) => ({ impact, contracts, patterns: resolvePatterns({ impact }) });
+  assert.strictEqual(onlyTestsAndDocs(diff), true, "an undeclared document is documentation");
+  assert.strictEqual(onlyTestsAndDocs(diff, context()), true);
+  for (const key of ["public_contract", "persistent_data", "security_boundary"]) {
+    assert.strictEqual(onlyTestsAndDocs(diff, context({ defaults: false, [key]: ["rules/**"] })), false, key);
+  }
+  assert.strictEqual(onlyTestsAndDocs(diff, context({}, { documents: ["rules/**"] })), false, "a contract document");
+  assert.strictEqual(onlyTestsAndDocs(diff, context({ public_contract: ["rules/**"] })), true, "the default exclude keeps *.md out of the signals");
+  assert.strictEqual(onlyTestsAndDocs(diff, context({ defaults: false, public_contract: ["rules/**"], exclude: ["rules/block.md"] })), true, "impact.exclude");
+  assert.strictEqual(onlyTestsAndDocs({ paths: ["README.md", "test/a.test.js"] }, context({ defaults: false, public_contract: ["rules/**"] })), true, "a document the project does not declare");
+  // A default pattern never makes a document product: docs/api/** is a
+  // contract document by default.
+  assert.strictEqual(onlyTestsAndDocs({ paths: ["docs/api/users.md", "test/a.test.js"] }, context()), true);
+  assert.strictEqual(onlyTestsAndDocs({ paths: ["rules/block.md"] }, context({ defaults: false, public_contract: ["rules/**"] })), false, "no test in the diff, as before");
 });
 
 // E1.48 base-counterproof: the worktree a counterproof runs on.
