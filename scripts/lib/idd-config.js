@@ -75,13 +75,64 @@ function parseSection(name, lines) {
   return section;
 }
 
+const CHECK_KEYS = Object.freeze(["run", "paths"]);
+
+// A path of a scoped check stays inside the project: relative, without `..`.
+function checkPath(name, raw) {
+  const value = raw.replace(/\\/g, "/").replace(/^\.\//, "");
+  if (value === "" || /^\/|^[A-Za-z]:/.test(value) || value.split("/").includes("..")) {
+    throw new IddConfigError(`check ${name} paths must be relative paths inside the project, got ${raw === "" ? "nothing" : raw}`);
+  }
+  return value;
+}
+
+// `name:` with `run:` and `paths:` below it (E1.67): the check runs only when
+// the diff touches one of its paths. Without paths it is a plain check.
+function parseScopedCheck(name, body) {
+  if (body.length === 0 || /^\s*-\s/.test(body[0])) throw new IddConfigError(`check ${name} must be one command`);
+  const fields = parseSection(`check ${name}`, body);
+  for (const key of Object.keys(fields)) {
+    if (!CHECK_KEYS.includes(key)) throw new IddConfigError(`unknown key ${key} in check ${name}: a check holds ${CHECK_KEYS.join(" and ")}`);
+  }
+  if (typeof fields.run !== "string" || fields.run === "") throw new IddConfigError(`check ${name} must be one command`);
+  if (!("paths" in fields)) return { name, command: fields.run };
+  const paths = Array.isArray(fields.paths) ? fields.paths : [fields.paths].filter((item) => item !== "");
+  if (paths.length === 0) throw new IddConfigError(`check ${name} paths must list at least one path`);
+  return { name, command: fields.run, paths: paths.map((item) => checkPath(name, item)) };
+}
+
 // The checks `ospec check` runs, as `name: command`, in declared order
-// (REQ-idd-014). A command holding ` #` must be quoted.
+// (REQ-idd-014), or scoped to the paths that justify them (E1.67). A command
+// holding ` #` must be quoted. A repeated name keeps its first position and
+// its last value, and at least one check runs on every change.
 function parseChecks(lines) {
-  return Object.entries(parseSection("checks", lines)).map(([name, command]) => {
+  const groups = [];
+  let indent = null;
+  for (const line of lines) {
+    const lineIndent = line.length - line.trimStart().length;
+    indent ??= lineIndent;
+    if (groups.length > 0 && (lineIndent > indent || /^\s*-\s/.test(line))) groups.at(-1).body.push(line);
+    else groups.push({ line, body: [] });
+  }
+  const checks = new Map();
+  for (const { line, body } of groups) {
+    const entry = /^\s+([A-Za-z0-9_-]+):\s*([^\n]*)$/.exec(line);
+    if (!entry) throw new IddConfigError(`unreadable checks line: ${line.trim()}`);
+    const [, name, raw] = entry;
+    if (stripComment(raw) === "") {
+      checks.set(name, parseScopedCheck(name, body));
+      continue;
+    }
+    if (body.length > 0) throw new IddConfigError(`unreadable checks line: ${body[0].trim()} (indented unlike the first entry of checks)`);
+    const command = parseValue(raw);
     if (typeof command !== "string" || command === "") throw new IddConfigError(`check ${name} must be one command`);
-    return { name, command };
-  });
+    checks.set(name, { name, command });
+  }
+  const list = [...checks.values()];
+  if (list.length > 0 && list.every((check) => check.paths)) {
+    throw new IddConfigError("every check declares paths, so a change that touches none of them could never close: declare at least one check without paths");
+  }
+  return list;
 }
 
 const DELIVERY_KEYS = Object.freeze(["branching", "changelog", "release", "integration_branch", "production_branch"]);

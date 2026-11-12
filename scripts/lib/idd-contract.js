@@ -316,10 +316,11 @@ function validateState(state) {
       if (gate.id !== "irreversible-operation") fail(`gate ${gate.id}: only irreversible-operation lists operations`);
       else if (!(isTextList(gate.operations) && gate.operations.length > 0)) fail("gate irreversible-operation must list the operations it asks about, each as text");
     }
-    // checks-changed names the checks it approves (B7).
+    // checks-changed names the checks it approves (B7), a scoped one with its
+    // paths (E1.67).
     const checks = gate.checks;
-    if (gate.id === "checks-changed" && !(Array.isArray(checks) && checks.every((entry) => isTextList([entry?.name, entry?.command]) && Object.keys(entry).length === 2))) {
-      fail("gate checks-changed must list the checks it approves, each with its name and command");
+    if (gate.id === "checks-changed" && !(Array.isArray(checks) && checks.every(isApprovedCheck))) {
+      fail("gate checks-changed must list the checks it approves, each with its name, its command and, when scoped, its paths");
     }
     // Since E1.53 it also names the ceremony settings it approves; an older
     // entry without them approved the base settings.
@@ -375,6 +376,7 @@ function validateRunEvidence(entry, runs, runIndex, fail) {
         fail(`evidence ${entry.id} names ${id}, which is not a passing check run on its tree`);
       }
     }
+    if (detail.skipped !== undefined && !isSkippedChecks(detail.skipped)) fail(`evidence ${entry.id} skipped must list the checks it skipped, each with its name and reason`);
     return undefined;
   }
   if (entry.kind === "migration-test") {
@@ -614,6 +616,19 @@ function isCeremonyConfig(config) {
 
 function isTextList(value) {
   return Array.isArray(value) && value.every((entry) => typeof entry === "string" && entry !== "");
+}
+
+// A check as checks-changed approves it: its name and command, and the paths
+// of a scoped check (E1.67).
+function isApprovedCheck(entry) {
+  if (!isTextList([entry?.name, entry?.command])) return false;
+  const keys = Object.keys(entry).length;
+  return keys === 2 || (keys === 3 && isTextList(entry.paths) && entry.paths.length > 0);
+}
+
+// The checks a check-run skipped, each with its name and reason (E1.67).
+function isSkippedChecks(value) {
+  return Array.isArray(value) && value.length > 0 && value.every((entry) => isTextList([entry?.name, entry?.reason]) && Object.keys(entry).length === 2);
 }
 
 // The declared plan (E1.11): what `ospec signals` was told the change touches.

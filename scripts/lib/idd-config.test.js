@@ -36,6 +36,55 @@ test("checks are named commands kept in their declared order", () => {
   assert.throws(() => parseIddConfig("checks: npm test\n"), /checks must be a section/);
 });
 
+test("[REQ-idd-013] a check scoped to paths holds run and paths below its name (E1.67)", () => {
+  const config = parseIddConfig(
+    [
+      "checks:",
+      "  lint: pnpm lint",
+      "  e2e:",
+      "    run: pnpm test:e2e   # slow",
+      '    paths: ["src/**", ./tests/e2e/**]',
+      "  perf:",
+      "    run: pnpm perf",
+      "    paths:",
+      "      - src/**",
+      "    - package.json",
+      "  types:",
+      "    run: pnpm tsc",
+      "  audit:",
+      "    run: pnpm audit",
+      "    paths: package.json",
+    ].join("\n"),
+  );
+  assert.deepStrictEqual(config.checks, [
+    { name: "lint", command: "pnpm lint" },
+    { name: "e2e", command: "pnpm test:e2e", paths: ["src/**", "tests/e2e/**"] },
+    { name: "perf", command: "pnpm perf", paths: ["src/**", "package.json"] },
+    { name: "types", command: "pnpm tsc" },
+    { name: "audit", command: "pnpm audit", paths: ["package.json"] },
+  ]);
+  const scoped = (lines) => ["checks:", "  lint: pnpm lint", "  e2e:", ...lines].join("\n");
+  refused(scoped(["    run: x", "    paths: []"]), /check e2e paths must list at least one path/);
+  refused(scoped(["    run: x", "    paths:"]), /check e2e paths must list at least one path/);
+  for (const bad of ["/src/**", "../shared/**", "src/../../x", "C:/src/**"]) {
+    refused(scoped(["    run: x", `    paths: ["${bad}"]`]), new RegExp(`paths must be relative paths inside the project, got ${bad.replace(/[.*/]/g, "\\$&")}`));
+  }
+  refused(scoped(["    run: x", "    when: src/**"]), /unknown key when in check e2e: a check holds run and paths/);
+  refused(scoped(["    paths: src/**"]), /check e2e must be one command/);
+  refused(scoped(["    run: [a, b]", "    paths: src/**"]), /check e2e must be one command/);
+  refused(scoped(["    run: x", "      paths: src/**"]), /unreadable check e2e line: paths: src\/\*\* \(indented unlike/);
+  refused("checks:\n  lint: pnpm lint\n  e2e:\n", /check e2e must be one command/);
+});
+
+test("[REQ-idd-013] at least one check runs on every change: every check scoped is refused (E1.67)", () => {
+  refused("checks:\n  e2e:\n    run: pnpm test:e2e\n    paths: src/**\n", /every check declares paths/);
+  refused("checks:\n  e2e:\n    run: a\n    paths: src/**\n  perf:\n    run: b\n    paths: [\"**\"]\n", /declare at least one check without paths/);
+  assert.deepStrictEqual(parseIddConfig("checks:\n  e2e:\n    run: a\n    paths: src/**\n  test:\n    run: npm test\n").checks, [
+    { name: "e2e", command: "a", paths: ["src/**"] },
+    { name: "test", command: "npm test" },
+  ]);
+});
+
 test("an absent or empty configuration yields the defaults", () => {
   const defaults = { mode: null, strictTdd: false, team: null, delivery: { branching: null, changelog: null, release: null, integration_branch: null, production_branch: null }, checks: [], impact: {}, contracts: {} };
   assert.deepStrictEqual(parseIddConfig(""), defaults);

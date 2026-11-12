@@ -15,6 +15,7 @@ const { DECISIONS_ROOT, GATED_IMPACTS, GATES, OBLIGATIONS, RECORDED_IMPACTS, RUN
 const { GATE_QUESTIONS, WORK_ORDER } = require("./idd-next.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
 const { fitnessReason } = require("./idd-fitness.js");
+const { globToRegExp, normalizePath } = require("./idd-impact.js");
 const { IddRecordError } = require("./idd-record.js");
 const { trustReason } = require("./idd-review.js");
 
@@ -63,11 +64,41 @@ function recordRuns(state, runs) {
 }
 
 /**
+ * The checks a check runs and the ones it skips, with the reason (E1.67). A
+ * check with paths runs when a path of the change's diff (`paths`) matches
+ * one of them, or when the change adds it or changes its command or paths
+ * against `baseChecks`, so an approved command runs at least once.
+ */
+function scopeChecks(checks, { paths = [], baseChecks = [] } = {}) {
+  const files = paths.map(normalizePath);
+  const atBase = (check) => baseChecks.some((entry) => entry.name === check.name && JSON.stringify(entry) === JSON.stringify(check));
+  const touched = (check) => check.paths.some((glob) => {
+    const regex = globToRegExp(glob);
+    return files.some((file) => regex.test(file));
+  });
+  const run = [];
+  const skipped = [];
+  for (const check of checks) {
+    if (!check.paths || !atBase(check) || touched(check)) run.push(check);
+    else skipped.push({ name: check.name, reason: `no path of the diff matches its paths (${check.paths.join(", ")})` });
+  }
+  return { run, skipped };
+}
+
+/** What close lists of the checks the current checks-pass evidence skipped (E1.67). */
+function skippedCheckWarnings(state) {
+  const target = state.obligations.find((entry) => entry.id === "checks-pass" && entry.status === "satisfied");
+  const entry = target && state.evidence.find((item) => item.id === target.evidence.at(-1));
+  return (entry?.detail?.skipped || []).map(({ name, reason }) => `check ${name} did not run: ${reason}`);
+}
+
+/**
  * checks-pass is satisfied by this check exactly when every run in `runIds`
  * passed on `tree`, the tree current when the checks finished; otherwise it
- * returns to pending, because older evidence proved an older tree.
+ * returns to pending, because older evidence proved an older tree. The
+ * evidence names the checks the diff's paths left out (`skipped`, E1.67).
  */
-function settleChecks(state, { tree, runIds, recordedAt }) {
+function settleChecks(state, { tree, runIds, recordedAt, skipped = [] }) {
   requireOpen(state);
   const next = structuredClone(state);
   const target = next.obligations.find((entry) => entry.id === "checks-pass");
@@ -88,7 +119,7 @@ function settleChecks(state, { tree, runIds, recordedAt }) {
     kind: "check-run",
     obligation: "checks-pass",
     recorded_at: recordedAt,
-    detail: { tree, runs: [...runIds] },
+    detail: { tree, runs: [...runIds], ...(skipped.length > 0 ? { skipped: structuredClone(skipped) } : {}) },
   });
   target.status = "satisfied";
   target.evidence = [id];
@@ -141,7 +172,7 @@ function settleBoundary(state, { tree, runIds, recordedAt, tests = [], counterpr
 const CHECKS_GATE = "checks-changed";
 
 function describeChecks(checks) {
-  return checks.length > 0 ? checks.map(({ name, command }) => `${name}: ${command}`).join("; ") : "no checks";
+  return checks.length > 0 ? checks.map(({ name, command, paths }) => `${name}: ${command}${paths ? ` (paths ${paths.join(", ")})` : ""}`).join("; ") : "no checks";
 }
 
 // A list as a set: its order and repeats decide nothing.
@@ -595,6 +626,7 @@ module.exports = {
   priorControl,
   priorCounterproof,
   recordRuns,
+  scopeChecks,
   settleBoundary,
   settleChecks,
   settleChecksChange,
@@ -604,4 +636,5 @@ module.exports = {
   settlePair,
   settleProductFreePairs,
   settleTreeBound,
+  skippedCheckWarnings,
 };

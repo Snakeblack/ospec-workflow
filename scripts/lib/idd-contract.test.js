@@ -584,7 +584,11 @@ test("signalGaps names each obligation an active signal derives that the state w
 test("checks-changed names the checks it approves (E1.44, B7)", () => {
   const checks = [{ name: "test", command: "npm test" }];
   assert.ok(contract.validateState(validState({ gates: [{ id: "checks-changed", status: "open", reason: "r", checks }] })).ok);
-  for (const bad of [undefined, [{ name: "test" }], [{ name: "test", command: "" }], [{ name: "test", command: "x", extra: 1 }]]) {
+  // A scoped check carries its paths (E1.67).
+  const scoped = [...checks, { name: "e2e", command: "npm run e2e", paths: ["src/**"] }];
+  assert.ok(contract.validateState(validState({ gates: [{ id: "checks-changed", status: "open", reason: "r", checks: scoped }] })).ok);
+  const e2e = (paths) => [{ name: "e2e", command: "npm run e2e", paths }];
+  for (const bad of [undefined, [{ name: "test" }], [{ name: "test", command: "" }], [{ name: "test", command: "x", extra: 1 }], e2e([]), e2e([""]), e2e("src/**"), [{ name: "e2e", command: "x", paths: ["a"], extra: 1 }]]) {
     const result = contract.validateState(validState({ gates: [{ id: "checks-changed", status: "open", checks: bad }] }));
     assert.ok(result.errors.some((error) => error.includes("checks-changed must list the checks")), JSON.stringify(bad));
   }
@@ -610,7 +614,7 @@ test("an answered open-facts entry may outlive the facts a raised intent replace
 
 test("[E1.53] REQ-idd-014 contrasts the checks and the ceremony settings with the base, and names no open limit", () => {
   const section = requirementSection(readSpec(), "REQ-idd-014").replace(/\s+/g, " ");
-  assert.match(section, /in its checks \(name, command or order\) or in its ceremony settings/);
+  assert.match(section, /in its checks \(name, command, paths or order\) or in its ceremony settings/);
   assert.match(section, /What the configuration declares therefore cannot lower the derived obligations without the user's answer/);
   assert.doesNotMatch(section, /read from the working tree/);
 });

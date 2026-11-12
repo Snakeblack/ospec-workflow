@@ -1,0 +1,479 @@
+{
+  "schema": "idd-state/v1",
+  "change": "check-path-scope",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "kind": "feature",
+    "summary": "Un check de idd/config.yaml puede declarar sus rutas, y ospec check no lo ejecuta si el diff del cambio no toca ninguna (E1.67, #499)",
+    "acceptance": "Con un check acotado a src/**, un cambio que solo toca docs/** cierra sin ejecutarlo y el estado registra que se omitió y por qué; si después toca src/**, el siguiente ospec check lo ejecuta; añadir, quitar o cambiar las rutas de un check abre checks-changed; un idd/config.yaml sin rutas en ningún check se comporta como hoy"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "Forma y límites de las rutas de un check en idd/config.yaml: (A) anidada, como en el issue: e2e: con run: y paths: debajo; paths admite lista en línea, en bloque o una sola ruta; una lista vacía, una ruta absoluta o con .., o cualquier otra clave bajo el check dan config-invalid. (B) Una sección aparte, check_paths: con e2e: [src/**], que no amplía el subconjunto YAML de REQ-idd-013."
+      },
+      {
+        "category": "uniqueness",
+        "question": "Qué cuenta como tocar una ruta: (A) cualquier ruta del diff del cambio contra su base (añadida, cambiada, borrada, los dos lados de un renombre y los ficheros sin seguimiento), casada con la sintaxis glob de impact (sin distinguir mayúsculas, ** y {a,b}) y relativa a la raíz del proyecto. (B) Solo las rutas cambiadas desde el último ospec check."
+      },
+      {
+        "category": "persistence",
+        "question": "Dónde queda la omisión: (A) en la evidencia check-run de checks-pass, como skipped con el nombre y el motivo de cada check omitido, en la salida de ospec check y en los avisos de ospec close. (B) Además, un run por check omitido en runs."
+      },
+      {
+        "category": "copy",
+        "question": "Texto del motivo: (A) check e2e did not run: no path of the diff matches its paths (src/**, tests/e2e/**), en inglés como el resto de la CLI. (B) Otro texto que prefieras."
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1248
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 1298
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Dos casos límite: 1) si todos los checks declaran rutas, (A) config-invalid al leer la configuración, porque un cambio que no toque ninguna no podría cerrar nunca, o (B) como dice el issue, checks-pass queda pendiente cuando no corre ninguno; 2) un check que el cambio añade o cambia respecto a la base (comando o rutas), (A) corre aunque el diff no toque sus rutas, para que el comando aprobado se ejecute al menos una vez, o (B) sigue sus rutas como los demás."
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-check.js",
+      "scripts/lib/idd-check.test.js",
+      "scripts/lib/idd-config.js",
+      "scripts/lib/idd-config.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/references/checks.md",
+      "web-doc/src/content/docs/idd/flujo-idd.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Un check acotado se escribe anidado bajo checks: (run: y paths:); paths admite lista en línea, en bloque o una sola ruta, y una lista vacía, una ruta absoluta o con .., una clave distinta de run y paths o un check sin run dan config-invalid (respuesta del usuario)",
+      "Un check sin paths conserva la forma {name, command} en el estado y en la huella del árbol de checks, así que la evidencia y los checks-changed de los cambios abiertos antes de E1.67 siguen valiendo; solo un check acotado añade paths",
+      "Una ruta toca un check cuando alguna ruta del diff del cambio contra su base (añadida, cambiada, borrada, los dos lados de un renombre o sin seguimiento) casa con sus paths, con la sintaxis glob de impact (respuesta del usuario)",
+      "La omisión queda en la evidencia check-run como skipped, con el nombre y el motivo de cada check, en la salida de ospec check y en los avisos de ospec close; no se registra un run por check omitido (respuesta del usuario)",
+      "Si todos los checks declaran paths, la configuración da config-invalid: al menos un check corre siempre, así que checks-pass nunca se queda sin ejecuciones (respuesta del usuario)",
+      "Un check que el cambio añade o cambia respecto a la base (comando o paths) corre aunque el diff no toque sus rutas, para que el comando aprobado se ejecute al menos una vez (respuesta del usuario)",
+      "La contraprueba de boundary-tests y sus controles de entorno usan solo los checks que corren en ese check: un check omitido no corre en ningún sitio de esa ejecución",
+      "ospec run cuenta como el único check solo con un check declarado, como hasta ahora: con todos acotados prohibidos, ese check corre siempre",
+      "El alcance sigue el diff del cambio contra su base aunque ospec check reciba --base, como checks-changed: un --base más estrecho no puede saltarse un check",
+      "Los controles de entorno de la contraprueba de un par en ospec run también dejan fuera un check acotado que el diff del cambio no toca (readCheckScope), para que un e2e lento no corra en la base por un test unitario"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/lib/idd-config.js and 1 more (matches scripts/lib/idd-config.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Qué checks corren lo decide scopeChecks en el CLI, con tests; la skill solo muestra la forma de declararlo"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "Un check lento se acota a las rutas que lo justifican, así que su coste sigue al impacto del diff, sin quitar obligaciones derivadas"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "checks-pass sigue exigiendo runs observados por el CLI y al menos un check corre siempre; un check omitido lo aprueba el usuario en checks-changed y queda registrado con su motivo"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "El cambio no lee ni escribe memoria"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Reutiliza globToRegExp de idd-impact.js; no añade dependencias"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "Solo cambia idd/config.yaml y el estado de IDD; SDD no se toca"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "La omisión queda en el estado (skipped de la evidencia check-run) y se recalcula del diff en cada check"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Casar rutas con globs es local y no usa red"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 316,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_turn": 317
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-12T14:05:03.028Z",
+      "detail": {
+        "run": "run-9",
+        "tree": "sha256:bdf28fa27f554ca2f3a0c6110e1d47ef80d9ec0c91c48132a0044a04c9c2d7bd",
+        "plan": "El esquema idd-state/v1 sigue leyendo todo lo anterior y no hay migración: un checks-changed cuyos checks tienen solo name y command y una evidencia check-run sin skipped siguen siendo válidos (tests de idd-contract e idd-check), y un check sin paths conserva la forma {name, command} en el estado y en la huella del árbol de checks, así que la evidencia y las aprobaciones de los cambios abiertos antes de E1.67 siguen valiendo. Lo nuevo es aditivo: paths en un check de checks-changed y skipped en la evidencia check-run solo aparecen con un check acotado. idd/config.yaml sin checks acotados se lee igual (tests de idd-config). Vuelta atrás: una CLI anterior rechaza como línea ilegible un check anidado con run y paths, y como checks-changed inválido un gate que apruebe paths; antes de volver a ella se quitan los checks acotados de idd/config.yaml y se cierran los cambios cuyo checks-changed los aprobó, o se sigue con la versión nueva."
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-12T14:07:20.609Z",
+      "detail": {
+        "tree": "sha256:591e5b346ef13884c694295b52be37b8fd0144808ff671978324bd4bd83105eb",
+        "runs": [
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-12T14:07:20.609Z",
+      "detail": {
+        "tree": "sha256:591e5b346ef13884c694295b52be37b8fd0144808ff671978324bd4bd83105eb",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-12T14:07:20.609Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:591e5b346ef13884c694295b52be37b8fd0144808ff671978324bd4bd83105eb",
+        "fitness": [
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-12T14:07:20.764Z"
+    }
+  ],
+  "base": "6b973cc012c5baa4bab7a16cc807066d97fa8df2",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:9cd09ccc40be343e64046f11dcb319ffb8d99b788ea0354293782dcf28bf6145",
+      "tree": "sha256:8ff2c31c831e74bae47ac5617d9ac7af75b64640a365f95d099b379c78ade414",
+      "recorded_at": "2026-11-12T14:02:21.090Z",
+      "tests": 0
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:aebca1207488d2a9c65af729a451f3fd08d4d499823d06b2e595c711f41d2b7b",
+      "tree": "sha256:8ff2c31c831e74bae47ac5617d9ac7af75b64640a365f95d099b379c78ade414",
+      "recorded_at": "2026-11-12T14:02:21.090Z",
+      "tests": 61
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9357e18474c370fbaa93498abd488f6e297a833a85a1ffeffd3e54b076f29b44",
+      "tree": "sha256:8ff2c31c831e74bae47ac5617d9ac7af75b64640a365f95d099b379c78ade414",
+      "recorded_at": "2026-11-12T14:02:21.090Z",
+      "tests": 18
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d7bc10a4fbd0cfe51e2ceae388c052bfe1e969dbddd5576a109cb6e47be98187",
+      "tree": "sha256:8ff2c31c831e74bae47ac5617d9ac7af75b64640a365f95d099b379c78ade414",
+      "recorded_at": "2026-11-12T14:02:21.090Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:8ff2c31c831e74bae47ac5617d9ac7af75b64640a365f95d099b379c78ade414",
+      "recorded_at": "2026-11-12T14:02:21.090Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ad1b26ee9b98dcc6ffa0d59edcad911359a48f0830367ffd3a80db6c73f80f82",
+      "tree": "sha256:8ff2c31c831e74bae47ac5617d9ac7af75b64640a365f95d099b379c78ade414",
+      "recorded_at": "2026-11-12T14:02:21.090Z",
+      "tests": 26
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:00eb11b3ed4e91448d4a36b2d0a66ce1d6c91cf0d04b7f37b6f01c90bfd40660",
+      "tree": "sha256:8ff2c31c831e74bae47ac5617d9ac7af75b64640a365f95d099b379c78ade414",
+      "recorded_at": "2026-11-12T14:02:21.090Z",
+      "tests": 96
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:52500ca1e5396f4ee313b3e2d2f7e6458d665d561aa75ad96ac7906d05603b5e",
+      "tree": "sha256:8ff2c31c831e74bae47ac5617d9ac7af75b64640a365f95d099b379c78ade414",
+      "recorded_at": "2026-11-12T14:02:21.090Z",
+      "tests": 52
+    },
+    {
+      "id": "run-9",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-contract.test.js scripts/lib/idd-config.test.js scripts/lib/idd-check.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6e86e31a50d3b6ad0de9eff1fa945834ee226b5a0833a7dea8fb686d934001f2",
+      "tree": "sha256:bdf28fa27f554ca2f3a0c6110e1d47ef80d9ec0c91c48132a0044a04c9c2d7bd",
+      "recorded_at": "2026-11-12T14:05:03.028Z",
+      "tests": 100
+    },
+    {
+      "id": "run-10",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bbd5c0a78fca56f253122104e86d2942de395f1be7927eada02068d2b84b599b",
+      "tree": "sha256:591e5b346ef13884c694295b52be37b8fd0144808ff671978324bd4bd83105eb",
+      "recorded_at": "2026-11-12T14:07:20.609Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:af53d54e29a93514706c55541357f231dac9956291bb7b6dbc2707ce76c15630",
+      "tree": "sha256:591e5b346ef13884c694295b52be37b8fd0144808ff671978324bd4bd83105eb",
+      "recorded_at": "2026-11-12T14:07:20.609Z",
+      "tests": 61
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:765c1d1d2702e766f84ef684ada7ce9d58b22a05c09a006d9094abc1e26ee792",
+      "tree": "sha256:591e5b346ef13884c694295b52be37b8fd0144808ff671978324bd4bd83105eb",
+      "recorded_at": "2026-11-12T14:07:20.609Z",
+      "tests": 18
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:50ca38abd1e9ecc633b0f347beed0fb489177614e46dd8cc36c89484f3587014",
+      "tree": "sha256:591e5b346ef13884c694295b52be37b8fd0144808ff671978324bd4bd83105eb",
+      "recorded_at": "2026-11-12T14:07:20.609Z",
+      "tests": 2
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:591e5b346ef13884c694295b52be37b8fd0144808ff671978324bd4bd83105eb",
+      "recorded_at": "2026-11-12T14:07:20.609Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:db9b9c6e6aa714fa22bb0431bb2b95cb4b23c7b0f3bfe5618b1a367d946b9bda",
+      "tree": "sha256:591e5b346ef13884c694295b52be37b8fd0144808ff671978324bd4bd83105eb",
+      "recorded_at": "2026-11-12T14:07:20.609Z",
+      "tests": 26
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:437200ebc23164c1a8347517c3003de9ed63df4d2e7e9d99e2ec911ba8bc3c02",
+      "tree": "sha256:591e5b346ef13884c694295b52be37b8fd0144808ff671978324bd4bd83105eb",
+      "recorded_at": "2026-11-12T14:07:20.609Z",
+      "tests": 96
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:db3157410e42c365b85e43c04a97a039f44a140ce66ad8993e5035190089dc18",
+      "tree": "sha256:591e5b346ef13884c694295b52be37b8fd0144808ff671978324bd4bd83105eb",
+      "recorded_at": "2026-11-12T14:07:20.609Z",
+      "tests": 52
+    }
+  ],
+  "closed_at": "2026-11-12T14:07:20.764Z"
+}

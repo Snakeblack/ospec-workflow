@@ -140,7 +140,7 @@ contracts:
 
 | Clave | Qué decide |
 | --- | --- |
-| `checks` | Los comandos que prueban un cambio, como `nombre: comando`. Sin ellos no cierra ningún cambio. |
+| `checks` | Los comandos que prueban un cambio, como `nombre: comando`, o acotados a sus rutas con `run` y `paths` (ver abajo). Sin ellos no cierra ningún cambio. |
 | `strict_tdd` | Si cada unidad de trabajo exige un par rojo-verde. Sin declarar, lo decide `team` y, sin perfil, vale `false`. |
 | `team` | El perfil de equipo y sus valores por defecto. |
 | `delivery` | Ramas, CHANGELOG y versiones. Ver [Entrega](/handbook/idd/entrega.md). |
@@ -151,6 +151,20 @@ contracts:
 ### La primera vez: los checks
 
 Si no hay checks, `ospec next` devuelve el paso `configure-checks` con un comando candidato sacado de tu `package.json` o de tu documentación de tests. El agente lo escribe, conservando las demás claves, y lanza `ospec check`, que **no ejecuta nada todavía**: abre `checks-changed` con los checks exactos y el agente te pregunta. Con tu sí, el siguiente `ospec check` los ejecuta; con un no, el agente restaura el fichero. Ningún comando escrito en `idd/config.yaml` corre antes de tu aprobación.
+
+### Un check lento, acotado a sus rutas
+
+Un check que solo hace falta cuando cambian ciertas rutas, como una suite de extremo a extremo, puede declararlas:
+
+```yaml
+checks:
+  test: npm test
+  e2e:
+    run: npm run test:e2e
+    paths: ["src/**", "tests/e2e/**"]
+```
+
+`ospec check` no lo ejecuta mientras el diff del cambio contra su base no toque ninguna de esas rutas, lo registra en la evidencia de `checks-pass` con el motivo y `close` lo lista. Las rutas usan la misma sintaxis glob que `impact`. Un check que el cambio añade o cambia corre una vez aunque el diff no toque sus rutas, y cambiar las rutas abre `checks-changed`, como cambiar un comando. Al menos un check tiene que quedar sin rutas: si todos las declaran, la configuración se rechaza con `config-invalid`.
 
 ### Perfil de equipo
 

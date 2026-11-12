@@ -23,6 +23,20 @@ checks:
   test: npm test
 ```
 
+A slow check that only some paths justify, such as an end-to-end suite, can
+declare them; at least one check stays without paths:
+
+```yaml
+checks:
+  test: npm test
+  e2e:
+    run: npm run test:e2e
+    paths: ["src/**", "tests/e2e/**"]
+```
+
+`ospec check` skips it while the change's diff touches none of them, and
+`close` lists it. Propose paths only when the user asks to scope a check.
+
 Read any existing configuration first and preserve its other keys and
 checks. Then run `ospec check`: until the user approves the checks and
 ceremony settings, it runs nothing and opens `checks-changed` naming them.
