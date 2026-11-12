@@ -90,11 +90,12 @@ Automático no significa sin guardas: si hay riesgo de revisión, el gate manda.
 
 ## Catálogo de rutas
 
-El orquestador lee la tabla `routing:` de `openspec/config.yaml`. Las rutas contextuales (`foundation`, `federated` y `brownfield`) se evalúan primero; después, el resto en el orden declarado, y **gana la primera que cumple sus condiciones y su clasificación**. Una ruta fijada al empezar un cambio no cambia en mitad de camino: si aparece evidencia que la contradice, el orquestador se detiene y pregunta.
+El orquestador lee la tabla `routing:` de `openspec/config.yaml`. Las rutas contextuales (`foundation`, `handbook`, `federated` y `brownfield`) se evalúan primero; después, el resto en el orden declarado, y **gana la primera que cumple sus condiciones y su clasificación**. Una ruta fijada al empezar un cambio no cambia en mitad de camino: si aparece evidencia que la contradice, el orquestador se detiene y pregunta.
 
 | Ruta | Cuándo | Fases | Gates | Coste |
 |---|---|---|---|---|
 | `foundation` | Proyecto vacío, sin arquitectura detectada. | `foundation` (para aquí; no encadena con `standard`) | — | medio |
+| `handbook` | Pides dentro de SDD documentar el repositorio, su handbook o su web de documentación. Solo con intención explícita. | `handbook` (para aquí) | — | medio |
 | `federated` | Cambio coordinado en varios repos del workspace. | `sdd-workspace` → `propose` → `spec` → `design` → `tasks` → `apply` → `verify` → `archive` | `impact`, `clarify` | alto |
 | `brownfield` | Proyecto con código pero sin specs, o con la línea base pendiente. | `sdd-baseline` (solo con consentimiento; luego reenruta al cambio) | `brownfield-advisory` | medio |
 | `standard` | Funcionalidad normal o de alto riesgo en un proyecto activo. | `propose` → `spec` → `design` → `tasks` → `apply` → `verify` → `archive` | `clarify`, `quality-review-gate` | alto |
@@ -105,7 +106,8 @@ El orquestador lee la tabla `routing:` de `openspec/config.yaml`. Las rutas cont
 
 Notas:
 
-- `bugfix`, `refactor` y `hotfix` solo se eligen cuando el usuario marca la intención (`explicit_*_intent`). Nunca se infieren solo del tamaño del cambio.
+- `bugfix`, `refactor`, `hotfix` y `handbook` solo se eligen cuando el usuario marca la intención (`explicit_*_intent`). Nunca se infieren solo del tamaño del cambio.
+- `handbook` documenta sin tocar el código: ningún suelo de riesgo la descarta, y sin tabla `routing:` sigue disponible, como `lite` y `standard`.
 - `lite` no tiene specs ni diseño formal, y no declara gates.
 - Si el cambio toca autenticación o seguridad, o migra datos, las rutas `lite` y `hotfix` quedan descartadas por el suelo de riesgo.
 - Una ruta es una intención distinta del usuario, no una variante de configuración. Un ajuste de una fase se resuelve con un gate o una opción de fase, no con una ruta nueva.

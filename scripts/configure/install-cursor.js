@@ -409,8 +409,9 @@ function install(argv, deps = {}) {
         retryOptions,
       );
     } finally {
-      shared.restore();
+      // Last rendered, first restored: one file can carry both markers.
       runtime.restore();
+      shared.restore();
     }
     installHooks(outDir, cursorRoot, { fs: fsImpl, dryRun: false, journal, retryOptions });
     installMcp(sourceDir, cursorRoot, { fs: fsImpl, dryRun: false, journal, retryOptions });

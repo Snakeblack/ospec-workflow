@@ -13,7 +13,7 @@ At the **start of every route execution** (after route selection, before the fir
 
 1. Read `openspec/config.yaml`.
 2. Extract the `hooks:` key value (may be absent → treat as `null`).
-3. Call `parseHooksBlock(hooksValue)` from `scripts/lib/lifecycle-hooks.js` to obtain the filtered hooks map (unknown event keys are discarded; absent → `{}`).
+3. Call `parseHooksBlock(hooksValue)` from `{{ospec-runtime}}/scripts/lib/lifecycle-hooks.js` to obtain the filtered hooks map (unknown event keys are discarded; absent → `{}`).
 4. Cache the result for the remainder of the route — do NOT re-read config.yaml per phase.
 5. For every event in `KNOWN_EVENTS` where `eventAppliesToRoute(event, route.phases)` returns `false`, immediately write `lifecycle_hooks.{event}: {status: skipped, actions: []}` to `state.yaml` (see Audit Persistence below).
 
@@ -40,7 +40,7 @@ If the cached hooks map is `{}` (no hooks declared), skip all firing logic for t
 After determining that an event applies to the current route:
 
 1. Retrieve the event's action list from the cached hooks map.
-2. Call `planExecution(actions)` from `scripts/lib/lifecycle-hooks.js` to obtain the ordered action list.
+2. Call `planExecution(actions)` from `{{ospec-runtime}}/scripts/lib/lifecycle-hooks.js` to obtain the ordered action list.
 3. Execute each action in returned order:
 
 #### `load-skill` action
@@ -120,7 +120,7 @@ Resolution paths:
 
 Write (or merge) `lifecycle_hooks.{event}` into `state.yaml` **immediately after each event's actions complete** — do NOT defer writes to route end.
 
-Use the field names and shapes produced by `buildAuditEntry` from `scripts/lib/lifecycle-hooks.js`:
+Use the field names and shapes produced by `buildAuditEntry` from `{{ospec-runtime}}/scripts/lib/lifecycle-hooks.js`:
 
 - **Single-fire events** (all except `before-task`): `{status, actions: [{type, outcome, policy, ...typeFields}]}`
 - **`before-task`** (repeated event): `{status, occurrences: [{index, batch, status, actions}]}`

@@ -111,10 +111,10 @@ Ordered list of valid SDD phase names:
 ```
 foundation, sdd-baseline, sdd-workspace, sdd-explore,
 sdd-propose, sdd-spec, sdd-design, sdd-tasks,
-sdd-apply, sdd-verify, sdd-archive
+sdd-apply, sdd-verify, sdd-archive, handbook
 ```
 
-(11 entries)
+(12 entries)
 
 ### 3.2 KNOWN_GATES
 
@@ -174,22 +174,25 @@ experimental
 
 The `routing:` block in `openspec/config.yaml` declares the ordered list of routes. Routes are evaluated top-to-bottom; the **first matching route wins**. No further routes are evaluated after a match.
 
-### 4.1 The Six Canonical Routes
+### 4.1 The Canonical Routes
 
 | # | Name | classification | Key condition | Phases | Gates | Cost |
 |---|------|---------------|---------------|--------|-------|------|
 | 1 | `foundation` | `[trivial, small, normal, high-risk]` | `project.status: empty` | `[foundation]` | `[]` | medium |
-| 2 | `federated` | `[trivial, small, normal, high-risk]` | `artifact_store.backend: workspace-federated` | `[sdd-workspace, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[impact, clarify]` | high |
-| 3 | `bugfix` | `[small, normal]` | `explicit_bugfix_intent: true` | `[sdd-explore, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[quality-review-gate]` | medium |
-| 4 | `brownfield` | `[trivial, small, normal, high-risk]` | `baseline.status: pending` | `[sdd-baseline]` | `[brownfield-advisory]` | medium |
-| 5 | `refactor` | `[small, normal]` | `explicit_refactor_intent: true` | `[sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[quality-review-gate]` | medium |
-| 6 | `hotfix` | `[trivial, small]` | `explicit_hotfix_intent: true` | `[sdd-apply, sdd-verify, sdd-archive]` | `[]` | low |
-| 7 | `standard` | `[normal, high-risk]` | `project.status: active` | `[sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[clarify, quality-review-gate]` | high |
-| 8 | `lite` | `[trivial, small]` | `project.status: active` | `[sdd-propose, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[]` | low |
+| 2 | `handbook` | `[trivial, small, normal, high-risk]` | `explicit_handbook_intent: true` | `[handbook]` | `[]` | medium |
+| 3 | `federated` | `[trivial, small, normal, high-risk]` | `artifact_store.backend: workspace-federated` | `[sdd-workspace, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[impact, clarify]` | high |
+| 4 | `bugfix` | `[small, normal]` | `explicit_bugfix_intent: true` | `[sdd-explore, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[quality-review-gate]` | medium |
+| 5 | `brownfield` | `[trivial, small, normal, high-risk]` | `baseline.status: pending` | `[sdd-baseline]` | `[brownfield-advisory]` | medium |
+| 6 | `refactor` | `[small, normal]` | `explicit_refactor_intent: true` | `[sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[quality-review-gate]` | medium |
+| 7 | `hotfix` | `[trivial, small]` | `explicit_hotfix_intent: true` | `[sdd-apply, sdd-verify, sdd-archive]` | `[]` | low |
+| 8 | `standard` | `[normal, high-risk]` | `project.status: active` | `[sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[clarify, quality-review-gate]` | high |
+| 9 | `lite` | `[trivial, small]` | `project.status: active` | `[sdd-propose, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[]` | low |
 
 ### 4.2 Route-Specific Behaviors
 
 **foundation**: Stops after the `foundation` phase completes. MUST NOT auto-chain into the standard SDD flow. A routing table or persisted route that still names the phase `sdd-foundation` (its name before E2.3) MUST parse and validate as `foundation`; any other unknown phase stays refused.
+
+**handbook**: Is explicit-only. The user MUST ask, inside SDD, to document the repository, write or update its handbook, or build its documentation website; `route-dispatch-run` receives that request as `--handbook` (`explicit_handbook_intent: true`). Its only phase delegates to the `handbook` agent, and it stops when that phase completes. It is contextual: it documents the repository without changing its code, so it keeps precedence over the general routes and no impact floor disqualifies it.
 
 **bugfix**: Is explicit-only. The user MUST signal bugfix intent (e.g., "fix bug", "bugfix", "quick fix"). The orchestrator MUST NOT auto-route to `bugfix` from classification signals alone.
 
@@ -1302,7 +1305,7 @@ K1 impact risk floors (`critical`, `planned`, `bounded`, `repair`, `direct`) MUS
 
 When a change carries `critical` impact evidence (`auth_security`, `data_migration`), routes omitting full SDD assurance (`lite`, `hotfix`, `repair`, `direct`) MUST be disqualified, and the dispatcher MUST elevate candidate selection to `standard` (or equivalent full SDD route). When a change carries `planned` impact evidence (`public_api`), routes omitting specification or design (`lite`, `hotfix`) MUST be disqualified.
 
-Contextual routes (`foundation`, `federated`, `brownfield`) MUST be evaluated before general workflow routes, retaining precedence regardless of change classification. Contextual prerequisite routes are exempt from floor required-phase eligibility while executing the prerequisite; the floor remains binding when routing the underlying implementation workflow. Among eligible custom or non-contextual routes, the declared table order in `openspec/config.yaml` MUST be strictly preserved using first-match evaluation.
+Contextual routes (`foundation`, `handbook`, `federated`, `brownfield`) MUST be evaluated before general workflow routes, retaining precedence regardless of change classification. Contextual prerequisite routes are exempt from floor required-phase eligibility while executing the prerequisite; the floor remains binding when routing the underlying implementation workflow. Among eligible custom or non-contextual routes, the declared table order in `openspec/config.yaml` MUST be strictly preserved using first-match evaluation.
 
 #### Scenario: Auth security evidence blocks lite and hotfix
 
@@ -1337,6 +1340,14 @@ Contextual routes (`foundation`, `federated`, `brownfield`) MUST be evaluated be
 - THEN the contextual route (`brownfield` or `foundation`) MUST be selected as a prerequisite
 - AND MUST NOT be disqualified by the implementation floor's required phases
 - AND the critical floor MUST remain binding for subsequent implementation workflow routing
+
+#### Scenario: An explicit handbook request selects the handbook route
+
+- GIVEN a routing table that declares `standard` before `handbook`
+- AND a `normal` change on an active project with `explicit_handbook_intent: true`, even under `critical` impact evidence
+- WHEN route selection evaluates candidate routes
+- THEN the contextual route `handbook` MUST be selected
+- AND without the explicit request `handbook` MUST NOT match
 
 #### Scenario: Custom route ordering preserved
 
@@ -1404,7 +1415,7 @@ The `lite` route MUST remain the ordered five-phase workflow `sdd-propose → sd
 
 ### Requirement: Degraded Route Phases {#REQ-routing-017}
 
-When `openspec/config.yaml` declares no routing table (the `routing:` key is absent or resolves to `[]`), the orchestrator falls back to the legacy choice between `lite` (trivial or small) and `standard` (normal or high-risk), and `validate-phase` MUST validate those two route names against their default phases: `lite` as `sdd-propose → sdd-tasks → sdd-apply → sdd-verify → sdd-archive` (REQ-routing-015) and `standard` as `sdd-propose → sdd-spec → sdd-design → sdd-tasks → sdd-apply → sdd-verify → sdd-archive`. Any other route name without a declared table MUST still fail as undeclared, and a declared table MUST remain the only authority whenever it is present, including for `lite` and `standard`. `freeform` keeps bypassing phase validation.
+When `openspec/config.yaml` declares no routing table (the `routing:` key is absent or resolves to `[]`), the orchestrator falls back to the legacy choice between `lite` (trivial or small) and `standard` (normal or high-risk), and `validate-phase` MUST validate those two route names against their default phases: `lite` as `sdd-propose → sdd-tasks → sdd-apply → sdd-verify → sdd-archive` (REQ-routing-015) and `standard` as `sdd-propose → sdd-spec → sdd-design → sdd-tasks → sdd-apply → sdd-verify → sdd-archive`. An explicit request to document the repository keeps its route too: `handbook` validates against its only phase, `handbook`. Any other route name without a declared table MUST still fail as undeclared, and a declared table MUST remain the only authority whenever it is present, including for `lite` and `standard`. `freeform` keeps bypassing phase validation.
 
 #### Scenario: Consumer project without a routing table runs lite
 
@@ -1423,5 +1434,12 @@ When `openspec/config.yaml` declares no routing table (the `routing:` key is abs
 #### Scenario: Other routes still need a table
 
 - GIVEN the same project
-- WHEN `validate-phase` checks any route other than `lite`, `standard`, or `freeform`
+- WHEN `validate-phase` checks any route other than `lite`, `standard`, `handbook`, or `freeform`
 - THEN it MUST fail because the route is not declared with phases
+
+#### Scenario: Consumer project without a routing table documents the repository
+
+- GIVEN a project whose `openspec/config.yaml` has no `routing:` key
+- WHEN `validate-phase` checks `handbook` for route `handbook`
+- THEN it MUST pass
+- AND any other phase for route `handbook` MUST fail because it is not one of the route's phases

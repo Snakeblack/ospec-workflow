@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- PR4c de la review general: la prosa SDD nombra el runtime instalado y no rutas relativas al proyecto; apply-resume distingue ids con varios niveles; el runner de recheck se distribuye; la fase handbook es enrutable y la tabla de fases del orquestador está completa (sdd-runtime-prose)
+
 ## [2.174.0] - 2026-11-12
 
 ### Added

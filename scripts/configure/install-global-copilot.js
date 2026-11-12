@@ -202,9 +202,10 @@ function install(argv = process.argv.slice(2), deps = {}) {
         }
       }
     } finally {
-      shared.restore();
-      runtime.restore();
+      // Last rendered, first restored: one file can carry both markers.
       hooks.restore();
+      runtime.restore();
+      shared.restore();
     }
 
     // Merge MCP configuration fail-closed

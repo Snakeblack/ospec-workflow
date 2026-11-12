@@ -39,7 +39,7 @@ function transform({ files: sourceFiles, profile, models, withExtras = false, wi
     if (handled === null) {
       continue; // dropped (e.g. rules inlined elsewhere, or folded into the global rules file)
     }
-    out.push(handled);
+    out.push(resolveRuntimeDir(handled, profile));
   }
 
   // Files synthesized from collected source data (not 1:1 with any input): the
@@ -222,6 +222,33 @@ function resolveIddProtocol(files, profile) {
     if (file.path.startsWith("skills/") && content.includes(OSPEC_CLI)) return { ...file, content: content.split(OSPEC_CLI).join(cli) };
     return file;
   });
+}
+
+// PR4c: the SDD prose runs the installed runtime, never a project-relative
+// `scripts/`, which a global install and the Claude plugin keep outside the
+// project. `{{ospec-runtime}}` names its directory: through a host
+// substitution where the profile names one (Claude's ${CLAUDE_PLUGIN_ROOT}),
+// otherwise through the marker each installer renders. Resolved on the
+// emitted files, after the agents embed what they read: a host that
+// substitutes only in the bodies it loads (`runtime.loadedBodies`) gets
+// `runtime.readToken` in the files it only reads, and the orchestrator's
+// `{{ospec-runtime-legend}}` line defines that token; elsewhere the line goes.
+const OSPEC_RUNTIME = "{{ospec-runtime}}";
+const OSPEC_RUNTIME_LEGEND = /^\{\{ospec-runtime-legend\}\}\r?\n/gm;
+
+function resolveRuntimeDir(file, profile) {
+  const content = file.content;
+  if (typeof content !== "string" || !content.includes("{{ospec-runtime")) return file;
+  const runtime = profile.runtime || {};
+  const dir = runtime.dir || RUNTIME_DIR_MARKER;
+  const loaded = !runtime.readToken || (runtime.loadedBodies || []).some((pattern) => pattern.test(file.path));
+  const legend = runtime.readToken
+    ? `\`${runtime.readToken}\`, in the handlers and references you read, is \`${dir}\`: the directory that holds the installed runtime \`scripts/\`.\n`
+    : "";
+  return {
+    ...file,
+    content: content.replace(OSPEC_RUNTIME_LEGEND, () => legend).split(OSPEC_RUNTIME).join(loaded ? dir : runtime.readToken),
+  };
 }
 
 // The orchestrator reads its `_shared` handlers on demand (E0.4 b), and a

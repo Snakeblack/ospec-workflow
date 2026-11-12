@@ -50,6 +50,9 @@ function renderRuntimeDir(rootDir, value, fsImpl = fs, { platform = process.plat
   );
 }
 
+// `restore()` writes back the content this render read. When a file carries
+// two markers (the SDD orchestrator names `_shared` and the runtime), the
+// second render reads the first one's output: restore in reverse order.
 function renderMarker(rootDir, marker, value, label, fsImpl, render = (content) => content.split(marker).join(value)) {
   if (typeof value !== "string" || value === "" || value.includes(marker)) {
     throw new Error(`invalid ${label} for ${marker}: ${JSON.stringify(value)}`);

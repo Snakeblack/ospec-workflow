@@ -5,10 +5,18 @@
  * Parses tasks.md content and apply-progress.md content to resolve
  * completed [x], partial [~], and pending [ ] tasks.
  *
+ * A task id is a dotted number of any depth (`1`, `2.1`, `1.2.3`), the form
+ * sdd-tasks writes. A tasks.md checkbox line without one is returned in
+ * `unparsed` (1-based line and trimmed text) instead of being dropped.
+ *
  * @param {string} tasksContent - Raw text of tasks.md
  * @param {string} [applyProgressContent] - Raw text of apply-progress.md
- * @returns {{ completed: Array<{id: string, description: string}>, partial: Array<{id: string, description: string}>, pending: Array<{id: string, description: string}>, remaining: Array<{id: string, description: string}> }}
+ * @returns {{ tasks: Array<{id: string, description: string}>, completed: Array<{id: string, description: string}>, partial: Array<{id: string, description: string}>, pending: Array<{id: string, description: string}>, remaining: Array<{id: string, description: string}>, unparsed: Array<{line: number, text: string}> }}
  */
+// A list item that opens with a checkbox; a mention of `- [ ]` inside prose is not one.
+const CHECKBOX = /^\s*-\s*\[[ x~]\]/i;
+const TASK_LINE = /-\s*\[([ x~])\]\s*\*?\*?(\d+(?:\.\d+)*)\*?\*?\s+(.+)$/i;
+
 function resolveRemainingTasks(tasksContent = "", applyProgressContent = "") {
   if (typeof tasksContent !== "string") {
     tasksContent = "";
@@ -23,8 +31,8 @@ function resolveRemainingTasks(tasksContent = "", applyProgressContent = "") {
   // Parse apply-progress.md entries: e.g. "- [x] 1.1 ..." or "- [~] 1.2 ..."
   const progressLines = applyProgressContent.split(/\r?\n/);
   for (const line of progressLines) {
-    const match = line.match(/-\s*\[([x~])\]\s*\*?\*?(\d+\.\d+|\d+)\*?\*?\s*(.+)$/i);
-    if (match) {
+    const match = line.match(TASK_LINE);
+    if (match && match[1] !== " ") {
       const mark = match[1].toLowerCase();
       const id = match[2];
       if (mark === "x") {
@@ -36,9 +44,13 @@ function resolveRemainingTasks(tasksContent = "", applyProgressContent = "") {
   }
 
   const tasks = [];
+  const unparsed = [];
   const taskLines = tasksContent.split(/\r?\n/);
-  for (const line of taskLines) {
-    const match = line.match(/-\s*\[([ x~])\]\s*\*?\*?(\d+\.\d+|\d+)\*?\*?\s*(.+)$/i);
+  for (const [index, line] of taskLines.entries()) {
+    const match = line.match(TASK_LINE);
+    if (!match && CHECKBOX.test(line)) {
+      unparsed.push({ line: index + 1, text: line.trim() });
+    }
     if (match) {
       const markInTask = match[1].toLowerCase();
       const id = match[2];
@@ -77,6 +89,7 @@ function resolveRemainingTasks(tasksContent = "", applyProgressContent = "") {
     partial,
     pending,
     remaining,
+    unparsed,
   };
 }
 

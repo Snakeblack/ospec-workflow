@@ -64,6 +64,15 @@ module.exports = {
     ospecCli: "${CLAUDE_SKILL_DIR}/../../bin/ospec",
   },
   foundation: { entry: "skill `ospec-workflow:foundation`" },
+  // PR4c: the SDD prose names the runtime directory, the plugin root. Claude
+  // substitutes ${CLAUDE_PLUGIN_ROOT} only in the bodies it loads (agents,
+  // commands, each skill's SKILL.md); a file it only reads (a `_shared`
+  // handler, a skill reference) names the token the orchestrator defines.
+  runtime: {
+    dir: "${CLAUDE_PLUGIN_ROOT}",
+    readToken: "<ospec-runtime>",
+    loadedBodies: [/^agents\/[^/]+\.md$/, /^commands\/[^/]+\.md$/, /^skills\/[^/]+\/SKILL\.md$/],
+  },
   // Rewrite ${input:NAME} → ${NAME:-} in .mcp.json env/args/url/headers.
   // Claude Code expands ${VAR:-default}; the empty default keeps config
   // parseable when the variable is unset.

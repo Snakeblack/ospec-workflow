@@ -33,7 +33,7 @@ Use OpenSpec as the artifact store, read from the repository root:
 - `openspec/config.yaml` — `baseline.domains_done` (the set of valid domain names).
 - `openspec/specs/_baseline/manifest.md` — Domain Map `sources:` globs per domain, and the Entries table (latest row per domain wins; append-only).
 - `openspec/specs/{domain}/spec.md` — the target file this phase amends, one per reconciled domain.
-- `scripts/lib/ospec-state.js` — exports `detectSpecDrift`, `readStagedFiles`, `matchesGlobs`. Reuse `detectSpecDrift` (via `execute`, see Step 0) instead of re-deriving drift detection by hand — it is the single tested source of truth for "which domains are drifted" and "sinceCommit`/`sources`/`files` for their diff window."
+- `{{ospec-runtime}}/scripts/lib/ospec-state.js` — exports `detectSpecDrift`, `readStagedFiles`, `matchesGlobs`. Reuse `detectSpecDrift` (via `execute`, see Step 0) instead of re-deriving drift detection by hand — it is the single tested source of truth for "which domains are drifted" and "sinceCommit`/`sources`/`files` for their diff window."
 
 Do NOT modify any file outside `openspec/specs/{domain}/spec.md` and `openspec/specs/_baseline/manifest.md`. This phase documents already-shipped code retroactively; it never edits application code, tests, hooks, or config.
 
@@ -49,7 +49,7 @@ For persisted workflow recovery, treat OpenSpec files on disk as canonical state
    - Otherwise, targets = `[<domain>]`. Its diff window is not yet known — resolve it in Step 1 from the manifest.
 3. If NO `<domain>` argument was supplied, run (via the `execute` tool, from the repository root):
    ```
-   node -e "console.log(JSON.stringify(require('./scripts/lib/ospec-state.js').detectSpecDrift({workspace: process.cwd()})))"
+   node -e "console.log(JSON.stringify(require('{{ospec-runtime}}/scripts/lib/ospec-state.js').detectSpecDrift({workspace: process.cwd()})))"
    ```
    - If the printed value is `null`, STOP here. Return `status: success` with `executive_summary` stating that zero domains are currently drifted (no-op), `artifacts: []`, and make NO writes.
    - Otherwise, parse the JSON. `domains` is the target list; each entry already carries `domain`, `sinceCommit`, `sources`, and `files` — this IS the diff window for that domain. Reuse these values verbatim in Steps 1-3; do NOT recompute them.
@@ -62,7 +62,7 @@ For each target domain:
   - Find the domain's latest `## Entries` row (bottom-most row for that domain name; the table is append-only, latest row wins) → `sinceCommit` = its `commit` cell.
   - Find the domain's Domain Map bullet → `sources` = the glob list after `| sources:`.
   - If either is missing, STOP for this domain only (other targets are unaffected): report it as `blocked` in your final summary ("domain has no recorded manifest baseline — run `/sdd-baseline` first, not `/sdd-reconcile`"), make NO write for this domain.
-  - Otherwise compute the window: run `git diff --name-only {sinceCommit}..HEAD` (via `execute`), then keep only files that match at least one glob in `sources`, using the same semantics as `matchesGlobs` in `scripts/lib/ospec-state.js`: `**` matches any run of characters including path separators (any depth), `*` matches any run excluding path separators (one path segment), everything else matches literally. This filtered list is `files` for this domain.
+  - Otherwise compute the window: run `git diff --name-only {sinceCommit}..HEAD` (via `execute`), then keep only files that match at least one glob in `sources`, using the same semantics as `matchesGlobs` in `{{ospec-runtime}}/scripts/lib/ospec-state.js`: `**` matches any run of characters including path separators (any depth), `*` matches any run excluding path separators (one path segment), everything else matches literally. This filtered list is `files` for this domain.
 
 Inspect and reference ONLY files inside the resolved `files` list for each domain. Do not open, diff, or describe any file outside that domain's `sources` globs or outside its diff window, even if it looks related.
 

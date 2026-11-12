@@ -275,9 +275,10 @@ for (const target of Object.keys(ROUTERS)) {
     assert.match(text, /refused with `invalid-source`/, `${target}: an unknown source is refused`);
   });
 
-  test(`${target}: only the IDD protocol and the foundation skill carry the runtime marker`, (t) => {
+  test(`${target}: only the IDD protocol, the foundation skill and the SDD handlers carry the runtime marker`, (t) => {
     const { byPath } = generate(t, target);
-    const carriers = [...byPath].filter(([, content]) => content.includes(RUNTIME_DIR_MARKER)).map(([file]) => file);
+    // The `_shared` SDD handlers ship without --with-sdd too (PR4c names the runtime there).
+    const carriers = [...byPath].filter(([file, content]) => content.includes(RUNTIME_DIR_MARKER) && !file.startsWith("skills/_shared/")).map(([file]) => file);
     assert.deepEqual(carriers, target === "claude" ? [] : [FOUNDATION, PROTOCOL], target);
     assert.ok(!byPath.get(PROTOCOL).includes(SHARED_DIR_MARKER), `${target}: protocol needs no _shared handler`);
   });

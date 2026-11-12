@@ -121,14 +121,14 @@ test("B5.1 · orchestrator asks the team profile once at first init and never th
   }
   assert.match(content, /`team: \{ size: \{answer\}, experience: \{answer\} \}`/, "must forward the profile in the Parameters block");
   assert.match(content, /Never ask the project scale/, "the scale question is gone");
-  assert.match(content, /ospec\.js team --mode sdd --json/, "delivery strategy comes from ospec team");
+  assert.match(content, /ospec\.js"? team --mode sdd --json/, "delivery strategy comes from ospec team");
 });
 
 test("B5.2 · sdd-init writes the profile to openspec/config.yaml and materializes the CLI defaults", async () => {
   const content = await readFile(INIT_SKILL_PATH);
   assert.match(content, /\*\*Team profile\*\*/, "must carry the team profile step");
   assert.match(content, /never write `idd\/config\.yaml` \(ADR 0011\)/, "must keep SDD out of the IDD configuration");
-  assert.match(content, /ospec\.js team --mode sdd --json/, "must take the defaults from the CLI");
+  assert.match(content, /ospec\.js"? team --mode sdd --json/, "must take the defaults from the CLI");
   assert.match(content, /preserve an existing `team:` or legacy `scale:` key/i, "re-init must preserve the profile");
 });
 

@@ -400,3 +400,18 @@ test("validate-phase: without a routing table, lite and standard use their defau
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("validate-phase: without a routing table, the handbook route runs only its handbook phase [REQ-routing-017]", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vp-no-routing-handbook-"));
+  try {
+    fs.mkdirSync(path.join(root, "openspec", "changes", "document-repo"), { recursive: true });
+    fs.writeFileSync(path.join(root, "openspec", "config.yaml"), "schema: spec-driven\nproject:\n  name: consumer\n");
+    const handbook = captureMain(["handbook", "handbook", "document-repo", "--workspace", root], { cwd: root, env: {} });
+    assert.equal(handbook.code, 0, handbook.errors.join("\n"));
+    const other = captureMain(["sdd-apply", "handbook", "document-repo", "--workspace", root], { cwd: root, env: {} });
+    assert.equal(other.code, 1);
+    assert.match(other.errors.join("\n"), /no forma parte de las fases de la ruta activa: \[handbook\]/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

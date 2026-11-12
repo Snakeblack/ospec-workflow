@@ -16,7 +16,7 @@ surfaces the overlap BEFORE apply, when coordinating is still cheap.
    `proposal.md` / `tasks.md` File Changes tables plus the `specs/{domain}/`
    delta domains it touches.
 2. **Enumerate other active changes** via `findActiveChanges` (from
-   `scripts/lib/artifact-store.js` — already used by session-start): every
+   `{{ospec-runtime}}/scripts/lib/artifact-store.js` — already used by session-start): every
    non-terminal change except the current one. For each, resolve the same
    declared scope from its artifacts.
 3. **Detect overlap**: two changes collide when they share at least one file

@@ -460,4 +460,4 @@ hooks:                              # OPTIONAL top-level map; absent = no-op
 
 **Valid event keys** (7 total): `before-change`, `before-implementation`, `before-task`, `before-commit`, `before-verify`, `after-verify`, `after-archive`.
 
-Use `validateHooksBlock(parseHooksBlock(hooksValue))` from `scripts/lib/lifecycle-hooks.js` for advisory validation.
+Use `validateHooksBlock(parseHooksBlock(hooksValue))` from `{{ospec-runtime}}/scripts/lib/lifecycle-hooks.js` for advisory validation.

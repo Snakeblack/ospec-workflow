@@ -16,7 +16,7 @@ Default: use `openspec` for persisted SDD workflows. Use `none` only when the us
 > **Prompt-layer mode vs. harness backend.** This `artifact_store.mode`
 > (`openspec | none`) is a *prompt-layer* decision: it tells a phase agent
 > whether to persist to files or return inline. It is distinct from the
-> *harness* backend adapter in `scripts/lib/artifact-store.js`, whose modes
+> *harness* backend adapter in `{{ospec-runtime}}/scripts/lib/artifact-store.js`, whose modes
 > (`openspec | workspace-federated`) decide **where and how** the runtime
 > resolves the on-disk layout for hooks. The two are aligned on `openspec` but
 > answer different questions. `workspace-federated` (multi-repo) is implemented
@@ -59,7 +59,7 @@ C1 inverts the federation source-of-truth contract. The distributed markers
 cache is gitignored and MUST NOT be committed as a canonical artifact — it is rebuilt from
 the markers on demand.
 
-Atlas load contract (realized in `scripts/lib/artifact-store.js` `loadAtlas`):
+Atlas load contract (realized in `{{ospec-runtime}}/scripts/lib/artifact-store.js` `loadAtlas`):
 
 - **Valid cache is trusted.** A `workspace.yaml` that parses to a usable atlas is used as-is
   (the federated happy path is unchanged); `sdd-workspace explore` is responsible for

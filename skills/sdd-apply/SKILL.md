@@ -55,7 +55,7 @@ BEFORE loading full change context (specs, design, backlog, workload forecast):
 If the orchestrator invoked `sdd-apply` in remediation mode, OR `state.yaml` contains `verify_lineage.status: remediation-pending`:
 
 1. Require `verify_lineage.status == remediation-pending`.
-2. Call `prepareRemediation(verify_lineage, { changeRoot })` (`scripts/lib/verify-lineage.js`). It rehydrates the frozen baseline exclusively from `verify_lineage.candidate_recovery.current`, verifies the blob digest and canonical `candidate_id`, and never accepts an in-memory Candidate as a bypass. If recovery blocks or `candidate-drift` is detected, stop immediately without editing files or incrementing remediation attempts.
+2. Call `prepareRemediation(verify_lineage, { changeRoot })` (`{{ospec-runtime}}/scripts/lib/verify-lineage.js`). It rehydrates the frozen baseline exclusively from `verify_lineage.candidate_recovery.current`, verifies the blob digest and canonical `candidate_id`, and never accepts an in-memory Candidate as a bypass. If recovery blocks or `candidate-drift` is detected, stop immediately without editing files or incrementing remediation attempts.
 3. Read ONLY the frozen blocker findings in `verify_lineage.findings` (`allowed_paths`, `summary`, `validation`). Do NOT load full specs, full design, unrelated code, or normal workload forecast.
 4. **Restrict code edits strictly to `allowed_paths`**. Do not touch unrelated files or take on new features/tasks.
 5. Apply the targeted fix for each frozen finding.
@@ -67,7 +67,7 @@ If the orchestrator invoked `sdd-apply` in remediation mode, OR `state.yaml` con
 
 For normal task backlog implementation (when no active remediation is pending):
 1. Read `state.yaml.route.actual_route` before any contract artifact. It is authoritative; a supplied mode that conflicts with it is a fail-closed blocker.
-2. Read assigned `tasks.md` and `openspec/changes/{change-name}/apply-progress.md` if it exists. Call `resolveRemainingTasks(tasksContent, applyProgressContent)` (`scripts/lib/apply-resume.js`) to restore previously completed tasks marked `[x]` and prevent re-executing verified work.
+2. Read assigned `tasks.md` and `openspec/changes/{change-name}/apply-progress.md` if it exists. Call `resolveRemainingTasks(tasksContent, applyProgressContent)` (`{{ospec-runtime}}/scripts/lib/apply-resume.js`) to restore previously completed tasks marked `[x]` and prevent re-executing verified work. A task id is a dotted number (`1.2.3`); report each line in its `unparsed` list (a checkbox with another id or none) to the orchestrator instead of guessing its status.
 3. For `standard`, require and read proposal, specs, and design — understand WHAT and HOW.
 4. For `lite`, require and read `proposal-lite.md` plus tasks; it is the behavior contract when spec/design are intentionally absent.
 5. Read existing code in affected files — understand current patterns
@@ -288,8 +288,9 @@ change or candidate drift falls back to ordinary routing.
 
 For an approved recovery successor in `recheck-pending`, do not re-enter normal
 remediation or Full Discovery. Require its persisted Candidate snapshot and run
-only the frozen finding recipes through the directed recheck runner; caller
-results are never authority.
+only the frozen finding recipes through the directed recheck runner,
+`runRecoverySuccessorRecheck` in `{{ospec-runtime}}/scripts/lib/verify-lineage-recheck.js`;
+caller results are never authority.
 
 If directed-operation reconciliation is pending, unknown, or terminally
 preserved, it takes precedence over generic candidate/contract-drift routing.
