@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Un check de idd/config.yaml puede declarar sus rutas, y ospec check no lo ejecuta si el diff del cambio no toca ninguna (E1.67, #499) (check-path-scope)
+
 ## [2.173.1] - 2026-11-12
 
 ### Fixed

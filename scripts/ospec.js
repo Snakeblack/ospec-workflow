@@ -39,6 +39,7 @@ const {
   priorControl,
   priorCounterproof,
   recordRuns,
+  scopeChecks,
   settleBoundary,
   settleChecks,
   settleChecksChange,
@@ -48,6 +49,7 @@ const {
   settlePair,
   settleProductFreePairs,
   settleTreeBound,
+  skippedCheckWarnings,
 } = require("./lib/idd-check.js");
 const { classifyContractPaths } = require("./lib/idd-contracts.js");
 const { addEntry, changelogEntry, proposeRelease } = require("./lib/idd-changelog.js");
@@ -726,6 +728,14 @@ function readConfigChange(root, base, context) {
   return { baseChecks: baseConfig.checks, checks: context.checks, baseConfig: ceremonyConfig(baseConfig), config: ceremonyConfig(context) };
 }
 
+// The checks a check runs and the ones it skips (E1.67): a scoped check
+// follows the paths of the change's diff against its base, whatever --base
+// `diff` takes, so no --base skips a check.
+function readCheckScope(root, values, current, context, { diff, baseChecks = readBaseConfig(root, diffBase({}, current)).checks }) {
+  const scopeDiff = values.base ? readGitDiff(root, { base: diffBase({}, current) }) : diff;
+  return scopeChecks(context.checks, { paths: scopeDiff.paths, baseChecks });
+}
+
 // What a check reads before it runs anything: the diff against the change's
 // base, the configuration it contrasts and the fitness checks of the
 // references the diff derives. It refuses what check refuses (E1.44).
@@ -735,12 +745,13 @@ function readCheckInputs(root, values, current, context) {
   // The checks are contrasted with the change's base, whatever --base the
   // diff takes, so no --base runs checks the user has not approved.
   const configChange = readConfigChange(root, diffBase({}, current), context);
+  const scope = readCheckScope(root, values, current, context, { diff, baseChecks: configChange.baseChecks });
   const { map, sources, warnings } = readKnowledgeSources(root);
   // The fitness checks follow the references this check's diff derives.
   const preview = applyDerivation(current, deriveSignals({ intent: current.intent, strictTdd: context.strictTdd, diff, patterns: context.patterns, knowledge: { map, sources }, retracted: current.retracted })).state;
   const fitness = changeFitness(root, preview);
   warnings.push(...fitness.warnings);
-  return { diff, configChange, knowledge: { map, sources }, fitness, warnings };
+  return { diff, configChange, scope, knowledge: { map, sources }, fitness, warnings };
 }
 
 // What a check reads once its commands ran: the contract paths of the diff,
@@ -777,8 +788,9 @@ function settlesBoundary(state, diff, results) {
 // checks-changed gate, the check and fitness runs and every obligation they
 // prove, with the counterproof of boundary-tests (E1.48). A run that counts as
 // the check (E4.15) runs no fitness checks, so with some to run the impact
-// declaration keeps only evidence of this tree.
-function settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, checkTreeBefore, checkTree, tree, recordedAt, fitnessDeferred = false, counterproof = null }) {
+// declaration keeps only evidence of this tree. `skipped` names the checks the
+// diff's paths left out (E1.67).
+function settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, checkTreeBefore, checkTree, tree, recordedAt, fitnessDeferred = false, counterproof = null, skipped = [] }) {
   const reasons = {};
   const derived = applyDerivation(
     stored,
@@ -790,7 +802,7 @@ function settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, ch
   const recorded = recordRuns(gated, runs);
   const fitnessRecorded = recordRuns(recorded.state, fitnessRuns.map((result) => runRecord("fitness", result.command, result, checkTreeBefore, recordedAt, { ref: result.ref })));
   const counterproved = counterproof ? recordCounterproof(fitnessRecorded.state, counterproof, { obligation: "boundary-tests", tree, recordedAt }) : null;
-  const settled = settleChecks(counterproved?.state ?? fitnessRecorded.state, { tree: checkTree, runIds: recorded.ids, recordedAt });
+  const settled = settleChecks(counterproved?.state ?? fitnessRecorded.state, { tree: checkTree, runIds: recorded.ids, recordedAt, skipped });
   const tested = settleBoundary(settled.state, { tree: checkTree, runIds: recorded.ids, recordedAt, tests: addedTests(inputs.diff), counterproof: counterproved?.proof ?? null });
   if (tested.reason) reasons["boundary-tests"] = tested.reason;
   const bound = settleTreeBound(settleProductFreePairs(tested.state, { productFree: onlyTestsAndDocs(inputs.diff, context) }), { tree });
@@ -821,8 +833,9 @@ async function awaitChecksApproval(root, values, context, inputs) {
   return { change: state.change, changed, added: { signals: [], gates: [] }, checks: [], ...verdict, next: nextAfterWrite(root, state), warnings };
 }
 
-// Runs every declared check on the working tree, recomputes the signals from
-// the diff and settles checks-pass on the tree the checks finished on.
+// Runs every declared check on the working tree, but a scoped one whose paths
+// the diff does not touch (E1.67), recomputes the signals from the diff and
+// settles checks-pass on the tree the checks finished on.
 async function check(root, values) {
   if (!values.change) throw new UsageError("check needs --change <id>");
   const current = await openChange(root, values.change);
@@ -836,14 +849,16 @@ async function check(root, values) {
   if (!checksApproved(current, inputs.configChange)) return awaitChecksApproval(root, values, context, inputs);
   const treeBefore = readTreeFingerprint(root);
   const checkTreeBefore = readCheckTreeFingerprint(root, context.checks);
-  const checks = context.checks.map(({ name, command }) => {
+  const { run: scoped, skipped } = inputs.scope;
+  const checks = scoped.map(({ name, command }) => {
     const result = { name, command, ...runCommand(command, { cwd: root }) };
     const tests = countTests(result.output_tail);
     if (tests != null) result.tests = tests;
     return result;
   });
   const fitnessRuns = inputs.fitness.checks.map(({ kind, id, command }) => ({ ref: `${kind}:${id}`, command, ...runCommand(command, { cwd: root }) }));
-  const counterproof = settlesBoundary(current, inputs.diff, checks) ? runCounterproof(root, current, { diff: inputs.diff, commands: context.checks, checks: context.checks, context }) : null;
+  // A skipped check runs nowhere in this check, its counterproof included.
+  const counterproof = settlesBoundary(current, inputs.diff, checks) ? runCounterproof(root, current, { diff: inputs.diff, commands: scoped, checks: scoped, context }) : null;
   const tree = readTreeFingerprint(root);
   const checkTree = readCheckTreeFingerprint(root);
   const recordedAt = new Date().toISOString();
@@ -854,7 +869,7 @@ async function check(root, values) {
     root,
     values.change,
     existing((stored) => {
-      settled = settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, checkTreeBefore, checkTree, tree, recordedAt, counterproof });
+      settled = settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, checkTreeBefore, checkTree, tree, recordedAt, counterproof, skipped });
       return { state: settled.state, changed: changedFrom(stored, settled.state) };
     }),
   );
@@ -866,7 +881,7 @@ async function check(root, values) {
     reasons: settled.reasons,
     livingDoc: readLivingDoc(root, state),
   });
-  const result = { change: state.change, changed, added: settled.added, checks, tree: checkTree, ...verdict, next: nextAfterWrite(root, state) };
+  const result = { change: state.change, changed, added: settled.added, checks, ...(skipped.length > 0 ? { skipped } : {}), tree: checkTree, ...verdict, next: nextAfterWrite(root, state) };
   const view = fitnessView(inputs.fitness, fitnessRuns);
   if (view) result.fitness = view;
   const warnings = [...inputs.warnings];
@@ -957,11 +972,13 @@ async function runObligation(root, values) {
   if (!migration && result.exit_code === 0 && pairRed(current.runs || [], { purpose, command: values.command, unit: values.unit, tree })) {
     const diff = inputs?.diff ?? readGitDiff(root, { base: diffBase(values, current) });
     tests = addedTests(diff);
-    if (tests.length > 0) pairCounterproof = runCounterproof(root, current, { diff, commands: [{ command: values.command }], checks: context.checks, context });
+    // The checks control the counterproof, but a scoped one the diff leaves out (E1.67).
+    const controls = inputs?.scope.run ?? readCheckScope(root, values, current, context, { diff }).run;
+    if (tests.length > 0) pairCounterproof = runCounterproof(root, current, { diff, commands: [{ command: values.command }], checks: controls, context });
   }
   const boundaryCounterproof =
     inputs && settlesBoundary(current, inputs.diff, [checkResult])
-      ? (pairCounterproof ?? runCounterproof(root, current, { diff: inputs.diff, commands: [{ command: onlyCheck.command, name: onlyCheck.name }], checks: context.checks, context }))
+      ? (pairCounterproof ?? runCounterproof(root, current, { diff: inputs.diff, commands: [{ command: onlyCheck.command, name: onlyCheck.name }], checks: inputs.scope.run, context }))
       : null;
 
   let runId;
@@ -1140,7 +1157,7 @@ async function close(root, values) {
     }
     if (await fsp.stat(changeDir(root, state.change)).then(() => true, () => false)) writeEvidenceSection(root, state);
     const archive = await archiveChange(root, state);
-    const warnings = [...counterproofWarnings(state), ...unverifiedGateWarnings(state)];
+    const warnings = [...skippedCheckWarnings(state), ...counterproofWarnings(state), ...unverifiedGateWarnings(state)];
     return {
       change: state.change,
       status: state.status,
@@ -1719,6 +1736,7 @@ function describeCheck(result) {
     ...(result.fitness?.checks || []).map((run) => ({ ...run, label: `fitness ${FITNESS_LABELS[run.kind]} ${run.id}` })),
   ];
   if (runs.length) lines.push(`ran: ${runs.map((run) => `${run.label} exit ${run.exit_code}`).join(", ")}`);
+  for (const { name, reason } of result.skipped || []) lines.push(`check ${name} did not run: ${reason}`);
   for (const run of runs.filter((entry) => entry.exit_code !== 0)) lines.push(`${run.label} \`${run.command}\`:`, ...run.output_tail.map((line) => `  ${line}`));
   lines.push(...describeFitness({ checks: [], manual: (result.fitness?.manual || []).filter((item) => !item.evidence) }));
   lines.push(...describeCounterproof(result.counterproof));

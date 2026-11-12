@@ -82,7 +82,8 @@ feature), `assumptions` (text recorded with `ospec record assumption`), `signals
 `satisfied`, `withdrawn`, the `evidence` ids that satisfy it and, when
 withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
 `resolved`, an optional `reason`, when resolved, `answer` and `source` and, for
-`checks-changed`, the `checks` it approves, each with its `name` and `command`,
+`checks-changed`, the `checks` it approves, each with its `name` and `command`
+and, for a check scoped to paths (REQ-idd-014), its `paths`,
 and the `config` it approves, its `strict_tdd`, `impact` and `contracts`, which
 an entry recorded before E1.53 lacks, and, since E1.49, the turn counts of its
 opening and answer, `opened_turn` and `resolved_turn`, and for an answer the
@@ -1239,8 +1240,9 @@ without a profile, `false`), `team` (the team profile of REQ-idd-023),
 `delivery` (the `branching`, `integration_branch` and `production_branch` of
 REQ-idd-023 and the `changelog` and `release` of REQ-idd-025; absent, the
 profile decides or recommends them), `checks` (the checks
-`ospec check` runs, as `name: command` in declared order, REQ-idd-014; absent
-means none), `impact` (the impact section of REQ-idd-012) and `contracts`
+`ospec check` runs in declared order, REQ-idd-014, each as `name: command` or,
+scoped to the paths that justify it, as `name:` with `run: <command>` and
+`paths` below it; absent means none), `impact` (the impact section of REQ-idd-012) and `contracts`
 (where contract documents and their tests live, REQ-idd-015). An unknown or repeated key, a value outside its
 domain or an unreadable line MUST be refused with the code `config-invalid`;
 invalid contents of `impact` keep the code `impact-config-invalid`. Every value
@@ -1252,6 +1254,14 @@ the lines of such a value MUST NOT be read as keys or checks. Every entry of a
 section sits at the indentation of its first entry; an entry indented
 otherwise, as a key under a plain scalar, is an unreadable line, while the
 `- item` lines of a list may sit at any indentation.
+
+The `paths` of a scoped check (E1.67) are an inline list, a block list or a
+single path, each relative to the project and inside it. An empty list, an
+absolute path, a path with `..`, a key other than `run` and `paths` under the
+check and a check without `run` MUST be refused with `config-invalid`. At least
+one check runs on every change: a configuration whose every check declares
+`paths` MUST be refused with `config-invalid`, since a change that touches none
+of them could never close.
 
 Optional configuration does not mean optional check evidence: without at
 least one declared check no IDD change can close. The IDD skill MUST ask the
@@ -1291,14 +1301,24 @@ placeholder MUST produce no candidate; the guidance MUST ask for a command.
 - THEN it MUST be refused with `config-invalid` naming line 3, and no check
   `lint` MUST run
 
+#### Scenario: Every check scoped is refused
+
+- GIVEN an `idd/config.yaml` whose only check `e2e` holds `run: pnpm test:e2e`
+  and `paths: ["src/**"]`
+- WHEN the configuration is read
+- THEN it MUST be refused with `config-invalid`, asking for at least one check
+  without paths
+- AND with a check `lint: pnpm lint` beside it, it MUST read both, `e2e` with
+  its paths
+
 ### Requirement: Check And Run Record Observed Executions {#REQ-idd-014}
 
 Opening a change MUST record as `base` the commit `HEAD` names, or null
 outside git or before the first commit; the base never moves afterwards.
 `ospec check` MUST recompute the signals from the diff against the change's
 base and record what that adds (REQ-idd-006), then run every check of
-`idd/config.yaml` in declared order through the shell in the project root, and
-record each execution as a run. `ospec run` MUST run one test command for
+`idd/config.yaml` in declared order through the shell in the project root, but
+a scoped check the diff leaves out, and record each execution as a run. `ospec run` MUST run one test command for
 `repro-test` or `tdd-red-green`, with an optional `--unit`, or for
 `migration-compat-and-test` (REQ-idd-015), and record it as a run; it MUST
 refuse any other obligation, an obligation the change does not have and an
@@ -1314,15 +1334,30 @@ any file directly under `idd/`, is a file of the project: it MUST count in the
 tree, in the diff of the change and in the snapshot a review freezes, so a
 fix that lives only in it moves the tree of its reproduction pair and is
 product for its counterproof. A check run MUST also bind the effective
-verifier list from `idd/config.yaml`: each check's name, command and declared
-order. Missing configuration is an empty list. The state of a change MUST NOT
+verifier list from `idd/config.yaml`: each check's name, command, paths when
+it is scoped, and declared order. Missing configuration is an empty list. The state of a change MUST NOT
 change this check identity. The source-tree identity used to settle
 migration-test evidence MUST remain independent of the verifier list. A command that
 cannot start or ends by a signal MUST NOT count as passing.
 
 `check-run` evidence MUST name its tree and the runs of one `check` in which
-every declared check passed on that tree, the tree current when the checks
-finished, or the run that counts as the only check (E4.15). After each `check`, `checks-pass` MUST be satisfied exactly when that
+every declared check that ran passed on that tree, the tree current when the
+checks finished, or the run that counts as the only check (E4.15).
+
+A scoped check (E1.67) MUST run only when a path of the change's diff against
+its base, whatever `--base` the diff takes, matches one of its `paths`: an
+added, modified or deleted path, either side of a rename or an untracked file,
+matched with the glob syntax of `impact` (REQ-idd-012). A scoped check the
+change adds, or whose command or paths differ from the base, MUST run whatever
+its paths, so an approved command runs at least once. A check the diff leaves
+out MUST NOT run anywhere in that `check`, its counterproof and the controls of
+the counterproof included. The `check-run` evidence MUST name each one in
+`skipped`, with its `name` and its `reason` (`no path of the diff matches its
+paths (<paths>)`), the result of `check` MUST list them in `skipped`, and
+`close` MUST warn about each check the current `check-run` evidence skipped.
+The paths are part of the verifier list: adding, removing or changing them
+opens `checks-changed`. A check without paths keeps the identity it had, so
+evidence recorded before E1.67 stays valid. After each `check`, `checks-pass` MUST be satisfied exactly when that
 check recorded such evidence; otherwise it MUST return to `pending`, because
 older evidence proved an older tree. A run whose output reports zero tests
 (a `tests 0` summary, "could not find" test files, or "no tests ran") MUST NOT
@@ -1348,8 +1383,8 @@ tree holds them, absent where the diff deletes them, with the ignored
 `node_modules`, `.venv`, `venv`, `.tox`, `.nox`, `vendor`, `deps`,
 `.dart_tool`, `Pods` and `bower_components` of the project and of the
 repository root linked in; every other path stays as the base holds it.
-There it MUST run the same command, or for `boundary-tests` each declared
-check in order until one fails and detects the change, in the project root
+There it MUST run the same command, or for `boundary-tests` each check the
+`check` runs, in order, until one fails and detects the change, in the project root
 with a timeout of 10 minutes, and remove the worktree. A failing command MUST
 then run as its control on a worktree of the base alone, without the tests of
 the diff, with the same timeout; in the output of both, the path of the
@@ -1358,6 +1393,7 @@ its control passed, or failed with another exit code or another output, so a
 command that fails on the base for a reason the tests of the diff do not
 touch, such as `test -f marker` beside a filler test, proves nothing. When the
 control failed another way, each declared check MUST run as a control as well,
+but a scoped one the change's diff leaves out (E1.67),
 a check being its own control: the counterproof detects the change only while
 they all pass. When one fails, or no check is declared, the worktree cannot be
 shown to run the tests, for lack of a build or a dependency it does not link,
@@ -1446,6 +1482,21 @@ prints it before the refusal.
 - AND once the check passes and `checks-changed` is answered, it MUST close and
   archive the change in the same call
 
+#### Scenario: A scoped check runs only while the diff touches its paths
+
+- GIVEN the checks `test: node -e 0` and `e2e`, scoped to `src/**`, at the
+  change's base
+- WHEN a change that touches only `docs/guide.md` runs `ospec check`
+- THEN only `test` MUST run, and the `check-run` evidence and the result MUST
+  name `e2e` in `skipped` with the reason `no path of the diff matches its
+  paths (src/**)`
+- AND `close` MUST warn `check e2e did not run: no path of the diff matches
+  its paths (src/**)`
+- AND once the same change touches `src/notes.md`, the next `check` MUST run
+  `e2e`, also with `--base HEAD` after that file is committed
+- AND changing the paths of `e2e` MUST open `checks-changed`, and once it is
+  answered `e2e` MUST run although the diff touches none of them
+
 #### Scenario: Changed verifier invalidates old check evidence
 
 - GIVEN every declared check passed and `checks-pass` is satisfied
@@ -1478,7 +1529,7 @@ anything, `check` MUST contrast the declaration with the diff and refuse:
 
 When `idd/config.yaml` differs from the one at the change's base, whatever
 `--base` the check takes for its diff (the empty configuration at a null base,
-without the file or when it cannot be parsed) in its checks (name, command or order) or in its ceremony settings, `check`
+without the file or when it cannot be parsed) in its checks (name, command, paths or order) or in its ceremony settings, `check`
 MUST open `checks-changed` with a reason naming what differs on each side,
 unless a resolved entry already approves the current checks and settings
 (E1.44, E1.53). The ceremony settings are `strict_tdd` as the team profile

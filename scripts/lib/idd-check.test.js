@@ -18,6 +18,7 @@ const {
   priorControl,
   priorCounterproof,
   recordRuns,
+  scopeChecks,
   settleBoundary,
   settleChecks,
   settleChecksChange,
@@ -26,6 +27,7 @@ const {
   settleMigration,
   settlePair,
   settleTreeBound,
+  skippedCheckWarnings,
 } = require("./idd-check.js");
 const { IddRecordError, recordGate, recordImpact, recordIntent, recordReferences, recordSignal } = require("./idd-record.js");
 
@@ -102,6 +104,55 @@ test("checks-pass is satisfied only when every declared check passed on the curr
     detail: { tree: TREE_A, runs: ["run-1", "run-2"] },
   });
   assert.ok(validateState(settled.state).ok, validateState(settled.state).errors.join("; "));
+});
+
+test("[E1.67] a scoped check runs while a path of the diff matches one of its paths, or while the change adds or changes it", () => {
+  const lint = { name: "lint", command: "pnpm lint" };
+  const e2e = { name: "e2e", command: "pnpm test:e2e", paths: ["src/**", "tests/e2e/**"] };
+  const reason = "no path of the diff matches its paths (src/**, tests/e2e/**)";
+  const scope = (paths, baseChecks = [lint, e2e]) => scopeChecks([lint, e2e], { paths, baseChecks });
+  const names = (checks) => checks.map((check) => check.name);
+
+  const docs = scope(["docs/guide.md", "README.md"]);
+  assert.deepStrictEqual([names(docs.run), docs.skipped], [["lint"], [{ name: "e2e", reason }]]);
+  for (const paths of [["src/app.ts"], ["SRC/App.ts"], ["./tests/e2e/login.spec.ts"], ["src\\app.ts"]]) {
+    assert.deepStrictEqual(names(scope(paths).run), ["lint", "e2e"], `${paths} touches the check (glob of impact, case-insensitive)`);
+  }
+  // A deleted file and either side of a rename are paths of the diff too.
+  assert.deepStrictEqual(names(scope(["lib/app.ts", "src/app.ts"]).run), ["lint", "e2e"]);
+  assert.deepStrictEqual(names(scope([]).run), ["lint"], "an empty diff runs the unscoped checks only");
+  assert.deepStrictEqual(scope([]).skipped, [{ name: "e2e", reason }]);
+
+  // A check the change adds, or whose command or paths differ from the base, runs once anyway.
+  assert.deepStrictEqual(names(scope(["docs/guide.md"], [lint]).run), ["lint", "e2e"]);
+  assert.deepStrictEqual(names(scope(["docs/guide.md"], [lint, { ...e2e, command: "pnpm e2e" }]).run), ["lint", "e2e"]);
+  assert.deepStrictEqual(names(scope(["docs/guide.md"], [lint, { ...e2e, paths: ["src/**"] }]).run), ["lint", "e2e"]);
+  assert.deepStrictEqual(names(scope(["docs/guide.md"], [e2e, lint]).run), ["lint"], "the declared order alone changes no check");
+  // Without paths nothing changes.
+  assert.deepStrictEqual(scopeChecks([lint], { paths: [] }), { run: [lint], skipped: [] });
+});
+
+test("[E1.67] the check-run evidence names the skipped checks, and close lists them", () => {
+  const { state, ids } = recordRuns(openBug(), [checkRun()]);
+  const skipped = [{ name: "e2e", reason: "no path of the diff matches its paths (src/**)" }];
+  const settled = settleChecks(state, { tree: TREE_A, runIds: ids, recordedAt: AT, skipped });
+  assert.deepStrictEqual(settled.state.evidence.at(-1).detail, { tree: TREE_A, runs: ["run-1"], skipped });
+  assert.ok(validateState(settled.state).ok, validateState(settled.state).errors.join("; "));
+  assert.deepStrictEqual(skippedCheckWarnings(settled.state), ["check e2e did not run: no path of the diff matches its paths (src/**)"]);
+
+  // The next check that runs every check leaves nothing to list.
+  const again = recordRuns(settled.state, [checkRun()]);
+  const full = settleChecks(again.state, { tree: TREE_A, runIds: again.ids, recordedAt: AT });
+  assert.deepStrictEqual(skippedCheckWarnings(full.state), []);
+  // A failing check returns checks-pass to pending: no evidence, nothing listed.
+  const failed = recordRuns(settled.state, [checkRun({ exit_code: 1 })]);
+  assert.deepStrictEqual(skippedCheckWarnings(settleChecks(failed.state, { tree: TREE_A, runIds: failed.ids, recordedAt: AT, skipped }).state), []);
+
+  for (const bad of [[], [{ name: "e2e" }], [{ name: "e2e", reason: "" }], [{ name: "e2e", reason: "r", extra: 1 }], "e2e"]) {
+    const broken = structuredClone(settled.state);
+    broken.evidence.at(-1).detail.skipped = bad;
+    assert.match(validateState(broken).errors.join("; "), /skipped must list the checks it skipped, each with its name and reason/, JSON.stringify(bad));
+  }
 });
 
 test("zero tests are not evidence, and boundary-tests needs a test the diff adds (B3)", () => {
@@ -664,6 +715,13 @@ test("checks that differ from the base open one checks-changed entry per set (B7
   ]);
   assert.ok(validateState(opened).ok, validateState(opened).errors.join("; "));
   assert.match(settleChecksChange(openBug(), { baseChecks: [], checks: trivial }).gates[0].reason, /the base declares no checks$/);
+  // The paths of a scoped check are part of what the answer approves (E1.67).
+  const scoped = [...base, { name: "e2e", command: "npm run e2e", paths: ["src/**"] }];
+  const widened = [...base, { name: "e2e", command: "npm run e2e", paths: ["src/**", "lib/**"] }];
+  const rescoped = settleChecksChange(openBug(), { baseChecks: scoped, checks: widened });
+  assert.strictEqual(rescoped.gates[0].reason, "idd/config.yaml declares test: npm test; e2e: npm run e2e (paths src/**, lib/**), and the base declares test: npm test; e2e: npm run e2e (paths src/**)");
+  assert.ok(validateState(rescoped).ok, validateState(rescoped).errors.join("; "));
+  assert.deepStrictEqual(settleChecksChange(openBug(), { baseChecks: scoped, checks: scoped }).gates, [], "the same scope needs no answer");
 
   // An entry nobody answered follows the checks, and leaves with them.
   const lint = [...trivial, { name: "lint", command: "npm run lint" }];

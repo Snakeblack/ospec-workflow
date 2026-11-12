@@ -1135,6 +1135,34 @@ test("[E1.48] a counterproof whose base cannot run its own checks proves nothing
   assert.strictEqual(stateOf(root, "fix-pages").evidence[0].detail.counterproof_skipped, reason);
 });
 
+test("[E1.67] a scoped check the diff leaves out does not run as a control of a pair's counterproof", (t) => {
+  const root = tempRoot(t);
+  const git = gitInit(root);
+  const build = (round) => `module.exports = (items) => Math.${round}(items / 10);\n`;
+  const builtTest = PAGES_TEST.replace("../src/pages.js", "../dist/pages.js");
+  writeFile(root, ".gitignore", "dist/\ne2e.log\n");
+  writeFile(root, "src/pages.js", build("floor"));
+  writeFile(root, "dist/pages.js", build("floor"));
+  writeFile(root, "test/pages.test.js", `${builtTest}\n`);
+  // e2e comes first, so without its scope it would run as the first control.
+  writeFile(root, "idd/config.yaml", `checks:\n  e2e:\n    run: ${E2E}\n    paths: ["docs/**"]\n  test: node --test\n`);
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "base");
+  chain(root, ...OPEN_PAGES);
+  const run = () => chain(root, "run", "--change", "fix-pages", "--obligation", "repro-test", "--command", "node --test test/eleven.test.js", "--json").json;
+  writeFile(root, "test/eleven.test.js", `${builtTest}\n${RED_PAGES}`);
+  assert.strictEqual(run().run.exit_code, 1);
+  writeFile(root, "src/pages.js", build("ceil"));
+  writeFile(root, "dist/pages.js", build("ceil"));
+  run();
+  const runs = stateOf(root, "fix-pages").runs.filter((entry) => entry.purpose === "counterproof");
+  assert.deepStrictEqual(runs.map((entry) => [entry.command, entry.control ?? false]), [
+    ["node --test test/eleven.test.js", false],
+    ["node --test test/eleven.test.js", true],
+    ["node --test", true],
+  ]);
+});
+
 test("[E1.48] a reproduction under spec/, as rspec lays it out, closes its pair with its counterproof", (t) => {
   const { root } = project(t, { checks: "checks:\n  test: node -e 0\n" });
   ospec(root, ...OPEN_BUG);
@@ -3240,6 +3268,77 @@ test("[E1.44 B7] checks that differ from the base open checks-changed, and each 
   const again = ospec(root, "check", "--change", "fix-readme", "--json");
   assert.strictEqual(again.json.decision?.gate, "checks-changed", "a new set of checks needs a new answer");
   assert.deepStrictEqual(stateOf(root, "fix-readme").gates.filter((gate) => gate.id === "checks-changed").map((gate) => gate.status), ["resolved", "open"]);
+});
+
+// E1.67 check-path-scope: a check scoped to paths runs only when the diff of
+// the change touches one of them (REQ-idd-014).
+const E2E = "node -e \"require('fs').appendFileSync('e2e.log', 'x')\"";
+const scopedChecks = (paths) => `checks:\n  test: node -e 0\n  e2e:\n    run: ${E2E}\n    paths: [${paths.map((item) => `"${item}"`).join(", ")}]\n`;
+
+function scopedProject(t) {
+  const { root, git } = project(t, { checks: scopedChecks(["src/**"]) });
+  writeFile(root, ".gitignore", "e2e.log\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "ignore the e2e log");
+  const e2eRuns = () => (fs.existsSync(path.join(root, "e2e.log")) ? fs.readFileSync(path.join(root, "e2e.log"), "utf8").length : 0);
+  return { root, git, e2eRuns };
+}
+
+test("[E1.67] a scoped check runs only while the change's diff touches its paths, and close lists it when skipped", (t) => {
+  const { root, git, e2eRuns } = scopedProject(t);
+  const skipped = [{ name: "e2e", reason: "no path of the diff matches its paths (src/**)" }];
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "docs/guide.md", "# Guide\n");
+
+  const docsOnly = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(docsOnly.code, 0, docsOnly.stdout);
+  assert.strictEqual(docsOnly.json.verdict, "ready", JSON.stringify(docsOnly.json));
+  assert.deepStrictEqual(docsOnly.json.checks.map((run) => run.name), ["test"]);
+  assert.deepStrictEqual(docsOnly.json.skipped, skipped);
+  assert.strictEqual(e2eRuns(), 0, "the e2e check must not run for a diff outside src/**");
+  const evidenceOf = (state) => state.evidence.find((entry) => entry.id === state.obligations.find((o) => o.id === "checks-pass").evidence.at(-1));
+  assert.deepStrictEqual(evidenceOf(stateOf(root, "fix-readme")).detail.skipped, skipped);
+  assert.match(ospec(root, "check", "--change", "fix-readme").stdout, /\ncheck e2e did not run: no path of the diff matches its paths \(src\/\*\*\)\n/);
+
+  // The same change, once it touches src/**, runs the check on the next check.
+  writeFile(root, "src/notes.md", "Notes\n");
+  const touched = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.deepStrictEqual([touched.json.verdict, touched.json.checks.map((run) => run.name), touched.json.skipped], ["ready", ["test", "e2e"], undefined]);
+  assert.strictEqual(e2eRuns(), 1, "the check runs once the diff touches src/**");
+  assert.strictEqual(evidenceOf(stateOf(root, "fix-readme")).detail.skipped, undefined);
+
+  // --base narrows the diff, never the scope: it follows the change's base.
+  git("add", "src/notes.md");
+  git("commit", "-q", "--no-verify", "-m", "notes");
+  const narrowed = ospec(root, "check", "--change", "fix-readme", "--base", "HEAD", "--json");
+  assert.deepStrictEqual(narrowed.json.checks.map((run) => run.name), ["test", "e2e"], JSON.stringify(narrowed.json));
+
+  // Back to a diff outside src/**, the check is skipped again and close lists it.
+  git("rm", "-q", "src/notes.md");
+  git("commit", "-q", "--no-verify", "-m", "drop the notes");
+  assert.deepStrictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.skipped, skipped);
+  const closed = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(closed.code, 0, closed.stdout);
+  assert.ok(closed.json.warnings.includes("check e2e did not run: no path of the diff matches its paths (src/**)"), JSON.stringify(closed.json.warnings));
+});
+
+test("[E1.67] changing a check's paths opens checks-changed, and a check the change adds or changes runs whatever its paths", (t) => {
+  const { root, e2eRuns } = scopedProject(t);
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "docs/guide.md", "# Guide\n");
+  writeFile(root, "idd/config.yaml", scopedChecks(["src/**", "lib/**"]));
+
+  const changed = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(changed.json.decision?.gate, "checks-changed", JSON.stringify(changed.json));
+  assert.match(changed.json.decision.reason, /e2e: .*appendFileSync.* \(paths src\/\*\*, lib\/\*\*\)/);
+  assert.match(changed.json.decision.reason, /e2e: .*appendFileSync.* \(paths src\/\*\*\)/);
+  assert.strictEqual(e2eRuns(), 0, "nothing runs before the answer");
+  assert.deepStrictEqual(stateOf(root, "fix-readme").gates.find((gate) => gate.id === "checks-changed").checks[1].paths, ["src/**", "lib/**"]);
+
+  ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "checks-changed", "--resolve", "--answer", "Yes, e2e also covers lib.", "--source", "user");
+  const approved = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.deepStrictEqual([approved.json.verdict, approved.json.checks.map((run) => run.name)], ["ready", ["test", "e2e"]], JSON.stringify(approved.json));
+  assert.strictEqual(e2eRuns(), 1, "a check whose paths the change changed runs once although the diff touches none of them");
 });
 
 test("a check with --base still contrasts the checks with the change's base and runs nothing unapproved (gate bypass)", (t) => {
