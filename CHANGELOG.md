@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.175.0] - 2026-11-13
+
 ### Added
-- ospec record base adelanta la base de un cambio abierto a un commit descendiente, con la aprobación del usuario en un gate, para que check y close midan solo su trabajo cuando otro cambio ya archivado entró detrás de su apertura (move-change-base)
+- **`ospec record base` adelanta la base de un cambio abierto, con tu aprobación** (move-change-base).
+  - **El problema**: la base de un cambio se fijaba al abrirlo y ningún comando la movía. Si después entraban en la rama los commits de otro cambio ya archivado (un PR fusionado por rebase detrás de un `chore(idd): open`), su código contaba en el diff del cambio abierto: un cambio `docs` se rechazaba con `kind-mismatch` por código ajeno. `ospec check --base main` pasaba, pero `ospec close` deriva siempre contra la base del estado y lo volvía a rechazar.
+  - **El comando**: `ospec record base --change <id> --to <rev> --reason "<motivo>"` pide adelantar la base a un commit que desciende de ella y es `HEAD` o uno de sus antecesores. No mueve nada: abre el gate nuevo `base-moved` con los dos commits, cuántos hay en medio, las rutas que salen del diff y los cambios que ese tramo archiva, y `ospec next` los devuelve en la decisión pendiente.
+  - **La respuesta**: al resolver `base-moved`, la base pasa al commit nuevo, el movimiento queda en `base_moves` del estado con su motivo y su fecha, y `checks-pass` vuelve a pendiente, así que el cambio cierra tras un `ospec check` contra la base nueva. `ospec record base --cancel` retira la pregunta y deja la base como estaba. Otro `--to` con el gate abierto sustituye la pregunta. Una base adelantada no vuelve atrás.
+  - **Rechazos**: `base-not-descendant` si la revisión no desciende de la base o no está en la historia de `HEAD`, `unknown-base` si git no la resuelve, `base-missing` para un cambio abierto antes del primer commit y `gate-managed-by-base` para un `record gate --open` de `base-moved`. El `how` de `kind-mismatch` nombra el comando.
+  - **Lo que no cambia**: `close` no acepta la base de un `check --base`, que cerraría con el diff vacío. El CLI no puede probar que los commits del tramo son de otro cambio, porque el archivo de un cambio no guarda las rutas de su diff: por eso decide el usuario, en un gate.
+  - **Contrato y compatibilidad**: REQ-idd-008 pasa a ocho gates y REQ-idd-014 describe el movimiento, con dos escenarios. `base_moves` y los campos de `base-moved` son opcionales: un `state.yaml` anterior sigue siendo válido. Un CLI anterior rechaza como `state-invalid` solo un estado que ya tenga un `base-moved` o `base_moves`.
+
+**Verificación directa**: `node scripts/check.js` (4612 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados, más `gofmt`, `go vet` y `go test ./...`.
 
 ## [2.174.1] - 2026-11-13
 
