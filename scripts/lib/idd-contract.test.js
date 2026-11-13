@@ -94,8 +94,25 @@ test("each signal derives one distinct obligation", () => {
   assert.deepStrictEqual(sorted(obligations), sorted(contract.OBLIGATIONS.map((o) => o.id)));
 });
 
-test("the spec names exactly the seven gates", () => {
-  assert.deepStrictEqual(contract.GATES, ["ambiguous-intent", "kind-change", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed"]);
+test("a state keeps each move of its base, and base-moved names the move it asks about (REQ-idd-014)", () => {
+  const from = "a".repeat(40);
+  const to = "b".repeat(40);
+  const move = { from, to, reason: "merged behind the opening", moved_at: "2026-01-03T00:00:00.000Z" };
+  assert.deepStrictEqual(contract.validateState(validState({ base: to, base_moves: [move] })), { ok: true, errors: [] });
+  const invalid = (overrides, message) => assert.ok(contract.validateState(validState(overrides)).errors.some((error) => error.includes(message)), message);
+  invalid({ base: from, base_moves: [move] }, "base must be the commit of its last move");
+  invalid({ base: to, base_moves: [{ from, to }] }, "base_moves must list each move");
+  invalid({ base: to, base_moves: {} }, "base_moves must list each move");
+
+  const gate = { id: "base-moved", status: "open", reason: "merged behind the opening", from, to, commits: 2, paths: ["src/paginate.js"], archived: [] };
+  assert.deepStrictEqual(contract.validateState(validState({ base: from, gates: [gate] })), { ok: true, errors: [] });
+  for (const broken of [{ to: from }, { to: undefined }, { commits: 0 }, { paths: "src" }, { archived: undefined }, { reason: undefined }]) {
+    invalid({ base: from, gates: [{ ...gate, ...broken }] }, "gate base-moved must name the move it asks about");
+  }
+});
+
+test("the spec names exactly the eight gates", () => {
+  assert.deepStrictEqual(contract.GATES, ["ambiguous-intent", "kind-change", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed", "base-moved"]);
   const section = requirementSection(readSpec(), "REQ-idd-008");
   for (const gate of contract.GATES) {
     assert.ok(section.includes(`\`${gate}\``), `REQ-idd-008 must name ${gate}`);

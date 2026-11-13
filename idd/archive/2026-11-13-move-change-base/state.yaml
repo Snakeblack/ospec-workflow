@@ -1,0 +1,394 @@
+{
+  "schema": "idd-state/v1",
+  "change": "move-change-base",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "`ospec close` no puede cerrar un cambio cuya base guardada es anterior a commits de otro cambio ya archivado. Ideas, sin imponer el diseño: que close acepte la base con la que el último check dejó lista la evidencia (guardada en ella), o un comando que adelante `state.base` a un descendiente cuando los commits de en medio solo pertenecen a cambios archivados (o a otros `chore(idd)`), con su motivo en el estado. Lo que decidas, con la protección de B2 intacta.",
+    "kind": "feature",
+    "summary": "ospec record base adelanta la base de un cambio abierto a un commit descendiente, con la aprobación del usuario en un gate, para que check y close midan solo su trabajo cuando otro cambio ya archivado entró detrás de su apertura",
+    "acceptance": "Un cambio docs abierto en main antes de que entren los commits de otro cambio ya archivado: ospec close lo rechaza con kind-mismatch; tras ospec record base --to main, la aprobación del gate y un ospec check, ospec close lo cierra; una base que no desciende de la actual se rechaza y, sin la respuesta al gate, la base no se mueve y close sigue rechazando"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "Qué base nueva se acepta: (A) cualquier revisión (--to main, un sha) que resuelva a un commit descendiente de la base actual y antecesor o igual de HEAD; el estado guarda el sha completo; una base null (cambio abierto antes del primer commit) no se mueve. (B) También un commit que no descienda de la base (historia reescrita), siempre con la aprobación del gate."
+      },
+      {
+        "category": "uniqueness",
+        "question": "Quién garantiza que los commits que salen del diff no son trabajo del propio cambio: (A) un gate nuevo, base-moved: el comando no mueve nada, abre el gate con la base nueva, los commits y las rutas que dejan el diff y los cambios archivados en ese tramo, y la base se mueve solo al resolverlo el usuario. (B) Sin gate: se mueve si es descendiente y el tramo archiva algún cambio; es una heurística, porque el archivo no guarda las rutas ni el contenido de su diff y un commit propio en el tramo saldría del diff sin que nadie lo vea. (C) Que close acepte la base del último check --base: descartada salvo que la pidas, porque un check --base HEAD cerraría con un diff vacío (B2, B3)."
+      },
+      {
+        "category": "persistence",
+        "question": "Qué queda en el estado tras mover la base: (A) base con el sha nuevo y un historial base_moves (from, to, reason, moved_at), y la evidencia ligada al árbol queda obsoleta: close exige un ospec check nuevo, sin --base, contra la base nueva; las señales que solo derivaba el diff viejo se retiran con record retract, como hoy. (B) Igual, pero checks-pass se conserva si el árbol no cambió desde el último check."
+      },
+      {
+        "category": "copy",
+        "question": "Nombre y texto: (A) ospec record base --change <id> --to <rev> --reason \"<why>\", gate base-moved con la pregunta: The change's base moves from <old> to <new>: <n> commits and these paths leave its diff: <paths>. Do they all belong to other changes? (B) Otro nombre, por ejemplo ospec rebase."
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 120
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 2018
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Rechazos y marcha atrás: (A) base-not-descendant si la revisión no desciende de la base o no es antecesora de HEAD, unknown-base si no existe, sin cambios si ya es la base; con el gate abierto check y close se niegan como con cualquier gate; si el usuario dice que no, ospec record base --cancel retira el gate y la base queda como estaba; una vez movida no hay vuelta atrás. (B) Además, rechazar el movimiento si alguna ruta que sale del diff la toca también el propio cambio después de la base nueva."
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/en/README.md",
+      "docs/onboarding/tech-lead.md",
+      "handbook/idd/flujo-idd.md",
+      "handbook/proteccion/hooks.md",
+      "internal/iddsession/catalog.json",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-workspace.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md",
+      "skills/idd/references/approvals.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "ospec record base no mueve la base: abre el gate base-moved con el movimiento leído de git (from, to, commits, rutas y cambios archivados del tramo) y la base se mueve al resolverlo el usuario. El archivo de un cambio no guarda las rutas ni el contenido de su diff, así que el CLI no puede probar por sí mismo que los commits del tramo son de otro cambio",
+      "close no acepta la base de un check --base: un check --base HEAD cerraría con el diff vacío, que es lo que B2 y B3 impiden. close sigue derivando contra state.base, que solo cambia por base-moved",
+      "La base nueva debe descender de la actual y ser HEAD o un antecesor suyo: el diff solo se estrecha y nunca lee un commit fuera de la rama. Una base null no se mueve y una base movida no vuelve atrás",
+      "Al resolver base-moved solo checks-pass vuelve a pendiente: cada ospec check vuelve a asentar las demás obligaciones ligadas al árbol contra el diff nuevo, y close ya rechaza las que un diff más estrecho deja infladas (B3, E1.53). Un check con --base sigue admitido como antes; close deriva siempre contra la base del estado",
+      "La guía para el agente va en el how de kind-mismatch y en references/approvals.md, no en SKILL.md: el protocolo está en su techo versionado de bytes (idd_protocol_bytes)",
+      "Otro --to con el gate abierto sustituye la pregunta y se vuelve a sellar el turno; --cancel la retira sin dejar rastro en el estado"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "El movimiento de la base lo decide y valida el CLI (ospec record base, readBaseMove, recordBase); la skill solo nombra el comando"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "Las señales se siguen derivando del diff real contra la base del cambio; la base solo se adelanta a un descendiente con la respuesta del usuario en base-moved"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "close sigue negándose con un gate abierto o una obligación pendiente; mover la base devuelve checks-pass a pendiente y exige un check observado contra la base nueva"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "El cambio no lee ni escribe memoria entre sesiones"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas: solo git y los módulos del runtime"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "base_moves y el gate base-moved viven en idd/<change>/state.yaml; nada de openspec/ cambia de dueño"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "La pregunta pendiente y el movimiento aprobado quedan en state.yaml; ospec next los devuelve sin memoria de conversación"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "readBaseMove solo usa git local"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 331,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_turn": 332
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-13T20:07:07.593Z",
+      "detail": {
+        "tree": "sha256:3d4643d00ec98f6da04cfc8aa327dac6a1136dff9400b6f6cd3e010358bab3c3",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-13T20:07:07.593Z",
+      "detail": {
+        "tree": "sha256:3d4643d00ec98f6da04cfc8aa327dac6a1136dff9400b6f6cd3e010358bab3c3",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-13T20:07:07.593Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:3d4643d00ec98f6da04cfc8aa327dac6a1136dff9400b6f6cd3e010358bab3c3",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-13T20:07:23.668Z",
+      "detail": {
+        "run": "run-9",
+        "tree": "sha256:7b79f4c840c719b1c2724230943d015cb5103b7cfbfb0a045286f5f9ac31561e",
+        "plan": "base_moves y los campos del gate base-moved son opcionales: un state.yaml escrito antes de este cambio no los tiene y sigue siendo válido (validState sin base_moves en idd-contract.test.js), y ningún estado existente se reescribe. Marcha atrás: un CLI anterior rechaza como state-invalid solo un estado que ya tenga un base-moved o base_moves; basta cerrar ese cambio con el CLI nuevo o retirar la pregunta con ospec record base --cancel antes de volver atrás"
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-13T20:07:37.002Z"
+    }
+  ],
+  "base": "4315f3fe180ae6cb4c24c8e89148c920f13119f5",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f992926a2db3887f0d203d6399562f199115ae4f9734167c8d86b06133ef5830",
+      "tree": "sha256:3d4643d00ec98f6da04cfc8aa327dac6a1136dff9400b6f6cd3e010358bab3c3",
+      "recorded_at": "2026-11-13T20:07:07.593Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:704c97aef2d70280599839bab95f379592b1d55dab4c1d80e4ce498e806300d6",
+      "tree": "sha256:3d4643d00ec98f6da04cfc8aa327dac6a1136dff9400b6f6cd3e010358bab3c3",
+      "recorded_at": "2026-11-13T20:07:07.593Z",
+      "tests": 61
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b71f40f3c19fa67717123f1c2de45be427bef54f2e0086d2ec1be8458fdda3a4",
+      "tree": "sha256:3d4643d00ec98f6da04cfc8aa327dac6a1136dff9400b6f6cd3e010358bab3c3",
+      "recorded_at": "2026-11-13T20:07:07.593Z",
+      "tests": 18
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2c47088fc0b091f7d1572dd76970d34152cf42ba640b30beed4536421181b59b",
+      "tree": "sha256:3d4643d00ec98f6da04cfc8aa327dac6a1136dff9400b6f6cd3e010358bab3c3",
+      "recorded_at": "2026-11-13T20:07:07.593Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:3d4643d00ec98f6da04cfc8aa327dac6a1136dff9400b6f6cd3e010358bab3c3",
+      "recorded_at": "2026-11-13T20:07:07.593Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0459866abaa4760c87b0c03114b9b00e183f1d6d253e8d40cd3677be23914d59",
+      "tree": "sha256:3d4643d00ec98f6da04cfc8aa327dac6a1136dff9400b6f6cd3e010358bab3c3",
+      "recorded_at": "2026-11-13T20:07:07.593Z",
+      "tests": 26
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:02562db32aeb17416ba0d554a66b307cca1e29874f44c65ab1543a6d626d7f31",
+      "tree": "sha256:3d4643d00ec98f6da04cfc8aa327dac6a1136dff9400b6f6cd3e010358bab3c3",
+      "recorded_at": "2026-11-13T20:07:07.593Z",
+      "tests": 96
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:61ce3181d73a9f76744a83acdb0502c8344dfa7db141c3d176cb887472ba512e",
+      "tree": "sha256:3d4643d00ec98f6da04cfc8aa327dac6a1136dff9400b6f6cd3e010358bab3c3",
+      "recorded_at": "2026-11-13T20:07:07.593Z",
+      "tests": 52
+    },
+    {
+      "id": "run-9",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-contract.test.js scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:edc6d6287c38534c8b61cad963d7094b3489d9922526d0b1306910c8bae41bda",
+      "tree": "sha256:7b79f4c840c719b1c2724230943d015cb5103b7cfbfb0a045286f5f9ac31561e",
+      "recorded_at": "2026-11-13T20:07:23.668Z",
+      "tests": 105
+    }
+  ],
+  "closed_at": "2026-11-13T20:07:37.002Z"
+}

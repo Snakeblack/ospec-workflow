@@ -85,13 +85,16 @@ withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
 `checks-changed`, the `checks` it approves, each with its `name` and `command`
 and, for a check scoped to paths (REQ-idd-014), its `paths`,
 and the `config` it approves, its `strict_tdd`, `impact` and `contracts`, which
-an entry recorded before E1.53 lacks, and, since E1.49, the turn counts of its
+an entry recorded before E1.53 lacks, for `base-moved`, the move it asks
+about (REQ-idd-014): `from`, `to`, `commits`, `paths` and `archived`, and, since E1.49, the turn counts of its
 opening and answer, `opened_turn` and `resolved_turn`, and for an answer the
 turn fence kept as `user-unverified` the `declared_source` `user` and the
 `unverified_reason` (REQ-idd-008)) and
 `evidence` (each with `id`, `kind`, `obligation` and `recorded_at`, plus the
 `detail` that names the runs behind run evidence), and optionally `base` (the
-commit the change started from, or null outside git), `plan` (the plan
+commit the change started from, or null outside git), `base_moves` (each move
+of the base the user approved, REQ-idd-014, oldest first, with its `from`,
+`to`, `reason` and `moved_at`; `base` MUST be the `to` of the last one), `plan` (the plan
 `ospec signals` was declared, REQ-idd-012: `paths`, `work_units`, `decision`
 and `operations`, plus `decisions`, the texts of `--decision`, once there is
 one), `retracted` (each declared signal retracted under
@@ -112,7 +115,7 @@ advisory correction of an approved review, REQ-idd-016: at most one per
 lineage, with its `lineage_id`, `status`, `finding_ids`, `paths`,
 `changed_lines`, `candidate_tree`, `diff_hash`, `recorded_at` and, once
 decided, the `validation` it got), plus `closed_at` once the change is
-closed (REQ-idd-017), an ISO 8601 UTC timestamp, since it names the archive. A state without `base`, `plan`, `retracted`, `impacts`,
+closed (REQ-idd-017), an ISO 8601 UTC timestamp, since it names the archive. A state without `base`, `base_moves`, `plan`, `retracted`, `impacts`,
 `attestations`, `runs`, `reviews`, `advisory_corrections`, `facts` or `assumptions` MUST stay valid, as the states written before they existed. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
@@ -408,18 +411,19 @@ pass", without a recorded execution MUST NOT satisfy any obligation.
 - WHEN the model reports that the tests pass
 - THEN `checks-pass` MUST stay `pending`
 
-### Requirement: Only Seven Gates {#REQ-idd-008}
+### Requirement: Only Eight Gates {#REQ-idd-008}
 
-IDD MUST stop for the user only at seven gates: `ambiguous-intent` when the
+IDD MUST stop for the user only at eight gates: `ambiguous-intent` when the
 intent is materially ambiguous, `kind-change` when a `bug` becomes a `feature`
 and so withdraws `repro-test` (REQ-idd-011), `open-facts` when behavior questions that
 neither the request nor the code settles are open (REQ-idd-018),
 `adr-amend-or-contradict` when the change amends
 or contradicts an ADR, `irreversible-operation` before a destructive or
 irreversible operation, `review-limit` when the trust reviews of the
-change are used up (REQ-idd-016), and `checks-changed` when the checks or the
+change are used up (REQ-idd-016), `checks-changed` when the checks or the
 ceremony settings (`strict_tdd`, `impact`, `contracts`) of `idd/config.yaml`
-differ from the ones of the change's base (REQ-idd-014). No
+differ from the ones of the change's base (REQ-idd-014), and `base-moved`
+before the base of the change moves to a later commit (REQ-idd-014). No
 other question MAY block progress. A gate MUST be
 resolved only by an explicit user answer, recorded with its source: `user`, or
 `user-unverified` for an answer relayed rather than given in the session. Any
@@ -434,7 +438,9 @@ records as resolved. While
 with a reason naming the ADR or scenario (REQ-idd-020); the agent MAY also
 open it with `record gate --open` and a reason naming the ADR before it asks.
 Only `ospec check` MAY open `checks-changed`, and `record gate --open` MUST be
-refused with `gate-managed-by-check`. Each set of checks and settings MUST get
+refused with `gate-managed-by-check`. Only `ospec record base` MAY open
+`base-moved`, and `record gate --open` MUST be refused with
+`gate-managed-by-base`. Each set of checks and settings MUST get
 its own entry, holding the `checks` and the `config` it approves, so an answer
 approves only what it was asked about. `irreversible-operation` MUST ask about
 each operation once: its entry MUST list in `operations` the operations it
@@ -700,7 +706,7 @@ project's files. It MUST return the change, its pending
 obligations in work order, the pending decision, the next step and the
 knowledge references. The next step MUST be `resolve-gate` for the first open
 gate in the order `ambiguous-intent`, `kind-change`, `open-facts`, `adr-amend-or-contradict`,
-`irreversible-operation`, `review-limit`, `checks-changed`, because every gate is a decision the user takes
+`irreversible-operation`, `review-limit`, `checks-changed`, `base-moved`, because every gate is a decision the user takes
 before the work it decides (REQ-idd-008); else `declare-plan` (with `how`
 naming `ospec signals`) while the change has no recorded `plan`, no signal
 from the diff and no run; else the first pending obligation in the order
@@ -973,7 +979,7 @@ there MUST be no suggestion and no error.
 - GIVEN an open change
 - WHEN `record gate --gate bogus --open --json` runs
 - THEN it MUST exit with 1 and the code `unknown-gate`, with a `how` that
-  lists the seven gates
+  lists the eight gates
 
 #### Scenario: Next is deterministic for the reference fixtures
 
@@ -1314,7 +1320,27 @@ placeholder MUST produce no candidate; the guidance MUST ask for a command.
 ### Requirement: Check And Run Record Observed Executions {#REQ-idd-014}
 
 Opening a change MUST record as `base` the commit `HEAD` names, or null
-outside git or before the first commit; the base never moves afterwards.
+outside git or before the first commit; the base moves afterwards only
+through `ospec record base` and the user's answer to `base-moved`.
+`ospec record base --change <id> --to <rev> --reason <text>` asks to move the
+base to the commit `<rev>` names, so the commits another change landed behind
+the opening of this one leave its diff. `<rev>` MUST name a commit that
+descends from the base and is `HEAD` or one of its ancestors, else the command
+MUST be refused with `base-not-descendant`; a revision git cannot resolve MUST
+be refused with `unknown-base`, a change without a base commit with
+`base-missing`, and the commit the base already names changes nothing. The
+command MUST NOT move the base: it MUST open `base-moved` with the reason and
+the move read from git, `from` (the base), `to` (the full commit id),
+`commits` (how many lie in between), `paths` (the paths those commits change,
+without what ospec writes under `idd/`) and `archived` (the archives under
+`idd/archive/` they add), and `ospec next` MUST return them in the pending
+decision. Another `--to` while the gate is open MUST replace the move it asks
+about, and `ospec record base --change <id> --cancel` MUST remove the open
+gate and leave the base as it was, or be refused with `gate-not-open` without
+one. Resolving `base-moved` MUST set `base` to `to`, append the move to
+`base_moves` with its `moved_at`, and return a satisfied `checks-pass` to
+`pending` without evidence, so the change closes only after a check that
+reads the diff against the new base. A base that moved does not move back.
 `ospec check` MUST recompute the signals from the diff against the change's
 base and record what that adds (REQ-idd-006), then run every check of
 `idd/config.yaml` in declared order through the shell in the project root, but
@@ -1628,6 +1654,32 @@ one `ospec review` returns.
 - THEN `checks-changed` MUST open naming the setting on both sides, and `close`
   MUST be refused until the user resolves it
 - AND reordering a list of `impact` or `contracts` MUST open nothing
+
+#### Scenario: The base moves past another change's commits
+
+- GIVEN a `docs` change opened on `main`, and behind its opening the commits
+  of another change that add `src/paginate.js` and its archive under
+  `idd/archive/`
+- WHEN `check` runs, and then `check --base HEAD` and `close`
+- THEN `check` and `close` MUST be refused with `kind-mismatch`, with a `how`
+  that also names `ospec record base`, while `check --base HEAD` is ready
+- AND `record base --to HEAD --reason <text>` MUST open `base-moved` naming
+  both commits, 2 commits, `src/paginate.js` and the archive, with the base
+  as it was
+- AND once the user answers it, `base` MUST be that commit, `base_moves` MUST
+  hold the move, `checks-pass` MUST be `pending`, and after a passing `check`
+  the change MUST close
+
+#### Scenario: A base outside the branch is refused
+
+- GIVEN an open change and a commit that descends from its base on a branch
+  `HEAD` does not hold
+- WHEN `record base --to <that commit> --reason <text>` runs
+- THEN it MUST be refused with `base-not-descendant` and open no gate
+- AND `record gate --gate base-moved --open` MUST be refused with
+  `gate-managed-by-base`
+- AND `record base --cancel` after a `record base --to HEAD` MUST remove the
+  gate and leave `base` as it was
 
 #### Scenario: A kind the diff contradicts is refused
 

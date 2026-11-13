@@ -9,6 +9,7 @@
 
 const {
   ANSWER_RETRACTABLE_SIGNALS,
+  BASE_GATE,
   CHANGE_ID_PATTERN,
   DECISIONS_ROOT,
   GATED_IMPACTS,
@@ -304,7 +305,7 @@ function recordSignal(state, { id, reason, source } = {}) {
   return { state: next, changed: true };
 }
 
-function recordGate(state, { id, action, reason, answer, source } = {}) {
+function recordGate(state, { id, action, reason, answer, source, recordedAt } = {}) {
   requireOpen(state);
   if (!GATES.includes(id)) refuse("unknown-gate", `unknown gate: ${id}`);
   if (id === "ambiguous-intent") {
@@ -321,6 +322,9 @@ function recordGate(state, { id, action, reason, answer, source } = {}) {
   }
   if (id === "checks-changed" && action === "open") {
     refuse("gate-managed-by-check", "checks-changed is opened by ospec check when the checks in idd/config.yaml differ from the change's base");
+  }
+  if (id === BASE_GATE && action === "open") {
+    refuse("gate-managed-by-base", "base-moved is opened by ospec record base, which reads the move from git");
   }
   // review-limit, checks-changed, irreversible-operation and
   // adr-amend-or-contradict repeat, one entry per authorized review
@@ -362,10 +366,51 @@ function recordGate(state, { id, action, reason, answer, source } = {}) {
     gate.status = "resolved";
     gate.answer = answer;
     gate.source = source;
+    if (id === BASE_GATE) moveBase(next, gate, recordedAt);
     return { state: next, changed: true };
   }
 
   return refuse("invalid-action", `gate action must be open or resolve, got ${JSON.stringify(action)}`);
+}
+
+// The user's answer to base-moved moves the base (REQ-idd-014): the commits in
+// between leave the diff of the change. checks-pass goes back to pending, so
+// the change closes only after an ospec check that reads the new diff.
+function moveBase(state, gate, recordedAt) {
+  requireText(recordedAt, "evidence-time-required", "a move of the base needs its time");
+  state.base = gate.to;
+  state.base_moves = [...(state.base_moves || []), { from: gate.from, to: gate.to, reason: gate.reason, moved_at: recordedAt }];
+  const checks = state.obligations.find((entry) => entry.id === "checks-pass" && entry.status === "satisfied");
+  if (checks) Object.assign(checks, { status: "pending", evidence: [] });
+}
+
+// Asks the user to move the base of the change to the descendant commit `to`
+// (REQ-idd-014), which `ospec record base` read from git with the commits,
+// the paths and the archived changes in between: nothing moves until the
+// user answers base-moved. A new target replaces the one still asked, and
+// `cancel` withdraws the question.
+function recordBase(state, { to, reason, commits, paths, archived, cancel = false } = {}) {
+  requireOpen(state);
+  const index = state.gates.findIndex((gate) => gate.id === BASE_GATE && gate.status === "open");
+  if (cancel) {
+    if (index === -1) refuse("gate-not-open", "no move of the base waits for the user's answer");
+    const next = structuredClone(state);
+    next.gates.splice(index, 1);
+    return { state: next, changed: true };
+  }
+  if (state.base == null) refuse("base-missing", `change ${state.change} has no base commit to move`);
+  requireText(reason, "reason-required", "moving the base needs the reason");
+  if (to === state.base) return unchanged(state);
+  const gate = { id: BASE_GATE, status: "open", reason, from: state.base, to, commits, paths, archived };
+  const next = structuredClone(state);
+  if (index === -1) {
+    next.gates.push(gate);
+  } else {
+    if (sameJson({ ...state.gates[index], opened_turn: undefined }, gate)) return unchanged(state);
+    // The question changed, so it is asked again from this turn.
+    next.gates.splice(index, 1, gate);
+  }
+  return { state: next, changed: true };
 }
 
 // The operation a reason of irreversible-operation names: the reason without
@@ -714,6 +759,7 @@ module.exports = {
   IddRecordError,
   recordAssumption,
   recordAttestation,
+  recordBase,
   recordEvidence,
   recordGate,
   recordImpact,

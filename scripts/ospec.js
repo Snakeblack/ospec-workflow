@@ -66,6 +66,7 @@ const {
   IddRecordError,
   recordAssumption,
   recordAttestation,
+  recordBase,
   recordGate,
   recordImpact,
   recordIntent,
@@ -115,6 +116,7 @@ const {
   readDecisionRecords,
   readFitnessSources,
   readGitDiff,
+  readBaseMove,
   readHead,
   readKnowledgeSources,
   readProjectContext,
@@ -143,6 +145,9 @@ const USAGE = `Usage:
   ospec record assumption --change <id> --text <text>
   ospec record signal --change <id> --signal <id> --reason <text> [--source declaration|diff]
   ospec record gate --change <id> --gate <id> (--open [--reason <text>] | --resolve --answer <text> --source user|user-unverified)
+  ospec record base --change <id> (--to <rev> --reason <text> | --cancel)
+                    asks the user, at the base-moved gate, to move the base of the change to <rev>:
+                    a commit that descends from the base and is HEAD or one of its ancestors
   ospec record withdraw --change <id> --obligation <id> --reason <text>
   ospec record retract --change <id> --signal <id> --reason <text> [--answer <text> --source user|user-unverified]
   ospec record impact --change <id> (--adr <id> | --quality <id>)
@@ -229,6 +234,8 @@ const OPTIONS = {
   gate: { type: "string" },
   open: { type: "boolean" },
   resolve: { type: "boolean" },
+  to: { type: "string" },
+  cancel: { type: "boolean" },
   obligation: { type: "string" },
   path: { type: "string", multiple: true },
   "work-units": { type: "string" },
@@ -338,7 +345,20 @@ function reducerFor(type, values, root) {
       if (values.resolve && values.reason !== undefined) throw new UsageError("record gate --resolve takes no --reason: the gate keeps the reason it was opened with");
       const action = values.open ? "open" : "resolve";
       return existing((state) =>
-        recordGate(state, { id: values.gate, action, reason: values.reason, answer: values.answer, source: values.source }),
+        recordGate(state, { id: values.gate, action, reason: values.reason, answer: values.answer, source: values.source, recordedAt: new Date().toISOString() }),
+      );
+    }
+    case "base": {
+      if ((values.to !== undefined) === (values.cancel === true)) throw new UsageError("record base needs exactly one of --to <rev> or --cancel");
+      if (values.cancel) {
+        if (values.reason !== undefined) throw new UsageError("record base --cancel takes no --reason");
+        return existing((state) => recordBase(state, { cancel: true }));
+      }
+      if (!values.reason?.trim()) throw new UsageError('record base --to needs --reason "<why the commits in between are not work of this change>"');
+      // The move is read from git against the base the state holds; a change
+      // without one, or closed, is refused by recordBase first.
+      return existing((state) =>
+        recordBase(state, { reason: values.reason.trim(), ...(state.status === "open" && state.base != null ? readBaseMove(root, state.base, values.to) : {}) }),
       );
     }
     case "withdraw":
@@ -365,7 +385,7 @@ function reducerFor(type, values, root) {
       });
     }
     default:
-      throw new UsageError(`unknown record type: ${type ?? "(none)"}; expected intent, assumption, signal, gate, withdraw, retract, impact or fitness`);
+      throw new UsageError(`unknown record type: ${type ?? "(none)"}; expected intent, assumption, signal, gate, base, withdraw, retract, impact or fitness`);
   }
 }
 

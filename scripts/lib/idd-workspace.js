@@ -11,7 +11,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
-const { CHANGE_ROOT, DECISIONS_ROOT } = require("./idd-contract.js");
+const { ARCHIVE_ROOT, CHANGE_ROOT, DECISIONS_ROOT, STATE_FILE } = require("./idd-contract.js");
 const { RECEIPTS_DIR } = require("./review-receipt.js");
 const { TURNS_FILE } = require("./turn-fence.js");
 const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
@@ -614,6 +614,52 @@ function commitTree(root, commit) {
   }
 }
 
+/**
+ * What moving the base of a change from `base` to the revision `rev` leaves
+ * out of its diff (REQ-idd-014): the commit `rev` names, the count of commits
+ * in between, the paths they change and the changes they archive. `rev` must
+ * descend from `base` and be HEAD or one of its ancestors, so the diff only
+ * narrows and never reads a commit outside the branch.
+ */
+function readBaseMove(root, base, rev) {
+  requireWorkTree(root);
+  const unknown = () => new IddWorkspaceError("unknown-base", `unknown base: ${JSON.stringify(rev)}`);
+  // A leading dash would turn the revision into a git option.
+  if (typeof rev !== "string" || rev === "" || rev.startsWith("-")) throw unknown();
+  let to;
+  try {
+    to = git(root, ["rev-parse", "--verify", "--quiet", `${rev}^{commit}`]).trim();
+  } catch {
+    throw unknown();
+  }
+  if (to === base) return { to, commits: 0, paths: [], archived: [] };
+  const within = (ancestor, commit) => {
+    try {
+      git(root, ["merge-base", "--is-ancestor", ancestor, commit]);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (!within(base, to)) {
+    throw new IddWorkspaceError("base-not-descendant", `${rev} does not descend from the change's base ${base.slice(0, 12)}`);
+  }
+  const head = tryHead(root);
+  if (!head || !within(to, head)) throw new IddWorkspaceError("base-not-descendant", `${rev} is neither HEAD nor one of its ancestors`);
+  const changed = (...filter) => nulList(git(root, ["diff", "--relative", "--name-only", "--no-renames", "-z", ...filter, base, to, "--"])).map(normalizePath);
+  // The archive a close adds: idd/archive/<name>/state.yaml.
+  const archiveOf = (file) => {
+    const [name, state, ...rest] = file.startsWith(`${ARCHIVE_ROOT}/`) ? file.slice(ARCHIVE_ROOT.length + 1).split("/") : [];
+    return state === STATE_FILE && rest.length === 0 ? [name] : [];
+  };
+  return {
+    to,
+    commits: Number(git(root, ["rev-list", "--count", `${base}..${to}`]).trim()),
+    paths: changed().filter((file) => !isIddState(file)).sort(),
+    archived: changed("--diff-filter=A").flatMap(archiveOf).sort(),
+  };
+}
+
 /** Path → blob id of every file in a tree. */
 function treeBlobs(root, tree) {
   const blobs = new Map();
@@ -868,6 +914,7 @@ module.exports = {
   readDecisionRecords,
   readFitnessSources,
   readGitDiff,
+  readBaseMove,
   readHead,
   readKnowledgeSources,
   readProjectContext,

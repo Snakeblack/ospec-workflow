@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.174.1, 2026-11-13.
+> **Versión de referencia:** v2.175.0, 2026-11-13.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -1902,6 +1902,9 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-13: `move-change-base` (IDD), publicado en v2.175.0. Fuera de la cola: lo pidió una sesión de un proyecto real con el OK del usuario, porque `ospec close` no podía cerrar un cambio cuya base era anterior a los commits de otro cambio ya archivado.
+  - `ospec record base --to <rev> --reason` abre el gate `base-moved` con los commits y las rutas que salen del diff, y la respuesta del usuario adelanta la base a un commit descendiente, deja el movimiento en `base_moves` y devuelve `checks-pass` a pendiente. `close` sigue derivando contra la base del estado (REQ-idd-008, ahora con ocho gates, y REQ-idd-014).
+  - El orden ▶ no cambia: siguen 4c2 y E1.70 `fitness-baseline-failing`.
 - 2026-11-13: `sdd-runtime-prose` (IDD), publicado en v2.174.1. Cierra PR4c de la review general: la prosa SDD ejecuta el runtime instalado en todos los hosts y `handbook` se puede enrutar.
   - El generador resuelve `{{ospec-runtime}}` a `${CLAUDE_PLUGIN_ROOT}` en Claude y al marcador del instalador en el resto; los instaladores restauran los marcadores en orden inverso. `apply-resume` distingue ids de cualquier profundidad y devuelve las casillas que no reconoce, `verify-lineage-recheck.js` se distribuye y `handbook` es ruta contextual con `--handbook` (REQ-routing-013, REQ-routing-017).
   - El usuario lo pidió por delante de E1.70 y dejó el CLI fino `ospec sdd <op>` para una PR propia justo detrás (4c2). Siguen 4c2 y E1.70 `fitness-baseline-failing`.

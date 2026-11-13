@@ -103,7 +103,8 @@
     "adr-amend-or-contradict",
     "irreversible-operation",
     "review-limit",
-    "checks-changed"
+    "checks-changed",
+    "base-moved"
   ],
   "checks_required": [
     "checks-pass",
