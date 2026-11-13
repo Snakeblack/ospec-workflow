@@ -457,8 +457,9 @@ function main(argv, deps = {}) {
       exitCodeTarget.exitCode = 2;
       return;
     } finally {
-      shared.restore();
+      // Last rendered, first restored: one file can carry both markers.
       runtime.restore();
+      shared.restore();
     }
     stdout.write(`\nDone. ${args.target} workflow synced into ${destDir}.\n`);
   }

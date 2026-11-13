@@ -241,8 +241,9 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
         retryOptions,
       );
     } finally {
-      shared.restore();
+      // Last rendered, first restored: one file can carry both markers.
       runtime.restore();
+      shared.restore();
     }
 
     installHooks(outDir, antigravityRoot, {

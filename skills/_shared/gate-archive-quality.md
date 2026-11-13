@@ -98,7 +98,7 @@ executor — completes archive-folder closure by invoking the deterministic arch
 transaction runtime with the executor-emitted `archive-plan.json`:
 
 ```
-node scripts/archive-transaction-run.js {change-name}
+node "{{ospec-runtime}}/scripts/archive-transaction-run.js" {change-name}
 ```
 
 The executor's plan (see `sdd-archive/SKILL.md` Step 5 Plan-and-Report) is the
@@ -108,7 +108,7 @@ The orchestrator MUST treat a runtime success receipt as the sole close authorit
 The orchestrator MUST NOT perform an ad-hoc recursive inventory diff-and-delete as
 the completion mechanism.
 
-1. Invoke `node scripts/archive-transaction-run.js {change-name}` (workspace = repo root).
+1. Invoke `node "{{ospec-runtime}}/scripts/archive-transaction-run.js" {change-name}` (workspace = repo root).
 2. **Runtime success receipt** (`outcome: success` or `resumed-success`) → consider
    the archive route complete. Do not require a separate ad-hoc recursive diff.
 3. **Any runtime failure, mismatch, or absent/unsuccessful receipt** → halt with the source directory left intact (or restored per runtime rollback), surface the failure to the user, and do NOT close the route silently. MUST NOT delete the source outside the runtime under a mismatch condition.

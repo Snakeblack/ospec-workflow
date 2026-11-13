@@ -11,7 +11,7 @@ context: |
 
 project:
   name: ospec-workflow
-  version: 2.174.0
+  version: 2.174.1
   status: active
 
 artifact_store:
@@ -93,6 +93,15 @@ routing:
     phases: [foundation]
     gates: []
     description: "Guided pre-SDD foundation phase for empty projects."
+    cost: medium
+
+  - name: handbook
+    classification: [trivial, small, normal, high-risk]
+    conditions:
+      explicit_handbook_intent: true
+    phases: [handbook]
+    gates: []
+    description: "Write or update the repository handbook and its optional website when the user asks inside SDD."
     cost: medium
 
   - name: federated

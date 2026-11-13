@@ -32,6 +32,7 @@ function parseArgs(argv) {
     explicitBugfix: false,
     explicitRefactor: false,
     explicitHotfix: false,
+    explicitHandbook: false,
     impactJson: null,
     contextJson: null,
     contextFile: null,
@@ -59,6 +60,8 @@ function parseArgs(argv) {
       flags.explicitRefactor = true;
     } else if (arg === "--hotfix" || arg === "--explicit_hotfix_intent" || arg === "--explicit-hotfix-intent") {
       flags.explicitHotfix = true;
+    } else if (arg === "--handbook" || arg === "--explicit_handbook_intent" || arg === "--explicit-handbook-intent") {
+      flags.explicitHandbook = true;
     } else if (arg.startsWith("--impact=")) {
       flags.impactJson = arg.slice("--impact=".length);
     } else if (arg.startsWith("--context=")) {
@@ -330,6 +333,9 @@ function main(argv = process.argv.slice(2), deps = {}) {
   }
   if (flags.explicitHotfix) {
     ctx.explicit_hotfix_intent = true;
+  }
+  if (flags.explicitHandbook) {
+    ctx.explicit_handbook_intent = true;
   }
 
   // A direct child of the column-0 route: block is authoritative.

@@ -88,7 +88,7 @@ and cross-repo contracts (see `_shared/persistence-contract.md`).
 1. Accept the operation only when the caller is the orchestrator and member data is
    supplied (`member.id` at minimum; optionally `role`, `type`, `layer`, `remote`,
    `provides`).
-2. Call `enroll(memberDir, data)` from `scripts/lib/federation-marker.js`. It writes
+2. Call `enroll(memberDir, data)` from `{{ospec-runtime}}/scripts/lib/federation-marker.js`. It writes
    `{memberDir}/openspec/federation.member.yaml` atomically.
 3. **Idempotency**: `enroll` strips `updated_at`, compares the normalized content to any
    existing marker, and when they match it returns `{ status: 'fresh' }` WITHOUT rewriting
@@ -104,7 +104,7 @@ and cross-repo contracts (see `_shared/persistence-contract.md`).
 
 ### `explore` / `classify`
 
-> Realizes the `workspace-explore` phase. Executable backbone: `scripts/lib/federation-explore.js` `explore(containerRoot)`.
+> Realizes the `workspace-explore` phase. Executable backbone: `{{ospec-runtime}}/scripts/lib/federation-explore.js` `explore(containerRoot)`.
 
 1. **Discover** members at depth 1 via `scanMemberMarkers` — a child is a member when it
    has `.git` as a directory OR a plain file (worktree/submodule); `.gitmodules` paths are
@@ -151,7 +151,7 @@ and cross-repo contracts (see `_shared/persistence-contract.md`).
 1. Parse `openspec/workspace.yaml`. For each member, resolve its directory path relative to the coordinator root.
 2. Scan and parse manifests (`package.json`, `go.mod`) in each member's directory.
 3. Compare dependencies across members to classify them as aligned (same version everywhere) or misaligned (version deviations).
-4. Call `analyzeGeneralBaseline(workspaceYamlPath, coordinatorRoot)` from `scripts/lib/workspace-general-baseline.js` to execute the comparison and synthesize `docs/architecture/shared-baseline.md`.
+4. Call `analyzeGeneralBaseline(workspaceYamlPath, coordinatorRoot)` from `{{ospec-runtime}}/scripts/lib/workspace-general-baseline.js` to execute the comparison and synthesize `docs/architecture/shared-baseline.md`.
 5. Return `success` with the report path `docs/architecture/shared-baseline.md` in `artifacts`.
 
 ## Atlas Format (supported subset)

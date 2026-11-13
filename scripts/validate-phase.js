@@ -8,8 +8,10 @@ const { validatePhaseTransition } = require("./lib/flow-validator.js");
 
 // Graceful degradation (REQ-routing-017): a project whose config.yaml declares
 // no routing table still runs lite or standard SDD, so those two routes keep
-// their phases. Any other route must be declared.
+// their phases, and the user can still ask SDD to document the repository
+// (the handbook route). Any other route must be declared.
 const DEGRADED_ROUTE_PHASES = Object.freeze({
+  handbook: Object.freeze(["handbook"]),
   lite: Object.freeze(["sdd-propose", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive"]),
   standard: Object.freeze([
     "sdd-propose",

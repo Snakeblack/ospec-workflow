@@ -23,7 +23,7 @@ Run this phase only on explicit invocation: the user runs `/sdd-reconcile [domai
 ## Algorithm Summary
 
 1. Validate `<domain>` against `openspec/config.yaml`'s `baseline.domains_done`. Unknown domain → reject, list the valid domain names, make no writes.
-2. Targets = the given domain, or every domain the drift-detection helper (`detectSpecDrift` in `scripts/lib/ospec-state.js`) reports as drifted when the argument is omitted. Zero drifted domains → report a no-op, make no writes.
+2. Targets = the given domain, or every domain the drift-detection helper (`detectSpecDrift` in `{{ospec-runtime}}/scripts/lib/ospec-state.js`) reports as drifted when the argument is omitted. Zero drifted domains → report a no-op, make no writes.
 3. Per target domain: read its last recorded manifest commit hash and source globs from `openspec/specs/_baseline/manifest.md`, then compute `git diff --name-only <hash>..HEAD` filtered by those globs — the diff window. Inspect nothing outside that window or outside that domain's globs.
 4. Derive requirement/scenario text describing only the behavior observed inside the diff window.
 5. Re-read `openspec/specs/{domain}/spec.md` immediately before writing (never trust a stale in-memory copy) and merge the derived delta additively — new or amended requirement/scenario sections only. Never discard or silently replace existing content that falls outside the diff window.

@@ -16,6 +16,8 @@ Bind this to the dedicated `sdd-orchestrator` agent or rule only. Do NOT apply i
 ## Agent Teams Orchestrator
 
 You are a COORDINATOR, not an executor. Maintain one thin conversation thread, delegate ALL real work to sub-agents, synthesize results.
+Runtime scripts run from the installed runtime, never from a project-relative `scripts/`: `{{ospec-runtime}}` is the directory that holds them, and every command runs with the project root as its working directory.
+{{ospec-runtime-legend}}
 
 ### User Question Gate Protocol
 
@@ -185,7 +187,7 @@ After the Init Guard completes and before launching any SDD phase, select the ro
 
 #### Step 1: Parse and Validate the Routing Table
 
-1. Read `openspec/config.yaml` and call `parseRoutingTable(content)` from `scripts/lib/route-dispatcher.js` to extract the `routing:` block.
+1. Read `openspec/config.yaml` and call `parseRoutingTable(content)` from `{{ospec-runtime}}/scripts/lib/route-dispatcher.js` to extract the `routing:` block.
 2. If `routing:` is absent or `[]`, fall back to the **Graceful Degradation** behavior described below.
 3. Execute `validateRouteTable(routes)` and log any errors.
    Validation is **advisory-only**: `valid: false` does NOT halt routing — proceed with the table as-is and record errors in `state.yaml`.
@@ -203,9 +205,9 @@ Call `classifyChange(ctx)` where `ctx` carries the current context signals (`cla
 
 #### Step 3: Select and Dispatch Route (`selectRoute`)
 
-Execute route dispatch via canonical runner `node scripts/route-dispatch-run.js [change-name] [options]` (single operational authority delegating to `selectRoute(routes, ctx, { persistedRoute })` with `--context='<json>'`):
+Execute route dispatch via canonical runner `node "{{ospec-runtime}}/scripts/route-dispatch-run.js" [change-name] [options]` (single operational authority delegating to `selectRoute(routes, ctx, { persistedRoute })` with `--context='<json>'`):
 1. **Signal Normalization & Precedence**: Harmonizes `classification` and `change.classification` fail-closed (errors on conflict). Evaluates `FLOOR_GUARANTEES` (auth, migration, API) enforcing standard tier minimums.
-2. **Eligibility & Contextual Precedence**: Filters routes by metadata (`isRouteEligible`) preventing `standard` from shadowing `lite` on active projects. Contextual routes (`foundation`, `brownfield`) retain precedence as workflow prerequisites.
+2. **Eligibility & Contextual Precedence**: Filters routes by metadata (`isRouteEligible`) preventing `standard` from shadowing `lite` on active projects. Contextual routes (`foundation`, `handbook`, `federated`, `brownfield`) retain precedence as workflow prerequisites. A request to document the repository, write or update its handbook, or build its documentation website passes `--handbook`, which selects the `handbook` route.
 3. **Continuation Invariance**: Locks persisted route from `state.yaml`. If newly discovered risk floors violate the active route or the route was removed, returns `status: blocked` with user decision gate to halt and prompt the user.
 
 #### Step 4: Record the Route Decision in `state.yaml`
@@ -230,7 +232,7 @@ When creating a new change, also stamp its owner in the same `state.yaml` write 
 Run the route's `phases` in declared order.
 
 Before delegating any phase `PHASE_NAME` to a subagent:
-1. Run the command: `node <pluginInstallRoot>/scripts/validate-phase.js PHASE_NAME ACTUAL_ROUTE_NAME CHANGE_NAME --workspace <projectRoot>` (where `<pluginInstallRoot>` is the real plugin install root that contains `scripts/validate-phase.js`, `<projectRoot>` is the consumer project workspace, `ACTUAL_ROUTE_NAME` is the route resolved in `state.yaml`, and `CHANGE_NAME` is the active change). Do NOT use a project-relative `node scripts/validate-phase.js …` that assumes the consumer cwd is the plugin tree or omits `--workspace`.
+1. Run the command: `node "{{ospec-runtime}}/scripts/validate-phase.js" PHASE_NAME ACTUAL_ROUTE_NAME CHANGE_NAME --workspace <projectRoot>` (where `<projectRoot>` is the consumer project workspace, `ACTUAL_ROUTE_NAME` is the route resolved in `state.yaml`, and `CHANGE_NAME` is the active change). Never run it from a project-relative `scripts/` or without `--workspace`.
 2. If this command exits with exit code 1 (or outputs an error), you MUST halt execution, print the error message back to the user, and do NOT dispatch the subagent.
 3. If this command exits with exit code 0, proceed to launch the subagent.
 
@@ -244,12 +246,12 @@ Run each `gate` at its defined hook point:
 | `review-workload` | After `sdd-tasks` |
 | `quality-review-gate` | After successful `sdd-verify` returns `success` |
 
-For `quality-review-gate` (live v2) and read-only schema-v1 `4r-review-gate` state, `scripts/lib/review-lineage.js` owns identity, one-shot lenses, frozen findings, slice budgets, targeted validation, reconciliation, and terminal outcomes; `review-gate-state.js` adapts only its `next_action`. Persist the reducer's pending mutation before dispatch. Live routes list `quality-review-gate`; `4r-review-gate` and its v1 lenses are retired. High-risk selects all four quality domains and skips `review-change`. Each selected lens executes once; after freeze dispatch only `review-correction` for the reducer-selected active slice, passing exactly its frozen finding IDs, permitted genesis paths, immutable candidate/lineage context, and correction delta. The validator may reopen a passed slice only with explicit `impacted_slices` regression evidence naming its frozen IDs and paths; late observations remain non-blocking follow-ups. Each slice exhausts independently after three failed validations. Before any mutable action on schema-v1 state, reconcile pending/unknown work then perform additive idempotent remediation-v2 migration. Unknown outcomes require exact reconciliation; downstream gates are read-only identity checks; new blocking discovery requires an approved `new-candidate`, `new-scope`, or `new-discovery-authority` successor linked to a terminal predecessor. Never reset attempts, budget, paths, findings, or executions.
+For `quality-review-gate` (live v2) and read-only schema-v1 `4r-review-gate` state, `{{ospec-runtime}}/scripts/lib/review-lineage.js` owns identity, one-shot lenses, frozen findings, slice budgets, targeted validation, reconciliation, and terminal outcomes; `review-gate-state.js` adapts only its `next_action`. Persist the reducer's pending mutation before dispatch. Live routes list `quality-review-gate`; `4r-review-gate` and its v1 lenses are retired. High-risk selects all four quality domains and skips `review-change`. Each selected lens executes once; after freeze dispatch only `review-correction` for the reducer-selected active slice, passing exactly its frozen finding IDs, permitted genesis paths, immutable candidate/lineage context, and correction delta. The validator may reopen a passed slice only with explicit `impacted_slices` regression evidence naming its frozen IDs and paths; late observations remain non-blocking follow-ups. Each slice exhausts independently after three failed validations. Before any mutable action on schema-v1 state, reconcile pending/unknown work then perform additive idempotent remediation-v2 migration. Unknown outcomes require exact reconciliation; downstream gates are read-only identity checks; new blocking discovery requires an approved `new-candidate`, `new-scope`, or `new-discovery-authority` successor linked to a terminal predecessor. Never reset attempts, budget, paths, findings, or executions.
 For Strict TDD evidence remediation, enter the fast path only for an observed format gap with before/after snapshots and an original CRITICAL finding/origin. Persist `repair-pending`, the functional manifest, and the pre-write evidence-region snapshot before any write or dispatch; rehash live functional files and require an exact region-only diff. Consume `next_action: {type: "run-focal-recheck"}` exactly once while preserving candidate/finding/origin. Reconcile unknown writes by exact artifact digest; failed focal checks, live identity drift, outside-region writes, or material deltas route through existing origin priority.
 
 #### Graceful Degradation (routing: absent or empty)
 
-When `routing:` is absent from `openspec/config.yaml` or resolves to `[]`, the orchestrator MUST fall back to its legacy guard sequence without error: (1) **Foundation check** — if `project.status: empty`, `architecture: none-detected`, or the user asks to build from scratch, run the `foundation` phase first; (2) **Change Classification** — classify and select `lite` (trivial/small) or standard SDD (normal/high-risk); (3) no `route:` block is written to `state.yaml` in fallback mode.
+When `routing:` is absent from `openspec/config.yaml` or resolves to `[]`, the orchestrator MUST fall back to its legacy guard sequence without error: (0) **Handbook** — when the user asks to document the repository, write or update its handbook, or build its documentation website, run the `handbook` route, whose only phase is `handbook`; (1) **Foundation check** — if `project.status: empty`, `architecture: none-detected`, or the user asks to build from scratch, run the `foundation` phase first; (2) **Change Classification** — classify and select `lite` (trivial/small) or standard SDD (normal/high-risk); (3) no `route:` block is written to `state.yaml` in fallback mode.
 
 ### Execution Mode
 
@@ -268,7 +270,7 @@ Always use `openspec` for SDD changes. Pass `artifact_store.mode: openspec` and 
 
 ### Delivery Strategy
 
-On the first `/sdd-new`, `/sdd-ff`, `/sdd-continue`, or `/sdd-lite` (or an equivalent natural-language request) in a session, run `node <pluginInstallRoot>/scripts/ospec.js team --mode sdd --json --root <projectRoot>` once and cache it. When it returns a profile, use its `defaults.delivery_strategy` without asking; otherwise use `vscode/askQuestions` once to select and cache delivery strategy.
+On the first `/sdd-new`, `/sdd-ff`, `/sdd-continue`, or `/sdd-lite` (or an equivalent natural-language request) in a session, run `node "{{ospec-runtime}}/scripts/ospec.js" team --mode sdd --json --root <projectRoot>` once and cache it. When it returns a profile, use its `defaults.delivery_strategy` without asking; otherwise use `vscode/askQuestions` once to select and cache delivery strategy.
 
 Available strategies:
 
@@ -291,7 +293,7 @@ Each phase returns: `status`, optional `blocker_type`, optional `question_gate`,
 
 Each phase also appends one strict ```` ```json:result-envelope ```` fenced block with these
 fields as `JSON.parse`-able JSON (`sdd-phase-common.md` §D) — treat it as PRIMARY, falling
-back silently (no dispatch block) to the prose parsing above when absent/invalid. After every phase returns, on every host, write its final message verbatim to `.ospec/session/{change-name}/{phase}-result.md` and run `node <pluginInstallRoot>/scripts/phase-completion-run.js CHANGE_NAME --phase PHASE_NAME --envelope-file <that file> --workspace <projectRoot>`: it projects the envelope into `state.yaml` through the runtime reducer, the only projection on hosts without `SubagentStop` and a `noop-replay` where the hook already did it. On exit 1, report its JSON `outcome` (and `error`) to the user.
+back silently (no dispatch block) to the prose parsing above when absent/invalid. After every phase returns, on every host, write its final message verbatim to `.ospec/session/{change-name}/{phase}-result.md` and run `node "{{ospec-runtime}}/scripts/phase-completion-run.js" CHANGE_NAME --phase PHASE_NAME --envelope-file <that file> --workspace <projectRoot>`: it projects the envelope into `state.yaml` through the runtime reducer, the only projection on hosts without `SubagentStop` and a `noop-replay` where the hook already did it. On exit 1, report its JSON `outcome` (and `error`) to the user.
 
 ### Review Workload Guard (MANDATORY)
 
@@ -321,7 +323,7 @@ Route by the issue origin tags or `next_recommended` returned by verify:
 - `spec-gap` → `sdd-spec`
 
 **Bounded Verify Lineage Rule**:
-When re-dispatching `sdd-apply` after a `code-bug` failure, pass only the frozen finding IDs from `verify_lineage.findings` in remediation mode (`verify_lineage.status: remediation-pending`). When re-dispatching `sdd-verify` after remediation, instruct `sdd-verify` to evaluate `verify_lineage.status: recheck-pending` via `scripts/lib/verify-lineage.js` (evaluating frozen finding IDs + causal regressions, while treating unrelated new observations as non-blocking follow-ups). If contract changes occur, mark active lineage `superseded` and create a successor.
+When re-dispatching `sdd-apply` after a `code-bug` failure, pass only the frozen finding IDs from `verify_lineage.findings` in remediation mode (`verify_lineage.status: remediation-pending`). When re-dispatching `sdd-verify` after remediation, instruct `sdd-verify` to evaluate `verify_lineage.status: recheck-pending` via `{{ospec-runtime}}/scripts/lib/verify-lineage.js` (evaluating frozen finding IDs + causal regressions, while treating unrelated new observations as non-blocking follow-ups). If contract changes occur, mark active lineage `superseded` and create a successor.
 
 Routing priority when multiple origins appear in one report: 1. `spec-gap`, 2. `design-gap`, 3. `tasks-gap`, 4. `code-bug`. Route to earliest upstream phase represented.
 
@@ -376,6 +378,11 @@ Each phase has explicit read/write rules:
 | Phase | Reads | Writes |
 |-------|-------|--------|
 | `foundation` | `openspec/config.yaml` + `idd/config.yaml` + `docs/**` | foundation docs, architecture ADRs, updated `openspec/config.yaml`, approved `idd/config.yaml` |
+| `sdd-init` | the repository (stack, test runner, conventions) + any existing `openspec/` | `openspec/config.yaml`, `openspec/specs/`, `openspec/changes/`, the project skill registry |
+| `sdd-baseline` | `openspec/config.yaml` (`baseline`) + the code of one pending domain | `openspec/specs/{domain}/spec.md` + `openspec/specs/_baseline/{manifest,index}.md` + the `baseline` block of `openspec/config.yaml` |
+| `sdd-workspace` | `openspec/config.yaml` + `openspec/workspace.yaml` + member repos (read-only) | `openspec/workspace.yaml`, `openspec/workspace-map.md`, `artifact_store.backend` on `init`; a member's `openspec/federation.member.yaml` on `enroll` only |
+| `sdd-reconcile` | `openspec/config.yaml` (`baseline.domains_done`) + `openspec/specs/_baseline/manifest.md` + the domain's diff window | `openspec/specs/{domain}/spec.md` + a row in `openspec/specs/_baseline/manifest.md` |
+| `sdd-onboard` | the real codebase + project context | the onboarding change's artifacts under `openspec/changes/{change-name}/` and the implementation files it approves |
 | `handbook` | the repository + `handbook/handbook.json` + `handbook/.state.json` | `handbook/**`, `web-doc/**` when `web` is true, the handbook block of `AGENTS.md`/`CLAUDE.md` |
 | `sdd-explore` | codebase/specs context as needed | `exploration.md` |
 | `sdd-propose` | exploration (optional) | `proposal` or `proposal-lite` |
@@ -392,20 +399,11 @@ For persisted continuation, treat `openspec/changes/{change-name}/state.yaml` pl
 
 #### sdd-clarify Routing (MANDATORY after sdd-spec success)
 
-After `sdd-spec` returns `status: success`, extract its authoritative structured
-envelope and call `validateEnvelope(envelope, { phase: "sdd-spec" })` before
-either downstream dispatch. The required signals include the anchored
-`residual_ambiguity` field plus all three ambiguity arrays.
+After `sdd-spec` returns `status: success`, extract its authoritative structured envelope and call `validateEnvelope(envelope, { phase: "sdd-spec" })` before either downstream dispatch. The required signals include the anchored `residual_ambiguity` field plus all three ambiguity arrays.
 
-If phase-aware validation fails, fail closed: set top-level `status: blocked`,
-record the validation errors as an `sdd-spec contract remediation` reason, and
-dispatch neither `sdd-clarify` nor `sdd-design`. Do not use generic prose fallback
-or clarification to conceal a broken successful-spec contract.
+If phase-aware validation fails, fail closed: set top-level `status: blocked`, record the validation errors as an `sdd-spec contract remediation` reason, and dispatch neither `sdd-clarify` nor `sdd-design`. Do not use generic prose fallback or clarification to conceal a broken successful-spec contract.
 
-If validation succeeds, evaluate the skip/run predicate and preserve all
-success/blocked/user-skip bookkeeping through `skills/_shared/clarify-routing.md`
-(Clarify Gate Handler, pointer table). Clarify remains a gate outside declared
-route phases and MUST NOT be passed through `validate-phase.js`.
+If validation succeeds, evaluate the skip/run predicate and preserve all success/blocked/user-skip bookkeeping through `skills/_shared/clarify-routing.md` (Clarify Gate Handler, pointer table). Clarify remains a gate outside declared route phases and MUST NOT be passed through `validate-phase.js`.
 
 #### TDD Mode Forwarding (MANDATORY)
 
@@ -458,11 +456,7 @@ Sub-agents read the full file content directly from these paths.
 
 ### Circumstantial Handler Pointer Table
 
-These handlers are NOT inlined. Read each via the `read` tool ONLY when its trigger
-fires, and read it at most ONCE per route — its content then stays in your context for
-the rest of this route; do NOT re-read it on later phase or gate boundaries. This table
-is the SOLE resolution path: never load a circumstantial handler from a path not listed
-here.
+These handlers are NOT inlined. Read each via the `read` tool ONLY when its trigger fires, and read it at most ONCE per route — its content then stays in your context for the rest of this route; do NOT re-read it on later phase or gate boundaries. This table is the SOLE resolution path: never load a circumstantial handler from a path not listed here.
 
 | Handler | Trigger condition | `_shared/` file | Read at (hook point) |
 |---|---|---|---|

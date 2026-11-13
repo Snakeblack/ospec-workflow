@@ -231,7 +231,7 @@ is rejected by the runtime.
 Your responsibility ends at: semantic prep (Step 2), archive-report persistence
 (Step 3), and plan emission (Step 5).
 Completion of the archive — staging, compare, atomic commit, and delete-after-full-match —
-is the ORCHESTRATOR's responsibility via `node scripts/archive-transaction-run.js {change}`
+is the ORCHESTRATOR's responsibility via `node "{{ospec-runtime}}/scripts/archive-transaction-run.js" {change}`
 and the runtime success receipt (see `skills/_shared/gate-archive-quality.md`,
 Post-Return Move Completion), NOT yours.
 
@@ -285,7 +285,7 @@ during commit — not by this executor.
 
 ### Move Completion Pending (orchestrator-owned)
 The source directory `openspec/changes/{change-name}/` still exists. The
-orchestrator invokes `node scripts/archive-transaction-run.js {change-name}` and
+orchestrator invokes `node "{{ospec-runtime}}/scripts/archive-transaction-run.js" {change-name}` and
 treats the runtime success receipt as the sole close authority.
 ```
 

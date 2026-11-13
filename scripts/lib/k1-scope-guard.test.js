@@ -621,6 +621,9 @@ test("K1 scope guard: fixed routing and phase validation remain byte-equivalent 
           // Both are strict no-ops; an uncommented block does not match.
           .replace(/^# team: \(OPTIONAL.*?\n#   experience: mixed\n/ms, "<scale-or-team>\n")
           .replace(/^# scale: \(OPTIONAL.*?\n# scale: team\n/ms, "<scale-or-team>\n")
+          // Sanctioned successor evolution (PR4c, sdd-runtime-prose): the
+          // explicit-only `handbook` route, the SDD delegation of the handbook skill.
+          .replace(/\n  - name: handbook\n(?: {4}.*\n)+/, "\n")
           .replace(/\n{3,}/g, "\n\n");
       assert.equal(
         normalizeConfig(baseline.stdout),

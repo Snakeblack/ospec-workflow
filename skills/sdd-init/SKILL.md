@@ -88,7 +88,7 @@ After resolving a valid base path, scan its immediate children (depth-1 only, no
 4. Initialize persistence for the resolved mode.
 5. Build `.ospec/cache/skill-registry.cache.json` using the skill-registry scan rules.
 6. Persist testing capabilities and project context.
-6b. **Team profile** (openspec mode only): read the `team: { size, experience }` line from the `## Parameters` prompt block (the orchestrator asks the user once at first init; ask nothing yourself). Write it as a top-level `team:` section (`size:` and `experience:`) into `openspec/config.yaml`; never write `idd/config.yaml` (ADR 0011). Then run `node <pluginInstallRoot>/scripts/ospec.js team --mode sdd --json --root <projectRoot>` and materialize its `defaults`, never your own reading of the profile:
+6b. **Team profile** (openspec mode only): read the `team: { size, experience }` line from the `## Parameters` prompt block (the orchestrator asks the user once at first init; ask nothing yourself). Write it as a top-level `team:` section (`size:` and `experience:`) into `openspec/config.yaml`; never write `idd/config.yaml` (ADR 0011). Then run `node "{{ospec-runtime}}/scripts/ospec.js" team --mode sdd --json --root <projectRoot>` and materialize its `defaults`, never your own reading of the profile:
    - `tdd_mode` → `testing: { tdd_mode }` (when a runner exists);
    - `review.traceability: required` → `traceability: { trailers: required }`;
    - `mentorship` other than `balanced` → `mentorship: { mode }`;

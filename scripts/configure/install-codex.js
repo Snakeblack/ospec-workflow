@@ -1425,8 +1425,9 @@ function install(argv, deps = {}) {
         try {
           syncCodexSkills(outDir, globalSkillsRoot, { fs: writeFs, approvedRoot: userHome });
         } finally {
-          shared.restore();
+          // Last rendered, first restored: one file can carry both markers.
           runtime.restore();
+          shared.restore();
         }
         writeFs.rmSync(path.join(agentsDest, "sdd-orchestrator.toml"), { force: true });
         installCodexHooks(outDir, codexRoot, runtimeDir, { fs: writeFs });

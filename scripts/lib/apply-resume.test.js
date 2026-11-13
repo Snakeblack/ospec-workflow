@@ -70,3 +70,51 @@ test("preserves verified work when a later apply batch appends progress", () => 
   assert.deepEqual(resumed.completed.map((task) => task.id), ["2.1"]);
   assert.deepEqual(resumed.remaining.map((task) => task.id), ["2.2", "2.3"]);
 });
+
+test("ids with three or more levels stay distinct tasks", () => {
+  const tasksContent = `
+# Tasks
+- [x] 1.2.1 Parse the header
+- [ ] 1.2.2 Parse the body
+- [ ] **1.10.3** Close the stream
+`;
+  const progress = "- [~] 1.2.2 Parse the body\n";
+
+  const resumed = resolveRemainingTasks(tasksContent, progress);
+
+  assert.deepEqual(resumed.tasks.map((task) => [task.id, task.description]), [
+    ["1.2.1", "Parse the header"],
+    ["1.2.2", "Parse the body"],
+    ["1.10.3", "Close the stream"],
+  ]);
+  assert.deepEqual(resumed.completed.map((task) => task.id), ["1.2.1"]);
+  assert.deepEqual(resumed.partial.map((task) => task.id), ["1.2.2"]);
+  assert.deepEqual(resumed.remaining.map((task) => task.id), ["1.2.2", "1.10.3"]);
+});
+
+test("a checkbox whose id is not a dotted number comes back unparsed instead of disappearing", () => {
+  const tasksContent = [
+    "# Tasks",
+    "- [ ] 1.1 Keep this one",
+    "- [ ] T-3 Ship the release",
+    "- [x] Write the docs",
+    "- [ ] 1.2.3a Not an id either",
+    "Plain prose with no checkbox",
+    "Prose that mentions - [ ] inside a sentence",
+  ].join("\r\n");
+
+  const resumed = resolveRemainingTasks(tasksContent, "");
+
+  assert.deepEqual(resumed.tasks.map((task) => task.id), ["1.1"]);
+  assert.deepEqual(resumed.remaining.map((task) => task.id), ["1.1"]);
+  assert.deepEqual(resumed.unparsed, [
+    { line: 3, text: "- [ ] T-3 Ship the release" },
+    { line: 4, text: "- [x] Write the docs" },
+    { line: 5, text: "- [ ] 1.2.3a Not an id either" },
+  ]);
+});
+
+test("a tasks file with every checkbox recognized reports nothing unparsed", () => {
+  assert.deepEqual(resolveRemainingTasks("- [ ] 1 One\n- [ ] 2.1 Two\n", "").unparsed, []);
+  assert.deepEqual(resolveRemainingTasks(undefined, undefined).unparsed, []);
+});

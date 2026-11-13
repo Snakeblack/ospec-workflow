@@ -77,7 +77,7 @@ test("real repo: generated phase validator executes in every target", (t) => {
     assert.ok(!instructions.includes("node scripts/configure/validate-phase.js"), `${target} must not reference excluded validator`);
     assert.match(
       instructions,
-      /node <pluginInstallRoot>\/scripts\/validate-phase\.js PHASE_NAME ACTUAL_ROUTE_NAME CHANGE_NAME --workspace <projectRoot>/,
+      /node "(?:\$\{CLAUDE_PLUGIN_ROOT\}|__OSPEC_RUNTIME_DIR__)\/scripts\/validate-phase\.js" PHASE_NAME ACTUAL_ROUTE_NAME CHANGE_NAME --workspace <projectRoot>/,
     );
     assert.doesNotMatch(
       instructions,

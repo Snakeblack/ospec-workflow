@@ -14,19 +14,21 @@ The SDD orchestrator selects a **route** for every change. A route is a named co
 
 A route is a **distinct user intent**, not an implementation detail. Do not add a route because a phase needs a configuration toggle — use a gate or a phase option instead.
 
-## The Six Routes (first-match-wins order)
+## The Routes (first-match-wins order)
 
 | # | Name | Classification | Key Conditions | Phases | Gates | Cost |
 |---|------|----------------|----------------|--------|-------|------|
 | 1 | `foundation` | trivial, small, normal, high-risk | `project.status: empty` OR `architecture: none-detected` | `[foundation]` | `[]` | medium |
-| 2 | `federated` | trivial, small, normal, high-risk | `artifact_store.backend: workspace-federated` | `[sdd-workspace, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[impact, clarify]` | high |
-| 3 | `debug` | small, normal | Explicit debug intent only (never auto-routed) | `[sdd-explore, sdd-apply]` | `[quality-review-gate]` | low |
-| 4 | `brownfield` | trivial, small, normal, high-risk | `baseline.status: pending` OR empty specs with code present | `[sdd-baseline]` | `[brownfield-advisory]` | medium |
-| 5 | `standard` | normal, high-risk | `project.status: active`; classification normal/high-risk | `[sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[clarify, quality-review-gate]` | high |
-| 6 | `lite` | trivial, small | `project.status: active`; classification trivial/small | `[sdd-propose, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[]` | low |
+| 2 | `handbook` | trivial, small, normal, high-risk | `explicit_handbook_intent: true` (`route-dispatch-run --handbook`) | `[handbook]` | `[]` | medium |
+| 3 | `federated` | trivial, small, normal, high-risk | `artifact_store.backend: workspace-federated` | `[sdd-workspace, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[impact, clarify]` | high |
+| 4 | `debug` | small, normal | Explicit debug intent only (never auto-routed) | `[sdd-explore, sdd-apply]` | `[quality-review-gate]` | low |
+| 5 | `brownfield` | trivial, small, normal, high-risk | `baseline.status: pending` OR empty specs with code present | `[sdd-baseline]` | `[brownfield-advisory]` | medium |
+| 6 | `standard` | normal, high-risk | `project.status: active`; classification normal/high-risk | `[sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[clarify, quality-review-gate]` | high |
+| 7 | `lite` | trivial, small | `project.status: active`; classification trivial/small | `[sdd-propose, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[]` | low |
 
 Notes:
 - **foundation** stops after the `foundation` phase and hands back. It does NOT auto-chain into standard SDD. A table that still names the phase `sdd-foundation` keeps working: the dispatcher reads it as `foundation`.
+- **handbook** is explicit-only: the user asks, inside SDD, to document the repository, write or update its handbook, or build its documentation website. It stops after the `handbook` phase, no risk floor disqualifies it, and it stays available without a routing table.
 - **debug** is explicit-only: the user MUST signal debug intent ("debug this", "add logs", "quick fix"). The orchestrator MUST NOT auto-route from classification signals alone.
 - **brownfield** is an advisory preface: the `brownfield-advisory` gate runs first; `sdd-baseline` runs only on user consent. Then re-routes to the underlying change route.
 - **standard** lists `quality-review-gate` in `gates` to ENABLE the Quality Review Gate after a successful `sdd-verify`; removing it disables the gate. `4r-review-gate` is legacy schema-v1 continuation only.
@@ -39,7 +41,7 @@ The dispatcher (`scripts/lib/route-dispatcher.js::selectRoute`) evaluates routes
 1. **Signal Normalization**: Harmonizes `classification` and `change.classification`. If both exist and differ, a `ClassificationConflictError` is thrown (fail-closed).
 2. **K1 Risk Floor Mapping**: Evaluates impact risk floors (`FLOOR_GUARANTEES`). Triggers like `auth_security`, `data_migration`, and `public_api` guarantee a minimum tier of `standard`, preventing bypass by `explicit_hotfix_intent` or small diff size.
 3. **Route Eligibility Filtering**: Filters candidates via `isRouteEligible(route, resolvedClassification, floorGuarantees)`. Routes whose metadata classification does not encompass the change classification or violate floor guarantees are excluded before checking conditions (preventing `standard` from shadowing `lite` on small active changes).
-4. **Contextual Route Precedence**: Contextual routes (`foundation`, `federated`, `brownfield`) are evaluated first. If conditions match, they take precedence regardless of classification size.
+4. **Contextual Route Precedence**: Contextual routes (`foundation`, `handbook`, `federated`, `brownfield`) are evaluated first. If conditions match, they take precedence regardless of classification size.
 5. **Declared Order Matching**: Remaining eligible routes are evaluated in their declared order; the first matching route wins.
 6. **Continuation Invariance**: In mid-flight changes (`persistedRoute`), the route decision is locked. If emergent evidence introduces a floor violation against the active route, dispatch deterministically returns `status: "blocked"` with `blocker_type: "needs_user_decision"` rather than silently changing or downgrading routes.
 

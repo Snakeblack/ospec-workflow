@@ -26,6 +26,9 @@ const KNOWN_PHASES = [
   "sdd-apply",
   "sdd-verify",
   "sdd-archive",
+  // The handbook route's only phase: the `handbook` agent the orchestrator
+  // delegates to when the user asks to document the repository inside SDD.
+  "handbook",
 ];
 
 // Phase names a routing table may still carry from an earlier release, and the
@@ -653,7 +656,9 @@ function normalizeClassificationSignals(ctx) {
   return { resolvedClassification: resolved, normalizedCtx };
 }
 
-const CONTEXTUAL_ROUTE_NAMES = new Set(["foundation", "federated", "brownfield"]);
+// `handbook` documents the repository and never changes its code, so no risk
+// floor disqualifies it and an explicit request wins over the general routes.
+const CONTEXTUAL_ROUTE_NAMES = new Set(["foundation", "federated", "brownfield", "handbook"]);
 
 /**
  * Checks whether a candidate route is eligible for a given change classification and floor.

@@ -1,0 +1,755 @@
+{
+  "schema": "idd-state/v1",
+  "change": "sdd-runtime-prose",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "PR4c de la review general: la prosa SDD nombra el runtime instalado y no rutas relativas al proyecto; apply-resume distingue ids con varios niveles; el runner de recheck se distribuye; la fase handbook es enrutable y la tabla de fases del orquestador está completa",
+    "acceptance": "En el árbol generado de cada host ninguna instrucción SDD manda ejecutar node scripts/..., require('./scripts/...') ni <pluginInstallRoot>, sino el directorio del runtime instalado (${CLAUDE_PLUGIN_ROOT} en Claude, el marcador que renderiza el instalador en el resto); resolveRemainingTasks trata 1.2.1 y 1.2.2 como tareas distintas y devuelve aparte las casillas cuyo id no reconoce; verify-lineage-recheck.js llega al runtime distribuido y sdd-apply/sdd-verify lo citan por ruta; una ruta con la fase handbook pasa validateRouteTable y la tabla de fases del orquestador lista todas las fases que delega"
+  },
+  "facts": {
+    "open": [
+      "Hallazgo 4: ¿el CLI fino ospec sdd <op> (las ~20 funciones del runtime que la prosa manda llamar sin CLI) entra en esta PR, o esta PR arregla las rutas y el CLI va en una PR propia justo detrás (4c2)?",
+      "Hallazgo 12: ¿handbook pasa a ser fase de enrutado como foundation (KNOWN_PHASES, señal --handbook en route-dispatch-run, ruta handbook en la tabla) o queda fuera del enrutado como delegación directa, igual que sdd-onboard y sdd-reconcile?",
+      "Hallazgo 8: ¿solo cuentan los ids numéricos con puntos que genera sdd-tasks (1.2.1) y cualquier otra casilla (T-3, sin id) se devuelve como no reconocida, o también se aceptan ids alfanuméricos como T-3?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "agents/sdd-archive.agent.md",
+      "agents/sdd-orchestrator.agent.md",
+      "agents/sdd-reconcile.agent.md",
+      "docs/sdd-routing.md",
+      "handbook/sdd/ciclo-y-rutas.md",
+      "openspec/config.yaml",
+      "openspec/specs/routing/spec.md",
+      "scripts/configure/cli.js",
+      "scripts/configure/sdd-runtime-prose.test.js",
+      "scripts/configure/shared-dir.js",
+      "scripts/lib/apply-resume.js",
+      "scripts/lib/apply-resume.test.js",
+      "scripts/lib/route-dispatcher.js",
+      "scripts/lib/target-profiles/claude.js",
+      "scripts/lib/target-transform.js",
+      "scripts/route-dispatch-run.js",
+      "scripts/validate-phase.js",
+      "skills/_shared/gate-archive-quality.md",
+      "skills/_shared/route-handbook.md",
+      "skills/sdd-apply/SKILL.md",
+      "skills/sdd-archive/SKILL.md",
+      "skills/sdd-init/SKILL.md",
+      "skills/sdd-verify/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "La prosa SDD nombra el runtime con {{ospec-runtime}}, que el transform resuelve sobre cada fichero emitido (después de que los agentes embeban lo que leen): ${CLAUDE_PLUGIN_ROOT} en Claude y el marcador __OSPEC_RUNTIME_DIR__ que renderiza cada instalador en el resto.",
+      "Claude sustituye ${CLAUDE_PLUGIN_ROOT} solo en los cuerpos que carga (agentes, comandos y el SKILL.md de cada skill): un fichero que solo se lee con Read (handlers _shared, referencias) recibe el token <ospec-runtime>, que la línea {{ospec-runtime-legend}} del orquestador define; en los demás hosts esa línea desaparece.",
+      "Los runners se escriben node \"<runtime>/scripts/x.js\", siempre entre comillas, para que una ruta con espacios siga siendo un argumento en bash y en PowerShell.",
+      "Los instaladores restauran los marcadores en orden inverso al render (LIFO): el orquestador lleva ahora __OSPEC_SHARED_DIR__ y __OSPEC_RUNTIME_DIR__, y restaurar en el mismo orden dejaba el árbol generado con _shared renderizado.",
+      "handbook es ruta contextual (como foundation) que solo elige la señal --handbook / explicit_handbook_intent; ningún suelo de riesgo la descarta, va detrás de foundation en la tabla del repo y el modo degradado de validate-phase la admite.",
+      "apply-resume exige espacio tras el id (1.2.3a deja de ser el id 1.2.3) y devuelve unparsed solo de tasks.md, con línea y texto; apply-progress lo escribe el propio apply con el mismo formato.",
+      "Se dejan sin runtime las rutas descriptivas que no son del runtime o son ejemplos: cache.js en el ejemplo de assumptions, docs-lint.test.js en token-budget y review-lineage.js en review-judgment (compartido con los revisores de IDD); el test de la fuente las lista."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/configure/cli.js (matches scripts/configure/cli.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components generator, skills: ADR 0001, 0003, 0006, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/cli.js uses writeFile",
+      "source": "diff"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El directorio del runtime se resuelve en la transformación pura (placeholder {{ospec-runtime}} por perfil) y en el render de instalación ya existente; la fuente sigue siendo la única que se edita."
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La prosa SDD sigue citando las funciones del runtime que deciden (resolveRemainingTasks, runRecoverySuccessorRecheck, validate-phase) en vez de reimplementarlas; ahora por su ruta instalada. El CLI fino ospec sdd queda para 4c2."
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones ni su frontera."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; verify-lineage-recheck.js entra en el runtime autocontenido por RUNTIME_ENTRY_SCRIPTS."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "No añade llamadas de red al CLI, los hooks ni las skills."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Los siete targets nombran el mismo runtime: Claude con su sustitución, el resto con el marcador del instalador; sdd-runtime-prose.test.js lo comprueba en todos."
+    },
+    {
+      "kind": "adr",
+      "id": "0007",
+      "impact": "none",
+      "reason": "No cambia la revisión acotada: solo la ruta con la que la prosa cita review-lineage.js."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "El cambio no añade órdenes de ospec. La prosa SDD cita las funciones del runtime que deciden (resolveRemainingTasks con su lista unparsed, runRecoverySuccessorRecheck, validate-phase, route-dispatch-run --handbook) por su ruta instalada y no reimplementa ninguna regla; la regla de ids y la de enrutado viven en apply-resume.js y route-dispatcher.js con tests (apply-resume.test.js, route-dispatcher.test.js).",
+      "recorded_at": "2026-11-12T23:01:49.253Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El diff no añade llamadas de red: cambia prosa, el transform (sustitución de texto), apply-resume (regex), route-dispatcher (constantes), validate-phase (tabla degradada), el orden de restore de los instaladores y tests. next, check y close no leen nada nuevo fuera del repositorio.",
+      "recorded_at": "2026-11-12T23:01:49.415Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1",
+        "ev-5"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-12"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-13"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 323,
+      "answer": "todas las recomendadas: 1A (esta PR arregla las rutas del runtime en toda la prosa SDD; el CLI fino ospec sdd <op> va en una PR propia justo detrás, 4c2), 2A (handbook es fase de enrutado como foundation: KNOWN_PHASES, señal --handbook, ruta handbook en la tabla y en el modo degradado), 3A (solo ids numéricos con puntos de cualquier profundidad; el resto de casillas sale como no reconocido y sdd-apply lo avisa)",
+      "source": "user",
+      "resolved_turn": 324
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-12T22:57:24.675Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-12T23:00:42.676Z",
+      "detail": {
+        "tree": "sha256:0656db985bb28243f605548d3847f3c9f1f7d337887f21b50934080854764cd8",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-12T23:00:42.676Z",
+      "detail": {
+        "tree": "sha256:0656db985bb28243f605548d3847f3c9f1f7d337887f21b50934080854764cd8",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/routing/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/codex-smoke.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/configure/real-repo.test.js",
+          "scripts/configure/sdd-runtime-prose.test.js",
+          "scripts/configure/validate-phase.test.js",
+          "scripts/eje-b-contract.test.js",
+          "scripts/lib/apply-resume.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/route-dispatch-run.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-12T23:01:12.169Z",
+      "detail": {
+        "run": "run-12",
+        "tree": "sha256:1de14a59c221dbc3196f0f6d06af0f334d64eb00f36604a9605f55a4037ee743",
+        "plan": "Compatible sin migración: una tabla routing: existente sin ruta handbook valida y enruta igual (handbook solo añade un nombre de fase y una ruta opcional que exige --handbook); los ids de tarea de uno o dos niveles se leen igual y el resultado solo gana la lista unparsed; los instaladores escriben el mismo árbol instalado y ahora dejan el árbol generado idéntico tras instalar. Ningún fichero persistido cambia de formato. Rollback: revertir el commit."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-12T23:02:41.994Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-13",
+        "counterproof": [
+          "run-14",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-12T23:04:19.860Z",
+      "detail": {
+        "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+        "runs": [
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-12T23:04:19.860Z",
+      "detail": {
+        "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+        "check": "ev-6",
+        "documents": [
+          "openspec/specs/routing/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/codex-smoke.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/configure/real-repo.test.js",
+          "scripts/configure/sdd-runtime-prose.test.js",
+          "scripts/configure/validate-phase.test.js",
+          "scripts/eje-b-contract.test.js",
+          "scripts/lib/apply-resume.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/route-dispatch-run.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-12T23:04:19.860Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms",
+          "adr:0007 none"
+        ],
+        "records": [],
+        "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+        "fitness": [
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-12T23:04:30.258Z",
+      "detail": {
+        "run": "run-22",
+        "tree": "sha256:02694912dc261f398e49b073e5d8650ccb75144c8d879fdb75563cd1929d29bc",
+        "plan": "Compatible sin migración: una tabla routing: existente sin ruta handbook valida y enruta igual (handbook solo añade un nombre de fase y una ruta opcional que exige --handbook); los ids de tarea de uno o dos niveles se leen igual y el resultado solo gana la lista unparsed; los instaladores escriben el mismo árbol instalado y ahora dejan el árbol generado idéntico tras instalar. Ningún fichero persistido cambia de formato. Rollback: revertir el commit."
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-12T23:06:00.312Z",
+      "detail": {
+        "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+        "runs": [
+          "run-23"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-12T23:06:00.312Z",
+      "detail": {
+        "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+        "check": "ev-10",
+        "documents": [
+          "openspec/specs/routing/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/codex-smoke.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/configure/real-repo.test.js",
+          "scripts/configure/sdd-runtime-prose.test.js",
+          "scripts/configure/validate-phase.test.js",
+          "scripts/eje-b-contract.test.js",
+          "scripts/lib/apply-resume.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/route-dispatcher.test.js",
+          "scripts/route-dispatch-run.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-12T23:06:00.312Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms",
+          "adr:0007 none"
+        ],
+        "records": [],
+        "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+        "fitness": [
+          "run-24",
+          "run-25",
+          "run-26",
+          "run-27",
+          "run-28",
+          "run-29"
+        ]
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-12T23:06:00.482Z"
+    }
+  ],
+  "base": "ce84d11c30b34a9fe623d9232c9726838aedae8a",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/apply-resume.test.js scripts/lib/route-dispatcher.test.js scripts/configure/validate-phase.test.js scripts/route-dispatch-run.test.js scripts/configure/sdd-runtime-prose.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:ffaf7b2d2d2e3bf0753a6ab3167b54c90313d83920fc63b138d730a8d5a957ff",
+      "tree": "sha256:a0d50c8821cca9db5e614632b57c6f145588b209afd003633d0713ba9b21c880",
+      "recorded_at": "2026-11-12T22:44:13.444Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/apply-resume.test.js scripts/lib/route-dispatcher.test.js scripts/configure/validate-phase.test.js scripts/route-dispatch-run.test.js scripts/configure/sdd-runtime-prose.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8a979819d02384b278e85682e36d4901866a8eeceadc20ca4f2f851318846ad4",
+      "tree": "sha256:aaf980818d34f5570f7e9f7825ffb50263418fe5f72c5e01cedefd828508da98",
+      "recorded_at": "2026-11-12T22:57:24.675Z",
+      "tests": 203,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "ce84d11c30b34a9fe623d9232c9726838aedae8a",
+      "mount": "sha256:fa41748ef12aae4ef75b392b96e111277419cda22a1371b1651bd46c0760c833",
+      "command": "node --test scripts/lib/apply-resume.test.js scripts/lib/route-dispatcher.test.js scripts/configure/validate-phase.test.js scripts/route-dispatch-run.test.js scripts/configure/sdd-runtime-prose.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:2d5dab7db9d71ade41dab8cc03c27f27842653039c70d156bc7f85806d7f9692",
+      "tree": "sha256:aaf980818d34f5570f7e9f7825ffb50263418fe5f72c5e01cedefd828508da98",
+      "recorded_at": "2026-11-12T22:57:24.675Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "ce84d11c30b34a9fe623d9232c9726838aedae8a",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/lib/apply-resume.test.js scripts/lib/route-dispatcher.test.js scripts/configure/validate-phase.test.js scripts/route-dispatch-run.test.js scripts/configure/sdd-runtime-prose.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a13c704dc14487e298c33dabcf31dc48aa9d649b194f605733dcf1faf951646c",
+      "tree": "sha256:aaf980818d34f5570f7e9f7825ffb50263418fe5f72c5e01cedefd828508da98",
+      "recorded_at": "2026-11-12T22:57:24.675Z",
+      "tests": 164
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:36df687bd90986ff366cb6ad5970ce46ef577076ed701ded07c958b326e74c3e",
+      "tree": "sha256:0656db985bb28243f605548d3847f3c9f1f7d337887f21b50934080854764cd8",
+      "recorded_at": "2026-11-12T23:00:42.676Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1dea1e2347d554fa705253b0842312c351bb20029d38f2a72a0802c720fc5303",
+      "tree": "sha256:0656db985bb28243f605548d3847f3c9f1f7d337887f21b50934080854764cd8",
+      "recorded_at": "2026-11-12T23:00:42.676Z",
+      "tests": 48
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:068616e3862dfb0e712ffdae631493b82878e9e216d981024edabb3d67bce9a1",
+      "tree": "sha256:0656db985bb28243f605548d3847f3c9f1f7d337887f21b50934080854764cd8",
+      "recorded_at": "2026-11-12T23:00:42.676Z",
+      "tests": 2
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:0656db985bb28243f605548d3847f3c9f1f7d337887f21b50934080854764cd8",
+      "recorded_at": "2026-11-12T23:00:42.676Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:01bf6d04fd24b552341a0999c53684a1244eb28f9a33bd5b802a23f5b7b0163d",
+      "tree": "sha256:0656db985bb28243f605548d3847f3c9f1f7d337887f21b50934080854764cd8",
+      "recorded_at": "2026-11-12T23:00:42.676Z",
+      "tests": 26
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d8cf49f10148711172585683f339609fc1baaee8f6e1f58f5abc74b7db57ea18",
+      "tree": "sha256:0656db985bb28243f605548d3847f3c9f1f7d337887f21b50934080854764cd8",
+      "recorded_at": "2026-11-12T23:00:42.676Z",
+      "tests": 48
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0007",
+      "command": "node --test scripts/review-lineage.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:02a723ce7a00933522ab8321bc32adcca9f1ccdc862c095ef43e0a6edf4f8c6c",
+      "tree": "sha256:0656db985bb28243f605548d3847f3c9f1f7d337887f21b50934080854764cd8",
+      "recorded_at": "2026-11-12T23:00:42.676Z",
+      "tests": 32
+    },
+    {
+      "id": "run-12",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/route-dispatcher.test.js scripts/configure/validate-phase.test.js scripts/lib/apply-resume.test.js scripts/configure/shared-dir.test.js scripts/configure/install-cursor.test.js scripts/configure/codex-smoke.test.js scripts/configure/install-target.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0c0deef932a48a4f5af9205f472a05c621fac49ea5f2b91d823a3f3d0e29d2fa",
+      "tree": "sha256:1de14a59c221dbc3196f0f6d06af0f334d64eb00f36604a9605f55a4037ee743",
+      "recorded_at": "2026-11-12T23:01:12.169Z",
+      "tests": 220
+    },
+    {
+      "id": "run-13",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/apply-resume.test.js scripts/lib/route-dispatcher.test.js scripts/configure/validate-phase.test.js scripts/route-dispatch-run.test.js scripts/configure/sdd-runtime-prose.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:29e5270eab131e28e763d0a705982a73c46176dcc8a3683ba7d0aea2c7d15c0f",
+      "tree": "sha256:02694912dc261f398e49b073e5d8650ccb75144c8d879fdb75563cd1929d29bc",
+      "recorded_at": "2026-11-12T23:02:41.994Z",
+      "tests": 203,
+      "counterproof": [
+        "run-14",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-14",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "ce84d11c30b34a9fe623d9232c9726838aedae8a",
+      "mount": "sha256:54c6f54450e66c92fd02d31c2bd1d24bbd7116a7ae16f8d9c7964a9b415f39eb",
+      "command": "node --test scripts/lib/apply-resume.test.js scripts/lib/route-dispatcher.test.js scripts/configure/validate-phase.test.js scripts/route-dispatch-run.test.js scripts/configure/sdd-runtime-prose.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:8bff5780ea7da304fcce97583e62b097781e0968e99ba0563d173f10383826d6",
+      "tree": "sha256:02694912dc261f398e49b073e5d8650ccb75144c8d879fdb75563cd1929d29bc",
+      "recorded_at": "2026-11-12T23:02:41.994Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:537f35826b66a8e4fa2cc1e99a40f9eb480bda47ac01e7e08d4b949afb2db522",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:04:19.860Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:69fbec7d82f4c13fe15fe9584c8f8ba957ae79a753b31e2aee69c3f62e86abb6",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:04:19.860Z",
+      "tests": 48
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6f89bf53d9bc8c7d7079a30ba20dfaf03cbb5d37b71277599074cd860f668b58",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:04:19.860Z",
+      "tests": 2
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:04:19.860Z"
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8e554b4cf23648dcaba682d311a3458403ef519ae322e2db63dbe174d1cf25f7",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:04:19.860Z",
+      "tests": 26
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:66fb45832bb5739cc221fa49a353dd31ad7e6203b890d73c28f1dbef8e05a22d",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:04:19.860Z",
+      "tests": 48
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0007",
+      "command": "node --test scripts/review-lineage.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:67a9f296570f15be5b044972637bbfeabf5eff2cec26fcd67212b747e9691bef",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:04:19.860Z",
+      "tests": 32
+    },
+    {
+      "id": "run-22",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/route-dispatcher.test.js scripts/configure/validate-phase.test.js scripts/lib/apply-resume.test.js scripts/configure/shared-dir.test.js scripts/configure/install-cursor.test.js scripts/configure/codex-smoke.test.js scripts/configure/install-target.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:875e19a69c9aab400836c4303565efd551eff2e962fc109ba14871ce28845c1d",
+      "tree": "sha256:02694912dc261f398e49b073e5d8650ccb75144c8d879fdb75563cd1929d29bc",
+      "recorded_at": "2026-11-12T23:04:30.258Z",
+      "tests": 220
+    },
+    {
+      "id": "run-23",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:83cca576863077584eb1461ca87b0f26d5afbf16d0f6c1fdc543bab82963a081",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:06:00.312Z"
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:505c9e9b432992fa09e018872ce0d75d12fd74d46697a91a14615ca0070c9025",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:06:00.312Z",
+      "tests": 48
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cfb44de6fd80e6b30be63fc499bc8e35b7b43b8e3f6d75f3a7beb877011d03fe",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:06:00.312Z",
+      "tests": 2
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:06:00.312Z"
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fe52d74fd4d8a55ad688b1abda7cc3d589771afc279c028056946eb93398ec19",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:06:00.312Z",
+      "tests": 26
+    },
+    {
+      "id": "run-28",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:af9ded319b81e0c9e78a58302aaae873fc65ae4cd58eb7ad68275da2646ce7b4",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:06:00.312Z",
+      "tests": 48
+    },
+    {
+      "id": "run-29",
+      "purpose": "fitness",
+      "ref": "adr:0007",
+      "command": "node --test scripts/review-lineage.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:451dd49b6499321e3e9b9c7bd44800437206e7b7fb0c96a2c755683221a2942a",
+      "tree": "sha256:4d542dda9140e86d08f9f3b0a97cd18d37853cfe28b4a7d47e0c443ec5d66356",
+      "recorded_at": "2026-11-12T23:06:00.312Z",
+      "tests": 32
+    }
+  ],
+  "closed_at": "2026-11-12T23:06:00.482Z"
+}

@@ -609,3 +609,12 @@ test("REQ-lifecycle-kernel-035: extractStateRouteInfo reads a long line in linea
   assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
   assert.equal(extractStateRouteInfo("change: x\nclassification: hi\rgh\n").classification, "hi\rgh");
 });
+
+test("route-dispatch-run CLI E2E: --handbook selects the handbook route of the live table", () => {
+  const output = execFileSync(process.execPath, [DISPATCH_SCRIPT, "--handbook", "--classification=normal"], { cwd: ROOT }).toString();
+  const parsed = JSON.parse(output);
+
+  assert.equal(parsed.status, "success");
+  assert.equal(parsed.name, "handbook");
+  assert.deepEqual(parsed.route.phases, ["handbook"]);
+});

@@ -162,8 +162,9 @@ function install(argv = process.argv.slice(2), deps = {}) {
         }
       }
     } finally {
-      shared.restore();
+      // Last rendered, first restored: one file can carry both markers.
       runtime.restore();
+      shared.restore();
     }
 
     // Merge opencode.json configurations fail-closed

@@ -82,7 +82,7 @@ Every phase that produces an artifact MUST persist it when mode is `openspec`. S
 
 Write the phase artifact to the path defined by the phase skill and `openspec-convention.md`. If the file already exists, read it first and update it instead of blindly overwriting.
 
-Do not write `phases.*` in `openspec/changes/{change-name}/state.yaml`: the runtime projects your phase into it from your result envelope, through `SubagentStop` where the host has it and through the orchestrator's `scripts/phase-completion-run.js` on every host, so recovery can resume from the filesystem without relying on chat history.
+Do not write `phases.*` in `openspec/changes/{change-name}/state.yaml`: the runtime projects your phase into it from your result envelope, through `SubagentStop` where the host has it and through the orchestrator's `{{ospec-runtime}}/scripts/phase-completion-run.js` on every host, so recovery can resume from the filesystem without relying on chat history.
 
 State shape the runtime keeps (verify also records `verdict` from `verify_outcome`):
 
@@ -174,7 +174,7 @@ Every phase MUST emit exactly one strict, directly `JSON.parse`-able fenced bloc
 
 Optional fields not applicable to the current batch MUST be omitted from the fence entirely (never emitted as `null`).
 
-The canonical schema for validating this fence is `schemas/kernel/result-envelope/v1/envelope.schema.json`. The reference implementation (`scripts/lib/result-envelope.js`, mirrored by `internal/resultenvelope`) exports:
+The canonical schema for validating this fence is `schemas/kernel/result-envelope/v1/envelope.schema.json`. The reference implementation (`{{ospec-runtime}}/scripts/lib/result-envelope.js`, mirrored by `internal/resultenvelope`) exports:
 - `validateEnvelope(obj, context)`: strict validator checking `schema_version: 1`, required fields, max 3 `key_decisions`, blocker metadata, and spec ambiguity signals. Callers that know the returning phase pass it explicitly with `validateEnvelope(obj, { phase: "sdd-spec" })`; the Go mirror uses `ValidateForPhase(obj, "sdd-spec")`.
 - `adaptLegacyEnvelope(rawInput)`: pure backward-compatibility adapter translating unversioned fences and prose-adjacent envelopes to canonical v1 payloads.
 - `renderEnvelopeToMarkdown(envelope)`: decoupled pure presentation renderer converting v1 envelopes into clean human Markdown.

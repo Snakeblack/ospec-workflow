@@ -101,30 +101,40 @@ test("codex smoke: global install contains every generated skill and preserves u
     stderr: { write() {} },
     findCodexBin: () => null,
     runConfigure({ outDir }) {
+      installOut = outDir;
       fs.cpSync(buildOut, outDir, { recursive: true, force: true });
       return { exitCode: 0, validation: null, files: generated.files };
     },
   });
+  let installOut = null;
 
   assert.equal(runInstall(), 0);
+  // The orchestrator carries both markers; the generated tree gets both back.
+  const orchestratorRel = path.join("skills", "sdd-orchestrator", "SKILL.md");
+  assert.equal(
+    fs.readFileSync(path.join(installOut, orchestratorRel), "utf8"),
+    fs.readFileSync(path.join(buildOut, orchestratorRel), "utf8"),
+    "the generated orchestrator keeps its __OSPEC_SHARED_DIR__ and __OSPEC_RUNTIME_DIR__ markers",
+  );
   const installedSkills = path.join(homeDir, ".agents", "skills");
   const generatedSkillFiles = listFiles(path.join(buildOut, "skills"));
   assert.ok(generatedSkillFiles.includes(path.join("commands", "sdd-apply", "SKILL.md")));
   assert.ok(generatedSkillFiles.includes(path.join("accessibility", "SKILL.md")));
   // E0.4 (b): the orchestrator skill is installed with its _shared directory rendered.
-  // E1.6 (a): the IDD protocol names the Codex runtime directory.
+  // E1.6 (a): the IDD protocol names the Codex runtime directory, and so do the
+  // SDD skills and handlers that run a runtime script (PR4c).
   const sharedDir = path.resolve(installedSkills, "_shared").split(path.sep).join("/");
   const runtimeDir = path.resolve(homeDir, ".codex", "ospec-workflow").split(path.sep).join("/");
   // E1.45: the IDD protocol and foundation name the shim of the platform.
   const renderRuntime = (text) => text.split("__OSPEC_RUNTIME_DIR__/bin/ospec").join(ospecCliValue(runtimeDir)).split("__OSPEC_RUNTIME_DIR__").join(runtimeDir);
-  const rendered = {
-    [path.join("sdd-orchestrator", "SKILL.md")]: (text) => text.split("__OSPEC_SHARED_DIR__").join(sharedDir),
-    [path.join("idd", "SKILL.md")]: renderRuntime,
-    [path.join("foundation", "SKILL.md")]: renderRuntime,
+  const rendered = (relative, bytes) => {
+    const text = bytes.toString("utf8");
+    if (!relative.endsWith(".md") || !text.includes("__OSPEC_")) return bytes;
+    return Buffer.from(renderRuntime(text.split("__OSPEC_SHARED_DIR__").join(sharedDir)));
   };
   for (const relative of generatedSkillFiles) {
     const generatedBytes = fs.readFileSync(path.join(buildOut, "skills", relative));
-    const expected = rendered[relative] ? Buffer.from(rendered[relative](generatedBytes.toString("utf8"))) : generatedBytes;
+    const expected = rendered(relative, generatedBytes);
     assert.ok(
       expected.equals(fs.readFileSync(path.join(installedSkills, relative))),
       `installed skill must match generated payload: ${relative}`,

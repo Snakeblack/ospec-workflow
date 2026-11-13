@@ -123,6 +123,7 @@ test("KNOWN_PHASES includes all expected phase names", () => {
     "sdd-apply",
     "sdd-verify",
     "sdd-archive",
+    "handbook",
   ];
 
   for (const phase of expected) {
@@ -1587,4 +1588,58 @@ test("REQ-lifecycle-kernel-035: parsePersistedRouteSection reads a long line in 
   }
   assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 1000);
   assert.equal(parsePersistedRouteSection("route:\n  actual_route: st\randard\n").persistedRoute, "st\randard");
+});
+
+// ---------------------------------------------------------------------------
+// The handbook route (PR4c): an explicit request to document the repository
+// ---------------------------------------------------------------------------
+
+const HANDBOOK_ROUTE = {
+  name: "handbook",
+  classification: ["trivial", "small", "normal", "high-risk"],
+  conditions: { explicit_handbook_intent: true },
+  phases: ["handbook"],
+  gates: [],
+  description: "Write or update the repository handbook inside SDD.",
+  cost: "medium",
+};
+
+const ACTIVE_STANDARD_ROUTE = {
+  name: "standard",
+  classification: ["normal", "high-risk"],
+  conditions: { "project.status": "active" },
+  phases: ["sdd-propose", "sdd-spec", "sdd-design", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive"],
+  gates: [],
+  description: "Full SDD.",
+  cost: "high",
+};
+
+test("a route with the handbook phase validates", () => {
+  assert.deepEqual(validateRouteTable([HANDBOOK_ROUTE]), { valid: true, errors: [] });
+});
+
+test("an explicit handbook request selects the handbook route ahead of an earlier general route", () => {
+  const result = selectRoute([ACTIVE_STANDARD_ROUTE, HANDBOOK_ROUTE], {
+    classification: "normal",
+    "project.status": "active",
+    explicit_handbook_intent: true,
+  });
+  assert.equal(result.status, "success");
+  assert.equal(result.name, "handbook");
+  assert.ok(result.reasons.includes("contextual_match.handbook"), JSON.stringify(result.reasons));
+});
+
+test("the handbook route is not selected without the explicit request", () => {
+  const result = selectRoute([HANDBOOK_ROUTE, ACTIVE_STANDARD_ROUTE], { classification: "normal", "project.status": "active" });
+  assert.equal(result.name, "standard");
+});
+
+test("a critical risk floor does not disqualify the handbook route", () => {
+  const result = selectRoute([ACTIVE_STANDARD_ROUTE, HANDBOOK_ROUTE], {
+    classification: "normal",
+    "project.status": "active",
+    explicit_handbook_intent: true,
+    impact: { auth_security: true },
+  });
+  assert.equal(result.name, "handbook");
 });

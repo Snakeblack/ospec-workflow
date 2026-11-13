@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.174.1] - 2026-11-13
+
+### Fixed
+- **La prosa SDD ejecuta el runtime instalado y `handbook` se puede enrutar** (sdd-runtime-prose, PR4c de la review general del 2026-10-29: hallazgos 4, 8, 11 y 12).
+  - **El problema**: el orquestador, `sdd-archive`, `sdd-reconcile`, `sdd-init` y varios handlers `_shared` mandaban ejecutar `node scripts/archive-transaction-run.js`, `node scripts/route-dispatch-run.js` o `require('./scripts/lib/ospec-state.js')` desde la raíz del proyecto, y `<pluginInstallRoot>` no lo resolvía nadie. Solo funcionaba en una instalación de repositorio: en una global y en el plugin de Claude el runtime no está en el proyecto.
+  - **El runtime por host**: la prosa nombra el runtime con `{{ospec-runtime}}`, que el generador resuelve en cada fichero emitido. En Claude es `${CLAUDE_PLUGIN_ROOT}`, que Claude Code sustituye en los agentes, los comandos y el `SKILL.md` de cada skill; los handlers que el orquestador solo lee reciben `<ospec-runtime>`, que el orquestador define. En el resto de hosts es el marcador que ya renderiza cada instalador. Los runners se escriben `node "<runtime>/scripts/x.js"`, entre comillas, para que una ruta con espacios siga siendo un argumento.
+  - **Los instaladores**: restauran los marcadores en orden inverso al render. El orquestador lleva ahora los dos (`_shared` y runtime), y restaurar en el mismo orden dejaba el árbol generado con la ruta de `_shared` escrita.
+  - **`apply-resume`**: un id de tarea es un número con puntos de cualquier profundidad, así que `1.2.1` y `1.2.2` ya no se funden en `1.2`. Una casilla con otro id (`T-3`) o sin id sale en la lista nueva `unparsed`, con su línea, y `sdd-apply` la avisa en vez de perderla.
+  - **El recheck dirigido**: `verify-lineage-recheck.js` entra en el runtime distribuido, y `sdd-apply` y `sdd-verify` citan `runRecoverySuccessorRecheck` por su ruta.
+  - **`handbook`**: es fase y ruta contextual, como `foundation`. Solo la elige `route-dispatch-run --handbook` (`explicit_handbook_intent`), ningún suelo de riesgo la descarta y el modo degradado de `validate-phase` la admite sin tabla `routing:`. La tabla de este repositorio la declara, y la tabla de fases del orquestador lista también `sdd-init`, `sdd-baseline`, `sdd-workspace`, `sdd-reconcile` y `sdd-onboard`.
+  - **Contrato y compatibilidad**: REQ-routing-013 y REQ-routing-017, con dos escenarios nuevos, y `KNOWN_PHASES` con `handbook`. Una tabla `routing:` sin la ruta `handbook` valida y enruta igual, y los ids de uno o dos niveles se leen igual.
+  - **Queda para 4c2**: el CLI fino `ospec sdd <op>` para las funciones del runtime que la prosa manda llamar sin CLI (decisión del usuario).
+
+**Verificación directa**: `node scripts/check.js` (4605 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
+
 ## [2.174.0] - 2026-11-12
 
 ### Added
