@@ -33,6 +33,8 @@ const GATE_QUESTIONS = Object.freeze({
   "irreversible-operation": "This operation is destructive or irreversible. Approve it?",
   "review-limit": "The trust reviews of this change are used up. Authorize one more trust review?",
   "checks-changed": "The checks or the ceremony settings (strict_tdd, impact, contracts) in idd/config.yaml differ from the change's base. Approve them for this change?",
+  "base-moved":
+    "The base of this change moves to a later commit, so the commits in between and the paths they change leave its diff. Do they all belong to other changes? If not, withdraw the question with ospec record base --cancel.",
 });
 
 const EVIDENCE_BY_OBLIGATION = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation.evidence]));
@@ -202,6 +204,15 @@ function pendingDecision(state, gate) {
   if (gate.id === "open-facts") {
     const facts = state.facts || {};
     decision.questions = facts.open || (facts.coverage || []).flatMap((entry) => (entry.question ? [entry.question] : []));
+  }
+  // The move the user approves: nothing of it is the agent's to summarize.
+  if (gate.id === "base-moved") {
+    Object.assign(decision, { from: gate.from, to: gate.to, commits: gate.commits, paths: gate.paths, archived: gate.archived });
+    decision.questions = [
+      `the base moves from ${gate.from} to ${gate.to}, past ${gate.commits} ${gate.commits === 1 ? "commit" : "commits"}`,
+      `paths that leave the diff: ${gate.paths.join(", ") || "none"}`,
+      `changes archived in between: ${gate.archived.join(", ") || "none"}`,
+    ];
   }
   return decision;
 }

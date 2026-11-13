@@ -17,9 +17,10 @@ Any other source is refused with `invalid-source`.
 quote only against `--request`, which you also write, and it cannot tell
 whether a person answered. This holds for every gate: `ambiguous-intent`,
 `open-facts`, `irreversible-operation`, `adr-amend-or-contradict`,
-`review-limit`, whose resolution grants one more trust review, and
+`review-limit`, whose resolution grants one more trust review,
 `checks-changed`, whose resolution approves only the checks and ceremony
-settings it lists.
+settings it lists, and `base-moved`, whose resolution moves the base of the
+change past the commits and paths it lists.
 
 So the record is only as true as you make it:
 

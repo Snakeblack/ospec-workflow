@@ -13,6 +13,7 @@ const {
   IddRecordError,
   recordAssumption,
   recordAttestation,
+  recordBase,
   recordEvidence,
   recordGate,
   recordImpact,
@@ -378,6 +379,66 @@ test("gate records reject unknown gates, unopened resolutions and the intent-own
   );
   assertCode(() => recordGate(state, { id: "ambiguous-intent", action: "open" }), "gate-managed-by-intent");
   assertCode(() => recordGate(state, { id: "irreversible-operation", action: "skip" }), "invalid-action");
+});
+
+// ---------------------------------------------------------------------------
+// record base (REQ-idd-014)
+// ---------------------------------------------------------------------------
+
+const MOVE = Object.freeze({ to: "b".repeat(40), reason: "add-paginate merged behind the opening", commits: 2, paths: ["src/paginate.js"], archived: ["2026-01-02-add-paginate"] });
+
+function withBase() {
+  return { ...opened(), base: "a".repeat(40) };
+}
+
+test("record base asks at base-moved and moves nothing until the user answers", () => {
+  const asked = recordBase(withBase(), MOVE);
+  assertValid(asked.state);
+  assert.strictEqual(asked.state.base, "a".repeat(40));
+  assert.deepStrictEqual(asked.state.gates, [{ id: "base-moved", status: "open", reason: MOVE.reason, from: "a".repeat(40), to: MOVE.to, commits: 2, paths: MOVE.paths, archived: MOVE.archived }]);
+  assert.strictEqual(recordBase(asked.state, MOVE).changed, false);
+  assert.strictEqual(recordBase(asked.state, { ...MOVE, to: "a".repeat(40) }).changed, false, "the base it has moves nothing");
+
+  // Another target replaces the question, with no turn of its own yet.
+  const fenced = structuredClone(asked.state);
+  fenced.gates[0].opened_turn = 3;
+  assert.strictEqual(recordBase(fenced, MOVE).changed, false);
+  const retargeted = recordBase(fenced, { ...MOVE, to: "c".repeat(40), commits: 3 }).state;
+  assert.deepStrictEqual(retargeted.gates.map((gate) => [gate.to, gate.commits, "opened_turn" in gate]), [["c".repeat(40), 3, false]]);
+
+  const cancelled = recordBase(asked.state, { cancel: true }).state;
+  assert.deepStrictEqual(cancelled.gates, []);
+  assertCode(() => recordBase(cancelled, { cancel: true }), "gate-not-open");
+});
+
+test("the answer to base-moved moves the base, keeps the move and returns checks-pass to pending", () => {
+  const tree = `sha256:${"a".repeat(64)}`;
+  const ran = structuredClone(recordBase(withBase(), MOVE).state);
+  ran.runs = [{ id: "run-1", purpose: "checks", name: "test", command: "npm test", exit_code: 0, output_sha256: `sha256:${"0".repeat(64)}`, tree, recorded_at: "2026-01-02T00:00:00Z" }];
+  const checked = recordEvidence(ran, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "2026-01-02T00:00:00Z", detail: { tree, runs: ["run-1"] } }).state;
+  assert.strictEqual(checked.obligations.find((entry) => entry.id === "checks-pass").status, "satisfied");
+  const answer = { id: "base-moved", action: "resolve", answer: "Yes, they are add-paginate's.", source: "user", recordedAt: "2026-01-03T00:00:00.000Z" };
+  const { state } = recordGate(checked, answer);
+  assertValid(state);
+  assert.strictEqual(state.base, MOVE.to);
+  assert.deepStrictEqual(state.base_moves, [{ from: "a".repeat(40), to: MOVE.to, reason: MOVE.reason, moved_at: "2026-01-03T00:00:00.000Z" }]);
+  assert.deepStrictEqual(state.obligations.find((entry) => entry.id === "checks-pass"), { id: "checks-pass", signal: "always", status: "pending", evidence: [] });
+  assert.strictEqual(recordGate(state, answer).changed, false, "the same answer moves nothing again");
+
+  // A second move starts from the base the first one left.
+  const second = recordBase(state, { ...MOVE, to: "c".repeat(40), commits: 1 }).state;
+  assert.strictEqual(second.gates.at(-1).from, MOVE.to);
+  const moved = recordGate(second, { ...answer, answer: "Yes, again." }).state;
+  assertValid(moved);
+  assert.deepStrictEqual(moved.base_moves.map((move) => move.to), [MOVE.to, "c".repeat(40)]);
+});
+
+test("record base refuses a change without a base, a closed one, a move without its reason and a gate opened by hand", () => {
+  assertCode(() => recordBase({ ...opened(), base: null }, MOVE), "base-missing");
+  assertCode(() => recordBase(opened(), MOVE), "base-missing");
+  assertCode(() => recordBase({ ...withBase(), status: "closed" }, MOVE), "change-closed");
+  assertCode(() => recordBase(withBase(), { ...MOVE, reason: " " }), "reason-required");
+  assertCode(() => recordGate(withBase(), { id: "base-moved", action: "open", reason: "r" }), "gate-managed-by-base");
 });
 
 // ---------------------------------------------------------------------------

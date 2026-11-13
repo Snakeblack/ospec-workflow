@@ -433,6 +433,11 @@ function requireDeclaredCeremony(state, { diff, contractPatterns }) {
     error.how =
       `ospec record intent --change ${state.change} --kind <${mismatch.kinds.join("|")}> --summary "<what>" --acceptance "<observable result>" ` +
       'with its open facts (--open-fact "<question>", or --no-open-facts --basis "<why>"; a feature covers the seven categories): the kind may only rise';
+    // Commits another change landed behind the opening of this one count in
+    // its diff until the user moves its base past them (REQ-idd-014).
+    if (typeof state.base === "string") {
+      error.how += `. If that part of the diff is another change's, landed behind the opening of this one, ask the user to move the base instead: ospec record base --change ${state.change} --to <rev> --reason "<why>"`;
+    }
     throw error;
   }
   const outside = citesOutsidePlan(state, diff);

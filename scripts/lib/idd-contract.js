@@ -43,6 +43,7 @@ const STATE_FIELDS = Object.freeze([
   "gates",
   "evidence",
   "base",
+  "base_moves",
   "runs",
   "reviews",
   "advisory_corrections",
@@ -108,7 +109,10 @@ const EVIDENCE_KINDS = Object.freeze(OBLIGATIONS.map((obligation) => obligation.
 
 // kind-change (#491) asks before open-facts: the user approves the new kind
 // before answering the categories of the feature it brings.
-const GATES = Object.freeze(["ambiguous-intent", "kind-change", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed"]);
+const GATES = Object.freeze(["ambiguous-intent", "kind-change", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed", "base-moved"]);
+// base-moved asks before the base of a change moves to a descendant commit
+// (REQ-idd-014): `ospec record base` opens it and its answer moves the base.
+const BASE_GATE = "base-moved";
 
 // Architecture references a change declares (E3.1): accepted ADRs under
 // DECISIONS_ROOT and quality scenarios of the knowledge map. Each gets one
@@ -154,6 +158,7 @@ function deriveObligations(signalIds) {
 function validateState(state) {
   const errors = [];
   const fail = (message) => errors.push(message);
+  const isText = (value) => typeof value === "string" && value.trim() !== "";
 
   if (state == null || typeof state !== "object") {
     return { ok: false, errors: ["state must be an object"] };
@@ -181,6 +186,13 @@ function validateState(state) {
     fail("closed_at is the close time of a closed change, as an ISO 8601 UTC timestamp");
   }
   if (state.base != null && typeof state.base !== "string") fail("base must be a commit id");
+  // Each move of the base the user approved at base-moved, oldest first.
+  if ("base_moves" in state) {
+    const moves = state.base_moves;
+    const isMove = (move) => move != null && typeof move === "object" && [move.from, move.to, move.reason, move.moved_at].every(isText);
+    if (!(Array.isArray(moves) && moves.every(isMove))) fail("base_moves must list each move with its from, to, reason and moved_at");
+    else if (moves.length > 0 && moves.at(-1).to !== state.base) fail("base must be the commit of its last move");
+  }
   if ("assumptions" in state) {
     const assumptions = state.assumptions;
     const text = (entry) => typeof entry === "string" && entry.trim() !== "";
@@ -216,7 +228,6 @@ function validateState(state) {
     if (!SIGNAL_SOURCES.includes(signal.source)) fail(`signal ${signal.id} source must be declaration or diff`);
   }
   for (const entry of state.retracted || []) {
-    const isText = (value) => typeof value === "string" && value.trim() !== "";
     const answered = entry !== null && typeof entry === "object" && ["answer", "answer_source", "confirmed_by", "hits"].some((key) => key in entry);
     if (!RETRACTABLE_SIGNALS.includes(entry?.id)) fail(`retracted signal ${entry?.id} is not retractable`);
     else if (answered) {
@@ -326,6 +337,15 @@ function validateState(state) {
     // entry without them approved the base settings.
     if (gate.id === "checks-changed" && gate.config !== undefined && !isCeremonyConfig(gate.config)) {
       fail("gate checks-changed must name the settings it approves: strict_tdd, impact and contracts");
+    }
+    // base-moved names the move it asks about: the base it leaves, the commit
+    // it moves to, and the commits, paths and archived changes in between.
+    if (gate.id === BASE_GATE) {
+      const named = [gate.from, gate.to, gate.reason].every(isText) && gate.from !== gate.to;
+      const counted = Number.isSafeInteger(gate.commits) && gate.commits > 0;
+      if (!(named && counted && isTextList(gate.paths) && isTextList(gate.archived))) {
+        fail("gate base-moved must name the move it asks about: from, to, reason, commits, paths and archived");
+      }
     }
   }
 
@@ -765,6 +785,7 @@ function canClose(state) {
 module.exports = {
   ANSWER_RETRACTABLE_SIGNALS,
   ARCHIVE_ROOT,
+  BASE_GATE,
   CHANGE_ID_PATTERN,
   CHANGE_ROOT,
   CHANGE_STATUSES,

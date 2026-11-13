@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- ospec record base adelanta la base de un cambio abierto a un commit descendiente, con la aprobación del usuario en un gate, para que check y close midan solo su trabajo cuando otro cambio ya archivado entró detrás de su apertura (move-change-base)
+
 ## [2.174.1] - 2026-11-13
 
 ### Fixed

@@ -82,7 +82,7 @@ Una señal que aparece en el diff se añade en el momento, con su obligación pe
 
 ---
 
-## Los seis gates
+## Los ocho gates
 
 El agente se detiene en estos gates y en ningún otro sitio. Cada gate abierto se pregunta antes del trabajo que decide.
 
@@ -95,6 +95,13 @@ El agente se detiene en estos gates y en ningún otro sitio. Cada gate abierto s
 | `irreversible-operation` | Va a ocurrir una operación destructiva o irreversible: borrar una tabla o datos, truncar, reescribir historia publicada. La respuesta aprueba solo las operaciones por las que se preguntó. |
 | `review-limit` | Se agotaron las revisiones de confianza del cambio; tu respuesta autoriza una más. |
 | `checks-changed` | Los checks o los ajustes de ceremonia de `idd/config.yaml` difieren de los de la base del cambio, también la primera vez que se declaran. |
+| `base-moved` | El agente pide adelantar la base del cambio con `ospec record base`. Te enseña los commits y las rutas que saldrían de su diff y los cambios archivados en ese tramo; la base solo se mueve con tu respuesta. |
+
+### Cuando otro cambio entra detrás de la apertura
+
+La base de un cambio es el commit en el que se abrió, y `ospec check` y `ospec close` miden su diff desde ahí. Si abres un cambio y después entran en la rama los commits de otro cambio ya cerrado, ese trabajo ajeno cuenta en el diff del tuyo: un cambio `docs` se rechaza con `kind-mismatch` por código que no es suyo.
+
+`ospec record base --change <id> --to <rev> --reason "<motivo>"` pide adelantar la base a un commit posterior. El commit tiene que descender de la base actual y ser `HEAD` o uno de sus antecesores. El comando no mueve nada: abre el gate `base-moved`, y con tu respuesta la base pasa al commit nuevo, el movimiento queda en `base_moves` del estado con su motivo y `checks-pass` vuelve a pendiente, así que el cambio cierra tras un `ospec check` contra la base nueva. Si la respuesta es no, `ospec record base --change <id> --cancel` retira la pregunta. Una base adelantada no vuelve atrás.
 
 ### Quién responde
 

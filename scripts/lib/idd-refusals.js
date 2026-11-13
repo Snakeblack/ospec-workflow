@@ -22,6 +22,9 @@ const REFUSALS = Object.freeze({
   "archive-failed": "the change stays open: run ospec close --change <id> again, and report it with the output of ospec doctor if it fails again",
   "assumption-required": 'ospec record assumption --change <id> --text "<assumption>"',
   "attestation-conflict": `nothing to record: the fitness evidence already recorded stands; ${NEXT}`,
+  "base-missing": "a change opened before the first commit diffs against the empty tree and has no base to move: close it as it is",
+  "base-not-descendant":
+    "pass --to a commit that descends from the change's base and is HEAD or one of its ancestors, such as the integration branch once this branch holds it",
   "candidate-unchanged": "fix the code the review blocked on, then ospec review correct --change <id>",
   "change-closed": 'a closed change takes no more records: open a new one with ospec record intent --change <new-id> --kind <kind> --summary "<what>" --acceptance "<observable result>"',
   "change-mismatch": RESTORE_STATE,
@@ -44,6 +47,7 @@ const REFUSALS = Object.freeze({
     'declare the open facts with one --open-fact "<question>" each, or --no-open-facts --basis "<what settles every behavior>"; a feature covers each category with an --open-fact <category>:<question>, a --cite or a --quote',
   "gate-answer-required": `add the user's answer: ${ANSWER}, or --source user-unverified for a relayed one`,
   "gate-conflict": `nothing to record: the gate keeps the answer it has; ${NEXT}`,
+  "gate-managed-by-base": `ospec record base --change <id> --to <rev> --reason "<why>" opens base-moved; once open, resolve it with ospec record gate --change <id> --gate base-moved --resolve ${ANSWER}`,
   "gate-managed-by-check": `ospec check --change <id> opens checks-changed; once open, resolve it with ospec record gate --change <id> --gate checks-changed --resolve ${ANSWER}`,
   "gate-managed-by-intent": `ospec record intent opens these gates: --ambiguous --request for ambiguous-intent, --open-fact for open-facts; resolve open-facts with ospec record gate --change <id> --gate open-facts --resolve ${ANSWER}`,
   "gate-managed-by-review": `ospec check --change <id> opens review-limit once the trust reviews are used up; resolve it then with ospec record gate --change <id> --gate review-limit --resolve ${ANSWER}`,

@@ -593,6 +593,132 @@ function stateOf(root, change) {
 
 const OPEN_DOCS = ["record", "intent", "--change", "fix-readme", "--kind", "docs", "--summary", "Fix a typo.", "--acceptance", "No typo.", "--no-open-facts", "--basis", "The request fixes every behavior."];
 
+// REQ-idd-014: another change's commits that land behind the opening of this
+// one count in its diff until the user moves its base past them.
+function behindAnotherChange(t) {
+  const { root, git } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  const commit = (message) => {
+    git("add", "-A");
+    git("commit", "-q", "--no-verify", "-m", message);
+    return git("rev-parse", "HEAD").trim();
+  };
+  const opened = stateOf(root, "fix-readme").base;
+  commit("chore(idd): open fix-readme");
+  writeFile(root, "src/paginate.js", "module.exports = 50;\n");
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "idd/archive/2026-01-02-add-paginate/state.yaml", "{}\n");
+  const merged = commit("feat: paginate");
+  writeFile(root, "README.md", "# Pages\n");
+  return { root, git, commit, opened, merged };
+}
+
+test("[REQ-idd-014] record base moves the base past another change's commits once the user answers base-moved", (t) => {
+  const { root, opened, merged } = behindAnotherChange(t);
+  const close = () => ospec(root, "close", "--change", "fix-readme", "--json");
+
+  const mismatch = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(mismatch.json.error?.code, "kind-mismatch");
+  assert.match(mismatch.json.error.how, /ask the user to move the base instead: ospec record base --change fix-readme --to <rev> --reason "<why>"$/);
+  const narrowed = ospec(root, "check", "--change", "fix-readme", "--base", "HEAD", "--json");
+  assert.strictEqual(narrowed.json.verdict, "ready", JSON.stringify(narrowed.json));
+  assert.strictEqual(close().json.error?.code, "kind-mismatch", "close reads the diff against the change's base, whatever --base the check took");
+
+  const asked = ospec(root, "record", "base", "--change", "fix-readme", "--to", "HEAD", "--reason", "add-paginate merged behind the opening", "--json");
+  assert.strictEqual(asked.code, 0, asked.stdout);
+  assertGateStep(asked.json.next.next_step, "base-moved");
+  const { question, questions, ...move } = asked.json.next.pending_decision;
+  assert.deepStrictEqual(move, {
+    gate: "base-moved",
+    reason: "add-paginate merged behind the opening",
+    from: opened,
+    to: merged,
+    commits: 2,
+    paths: ["src/pages.txt", "src/paginate.js"],
+    archived: ["2026-01-02-add-paginate"],
+  });
+  assert.match(question, /Do they all belong to other changes\?.*ospec record base --cancel/);
+  assert.deepStrictEqual(questions, [
+    `the base moves from ${opened} to ${merged}, past 2 commits`,
+    "paths that leave the diff: src/pages.txt, src/paginate.js",
+    "changes archived in between: 2026-01-02-add-paginate",
+  ]);
+  assert.strictEqual(stateOf(root, "fix-readme").base, opened, "nothing moves before the answer");
+  assert.strictEqual(close().code, 1, "an open gate keeps the change open");
+  const again = ospec(root, "record", "base", "--change", "fix-readme", "--to", merged, "--reason", "add-paginate merged behind the opening", "--json");
+  assert.strictEqual(again.json.changed, false, "the same move is asked once");
+
+  const answered = ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "base-moved", "--resolve", "--answer", "Yes, they are add-paginate's.", "--source", "user", "--json");
+  assert.strictEqual(answered.code, 0, answered.stdout);
+  const state = stateOf(root, "fix-readme");
+  assert.strictEqual(state.base, merged);
+  assert.strictEqual(state.base_moves.length, 1);
+  const { moved_at: movedAt, ...moved } = state.base_moves[0];
+  assert.deepStrictEqual(moved, { from: opened, to: merged, reason: "add-paginate merged behind the opening" });
+  assert.match(movedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.strictEqual(state.obligations.find((entry) => entry.id === "checks-pass").status, "pending", "the checks read the new diff before the change closes");
+  assert.match(close().json.error.message, /checks-pass/);
+
+  const checked = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(checked.json.verdict, "ready", JSON.stringify(checked.json));
+  const closed = close();
+  assert.strictEqual(closed.code, 0, closed.stdout);
+});
+
+test("[REQ-idd-014] record base refuses a commit outside the branch, and --cancel withdraws the question", (t) => {
+  const { root, git, commit, opened, merged } = behindAnotherChange(t);
+  const base = (...args) => ospec(root, "record", "base", "--change", "fix-readme", ...args, "--json");
+  const to = (rev) => base("--to", rev, "--reason", "merged behind the opening");
+
+  assert.strictEqual(to("no-such-ref").json.error?.code, "unknown-base");
+  assert.strictEqual(to("--help").json.error?.code, "usage");
+  assert.strictEqual(to(opened).json.changed, false, "the base it already has moves nothing");
+  // A commit that descends from the base on a branch HEAD does not hold.
+  git("stash", "-q", "--include-untracked");
+  git("switch", "-q", "-c", "side");
+  writeFile(root, "src/side.js", "module.exports = 1;\n");
+  const side = commit("feat: side");
+  git("switch", "-q", "main");
+  git("stash", "pop", "-q");
+  const ahead = to(side);
+  assert.strictEqual(ahead.json.error?.code, "base-not-descendant");
+  assert.match(ahead.json.error.how, /descends from the change's base and is HEAD or one of its ancestors/);
+  // A commit of HEAD's history that does not descend from the base.
+  git("switch", "-q", "--orphan", "other");
+  writeFile(root, "NOTES.md", "notes\n");
+  git("add", "NOTES.md");
+  git("commit", "-q", "--no-verify", "-m", "other root");
+  const other = git("rev-parse", "HEAD").trim();
+  git("switch", "-q", "-f", "main");
+  git("merge", "-q", "--no-verify", "--allow-unrelated-histories", "-m", "merge other", other);
+  assert.strictEqual(to(other).json.error?.code, "base-not-descendant");
+
+  assert.strictEqual(base("--to", "HEAD").code, 2, "a move needs its reason");
+  assert.strictEqual(base("--to", "HEAD", "--reason", "r", "--cancel").code, 2);
+  assert.strictEqual(base("--cancel").json.error?.code, "gate-not-open");
+  const opening = ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "base-moved", "--open", "--json");
+  assert.strictEqual(opening.json.error?.code, "gate-managed-by-base");
+
+  assert.strictEqual(to(merged).json.next.pending_decision.to, merged);
+  // Another target replaces the one still asked.
+  const head = git("rev-parse", "HEAD").trim();
+  assert.strictEqual(to("HEAD").json.next.pending_decision.to, head);
+  assert.strictEqual(stateOf(root, "fix-readme").gates.filter((gate) => gate.id === "base-moved").length, 1);
+  const cancelled = base("--cancel");
+  assert.strictEqual(cancelled.code, 0, cancelled.stdout);
+  const state = stateOf(root, "fix-readme");
+  assert.strictEqual(state.base, opened);
+  assert.ok(!state.gates.some((gate) => gate.id === "base-moved"));
+  assert.ok(!("base_moves" in state));
+});
+
+test("[REQ-idd-014] a change opened before the first commit has no base to move", (t) => {
+  const root = tempRoot(t);
+  ospec(root, ...OPEN_DOCS);
+  const refused = ospec(root, "record", "base", "--change", "fix-readme", "--to", "HEAD", "--reason", "r", "--json");
+  assert.strictEqual(refused.json.error?.code, "base-missing");
+});
+
 test("record intent stores the change base commit", (t) => {
   const { root, git } = project(t);
   ospec(root, ...OPEN_BUG);
