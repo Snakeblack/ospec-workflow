@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.176.0] - 2026-11-14
+
+### Added
+- **`ospec record changelog` declara la línea que un cambio publica en el changelog** (changelog-line, #512).
+  - **El problema**: un intent resuelto es inmutable y la entrada del changelog salía solo de su resumen. Si el alcance crecía a mitad del cambio, la entrada publicada contaba solo la parte del principio.
+  - **La orden**: `ospec record changelog --change <id> --line "<texto>"` guarda la línea que `ospec close` escribe en lugar del resumen, con el sufijo `(<id del cambio>)` de siempre. Se puede repetir mientras el cambio esté abierto: la última sustituye a la anterior, y `--clear` vuelve al resumen.
+  - **Lo que no cambia**: el intent, su aceptación y la sección que da el kind (`Added`, `Fixed`, `Changed`). La orden no abre ningún gate, porque cambia el texto publicado y no lo que se comprueba. `record intent` con otro resumen sigue respondiendo `intent-conflict`, y su remedio nombra la orden nueva.
+  - **Rechazos**: `changelog-line-required` para un texto vacío, `ambiguous-intent-open` con el intent ambiguo, y un cambio cerrado como en el resto de `record`. Un proyecto sin `delivery.changelog` guarda la línea igual.
+  - **Contrato y compatibilidad**: REQ-idd-003 y REQ-idd-025 describen el campo y la orden, con un escenario. `changelog_line` es un campo opcional de `state.yaml`: un estado anterior sigue siendo válido y ninguno se reescribe. Un CLI anterior rechaza como `state-invalid` solo un estado que ya la tenga.
+
+**Verificación directa**: `node scripts/check.js` (4621 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
+
 ## [2.175.1] - 2026-11-14
 
 ### Fixed

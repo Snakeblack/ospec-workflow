@@ -12,6 +12,7 @@ const { validateState } = require("./idd-contract.js");
 const {
   IddRecordError,
   recordAssumption,
+  recordChangelog,
   recordAttestation,
   recordBase,
   recordEvidence,
@@ -1070,4 +1071,16 @@ test("the plan keeps the texts of its decisions once each, in order", () => {
   for (const plan of [{ ...first.plan, decision: false }, { ...first.plan, decisions: [] }, { ...first.plan, decisions: [""] }]) {
     assert.strictEqual(validateState({ ...first, plan }).ok, false, JSON.stringify(plan));
   }
+});
+
+test("[REQ-idd-025] a changelog line is folded to one line, replaced by the next and refused on a closed change (#512)", () => {
+  const open = recordIntent(null, { ...BUG_INTENT, change: "fix-pages" }).state;
+  const declared = recordChangelog(open, { line: " Fix the\n last page. " });
+  assert.deepStrictEqual([declared.changed, declared.state.changelog_line], [true, "Fix the last page."]);
+  assert.strictEqual(recordChangelog(declared.state, { line: "Fix the last page." }).changed, false);
+  assert.strictEqual(recordChangelog(declared.state, { line: "Fix both pages." }).state.changelog_line, "Fix both pages.");
+  assert.ok(!("changelog_line" in recordChangelog(declared.state, { clear: true }).state));
+  assert.deepStrictEqual(declared.state.intent, open.intent, "the intent stays as recorded");
+  assertCode(() => recordChangelog(open, { line: " " }), "changelog-line-required");
+  assertCode(() => recordChangelog({ ...declared.state, status: "closed" }, { line: "Late." }), "change-closed");
 });

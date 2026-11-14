@@ -635,3 +635,10 @@ test("[E1.53] REQ-idd-014 contrasts the checks and the ceremony settings with th
   assert.match(section, /What the configuration declares therefore cannot lower the derived obligations without the user's answer/);
   assert.doesNotMatch(section, /read from the working tree/);
 });
+
+test("[REQ-idd-003] changelog_line is optional and one line of text (#512)", () => {
+  assert.deepStrictEqual(contract.validateState(validState({ changelog_line: "Fix two typos." })), { ok: true, errors: [] });
+  for (const bad of ["", "  ", "two\nlines", 3, null]) {
+    assert.strictEqual(contract.validateState(validState({ changelog_line: bad })).ok, false, JSON.stringify(bad));
+  }
+});

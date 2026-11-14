@@ -69,3 +69,8 @@ test("[REQ-idd-025] the release raises the latest version by the sections of [Un
   assert.strictEqual(proposeRelease("## [Unreleased]\n\n## [1.2.3]\n"), null);
   assert.strictEqual(proposeRelease("# Changelog\n\n## [1.2.3]\n"), null);
 });
+
+test("[REQ-idd-025] a declared changelog line replaces the summary and keeps the section of the kind (#512)", () => {
+  const state = { change: "fix-readme", intent: { kind: "bug", summary: "Fix a typo." }, changelog_line: "Fix two typos." };
+  assert.deepStrictEqual(changelogEntry(state), { section: "Fixed", line: "- Fix two typos. (fix-readme)" });
+});

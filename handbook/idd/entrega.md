@@ -33,7 +33,7 @@ delivery:
 
 `ospec close`, después de archivar el cambio:
 
-1. **Añade su línea al CHANGELOG** en formato [Keep a Changelog], bajo `## [Unreleased]`, en la sección que le toca por su tipo: `feature` → `Added`, `bug` → `Fixed`, `refactor` y `docs` → `Changed`. La línea es `- <resumen> (<id-del-cambio>)`. Si falta la sección o el fichero, los crea. Cerrar otra vez no duplica la línea.
+1. **Añade su línea al CHANGELOG** en formato [Keep a Changelog], bajo `## [Unreleased]`, en la sección que le toca por su tipo: `feature` → `Added`, `bug` → `Fixed`, `refactor` y `docs` → `Changed`. La línea es `- <resumen> (<id-del-cambio>)`. Si el alcance creció a mitad del cambio y el resumen se quedó corto, `ospec record changelog --change <id> --line "<texto>"` declara la línea que se publica en su lugar, tantas veces como haga falta mientras el cambio esté abierto, y `--clear` vuelve al resumen. El intent y su aceptación no cambian. Si falta la sección o el fichero, los crea. Cerrar otra vez no duplica la línea.
 2. **Propone la versión** (`release: per-change`): un minor si `[Unreleased]` tiene `Added` y un patch si no, con su tag y las notas de `[Unreleased]`. Nunca propone un major: el agente te pregunta si el cambio rompe la compatibilidad. **El CLI no toca versiones, tags ni releases**: el agente solo las crea con tu OK.
 
 Un ejemplo real está en [Un cambio de principio a fin](/handbook/empezar/primer-cambio.md#5-los-checks-y-el-cierre).

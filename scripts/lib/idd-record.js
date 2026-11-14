@@ -754,10 +754,29 @@ function recordAssumption(state, { text } = {}) {
   return { state: { ...structuredClone(state), assumptions: [...assumptions, text] }, changed: true };
 }
 
+// The line the change publishes in the changelog (#512), in place of the
+// summary of its intent, which stays as recorded. The last one replaces the
+// one before, and `clear` returns to the summary.
+function recordChangelog(state, { line, clear = false } = {}) {
+  requireOpen(state);
+  if (isIntentAmbiguous(state)) refuse("ambiguous-intent-open", "no changelog line is declared while the intent is ambiguous");
+  if (clear) {
+    if (!("changelog_line" in state)) return unchanged(state);
+    const next = structuredClone(state);
+    delete next.changelog_line;
+    return { state: next, changed: true };
+  }
+  requireText(line, "changelog-line-required", "a changelog line needs text");
+  const folded = line.replace(/\s+/g, " ").trim();
+  if (state.changelog_line === folded) return unchanged(state);
+  return { state: { ...structuredClone(state), changelog_line: folded }, changed: true };
+}
+
 module.exports = {
   IRREVERSIBLE_PREFIX,
   IddRecordError,
   recordAssumption,
+  recordChangelog,
   recordAttestation,
   recordBase,
   recordEvidence,

@@ -77,7 +77,7 @@ artifacts there.
 `refactor`, `docs`, plus `summary` and `acceptance`, and optionally the original
 `request`), `facts` (the open-facts declaration of REQ-idd-018: either `open`,
 the list of open questions, `basis`, why none is open, or `coverage` for a
-feature), `assumptions` (text recorded with `ospec record assumption`), `signals` (each with `id`, `reason` and `source`, `declaration` or
+feature), `assumptions` (text recorded with `ospec record assumption`), optionally `changelog_line` (the one line of text `ospec record changelog` declares, REQ-idd-025), `signals` (each with `id`, `reason` and `source`, `declaration` or
 `diff`), `obligations` (each with `id`, `signal`, `status` in `pending`,
 `satisfied`, `withdrawn`, the `evidence` ids that satisfy it and, when
 withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
@@ -116,7 +116,7 @@ lineage, with its `lineage_id`, `status`, `finding_ids`, `paths`,
 `changed_lines`, `candidate_tree`, `diff_hash`, `recorded_at` and, once
 decided, the `validation` it got), plus `closed_at` once the change is
 closed (REQ-idd-017), an ISO 8601 UTC timestamp, since it names the archive. A state without `base`, `base_moves`, `plan`, `retracted`, `impacts`,
-`attestations`, `runs`, `reviews`, `advisory_corrections`, `facts` or `assumptions` MUST stay valid, as the states written before they existed. While the
+`attestations`, `runs`, `reviews`, `advisory_corrections`, `facts`, `assumptions` or `changelog_line` MUST stay valid, as the states written before they existed. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
 request, and `signals` and `obligations` MUST be empty. `state.yaml` MUST be
@@ -2845,7 +2845,8 @@ and the change's evidence fresh; a close that resumes a change recorded
 closed without its entry MUST add it before archiving:
 under `## [Unreleased]`, in the section its kind gives (`feature` → `Added`,
 `bug` → `Fixed`, `refactor` and `docs` → `Changed`), as the line `- <summary>
-(<change-id>)` with the summary on one line. A missing section MUST be added
+(<change-id>)` with the summary on one line, or with the line the change
+declared in its place. A missing section MUST be added
 in the order `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`,
 `Security`; a missing `## [Unreleased]` MUST go before the latest version, and
 a missing file MUST be created with the Keep a Changelog header. The file's
@@ -2854,6 +2855,21 @@ again. An unreadable `idd/config.yaml` MUST refuse that close before anything
 is written. The result MUST return `changelog`: its `path`, `section`,
 `entry` and whether this close `written` it; closing an archived change again
 MUST return it with `written: false` and write nothing.
+
+`ospec record changelog --change <id> --line <text>` MUST record in
+`changelog_line` the line an open change publishes in place of the summary of
+its intent, with its whitespace folded to single spaces, so a change whose
+scope grew says so in the changelog (#512). The intent, its acceptance and the
+section its kind gives MUST stay as recorded, and the command opens no gate:
+it changes the text the change publishes, never what is checked. The last line
+MUST replace the one before, the same line MUST change nothing, and `--clear`
+MUST remove it, so the entry is the summary again. Text that is empty or only
+spaces MUST be refused with `changelog-line-required`, an ambiguous intent
+with `ambiguous-intent-open` and a closed change as every `record` refuses it;
+`--line` together with `--clear`, or neither, is a usage error. A project
+without `delivery.changelog` MUST keep the line all the same, since close
+writes no entry there. `record intent` with another summary MUST still be
+refused with `intent-conflict`, and its remedy MUST name this command.
 
 When `delivery.release` declares `per-change`, the result MUST also return
 `release`, the proposal the changelog gives: `version`, the latest version
@@ -2871,6 +2887,17 @@ to production. The CLI MUST NOT change versions, tags or releases: the agent
 proposes the release to the user and cuts it only with an explicit OK. Without
 `delivery.changelog` or `delivery.release` declared, close MUST behave as
 before this requirement. SDD MUST NOT read them (ADR 0011).
+
+#### Scenario: A declared line replaces the summary in the entry
+
+- GIVEN `delivery: { changelog: CHANGELOG.md }` and an open `docs` change
+  `fix-readme` with the summary `Fix a typo.`
+- WHEN `ospec record changelog --change fix-readme --line "Fix two typos."`
+  runs and the change closes
+- THEN the entry MUST be `- Fix two typos. (fix-readme)` under `### Changed`,
+  and `intent.summary` MUST still be `Fix a typo.`
+- AND `record intent` with the summary `Fix two typos.` MUST be refused with
+  `intent-conflict`, whose remedy names `ospec record changelog`
 
 #### Scenario: A closed change leaves its entry and proposes the release
 

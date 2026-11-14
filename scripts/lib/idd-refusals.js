@@ -21,6 +21,7 @@ const REFUSALS = Object.freeze({
   "archive-conflict": "the archive already holds other content under that name: show both to the user, who decides; ospec close never overwrites an archive",
   "archive-failed": "the change stays open: run ospec close --change <id> again, and report it with the output of ospec doctor if it fails again",
   "assumption-required": 'ospec record assumption --change <id> --text "<assumption>"',
+  "changelog-line-required": 'ospec record changelog --change <id> --line "<the line the changelog publishes>", or --clear to return to the summary of the intent',
   "attestation-conflict": `nothing to record: the fitness evidence already recorded stands; ${NEXT}`,
   "base-missing": "a change opened before the first commit diffs against the empty tree and has no base to move: close it as it is",
   "base-not-descendant":
@@ -57,7 +58,7 @@ const REFUSALS = Object.freeze({
   "impact-config-invalid": "fix the impact: section of idd/config.yaml as the message says, keeping its other keys",
   "impact-conflict": "nothing to record: the declared impact stands; it is only raised, with its new reason, from none to conforms or from either to amends, supersedes or contradicts, and an amended or superseded ADR names its new ADR once, with --record",
   "impact-required": `add --impact <${IMPACTS.join("|")}> --reason "<why>", or --record <new ADR> once the impact amends or supersedes`,
-  "intent-conflict": "record intent again with the same --summary, --acceptance and --request, or open a new change for another one; only a raised --kind, or a bug that becomes a feature, changes it",
+  "intent-conflict": "record intent again with the same --summary, --acceptance and --request, or open a new change for another one; only a raised --kind, or a bug that becomes a feature, changes it; when only the changelog entry should say more, ospec record changelog --change <id> --line \"<text>\" changes that line and keeps the intent",
   "kind-change-open": 'ask the user the kind-change question of ospec next, resolve it with ospec record gate --change <id> --gate kind-change --resolve --answer "<their words>" --source user, then record the intent again',
   "intent-incomplete": `pass --kind <${INTENT_KINDS.join("|")}>, --summary "<what>" and --acceptance "<observable result>"; an ambiguous intent keeps --request "<request>"`,
   "invalid-action": "pass --open or --resolve",

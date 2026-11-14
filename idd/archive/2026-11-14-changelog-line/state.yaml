@@ -1,0 +1,380 @@
+{
+  "schema": "idd-state/v1",
+  "change": "changelog-line",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "si y si, soluciona todo con lo recomendado",
+    "kind": "feature",
+    "summary": "Un cambio abierto puede declarar y corregir la línea que publica en el changelog con ospec record changelog, sin tocar el intent ni su aceptación.",
+    "acceptance": "Un cambio abierto declara y vuelve a declarar su línea de changelog y ospec close escribe esa; sin declararla la entrada sale del summary como hoy; record intent con otro summary sigue respondiendo intent-conflict y su remedio nombra la orden nueva."
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿La línea admite cualquier texto no vacío, plegado a una sola línea como el summary y sin límite de longitud, y ospec le añade siempre el sufijo (<id del cambio>)?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "Al volver a declararla, ¿la última sustituye a la anterior sin guardar historial, la misma línea no cambia nada, y la sección (Added, Fixed, Changed) sigue saliendo del kind?"
+      },
+      {
+        "category": "persistence",
+        "question": "¿Se guarda en state.yaml como un campo opcional changelog_line, de modo que un estado anterior sigue siendo válido y un CLI anterior rechaza como state-invalid solo un estado que ya la tenga?"
+      },
+      {
+        "category": "copy",
+        "question": "¿La orden se llama ospec record changelog --change <id> --line \"<texto>\", con --clear para volver al resumen del intent, y sin gate: no pide tu respuesta porque solo cambia el texto publicado?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 75
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 753
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿Se rechaza en un cambio cerrado y en uno con el intent ambiguo, como el resto de record, y también en un proyecto sin delivery.changelog declarado, o ahí se guarda igual aunque close no escriba nada?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/entrega.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-changelog.js",
+      "scripts/lib/idd-changelog.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "La línea va en un campo opcional changelog_line de state.yaml y no dentro de intent: el intent sigue inmutable y un estado anterior sigue siendo válido.",
+      "record changelog no abre ningún gate: cambia el texto que el cambio publica, no lo que se comprueba.",
+      "La última línea sustituye a la anterior sin historial y --clear vuelve al resumen; la sección sigue saliendo del kind.",
+      "La skill idd no la menciona, porque su tamaño tiene tope: el agente la descubre en el remedio de intent-conflict y en el uso del CLI."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine: ADR 0003, 0004, 0005, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La línea la guarda y la lee el CLI (record changelog, close); ninguna skill describe la regla."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "No añade señales, obligaciones ni gates: cambia el texto publicado, no la ceremonia."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El cierre sigue ligado a la evidencia; el intent y su aceptación quedan como se grabaron."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "Sin dependencias nuevas."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "changelog_line vive en idd/<cambio>/state.yaml; SDD no lo lee."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "La línea está en state.yaml, así que close la lee igual tras reanudar."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "Ninguna llamada de red."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "record changelog tiene tests en scripts/lib/idd-record.test.js, idd-changelog.test.js, idd-contract.test.js y scripts/ospec.test.js (#512); ninguna skill cambia.",
+      "recorded_at": "2026-11-14T15:45:19.086Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El diff no añade llamadas de red ni lecturas de memoria: recordChangelog es puro y close lee state.yaml.",
+      "recorded_at": "2026-11-14T15:45:19.248Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 342,
+      "answer": "te digo que acepto todas las recomendadas",
+      "source": "user",
+      "resolved_turn": 344
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-14T15:47:02.283Z",
+      "detail": {
+        "tree": "sha256:072976c634adfd98715d79cd4100feb5e112b0e1f62e7ac1a68e26270b5c3149",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-14T15:47:02.283Z",
+      "detail": {
+        "tree": "sha256:072976c634adfd98715d79cd4100feb5e112b0e1f62e7ac1a68e26270b5c3149",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-changelog.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-14T15:47:02.283Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0010 none",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:072976c634adfd98715d79cd4100feb5e112b0e1f62e7ac1a68e26270b5c3149",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-14T15:47:11.856Z",
+      "detail": {
+        "run": "run-8",
+        "tree": "sha256:5f2b608dca57767c28ebb58d6e97058e91aca4351af2a9a4bc47bfc70233f0ed",
+        "plan": "changelog_line es un campo opcional de state.yaml: un estado anterior sigue siendo válido y ninguno se reescribe. Un CLI anterior rechaza como state-invalid solo un estado que ya la tenga; para volver atrás basta ospec record changelog --clear antes de usar la versión anterior."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-14T15:47:12.305Z"
+    }
+  ],
+  "base": "7ef63d852d0810f0f342065ef8a13b8dd690b0c8",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:593dd5f3dce1fe1a7b4c4e2a63799400d6af1d89da030cb11be19f1e6e31eaa6",
+      "tree": "sha256:072976c634adfd98715d79cd4100feb5e112b0e1f62e7ac1a68e26270b5c3149",
+      "recorded_at": "2026-11-14T15:47:02.283Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d63a7e467f0f8d051c6b668da73080069534dfae7b4490c765b4c2e2801a707e",
+      "tree": "sha256:072976c634adfd98715d79cd4100feb5e112b0e1f62e7ac1a68e26270b5c3149",
+      "recorded_at": "2026-11-14T15:47:02.283Z",
+      "tests": 61
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4ff9c1e61eb0609bcfd307590f6c95eb341dbea4b106b456ac25c074ffa340cd",
+      "tree": "sha256:072976c634adfd98715d79cd4100feb5e112b0e1f62e7ac1a68e26270b5c3149",
+      "recorded_at": "2026-11-14T15:47:02.283Z",
+      "tests": 18
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:072976c634adfd98715d79cd4100feb5e112b0e1f62e7ac1a68e26270b5c3149",
+      "recorded_at": "2026-11-14T15:47:02.283Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2e4f8bab2b258646b3b49d772f4896939c064c3d9760df2ec9618162da4b7b6f",
+      "tree": "sha256:072976c634adfd98715d79cd4100feb5e112b0e1f62e7ac1a68e26270b5c3149",
+      "recorded_at": "2026-11-14T15:47:02.283Z",
+      "tests": 26
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1014941c2bf8ef2472ee8a778971e20c5818a9fdce52603cee0459fcbe59e0a6",
+      "tree": "sha256:072976c634adfd98715d79cd4100feb5e112b0e1f62e7ac1a68e26270b5c3149",
+      "recorded_at": "2026-11-14T15:47:02.283Z",
+      "tests": 96
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5ccfe88b01f942813df3a53b30986f6758075ac138f9d3feaaf16b03d9aedeba",
+      "tree": "sha256:072976c634adfd98715d79cd4100feb5e112b0e1f62e7ac1a68e26270b5c3149",
+      "recorded_at": "2026-11-14T15:47:02.283Z",
+      "tests": 52
+    },
+    {
+      "id": "run-8",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern='#512' scripts/lib/idd-contract.test.js scripts/lib/idd-record.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:51d6527882068bbb027c3f8c4e7e9f1ce2625a113de1ca2457610b84122b48d1",
+      "tree": "sha256:5f2b608dca57767c28ebb58d6e97058e91aca4351af2a9a4bc47bfc70233f0ed",
+      "recorded_at": "2026-11-14T15:47:11.856Z",
+      "tests": 4
+    }
+  ],
+  "closed_at": "2026-11-14T15:47:12.305Z"
+}

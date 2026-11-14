@@ -3,7 +3,8 @@
 // The changelog entry of a closed change and the release it proposes
 // (openspec/specs/idd/spec.md, REQ-idd-025). The changelog follows Keep a
 // Changelog: the change's kind gives the section under ## [Unreleased] and its
-// summary the line. Pure: ospec close reads and writes the file.
+// summary the line, or the line the change declared with ospec record
+// changelog (#512). Pure: ospec close reads and writes the file.
 
 const SECTION_BY_KIND = Object.freeze({ feature: "Added", bug: "Fixed", refactor: "Changed", docs: "Changed" });
 // The section order of Keep a Changelog; an unknown section sorts last.
@@ -22,7 +23,7 @@ const VERSION_HEADING = /^##\s+\[?v?(\d+)\.(\d+)\.(\d+)([-+][^\]\s]*)?\]?(\s|$)/
 const SECTION_HEADING = /^###\s+(.+?)\s*$/;
 
 function changelogEntry(state) {
-  const summary = state.intent.summary.replace(/\s+/g, " ").trim();
+  const summary = (state.changelog_line ?? state.intent.summary).replace(/\s+/g, " ").trim();
   return { section: SECTION_BY_KIND[state.intent.kind], line: `- ${summary} (${state.change})` };
 }
 
