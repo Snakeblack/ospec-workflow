@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.175.0, 2026-11-13.
+> **Versión de referencia:** v2.175.1, 2026-11-14.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -191,6 +191,10 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.68** | `build-scripts-declared` (#501: `impact.build_scripts` declara los scripts de herramienta cuyas escrituras no derivan `persistent-data`, sumados a los de por defecto y sin quitar las señales por ruta; adelantado a E1.67, en v2.173.1) | bugfix |
 | `done` | **E1.69** | `impact-raise` (#502: un impacto declarado se puede subir antes de `close`, de `none` a `conforms` o de cualquiera de los dos a `amends`, `supersedes` o `contradicts`, con el valor anterior en `previous`; la subida tras la respuesta abre otra entrada de `adr-amend-or-contradict`; adelantado a E1.67, en v2.173.1) | bugfix |
 | `pending` | **E1.70** | `fitness-baseline-failing` (#490: un `- Check:` de ADR que ya falla en la base avisa y no bloquea un cambio que no lo empeora; detrás de E1.69) | bugfix |
+| `done` | **E1.71** | `failed-run-visibility` (#510: un `ospec run` en verde que no cierra su par dice el motivo en su misma línea, el que ya daba `ospec check`, y una reproducción que nunca falló avisa de que una herramienta pudo reescribir un fichero generado, como un lockfile; con E1.72 en el mismo cambio, en v2.175.1) | bugfix |
+| `done` | **E1.72** | `failed-run-visibility` (#511: un check o un `ospec run` fallido guarda su salida completa en `.ospec/runs/<cambio>/<run>.log`, local y sin versionar, y la nombra bajo la cola; `state.yaml` no cambia y `close` borra las del cambio; en v2.175.1) | bugfix |
+| `pending` | **E1.73** | `changelog-line` (#512: un cambio abierto puede declarar y corregir la línea que publica en el changelog, sin tocar el intent ni su aceptación; detrás de E1.72) | feature |
+| `pending` | **E1.74** | `follow-up-change` (#513: un cambio de seguimiento declara el cambio cerrado que completa, pasa su ceremonia entera y no añade entrada propia al changelog; detrás de E1.73) | feature |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -250,6 +254,8 @@ E1.57 `idd-change-abandon` (#409) y E1.58 `contract-content-retract` (#423), los
 E1.59 `idd-runtime-review`, E1.60 `review-refuter`, E1.62 `sdd-review-adoption` y E4.18 `review-detection-bench` entraron el 2026-11-03 con el plan para cerrar la brecha del revisor frente a gentle-ai. Como sistema, gentle-ai era mejor: su binario lanza al revisor sin herramientas y admite su veredicto, revisa el árbol congelado, deriva el riesgo del contenido y pasa los hallazgos por un refutador. ospec era mejor en el criterio del prompt (`review-judgment.md`), el coste y la sencillez, y nadie había medido la detección. El usuario fijó el orden E1.50 → E1.52 → E1.59 → E1.60, seguidos, y el alcance solo en IDD, porque los cambios de `review-lineage.js` no dependen del modo. La adopción en SDD queda en E1.62, fuera del orden ▶, y la medición, E4.18, en el bloque D con Haiku.
 
 E1.63 a E1.70 y E5.15 entraron el 2026-11-11 con la auditoría de sinergia entre ospec y dos proyectos reales que lo usan a diario, uno con 40 cambios IDD archivados y otro con 66. Nada estaba roto: el coste estaba en cada cambio. Las dos sesiones de esos proyectos auditaron su `idd/archive`, y lo que le toca a ospec se comprobó contra su código antes de abrir #498 a #503. #483, #490 y #494 eran los tres issues abiertos sin ítem. El usuario colocó los ocho de la Etapa 1 por delante de lo que queda del bloque C, porque hoy los paga cada cambio real. E1.63 va primero porque es lo que más tiempo cuesta: de 116 revisiones de confianza, todas aprobadas, salieron 117 hallazgos, y 113 no bloqueaban. Le siguen E1.64, del que depende un cambio pendiente de uno de los proyectos, y E1.65, que deja sin contraprueba a los proyectos cuyo producto es Markdown. E1.66 afecta al primer cambio de cada proyecto nuevo. E5.15 queda fuera del orden ▶, porque solo afecta a SDD. E1.63 quedó hecho en v2.173.0. E1.64, E1.65, E1.66, E1.68 y E1.69, los cinco arreglos acotados, quedaron hechos en v2.173.1 en un solo cambio, `idd-friction-fixes`, por decisión del usuario del 2026-11-12: E1.67 `check-path-scope` quedó hecho en v2.174.0: sigue E1.70 `fitness-baseline-failing`.
+
+E1.71 a E1.74 entraron el 2026-11-14 con el informe de fricciones de otro proyecto real, que cerró cuatro cambios IDD en un mismo PR. Lo que le toca a ospec se comprobó contra su código antes de abrir #510 a #513. El usuario pidió los cuatro por delante de 4c2 y E1.70. E1.71 y E1.72 quedaron hechos en v2.175.1 en un solo cambio, `failed-run-visibility`. E1.73 y E1.74 van detrás, cada uno en su PR, con lo que el usuario eligió: una línea de changelog propia y enmendable, que deja el intent inmutable, y un cambio de seguimiento que declara cuál completa, en vez de reabrir uno cerrado.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -319,6 +325,10 @@ La matriz de eventos por target de la v2.151.0 está en la [auditoría](../analy
 | #501 | **E1.68** `build-scripts-declared` (nuevo; seguimiento de E1.36 y E1.38) |
 | #502 | **E1.69** `impact-raise` (nuevo) |
 | #490 | **E1.70** `fitness-baseline-failing` (nuevo; seguimiento de E3.3) |
+| #510 | **E1.71** `failed-run-visibility` (nuevo) |
+| #511 | **E1.72** `failed-run-visibility` (nuevo) |
+| #512 | **E1.73** `changelog-line` (nuevo) |
+| #513 | **E1.74** `follow-up-change` (nuevo; relacionado con E1.57) |
 | #503 | **E5.15** `registry-plugin-skills` (nuevo; fuera del orden ▶) |
 
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16, E1.12 en v2.117.17 y E1.14 en v2.117.18. E1.13 y E1.15 quedan hechos: el pre-commit sigue el modo activo y el sucesor de review IDD no pide aprobación. El plugin SDD del marketplace permanece en E5.8, por demanda.

@@ -518,7 +518,9 @@ function pairReason(state, obligationId) {
   const runs = all.filter((run) => run.purpose === obligationId);
   const moment = PAIR_MOMENT[obligationId];
   if (!runs.some((run) => run.exit_code !== 0)) {
-    return `no failing run recorded: run the test with ospec run --obligation ${obligationId} before ${moment}`;
+    // A tool may write a generated file again before the test runs, so the
+    // old content never fails (a lockfile a package manager resolves again).
+    return `no failing run recorded: run the test with ospec run --obligation ${obligationId} before ${moment}; if it passes without ${moment}, check that no tool wrote a generated file, such as a lockfile, again before the test ran`;
   }
   const refused = runs.filter((run) => run.exit_code === 0 && pairRed(all, run)).at(-1);
   const reopened = state.evidence.filter((entry) => entry.obligation === obligationId && entry.detail?.green === refused?.id).at(-1);

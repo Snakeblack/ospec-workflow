@@ -27,6 +27,8 @@ Reglas que se aplican siempre:
 - **`ospec record` no acepta evidencia.** Solo `run`, `check` y `review` la registran, porque son los que observan la ejecución.
 - **Un comando que no arranca, o que termina por una señal, no cuenta como pasado.**
 - **Cero tests no cuenta.** Una salida como `tests 0`, «could not find» o «no tests ran» no satisface nada.
+- **Una ejecución fallida guarda su salida completa.** El estado conserva el código de salida, el hash y las 20 últimas líneas. Si un check o un `ospec run` falla, la salida entera queda además en `.ospec/runs/<cambio>/<run>.log`, un fichero local que git ignora, y el CLI lo nombra bajo esas líneas. `ospec close` borra los del cambio que cierra.
+- **Un `ospec run` en verde que no cierra su par dice por qué.** Por ejemplo, que el diff no añade ninguna línea a un test o que no hay ninguna ejecución en rojo registrada.
 - **La evidencia pertenece a un árbol.** Si cambias un fichero después de un check en verde, `checks-pass` vuelve a pendiente y `ospec close` rechaza el cierre con `evidence-stale` hasta el siguiente `ospec check`. Cambiar el nombre, el comando o el orden de un check también invalida la evidencia anterior.
 
 ---
