@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "status": "success",
+  "executive_summary": "\uFEFF",
+  "artifacts": "inline",
+  "next_recommended": "sdd-tasks",
+  "risks": ["\uFEFF"],
+  "skill_resolution": "injected"
+}

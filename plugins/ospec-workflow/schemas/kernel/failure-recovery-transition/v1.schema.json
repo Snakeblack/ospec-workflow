@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/failure-recovery-transition/v1",
+  "title": "FailureRecoveryTransitionV1",
+  "description": "Allowlisted Failure Recovery Transition Schema v1 for kernel lifecycle recovery.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "transition_id",
+    "failure_code",
+    "target_operation",
+    "scope",
+    "expected_advancement"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "transition_id": {
+      "type": "string"
+    },
+    "failure_code": {
+      "type": "string"
+    },
+    "target_operation": {
+      "type": "string",
+      "enum": [
+        "repair",
+        "replan",
+        "escalate",
+        "stop"
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "node_ids",
+        "allowed_paths",
+        "finding_ids"
+      ],
+      "properties": {
+        "node_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowed_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "finding_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "expected_advancement": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

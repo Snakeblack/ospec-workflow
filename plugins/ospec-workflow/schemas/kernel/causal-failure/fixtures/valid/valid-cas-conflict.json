@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "failure_id": "fail-cas-003",
+  "category": "cas_conflict",
+  "code": "CAS_REVISION_MISMATCH",
+  "priority": 2,
+  "blocking_fingerprint": "fp:cas-mismatch-r4-r5",
+  "details": {
+    "expected_revision": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+    "actual_revision": "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "violation_id": "viol-bad-type",
+  "workspace_id": "ws-550e8400-e29b-41d4-a716-446655440000",
+  "work_order_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "attempted_path": "../escape",
+  "allowed_paths": [
+    "src/**"
+  ],
+  "violation_type": "kernel_panic",
+  "timestamp": "2026-08-23T10:00:00.000Z"
+}

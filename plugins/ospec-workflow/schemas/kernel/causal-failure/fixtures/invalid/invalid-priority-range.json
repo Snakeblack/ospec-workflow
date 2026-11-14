@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "failure_id": "fail-invalid-002",
+  "category": "environment_tooling",
+  "code": "TOOL_EXECUTION_TIMEOUT",
+  "priority": 99,
+  "blocking_fingerprint": "fp:timeout-1",
+  "details": {}
+}

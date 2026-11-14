@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "kind": "transport-request/v1",
+  "requestId": "req-1",
+  "deadlineMs": 1000,
+  "abort": {
+    "aborted": false
+  }
+}

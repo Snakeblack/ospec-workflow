@@ -1,0 +1,833 @@
+"use strict";
+
+// Machine-readable IDD contract (openspec/specs/idd/spec.md, REQ-idd-001..010).
+// The catalog, state schema and layout here are the single source the ospec
+// CLI (E1.2–E1.4) consumes; idd-contract.test.js keeps them in parity with the
+// spec. Pure data and validators: no filesystem access.
+
+const { CATEGORY_IDS, CORE_CATEGORY_IDS } = require("./idd-facts.js");
+
+const MODES = Object.freeze(["idd", "sdd"]);
+// IDD is the default entry since E1.6 (REQ-idd-001).
+const DEFAULT_MODE = "idd";
+
+const CHANGE_ROOT = "idd";
+const ARCHIVE_ROOT = "idd/archive";
+const STATE_FILE = "state.yaml";
+const CHANGE_ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const LIVING_DOC_FILE = "change.md";
+const LIVING_DOC_SECTIONS = Object.freeze(["Intent and acceptance", "Plan", "Decisions", "Evidence"]);
+const EVIDENCE_MARKERS = Object.freeze({
+  start: "<!-- ospec:evidence:start -->",
+  end: "<!-- ospec:evidence:end -->",
+});
+// The CLI writes the declared plan and decisions between these (E4.16); the
+// model keeps the rest of the Plan and Decisions sections.
+const PLAN_MARKERS = Object.freeze({ start: "<!-- ospec:plan:start -->", end: "<!-- ospec:plan:end -->" });
+const DECISIONS_MARKERS = Object.freeze({ start: "<!-- ospec:decisions:start -->", end: "<!-- ospec:decisions:end -->" });
+
+const STATE_SCHEMA = "idd-state/v1";
+const STATE_FIELDS = Object.freeze([
+  "schema",
+  "change",
+  "mode",
+  "status",
+  "intent",
+  "facts",
+  "plan",
+  "signals",
+  "retracted",
+  "impacts",
+  "attestations",
+  "obligations",
+  "gates",
+  "evidence",
+  "base",
+  "base_moves",
+  "runs",
+  "reviews",
+  "advisory_corrections",
+  "assumptions",
+  "changelog_line",
+  "closed_at",
+]);
+const CHANGE_STATUSES = Object.freeze(["open", "closed"]);
+const INTENT_KINDS = Object.freeze(["bug", "feature", "refactor", "docs"]);
+const SIGNAL_SOURCES = Object.freeze(["declaration", "diff"]);
+const OBLIGATION_STATUSES = Object.freeze(["pending", "satisfied", "withdrawn"]);
+const GATE_STATUSES = Object.freeze(["open", "resolved"]);
+// Who answered a gate, as the agent declares it (#343): the CLI cannot verify
+// it. `user-unverified` is an answer relayed rather than given in the session.
+// Only new answers are checked; a stored state keeps the source it has.
+const GATE_SOURCES = Object.freeze(["user", "user-unverified"]);
+// What a CLI-observed run was for (REQ-idd-014): the declared checks, the test
+// command of a red → green pair, a fitness check of an ADR or quality
+// scenario the change touches (REQ-idd-022), or the counterproof of a pair or
+// of boundary-tests on the change's base (E1.48).
+const RUN_PURPOSES = Object.freeze(["checks", "repro-test", "tdd-red-green", "migration-test", "fitness", "counterproof"]);
+// Evidence kinds proven by CLI-observed runs, and the run purpose behind each.
+const RUN_EVIDENCE = Object.freeze({
+  "check-run": "checks",
+  "tested-check": "checks",
+  "repro-run-pair": "repro-test",
+  "tdd-red-green": "tdd-red-green",
+  "migration-test": "migration-test",
+});
+const SHA256 = /^sha256:[0-9a-f]{64}$/;
+// The close time the CLI records (Date#toISOString); it names the archive.
+const CLOSE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+// Signal → obligation, in the spec's table order (REQ-idd-005).
+const SIGNALS = Object.freeze(
+  [
+    { id: "always", obligation: "checks-pass" },
+    { id: "strict-tdd", obligation: "tdd-red-green" },
+    { id: "bug-fix", obligation: "repro-test" },
+    { id: "untested-product", obligation: "boundary-tests" },
+    { id: "multi-unit-or-decision", obligation: "living-doc" },
+    { id: "public-contract", obligation: "contract-spec-and-test" },
+    { id: "persistent-data", obligation: "migration-compat-and-test" },
+    { id: "security-boundary", obligation: "trust-review" },
+    { id: "adr-or-quality-attribute", obligation: "adr-impact-declaration" },
+  ].map(Object.freeze),
+);
+
+const OBLIGATIONS = Object.freeze(
+  [
+    { id: "checks-pass", evidence: "check-run" },
+    { id: "tdd-red-green", evidence: "tdd-red-green" },
+    { id: "repro-test", evidence: "repro-run-pair" },
+    { id: "boundary-tests", evidence: "tested-check" },
+    { id: "living-doc", evidence: "living-doc-current" },
+    { id: "contract-spec-and-test", evidence: "contract-spec-and-test" },
+    { id: "migration-compat-and-test", evidence: "migration-test" },
+    { id: "trust-review", evidence: "frozen-review" },
+    { id: "adr-impact-declaration", evidence: "adr-impact-declaration" },
+  ].map(Object.freeze),
+);
+
+const EVIDENCE_KINDS = Object.freeze(OBLIGATIONS.map((obligation) => obligation.evidence));
+
+// kind-change (#491) asks before open-facts: the user approves the new kind
+// before answering the categories of the feature it brings.
+const GATES = Object.freeze(["ambiguous-intent", "kind-change", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed", "base-moved"]);
+// base-moved asks before the base of a change moves to a descendant commit
+// (REQ-idd-014): `ospec record base` opens it and its answer moves the base.
+const BASE_GATE = "base-moved";
+
+// Architecture references a change declares (E3.1): accepted ADRs under
+// DECISIONS_ROOT and quality scenarios of the knowledge map. Each gets one
+// impact; the gated impacts open adr-amend-or-contradict, and an ADR amended
+// or superseded needs the new ADR that does it (REQ-idd-005, REQ-idd-008).
+const DECISIONS_ROOT = "docs/architecture/decisions";
+const REFERENCE_KINDS = Object.freeze(["adr", "scenario"]);
+const IMPACTS = Object.freeze(["none", "conforms", "amends", "supersedes", "contradicts"]);
+const GATED_IMPACTS = Object.freeze(["amends", "supersedes", "contradicts"]);
+const RECORDED_IMPACTS = Object.freeze(["amends", "supersedes"]);
+
+// Signals a declaration of planned paths or work units can overstate, so a
+// declared one may be retracted while the diff does not confirm it (E1.11), as
+// one from a diff that no longer derives it (#418). The rest derive from the intent or the project configuration.
+const RETRACTABLE_SIGNALS = Object.freeze(["multi-unit-or-decision", "public-contract", "persistent-data", "security-boundary"]);
+// Those the user's answer may retract while only the content of the diff
+// derives them: persistent data (#416), a contract in documentation (E1.58)
+// and a security sink in product code (E1.50).
+const ANSWER_RETRACTABLE_SIGNALS = Object.freeze(["persistent-data", "public-contract", "security-boundary"]);
+
+const SIGNAL_BY_ID = new Map(SIGNALS.map((signal) => [signal.id, signal]));
+const OBLIGATION_BY_ID = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation]));
+
+function resolveMode({ changeMode, projectMode } = {}) {
+  for (const mode of [changeMode, projectMode]) {
+    if (mode == null) continue;
+    if (!MODES.includes(mode)) throw new Error(`unknown mode: ${mode}`);
+    return mode;
+  }
+  return DEFAULT_MODE;
+}
+
+function deriveObligations(signalIds) {
+  const obligations = new Set();
+  for (const id of signalIds) {
+    const signal = SIGNAL_BY_ID.get(id);
+    if (!signal) throw new Error(`unknown signal: ${id}`);
+    obligations.add(signal.obligation);
+  }
+  return [...obligations].sort();
+}
+
+function validateState(state) {
+  const errors = [];
+  const fail = (message) => errors.push(message);
+  const isText = (value) => typeof value === "string" && value.trim() !== "";
+
+  if (state == null || typeof state !== "object") {
+    return { ok: false, errors: ["state must be an object"] };
+  }
+  for (const key of Object.keys(state)) {
+    if (!STATE_FIELDS.includes(key)) fail(`unknown field: ${key}`);
+  }
+  if (state.schema !== STATE_SCHEMA) fail(`schema must be ${STATE_SCHEMA}`);
+  if (typeof state.change !== "string" || !CHANGE_ID_PATTERN.test(state.change)) {
+    fail("change must be a kebab-case id");
+  }
+  if (state.mode !== "idd") fail("mode must be idd");
+  if (!CHANGE_STATUSES.includes(state.status)) fail(`status must be one of ${CHANGE_STATUSES.join(", ")}`);
+
+  for (const key of ["signals", "obligations", "gates", "evidence"]) {
+    if (!Array.isArray(state[key])) fail(`${key} must be a list`);
+  }
+  if ("runs" in state && !Array.isArray(state.runs)) fail("runs must be a list");
+  if ("reviews" in state && !Array.isArray(state.reviews)) fail("reviews must be a list");
+  if ("advisory_corrections" in state && !Array.isArray(state.advisory_corrections)) fail("advisory_corrections must be a list");
+  if ("retracted" in state && !Array.isArray(state.retracted)) fail("retracted must be a list");
+  if ("impacts" in state && !Array.isArray(state.impacts)) fail("impacts must be a list");
+  if ("attestations" in state && !Array.isArray(state.attestations)) fail("attestations must be a list");
+  if (state.closed_at != null && (state.status !== "closed" || typeof state.closed_at !== "string" || !CLOSE_TIME.test(state.closed_at))) {
+    fail("closed_at is the close time of a closed change, as an ISO 8601 UTC timestamp");
+  }
+  if (state.base != null && typeof state.base !== "string") fail("base must be a commit id");
+  // Each move of the base the user approved at base-moved, oldest first.
+  if ("base_moves" in state) {
+    const moves = state.base_moves;
+    const isMove = (move) => move != null && typeof move === "object" && [move.from, move.to, move.reason, move.moved_at].every(isText);
+    if (!(Array.isArray(moves) && moves.every(isMove))) fail("base_moves must list each move with its from, to, reason and moved_at");
+    else if (moves.length > 0 && moves.at(-1).to !== state.base) fail("base must be the commit of its last move");
+  }
+  if ("assumptions" in state) {
+    const assumptions = state.assumptions;
+    const text = (entry) => typeof entry === "string" && entry.trim() !== "";
+    if (!Array.isArray(assumptions) || !assumptions.every(text)) fail("assumptions must be a list of text");
+  }
+  if ("changelog_line" in state && !(isText(state.changelog_line) && !/[\r\n]/.test(state.changelog_line))) {
+    fail("changelog_line must be one line of text");
+  }
+  if (errors.length > 0) return { ok: false, errors };
+
+  // While ambiguous-intent is open the intent stays unresolved, keeps the
+  // original request and nothing is derived from it (REQ-idd-003, REQ-idd-008).
+  const intent = state.intent || {};
+  if (isIntentAmbiguous(state)) {
+    if (typeof intent.request !== "string" || intent.request === "") fail("intent.request is required while the intent is ambiguous");
+    for (const key of ["kind", "summary", "acceptance"]) {
+      if (intent[key] != null) fail(`intent.${key} must stay null while the intent is ambiguous`);
+    }
+    if (state.signals.length > 0) fail("no signal may be active while the intent is ambiguous");
+    if (state.obligations.length > 0) fail("no obligation may exist while the intent is ambiguous");
+  } else {
+    if (!INTENT_KINDS.includes(intent.kind)) fail(`intent.kind must be one of ${INTENT_KINDS.join(", ")}`);
+    for (const key of ["summary", "acceptance"]) {
+      if (typeof intent[key] !== "string" || intent[key] === "") fail(`intent.${key} is required`);
+    }
+  }
+  if (intent.request != null && typeof intent.request !== "string") fail("intent.request must be text");
+  validateFacts(state, fail);
+  validatePlan(state.plan, fail);
+  validateImpacts(state.impacts, fail);
+  validateAttestations(state, fail);
+
+  for (const signal of state.signals) {
+    if (!SIGNAL_BY_ID.has(signal.id)) fail(`unknown signal: ${signal.id}`);
+    if (typeof signal.reason !== "string" || signal.reason === "") fail(`signal ${signal.id} needs a reason`);
+    if (!SIGNAL_SOURCES.includes(signal.source)) fail(`signal ${signal.id} source must be declaration or diff`);
+  }
+  for (const entry of state.retracted || []) {
+    const answered = entry !== null && typeof entry === "object" && ["answer", "answer_source", "confirmed_by", "hits"].some((key) => key in entry);
+    if (!RETRACTABLE_SIGNALS.includes(entry?.id)) fail(`retracted signal ${entry?.id} is not retractable`);
+    else if (answered) {
+      // #416, E1.58, E1.50, #496: a signal the user's answer retracted, with the hits it covered.
+      if (!ANSWER_RETRACTABLE_SIGNALS.includes(entry.id) || !isText(entry.reason) || !SIGNAL_SOURCES.includes(entry.source) || !isText(entry.retract_reason)
+        || !isText(entry.confirmed_by) || !Array.isArray(entry.hits) || entry.hits.length === 0 || !entry.hits.every(isText)
+        || !isText(entry.answer) || !GATE_SOURCES.includes(entry.answer_source)) {
+        fail(`retracted signal ${entry.id} with the user's answer needs its reason, source, retract_reason, confirmed_by, hits, answer and answer_source`);
+      }
+    } else if (!isText(entry.reason) || !SIGNAL_SOURCES.includes(entry.source) || !isText(entry.retract_reason)) {
+      fail(`retracted signal ${entry.id} needs its reason, source and the reason it was retracted`);
+    }
+  }
+
+  const runs = state.runs || [];
+  const runIndex = new Map();
+  runs.forEach((run, index) => {
+    validateRun(run, fail);
+    if (runIndex.has(run.id)) fail(`run ${run.id} is recorded twice`);
+    runIndex.set(run.id, index);
+  });
+
+  const evidenceById = new Map();
+  for (const entry of state.evidence) {
+    if (!EVIDENCE_KINDS.includes(entry.kind)) fail(`evidence ${entry.id} has unknown kind ${entry.kind}`);
+    if (!OBLIGATION_BY_ID.has(entry.obligation)) fail(`evidence ${entry.id} names unknown obligation`);
+    if (typeof entry.recorded_at !== "string") fail(`evidence ${entry.id} needs recorded_at`);
+    if (entry.kind in RUN_EVIDENCE) validateRunEvidence(entry, runs, runIndex, fail);
+    evidenceById.set(entry.id, entry);
+  }
+  const reviews = state.reviews || [];
+  for (const review of reviews) {
+    if (review == null || review.schema_version !== 2 || typeof review.lineage_id !== "string" || typeof review.status !== "string") {
+      fail("a review must be a schema v2 review lineage with its id and status");
+    }
+  }
+  const corrections = Array.isArray(state.advisory_corrections) ? state.advisory_corrections : [];
+  validateAdvisoryCorrections(corrections, reviews, fail);
+  for (const entry of state.evidence) {
+    if (entry.kind === "contract-spec-and-test") validateContractEvidence(entry, evidenceById, fail);
+    if (entry.kind === "frozen-review") validateReviewEvidence(entry, reviews, corrections, fail);
+    if (entry.kind === "adr-impact-declaration") validateImpactEvidence(entry, runs, runIndex, fail);
+  }
+
+  for (const obligation of state.obligations) {
+    const catalog = OBLIGATION_BY_ID.get(obligation.id);
+    if (!catalog) {
+      fail(`unknown obligation: ${obligation.id}`);
+      continue;
+    }
+    if (SIGNAL_BY_ID.get(obligation.signal)?.obligation !== obligation.id) {
+      fail(`obligation ${obligation.id} is not derived by signal ${obligation.signal}`);
+    }
+    if (!OBLIGATION_STATUSES.includes(obligation.status)) fail(`obligation ${obligation.id} has unknown status`);
+    const evidenceIds = Array.isArray(obligation.evidence) ? obligation.evidence : [];
+    if (obligation.status === "satisfied") {
+      if (evidenceIds.length === 0) fail(`obligation ${obligation.id} is satisfied without recorded evidence`);
+      for (const id of evidenceIds) {
+        const entry = evidenceById.get(id);
+        if (!entry || entry.kind !== catalog.evidence || entry.obligation !== obligation.id) {
+          fail(`obligation ${obligation.id} needs ${catalog.evidence} evidence, got ${id}`);
+        }
+      }
+    }
+    if (obligation.status === "withdrawn" && !obligation.withdrawn_reason) {
+      fail(`obligation ${obligation.id} is withdrawn without a reason`);
+    }
+  }
+
+  for (const gate of state.gates) {
+    if (!GATES.includes(gate.id)) fail(`unknown gate: ${gate.id}`);
+    if (!GATE_STATUSES.includes(gate.status)) fail(`gate ${gate.id} has unknown status`);
+    if (gate.reason != null && typeof gate.reason !== "string") fail(`gate ${gate.id} reason must be text`);
+    if (gate.status === "resolved" && (!gate.answer || !gate.source)) {
+      fail(`gate ${gate.id} is resolved without the user's answer and its source`);
+    }
+    // E1.49: the turn count of its opening and of its answer, and the source
+    // an answer was declared with when no turn ended in between.
+    const isTurn = (value) => value === null || (Number.isSafeInteger(value) && value >= 0);
+    for (const key of ["opened_turn", "resolved_turn"]) {
+      if (gate[key] !== undefined && !isTurn(gate[key])) fail(`gate ${gate.id} ${key} must be a turn count or null`);
+    }
+    if (gate.resolved_turn !== undefined && (gate.status !== "resolved" || gate.opened_turn === undefined)) {
+      fail(`gate ${gate.id} has the turn of an answer without the turn it opened in`);
+    }
+    if ((gate.declared_source !== undefined || gate.unverified_reason !== undefined)
+      && (gate.declared_source !== "user" || gate.source !== "user-unverified" || typeof gate.unverified_reason !== "string" || gate.unverified_reason.trim() === "")) {
+      fail(`gate ${gate.id} declared user must be recorded user-unverified with the reason`);
+    }
+    if (gate.source === "user" && gate.resolved_turn !== undefined && !(gate.opened_turn !== null && gate.resolved_turn !== null && gate.resolved_turn !== gate.opened_turn)) {
+      fail(`gate ${gate.id} is answered user without a turn end after it opened`);
+    }
+    // irreversible-operation lists the operations it asks about, and its
+    // answer approves only those; an entry recorded before asks about the
+    // operation of its reason.
+    if (gate.operations !== undefined) {
+      if (gate.id !== "irreversible-operation") fail(`gate ${gate.id}: only irreversible-operation lists operations`);
+      else if (!(isTextList(gate.operations) && gate.operations.length > 0)) fail("gate irreversible-operation must list the operations it asks about, each as text");
+    }
+    // checks-changed names the checks it approves (B7), a scoped one with its
+    // paths (E1.67).
+    const checks = gate.checks;
+    if (gate.id === "checks-changed" && !(Array.isArray(checks) && checks.every(isApprovedCheck))) {
+      fail("gate checks-changed must list the checks it approves, each with its name, its command and, when scoped, its paths");
+    }
+    // Since E1.53 it also names the ceremony settings it approves; an older
+    // entry without them approved the base settings.
+    if (gate.id === "checks-changed" && gate.config !== undefined && !isCeremonyConfig(gate.config)) {
+      fail("gate checks-changed must name the settings it approves: strict_tdd, impact and contracts");
+    }
+    // base-moved names the move it asks about: the base it leaves, the commit
+    // it moves to, and the commits, paths and archived changes in between.
+    if (gate.id === BASE_GATE) {
+      const named = [gate.from, gate.to, gate.reason].every(isText) && gate.from !== gate.to;
+      const counted = Number.isSafeInteger(gate.commits) && gate.commits > 0;
+      if (!(named && counted && isTextList(gate.paths) && isTextList(gate.archived))) {
+        fail("gate base-moved must name the move it asks about: from, to, reason, commits, paths and archived");
+      }
+    }
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
+function validateRun(run, fail) {
+  const label = `run ${run?.id}`;
+  if (run == null || typeof run !== "object") return fail("a run must be an object");
+  if (typeof run.id !== "string" || run.id === "") fail("a run needs an id");
+  if (!RUN_PURPOSES.includes(run.purpose)) fail(`${label} has unknown purpose ${run.purpose}`);
+  if (typeof run.command !== "string" || run.command === "") fail(`${label} needs a command`);
+  if (!Number.isInteger(run.exit_code)) fail(`${label} needs an integer exit_code`);
+  if (!SHA256.test(run.output_sha256 || "")) fail(`${label} needs an output_sha256 digest`);
+  if (!SHA256.test(run.tree || "")) fail(`${label} needs a tree digest`);
+  if (typeof run.recorded_at !== "string") fail(`${label} needs recorded_at`);
+  return undefined;
+}
+
+// Run-backed evidence must name the runs that prove it (REQ-idd-014): every
+// declared check passing on one tree, or a failing run followed by a passing
+// run of the same command on a different tree.
+function validateRunEvidence(entry, runs, runIndex, fail) {
+  const purpose = RUN_EVIDENCE[entry.kind];
+  const detail = entry.detail || {};
+  const runOf = (id) => (runIndex.has(id) ? runs[runIndex.get(id)] : null);
+  if (entry.kind === "tested-check") {
+    const run = runOf(detail.run);
+    // `tests` names the test paths the diff adds lines to (B3); a state
+    // recorded before it marks an uncounted run with `has_test`.
+    const counted = run && run.tests > 0;
+    const uncounted = run && run.tests == null && (detail.has_test === true || isTextList(detail.tests) && detail.tests.length > 0);
+    if (!run || run.purpose !== purpose || run.exit_code !== 0 || run.tree !== detail.tree || (!counted && !uncounted)) {
+      fail(`evidence ${entry.id} needs a passing check that executed at least one test, or a test in the diff when the output has no count`);
+    }
+    if (detail.tests !== undefined && !isTextList(detail.tests)) fail(`evidence ${entry.id} tests must list the test paths of the diff`);
+    validateCounterproof(entry, runOf, fail);
+    return undefined;
+  }
+  if (entry.kind === "check-run") {
+    const ids = Array.isArray(detail.runs) ? detail.runs : [];
+    if (ids.length === 0 || !SHA256.test(detail.tree || "")) {
+      return fail(`evidence ${entry.id} must name its tree and the check runs on it`);
+    }
+    for (const id of ids) {
+      const run = runOf(id);
+      if (!run || run.purpose !== purpose || run.exit_code !== 0 || run.tree !== detail.tree) {
+        fail(`evidence ${entry.id} names ${id}, which is not a passing check run on its tree`);
+      }
+    }
+    if (detail.skipped !== undefined && !isSkippedChecks(detail.skipped)) fail(`evidence ${entry.id} skipped must list the checks it skipped, each with its name and reason`);
+    return undefined;
+  }
+  if (entry.kind === "migration-test") {
+    const run = runOf(detail.run);
+    const plan = typeof detail.plan === "string" && detail.plan.trim() !== "";
+    if (!run || run.purpose !== purpose || run.exit_code !== 0 || run.tree !== detail.tree || !plan) {
+      fail(`evidence ${entry.id} needs a passing migration test run on its tree and the declared compatibility or rollback plan`);
+    }
+    return undefined;
+  }
+  const red = runOf(detail.red);
+  const green = runOf(detail.green);
+  const paired =
+    red &&
+    green &&
+    red.purpose === purpose &&
+    green.purpose === purpose &&
+    red.exit_code !== 0 &&
+    green.exit_code === 0 &&
+    red.command === green.command &&
+    red.tree !== green.tree &&
+    runIndex.get(red.id) < runIndex.get(green.id);
+  if (!paired) fail(`evidence ${entry.id} needs a failing run followed by a passing run of the same command on another tree`);
+  validateCounterproof(entry, runOf, fail);
+  return undefined;
+}
+
+// A failing counterproof run detects the change when its control, the same
+// command on the base without the tests of the diff, passed or failed another
+// way: with another exit code or another output (E1.48).
+function counterproofDetects(run, control) {
+  if (!run || !control || run.exit_code === 0) return false;
+  return control.exit_code === 0 || control.exit_code !== run.exit_code || control.output_sha256 !== run.output_sha256;
+}
+
+/**
+ * Whether one counterproof run among `runs` detects the change, by its control
+ * among them. A control that failed another way leaves the red unproven
+ * unless the controls of the declared checks, the other controls, all passed:
+ * the base then runs its own tests in the worktree (E1.48).
+ */
+function counterproofDetected(runs) {
+  const controls = runs.filter((run) => run.control === true);
+  return runs.some((run) => {
+    const control = controls.find((entry) => entry.command === run.command);
+    if (run.control || !counterproofDetects(run, control)) return false;
+    const checks = controls.filter((entry) => entry.command !== run.command);
+    return control.exit_code === 0 || (checks.length > 0 && checks.every((entry) => entry.exit_code === 0));
+  });
+}
+
+// A pair or boundary-tests recorded since E1.48 names its counterproof: runs
+// of the base, one of which detects the change against its control, or the
+// reason it was skipped. Evidence recorded before it names neither and stays
+// valid.
+function validateCounterproof(entry, runOf, fail) {
+  const { counterproof, counterproof_skipped: skipped } = entry.detail || {};
+  if (counterproof === undefined && skipped === undefined) return;
+  if (counterproof !== undefined && skipped !== undefined) {
+    fail(`evidence ${entry.id} names a counterproof and the reason it was skipped`);
+    return;
+  }
+  if (skipped !== undefined) {
+    if (typeof skipped !== "string" || skipped.trim() === "") fail(`evidence ${entry.id} needs the reason its counterproof was skipped`);
+    return;
+  }
+  const runs = isTextList(counterproof) ? counterproof.map(runOf) : [];
+  if (runs.length === 0 || runs.some((run) => run?.purpose !== "counterproof") || !counterproofDetected(runs)) {
+    fail(`evidence ${entry.id} needs a counterproof run that failed on the change's base where its control, without the tests of the diff, passed or failed another way`);
+  }
+}
+
+// contract-spec-and-test needs a contract document and a test in the diff,
+// with every check passing on the same tree (REQ-idd-015).
+function validateContractEvidence(entry, evidenceById, fail) {
+  const detail = entry.detail || {};
+  const check = evidenceById.get(detail.check);
+  const listed = (key) => Array.isArray(detail[key]) && detail[key].length > 0;
+  if (!check || check.kind !== "check-run" || check.detail?.tree !== detail.tree || !listed("documents") || !listed("tests")) {
+    fail(`evidence ${entry.id} needs a contract document, a test and a passing check on its tree`);
+  }
+}
+
+// The advisory correction of an approved review (REQ-idd-016, E1.63): at most
+// one per review, of a review that used no blocking correction, naming
+// advisory findings it froze and paths it reviewed. A decided one keeps the
+// validator's verdict, and it passed only without a regression or an
+// unresolved finding.
+const CORRECTION_STATUSES = Object.freeze(["validating", "passed", "failed"]);
+function validateAdvisoryCorrections(corrections, reviews, fail) {
+  const seen = new Set();
+  const strings = (value) => Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string" && item.length > 0);
+  for (const correction of corrections) {
+    const id = correction?.lineage_id;
+    const review = reviews.find((lineage) => lineage?.lineage_id === id);
+    if (!review || review.status !== "approved" || (review.correction_history || []).length > 0) {
+      fail("an advisory correction needs an approved trust review that used no correction");
+      continue;
+    }
+    if (seen.has(id)) fail("a trust review takes one advisory correction");
+    seen.add(id);
+    if (!CORRECTION_STATUSES.includes(correction.status)) fail(`an advisory correction status must be one of ${CORRECTION_STATUSES.join(", ")}`);
+    const advisory = new Set((review.findings || []).filter((finding) => !finding.blocking).map((finding) => finding.id));
+    if (!strings(correction.finding_ids) || correction.finding_ids.some((finding) => !advisory.has(finding))) {
+      fail("an advisory correction names advisory findings of its review");
+    }
+    const frozen = new Set(review.genesis?.paths || []);
+    if (!strings(correction.paths) || correction.paths.some((file) => !frozen.has(file))) {
+      fail("an advisory correction stays inside the frozen paths of its review");
+    }
+    const budget = review.correction_budget || {};
+    if (!Number.isInteger(correction.changed_lines) || correction.changed_lines < 0 || correction.changed_lines > budget.limit_lines) {
+      fail("an advisory correction stays inside the line budget of its review");
+    }
+    if (typeof correction.candidate_tree !== "string" || typeof correction.diff_hash !== "string" || typeof correction.recorded_at !== "string") {
+      fail("an advisory correction needs its candidate_tree, diff_hash and recorded_at");
+    }
+    const validation = correction.validation;
+    if (correction.status === "validating" ? validation !== undefined : !validation || typeof validation !== "object") {
+      fail("an advisory correction keeps the validator's verdict once it is decided, and only then");
+    } else if (validation) {
+      const outcomes = Array.isArray(validation.outcomes) ? validation.outcomes : [];
+      const clean = validation.regression?.detected === false && outcomes.length === (correction.finding_ids || []).length
+        && outcomes.every((outcome) => outcome?.status === "resolved");
+      if ((correction.status === "passed") !== clean) fail("an advisory correction passes only without a regression or an unresolved finding");
+    }
+  }
+}
+
+// frozen-review must name an approved review of the candidate it names, with
+// the findings it froze (REQ-idd-016). Evidence recorded before OSP-029 has no
+// attestation; newer evidence says the result was relayed, or names the
+// SubagentStop receipt of the same result (REQ-hooks-027).
+function validateReviewEvidence(entry, reviews, corrections, fail) {
+  const detail = entry.detail || {};
+  const review = reviews.find((lineage) => lineage?.lineage_id === detail.lineage_id);
+  const approved =
+    review &&
+    review.status === "approved" &&
+    review.current_candidate_id === detail.candidate_id &&
+    review.findings_digest === detail.findings_digest;
+  if (!approved) fail(`evidence ${entry.id} needs an approved trust review of its candidate`);
+  // An approval that covers a corrected tree names the advisory correction
+  // that passed on it (E1.63).
+  if (detail.correction !== undefined) {
+    const passed = detail.correction === "advisory" && corrections.some((correction) =>
+      correction?.lineage_id === detail.lineage_id && correction.status === "passed" && correction.candidate_tree === detail.candidate_tree);
+    if (!passed) fail(`evidence ${entry.id} needs a passed advisory correction of its review on its tree`);
+  }
+  if (detail.attestation !== undefined && !["relayed", "subagent-stop"].includes(detail.attestation)) fail(`evidence ${entry.id} has an unknown attestation`);
+  const receipt = detail.receipt;
+  const receipted = receipt !== undefined;
+  if (receipted !== (detail.attestation === "subagent-stop")) fail(`evidence ${entry.id} names a receipt only with attestation subagent-stop`);
+  if (receipted && !(receipt && ["review-trust", "review-correction"].includes(receipt.agent) && typeof receipt.recorded_at === "string"
+    && /^sha256:[0-9a-f]{64}$/.test(receipt.result_digest))) {
+    fail(`evidence ${entry.id} needs a receipt with its reviewer, recorded_at and result_digest`);
+  }
+}
+
+// The open-facts declaration (REQ-idd-018): the behavior questions neither the
+// request nor the code settles, or the basis for declaring none. States
+// recorded before the declaration existed have no facts and stay valid. An
+// intent raised to another kind (E1.44) keeps the answered entries of the
+// facts it replaced, so only an open entry needs questions.
+function validateFacts(state, fail) {
+  const facts = state.facts;
+  const entries = state.gates.filter((entry) => entry.id === "open-facts");
+  const gate = entries.length > 0;
+  const asking = entries.some((entry) => entry.status === "open");
+  if (facts == null) {
+    if (gate) fail("the open-facts gate needs the open facts it asks");
+    return;
+  }
+  const isText = (value) => typeof value === "string" && value.trim() !== "";
+  const keys = Object.keys(facts);
+  if (keys.length === 1 && keys[0] === "coverage") {
+    validateCoverage(facts.coverage, { gate, asking }, fail);
+    return;
+  }
+  if (keys.length !== 1 || !["open", "basis"].includes(keys[0])) {
+    fail("facts must hold either the open questions, the basis for none, or feature coverage");
+    return;
+  }
+  if (keys[0] === "open") {
+    if (!Array.isArray(facts.open) || facts.open.length === 0 || !facts.open.every(isText)) {
+      fail("facts.open must list at least one question");
+    }
+    if (!gate) fail("open facts need the open-facts gate");
+  } else {
+    if (!isText(facts.basis)) fail("facts.basis must say why no fact is open");
+    if (asking) fail("the open-facts gate needs open facts, not a basis");
+  }
+}
+
+// The five core categories always; url-state and accessibility only when the
+// project has a UI or no code (E4.16), so a state may leave them out.
+function validateCoverage(coverage, { gate, asking }, fail) {
+  if (!Array.isArray(coverage) || !CORE_CATEGORY_IDS.every((id) => coverage.some((entry) => entry?.category === id))) {
+    fail("facts.coverage must cover every feature category");
+    return;
+  }
+  const seen = new Set();
+  let questions = 0;
+  for (const entry of coverage) {
+    if (entry == null || !CATEGORY_IDS.includes(entry.category) || seen.has(entry.category)) {
+      fail("facts.coverage must list each feature category once");
+      return;
+    }
+    seen.add(entry.category);
+    const question = typeof entry.question === "string" && entry.question.trim() !== "";
+    const cite = entry.cite;
+    const cited = (cite?.kind === "path" && typeof cite.path === "string" && Number.isInteger(cite.line) && cite.line >= 1)
+      || (cite?.kind === "request" && typeof cite.text === "string" && cite.text.trim() !== "");
+    if (question === cited) {
+      fail(`facts.coverage ${entry.category} needs a question or a cite`);
+      return;
+    }
+    if (question) questions += 1;
+  }
+  if (questions > 0 && !gate) fail("open facts need the open-facts gate");
+  if (questions === 0 && asking) fail("the open-facts gate needs open facts, not only citations");
+}
+
+function isPlainObject(value) {
+  return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isCeremonyConfig(config) {
+  return (
+    isPlainObject(config) &&
+    Object.keys(config).sort().join() === "contracts,impact,strict_tdd" &&
+    typeof config.strict_tdd === "boolean" &&
+    isPlainObject(config.impact) &&
+    isPlainObject(config.contracts)
+  );
+}
+
+function isTextList(value) {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string" && entry !== "");
+}
+
+// A check as checks-changed approves it: its name and command, and the paths
+// of a scoped check (E1.67).
+function isApprovedCheck(entry) {
+  if (!isTextList([entry?.name, entry?.command])) return false;
+  const keys = Object.keys(entry).length;
+  return keys === 2 || (keys === 3 && isTextList(entry.paths) && entry.paths.length > 0);
+}
+
+// The checks a check-run skipped, each with its name and reason (E1.67).
+function isSkippedChecks(value) {
+  return Array.isArray(value) && value.length > 0 && value.every((entry) => isTextList([entry?.name, entry?.reason]) && Object.keys(entry).length === 2);
+}
+
+// The declared plan (E1.11): what `ospec signals` was told the change touches.
+// States recorded before the plan existed have none and stay valid. The texts
+// of --decision (E4.16) are kept only when there is one, so older plans keep
+// their four fields.
+function validatePlan(plan, fail) {
+  if (plan === undefined) return;
+  const decisions = plan?.decisions === undefined || (isTextList(plan.decisions) && plan.decisions.length > 0 && plan.decision === true);
+  const valid =
+    plan !== null &&
+    typeof plan === "object" &&
+    isTextList(plan.paths) &&
+    Number.isInteger(plan.work_units) &&
+    plan.work_units >= 1 &&
+    typeof plan.decision === "boolean" &&
+    isTextList(plan.operations) &&
+    decisions &&
+    Object.keys(plan).length === (plan.decisions === undefined ? 4 : 5);
+  if (!valid) fail("plan must hold its paths, work_units (at least 1), decision and operations, and the texts of its decisions if any");
+}
+
+// The declared architecture references (E3.1): an ADR or quality scenario,
+// its impact once declared with the reason, and the new ADR that amends or
+// supersedes an ADR. States recorded before E3.1 have none and stay valid.
+function validateImpacts(impacts, fail) {
+  if (impacts === undefined) return;
+  const isText = (value) => typeof value === "string" && value.trim() !== "";
+  const seen = new Set();
+  for (const entry of impacts) {
+    const label = `impact ${entry?.kind}:${entry?.id}`;
+    if (entry == null || !REFERENCE_KINDS.includes(entry.kind) || !isText(entry.id)) {
+      fail("an impact needs a kind (adr or scenario) and an id");
+      continue;
+    }
+    if (seen.has(`${entry.kind}:${entry.id}`)) fail(`${label} is declared twice`);
+    seen.add(`${entry.kind}:${entry.id}`);
+    for (const key of Object.keys(entry)) {
+      if (!["kind", "id", "impact", "reason", "previous", "record"].includes(key)) fail(`${label} has unknown field ${key}`);
+    }
+    if (entry.impact === null) {
+      if (entry.reason !== undefined || entry.record !== undefined || entry.previous !== undefined) fail(`${label} has a reason, record or previous impact before its impact`);
+      continue;
+    }
+    if (!IMPACTS.includes(entry.impact)) fail(`${label} must be one of ${IMPACTS.join(", ")}`);
+    if (!isText(entry.reason)) fail(`${label} needs the reason for its impact`);
+    // E1.69: what a raised impact replaced, oldest first, each lower than the next.
+    if (entry.previous !== undefined) {
+      const steps = Array.isArray(entry.previous) ? [...entry.previous, entry] : [];
+      const rank = (step) => (GATED_IMPACTS.includes(step?.impact) ? 2 : ["none", "conforms"].indexOf(step?.impact));
+      const raised = steps.length > 1 && steps.every((step, index) => isText(step?.reason) && (index === 0 ? rank(step) >= 0 : rank(step) > rank(steps[index - 1])));
+      const plain = steps.slice(0, -1).every((step) => Object.keys(step).every((key) => ["impact", "reason"].includes(key)));
+      if (!raised || !plain) fail(`${label}: previous lists the lower impacts it was raised from, each with its reason`);
+    }
+    if (entry.record !== undefined && (!isText(entry.record) || entry.kind !== "adr" || !RECORDED_IMPACTS.includes(entry.impact))) {
+      fail(`${label}: only an ADR amended or superseded names its new record`);
+    }
+  }
+}
+
+// adr-impact-declaration names the references it settles and, when the change
+// had executable fitness functions, the passing fitness runs on its tree.
+function validateImpactEvidence(entry, runs, runIndex, fail) {
+  const detail = entry.detail || {};
+  if (!(Array.isArray(detail.refs) && detail.refs.length > 0)) fail(`evidence ${entry.id} must name the declared references it settles`);
+  if (detail.fitness === undefined) return;
+  const ids = Array.isArray(detail.fitness) ? detail.fitness : [];
+  const passing = (id) => {
+    const run = runIndex.has(id) ? runs[runIndex.get(id)] : null;
+    return run && run.purpose === "fitness" && run.exit_code === 0 && run.tree === detail.tree;
+  };
+  if (ids.length === 0 || !SHA256.test(detail.tree || "") || !ids.every(passing)) {
+    fail(`evidence ${entry.id} must name passing fitness runs on its tree`);
+  }
+}
+
+// The manual evidence of a fitness function no command checks (REQ-idd-022):
+// one entry per declared reference, kept for the record, never an obligation's
+// evidence. States recorded before E3.3 have none and stay valid.
+function validateAttestations(state, fail) {
+  const isText = (value) => typeof value === "string" && value.trim() !== "";
+  const declared = new Set((state.impacts || []).map((entry) => `${entry?.kind}:${entry?.id}`));
+  const seen = new Set();
+  for (const entry of state.attestations || []) {
+    const key = `${entry?.kind}:${entry?.id}`;
+    const keys = entry && typeof entry === "object" ? Object.keys(entry) : [];
+    if (!REFERENCE_KINDS.includes(entry?.kind) || !isText(entry.id) || !isText(entry.evidence) || !isText(entry.recorded_at) || keys.length !== 4) {
+      fail("an attestation needs a kind (adr or scenario), an id, its evidence and recorded_at");
+      continue;
+    }
+    if (!declared.has(key)) fail(`attestation ${key} names no declared reference`);
+    if (seen.has(key)) fail(`attestation ${key} is recorded twice`);
+    seen.add(key);
+  }
+}
+
+function isIntentAmbiguous(state) {
+  return state.gates.some((gate) => gate.id === "ambiguous-intent" && gate.status === "open");
+}
+
+function canWithdraw(state, obligationId) {
+  for (const signal of state.signals) {
+    if (SIGNAL_BY_ID.get(signal.id)?.obligation === obligationId) {
+      return { ok: false, reason: `signal ${signal.id} still derives ${obligationId}` };
+    }
+  }
+  return { ok: true };
+}
+
+// The obligations an active signal derives that the state lost or withdrew.
+// The commands never leave one (addSignal adds or reopens it, canWithdraw
+// refuses the withdrawal), so only a hand edit does (B2): close refuses it and
+// `ospec check` reopens it.
+function signalGaps(state) {
+  const gaps = [];
+  for (const signal of state.signals) {
+    const id = SIGNAL_BY_ID.get(signal.id)?.obligation;
+    const obligation = state.obligations.find((entry) => entry.id === id);
+    if (!obligation || obligation.status === "withdrawn") {
+      gaps.push({ obligation: id, signal: signal.id, status: obligation ? "withdrawn" : "missing" });
+    }
+  }
+  return gaps;
+}
+
+function canClose(state) {
+  const blocking = [
+    ...state.obligations.filter((o) => o.status === "pending").map((o) => o.id),
+    ...state.gates.filter((g) => g.status === "open").map((g) => `gate:${g.id}`),
+  ];
+  return { ok: blocking.length === 0, blocking };
+}
+
+module.exports = {
+  ANSWER_RETRACTABLE_SIGNALS,
+  ARCHIVE_ROOT,
+  BASE_GATE,
+  CHANGE_ID_PATTERN,
+  CHANGE_ROOT,
+  CHANGE_STATUSES,
+  CLOSE_TIME,
+  DECISIONS_MARKERS,
+  DECISIONS_ROOT,
+  DEFAULT_MODE,
+  EVIDENCE_KINDS,
+  EVIDENCE_MARKERS,
+  GATED_IMPACTS,
+  GATES,
+  GATE_SOURCES,
+  GATE_STATUSES,
+  IMPACTS,
+  INTENT_KINDS,
+  LIVING_DOC_FILE,
+  LIVING_DOC_SECTIONS,
+  MODES,
+  OBLIGATIONS,
+  OBLIGATION_STATUSES,
+  PLAN_MARKERS,
+  RECORDED_IMPACTS,
+  REFERENCE_KINDS,
+  RUN_EVIDENCE,
+  RETRACTABLE_SIGNALS,
+  RUN_PURPOSES,
+  SIGNALS,
+  SIGNAL_SOURCES,
+  STATE_FIELDS,
+  STATE_FILE,
+  STATE_SCHEMA,
+  canClose,
+  canWithdraw,
+  counterproofDetected,
+  counterproofDetects,
+  deriveObligations,
+  isIntentAmbiguous,
+  resolveMode,
+  signalGaps,
+  validateState,
+};

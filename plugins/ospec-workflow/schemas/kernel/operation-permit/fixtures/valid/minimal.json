@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "operation-permit/v1",
+  "permit_id": "permit:runtime:0001",
+  "domain": "lifecycle",
+  "operation": "start",
+  "subject_id": "lifecycle:default",
+  "expected_revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "arguments_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "scope_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "policy_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "budget_ref": "budget:none",
+  "single_use": true
+}
