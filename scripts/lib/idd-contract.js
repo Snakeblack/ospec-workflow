@@ -49,6 +49,7 @@ const STATE_FIELDS = Object.freeze([
   "advisory_corrections",
   "assumptions",
   "changelog_line",
+  "completes",
   "closed_at",
 ]);
 const CHANGE_STATUSES = Object.freeze(["open", "closed"]);
@@ -202,6 +203,7 @@ function validateState(state) {
   if ("changelog_line" in state && !(isText(state.changelog_line) && !/[\r\n]/.test(state.changelog_line))) {
     fail("changelog_line must be one line of text");
   }
+  if ("completes" in state && !(isText(state.completes) && state.completes !== state.change)) fail("completes must name another change");
   if (errors.length > 0) return { ok: false, errors };
 
   // While ambiguous-intent is open the intent stays unresolved, keeps the

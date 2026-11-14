@@ -13,6 +13,7 @@ const {
   IddRecordError,
   recordAssumption,
   recordChangelog,
+  recordCompletes,
   recordAttestation,
   recordBase,
   recordEvidence,
@@ -1083,4 +1084,21 @@ test("[REQ-idd-025] a changelog line is folded to one line, replaced by the next
   assert.deepStrictEqual(declared.state.intent, open.intent, "the intent stays as recorded");
   assertCode(() => recordChangelog(open, { line: " " }), "changelog-line-required");
   assertCode(() => recordChangelog({ ...declared.state, status: "closed" }, { line: "Late." }), "change-closed");
+});
+
+test("[REQ-idd-025] a follow-up names one closed change whose entry is unpublished (#513)", () => {
+  const open = recordIntent(null, { ...BUG_INTENT, change: "fix-pages" }).state;
+  const target = { changelog: "CHANGELOG.md", archived: { change: "fix-readme" }, unreleased: { section: "Changed", line: "- Fix a typo. (fix-readme)" } };
+  const declared = recordCompletes(open, { of: "fix-readme", target });
+  assert.deepStrictEqual([declared.changed, declared.state.completes], [true, "fix-readme"]);
+  assert.strictEqual(recordCompletes(declared.state, { of: "fix-readme", target }).changed, false);
+  assert.strictEqual(recordCompletes(declared.state, { of: "fix-other", target: { ...target, archived: { change: "fix-other" } } }).state.completes, "fix-other", "the last one replaces it");
+  assert.ok(!("completes" in recordCompletes(declared.state, { clear: true }).state));
+  assert.strictEqual(recordCompletes(open, { clear: true }).changed, false);
+  assertCode(() => recordCompletes(open, { of: " ", target }), "completes-required");
+  assertCode(() => recordCompletes(open, { of: "fix-readme", target: { ...target, changelog: null } }), "completes-without-changelog");
+  assertCode(() => recordCompletes(open, { of: "fix-readme", target: { ...target, archived: null } }), "completes-unknown");
+  assertCode(() => recordCompletes(open, { of: "fix-readme", target: { ...target, archived: { change: "fix-readme", completes: "first" } } }), "completes-follow-up");
+  assertCode(() => recordCompletes(open, { of: "fix-readme", target: { ...target, unreleased: null } }), "completes-released");
+  assertCode(() => recordCompletes({ ...open, status: "closed" }, { of: "fix-readme", target }), "change-closed");
 });

@@ -642,3 +642,10 @@ test("[REQ-idd-003] changelog_line is optional and one line of text (#512)", () 
     assert.strictEqual(contract.validateState(validState({ changelog_line: bad })).ok, false, JSON.stringify(bad));
   }
 });
+
+test("[REQ-idd-003] completes is optional and names another change (#513)", () => {
+  assert.deepStrictEqual(contract.validateState(validState({ completes: "other-change" })), { ok: true, errors: [] });
+  for (const bad of ["", 3, null, validState().change]) {
+    assert.strictEqual(contract.validateState(validState({ completes: bad })).ok, false, JSON.stringify(bad));
+  }
+});

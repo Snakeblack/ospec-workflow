@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Un cambio de seguimiento declara con ospec record completes el cambio cerrado que completa, pasa su ceremonia entera y no añade una entrada propia al changelog. (follow-up-change)
+
 ## [2.176.0] - 2026-11-14
 
 ### Added

@@ -52,7 +52,7 @@ const {
   skippedCheckWarnings,
 } = require("./lib/idd-check.js");
 const { classifyContractPaths } = require("./lib/idd-contracts.js");
-const { addEntry, changelogEntry, proposeRelease } = require("./lib/idd-changelog.js");
+const { addEntry, changelogEntry, proposeRelease, replaceUnreleasedEntry, unreleasedEntry } = require("./lib/idd-changelog.js");
 const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvidence, requireResumable, staleEvidence } = require("./lib/idd-close.js");
 const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
 const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, counterproofDetects, isIntentAmbiguous } = require("./lib/idd-contract.js");
@@ -66,6 +66,8 @@ const {
   IddRecordError,
   recordAssumption,
   recordChangelog,
+  recordCompletes,
+  requireCompletable,
   recordAttestation,
   recordBase,
   recordGate,
@@ -146,6 +148,9 @@ const USAGE = `Usage:
   ospec record assumption --change <id> --text <text>
   ospec record changelog --change <id> (--line <text> | --clear)
                          the line ospec close writes to the changelog in place of the summary of the intent
+  ospec record completes --change <id> (--of <closed change> | --clear)
+                         a follow-up of a closed change whose entry is still under [Unreleased]:
+                         it passes its whole ceremony and adds no changelog entry of its own
   ospec record signal --change <id> --signal <id> --reason <text> [--source declaration|diff]
   ospec record gate --change <id> --gate <id> (--open [--reason <text>] | --resolve --answer <text> --source user|user-unverified)
   ospec record base --change <id> (--to <rev> --reason <text> | --cancel)
@@ -232,6 +237,7 @@ const OPTIONS = {
   text: { type: "string" },
   line: { type: "string" },
   clear: { type: "boolean" },
+  of: { type: "string" },
   answer: { type: "string" },
   source: { type: "string" },
   signal: { type: "string" },
@@ -341,6 +347,11 @@ function reducerFor(type, values, root) {
     case "changelog":
       if (Boolean(values.clear) === (values.line !== undefined)) throw new UsageError("record changelog needs --line <text> or --clear");
       return existing((state) => recordChangelog(state, { line: values.line, clear: values.clear }));
+    case "completes":
+      if (Boolean(values.clear) === (values.of !== undefined)) throw new UsageError("record completes needs --of <closed change> or --clear");
+      // The closed change and its entry are read from the project; a change
+      // closed or ambiguous is refused by recordCompletes first.
+      return existing((state) => recordCompletes(state, { of: values.of, clear: values.clear, target: values.clear || !values.of.trim() ? undefined : readCompleted(root, values.of) }));
     case "signal":
       return existing((state) =>
         recordSignal(state, { id: values.signal, reason: values.reason, source: values.source || "declaration" }),
@@ -1142,18 +1153,34 @@ function requireDerived(root, state) {
   throw error;
 }
 
-async function findArchived(root, changeId) {
+function readArchived(root, changeId) {
   const archive = path.join(root, ...ARCHIVE_ROOT.split("/"));
   let names = [];
   try {
-    names = await fsp.readdir(archive);
+    names = fs.readdirSync(archive);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
   const name = names.filter((entry) => entry.endsWith(`-${changeId}`) && /^\d{4}-\d{2}-\d{2}-/.test(entry)).sort().at(-1);
   if (!name) return null;
-  const state = JSON.parse(await fsp.readFile(path.join(archive, name, STATE_FILE), "utf8"));
+  const state = JSON.parse(fs.readFileSync(path.join(archive, name, STATE_FILE), "utf8"));
   return state.change === changeId && state.status === "closed" ? state : null;
+}
+
+async function findArchived(root, changeId) {
+  return readArchived(root, changeId);
+}
+
+// What a follow-up needs of the change it completes (#513): the changelog
+// the project declares, the archived state of that change and whether its
+// entry is still under ## [Unreleased].
+function readCompleted(root, changeId) {
+  changeDir(root, changeId);
+  const team = readTeam(root, "idd");
+  const file = team.changelog.source === CONFIG_FILE && team.changelog.value !== CHANGELOG_NONE ? team.changelog.value : null;
+  const archived = readArchived(root, changeId);
+  const unreleased = file && archived ? unreleasedEntry(readText(path.join(root, ...file.split("/"))), changeId) : null;
+  return { changelog: file, archived, unreleased };
 }
 
 async function close(root, values) {
@@ -1177,6 +1204,8 @@ async function close(root, values) {
       closeChange(state, { closedAt, livingDoc });
       requireDerived(root, state);
       readTeam(root, "idd");
+      // A follow-up closes only while the entry it leans on is unpublished (#513).
+      if (state.completes) requireCompletable(state.completes, readCompleted(root, state.completes));
       const validated = serializeState(state);
       ({ state } = await mutateChange(root, values.change, existing((stored) => {
         // The state closed is the one validated above (B2): git runs outside
@@ -1231,18 +1260,31 @@ function closeDelivery(root, state, { write, strict = write }) {
   let text = null;
   if (file && file !== CHANGELOG_NONE) {
     const target = path.join(root, ...file.split("/"));
-    const entry = changelogEntry(state);
     text = readText(target);
-    let written = false;
-    if (write) {
-      const added = addEntry(text, entry);
-      if (added.written) {
-        fs.mkdirSync(path.dirname(target), { recursive: true });
-        fs.writeFileSync(target, added.text);
+    if (state.completes) {
+      // A follow-up adds no entry (#513): the one of the change it completes
+      // stands, with the line the follow-up declared when it declared one.
+      let entry = unreleasedEntry(text, state.completes);
+      let written = false;
+      if (write && entry && state.changelog_line) {
+        const replaced = replaceUnreleasedEntry(text, state.completes, state.changelog_line);
+        if (replaced.written) fs.writeFileSync(target, replaced.text);
+        ({ text, written, entry } = replaced);
       }
-      ({ text, written } = added);
+      result.changelog = { path: file, completes: state.completes, section: entry?.section ?? null, entry: entry?.line ?? null, written };
+    } else {
+      const entry = changelogEntry(state);
+      let written = false;
+      if (write) {
+        const added = addEntry(text, entry);
+        if (added.written) {
+          fs.mkdirSync(path.dirname(target), { recursive: true });
+          fs.writeFileSync(target, added.text);
+        }
+        ({ text, written } = added);
+      }
+      result.changelog = { path: file, section: entry.section, entry: entry.line, written };
     }
-    result.changelog = { path: file, section: entry.section, entry: entry.line, written };
   }
   if (declared(team.release) === "per-change") {
     // Without a changelog nothing gives the version or the notes.
@@ -1863,7 +1905,11 @@ function describeClose(result) {
 
 function describeCloseDelivery({ changelog, release, delivery }) {
   const lines = [];
-  if (changelog) {
+  if (changelog?.completes) {
+    // A follow-up (#513): no entry of its own, and what became of the other.
+    const entry = changelog.entry ? `${changelog.written ? "now reads" : "stays"} under [Unreleased] ### ${changelog.section}: ${changelog.entry}` : "is no longer under [Unreleased]";
+    lines.push(`changelog: ${changelog.path} gets no entry, this change completes ${changelog.completes}, whose entry ${entry}`);
+  } else if (changelog) {
     const how = changelog.written ? "added" : "already holds";
     lines.push(`changelog: ${changelog.path} ${how} under [Unreleased] ### ${changelog.section}: ${changelog.entry}`);
   }

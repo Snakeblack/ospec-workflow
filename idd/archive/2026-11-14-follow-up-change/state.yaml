@@ -1,0 +1,381 @@
+{
+  "schema": "idd-state/v1",
+  "change": "follow-up-change",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "si y si, soluciona todo con lo recomendado",
+    "kind": "feature",
+    "summary": "Un cambio de seguimiento declara con ospec record completes el cambio cerrado que completa, pasa su ceremonia entera y no añade una entrada propia al changelog.",
+    "acceptance": "Un cambio que declara completar a otro archivado cuya entrada sigue bajo [Unreleased] cierra sin añadir entrada, y su estado archivado nombra al que completa; si la entrada del original ya salió en una versión o el original no existe, la declaración se rechaza con su remedio; un cambio que no declara nada escribe su entrada como hoy."
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿El cambio completado se nombra por su id, tiene que estar archivado en idd/archive y con su entrada todavía bajo [Unreleased] del changelog declarado, y la declaración se puede hacer en cualquier momento mientras el seguimiento esté abierto?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿Un seguimiento completa un solo cambio, otra declaración sustituye a la anterior, y se rechaza nombrar como completado a otro seguimiento (que no tiene entrada propia), con un remedio que nombra al cambio original?"
+      },
+      {
+        "category": "persistence",
+        "question": "¿Se guarda en state.yaml como un campo opcional completes con el id del cambio completado, de modo que un estado anterior sigue siendo válido y un CLI anterior rechaza solo un estado que ya lo tenga?"
+      },
+      {
+        "category": "copy",
+        "question": "¿La orden se llama ospec record completes --change <id> --of <id del cambio cerrado>, con --clear para retirarla, sin gate, y close dice en su salida que no añade entrada y qué cambio completa? Y si el seguimiento declara además una línea con ospec record changelog, ¿close sustituye con ella el texto de la entrada del original, conservando el id del original?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 75
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 753
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Si entre la declaración y el close la entrada del original sale en una versión, ¿close se rechaza con un remedio (retirar la declaración con --clear para que el seguimiento escriba su propia entrada)? ¿Y en un proyecto sin delivery.changelog la declaración se rechaza, porque no hay entrada que evitar?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/entrega.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-changelog.js",
+      "scripts/lib/idd-changelog.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Un seguimiento declara el cambio que completa en vez de reabrirlo: ospec no tiene que saber si está fusionado y la evidencia y la revisión grabadas no quedan desfasadas.",
+      "La entrada del cambio completado se busca bajo [Unreleased] por el id que cierra su línea, no por su texto, así que sigue encontrándose tras corregirla.",
+      "No se encadenan seguimientos: el de un seguimiento nombra al cambio original, que es el que tiene la entrada.",
+      "close vuelve a comprobar la declaración antes de grabar nada, y si la entrada ya se publicó se rechaza con --clear como remedio, en vez de escribir una entrada sin avisar.",
+      "record completes no abre ningún gate: close dice siempre en su salida que no añade entrada y qué cambio completa."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine: ADR 0003, 0004, 0005, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La declaración, sus rechazos y el cierre los decide el CLI (record completes, close); ninguna skill describe la regla."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "El seguimiento pasa su ceremonia entera: no cambia señales, obligaciones ni gates, solo si añade entrada al changelog."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El cierre sigue ligado a la evidencia del seguimiento; close vuelve a comprobar la declaración antes de grabar nada."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "Sin dependencias nuevas."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "completes vive en idd/<cambio>/state.yaml y lee idd/archive; SDD no lo lee."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "completes está en state.yaml y close lo relee del disco, así que un cierre reanudado da el mismo resultado."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "Ninguna llamada de red."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "record completes tiene tests en scripts/lib/idd-record.test.js, idd-changelog.test.js, idd-contract.test.js y scripts/ospec.test.js (#513); ninguna skill cambia.",
+      "recorded_at": "2026-11-14T17:14:42.406Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El diff solo lee idd/archive y el changelog del disco: ninguna llamada de red ni lectura de memoria.",
+      "recorded_at": "2026-11-14T17:14:42.565Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 347,
+      "answer": "me gusta lo propuesto",
+      "source": "user",
+      "resolved_turn": 349
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-14T17:16:27.755Z",
+      "detail": {
+        "tree": "sha256:2e30f7eb052e0e7ca184245d81ad3a63474741dd1a9e7886f6eadd05cceb6c1a",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-14T17:16:27.755Z",
+      "detail": {
+        "tree": "sha256:2e30f7eb052e0e7ca184245d81ad3a63474741dd1a9e7886f6eadd05cceb6c1a",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-changelog.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-14T17:16:27.755Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0010 none",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:2e30f7eb052e0e7ca184245d81ad3a63474741dd1a9e7886f6eadd05cceb6c1a",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-14T17:16:40.643Z",
+      "detail": {
+        "run": "run-8",
+        "tree": "sha256:fc452ef903646af5d20f25b8e3539bda4d2c5b9b6a2c00f5217c28d4fabe727a",
+        "plan": "completes es un campo opcional de state.yaml: un estado anterior sigue siendo válido y ninguno se reescribe. Un CLI anterior rechaza como state-invalid solo un estado que ya lo tenga, abierto o archivado; para volver atrás, ospec record completes --clear antes de cerrar con la versión anterior."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-14T17:16:40.843Z"
+    }
+  ],
+  "base": "20788f3ed02121a5a6c4347aec65df58916d6018",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:067afccdffcfa619160a00a1e995f11d01663c3b1d8fb6e13fa0a340eab6ac19",
+      "tree": "sha256:2e30f7eb052e0e7ca184245d81ad3a63474741dd1a9e7886f6eadd05cceb6c1a",
+      "recorded_at": "2026-11-14T17:16:27.755Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:82c049ab2b53baf939e380986d3b26c3ea8e43e24b59a430cdbdcc8475794361",
+      "tree": "sha256:2e30f7eb052e0e7ca184245d81ad3a63474741dd1a9e7886f6eadd05cceb6c1a",
+      "recorded_at": "2026-11-14T17:16:27.755Z",
+      "tests": 61
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:367cc0321d64eae0aabf92d9fced2cf25519f9a85aa830aea4c33f961d74eb11",
+      "tree": "sha256:2e30f7eb052e0e7ca184245d81ad3a63474741dd1a9e7886f6eadd05cceb6c1a",
+      "recorded_at": "2026-11-14T17:16:27.755Z",
+      "tests": 18
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:2e30f7eb052e0e7ca184245d81ad3a63474741dd1a9e7886f6eadd05cceb6c1a",
+      "recorded_at": "2026-11-14T17:16:27.755Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:38a377e003c24650fa2b7eb84ef15ee299ace7d796d80c0f089ea0fa5f6f2f9d",
+      "tree": "sha256:2e30f7eb052e0e7ca184245d81ad3a63474741dd1a9e7886f6eadd05cceb6c1a",
+      "recorded_at": "2026-11-14T17:16:27.755Z",
+      "tests": 26
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9b4bb2d83871a0f79fc67da51ab811c1aa96946e23d52dc86375aaf71f4e005d",
+      "tree": "sha256:2e30f7eb052e0e7ca184245d81ad3a63474741dd1a9e7886f6eadd05cceb6c1a",
+      "recorded_at": "2026-11-14T17:16:27.755Z",
+      "tests": 96
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f77790b31d3e16cee72b2647872fa7dfa7962c3a78a7ddd14d550962ccd2a678",
+      "tree": "sha256:2e30f7eb052e0e7ca184245d81ad3a63474741dd1a9e7886f6eadd05cceb6c1a",
+      "recorded_at": "2026-11-14T17:16:27.755Z",
+      "tests": 52
+    },
+    {
+      "id": "run-8",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern='#513' scripts/lib/idd-contract.test.js scripts/lib/idd-record.test.js scripts/lib/idd-changelog.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:903f6cfebbfb7a5b91457301ad48b9a1dcec248ee9aaa7316e9e52c649d2f64b",
+      "tree": "sha256:fc452ef903646af5d20f25b8e3539bda4d2c5b9b6a2c00f5217c28d4fabe727a",
+      "recorded_at": "2026-11-14T17:16:40.643Z",
+      "tests": 7
+    }
+  ],
+  "closed_at": "2026-11-14T17:16:40.843Z"
+}

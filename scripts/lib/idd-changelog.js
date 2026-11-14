@@ -99,6 +99,48 @@ function addEntry(text, { section, line }) {
   return { text: lines.join(eol), written: true };
 }
 
+// The entry of change `changeId` under ## [Unreleased]: its line index, text
+// and section, or null once a version holds it (#513).
+function findUnreleased(lines, changeId) {
+  const range = unreleasedRange(lines);
+  if (!range) return null;
+  const suffix = ` (${changeId})`;
+  let section = null;
+  for (let index = range.start + 1; index < range.end; index += 1) {
+    const heading = SECTION_HEADING.exec(lines[index]);
+    if (heading) section = heading[1];
+    else if (lines[index].startsWith("- ") && lines[index].trimEnd().endsWith(suffix)) return { index, line: lines[index].trimEnd(), section };
+  }
+  return null;
+}
+
+/**
+ * The entry a closed change left under ## [Unreleased], by the id that ends
+ * its line, or null when the changelog is missing or a version holds it.
+ * @returns {{ section: string|null, line: string }|null}
+ */
+function unreleasedEntry(text, changeId) {
+  if (text == null) return null;
+  const found = findUnreleased(text.split(/\r?\n/), changeId);
+  return found ? { section: found.section, line: found.line } : null;
+}
+
+/**
+ * Replaces the text of that entry with `summary`, keeping the id of its
+ * change. Nothing is written when the entry is missing or already says it.
+ * @returns {{ text: string, written: boolean, entry: { section: string|null, line: string }|null }}
+ */
+function replaceUnreleasedEntry(text, changeId, summary) {
+  if (text == null) return { text, written: false, entry: null };
+  const lines = text.split(/\r?\n/);
+  const found = findUnreleased(lines, changeId);
+  if (!found) return { text, written: false, entry: null };
+  const line = `- ${summary.replace(/\s+/g, " ").trim()} (${changeId})`;
+  if (found.line === line) return { text, written: false, entry: { section: found.section, line } };
+  lines[found.index] = line;
+  return { text: lines.join(text.includes("\r\n") ? "\r\n" : "\n"), written: true, entry: { section: found.section, line } };
+}
+
 function bumpVersion([major, minor, patch], bump) {
   return bump === "minor" ? `${major}.${minor + 1}.0` : `${major}.${minor}.${patch + 1}`;
 }
@@ -132,4 +174,6 @@ module.exports = {
   addEntry,
   changelogEntry,
   proposeRelease,
+  replaceUnreleasedEntry,
+  unreleasedEntry,
 };
