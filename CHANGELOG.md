@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- ospec run dice por qué una ejecución en verde no grabó evidencia, y un check o un run fallido guarda su salida completa en un fichero local y lo nombra junto a la cola. (failed-run-visibility)
+
 ## [2.175.0] - 2026-11-13
 
 ### Added

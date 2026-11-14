@@ -1454,6 +1454,19 @@ again, so a test the base already passes, recorded before the fix, does not
 close the pair. Each unit counts by its latest pair. Evidence
 recorded before E1.48 names neither and stays valid.
 
+The state of a change keeps of a run only what the list above names. A check
+of `ospec check` or a run of `ospec run` that exits non-zero MUST also write
+its whole output, as the digest `output_sha256` reads it, to
+`.ospec/runs/<change>/<run id>.log`, a local file git ignores, and return that
+path from the project root as `output_file` on the run it reports, never in
+`state.yaml`; the text output MUST name it under the last lines of the
+output. A passing run, a fitness check and a counterproof write none, and
+`ospec close` MUST remove the files of the change it closes (#511). A passing
+`ospec run` of `repro-test` or `tdd-red-green` that records no evidence MUST
+return as `reason` why the pair stays pending, the reason `ospec check` gives
+for that obligation, and the text output MUST print it on the line of the run
+(#510).
+
 When the project declares exactly one check and the `--command` of `ospec run`
 equals its command, apart from leading and trailing spaces, the run MUST also
 count as that check (E4.15): besides its own run it MUST record a `checks` run
@@ -1488,6 +1501,19 @@ prints it before the refusal.
 - AND `close` MUST succeed: four calls to the CLI
 - AND a feature with one question MUST close with five: `record intent`, the
   `record gate` of the answer, the red and green runs and `close`
+
+#### Scenario: A failing run keeps its whole output and a refused pair says why
+
+- GIVEN an open bug change and a test command that prints its error, then
+  thirty more lines, and exits 1
+- WHEN `ospec run --obligation repro-test` runs it
+- THEN the run MUST report `output_file` `.ospec/runs/<change>/run-1.log`,
+  whose content digests to the `output_sha256` of `run-1`, and `state.yaml`
+  MUST NOT hold that path
+- AND a later passing run of a command that runs no test of the diff MUST
+  print `no evidence recorded by this run: the diff adds no line to a test`
+  and the rest of that reason
+- AND `ospec close` MUST remove `.ospec/runs/<change>/`
 
 #### Scenario: A run of the only check leaves the evidence of check
 

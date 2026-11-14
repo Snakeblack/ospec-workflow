@@ -56,7 +56,7 @@ const { addEntry, changelogEntry, proposeRelease } = require("./lib/idd-changelo
 const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvidence, requireResumable, staleEvidence } = require("./lib/idd-close.js");
 const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
 const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, counterproofDetects, isIntentAmbiguous } = require("./lib/idd-contract.js");
-const { TIMED_OUT_EXIT, runCommand } = require("./lib/idd-exec.js");
+const { TIMED_OUT_EXIT, captureCommand, dropRunOutputs, keepRunOutput, runCommand } = require("./lib/idd-exec.js");
 const { CATEGORY_IDS, UI_CATEGORY_IDS, countTests, projectCategories, resolveFeatureCoverage } = require("./lib/idd-facts.js");
 const { fitnessPlan } = require("./lib/idd-fitness.js");
 const { memoryQuery, resolveReferences, touchedComponents } = require("./lib/idd-knowledge.js");
@@ -870,8 +870,11 @@ async function check(root, values) {
   const treeBefore = readTreeFingerprint(root);
   const checkTreeBefore = readCheckTreeFingerprint(root, context.checks);
   const { run: scoped, skipped } = inputs.scope;
+  const outputs = [];
   const checks = scoped.map(({ name, command }) => {
-    const result = { name, command, ...runCommand(command, { cwd: root }) };
+    const captured = captureCommand(command, { cwd: root });
+    outputs.push(captured.output);
+    const result = { name, command, ...captured.result };
     const tests = countTests(result.output_tail);
     if (tests != null) result.tests = tests;
     return result;
@@ -893,6 +896,10 @@ async function check(root, values) {
       return { state: settled.state, changed: changedFrom(stored, settled.state) };
     }),
   );
+  // The state keeps the tail; the whole output of a failing check stays local (#511).
+  checks.forEach((run, index) => {
+    if (run.exit_code !== 0) run.output_file = keepRunOutput(root, state.change, settled.runIds[index], outputs[index]);
+  });
   const verdict = checkVerdict(state, {
     checks: context.checks,
     candidateCommand: context.candidateCommand,
@@ -976,7 +983,7 @@ async function runObligation(root, values) {
   }
   const tree = readTreeFingerprint(root);
   const checkTreeBefore = inputs ? readCheckTreeFingerprint(root, context.checks) : null;
-  const result = runCommand(values.command, { cwd: root });
+  const { result, output: wholeOutput } = captureCommand(values.command, { cwd: root });
   const recordedAt = new Date().toISOString();
   const extra = values.unit ? { unit: values.unit } : {};
   const after = inputs
@@ -1035,6 +1042,7 @@ async function runObligation(root, values) {
     : {};
   const verdict = checkVerdict(state, { ...context, ...counted, livingDoc: readLivingDoc(root, state) });
   const output = { change: state.change, run: { id: runId, ...extra, ...result }, evidence };
+  if (result.exit_code !== 0) output.run.output_file = keepRunOutput(root, state.change, runId, wholeOutput);
   if (settledCheck) output.check = { name: onlyCheck.name, run: settledCheck.runIds[0], evidence: settledCheck.evidence, added: settledCheck.added };
   const counterproved = pairRecorded ?? settledCheck?.counterproof;
   if (counterproved) {
@@ -1043,6 +1051,9 @@ async function runObligation(root, values) {
     warnings.push(...view.warnings);
   }
   if (warnings.length) output.warnings = warnings;
+  // A passing run that closes no pair says why, as ospec check does (#510).
+  const refused = !migration && !evidence && result.exit_code === 0 ? verdict.missing.find((entry) => entry.obligation === values.obligation)?.reason : null;
+  if (refused) output.reason = refused;
   return { ...output, ...verdict, next: nextAfterWrite(root, state) };
 }
 
@@ -1177,6 +1188,7 @@ async function close(root, values) {
     }
     if (await fsp.stat(changeDir(root, state.change)).then(() => true, () => false)) writeEvidenceSection(root, state);
     const archive = await archiveChange(root, state);
+    dropRunOutputs(root, state.change);
     const warnings = [...skippedCheckWarnings(state), ...counterproofWarnings(state), ...unverifiedGateWarnings(state)];
     return {
       change: state.change,
@@ -1742,7 +1754,14 @@ function describeVerdict(result) {
 
 function describeRun(label, run) {
   const lines = [`${label}: exit ${run.exit_code}`];
-  if (run.exit_code !== 0) for (const line of run.output_tail) lines.push(`  ${line}`);
+  if (run.exit_code !== 0) lines.push(...describeOutput(run));
+  return lines;
+}
+
+// The last lines of a failing run and the file that keeps the rest (#511).
+function describeOutput(run) {
+  const lines = run.output_tail.map((line) => `  ${line}`);
+  if (run.output_file) lines.push(`  full output: ${run.output_file}`);
   return lines;
 }
 
@@ -1757,7 +1776,7 @@ function describeCheck(result) {
   ];
   if (runs.length) lines.push(`ran: ${runs.map((run) => `${run.label} exit ${run.exit_code}`).join(", ")}`);
   for (const { name, reason } of result.skipped || []) lines.push(`check ${name} did not run: ${reason}`);
-  for (const run of runs.filter((entry) => entry.exit_code !== 0)) lines.push(`${run.label} \`${run.command}\`:`, ...run.output_tail.map((line) => `  ${line}`));
+  for (const run of runs.filter((entry) => entry.exit_code !== 0)) lines.push(`${run.label} \`${run.command}\`:`, ...describeOutput(run));
   lines.push(...describeFitness({ checks: [], manual: (result.fitness?.manual || []).filter((item) => !item.evidence) }));
   lines.push(...describeCounterproof(result.counterproof));
   lines.push(...describeAdded(result.added));
@@ -1781,9 +1800,9 @@ function describeAdded(added) {
 }
 
 function describeRunResult(result) {
-  const evidence = result.evidence ? `recorded evidence ${result.evidence}` : "no evidence recorded by this run";
+  const evidence = result.evidence ? `recorded evidence ${result.evidence}` : `no evidence recorded by this run${result.reason ? `: ${result.reason}` : ""}`;
   const lines = [`${result.run.id}: exit ${result.run.exit_code}; ${evidence}`];
-  if (result.run.exit_code !== 0) lines.push(...result.run.output_tail.map((line) => `  ${line}`));
+  if (result.run.exit_code !== 0) lines.push(...describeOutput(result.run));
   lines.push(...describeCounterproof(result.counterproof));
   if (result.check) {
     const { name, run, evidence: checked, added } = result.check;

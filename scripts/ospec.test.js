@@ -4631,3 +4631,76 @@ test("ospec router refuses without a built router, an edited file or a bad scope
   assert.strictEqual(scope.code, 2);
   assert.match(scope.stderr, /--scope takes user or project/);
 });
+
+// #510: a passing run of a pair that records no evidence says why, with the
+// reason ospec check gives.
+test("[REQ-idd-014] a passing run that closes no pair prints why (#510)", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_BUG);
+  ospec(root, "signals", "--change", "fix-pagination", "--path", "src/pages.txt");
+  const marker = `node -e "process.exit(require('fs').existsSync('marker') ? 0 : 1)"`;
+  const run = () => ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", marker);
+  assert.match(run().stdout, /^run-1: exit 1; no evidence recorded by this run\n/, "a failing run keeps its line");
+  writeFile(root, "marker", "");
+  assert.match(run().stdout, /^run-2: exit 0; no evidence recorded by this run: the diff adds no line to a test: .+\nnext \(repro-test\): /);
+});
+
+test("[REQ-idd-014] a reproduction that never failed names what may have hidden its red (#510)", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_BUG);
+  ospec(root, "signals", "--change", "fix-pagination", "--path", "src/pages.txt");
+  const first = ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", "node -e 0");
+  assert.match(
+    first.stdout,
+    /^run-1: exit 0; no evidence recorded by this run: no failing run recorded: run the test with ospec run --obligation repro-test before the fix; if it passes without the fix, check that no tool wrote a generated file, such as a lockfile, again before the test ran\n/,
+    first.stderr,
+  );
+});
+
+// #511: the whole output of a failing check or run stays in a local file.
+const LONG_FAILURE = `node -e "console.log('expected 2 pages, got 1');for(let i=1;i<=30;i++)console.log('line '+i);process.exit(1)"`;
+
+function sha256Of(file) {
+  return `sha256:${require("node:crypto").createHash("sha256").update(fs.readFileSync(file)).digest("hex")}`;
+}
+
+test("[REQ-idd-014] a failing run keeps its whole output in .ospec/runs and close removes it (#511)", (t) => {
+  const { root } = project(t, { checks: "checks:\n  test: node -e 0\n" });
+  ospec(root, ...OPEN_BUG);
+  ospec(root, "signals", "--change", "fix-pagination");
+  const run = (command, ...flag) => ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", command, ...flag);
+  const failing = run(LONG_FAILURE, "--json");
+  assert.strictEqual(failing.json.run.output_file, ".ospec/runs/fix-pagination/run-1.log");
+  const file = path.join(root, ".ospec/runs/fix-pagination/run-1.log");
+  assert.match(fs.readFileSync(file, "utf8"), /^expected 2 pages, got 1\n/);
+  const stored = stateOf(root, "fix-pagination").runs.find((entry) => entry.id === "run-1");
+  assert.strictEqual(sha256Of(file), stored.output_sha256);
+  assert.strictEqual(stored.output_file, undefined, "the state keeps its shape");
+  assert.doesNotMatch(failing.json.run.output_tail.join("\n"), /expected 2 pages/, "the tail misses the error");
+
+  const text = run(LONG_FAILURE);
+  assert.match(text.stdout, /\n {2}line 30\n {2}full output: \.ospec\/runs\/fix-pagination\/run-2\.log\n/);
+
+  // The pair of test/pages.js closes the change; a passing run writes nothing.
+  writeFile(root, "test/pages.js", `${VERIFY}\n`);
+  run("node test/pages.js", "--json");
+  writeFile(root, "src/pages.txt", "2");
+  const green = run("node test/pages.js", "--json");
+  assert.strictEqual(green.json.run.output_file, undefined);
+  assert.deepStrictEqual(fs.readdirSync(path.join(root, ".ospec/runs/fix-pagination")).sort(), ["run-1.log", "run-2.log", "run-3.log"]);
+  const closed = ospec(root, "check", "--change", "fix-pagination", "--close", "--json");
+  assert.strictEqual(closed.code, 0, closed.stdout + closed.stderr);
+  assert.ok(!fs.existsSync(path.join(root, ".ospec/runs/fix-pagination")), "close removes the outputs of the change");
+});
+
+test("[REQ-idd-014] a failing check names the file with its whole output (#511)", (t) => {
+  const { root } = project(t, { checks: `checks:\n  test: ${LONG_FAILURE}\n  lint: node -e 0\n` });
+  ospec(root, ...OPEN_DOCS);
+  const failing = ospec(root, "check", "--change", "fix-readme", "--json");
+  const [test_, lint] = failing.json.checks;
+  assert.strictEqual(test_.output_file, ".ospec/runs/fix-readme/run-1.log");
+  assert.strictEqual(lint.output_file, undefined);
+  assert.strictEqual(sha256Of(path.join(root, test_.output_file)), stateOf(root, "fix-readme").runs[0].output_sha256);
+  const text = ospec(root, "check", "--change", "fix-readme");
+  assert.match(text.stdout, /\n {2}line 30\n {2}full output: \.ospec\/runs\/fix-readme\/run-3\.log\n/);
+});
