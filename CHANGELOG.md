@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.175.1] - 2026-11-14
+
 ### Fixed
-- ospec run dice por qué una ejecución en verde no grabó evidencia, y un check o un run fallido guarda su salida completa en un fichero local y lo nombra junto a la cola. (failed-run-visibility)
+- **`ospec run` dice por qué no grabó evidencia y una ejecución fallida guarda su salida completa** (failed-run-visibility, #510 y #511).
+  - **El problema**: un `ospec run` en verde que no cerraba su par respondía `no evidence recorded by this run` sin el motivo, que solo salía en `ospec check`. Y de un check fallido quedaban las 20 últimas líneas de su salida: con un runner que termina en un resumen, el error no estaba entre ellas y había que relanzar la orden aparte.
+  - **El motivo**: la línea de una ejecución en verde de `repro-test` o `tdd-red-green` que no cierra su par lleva ahora el motivo que da `ospec check` (el diff no añade ninguna línea a un test, la contraprueba pasa en la base, falta la ejecución en rojo), y el JSON lo devuelve en `reason`. La línea de una ejecución en rojo no cambia.
+  - **La salida completa**: un check o un `ospec run` que falla guarda su salida entera en `.ospec/runs/<cambio>/<run>.log`, un fichero local que git ignora, y el CLI lo nombra bajo las últimas líneas (`output_file` en el JSON). `ospec close` borra los del cambio que cierra. Las contrapruebas y los fitness checks no guardan nada.
+  - **Lockfiles**: una reproducción que nunca falló avisa de que una herramienta pudo reescribir un fichero generado, como un lockfile, antes de que corriera el test.
+  - **Contrato y compatibilidad**: REQ-idd-014 describe los dos comportamientos, con un escenario. `state.yaml` no cambia de forma; `output_file` y `reason` son campos opcionales de la respuesta.
+
+**Verificación directa**: `node scripts/check.js` (4616 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
 
 ## [2.175.0] - 2026-11-13
 
