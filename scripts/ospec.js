@@ -65,6 +65,7 @@ const { refusalHow } = require("./lib/idd-refusals.js");
 const {
   IddRecordError,
   recordAssumption,
+  recordChangelog,
   recordAttestation,
   recordBase,
   recordGate,
@@ -143,6 +144,8 @@ const USAGE = `Usage:
                                 [--adr <id>]... [--quality <id>]... [--security], declared as ospec signals does
   ospec record intent --change <id> --ambiguous --request <text>
   ospec record assumption --change <id> --text <text>
+  ospec record changelog --change <id> (--line <text> | --clear)
+                         the line ospec close writes to the changelog in place of the summary of the intent
   ospec record signal --change <id> --signal <id> --reason <text> [--source declaration|diff]
   ospec record gate --change <id> --gate <id> (--open [--reason <text>] | --resolve --answer <text> --source user|user-unverified)
   ospec record base --change <id> (--to <rev> --reason <text> | --cancel)
@@ -227,6 +230,8 @@ const OPTIONS = {
   cite: { type: "string", multiple: true },
   quote: { type: "string", multiple: true },
   text: { type: "string" },
+  line: { type: "string" },
+  clear: { type: "boolean" },
   answer: { type: "string" },
   source: { type: "string" },
   signal: { type: "string" },
@@ -333,6 +338,9 @@ function reducerFor(type, values, root) {
     case "assumption":
       if (!values.text) throw new UsageError("record assumption needs --text <text>");
       return existing((state) => recordAssumption(state, { text: values.text }));
+    case "changelog":
+      if (Boolean(values.clear) === (values.line !== undefined)) throw new UsageError("record changelog needs --line <text> or --clear");
+      return existing((state) => recordChangelog(state, { line: values.line, clear: values.clear }));
     case "signal":
       return existing((state) =>
         recordSignal(state, { id: values.signal, reason: values.reason, source: values.source || "declaration" }),

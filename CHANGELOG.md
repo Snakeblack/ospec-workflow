@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Un cambio abierto puede declarar y corregir la línea que publica en el changelog con ospec record changelog, sin tocar el intent ni su aceptación. (changelog-line)
+
 ## [2.175.1] - 2026-11-14
 
 ### Fixed

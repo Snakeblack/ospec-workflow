@@ -4704,3 +4704,51 @@ test("[REQ-idd-014] a failing check names the file with its whole output (#511)"
   const text = ospec(root, "check", "--change", "fix-readme");
   assert.match(text.stdout, /\n {2}line 30\n {2}full output: \.ospec\/runs\/fix-readme\/run-3\.log\n/);
 });
+
+// #512: the line a change publishes in the changelog can be declared and
+// corrected while it is open; the intent stays as recorded.
+test("[REQ-idd-025] record changelog replaces the line close writes and keeps the intent (#512)", (t) => {
+  const { root } = project(t, { checks: DECLARED_DELIVERY });
+  writeFile(root, "CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\n## [1.4.2] - 2026-10-01\n");
+  ospec(root, ...OPEN_DOCS);
+  const record = (...args) => ospec(root, "record", "changelog", "--change", "fix-readme", ...args, "--json");
+
+  const first = record("--line", "Fix a typo  and\nthe broken link.");
+  assert.deepStrictEqual([first.code, first.json.changed], [0, true], first.stderr);
+  assert.strictEqual(stateOf(root, "fix-readme").changelog_line, "Fix a typo and the broken link.");
+  assert.strictEqual(record("--line", "Fix a typo and the broken link.").json.changed, false, "the same line changes nothing");
+  assert.strictEqual(record("--line", "Fix two typos.").json.changed, true, "the last line replaces the one before");
+  assert.strictEqual(stateOf(root, "fix-readme").intent.summary, "Fix a typo.", "the intent stays as recorded");
+
+  // The intent still refuses another summary, and its remedy names the command.
+  const conflict = ospec(root, ...OPEN_DOCS.map((arg) => (arg === "Fix a typo." ? "Fix two typos." : arg)), "--json");
+  assert.strictEqual(conflict.json.error?.code, "intent-conflict");
+  assert.match(conflict.json.error.how, /ospec record changelog --change fix-readme --line/);
+
+  assert.strictEqual(record().code, 2, "neither --line nor --clear is a usage error");
+  assert.strictEqual(record("--line", "x", "--clear").code, 2);
+  assert.strictEqual(record("--line", "  ").json.error?.code, "changelog-line-required");
+
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  const closed = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.deepStrictEqual(closed.json.changelog, { path: "CHANGELOG.md", section: "Changed", entry: "- Fix two typos. (fix-readme)", written: true });
+  assert.match(fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8"), /## \[Unreleased\]\n\n### Changed\n- Fix two typos\. \(fix-readme\)\n/);
+  // An archived change takes no record, as record assumption answers.
+  assert.strictEqual(record("--line", "Late.").json.error?.code, ospec(root, "record", "assumption", "--change", "fix-readme", "--text", "Late.", "--json").json.error?.code);
+});
+
+test("[REQ-idd-025] record changelog --clear returns to the summary, and an ambiguous intent declares no line (#512)", (t) => {
+  // Without delivery.changelog the line is kept all the same.
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  const record = (change, ...args) => ospec(root, "record", "changelog", "--change", change, ...args, "--json");
+  assert.strictEqual(record("fix-readme", "--clear").json.changed, false, "nothing to clear");
+  record("fix-readme", "--line", "Fix two typos.");
+  assert.strictEqual(record("fix-readme", "--clear").json.changed, true);
+  assert.ok(!("changelog_line" in stateOf(root, "fix-readme")));
+
+  ospec(root, "record", "intent", "--change", "improve-login", "--ambiguous", "--request", "Improve the login.", "--json");
+  assert.strictEqual(record("improve-login", "--line", "Better login.").json.error?.code, "ambiguous-intent-open");
+  assert.strictEqual(record("no-such", "--line", "x").json.error?.code, "unknown-change");
+});

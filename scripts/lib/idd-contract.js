@@ -48,6 +48,7 @@ const STATE_FIELDS = Object.freeze([
   "reviews",
   "advisory_corrections",
   "assumptions",
+  "changelog_line",
   "closed_at",
 ]);
 const CHANGE_STATUSES = Object.freeze(["open", "closed"]);
@@ -197,6 +198,9 @@ function validateState(state) {
     const assumptions = state.assumptions;
     const text = (entry) => typeof entry === "string" && entry.trim() !== "";
     if (!Array.isArray(assumptions) || !assumptions.every(text)) fail("assumptions must be a list of text");
+  }
+  if ("changelog_line" in state && !(isText(state.changelog_line) && !/[\r\n]/.test(state.changelog_line))) {
+    fail("changelog_line must be one line of text");
   }
   if (errors.length > 0) return { ok: false, errors };
 
