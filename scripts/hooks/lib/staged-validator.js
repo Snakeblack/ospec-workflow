@@ -345,6 +345,20 @@ function findAffectedTests(stagedFiles, repoRoot, deps = {}) {
         }
       }
 
+      // Los tests de un módulo partidos por área o de otro tipo se llaman
+      // <name>.<parte>.test.js y viven a su lado (scripts/ospec.review.test.js).
+      let siblings = [];
+      try {
+        siblings = typeof fsImpl.readdirSync === "function" ? fsImpl.readdirSync(path.resolve(repoRoot, dir)) : [];
+      } catch {
+        siblings = [];
+      }
+      for (const sibling of siblings) {
+        if (sibling.startsWith(`${name}.`) && sibling.endsWith(".test.js") && sibling !== `${name}.test.js`) {
+          testsToRun.add(path.posix.join(dir, sibling));
+        }
+      }
+
       if (lower.startsWith("scripts/configure/")) {
         testsToRun.add("scripts/configure/cli.test.js");
       }

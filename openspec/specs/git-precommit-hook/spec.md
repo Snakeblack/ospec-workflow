@@ -193,7 +193,7 @@ El sistema diferencial de pre-commit MUST identificar de manera conservadora los
 ### Requirement: Fallback a suite de pruebas completa ante cambios en infraestructura central {#REQ-git-precommit-hook-002}
 El sistema de pruebas diferencial (`findAffectedTests`) MUST determinar los archivos de prueba a ejecutar asegurando cobertura total ante modificaciones en componentes centrales:
 - Si los archivos preparados modifican módulos de infraestructura o librerías compartidas en `scripts/lib/` (fuera de comprobadores aislados de contratos en `scripts/lib/contract-checkers/`) o el script orquestador de validación `scripts/check.js`, el sistema MUST retornar la suite completa de pruebas nativas de Node (`node --test scripts/**/*.test.js`).
-- Para cambios en código JS con pruebas acopladas directas (`<name>.test.js`), el sistema MUST incluir las pruebas correspondientes.
+- Para cambios en código JS con pruebas acopladas directas (`<name>.test.js`, y `<name>.<parte>.test.js` en su mismo directorio cuando las pruebas del módulo se parten por área o por tipo), el sistema MUST incluir las pruebas correspondientes.
 - Si los cambios preparados tocan únicamente agentes, skills, reglas o documentación, el sistema MUST incluir las pruebas de contratos y documentación (`scripts/contract-lint.test.js`, `scripts/docs-lint.test.js`).
 
 #### Scenario: Fallback a suite completa por cambio en módulo central de scripts/lib
@@ -211,6 +211,12 @@ El sistema de pruebas diferencial (`findAffectedTests`) MUST determinar los arch
 - GIVEN un cambio preparado únicamente en `scripts/hooks/session-start.js`
 - WHEN se determinan las pruebas afectadas
 - THEN el sistema selecciona exclusivamente su prueba asociada `scripts/hooks/session-start.test.js`.
+
+#### Scenario: Pruebas de un módulo partidas por área
+- GIVEN un cambio preparado únicamente en `scripts/ospec.js`, cuyas pruebas viven en `scripts/ospec.test.js` y en `scripts/ospec.<área>.test.js`
+- WHEN se determinan las pruebas afectadas
+- THEN el sistema selecciona `scripts/ospec.test.js` y cada `scripts/ospec.<área>.test.js`
+- AND no selecciona `scripts/ospec-<otro>.test.js` ni `scripts/ospecx.test.js`, que son pruebas de otros módulos.
 
 ---
 
