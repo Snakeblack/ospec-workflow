@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.178.1] - 2026-11-15
+
 ### Fixed
-- Validate Harness tarda 9-15 min por PR y el 13 % de las ejecuciones necesita relanzarse: scripts/ospec.test.js corre en serie 443 s en Windows y 288 s en macOS y marca el job crítico, y los tests con plazos reales (hooks de Codex en shells reales, lanzador) agotan su plazo bajo la contención de la suite (ci-speed-flakes)
+- **Validate Harness tarda menos de la mitad y corre aparte los tests con plazo real** (ci-speed-flakes y ci-shards-rebalance; avance de E1.30, #344).
+  - **El problema**: el job más lento de cada ejecución tardaba 672 s de mediana (máximo 877 s) y 13 de las 100 últimas ejecuciones se relanzaron. `scripts/ospec.test.js`, con 184 tests que `node --test` corre en serie en un solo proceso, tardaba 443 s en Windows y marcaba el shard que lo recibía. `codex-hook-shell.test.js` agotaba en Windows, bajo la contención de la suite, el plazo de 4 s del lanzador incluso tras su reintento.
+  - **Contrato de la CLI partido por áreas**: `scripts/ospec.test.js` se queda con el núcleo y el resto pasa a `scripts/ospec.<área>.test.js` (counterproof, review, review-correction, close, impact, output y lifecycle), con los helpers comunes en `scripts/lib/test-support/ospec-cli.js`. Es un movimiento puro: los mismos 184 tests.
+  - **Dos fases en `check.js`**: lista él mismo los ficheros de test y se los pasa a `node --test`. Los de `SERIAL_TESTS` (`codex-hook-shell.test.js` y `ospec-hooks-launch.test.js`) corren después de la fase paralela, de uno en uno; con `--shard`, cada uno en un shard. Si un fichero de la lista no existe, `check.js` falla, y un test compara la lista con el glob de Node.
+  - **Más shards**: Windows pasa de 2 a 4 y macOS de 1 a 3. Con 3 y 2, el reparto por turnos de `--test-shard` dejaba un shard de Windows con 897 s de tests frente a 457 y 612 s.
+  - **Pre-commit**: un `<nombre>.js` preparado ejecuta también sus `<nombre>.<parte>.test.js`, como las partes de `scripts/ospec.js` o `staged-validator.integration.test.js` (REQ-git-precommit-hook-002).
+  - **Medido en la PR #519**: 5 ejecuciones sobre la configuración final, todas en verde, sin fallos y sin reintentos. Job más lento: 258 s de mediana (máximo 375 s, por un shard de macOS lento en una ejecución); pared total: 263 s de mediana. `codex-hook-shell` tarda 20-31 s en la fase serie, frente a 75-101 s dentro de la suite. En local, `node scripts/check.js` pasa de unos 115 s a 65 s. Que no haya fallos en 8 ejecuciones aún no demuestra que la tasa de fallos haya bajado, así que E1.30 sigue abierto.
+
+**Verificación directa**: `node scripts/check.js` (4640 tests pasando, 0 fallos y 5 omitidos), 59 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados.
 
 ## [2.178.0] - 2026-11-15
 
