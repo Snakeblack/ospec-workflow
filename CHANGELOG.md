@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Validate Harness tarda 9-15 min por PR y el 13 % de las ejecuciones necesita relanzarse: scripts/ospec.test.js corre en serie 443 s en Windows y 288 s en macOS y marca el job crítico, y los tests con plazos reales (hooks de Codex en shells reales, lanzador) agotan su plazo bajo la contención de la suite (ci-speed-flakes)
+
 ## [2.178.0] - 2026-11-15
 
 ### Added
