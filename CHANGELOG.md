@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.177.0] - 2026-11-14
+
+### Added
+- **`ospec record completes` declara un cambio de seguimiento, que no añade entrada propia al changelog** (follow-up-change, #513).
+  - **El problema**: un ajuste pedido después de cerrar un cambio y antes de publicar su versión necesitaba un cambio IDD nuevo, y cada uno añadía su entrada al changelog aunque solo completara el trabajo del anterior. Una release podía salir con entradas de pura intendencia.
+  - **La orden**: `ospec record completes --change <id> --of <cambio cerrado>` declara que el cambio abierto completa a uno ya cerrado. El seguimiento pasa su ceremonia entera, con sus obligaciones y su evidencia, y `ospec close` no añade entrada: la del cambio completado sigue en pie. `--clear` retira la declaración.
+  - **Cuándo vale**: mientras la entrada del cambio completado siga bajo `## [Unreleased]`. `close` lo vuelve a comprobar antes de grabar nada, y dice siempre en su salida que no añade entrada y qué cambio completa.
+  - **Corregir la entrada**: si el seguimiento declara además una línea con `ospec record changelog`, esa línea sustituye el texto de la entrada del cambio completado y conserva su id.
+  - **Rechazos**: `completes-unknown` para un cambio sin archivar, `completes-released` si su entrada ya salió en una versión (con `--clear` como remedio, para que el seguimiento escriba la suya), `completes-follow-up` para otro seguimiento, con el nombre del cambio original, `completes-without-changelog` en un proyecto sin `delivery.changelog` y `completes-required` para un texto vacío.
+  - **Contrato y compatibilidad**: REQ-idd-003 y REQ-idd-025 describen el campo y la orden, con un escenario. `completes` es un campo opcional de `state.yaml`: un estado anterior sigue siendo válido y ninguno se reescribe. Un CLI anterior rechaza como `state-invalid` solo un estado que ya lo tenga. Un cambio que no declara nada escribe su entrada como antes.
+
+**Verificación directa**: `node scripts/check.js` (4628 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
+
 ## [2.176.0] - 2026-11-14
 
 ### Added

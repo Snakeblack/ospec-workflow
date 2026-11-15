@@ -77,7 +77,7 @@ artifacts there.
 `refactor`, `docs`, plus `summary` and `acceptance`, and optionally the original
 `request`), `facts` (the open-facts declaration of REQ-idd-018: either `open`,
 the list of open questions, `basis`, why none is open, or `coverage` for a
-feature), `assumptions` (text recorded with `ospec record assumption`), optionally `changelog_line` (the one line of text `ospec record changelog` declares, REQ-idd-025), `signals` (each with `id`, `reason` and `source`, `declaration` or
+feature), `assumptions` (text recorded with `ospec record assumption`), optionally `changelog_line` (the one line of text `ospec record changelog` declares, REQ-idd-025) and `completes` (the id of the closed change a follow-up completes, never its own, REQ-idd-025), `signals` (each with `id`, `reason` and `source`, `declaration` or
 `diff`), `obligations` (each with `id`, `signal`, `status` in `pending`,
 `satisfied`, `withdrawn`, the `evidence` ids that satisfy it and, when
 withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
@@ -116,7 +116,7 @@ lineage, with its `lineage_id`, `status`, `finding_ids`, `paths`,
 `changed_lines`, `candidate_tree`, `diff_hash`, `recorded_at` and, once
 decided, the `validation` it got), plus `closed_at` once the change is
 closed (REQ-idd-017), an ISO 8601 UTC timestamp, since it names the archive. A state without `base`, `base_moves`, `plan`, `retracted`, `impacts`,
-`attestations`, `runs`, `reviews`, `advisory_corrections`, `facts`, `assumptions` or `changelog_line` MUST stay valid, as the states written before they existed. While the
+`attestations`, `runs`, `reviews`, `advisory_corrections`, `facts`, `assumptions`, `changelog_line` or `completes` MUST stay valid, as the states written before they existed. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
 request, and `signals` and `obligations` MUST be empty. `state.yaml` MUST be
@@ -2871,6 +2871,30 @@ without `delivery.changelog` MUST keep the line all the same, since close
 writes no entry there. `record intent` with another summary MUST still be
 refused with `intent-conflict`, and its remedy MUST name this command.
 
+`ospec record completes --change <id> --of <closed change>` MUST record in
+`completes` the closed change an open one follows up, so an adjustment asked
+after a close and before its release adds no entry of its own (#513). The
+follow-up MUST pass its whole ceremony as any change, and the command opens no
+gate. `<closed change>` MUST name a change archived under `idd/archive/` whose
+entry, the line that ends with ` (<its id>)`, is still under `## [Unreleased]`
+of the declared changelog: a change that is not archived MUST be refused with
+`completes-unknown`, one whose entry a version holds or that has none with
+`completes-released`, one that is itself a follow-up with
+`completes-follow-up` and a message that names the change it completes, a
+project without `delivery.changelog` with `completes-without-changelog`, and
+empty text with `completes-required`. A follow-up completes one change: the
+last declaration MUST replace the one before, `--clear` MUST remove it, and
+`--of` together with `--clear`, or neither, is a usage error. `ospec close`
+MUST check the declaration again before it records anything and refuse with
+`completes-released`, with the `--clear` that makes the change write its own
+entry as remedy, when the entry was published in between. Closing a follow-up
+MUST NOT add an entry: the one of the change it completes stands, and when
+the follow-up declared a `changelog_line` close MUST replace the text of that
+entry with it, keeping the id of the completed change. The result MUST return
+`changelog` with `completes`, the `section` and `entry` that stand and whether
+this close `written` them, and the text output MUST say that the changelog
+gets no entry and which change the follow-up completes.
+
 When `delivery.release` declares `per-change`, the result MUST also return
 `release`, the proposal the changelog gives: `version`, the latest version
 under `## [Unreleased]` raised by a minor when `[Unreleased]` holds an `Added`
@@ -2898,6 +2922,22 @@ before this requirement. SDD MUST NOT read them (ADR 0011).
   and `intent.summary` MUST still be `Fix a typo.`
 - AND `record intent` with the summary `Fix two typos.` MUST be refused with
   `intent-conflict`, whose remedy names `ospec record changelog`
+
+#### Scenario: A follow-up adds no entry and may rewrite the one it completes
+
+- GIVEN `delivery: { changelog: CHANGELOG.md }`, a closed change `fix-readme`
+  whose entry `- Fix a typo. (fix-readme)` is under `## [Unreleased]`, and an
+  open change `fix-dates`
+- WHEN `ospec record completes --change fix-dates --of fix-readme` runs and
+  `fix-dates` closes
+- THEN `CHANGELOG.md` MUST stay as it was, the archived state of `fix-dates`
+  MUST hold `completes: fix-readme`, and close MUST print that the changelog
+  gets no entry
+- AND had `fix-dates` declared the line `Fix a typo and the dates.`, the entry
+  MUST read `- Fix a typo and the dates. (fix-readme)`
+- AND with that entry under `## [1.4.3]` instead, close MUST be refused with
+  `completes-released`, and a follow-up of `fix-dates` with
+  `completes-follow-up`
 
 #### Scenario: A closed change leaves its entry and proposes the release
 

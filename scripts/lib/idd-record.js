@@ -772,11 +772,47 @@ function recordChangelog(state, { line, clear = false } = {}) {
   return { state: { ...structuredClone(state), changelog_line: folded }, changed: true };
 }
 
+// What refuses a follow-up of `of` (#513), read from the project in `target`:
+// whether a changelog is declared, the archived state of `of` and whether its
+// entry is still under ## [Unreleased].
+function requireCompletable(of, target = {}) {
+  if (!target.changelog) {
+    refuse("completes-without-changelog", "the project declares no delivery.changelog, so a follow-up has no entry to leave out");
+  }
+  if (!target.archived) refuse("completes-unknown", `no closed change ${of} under idd/archive`);
+  if (target.archived.completes) {
+    refuse("completes-follow-up", `change ${of} is itself a follow-up of ${target.archived.completes}, so it has no entry of its own: name ${target.archived.completes}`);
+  }
+  if (!target.unreleased) {
+    refuse("completes-released", `the entry of ${of} is no longer under [Unreleased] of ${target.changelog}: a version holds it, or it was removed`);
+  }
+}
+
+// The closed change this one completes (#513): a follow-up passes its whole
+// ceremony and adds no entry of its own to the changelog. One per change; the
+// last declaration replaces the one before, and `clear` removes it.
+function recordCompletes(state, { of, clear = false, target } = {}) {
+  requireOpen(state);
+  if (isIntentAmbiguous(state)) refuse("ambiguous-intent-open", "no follow-up is declared while the intent is ambiguous");
+  if (clear) {
+    if (!("completes" in state)) return unchanged(state);
+    const next = structuredClone(state);
+    delete next.completes;
+    return { state: next, changed: true };
+  }
+  requireText(of, "completes-required", "a follow-up names the closed change it completes");
+  requireCompletable(of, target);
+  if (state.completes === of) return unchanged(state);
+  return { state: { ...structuredClone(state), completes: of }, changed: true };
+}
+
 module.exports = {
   IRREVERSIBLE_PREFIX,
   IddRecordError,
   recordAssumption,
   recordChangelog,
+  recordCompletes,
+  requireCompletable,
   recordAttestation,
   recordBase,
   recordEvidence,

@@ -4752,3 +4752,87 @@ test("[REQ-idd-025] record changelog --clear returns to the summary, and an ambi
   assert.strictEqual(record("improve-login", "--line", "Better login.").json.error?.code, "ambiguous-intent-open");
   assert.strictEqual(record("no-such", "--line", "x").json.error?.code, "unknown-change");
 });
+
+// #513: a follow-up of a closed change passes its ceremony and adds no entry
+// of its own while the entry it completes is still under [Unreleased].
+const OPEN_FOLLOW_UP = ["record", "intent", "--change", "fix-dates", "--kind", "docs", "--summary", "Adjust the dates.", "--acceptance", "Right dates.", "--no-open-facts", "--basis", "The request fixes every behavior."];
+const CLOSED_DOCS_CHANGELOG = "# Changelog\n\n## [Unreleased]\n\n### Changed\n- Fix a typo. (fix-readme)\n\n## [1.4.2] - 2026-10-01\n";
+
+function followUpProject(t) {
+  const { root } = project(t, { checks: DECLARED_DELIVERY });
+  writeFile(root, "CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\n## [1.4.2] - 2026-10-01\n");
+  assert.strictEqual(closeDocsChange(root).code, 0);
+  assert.strictEqual(fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8"), CLOSED_DOCS_CHANGELOG);
+  ospec(root, ...OPEN_FOLLOW_UP);
+  const completes = (...args) => ospec(root, "record", "completes", "--change", "fix-dates", ...args, "--json");
+  const close = (...flag) => {
+    writeFile(root, "README.md", "dates\n");
+    ospec(root, "check", "--change", "fix-dates", "--json");
+    return ospec(root, "close", "--change", "fix-dates", ...flag);
+  };
+  return { root, completes, close };
+}
+
+test("[REQ-idd-025] a follow-up closes without an entry of its own and its archive names the change it completes (#513)", (t) => {
+  const { root, completes, close } = followUpProject(t);
+  assert.deepStrictEqual([completes("--of", "fix-readme").json.changed, completes("--of", "fix-readme").json.changed], [true, false]);
+  assert.strictEqual(completes().code, 2, "neither --of nor --clear is a usage error");
+  const closed = close();
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  assert.match(closed.stdout, /\nchangelog: CHANGELOG\.md gets no entry, this change completes fix-readme, whose entry stays under \[Unreleased\] ### Changed: - Fix a typo\. \(fix-readme\)\n/);
+  assert.strictEqual(fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8"), CLOSED_DOCS_CHANGELOG, "the changelog is as the first change left it");
+  const again = ospec(root, "close", "--change", "fix-dates", "--json").json;
+  assert.deepStrictEqual(again.changelog, { path: "CHANGELOG.md", completes: "fix-readme", section: "Changed", entry: "- Fix a typo. (fix-readme)", written: false });
+  assert.strictEqual(again.release.version, "1.4.3", "the release still comes from the entry that stands");
+  const archive = fs.readdirSync(path.join(root, "idd/archive")).find((name) => name.endsWith("-fix-dates"));
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(root, "idd/archive", archive, "state.yaml"), "utf8")).completes, "fix-readme");
+});
+
+test("[REQ-idd-025] a follow-up that declares a changelog line rewrites the entry it completes, with that change's id (#513)", (t) => {
+  const { root, completes, close } = followUpProject(t);
+  completes("--of", "fix-readme");
+  ospec(root, "record", "changelog", "--change", "fix-dates", "--line", "Fix a typo and the dates.");
+  const closed = close("--json");
+  assert.deepStrictEqual(closed.json.changelog, { path: "CHANGELOG.md", completes: "fix-readme", section: "Changed", entry: "- Fix a typo and the dates. (fix-readme)", written: true });
+  assert.strictEqual(fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8"), CLOSED_DOCS_CHANGELOG.replace("Fix a typo.", "Fix a typo and the dates."));
+});
+
+test("[REQ-idd-025] a follow-up is refused for an unknown, released or follow-up change, and --clear writes its own entry (#513)", (t) => {
+  const { root, completes, close } = followUpProject(t);
+  assert.strictEqual(completes("--of", "no-such").json.error?.code, "completes-unknown");
+  assert.strictEqual(completes("--of", "fix-dates").json.error?.code, "completes-unknown", "an open change completes nothing");
+  assert.strictEqual(completes("--of", "  ").json.error?.code, "completes-required");
+  assert.strictEqual(completes("--of", "fix-readme").json.changed, true);
+
+  // The entry it leans on is published before the follow-up closes.
+  writeFile(root, "CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\n## [1.4.3] - 2026-10-02\n\n### Changed\n- Fix a typo. (fix-readme)\n");
+  const refused = close("--json");
+  assert.strictEqual(refused.json.error?.code, "completes-released");
+  assert.match(refused.json.error.how, /ospec record completes --change fix-dates --clear/);
+  assert.strictEqual(stateOf(root, "fix-dates").status, "open", "a refused close leaves the change open");
+  assert.strictEqual(completes("--of", "fix-readme").json.error?.code, "completes-released", "declaring it again says the same");
+
+  assert.strictEqual(completes("--clear").json.changed, true);
+  const closed = close("--json");
+  assert.deepStrictEqual(closed.json.changelog, { path: "CHANGELOG.md", section: "Changed", entry: "- Adjust the dates. (fix-dates)", written: true });
+
+  // A follow-up has no entry of its own, so nothing completes it.
+  ospec(root, ...OPEN_FOLLOW_UP.map((arg) => (arg === "fix-dates" ? "fix-more" : arg)));
+  const chained = ospec(root, "record", "completes", "--change", "fix-more", "--of", "fix-readme", "--json");
+  assert.strictEqual(chained.json.error?.code, "completes-released");
+});
+
+test("[REQ-idd-025] a follow-up of a follow-up names the first change, and a project without a changelog declares none (#513)", (t) => {
+  const { root, completes, close } = followUpProject(t);
+  completes("--of", "fix-readme");
+  assert.strictEqual(close("--json").code, 0);
+  ospec(root, ...OPEN_FOLLOW_UP.map((arg) => (arg === "fix-dates" ? "fix-more" : arg)));
+  const chained = ospec(root, "record", "completes", "--change", "fix-more", "--of", "fix-dates", "--json");
+  assert.strictEqual(chained.json.error?.code, "completes-follow-up");
+  assert.match(chained.json.error.message, /name fix-readme$/);
+
+  const bare = project(t).root;
+  ospec(bare, ...OPEN_FOLLOW_UP);
+  const undeclared = ospec(bare, "record", "completes", "--change", "fix-dates", "--of", "fix-readme", "--json");
+  assert.strictEqual(undeclared.json.error?.code, "completes-without-changelog");
+});

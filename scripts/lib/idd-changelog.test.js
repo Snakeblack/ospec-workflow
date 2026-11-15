@@ -6,7 +6,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 
-const { SECTION_BY_KIND, addEntry, changelogEntry, proposeRelease } = require("./idd-changelog.js");
+const { SECTION_BY_KIND, addEntry, changelogEntry, proposeRelease, replaceUnreleasedEntry, unreleasedEntry } = require("./idd-changelog.js");
 
 const ADDED = { section: "Added", line: "- Export to CSV (csv-export)" };
 
@@ -73,4 +73,17 @@ test("[REQ-idd-025] the release raises the latest version by the sections of [Un
 test("[REQ-idd-025] a declared changelog line replaces the summary and keeps the section of the kind (#512)", () => {
   const state = { change: "fix-readme", intent: { kind: "bug", summary: "Fix a typo." }, changelog_line: "Fix two typos." };
   assert.deepStrictEqual(changelogEntry(state), { section: "Fixed", line: "- Fix two typos. (fix-readme)" });
+});
+
+test("[REQ-idd-025] the entry of a change is found and rewritten only under [Unreleased], by its id (#513)", () => {
+  const text = "# Changelog\r\n\r\n## [Unreleased]\r\n\r\n### Fixed\r\n- Fix it. (fix-it)\r\n\r\n## [1.0.0]\r\n\r\n### Added\r\n- Pages (pages)\r\n";
+  assert.deepStrictEqual(unreleasedEntry(text, "fix-it"), { section: "Fixed", line: "- Fix it. (fix-it)" });
+  assert.strictEqual(unreleasedEntry(text, "pages"), null, "a version holds it");
+  assert.strictEqual(unreleasedEntry(text, "it"), null, "the whole id ends the line");
+  assert.strictEqual(unreleasedEntry(null, "fix-it"), null);
+  const replaced = replaceUnreleasedEntry(text, "fix-it", "Fix it\n and more.");
+  assert.deepStrictEqual([replaced.written, replaced.entry], [true, { section: "Fixed", line: "- Fix it and more. (fix-it)" }]);
+  assert.strictEqual(replaced.text, text.replace("Fix it.", "Fix it and more."), "line endings are kept");
+  assert.strictEqual(replaceUnreleasedEntry(replaced.text, "fix-it", "Fix it and more.").written, false);
+  assert.deepStrictEqual(replaceUnreleasedEntry(text, "pages", "Other."), { text, written: false, entry: null });
 });
