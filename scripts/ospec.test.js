@@ -264,7 +264,7 @@ test("a usage error prints only the usage lines of its subcommand", (t) => {
   assert.strictEqual(unknown.code, 2);
   assert.strictEqual(
     unknown.stderr,
-    "ospec: unknown command: frobnicate (usage)\ncommands: status, next, record, signals, check, run, review, close, doctor, router, team, snapshot, foundation\n",
+    "ospec: unknown command: frobnicate (usage)\ncommands: status, next, record, signals, check, run, review, close, abandon, doctor, router, team, snapshot, foundation\n",
   );
 
   const intent = ospec(root, "record", "intent", "--json");
@@ -4835,4 +4835,174 @@ test("[REQ-idd-025] a follow-up of a follow-up names the first change, and a pro
   ospec(bare, ...OPEN_FOLLOW_UP);
   const undeclared = ospec(bare, "record", "completes", "--change", "fix-dates", "--of", "fix-readme", "--json");
   assert.strictEqual(undeclared.json.error?.code, "completes-without-changelog");
+});
+
+// #409 (REQ-idd-028): a change that was replaced, discarded or opened by
+// mistake is archived as abandoned by the user's answer to the abandon gate.
+const OPEN_ABANDONED_BUG = OPEN_BUG.map((arg) => (arg === "fix-pagination" ? "old-fix" : arg)).filter((arg) => arg !== "--json");
+const abandonOf = (root, change, ...args) => ospec(root, "abandon", "--change", change, ...args, "--json");
+const answerAbandon = (root, change, source = "user") =>
+  ospec(root, "record", "gate", "--change", change, "--gate", "abandon", "--resolve", "--answer", "Yes, drop it.", "--source", source, "--json");
+const archivedState = (root, change) => {
+  const name = fs.readdirSync(path.join(root, "idd/archive")).filter((entry) => entry.slice(11) === change).sort().at(-1);
+  return JSON.parse(fs.readFileSync(path.join(root, "idd/archive", name, "state.yaml"), "utf8"));
+};
+
+test("[REQ-idd-028] the user's answer archives a change with pending obligations as abandoned, with no check, changelog entry or knowledge record (#409)", (t) => {
+  const { root } = project(t, { checks: DECLARED_DELIVERY });
+  const changelog = "# Changelog\n\n## [Unreleased]\n\n## [1.4.2] - 2026-10-01\n";
+  writeFile(root, "CHANGELOG.md", changelog);
+  writeTurns(root, 3);
+  ospec(root, ...OPEN_ABANDONED_BUG);
+  ospec(root, "signals", "--change", "old-fix", "--path", "src/pages.txt", "--decision", "Count the last page.");
+  writeFile(root, "src/pages.txt", "half done");
+  writeFile(root, ".ospec/runs/old-fix/run-1.log", "kept output\n");
+  const before = stateOf(root, "old-fix");
+  assert.ok(before.obligations.some((entry) => entry.id === "repro-test" && entry.status === "pending"));
+
+  const asked = abandonOf(root, "old-fix", "--reason", "Delivered under another id.");
+  assert.strictEqual(asked.code, 0, asked.stderr);
+  assert.deepStrictEqual({ abandon: asked.json.abandon, changed: asked.json.changed }, { abandon: "asked", changed: true });
+  assertGateStep(asked.json.next.next_step, "abandon");
+  assert.strictEqual(asked.json.next.pending_decision.reason, "Delivered under another id.");
+  assert.strictEqual(stateOf(root, "old-fix").status, "open", "asking archives nothing");
+  assert.strictEqual(abandonOf(root, "old-fix", "--reason", "Delivered under another id.").json.changed, false);
+
+  writeTurns(root, 4);
+  const answered = answerAbandon(root, "old-fix");
+  assert.strictEqual(answered.code, 0, answered.stderr);
+  const { archive, abandoned } = answered.json;
+  assert.strictEqual(answered.json.status, "abandoned");
+  assert.match(archive.destination, /^idd\/archive\/\d{4}-\d{2}-\d{2}-old-fix$/);
+  assert.deepStrictEqual({ ...abandoned, at: null }, { at: null, reason: "Delivered under another id.", answer: "Yes, drop it.", source: "user" });
+  assert.ok(answered.json.pending_obligations.includes("repro-test"));
+  for (const absent of ["records", "changelog", "release", "warnings", "next"]) assert.ok(!(absent in answered.json), `no ${absent}`);
+
+  assert.ok(!fs.existsSync(path.join(root, "idd/old-fix")), "the change left idd/");
+  assert.ok(!fs.existsSync(path.join(root, ".ospec/runs/old-fix")), "its kept outputs are dropped");
+  assert.strictEqual(fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8"), changelog, "no changelog entry");
+  assert.strictEqual(fs.readFileSync(path.join(root, "src/pages.txt"), "utf8"), "half done", "the working tree stays");
+  const stored = archivedState(root, "old-fix");
+  assert.strictEqual(stored.status, "abandoned");
+  assert.deepStrictEqual(stored.obligations, before.obligations, "obligations stay as they were");
+  assert.deepStrictEqual(stored.evidence, []);
+  assert.ok(!("closed_at" in stored));
+  assert.match(fs.readFileSync(path.join(root, archive.destination, "change.md"), "utf8"), /Count the last page\./);
+
+  assert.deepStrictEqual(ospec(root, "status", "--json").json.changes ?? [], []);
+  assert.strictEqual(ospec(root, "next", "--json").json.next_step.action, "open-change");
+  const text = ospec(root, "abandon", "--change", "old-fix");
+  assert.match(text.stdout, /^old-fix already archived in idd\/archive\/\S+-old-fix .*\nreason: Delivered under another id\.\nanswer \(user\): Yes, drop it\.\nleft without evidence: .*repro-test.*\nno changelog entry and no knowledge record; the working tree stays as it is\n$/);
+});
+
+test("[REQ-idd-028] abandon archives nothing without the user's answer, and --cancel withdraws the question (#409)", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  assert.strictEqual(abandonOf(root, "fix-readme").code, 2, "an open change needs --reason or --cancel");
+  assert.strictEqual(abandonOf(root, "fix-readme", "--reason", "  ").code, 2);
+  assert.strictEqual(abandonOf(root, "fix-readme", "--cancel", "--reason", "x").code, 2);
+  assert.strictEqual(abandonOf(root, "fix-readme", "--cancel").json.error?.code, "gate-not-open");
+  assert.strictEqual(ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "abandon", "--open", "--reason", "x", "--json").json.error?.code, "gate-managed-by-abandon");
+  assert.strictEqual(answerAbandon(root, "fix-readme").json.error?.code, "gate-not-open");
+
+  abandonOf(root, "fix-readme", "--reason", "Opened by mistake.");
+  const unanswered = ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "abandon", "--resolve", "--json");
+  assert.strictEqual(unanswered.json.error?.code, "gate-answer-required");
+  assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").json.error?.code, "close-refused", "a change that is delivered still needs its evidence");
+  // Another reason replaces the question still asked.
+  assert.strictEqual(abandonOf(root, "fix-readme", "--reason", "Discarded.").json.changed, true);
+  assert.deepStrictEqual(stateOf(root, "fix-readme").gates.map((gate) => [gate.id, gate.status, gate.reason]), [["abandon", "open", "Discarded."]]);
+
+  const cancelled = abandonOf(root, "fix-readme", "--cancel");
+  assert.deepStrictEqual({ abandon: cancelled.json.abandon, changed: cancelled.json.changed }, { abandon: "cancelled", changed: true });
+  assert.deepStrictEqual(stateOf(root, "fix-readme").gates, []);
+  assert.strictEqual(stateOf(root, "fix-readme").status, "open");
+  assert.ok(!fs.existsSync(path.join(root, "idd/archive")) || fs.readdirSync(path.join(root, "idd/archive")).length === 0);
+});
+
+test("[REQ-idd-028] abandon is asked before any other gate, also of an ambiguous intent, and a relayed answer archives with its warning (#409)", (t) => {
+  const { root } = project(t);
+  writeTurns(root, 1);
+  ospec(root, "record", "intent", "--change", "improve-login", "--ambiguous", "--request", "Improve the login.");
+  ospec(root, ...OPEN_DOCS);
+  ospec(root, ...OPEN_IRREVERSIBLE);
+  for (const change of ["improve-login", "fix-readme"]) {
+    const asked = abandonOf(root, change, "--reason", "Discarded.");
+    assert.strictEqual(asked.code, 0, asked.stdout);
+    assertGateStep(asked.json.next.next_step, "abandon");
+  }
+  assert.deepStrictEqual(ospec(root, "status", "--change", "fix-readme", "--json").json.changes[0].open_gates, ["abandon", "irreversible-operation"]);
+
+  // No turn ended since the gate opened: the answer is kept user-unverified.
+  const fenced = answerAbandon(root, "improve-login");
+  assert.strictEqual(fenced.json.abandoned.source, "user-unverified");
+  assert.deepStrictEqual(fenced.json.warnings, ["gate abandon was answered user-unverified: no turn ended between the gate's opening and the answer"]);
+  const relayed = answerAbandon(root, "fix-readme", "user-unverified");
+  assert.strictEqual(relayed.json.status, "abandoned");
+  assert.deepStrictEqual(relayed.json.warnings, ["gate abandon was answered user-unverified: the answer was relayed"]);
+  assert.deepStrictEqual(archivedState(root, "fix-readme").gates.map((gate) => [gate.id, gate.status]), [["irreversible-operation", "open"], ["abandon", "resolved"]]);
+  assert.match(ospec(root, "abandon", "--change", "fix-readme").stdout, /\nwarning: gate abandon was answered user-unverified: the answer was relayed\n$/);
+});
+
+test("[REQ-idd-028] --superseded-by names another change that exists, and an abandoned id closes nothing, completes nothing and opens again (#409)", (t) => {
+  const { root } = project(t, { checks: DECLARED_DELIVERY });
+  writeFile(root, "CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n");
+  assert.strictEqual(closeDocsChange(root).code, 0);
+  ospec(root, ...OPEN_ABANDONED_BUG);
+  ospec(root, ...OPEN_FOLLOW_UP);
+  const superseded = (id) => abandonOf(root, "old-fix", "--reason", "Replaced.", "--superseded-by", id).json;
+  assert.strictEqual(superseded("no-such").error?.code, "superseded-by-unknown");
+  assert.strictEqual(superseded("old-fix").error?.code, "superseded-by-self");
+  assert.strictEqual(superseded("Not_An_Id").error?.code, "superseded-by-invalid");
+  assert.strictEqual(superseded("fix-readme").changed, true, "an archived change replaces it");
+  assert.strictEqual(superseded("fix-dates").changed, true, "an open change replaces it, and replaces the question");
+  assert.strictEqual(ospec(root, "next", "--change", "old-fix", "--json").json.pending_decision.superseded_by, "fix-dates");
+  const answered = answerAbandon(root, "old-fix");
+  assert.strictEqual(answered.json.abandoned.superseded_by, "fix-dates");
+  assert.match(ospec(root, "abandon", "--change", "old-fix").stdout, /\nsuperseded by: fix-dates\n/);
+
+  // An abandoned change is neither open nor closed.
+  for (const refused of [
+    ospec(root, "close", "--change", "old-fix", "--json"),
+    abandonOf(root, "old-fix", "--reason", "Again."),
+    abandonOf(root, "old-fix", "--cancel"),
+  ]) assert.strictEqual(refused.json.error?.code, "change-abandoned");
+  assert.strictEqual(ospec(root, "record", "completes", "--change", "fix-dates", "--of", "old-fix", "--json").json.error?.code, "completes-unknown");
+  assert.strictEqual(abandonOf(root, "fix-readme", "--reason", "Late.").json.error?.code, "change-closed");
+  assert.strictEqual(abandonOf(root, "no-such", "--reason", "x").json.error?.code, "unknown-change");
+  assert.strictEqual(abandonOf(root, "no-such").json.error?.code, "unknown-change");
+
+  // Its id opens again, as the id of a closed change does.
+  const reopened = ospec(root, ...OPEN_ABANDONED_BUG, "--json");
+  assert.strictEqual(reopened.code, 0, reopened.stdout);
+  assert.deepStrictEqual([stateOf(root, "old-fix").status, stateOf(root, "old-fix").gates.length], ["open", 0]);
+});
+
+test("[REQ-idd-028] an interrupted archive of an abandoned change is finished by ospec abandon, and nothing else acts on it (#409)", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  abandonOf(root, "fix-readme", "--reason", "Discarded.");
+  const { archive } = answerAbandon(root, "fix-readme").json;
+  // The state was saved and the move never happened.
+  fs.renameSync(path.join(root, archive.destination), path.join(root, "idd/fix-readme"));
+
+  const next = ospec(root, "next", "--change", "fix-readme", "--json").json;
+  assert.deepStrictEqual(next.next_step, { action: "abandon", command: "ospec abandon --change fix-readme" });
+  assert.ok(!("pending_decision" in next));
+  const warned = doctor(t, root, "--json").json.checks.find((entry) => entry.id === "idd-change" && entry.subject === "fix-readme");
+  assert.strictEqual(warned.status, "warn");
+  assert.match(warned.cause, /^abandoned at \S+ but still outside idd\/archive\/: the archive was interrupted$/);
+  assert.match(warned.action, /ospec abandon --change fix-readme/);
+  for (const refused of [
+    ospec(root, "close", "--change", "fix-readme", "--json"),
+    ospec(root, "check", "--change", "fix-readme", "--json"),
+    ospec(root, "record", "assumption", "--change", "fix-readme", "--text", "x", "--json"),
+    abandonOf(root, "fix-readme", "--reason", "Again."),
+  ]) assert.strictEqual(refused.json.error?.code, "change-abandoned");
+
+  const finished = abandonOf(root, "fix-readme");
+  assert.strictEqual(finished.code, 0, finished.stdout);
+  assert.deepStrictEqual({ abandon: finished.json.abandon, destination: finished.json.archive.destination }, { abandon: "archived", destination: archive.destination });
+  assert.ok(!fs.existsSync(path.join(root, "idd/fix-readme")));
+  assert.strictEqual(abandonOf(root, "fix-readme").json.archive.already_complete, true);
 });

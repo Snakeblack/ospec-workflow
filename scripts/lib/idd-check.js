@@ -43,6 +43,7 @@ const RUN_OBLIGATIONS = Object.freeze({
 
 function requireOpen(state) {
   if (state.status === "closed") throw new IddRecordError("change-closed", `change ${state.change} is closed`);
+  if (state.status === "abandoned") throw new IddRecordError("change-abandoned", `change ${state.change} is abandoned`);
 }
 
 function nextEvidenceId(state) {

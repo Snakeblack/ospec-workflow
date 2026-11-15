@@ -55,7 +55,7 @@ const { classifyContractPaths } = require("./lib/idd-contracts.js");
 const { addEntry, changelogEntry, proposeRelease, replaceUnreleasedEntry, unreleasedEntry } = require("./lib/idd-changelog.js");
 const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvidence, requireResumable, staleEvidence } = require("./lib/idd-close.js");
 const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
-const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, counterproofDetects, isIntentAmbiguous } = require("./lib/idd-contract.js");
+const { ABANDON_GATE, ARCHIVE_ROOT, CHANGE_ID_PATTERN, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, counterproofDetects, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { TIMED_OUT_EXIT, captureCommand, dropRunOutputs, keepRunOutput, runCommand } = require("./lib/idd-exec.js");
 const { CATEGORY_IDS, UI_CATEGORY_IDS, countTests, projectCategories, resolveFeatureCoverage } = require("./lib/idd-facts.js");
 const { fitnessPlan } = require("./lib/idd-fitness.js");
@@ -64,6 +64,7 @@ const { CHECKS_REQUIRED, FOUNDATION_STEPS, nextForChange, nextForProject, status
 const { refusalHow } = require("./lib/idd-refusals.js");
 const {
   IddRecordError,
+  recordAbandon,
   recordAssumption,
   recordChangelog,
   recordCompletes,
@@ -173,6 +174,11 @@ const USAGE = `Usage:
   ospec review correct --change <id> [--finding <id>]... [--base <ref>]
   ospec review record|validate --change <id> --result <json>|@<file>
   ospec close --change <id>
+  ospec abandon --change <id> (--reason <text> [--superseded-by <id>] | --cancel)
+                asks the user, at the abandon gate, to give up a change that was replaced, discarded or
+                opened by mistake; only when the user asked for it, never to get past an obligation.
+                Their answer archives it as abandoned, without checks, reviews or a changelog entry;
+                without --reason or --cancel it finishes an archive that was interrupted
   ospec doctor [--target <host>] [--repair] [--json]
   ospec router install|remove [--scope user|project] [--force] [--json]
   ospec router off [--force] [--json]
@@ -247,6 +253,7 @@ const OPTIONS = {
   resolve: { type: "boolean" },
   to: { type: "string" },
   cancel: { type: "boolean" },
+  "superseded-by": { type: "string" },
   obligation: { type: "string" },
   path: { type: "string", multiple: true },
   "work-units": { type: "string" },
@@ -1153,7 +1160,9 @@ function requireDerived(root, state) {
   throw error;
 }
 
-function readArchived(root, changeId) {
+// The archived states of `changeId`, oldest first: an id closed or abandoned
+// may be opened again, so the archive can hold it more than once.
+function readArchives(root, changeId) {
   const archive = path.join(root, ...ARCHIVE_ROOT.split("/"));
   let names = [];
   try {
@@ -1161,10 +1170,16 @@ function readArchived(root, changeId) {
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
-  const name = names.filter((entry) => entry.endsWith(`-${changeId}`) && /^\d{4}-\d{2}-\d{2}-/.test(entry)).sort().at(-1);
-  if (!name) return null;
-  const state = JSON.parse(fs.readFileSync(path.join(archive, name, STATE_FILE), "utf8"));
-  return state.change === changeId && state.status === "closed" ? state : null;
+  return names
+    .filter((entry) => /^\d{4}-\d{2}-\d{2}-/.test(entry) && entry.slice(11) === changeId)
+    .sort()
+    .map((name) => JSON.parse(fs.readFileSync(path.join(archive, name, STATE_FILE), "utf8")))
+    .filter((state) => state.change === changeId);
+}
+
+// The last close of `changeId` in the archive; an abandoned one is no close.
+function readArchived(root, changeId) {
+  return readArchives(root, changeId).findLast((state) => state.status === "closed") ?? null;
 }
 
 async function findArchived(root, changeId) {
@@ -1193,8 +1208,13 @@ async function close(root, values) {
     let delivery = null;
     if (!state) {
       const archived = await findArchived(root, values.change);
-      if (!archived) throw new IddRecordError("unknown-change", "no such change; open it with record intent first");
+      if (!archived) {
+        if (readArchives(root, values.change).length > 0) throw new IddRecordError("change-abandoned", `change ${values.change} is abandoned`);
+        throw new IddRecordError("unknown-change", "no such change; open it with record intent first");
+      }
       state = archived;
+    } else if (state.status === "abandoned") {
+      throw new IddRecordError("change-abandoned", `change ${state.change} is abandoned`);
     } else if (state.status === "open") {
       requireFreshEvidence(root, state);
       const livingDoc = readLivingDoc(root, state);
@@ -1239,6 +1259,51 @@ async function close(root, values) {
       ...(delivery ?? closeDelivery(root, state, { write: false })),
     };
   });
+}
+
+// Archives the change the user's answer just abandoned (REQ-idd-028), or
+// finishes that archive after an interruption: nothing runs, the changelog
+// and the working tree stay as they are, and no knowledge record is returned.
+async function archiveAbandoned(root, state) {
+  const archive = await archiveChange(root, state);
+  dropRunOutputs(root, state.change);
+  const gate = state.gates.findLast((entry) => entry.id === ABANDON_GATE && entry.status === "resolved");
+  const warnings = unverifiedGateWarnings({ ...state, gates: gate ? [gate] : [] });
+  return {
+    change: state.change,
+    status: state.status,
+    abandoned: { ...state.abandoned, answer: gate?.answer ?? null, source: gate?.source ?? null },
+    archive,
+    pending_obligations: state.obligations.filter((entry) => entry.status === "pending").map((entry) => entry.id),
+    ...(warnings.length ? { warnings } : {}),
+  };
+}
+
+// `ospec abandon` (REQ-idd-028) asks the user, at the abandon gate, to give
+// the change up, withdraws that question, or finishes the archive of a
+// change already abandoned. It archives nothing itself: the answer does,
+// through record gate.
+async function abandon(root, values) {
+  if (!values.change) throw new UsageError("abandon needs --change <id>");
+  changeDir(root, values.change);
+  const asks = values.reason !== undefined || values["superseded-by"] !== undefined;
+  if (values.cancel && asks) throw new UsageError("abandon --cancel takes no --reason or --superseded-by");
+  const current = await readChange(root, values.change);
+  if (!current) {
+    const last = readArchives(root, values.change).at(-1);
+    if (!last) throw new IddRecordError("unknown-change", "no such change; ospec status lists the open ones");
+    if (last.status === "abandoned" && !asks && !values.cancel) return { abandon: "archived", ...(await archiveAbandoned(root, last)) };
+    throw new IddRecordError(last.status === "abandoned" ? "change-abandoned" : "change-closed", `change ${values.change} is ${last.status}`);
+  }
+  if (current.status === "abandoned" && !asks && !values.cancel) return { abandon: "archived", ...(await archiveAbandoned(root, current)) };
+  if (!values.cancel && !values.reason?.trim()) {
+    throw new UsageError('abandon needs --reason "<why the change is given up>", or --cancel to withdraw the question');
+  }
+  const supersededBy = values["superseded-by"];
+  const known = (id) => CHANGE_ID_PATTERN.test(id) && (fs.existsSync(path.join(changeDir(root, id), STATE_FILE)) || readArchives(root, id).length > 0);
+  const recorded = await mutateChange(root, values.change, existing((state) =>
+    recordAbandon(state, values.cancel ? { cancel: true } : { reason: values.reason, supersededBy, supersededKnown: supersededBy !== undefined && known(supersededBy) })));
+  return { abandon: values.cancel ? "cancelled" : "asked", change: recorded.state.change, changed: recorded.changed, next: nextAfterWrite(root, recorded.state) };
 }
 
 // The changelog entry and the release of a closing change (REQ-idd-025), only
@@ -1640,6 +1705,7 @@ async function run(command, positionals, values) {
   if (command === "run") return runObligation(root, values);
   if (command === "review") return review(root, positionals, values);
   if (command === "close") return close(root, values);
+  if (command === "abandon") return abandon(root, values);
   if (command === "doctor") return runDoctor({ root, target: values.target ?? null, repair: values.repair === true });
   if (command === "router") return routerCommand(root, positionals, values);
   if (command === "foundation") return foundation(root, positionals, values);
@@ -1654,6 +1720,10 @@ async function run(command, positionals, values) {
     if (!values.change) throw new UsageError(`record ${type} needs --change <id>`);
     const recorded = await mutateChange(root, values.change, reducer);
     const { state, changed } = recorded;
+    // The answer to the abandon gate archives the change (REQ-idd-028).
+    if (type === "gate" && state.status === "abandoned") {
+      return { record: type, changed, ...(await archiveAbandoned(root, state)) };
+    }
     const query = type === "intent" ? intentMemoryQuery(root, state) : null;
     // The signals the plan of record intent derived, as signals reports them.
     const plan = recorded.derivation ? { plan: derivationView(recorded) } : {};
@@ -1903,6 +1973,21 @@ function describeClose(result) {
   return lines.join("\n");
 }
 
+function describeAbandoned(result) {
+  const { archive, abandoned } = result;
+  const how = archive.already_complete ? "already archived in" : "abandoned and archived in";
+  const pending = result.pending_obligations || [];
+  return [
+    `${result.change} ${how} ${archive.destination} (${archive.files} files, ${archive.inventory_sha256})`,
+    `reason: ${abandoned.reason}`,
+    ...(abandoned.superseded_by ? [`superseded by: ${abandoned.superseded_by}`] : []),
+    `answer (${abandoned.source}): ${abandoned.answer}`,
+    `left without evidence: ${pending.join(", ") || "nothing pending"}`,
+    "no changelog entry and no knowledge record; the working tree stays as it is",
+    ...(result.warnings || []).map((warning) => `warning: ${warning}`),
+  ].join("\n");
+}
+
 function describeCloseDelivery({ changelog, release, delivery }) {
   const lines = [];
   if (changelog?.completes) {
@@ -2000,6 +2085,11 @@ function describe(command, result) {
   if (command === "team") return describeTeam(result);
   if (command === "foundation") return describeFoundation(result);
   if (command === "close") return describeClose(result);
+  if (command === "abandon" && result.abandon !== "archived") {
+    const head = result.abandon === "cancelled" ? `abandon of ${result.change} withdrawn` : result.changed ? `asked to abandon ${result.change}` : `no change: ${result.change} already asks to be abandoned`;
+    return [head, ...describeStep(result.next)].join("\n");
+  }
+  if (result.status === "abandoned" && result.archive) return describeAbandoned(result);
   if (command === "doctor") return renderDoctor(result);
   if (command === "router") return describeRouter(result);
   if (command === "review") return describeReview(result);
@@ -2034,7 +2124,7 @@ function describe(command, result) {
 
 // The commands of the IDD loop leave out empty fields in JSON (E4.16): null,
 // [] and {} at any depth, while false and 0 stay.
-const COMPACT_JSON = Object.freeze(["status", "next", "record", "signals", "check", "run", "review", "close"]);
+const COMPACT_JSON = Object.freeze(["status", "next", "record", "signals", "check", "run", "review", "close", "abandon"]);
 
 function isEmpty(value) {
   return value == null || (typeof value === "object" && Object.keys(value).length === 0);

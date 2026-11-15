@@ -667,6 +667,14 @@ function iddChangeChecks(root, add, { repair = false } = {}) {
         cause: `closed at ${state.closed_at} but still outside idd/archive/: the close was interrupted`,
         action: `Run \`ospec close --change ${id}\`; it finishes the move.`,
       });
+    } else if (state.status === "abandoned") {
+      add({
+        id: "idd-change",
+        subject: id,
+        status: "warn",
+        cause: `abandoned at ${state.abandoned.at} but still outside idd/archive/: the archive was interrupted`,
+        action: `Run \`ospec abandon --change ${id}\`; it finishes the move.`,
+      });
     } else {
       openChanges += 1;
       const [summary] = statusOf([state]).changes;

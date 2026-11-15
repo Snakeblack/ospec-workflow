@@ -97,6 +97,7 @@
     "living-doc"
   ],
   "gates": [
+    "abandon",
     "ambiguous-intent",
     "kind-change",
     "open-facts",

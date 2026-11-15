@@ -111,8 +111,42 @@ test("a state keeps each move of its base, and base-moved names the move it asks
   }
 });
 
-test("the spec names exactly the eight gates", () => {
-  assert.deepStrictEqual(contract.GATES, ["ambiguous-intent", "kind-change", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed", "base-moved"]);
+test("a state written before a change could be abandoned stays valid, open or closed (#409)", () => {
+  const open = validState();
+  const closed = validState({ status: "closed", closed_at: "2026-01-03T00:00:00.000Z" });
+  for (const state of [open, closed]) {
+    assert.ok(!("abandoned" in state) && state.gates.every((gate) => gate.id !== "abandon"));
+    assert.deepStrictEqual(contract.validateState(state), { ok: true, errors: [] });
+  }
+  for (const name of fs.readdirSync(FIXTURES_DIR).filter((file) => file.endsWith(".json"))) {
+    const { state } = JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, name), "utf8"));
+    if (state) assert.deepStrictEqual(contract.validateState(state), { ok: true, errors: [] }, name);
+  }
+});
+
+test("an abandoned state holds when and why, and the answer in its resolved abandon gate (REQ-idd-028)", () => {
+  const gate = { id: "abandon", status: "resolved", reason: "Delivered under another id.", superseded_by: "new-fix", answer: "Yes.", source: "user" };
+  const abandoned = { at: "2026-01-03T00:00:00.000Z", reason: "Delivered under another id.", superseded_by: "new-fix" };
+  const valid = (overrides) => assert.deepStrictEqual(contract.validateState(validState(overrides)), { ok: true, errors: [] });
+  const invalid = (overrides, message) => assert.ok(contract.validateState(validState(overrides)).errors.some((error) => error.includes(message)), message);
+  valid({ status: "abandoned", abandoned, gates: [gate] });
+  valid({ status: "abandoned", abandoned: { at: abandoned.at, reason: "Discarded." }, gates: [{ ...gate, superseded_by: undefined }] });
+  valid({ gates: [{ id: "abandon", status: "open", reason: "Discarded.", superseded_by: "new-fix" }] });
+
+  invalid({ status: "abandoned", gates: [gate] }, "abandoned holds the time and the reason of an abandoned change, and only of one");
+  invalid({ abandoned }, "abandoned holds the time and the reason of an abandoned change, and only of one");
+  for (const broken of [{ at: "yesterday" }, { reason: " " }, { superseded_by: validState().change }, { superseded_by: "Not_An_Id" }, { answer: "Yes." }]) {
+    invalid({ status: "abandoned", abandoned: { ...abandoned, ...broken }, gates: [gate] }, "abandoned must hold at");
+  }
+  invalid({ status: "abandoned", abandoned, gates: [] }, "an abandoned change keeps the user's answer in its resolved abandon gate");
+  invalid({ status: "abandoned", abandoned, gates: [{ ...gate, status: "open", answer: undefined, source: undefined }] }, "resolved abandon gate");
+  invalid({ gates: [gate] }, "a resolved abandon gate belongs to an abandoned change");
+  invalid({ gates: [{ id: "abandon", status: "open" }] }, "gate abandon must name the reason");
+  invalid({ gates: [{ id: "open-facts", status: "open", superseded_by: "new-fix" }] }, "superseded_by names another change, and only in the abandon gate");
+});
+
+test("the spec names exactly the nine gates", () => {
+  assert.deepStrictEqual(contract.GATES, ["abandon", "ambiguous-intent", "kind-change", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed", "base-moved"]);
   const section = requirementSection(readSpec(), "REQ-idd-008");
   for (const gate of contract.GATES) {
     assert.ok(section.includes(`\`${gate}\``), `REQ-idd-008 must name ${gate}`);

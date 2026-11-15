@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.178.0] - 2026-11-15
+
+### Added
+- **`ospec abandon` archiva como abandonado, con la respuesta del usuario, un cambio que no se va a entregar** (idd-change-abandon, #409).
+  - **El problema**: un cambio IDD solo terminaba con éxito. Uno sustituido por otro, descartado o abierto por error se quedaba abierto para siempre: `ospec close` exige toda su evidencia, `record withdraw` se niega con una señal activa y nada de `idd/` se mueve ni se borra a mano.
+  - **La orden**: `ospec abandon --change <id> --reason "<motivo>" [--superseded-by <id>]` no archiva nada: abre el gate `abandon` con el motivo y, si lo hay, el cambio que lo sustituye. Otra llamada con el gate abierto sustituye la pregunta y `--cancel` la retira. Vale para cualquier cambio abierto, también con el intent ambiguo o con otros gates abiertos, y `abandon` se pregunta antes que cualquier otro gate.
+  - **Con la respuesta del usuario**: al resolver el gate con `ospec record gate`, el cambio pasa a `idd/archive/<fecha>-<id>/` con `status: abandoned`, su motivo y el cambio que lo sustituye. No se ejecuta ningún check ni revisión y no se exige ni se graba evidencia. Las obligaciones, los demás gates, `change.md`, el changelog y el árbol de trabajo quedan como estaban, se borra `.ospec/runs/<id>/` y no se devuelven registros para la memoria. Una respuesta `user-unverified` archiva igual, con su aviso.
+  - **Un cambio abandonado**: ni abierto ni cerrado. `ospec close`, `ospec abandon` y los registros lo rechazan con `change-abandoned`, `record completes` no lo acepta como cambio completado y su id se puede volver a abrir con `record intent`. Si el archivado se interrumpe, `ospec next` nombra `ospec abandon --change <id>`, que lo termina, y `ospec doctor` avisa.
+  - **Rechazos**: `superseded-by-unknown`, `superseded-by-self` y `superseded-by-invalid` para el cambio sustituto, `gate-managed-by-abandon` para `record gate --gate abandon --open`, y `change-closed` al abandonar un cambio ya cerrado.
+  - **Contrato y compatibilidad**: REQ-idd-028 describe la orden, con seis escenarios, y REQ-idd-008 pasa a nueve gates. `status: abandoned`, el campo `abandoned` y el gate `abandon` son nuevos y opcionales: un estado anterior sigue siendo válido y ninguno se reescribe. Un CLI anterior rechaza como `state-invalid` solo un estado abandonado. `ospec close` sigue exigiendo toda la evidencia de un cambio que se entrega.
+
+### Fixed
+- **Un cambio archivado se busca por su nombre exacto** (idd-change-abandon). `record completes` y `ospec close` leían el archivo por el sufijo `-<id>`, así que un id que es sufijo de otro se confundía con él. Ahora se lee `<fecha>-<id>`, y el cambio que completa un seguimiento es el último cierre de ese id.
+
+**Verificación directa**: `node scripts/check.js` (4635 tests pasando, 0 fallos y 5 omitidos), con los tests de Python OK y los siete targets generados y validados.
+
 ## [2.177.0] - 2026-11-14
 
 ### Added

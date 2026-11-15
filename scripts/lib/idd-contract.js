@@ -51,8 +51,11 @@ const STATE_FIELDS = Object.freeze([
   "changelog_line",
   "completes",
   "closed_at",
+  "abandoned",
 ]);
-const CHANGE_STATUSES = Object.freeze(["open", "closed"]);
+// `abandoned` (#409) ends a change that will not be delivered: the user's
+// answer to the abandon gate archives it without evidence.
+const CHANGE_STATUSES = Object.freeze(["open", "closed", "abandoned"]);
 const INTENT_KINDS = Object.freeze(["bug", "feature", "refactor", "docs"]);
 const SIGNAL_SOURCES = Object.freeze(["declaration", "diff"]);
 const OBLIGATION_STATUSES = Object.freeze(["pending", "satisfied", "withdrawn"]);
@@ -111,10 +114,15 @@ const EVIDENCE_KINDS = Object.freeze(OBLIGATIONS.map((obligation) => obligation.
 
 // kind-change (#491) asks before open-facts: the user approves the new kind
 // before answering the categories of the feature it brings.
-const GATES = Object.freeze(["ambiguous-intent", "kind-change", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed", "base-moved"]);
+// abandon (#409) asks first: the user may give up a change whatever else it
+// still asks.
+const GATES = Object.freeze(["abandon", "ambiguous-intent", "kind-change", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed", "base-moved"]);
 // base-moved asks before the base of a change moves to a descendant commit
 // (REQ-idd-014): `ospec record base` opens it and its answer moves the base.
 const BASE_GATE = "base-moved";
+// abandon asks before a change is archived as abandoned (REQ-idd-028):
+// `ospec abandon` opens it and its answer archives the change.
+const ABANDON_GATE = "abandon";
 
 // Architecture references a change declares (E3.1): accepted ADRs under
 // DECISIONS_ROOT and quality scenarios of the knowledge map. Each gets one
@@ -204,6 +212,20 @@ function validateState(state) {
     fail("changelog_line must be one line of text");
   }
   if ("completes" in state && !(isText(state.completes) && state.completes !== state.change)) fail("completes must name another change");
+  // An abandoned change holds when and why, the change that replaces it when
+  // one does, and the answer of the user in its resolved abandon gate.
+  const isReplacement = (value) => isText(value) && CHANGE_ID_PATTERN.test(value) && value !== state.change;
+  if ((state.status === "abandoned") !== ("abandoned" in state)) {
+    fail("abandoned holds the time and the reason of an abandoned change, and only of one");
+  } else if ("abandoned" in state) {
+    const block = state.abandoned;
+    const shaped = block != null && typeof block === "object" && Object.keys(block).every((key) => ["at", "reason", "superseded_by"].includes(key));
+    if (!(shaped && typeof block.at === "string" && CLOSE_TIME.test(block.at) && isText(block.reason) && (block.superseded_by === undefined || isReplacement(block.superseded_by)))) {
+      fail("abandoned must hold at, an ISO 8601 UTC timestamp, the reason and, when another change replaces it, superseded_by");
+    } else if (!(Array.isArray(state.gates) && state.gates.some((gate) => gate?.id === ABANDON_GATE && gate.status === "resolved"))) {
+      fail("an abandoned change keeps the user's answer in its resolved abandon gate");
+    }
+  }
   if (errors.length > 0) return { ok: false, errors };
 
   // While ambiguous-intent is open the intent stays unresolved, keeps the
@@ -346,6 +368,13 @@ function validateState(state) {
     }
     // base-moved names the move it asks about: the base it leaves, the commit
     // it moves to, and the commits, paths and archived changes in between.
+    // abandon names why the change is given up and, when one does, the
+    // change that replaces it.
+    if (gate.id === ABANDON_GATE && !isText(gate.reason)) fail("gate abandon must name the reason the change is abandoned");
+    if (gate.id === ABANDON_GATE && gate.status === "resolved" && state.status !== "abandoned") fail("a resolved abandon gate belongs to an abandoned change");
+    if (gate.superseded_by !== undefined && !(gate.id === ABANDON_GATE && isReplacement(gate.superseded_by))) {
+      fail("superseded_by names another change, and only in the abandon gate");
+    }
     if (gate.id === BASE_GATE) {
       const named = [gate.from, gate.to, gate.reason].every(isText) && gate.from !== gate.to;
       const counted = Number.isSafeInteger(gate.commits) && gate.commits > 0;
@@ -789,6 +818,7 @@ function canClose(state) {
 }
 
 module.exports = {
+  ABANDON_GATE,
   ANSWER_RETRACTABLE_SIGNALS,
   ARCHIVE_ROOT,
   BASE_GATE,

@@ -26,6 +26,8 @@ const WORK_ORDER = Object.freeze([
 ]);
 
 const GATE_QUESTIONS = Object.freeze({
+  abandon:
+    "This change is abandoned: archived as it is, without checks, reviews or a changelog entry, and the working tree stays as it is. Abandon it? If not, withdraw the question with ospec abandon --cancel.",
   "ambiguous-intent": "What must this change achieve? Confirm its kind, summary and acceptance.",
   "kind-change": "This bug became a feature, which withdraws repro-test. Does the user approve the new kind? If not, resolve this gate with their words and record the intent back as a bug.",
   "open-facts": "Before the change is built, answer these behavior questions that neither the request nor the code settles.",
@@ -205,6 +207,8 @@ function pendingDecision(state, gate) {
     const facts = state.facts || {};
     decision.questions = facts.open || (facts.coverage || []).flatMap((entry) => (entry.question ? [entry.question] : []));
   }
+  // The change that replaces the abandoned one, when the agent named one.
+  if (gate.id === "abandon" && gate.superseded_by) decision.superseded_by = gate.superseded_by;
   // The move the user approves: nothing of it is the agent's to summarize.
   if (gate.id === "base-moved") {
     Object.assign(decision, { from: gate.from, to: gate.to, commits: gate.commits, paths: gate.paths, archived: gate.archived });
@@ -257,6 +261,9 @@ function nextForChange(state, { checks, candidateCommand, contractPatterns, know
   let nextStep;
   if (state.status === "closed") {
     nextStep = { action: "none", command: null };
+  } else if (state.status === "abandoned") {
+    // Abandoned and still under idd/: the archive was interrupted.
+    nextStep = { action: "abandon", command: `ospec abandon --change ${state.change}` };
   } else if (openGates.length > 0) {
     // Every gate is the user's decision, taken before the work it decides
     // (REQ-idd-008, REQ-idd-018), in gate order: ambiguous-intent first.

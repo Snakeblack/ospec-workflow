@@ -82,12 +82,13 @@ Una señal que aparece en el diff se añade en el momento, con su obligación pe
 
 ---
 
-## Los ocho gates
+## Los nueve gates
 
 El agente se detiene en estos gates y en ningún otro sitio. Cada gate abierto se pregunta antes del trabajo que decide.
 
 | Gate | Se abre cuando |
 | --- | --- |
+| `abandon` | El agente pide abandonar el cambio con `ospec abandon`, porque tú lo pediste. Con tu respuesta el cambio se archiva como abandonado, sin evidencia. Se pregunta antes que cualquier otro gate. |
 | `ambiguous-intent` | La petición no permite fijar un criterio de aceptación. |
 | `kind-change` | Un cambio `bug` pasa a `feature`, lo que retira `repro-test`. Si dices que no, el agente resuelve el gate con tu respuesta y vuelve a `bug`. Pasar de `feature` a `bug` no pregunta, porque añade la reproducción. |
 | `open-facts` | Hay comportamientos abiertos sin respuesta. Se preguntan todos a la vez. |
@@ -102,6 +103,22 @@ El agente se detiene en estos gates y en ningún otro sitio. Cada gate abierto s
 La base de un cambio es el commit en el que se abrió, y `ospec check` y `ospec close` miden su diff desde ahí. Si abres un cambio y después entran en la rama los commits de otro cambio ya cerrado, ese trabajo ajeno cuenta en el diff del tuyo: un cambio `docs` se rechaza con `kind-mismatch` por código que no es suyo.
 
 `ospec record base --change <id> --to <rev> --reason "<motivo>"` pide adelantar la base a un commit posterior. El commit tiene que descender de la base actual y ser `HEAD` o uno de sus antecesores. El comando no mueve nada: abre el gate `base-moved`, y con tu respuesta la base pasa al commit nuevo, el movimiento queda en `base_moves` del estado con su motivo y `checks-pass` vuelve a pendiente, así que el cambio cierra tras un `ospec check` contra la base nueva. Si la respuesta es no, `ospec record base --change <id> --cancel` retira la pregunta. Una base adelantada no vuelve atrás.
+
+### Cuando un cambio ya no se va a entregar
+
+Un cambio sustituido por otro, descartado o abierto por error no se cierra con `ospec close`, que exige toda su evidencia, y nada de `idd/` se mueve ni se borra a mano. La salida es `ospec abandon`:
+
+```sh
+ospec abandon --change <id> --reason "<motivo>" [--superseded-by <id del cambio que lo sustituye>]
+```
+
+- El comando no archiva nada: abre el gate `abandon` con el motivo. Si la respuesta es no, `ospec abandon --change <id> --cancel` retira la pregunta.
+- Con tu respuesta, el cambio pasa a `idd/archive/<fecha>-<id>/` con `status: abandoned`, el motivo y, si lo hay, el cambio que lo sustituye. Las obligaciones y los demás gates quedan como estaban.
+- Abandonar no ejecuta checks ni revisiones, no escribe en el changelog y no devuelve registros para la memoria. El árbol de trabajo no cambia: lo que hubiera editado el cambio sigue ahí.
+- Vale para cualquier cambio abierto, también con la intención ambigua o con otros gates abiertos. `--superseded-by` nombra un cambio que existe, abierto o archivado.
+- Un cambio abandonado no se cierra ni recibe más registros. Su id se puede volver a abrir con `ospec record intent`.
+
+El agente lo pide solo cuando tú decides abandonar el cambio, nunca para saltarse una obligación pendiente.
 
 ### Quién responde
 
