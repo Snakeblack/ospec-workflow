@@ -1,0 +1,114 @@
+{
+  "schema": "idd-state/v1",
+  "change": "ci-shards-rebalance",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "refactor",
+    "summary": "Validate Harness reparte Windows en 4 shards y macOS en 3: con 3 y 2, el reparto por turnos de --test-shard dejaba Windows 2/3 con 897 s de tests frente a 457 y 612 s y el job más lento en 363-400 s",
+    "acceptance": "La matriz de Validate Harness tiene Ubuntu 1, macOS 2 shards → 3 y Windows 3 → 4; las 5 ejecuciones de la PR miden el job más lento"
+  },
+  "facts": {
+    "basis": "El usuario eligió la opción recomendada: Windows 4 y macOS 3 shards por turnos, solo en el workflow; check.js ya reparte SERIAL_TESTS entre cualquier número de shards"
+  },
+  "plan": {
+    "paths": [
+      ".github/workflows/validate-harness.yml",
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Windows en 4 shards y macOS en 3, repartidos por turnos con --test-shard (decisión del usuario frente al reparto equilibrado por pesos medidos): estimado ~221 s de fase paralela en Windows y ~179 s en macOS; con más ficheros el reparto puede volver a desequilibrarse"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-15T22:22:15.955Z",
+      "detail": {
+        "tree": "sha256:673004cb24316d1df8ba5144d176b92a13349f1bcc57a33b8f296be76d2d7e4d",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-15T22:23:42.716Z",
+      "detail": {
+        "tree": "sha256:3aa7e0d10568a9898a045151926b1084fb08846099eafd37306266b4d8ffe1b4",
+        "runs": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-15T22:23:42.852Z"
+    }
+  ],
+  "base": "5585a4187ccefb1378a03b59787cee47fb850c68",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:139e2d0be9f7655fc8c0dea36364d882d1c2635e32d6505330bc4f0a99dc56d5",
+      "tree": "sha256:673004cb24316d1df8ba5144d176b92a13349f1bcc57a33b8f296be76d2d7e4d",
+      "recorded_at": "2026-11-15T22:22:15.955Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a05f95996b2dd2add62a9e09e8501c98a5eadaacb90e764fd471dbd5e699f154",
+      "tree": "sha256:3aa7e0d10568a9898a045151926b1084fb08846099eafd37306266b4d8ffe1b4",
+      "recorded_at": "2026-11-15T22:23:42.716Z"
+    }
+  ],
+  "completes": "ci-speed-flakes",
+  "closed_at": "2026-11-15T22:23:42.852Z"
+}

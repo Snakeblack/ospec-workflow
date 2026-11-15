@@ -763,7 +763,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Avance (`ci-speed-flakes`, 2026-11-15):**
   - **Medición:** 13 de las 100 ejecuciones de Validate Harness entre el 2026-10-27 y el 2026-11-15 se relanzaron con el mismo SHA. En Windows, `codex-hook-shell.test.js` falló 6 veces: agotó el plazo de 4 s del lanzador incluso con el reintento. En una run verde, su subtest de Windows PowerShell tardó 41 s, frente a los 0,2 s que tarda aislado. En macOS, los tests del lanzador agotaron sus 10 s 2 veces.
   - **Contención:** `scripts/check.js` corre la suite en paralelo y después, de uno en uno y con el runner libre, los ficheros de `SERIAL_TESTS` (`codex-hook-shell.test.js` y `ospec-hooks-launch.test.js`). El reintento acotado y el plazo de producción no cambian.
-  - **Tiempo:** `scripts/ospec.test.js` corría en serie 443 s en Windows y marcaba el job más lento. Se parte por áreas en `scripts/ospec.<área>.test.js`, Windows pasa a 3 shards y macOS a 2.
+  - **Tiempo:** `scripts/ospec.test.js` corría en serie 443 s en Windows y marcaba el job más lento. Se parte por áreas en `scripts/ospec.<área>.test.js`. Windows pasa a 4 shards y macOS a 3. Con 3 y 2, en las primeras ejecuciones de la PR el reparto por turnos de `--test-shard` dejaba un shard de Windows con 897 s de tests frente a 457 y 612 s, y un job más lento de 363-400 s (`ci-shards-rebalance`).
   - **Resultado:** pendiente de las 5 ejecuciones de la PR. E1.30 sigue abierto hasta cumplir su criterio de hecho.
 
 ### E1.31 — `doctor-hook-probe` (OSP-014, #345)
