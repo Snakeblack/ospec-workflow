@@ -1,0 +1,524 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-change-abandon",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "vale, hagamos el punto 7 del informe y creo que dependia de otro cambio asi que hagamos los dos en un idd. [Tras ver que E1.51 es el que depende de E1.57, eligió la opción 1: solo E1.57 ahora y E1.51 en la PR siguiente]",
+    "kind": "feature",
+    "summary": "ospec abandon archiva como abandoned, con la respuesta del usuario y sin exigir evidencia, un cambio IDD sustituido, descartado o abierto por error.",
+    "acceptance": "Un cambio abierto con obligaciones pendientes y señales activas pasa a idd/archive/<fecha>-<id>/ con status abandoned y su motivo, sin ejecutar checks ni revisiones; sin la respuesta del usuario el comando se niega; ospec status y ospec next dejan de listarlo, close no devuelve sus decisiones para la memoria ni escribe entrada en el changelog, y un cambio que se entrega sigue sin cerrar sin su evidencia."
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿La orden es ospec abandon --change <id> --reason <texto> [--superseded-by <id>], en dos pasos como record base: abre un gate abandon con el motivo, el usuario responde al acabar el turno, y al resolverlo con record gate --resolve el cambio se archiva; con --cancel se retira la pregunta? ¿Y vale para cualquier cambio abierto, también con el intent ambiguo, con otros gates abiertos o sin base?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿--superseded-by es opcional, nombra un solo cambio distinto del abandonado que exista abierto o archivado, y se rechaza si no existe? ¿Y el id de un cambio abandonado se puede volver a abrir después con record intent, como hoy el de uno cerrado?"
+      },
+      {
+        "category": "persistence",
+        "question": "¿El archivo guarda state.yaml con status abandoned y un bloque con el motivo, la respuesta, su fuente, la fecha y el sustituto, con obligaciones y gates tal como estaban, y change.md sin tocar? ¿Y abandon no toca el árbol de trabajo (el diff del cambio se queda), solo mueve idd/<id>/ y borra .ospec/runs/<id>/?"
+      },
+      {
+        "category": "copy",
+        "question": "¿La salida de abandon dice que el cambio quedó abandonado, dónde está archivado, que no deja entrada en el changelog ni registros de memoria y que el árbol no cambia? ¿Y la skill lo nombra solo en references/approvals.md y en ospec --help, sin que close-refused ni withdraw-refused lo sugieran, para que el agente no lo use como atajo?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 75
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 753
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿Una respuesta user-unverified archiva igual y deja su aviso en la salida, como en los demás gates? ¿Sobre un cambio ya cerrado o ya abandonado, abandon se niega con change-closed o change-abandoned; ospec close sobre un abandonado se niega con change-abandoned; y record completes no acepta un abandonado como cambio completado?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/flujo-idd.md",
+      "internal/iddsession/catalog.json",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-check.js",
+      "scripts/lib/idd-close.js",
+      "scripts/lib/idd-close.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/lib/ospec-doctor.js",
+      "scripts/lib/ospec-doctor.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/references/approvals.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "ospec abandon no archiva nada: abre el gate abandon con el motivo y, si lo hay, el cambio que lo sustituye; el cambio se archiva cuando el usuario responde y el gate se resuelve con record gate. Otro ospec abandon con el gate abierto sustituye la pregunta y --cancel la retira, como record base.",
+      "El gate abandon va el primero en el orden de los gates, para que se pueda responder con cualquier otro gate abierto, también ambiguous-intent.",
+      "El estado archivado lleva status abandoned y un bloque abandoned con at, reason y superseded_by. La respuesta y su fuente quedan en la entrada resuelta del gate abandon, donde las escribe la valla de turnos, y no se duplican en el bloque para que no puedan discrepar.",
+      "Abandonar no exige ni graba evidencia, no toca change.md, el changelog ni el árbol de trabajo, no devuelve registros de memoria y borra .ospec/runs/<id>/. Un archivado interrumpido lo termina ospec abandon --change <id>.",
+      "La guía del agente va en references/approvals.md y en ospec --help; los rechazos de close y de withdraw no nombran abandon, para que no sirva de atajo ante una obligación pendiente. SKILL.md no cambia: está en su techo de bytes.",
+      "El archivo se lee por nombre exacto <fecha>-<id>, no por sufijo, y un cambio completado por un seguimiento es el último cierre de ese id: un abandono posterior del mismo id no lo oculta, y un id que es sufijo de otro ya no se confunde con él."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "El abandono lo decide y lo ejecuta el CLI (ospec abandon y record gate), con tests en scripts/ospec.test.js y scripts/lib/idd-contract.test.js; la skill solo nombra la orden en references/approvals.md."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia la derivación de señales ni la ceremonia de un cambio que se entrega."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "Abandonar no es cerrar: no satisface ninguna obligación ni graba evidencia, el estado queda abandoned y no closed, y ospec close sigue negándose con una obligación pendiente o un gate abierto y rechaza un cambio abandonado."
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "Un cambio abandonado no devuelve registros de conocimiento, así que sus decisiones no llegan a la memoria como vigentes; el CLI sigue sin leer ni escribir memoria."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "No añade dependencias ni cambia el runtime."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "El estado abandonado vive en idd/<id>/state.yaml y en idd/archive/, escrito solo por el CLI; openspec/ no se toca."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "El abandono se reanuda desde disco: el gate abandon abierto y el estado abandoned sin archivar dan en ospec next el mismo paso en cualquier sesión, y ospec abandon termina un archivado interrumpido."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "No añade llamadas de red: solo lee y mueve ficheros bajo idd/ y .ospec/."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "ospec abandon y la resolución del gate abandon tienen tests en scripts/ospec.test.js ([REQ-idd-028]) y scripts/lib/idd-contract.test.js; references/approvals.md cita la orden del CLI y no describe ninguna regla de cálculo.",
+      "recorded_at": "2026-11-15T08:38:49.971Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El diff no añade llamadas de red: abandon, archiveAbandoned y recordAbandon solo usan fs y el almacén de cambios; next, check y close no cambian para un cambio abierto.",
+      "recorded_at": "2026-11-15T08:38:50.143Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 358,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_turn": 359
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-15T08:40:42.363Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0010 none",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:c365c5b0b2b48674c3c3cc10958961fb0be5d52004e57c2bc3d283e8631f6264",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-15T08:43:16.897Z",
+      "detail": {
+        "tree": "sha256:eab6ed12f7e60c1fd711aa31f615c3f610f0e3ea83ed18be58156aa04b0cf200",
+        "runs": [
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-15T08:43:16.897Z",
+      "detail": {
+        "tree": "sha256:eab6ed12f7e60c1fd711aa31f615c3f610f0e3ea83ed18be58156aa04b0cf200",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-refusals.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-15T08:43:16.897Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0010 none",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:eab6ed12f7e60c1fd711aa31f615c3f610f0e3ea83ed18be58156aa04b0cf200",
+        "fitness": [
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-15T08:43:33.629Z",
+      "detail": {
+        "run": "run-17",
+        "tree": "sha256:c11b6c0501a0bef125e2a78fc6a487643184ae32e35a72e539596a49d1229b03",
+        "plan": "Compatibilidad: status abandoned, el campo abandoned y el gate abandon son nuevos y opcionales, así que un state.yaml escrito por una versión anterior sigue siendo válido sin cambios; solo un cambio abandonado los lleva, y un CLI anterior rechaza únicamente ese estado, que ya está archivado y no se vuelve a leer. Vuelta atrás: revertir el commit; un archivo abandoned que ya exista queda bajo idd/archive y se puede borrar a mano con permiso del usuario."
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-15T08:43:40.045Z"
+    }
+  ],
+  "base": "6b32291454401b97ae385e308905d44d7da8a1e4",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:f48021a0ca019b5c4071614c0c72a8c95458f19e18f1d18f78138368b0e667fb",
+      "tree": "sha256:c365c5b0b2b48674c3c3cc10958961fb0be5d52004e57c2bc3d283e8631f6264",
+      "recorded_at": "2026-11-15T08:40:42.363Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:80c157d49edc4c4917cbca83320fe6f3df7be4484d27598a94bfb6d92af4caf0",
+      "tree": "sha256:c365c5b0b2b48674c3c3cc10958961fb0be5d52004e57c2bc3d283e8631f6264",
+      "recorded_at": "2026-11-15T08:40:42.363Z",
+      "tests": 61
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d3d19ec11ceebccd29232bacdf6b157c15485ebce80bb393d87e92437519802b",
+      "tree": "sha256:c365c5b0b2b48674c3c3cc10958961fb0be5d52004e57c2bc3d283e8631f6264",
+      "recorded_at": "2026-11-15T08:40:42.363Z",
+      "tests": 18
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:601983bcfacda1f994e0eb639484dd30c5ad0e5cc9c0a4ac8a093507e76111c8",
+      "tree": "sha256:c365c5b0b2b48674c3c3cc10958961fb0be5d52004e57c2bc3d283e8631f6264",
+      "recorded_at": "2026-11-15T08:40:42.363Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:c365c5b0b2b48674c3c3cc10958961fb0be5d52004e57c2bc3d283e8631f6264",
+      "recorded_at": "2026-11-15T08:40:42.363Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:927fe286f09487f38cd90ebf2ac92bc6f14694840232e2dcd727217607eed5ad",
+      "tree": "sha256:c365c5b0b2b48674c3c3cc10958961fb0be5d52004e57c2bc3d283e8631f6264",
+      "recorded_at": "2026-11-15T08:40:42.363Z",
+      "tests": 26
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:45dda2562f1ce9acf9b6307d5759bd00ba8bfcc131b1562200d58cc5ee71bd4e",
+      "tree": "sha256:c365c5b0b2b48674c3c3cc10958961fb0be5d52004e57c2bc3d283e8631f6264",
+      "recorded_at": "2026-11-15T08:40:42.363Z",
+      "tests": 96
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c277050c9d5fc1dade9ce0d5294e6ed4fc57120259c0160a1f2d09ce85aac78d",
+      "tree": "sha256:c365c5b0b2b48674c3c3cc10958961fb0be5d52004e57c2bc3d283e8631f6264",
+      "recorded_at": "2026-11-15T08:40:42.363Z",
+      "tests": 52
+    },
+    {
+      "id": "run-9",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:21a807b0f66bf3d04522104a606dd0f74a1c5be5560a5b972b7876d75411c245",
+      "tree": "sha256:eab6ed12f7e60c1fd711aa31f615c3f610f0e3ea83ed18be58156aa04b0cf200",
+      "recorded_at": "2026-11-15T08:43:16.897Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:27f6f79eaa0953d99509f3937d0b19a4fee065fed030f7f5c4afc5e27f4a8359",
+      "tree": "sha256:eab6ed12f7e60c1fd711aa31f615c3f610f0e3ea83ed18be58156aa04b0cf200",
+      "recorded_at": "2026-11-15T08:43:16.897Z",
+      "tests": 61
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:828fdd3018fc9ae7c913288b9dbd924a4428779d3bb29d05bb776abc4b106c76",
+      "tree": "sha256:eab6ed12f7e60c1fd711aa31f615c3f610f0e3ea83ed18be58156aa04b0cf200",
+      "recorded_at": "2026-11-15T08:43:16.897Z",
+      "tests": 18
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:36425adaeefb86274ab22cf29b3f8a59cb1dc68e7791a22438facccdd19517f5",
+      "tree": "sha256:eab6ed12f7e60c1fd711aa31f615c3f610f0e3ea83ed18be58156aa04b0cf200",
+      "recorded_at": "2026-11-15T08:43:16.897Z",
+      "tests": 2
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:eab6ed12f7e60c1fd711aa31f615c3f610f0e3ea83ed18be58156aa04b0cf200",
+      "recorded_at": "2026-11-15T08:43:16.897Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ba2e4ca6c0974bce30ac663648a9d5d65f7926a4d49b10af298d71af5bbb0606",
+      "tree": "sha256:eab6ed12f7e60c1fd711aa31f615c3f610f0e3ea83ed18be58156aa04b0cf200",
+      "recorded_at": "2026-11-15T08:43:16.897Z",
+      "tests": 26
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5063e6e2126bd496eb82c518bd922fda82bfcdfd0df51ffaa026f198bebaa05a",
+      "tree": "sha256:eab6ed12f7e60c1fd711aa31f615c3f610f0e3ea83ed18be58156aa04b0cf200",
+      "recorded_at": "2026-11-15T08:43:16.897Z",
+      "tests": 96
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:10e031b30006cd54231c74bfbd672fafc749f7441ea43efe0fe52899b46a369c",
+      "tree": "sha256:eab6ed12f7e60c1fd711aa31f615c3f610f0e3ea83ed18be58156aa04b0cf200",
+      "recorded_at": "2026-11-15T08:43:16.897Z",
+      "tests": 52
+    },
+    {
+      "id": "run-17",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern='#409' scripts/lib/idd-contract.test.js scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f5c7a633ee493b53c592f82b160edc950039921746f8c5a7eea0f6be7f94a586",
+      "tree": "sha256:c11b6c0501a0bef125e2a78fc6a487643184ae32e35a72e539596a49d1229b03",
+      "recorded_at": "2026-11-15T08:43:33.629Z",
+      "tests": 6
+    }
+  ],
+  "closed_at": "2026-11-15T08:43:40.045Z"
+}

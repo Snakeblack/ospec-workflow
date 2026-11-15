@@ -177,7 +177,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.54** | `lock-reclaim-rename` (residuo de E1.46: un lock caducado se reclama por rename atómico, así que dos procesos que lo reclaman a la vez no se creen dueños los dos; prioridad baja, fuera del orden ▶) | bugfix |
 | `done` | **E1.55** | `atomic-write-concurrent-rename` (residuo de E1.46: en Windows, `writeFileAtomic` reintenta el rename atómico en vez de apartar el destino a `.bak`, así que dos escritores sin lock del mismo fichero ya no fallan con `ENOENT` y el destino nunca falta; en el bloque A, por delante de E4.10, en v2.158.2) | bugfix |
 | `done` | **E1.56** | `bench-browser-keyring` (el Chromium de los checks del banco arranca sin el llavero del escritorio, así que uno que no responde ya no deja las páginas sin cargar; una navegación sin respuesta termina el check con su error y cierra el navegador, sin dejarlo huérfano; en el bloque A, por delante de E1.55, en v2.158.1) | bugfix |
-| `pending` | **E1.57** | `idd-change-abandon` (#409: un cambio IDD sustituido, descartado o abierto por error se archiva como `abandoned` con la respuesta del usuario, sin exigir evidencia; en el bloque C, antes de E1.51) | feature |
+| `done` | **E1.57** | `idd-change-abandon` (#409: `ospec abandon --change <id> --reason` abre el gate `abandon` y, con la respuesta del usuario, un cambio IDD sustituido, descartado o abierto por error se archiva como `abandoned`, sin exigir evidencia, sin entrada en el changelog y sin registros de memoria; `--superseded-by` nombra el cambio que lo sustituye y `--cancel` retira la pregunta; adelantado en el bloque C a petición del usuario, por delante de E1.51, en v2.178.0) | feature |
 | `done` | **E1.58** | `contract-content-retract` (#423: `public-contract` que solo deriva el contenido de una doc se retira con la respuesta del usuario, atada a las líneas de contrato que vio, como `persistent-data` en E1.38; una línea en un documento de contrato la sigue rechazando; en el bloque C, por delante de E1.50, en v2.170.2) | bugfix |
 | `pending` | **E1.59** | `idd-runtime-review` (señal `runtime-boundary` por contenido, con concurrencia, transacciones y llamadas externas con reintento o timeout, y obligación aditiva `runtime-review` en un solo linaje con los dominios `trust` y `runtime`; en el bloque C, detrás de E1.52) | feature |
 | `pending` | **E1.60** | `review-refuter` (un agente de solo lectura refuta una vez por linaje los BLOCKER y CRITICAL antes de congelarlos: refutado pasa a advisory con su evidencia; en pie, inconcluso o malformado sigue bloqueando; en el bloque C, detrás de E1.59) | feature |
@@ -1127,6 +1127,12 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
   - `ospec status` y `ospec next` dejan de listarlo como abierto, y `ospec close` sigue exigiendo evidencia a los cambios que se entregan.
   - Sus decisiones no se devuelven como vigentes para la memoria.
   - La skill `idd` nombra la salida. Está a 1 444 B de su techo (E4.3), así que el detalle va a `references/`.
+- **Respuestas del usuario (2026-11-15, gate `open-facts`, las recomendadas):**
+  - La orden es `ospec abandon --change <id> --reason <texto> [--superseded-by <id>]`, en dos pasos como `record base`: abre el gate `abandon` y el cambio se archiva al resolverlo con la respuesta del usuario; `--cancel` retira la pregunta. Vale para cualquier cambio abierto, también con el intent ambiguo, con otros gates abiertos o sin base.
+  - `--superseded-by` es opcional y nombra un cambio distinto que existe, abierto o archivado. El id de un cambio abandonado se puede volver a abrir.
+  - El archivo guarda `status: abandoned` y el bloque `abandoned` con la fecha, el motivo y el sustituto; la respuesta y su fuente quedan en el gate resuelto. Las obligaciones, los demás gates, `change.md` y el árbol de trabajo no se tocan; se borra `.ospec/runs/<id>/`.
+  - La guía del agente va en `references/approvals.md` y en `ospec --help`; los rechazos de `close` y de `withdraw` no lo sugieren.
+  - Una respuesta `user-unverified` archiva igual, con su aviso. Un cambio abandonado se rechaza con `change-abandoned` en `close` y en `abandon`, y `record completes` no lo acepta.
 - **Targets:** los 7 (CLI).
 - **Hecho cuando:**
   - un cambio abierto con obligaciones pendientes y señales activas pasa a `idd/archive/` como `abandoned`, con su motivo, sin checks ni revisiones;
@@ -1912,6 +1918,9 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-15: `idd-change-abandon` (IDD), publicado en v2.178.0. E1.57 hecho, cierra #409. El usuario lo adelantó en el bloque C: era el recordatorio pendiente del informe de fricciones del 2026-11-14, y un proyecto real esperaba por él para sacar un cambio abierto sin versionar.
+  - `ospec abandon --change <id> --reason [--superseded-by <id>]` abre el gate `abandon`, que se pregunta antes que cualquier otro, y no archiva nada. Con la respuesta del usuario el cambio pasa a `idd/archive/` con `status: abandoned`, sin checks, revisiones, entrada en el changelog ni registros de memoria, y el árbol de trabajo no cambia. `--cancel` retira la pregunta y `ospec abandon --change <id>` termina un archivado interrumpido (REQ-idd-028; REQ-idd-008 pasa a nueve gates).
+  - El orden ▶ no cambia en lo demás: siguen 4c2 y E1.70 `fitness-baseline-failing`. E1.51 `open-change-nudge`, que dependía de E1.57, ya tiene su salida y sigue en su sitio del bloque C.
 - 2026-11-13: `move-change-base` (IDD), publicado en v2.175.0. Fuera de la cola: lo pidió una sesión de un proyecto real con el OK del usuario, porque `ospec close` no podía cerrar un cambio cuya base era anterior a los commits de otro cambio ya archivado.
   - `ospec record base --to <rev> --reason` abre el gate `base-moved` con los commits y las rutas que salen del diff, y la respuesta del usuario adelanta la base a un commit descendiente, deja el movimiento en `base_moves` y devuelve `checks-pass` a pendiente. `close` sigue derivando contra la base del estado (REQ-idd-008, ahora con ocho gates, y REQ-idd-014).
   - El orden ▶ no cambia: siguen 4c2 y E1.70 `fitness-baseline-failing`.

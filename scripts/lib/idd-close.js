@@ -101,6 +101,7 @@ function renderEvidence(text, state) {
  */
 function closeChange(state, { closedAt, livingDoc = null }) {
   if (state.status === "closed") refuse("change-closed", `change ${state.change} is closed`);
+  if (state.status === "abandoned") refuse("change-abandoned", `change ${state.change} is abandoned`);
   if (isIntentAmbiguous(state)) refuse("ambiguous-intent-open", "a change with an ambiguous intent cannot close");
   const gaps = signalGaps(state).map((gap) => `${gap.obligation} is ${gap.status} while signal ${gap.signal} derives it`);
   if (gaps.length > 0) refuse("close-refused", `close refused: ${gaps.join(", ")}`, `ospec check --change ${state.change} reopens it`);
@@ -164,8 +165,15 @@ function requireResumable(state) {
   );
 }
 
+// When the change ended: the close of a closed one, the answer that
+// abandoned an abandoned one (REQ-idd-028).
+function endedAt(state) {
+  if (state.status === "closed") return state.closed_at;
+  return state.status === "abandoned" ? state.abandoned?.at : null;
+}
+
 function archiveName(state) {
-  return `${state.closed_at.slice(0, 10)}-${state.change}`;
+  return `${endedAt(state).slice(0, 10)}-${state.change}`;
 }
 
 async function exists(file) {
@@ -184,17 +192,20 @@ async function inventoryOf(dir) {
 }
 
 /**
- * Moves a closed change to idd/archive/<date>-<id>/ (REQ-idd-017). Safe to
- * run again after an interruption at any point.
+ * Moves a closed or abandoned change to idd/archive/<date>-<id>/
+ * (REQ-idd-017, REQ-idd-028). Safe to run again after an interruption at any
+ * point.
  */
 async function archiveChange(root, state) {
-  if (state.status !== "closed" || !state.closed_at) {
-    throw new IddRecordError("change-open", `change ${state.change} must be closed before it is archived`);
+  const ended = endedAt(state);
+  if (!ended) {
+    throw new IddRecordError("change-open", `change ${state.change} must be closed or abandoned before it is archived`);
   }
-  // closed_at names the archive, also when it comes from an archived state
+  // The time names the archive, also when it comes from an archived state
   // that no validation read: a path in it must never leave idd/archive/.
-  if (!CLOSE_TIME.test(state.closed_at)) {
-    throw new IddRecordError("state-invalid", `change ${state.change} has closed_at ${JSON.stringify(state.closed_at)}, not an ISO 8601 UTC timestamp`);
+  if (typeof ended !== "string" || !CLOSE_TIME.test(ended)) {
+    const field = state.status === "closed" ? "closed_at" : "abandoned.at";
+    throw new IddRecordError("state-invalid", `change ${state.change} has ${field} ${JSON.stringify(ended)}, not an ISO 8601 UTC timestamp`);
   }
   const relative = `${ARCHIVE_ROOT}/${archiveName(state)}`;
   const origin = path.join(root, CHANGE_ROOT, state.change);

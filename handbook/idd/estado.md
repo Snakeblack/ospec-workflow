@@ -18,7 +18,7 @@ idd/
 │   ├── state.yaml              # Estado del CLI: intención, señales, obligaciones, gates y evidencia
 │   └── change.md               # Plan y decisiones vivas (solo si el cambio tiene living-doc)
 └── archive/
-    └── AAAA-MM-DD-<cambio>/    # Cambio cerrado con `ospec close`, con los ficheros que tenía
+    └── AAAA-MM-DD-<cambio>/    # Cambio cerrado con `ospec close` o abandonado con `ospec abandon`, con los ficheros que tenía
 ```
 
 ```mermaid
@@ -73,6 +73,7 @@ checks:
 
 - Si se pierde el chat, no se pierde el estado. En una sesión nueva, `ospec next --change <id>` lee el disco y devuelve el siguiente paso. Es de solo lectura.
 - `ospec close` es transaccional. Si falta evidencia, rechaza el cierre y deja el cambio abierto donde estaba. Si el movimiento a `idd/archive/` se interrumpe, volver a ejecutarlo lo termina.
+- Un cambio que no se va a entregar se archiva con `ospec abandon` y tu respuesta, como `abandoned` y sin evidencia ([Cuando un cambio ya no se va a entregar](/handbook/idd/flujo-idd.md#cuando-un-cambio-ya-no-se-va-a-entregar)). Si ese movimiento se interrumpe, `ospec abandon --change <id>` lo termina.
 - `idd/` se versiona con el resto del repositorio. La confirmación y los commits los decide el usuario.
 
 ## Por qué el estado vive en disco

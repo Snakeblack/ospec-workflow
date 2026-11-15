@@ -27,7 +27,7 @@ and archives it under `idd/archive/`.
 
 ## Core guarantees
 
-- **No self-approval**: the agent stops at eight gates (ambiguous intent, a bug
+- **No self-approval**: the agent stops at nine gates (a change to abandon, ambiguous intent, a bug
   that becomes a feature, open facts, irreversible operation, ADR amended or contradicted, trust reviews
   used up, checks changed from the base, the base of the change moved), and only an
   explicit answer from you resolves one. The agent declares who answered

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- ospec abandon archiva como abandoned, con la respuesta del usuario y sin exigir evidencia, un cambio IDD sustituido, descartado o abierto por error. (idd-change-abandon)
+
 ## [2.177.0] - 2026-11-14
 
 ### Added

@@ -9,6 +9,7 @@
 
 const {
   ANSWER_RETRACTABLE_SIGNALS,
+  ABANDON_GATE,
   BASE_GATE,
   CHANGE_ID_PATTERN,
   DECISIONS_ROOT,
@@ -71,6 +72,7 @@ function unchanged(state) {
 
 function requireOpen(state) {
   if (state.status === "closed") refuse("change-closed", `change ${state.change} is closed`);
+  if (state.status === "abandoned") refuse("change-abandoned", `change ${state.change} is abandoned`);
 }
 
 function requireText(value, code, message) {
@@ -326,6 +328,9 @@ function recordGate(state, { id, action, reason, answer, source, recordedAt } = 
   if (id === BASE_GATE && action === "open") {
     refuse("gate-managed-by-base", "base-moved is opened by ospec record base, which reads the move from git");
   }
+  if (id === ABANDON_GATE && action === "open") {
+    refuse("gate-managed-by-abandon", "abandon is opened by ospec abandon, which takes the reason and the change that replaces this one");
+  }
   // review-limit, checks-changed, irreversible-operation and
   // adr-amend-or-contradict repeat, one entry per authorized review
   // (REQ-idd-016), approved set of checks, set of operations or impact raised
@@ -367,6 +372,7 @@ function recordGate(state, { id, action, reason, answer, source, recordedAt } = 
     gate.answer = answer;
     gate.source = source;
     if (id === BASE_GATE) moveBase(next, gate, recordedAt);
+    if (id === ABANDON_GATE) abandonChange(next, gate, recordedAt);
     return { state: next, changed: true };
   }
 
@@ -382,6 +388,49 @@ function moveBase(state, gate, recordedAt) {
   state.base_moves = [...(state.base_moves || []), { from: gate.from, to: gate.to, reason: gate.reason, moved_at: recordedAt }];
   const checks = state.obligations.find((entry) => entry.id === "checks-pass" && entry.status === "satisfied");
   if (checks) Object.assign(checks, { status: "pending", evidence: [] });
+}
+
+// The user's answer to abandon ends the change (REQ-idd-028): it keeps its
+// obligations, gates and evidence as they were and is archived as abandoned.
+function abandonChange(state, gate, recordedAt) {
+  requireText(recordedAt, "evidence-time-required", "abandoning a change needs its time");
+  state.status = "abandoned";
+  state.abandoned = { at: recordedAt, reason: gate.reason, ...(gate.superseded_by ? { superseded_by: gate.superseded_by } : {}) };
+}
+
+// Asks the user to abandon the change (REQ-idd-028): nothing is archived
+// until the user answers the abandon gate. `supersededBy` names the change
+// that replaces it, which `ospec abandon` found open or archived
+// (`supersededKnown`). Another reason or replacement replaces the question
+// still asked, and `cancel` withdraws it.
+function recordAbandon(state, { reason, supersededBy, supersededKnown = false, cancel = false } = {}) {
+  requireOpen(state);
+  const index = state.gates.findIndex((gate) => gate.id === ABANDON_GATE && gate.status === "open");
+  if (cancel) {
+    if (index === -1) refuse("gate-not-open", "no abandon waits for the user's answer");
+    const next = structuredClone(state);
+    next.gates.splice(index, 1);
+    return { state: next, changed: true };
+  }
+  requireText(reason, "reason-required", "abandoning a change needs the reason");
+  const gate = { id: ABANDON_GATE, status: "open", reason: reason.trim() };
+  if (supersededBy !== undefined) {
+    if (typeof supersededBy !== "string" || !CHANGE_ID_PATTERN.test(supersededBy)) {
+      refuse("superseded-by-invalid", `--superseded-by takes a kebab-case change id, got ${JSON.stringify(supersededBy)}`);
+    }
+    if (supersededBy === state.change) refuse("superseded-by-self", `change ${state.change} cannot be replaced by itself`);
+    if (!supersededKnown) refuse("superseded-by-unknown", `no change ${supersededBy} under idd/ or idd/archive`);
+    gate.superseded_by = supersededBy;
+  }
+  const next = structuredClone(state);
+  if (index === -1) {
+    next.gates.push(gate);
+  } else {
+    if (sameJson({ ...state.gates[index], opened_turn: undefined }, gate)) return unchanged(state);
+    // The question changed, so it is asked again from this turn.
+    next.gates.splice(index, 1, gate);
+  }
+  return { state: next, changed: true };
 }
 
 // Asks the user to move the base of the change to the descendant commit `to`
@@ -814,6 +863,7 @@ module.exports = {
   recordCompletes,
   requireCompletable,
   recordAttestation,
+  recordAbandon,
   recordBase,
   recordEvidence,
   recordGate,

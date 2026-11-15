@@ -73,7 +73,7 @@ artifacts there.
 ### Requirement: CLI-Owned Minimal State {#REQ-idd-003}
 
 `state.yaml` MUST declare `schema` as `idd-state/v1` and hold only `change`, `mode`,
-`status` (`open` or `closed`), `intent` (`kind` in `bug`, `feature`,
+`status` (`open`, `closed` or `abandoned`, REQ-idd-028), `intent` (`kind` in `bug`, `feature`,
 `refactor`, `docs`, plus `summary` and `acceptance`, and optionally the original
 `request`), `facts` (the open-facts declaration of REQ-idd-018: either `open`,
 the list of open questions, `basis`, why none is open, or `coverage` for a
@@ -86,7 +86,8 @@ withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
 and, for a check scoped to paths (REQ-idd-014), its `paths`,
 and the `config` it approves, its `strict_tdd`, `impact` and `contracts`, which
 an entry recorded before E1.53 lacks, for `base-moved`, the move it asks
-about (REQ-idd-014): `from`, `to`, `commits`, `paths` and `archived`, and, since E1.49, the turn counts of its
+about (REQ-idd-014): `from`, `to`, `commits`, `paths` and `archived`, for `abandon`, the `reason` and optionally
+`superseded_by`, the id of the change that replaces this one (REQ-idd-028), and, since E1.49, the turn counts of its
 opening and answer, `opened_turn` and `resolved_turn`, and for an answer the
 turn fence kept as `user-unverified` the `declared_source` `user` and the
 `unverified_reason` (REQ-idd-008)) and
@@ -411,9 +412,10 @@ pass", without a recorded execution MUST NOT satisfy any obligation.
 - WHEN the model reports that the tests pass
 - THEN `checks-pass` MUST stay `pending`
 
-### Requirement: Only Eight Gates {#REQ-idd-008}
+### Requirement: Only Nine Gates {#REQ-idd-008}
 
-IDD MUST stop for the user only at eight gates: `ambiguous-intent` when the
+IDD MUST stop for the user only at nine gates: `abandon` before a change is
+archived as abandoned (REQ-idd-028), `ambiguous-intent` when the
 intent is materially ambiguous, `kind-change` when a `bug` becomes a `feature`
 and so withdraws `repro-test` (REQ-idd-011), `open-facts` when behavior questions that
 neither the request nor the code settles are open (REQ-idd-018),
@@ -440,7 +442,8 @@ open it with `record gate --open` and a reason naming the ADR before it asks.
 Only `ospec check` MAY open `checks-changed`, and `record gate --open` MUST be
 refused with `gate-managed-by-check`. Only `ospec record base` MAY open
 `base-moved`, and `record gate --open` MUST be refused with
-`gate-managed-by-base`. Each set of checks and settings MUST get
+`gate-managed-by-base`. Only `ospec abandon` MAY open `abandon`, and
+`record gate --open` MUST be refused with `gate-managed-by-abandon`. Each set of checks and settings MUST get
 its own entry, holding the `checks` and the `config` it approves, so an answer
 approves only what it was asked about. `irreversible-operation` MUST ask about
 each operation once: its entry MUST list in `operations` the operations it
@@ -705,7 +708,7 @@ check configuration and command suggestion, and before anything is built, the
 project's files. It MUST return the change, its pending
 obligations in work order, the pending decision, the next step and the
 knowledge references. The next step MUST be `resolve-gate` for the first open
-gate in the order `ambiguous-intent`, `kind-change`, `open-facts`, `adr-amend-or-contradict`,
+gate in the order `abandon`, `ambiguous-intent`, `kind-change`, `open-facts`, `adr-amend-or-contradict`,
 `irreversible-operation`, `review-limit`, `checks-changed`, `base-moved`, because every gate is a decision the user takes
 before the work it decides (REQ-idd-008); else `declare-plan` (with `how`
 naming `ospec signals`) while the change has no recorded `plan`, no signal
@@ -979,7 +982,7 @@ there MUST be no suggestion and no error.
 - GIVEN an open change
 - WHEN `record gate --gate bogus --open --json` runs
 - THEN it MUST exit with 1 and the code `unknown-gate`, with a `how` that
-  lists the eight gates
+  lists the nine gates
 
 #### Scenario: Next is deterministic for the reference fixtures
 
@@ -3374,3 +3377,106 @@ and, when another process holds the lock, write nothing and fail with
 - WHEN the 8 attempts run out
 - THEN the write MUST fail with the refusal, `state.yaml` MUST keep its content
   and the temporary file MUST be gone
+
+### Requirement: Abandon A Change {#REQ-idd-028}
+
+A change that was replaced by another, discarded or opened by mistake MUST end
+through `ospec abandon`, never by moving or deleting anything under `idd/` by
+hand, and only with the user's answer.
+`ospec abandon --change <id> --reason <text> [--superseded-by <id>]` MUST NOT
+archive anything: it MUST open the `abandon` gate with the reason and, when
+given, the change that replaces this one, for any open change, also one with
+an ambiguous intent, with other gates open or without a base. `--superseded-by`
+MUST name one kebab-case id (`superseded-by-invalid`) of another change
+(`superseded-by-self`) that is open or archived (`superseded-by-unknown`).
+Another `ospec abandon` while the gate is open MUST replace the question, which
+is then asked again from that turn, the same one MUST change nothing, and
+`ospec abandon --cancel` MUST withdraw it (`gate-not-open` without one).
+`abandon` is the first gate in the order of REQ-idd-011, so `next` asks it
+before any other.
+
+Resolving `abandon` with `record gate`, as any gate (REQ-idd-008), MUST record
+`status: abandoned` and `abandoned`, holding `at` (the time of the answer),
+`reason` and, when one was named, `superseded_by`, and MUST then move
+`idd/<change-id>/` to `idd/archive/<YYYY-MM-DD>-<change-id>/`, dated by
+`abandoned.at`, with the transaction of REQ-idd-017. The answer and its source
+stay in the resolved gate; an answer kept `user-unverified` MUST archive the
+change all the same and be warned about. Abandoning MUST NOT run a check, a
+review or any command of the project, MUST NOT require or record evidence, and
+MUST leave the obligations, the other gates, `change.md`, the changelog and the
+working tree as they are; it MUST remove the outputs kept for the change under
+`.ospec/runs/` (REQ-idd-014) and MUST NOT return knowledge records
+(REQ-idd-024). The result MUST name the destination, the reason, the answer
+with its source and the obligations left pending.
+
+An abandoned change is neither open nor closed: `status` and `next` MUST NOT
+list an archived one, every command that writes a change and `ospec close`
+MUST refuse it with `change-abandoned`, `ospec abandon` with `--reason` or
+`--cancel` MUST refuse an abandoned change with `change-abandoned` and a
+closed one with `change-closed`, and `record completes` MUST NOT take it as
+the change a follow-up completes (REQ-idd-025). Its id MAY be opened again
+with `record intent`, as the id of a closed change. An abandoned change still
+under `idd/` is one whose move was interrupted: `next` MUST name
+`ospec abandon --change <id>` as its step, `ospec doctor` MUST warn about it,
+and `ospec abandon --change <id>` without `--reason` or `--cancel` MUST finish
+the move, reporting `already_complete` once it is archived. `ospec close` MUST
+keep requiring every obligation of a change that is delivered (REQ-idd-009).
+
+#### Scenario: The user's answer abandons a change with pending obligations
+
+- GIVEN an open change with active signals, `repro-test` pending and a diff
+  in the working tree
+- WHEN `ospec abandon --change <id> --reason <text>` runs
+- THEN the change MUST stay open in `idd/<id>/` with the `abandon` gate open
+- AND WHEN the gate is resolved with the user's answer
+- THEN `idd/archive/<date>-<id>/state.yaml` MUST hold `status: abandoned`,
+  `abandoned` with the reason and the obligations as they were
+- AND no command of the project MUST have run, the changelog and the working
+  tree MUST be unchanged and the result MUST hold no knowledge record
+
+#### Scenario: Nothing is archived without the answer
+
+- GIVEN an open change
+- WHEN `ospec abandon --change <id>` runs without `--reason` or `--cancel`
+- THEN it MUST be a usage error
+- AND `record gate --gate abandon --open` MUST be refused with
+  `gate-managed-by-abandon`
+- AND `record gate --gate abandon --resolve` without an answer MUST be refused
+  with `gate-answer-required`
+- AND `ospec abandon --cancel` on the open gate MUST leave the change open
+  without it
+
+#### Scenario: Abandon is asked before any other gate
+
+- GIVEN a change with an ambiguous intent, or with `irreversible-operation`
+  open
+- WHEN `ospec abandon --change <id> --reason <text>` runs
+- THEN the next step MUST be `resolve-gate` for `abandon`
+- AND resolving it MUST archive the change with its other gate still open
+
+#### Scenario: The change that replaces it must exist
+
+- GIVEN an open change, another open change and an archived one
+- WHEN `--superseded-by` names an unknown id, the change itself or a text that
+  is no id
+- THEN it MUST be refused with `superseded-by-unknown`, `superseded-by-self`
+  or `superseded-by-invalid`
+- AND naming the open or the archived change MUST be accepted and kept in
+  `abandoned.superseded_by`
+
+#### Scenario: An abandoned change is neither open nor closed
+
+- GIVEN an archived abandoned change
+- WHEN `ospec close`, `ospec abandon --reason` or `record completes --of` name
+  it
+- THEN they MUST be refused with `change-abandoned`, `change-abandoned` and
+  `completes-unknown`
+- AND `record intent` with its id MUST open a new change
+
+#### Scenario: Abandon finishes an interrupted move
+
+- GIVEN a change with `status: abandoned` still under `idd/<id>/`
+- WHEN `ospec next --change <id>` runs
+- THEN its step MUST be `abandon` with `ospec abandon --change <id>`
+- AND that command MUST move it to the archive, and `ospec close` and
+  `ospec check` MUST be refused with `change-abandoned`
