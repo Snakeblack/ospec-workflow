@@ -1,0 +1,193 @@
+{
+  "schema": "idd-state/v1",
+  "change": "ci-serial-browser-checks",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En el intento 2 de la evidencia de la PR #519 (run 43826036924, Windows 3/4), receta-spa de scripts/evals/bench/checks-greenfield.test.js falló con 'the page did not finish loading' en sus 4 comprobaciones, también tras su reintento: Chromium no carga la página en los 15 s de LOAD_TIMEOUT_MS bajo la contención de la fase paralela",
+    "acceptance": "checks-greenfield.test.js corre en la fase serie de check.js; LOAD_TIMEOUT_MS, CONCURRENCY y el reintento de Windows no cambian; las 5 ejecuciones de la PR sobre el SHA final pasan en verde"
+  },
+  "facts": {
+    "basis": "El usuario eligió la opción recomendada: pasar checks-greenfield.test.js a SERIAL_TESTS, frente a bajar CONCURRENCY a 2 en win32 o subir LOAD_TIMEOUT_MS (rechazado el 2026-10-21)"
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/check.js",
+      "scripts/check.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "checks-greenfield.test.js entra en SERIAL_TESTS, en su sitio alfabético (12 ficheros): su resultado depende del plazo de carga de 15 s de Chromium; el test de guarda no lo detecta, porque el plazo vive en browser.js, así que check.test.js lo fija por nombre",
+      "La línea del cambio va directamente a la sección 2.178.1 del CHANGELOG en el mismo commit que el código y el archivo IDD, sin tocar los manifiestos de versión"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "retracted": [
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/check.js imports scripts/configure/cli.js, which uses writeFile",
+      "source": "diff",
+      "retract_reason": "scripts/check.js ya importaba scripts/configure/cli.js antes de este cambio, solo para detectar el CLI de claude; el cambio no toca datos persistentes ni migraciones",
+      "confirmed_by": "persistent data: scripts/check.js imports scripts/configure/cli.js, which uses writeFile",
+      "hits": [
+        "scripts/check.js imports scripts/configure/cli.js, which uses writeFile: fs.writeFileSync(abs, file.content);",
+        "scripts/check.js imports scripts/configure/cli.js, which uses writeFile: fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, destination, started_at: new Date().toISOString() }) + \"\\n\");",
+        "scripts/check.js imports scripts/hooks/lib/staged-validator.js, which uses writeFile: fsImpl.writeFileSync(tmpFile, content, \"utf8\");"
+      ],
+      "answer": "ok (confirma que no hay datos persistentes: el import de cli.js en check.js ya existía)",
+      "answer_source": "user"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "withdrawn",
+      "evidence": [],
+      "withdrawn_reason": "scripts/check.js ya importaba scripts/configure/cli.js antes de este cambio, solo para detectar el CLI de claude; el cambio no toca datos persistentes ni migraciones"
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-16T08:14:22.473Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-16T08:15:59.157Z",
+      "detail": {
+        "tree": "sha256:00868cd422e6c52442016084b604248536bca334e297937b9f10edc648197b9b",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-16T08:34:01.307Z"
+    }
+  ],
+  "base": "51fa216a66eef8e0746c4937db9fc7d20cfc522b",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/check.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:53713db2ed40d39d1c5d5ee7f1224c48c91ef2e5159159b5376a9f87b674e543",
+      "tree": "sha256:15f1239c7cd037409563d47dd82a10d6ba4c8796dafe2c9d846cd01cc25e84c1",
+      "recorded_at": "2026-11-16T08:14:08.897Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/check.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dc70d1094e62789ef86dd6759d1cd9ce3092d601ed9fedcb9a15427f005f8254",
+      "tree": "sha256:91e08832fb0d0306ee42a081cc1e714e341849aa7ccebb6d3e8a69f58067c843",
+      "recorded_at": "2026-11-16T08:14:22.473Z",
+      "tests": 34,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "51fa216a66eef8e0746c4937db9fc7d20cfc522b",
+      "mount": "sha256:9381138f77f68abf31462f64252698df7f908145179f68b0377ae159b5159c72",
+      "command": "node --test scripts/check.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:a17e3a9b0d03c9320c2f85e5243153cc6aab4b91b7c7296e221dac7c9c1d4fd1",
+      "tree": "sha256:91e08832fb0d0306ee42a081cc1e714e341849aa7ccebb6d3e8a69f58067c843",
+      "recorded_at": "2026-11-16T08:14:22.473Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "51fa216a66eef8e0746c4937db9fc7d20cfc522b",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/check.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e9296c2c21d1343b726aceaa25881d2801e5b263ed7ce27679c5497f051615c8",
+      "tree": "sha256:91e08832fb0d0306ee42a081cc1e714e341849aa7ccebb6d3e8a69f58067c843",
+      "recorded_at": "2026-11-16T08:14:22.473Z",
+      "tests": 33
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:809453d89b19ea4533f1ba2d6a1f3071656213def8090ad04ab5e8b3a8ef63af",
+      "tree": "sha256:00868cd422e6c52442016084b604248536bca334e297937b9f10edc648197b9b",
+      "recorded_at": "2026-11-16T08:15:59.157Z"
+    }
+  ],
+  "closed_at": "2026-11-16T08:34:01.307Z"
+}

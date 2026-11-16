@@ -86,13 +86,14 @@ function generateTarget(target, validate, deps = {}) {
 }
 
 // E1.30: tests bound to a real deadline (the hook launcher's 4 s, a spawn's own
-// timeout, the 1 s budget of a linear-time reader) missed it under the
-// contention of the parallel suite on CI runners. They run after it, one file
-// at a time; with --shard the file at index j goes to shard (j mod total) + 1.
-// scripts/check.test.js fails when a test file that measures wall time is
-// missing here.
+// timeout, the 1 s budget of a linear-time reader, the 15 s a bench page has to
+// load) missed it under the contention of the parallel suite on CI runners.
+// They run after it, one file at a time; with --shard the file at index j goes
+// to shard (j mod total) + 1. scripts/check.test.js fails when a test file that
+// measures wall time is missing here.
 const SERIAL_TESTS = Object.freeze([
   "scripts/configure/codex-hook-shell.test.js",
+  "scripts/evals/bench/checks-greenfield.test.js",
   "scripts/hooks/ospec-hooks-launch.test.js",
   "scripts/hooks/pre-compact.test.js",
   "scripts/hooks/pre-tool-use.test.js",

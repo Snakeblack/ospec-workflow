@@ -207,7 +207,7 @@ test("--shard runs one shard of the Node tests and generates the targets only on
 // own timeout) missed it under the contention of the parallel suite. Those run
 // after it, one file at a time, each on one shard.
 test("the deadline-bound tests leave the parallel phase and run after it, one file at a time, each on one shard", () => {
-  assert.deepEqual(SERIAL_TESTS.slice(0, 2), [CODEX_SHELL, LAUNCHER]);
+  assert.deepEqual([CODEX_SHELL, LAUNCHER].filter((file) => !SERIAL_TESTS.includes(file)), []);
   const shards = [1, 2, 3].map((index) => runSharded(["--shard", `${index}/3`]));
   for (const [at, run] of shards.entries()) {
     assert.equal(run.exitCode, undefined);
@@ -218,6 +218,13 @@ test("the deadline-bound tests leave the parallel phase and run after it, one fi
     [["--test", "--test-concurrency=1", LAUNCHER]],
     [],
   ]);
+});
+
+// The bench browser checks give a page 15 s to load (LOAD_TIMEOUT_MS of
+// scripts/evals/bench/browser.js), a deadline the scan below cannot see: in the
+// parallel phase of PR #519, receta-spa missed it on a Windows runner.
+test("the deadline-bound tests include the bench browser checks, whose pages have 15 s to load", () => {
+  assert.ok(SERIAL_TESTS.includes("scripts/evals/bench/checks-greenfield.test.js"), "add it to SERIAL_TESTS in scripts/check.js");
 });
 
 // A test that holds work to a wall-clock budget belongs to SERIAL_TESTS: in the
