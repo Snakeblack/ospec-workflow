@@ -726,6 +726,7 @@ test("pruneStaleFiles exhaustion diagnosis specifies target: cursor", (t) => {
 
   const stderr = [];
   const delays = [];
+  const built = [];
   const fsImpl = new Proxy(fs, {
     get(target, property) {
       if (property === "rmSync") {
@@ -742,12 +743,15 @@ test("pruneStaleFiles exhaustion diagnosis specifies target: cursor", (t) => {
     },
   });
 
-  const exitCode = main([], {
-    sourceDir,
+  // main takes its source from --source or the cwd, never from deps: without
+  // it, this test built into the repository's dist/cursor (PR #519).
+  const exitCode = main(["--source", sourceDir], {
     homedir: () => homeDir,
     fs: fsImpl,
-    outDir: sourceDir,
-    runConfigure: () => ({ exitCode: 0, validation: { errors: [] } }),
+    runConfigure: ({ outDir }) => {
+      built.push(outDir);
+      return { exitCode: 0, validation: { errors: [] } };
+    },
     validateInstalled: () => ({ errors: [] }),
     copyBinaryToTree: () => {},
     syncTreeByContent: () => ({ updated: [], unchanged: [] }),
@@ -759,6 +763,7 @@ test("pruneStaleFiles exhaustion diagnosis specifies target: cursor", (t) => {
   });
 
   assert.equal(exitCode, 1);
+  assert.deepEqual(built, [path.join(sourceDir, "dist", "cursor")], "main builds from the test's own source");
   const errOutput = stderr.join("");
   assert.match(errOutput, /cursor:/i);
   assert.match(errOutput, /no se pudo borrar/i);

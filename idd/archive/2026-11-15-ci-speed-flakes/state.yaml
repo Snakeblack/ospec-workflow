@@ -1,0 +1,538 @@
+{
+  "schema": "idd-state/v1",
+  "change": "ci-speed-flakes",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Validate Harness tarda 9-15 min por PR y el 13 % de las ejecuciones necesita relanzarse: scripts/ospec.test.js corre en serie 443 s en Windows y 288 s en macOS y marca el job crítico, y los tests con plazos reales (hooks de Codex en shells reales, lanzador) agotan su plazo bajo la contención de la suite",
+    "acceptance": "ospec.test.js partido por áreas en ficheros que Node reparte entre shards (los mismos 184 tests); Windows y macOS en más shards; los tests sensibles a la contención corren después de la fase paralela, de uno en uno; el pre-commit sigue ejecutando los tests de scripts/ospec.js; el job más lento de Validate Harness baja de 9-15 min a unos 5 min, medido en la CI de la PR"
+  },
+  "facts": {
+    "open": [
+      "¿Cuántos shards por sistema: Windows 3 y macOS 2 (job más lento estimado ~4,5 min), o Windows 4 y macOS 3 (~3,5 min, más runners; macOS admite 5 jobs a la vez en la cuenta gratuita)?",
+      "¿Los tests sensibles a la contención (codex-hook-shell.test.js y ospec-hooks-launch.test.js) pasan a una fase en serie tras la fase paralela, con la lista en check.js y el reintento acotado actual intacto, frente a más reintentos o un plazo configurable por entorno (rechazado el 2026-10-18)?",
+      "¿ospec.test.js se parte en 8 ficheros scripts/ospec.<área>.test.js (el núcleo se queda en scripts/ospec.test.js) con los helpers comunes en scripts/lib/test-support/ospec-cli.js, sin cambiar ningún test?",
+      "¿El pre-commit asocia <nombre>.js también a <nombre>.*.test.js (cubre las partes de ospec.js y de paso staged-validator.integration.test.js), o trata scripts/ospec.js como infraestructura central y ejecuta la suite completa?",
+      "¿Cuántas ejecuciones de Validate Harness en la PR sirven de evidencia de tiempos y fallos antes del merge (3, 5 o las 20 del criterio de E1.30)?",
+      "¿El roadmap lo anota como avance de E1.30 windows-flake-repair (#344), que sigue abierto hasta cumplir su criterio, o como un ítem nuevo?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      ".github/workflows/validate-harness.yml",
+      "CONTRIBUTING.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/git-precommit-hook/spec.md",
+      "scripts/check.js",
+      "scripts/check.test.js",
+      "scripts/hooks/lib/staged-validator.js",
+      "scripts/hooks/lib/staged-validator.test.js",
+      "scripts/lib/test-support/ospec-cli.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 3,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Validate Harness: Windows en 3 shards, macOS en 2 y Ubuntu en 1 (decisión del usuario); el límite de 15 min por job no cambia",
+      "check.js lista él mismo los ficheros de test (los de node --test scripts/**/*.test.js tests/**/*.test.js: sin node_modules ni entradas que empiezan por punto) y los pasa explícitos, para sacar de la fase paralela los de SERIAL_TESTS; con 268 ficheros la orden ocupa unos 11 KB del límite de 32 KB de Windows, y pasarse fallaría al arrancar, no en silencio",
+      "SERIAL_TESTS (codex-hook-shell.test.js y ospec-hooks-launch.test.js) corre tras la fase paralela con --test-concurrency=1; con --shard i/n el fichero j de la lista va al shard (j mod n)+1; un fichero de la lista que no existe hace fallar check.js; el reintento acotado de codex-hook-shell no cambia",
+      "El modo --staged del pre-commit sigue con una sola ejecución: sus fallos por contención no constan y el equipo local tiene más núcleos que el runner",
+      "ospec.test.js se parte por áreas en scripts/ospec.<área>.test.js; el núcleo se queda en scripts/ospec.test.js y los helpers que usan varias partes van a scripts/lib/test-support/ospec-cli.js; se comprueba que los 184 nombres de test son los mismos antes y después",
+      "El pre-commit asocia <nombre>.js también a <nombre>.*.test.js de su directorio (REQ-git-precommit-hook-002)",
+      "Evidencia: 5 ejecuciones de Validate Harness en la PR; el roadmap lo anota como avance de E1.30, que sigue abierto"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/lib/staged-validator.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    }
+  ],
+  "retracted": [
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/test-support/ospec-cli.js adds writeFile",
+      "source": "diff",
+      "retract_reason": "writeFile es el helper de test que escribe los ficheros de un proyecto temporal; se mueve tal cual de scripts/ospec.test.js a scripts/lib/test-support/ospec-cli.js y no toca datos persistentes ni migraciones",
+      "confirmed_by": "persistent data: scripts/lib/test-support/ospec-cli.js adds writeFile",
+      "hits": [
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: function writeFile(root, rel, content) {",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: fs.writeFileSync(path.join(root, rel), content);",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"verify.js\", `${VERIFY}\\n`);",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"src/pages.txt\", \"1\");",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: if (checks !== null) writeFile(root, \"idd/config.yaml\", checks);",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"src/pages.txt\", \"2\");",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"src/auth/tokens.js\", \"module.exports = { ttl: 3600 };\\n\");",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"src/auth/tokens.test.js\", \"test('ttl', () => {});\\n\");",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"src/pages.txt\", \"2\");",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"src/pages.txt\", \"2\");",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"docs/architecture/decisions/0002-integracion-sincrona.md\", adrText(\"0002\", \"Los módulos se integran de forma síncrona\"));",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"docs/architecture/knowledge-map.yaml\", JSON.stringify({ schema: \"ospec-knowledge-map/v1\", profile: \"saas\", slots: [], quality_scenarios: [{ id: \"module-integration\" }] }));",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"boundary.js\", `${BOUNDARY}\\n`);",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"src/core.js\", \"module.exports = 1;\\n\");",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"src/pages.txt\", \"2\");",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"docs/architecture/decisions/0006-nucleo-sin-adaptadores.md\", boundaryAdr);",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: const E2E = \"node -e \\\"require('fs').appendFileSync('e2e.log', 'x')\\\"\";",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"src/pages.js\", \"module.exports = (items) => Math.floor(items / 10);\\n\");",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"test/pages.test.js\", `${PAGES_TEST}\\n`);",
+        "scripts/lib/test-support/ospec-cli.js adds writeFile: writeFile(root, \"idd/config.yaml\", \"checks:\\n  test: node --test\\n\");",
+        "scripts/hooks/lib/staged-validator.js uses writeFile: fsImpl.writeFileSync(tmpFile, content, \"utf8\");",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: function writeFile(root, rel, content) {",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: fs.writeFileSync(path.join(root, rel), content);",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"verify.js\", `${VERIFY}\\n`);",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"src/pages.txt\", \"1\");",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: if (checks !== null) writeFile(root, \"idd/config.yaml\", checks);",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"src/pages.txt\", \"2\");",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"src/auth/tokens.js\", \"module.exports = { ttl: 3600 };\\n\");",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"src/auth/tokens.test.js\", \"test('ttl', () => {});\\n\");",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"src/pages.txt\", \"2\");",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"src/pages.txt\", \"2\");",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"docs/architecture/decisions/0002-integracion-sincrona.md\", adrText(\"0002\", \"Los módulos se integran de forma síncrona\"));",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"docs/architecture/knowledge-map.yaml\", JSON.stringify({ schema: \"ospec-knowledge-map/v1\", profile: \"saas\", slots: [], quality_scenarios: [{ id: \"module-integration\" }] }));",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"boundary.js\", `${BOUNDARY}\\n`);",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"src/core.js\", \"module.exports = 1;\\n\");",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"src/pages.txt\", \"2\");",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"docs/architecture/decisions/0006-nucleo-sin-adaptadores.md\", boundaryAdr);",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: const E2E = \"node -e \\\"require('fs').appendFileSync('e2e.log', 'x')\\\"\";",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"src/pages.js\", \"module.exports = (items) => Math.floor(items / 10);\\n\");",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"test/pages.test.js\", `${PAGES_TEST}\\n`);",
+        "scripts/lib/test-support/ospec-cli.js uses writeFile: writeFile(root, \"idd/config.yaml\", \"checks:\\n  test: node --test\\n\");",
+        "scripts/check.js imports scripts/configure/cli.js, which uses writeFile: fs.writeFileSync(abs, file.content);",
+        "scripts/check.js imports scripts/configure/cli.js, which uses writeFile: fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, destination, started_at: new Date().toISOString() }) + \"\\n\");",
+        "scripts/check.js imports scripts/hooks/lib/staged-validator.js, which uses writeFile: fsImpl.writeFileSync(tmpFile, content, \"utf8\");"
+      ],
+      "answer": "todas las recomendadas (confirma que no hay datos persistentes: writeFile es el helper de test movido sin cambios)",
+      "answer_source": "user"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "El pre-commit solo añade a los tests afectados los <nombre>.<parte>.test.js de un módulo; el análisis de secretos y de sintaxis, que bloquean cuando no pueden leer, no cambia. Si no puede listar el directorio, no añade tests: elegir tests no es una decisión del guard"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "check.js y el validador staged solo usan la biblioteca estándar de Node (fs, path); no se declara ninguna dependencia"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "El bloqueo de una operación destructiva o de un secreto no cambia; el cambio solo amplía qué tests corren en el pre-commit y cómo los reparte la CI"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "withdrawn",
+      "evidence": [],
+      "withdrawn_reason": "writeFile es el helper de test que escribe los ficheros de un proyecto temporal; se mueve tal cual de scripts/ospec.test.js a scripts/lib/test-support/ospec-cli.js y no toca datos persistentes ni migraciones"
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 368,
+      "answer": "todas las recomendadas: (1) Windows 3 shards y macOS 2; (2) codex-hook-shell.test.js y ospec-hooks-launch.test.js en una fase en serie tras la paralela, lista en check.js, reintento actual intacto; (3) scripts/ospec.<área>.test.js con el núcleo en scripts/ospec.test.js y helpers en scripts/lib/test-support/ospec-cli.js; (4) el pre-commit asocia <nombre>.js también a <nombre>.*.test.js; (5) 5 ejecuciones de Validate Harness en la PR como evidencia; (6) avance de E1.30 windows-flake-repair (#344), que sigue abierto",
+      "source": "user",
+      "resolved_turn": 369
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-15T20:37:01.239Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-15T20:45:16.840Z",
+      "detail": {
+        "tree": "sha256:c8fb647d9fa2a63ff8b95f46e13dcec1e934e136bdac49f6efbd46c9be720f7b",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-15T20:45:16.840Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:c8fb647d9fa2a63ff8b95f46e13dcec1e934e136bdac49f6efbd46c9be720f7b",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-15T20:47:25.927Z",
+      "detail": {
+        "lineage_id": "sha256:277e13618c0159de21c78a813ea3e750093d51f6fe69d8dcf06abe014adae026",
+        "candidate_id": "sha256:875ec86f5ad670c1c50c3ec8c16dc879f7eb6b83f80f3641497f4ad410c264d3",
+        "candidate_tree": "5e65949c9be9ed4df9bb8422dc06226143338ecc",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-15T20:47:13.529Z",
+          "result_digest": "sha256:920db3410dee3568b206367fa768d2f3d2b317d0f9eb64d69e25ece5706905fc"
+        }
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-15T20:55:27.493Z"
+    }
+  ],
+  "base": "03f0f8fd0c6790fbe01684ba12da393b8245307a",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/check.test.js scripts/hooks/lib/staged-validator.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:f3283126c598ff6f95f9b5fab450e50e64a6b0be36774f4aeb009f4262db2a6d",
+      "tree": "sha256:15d277e9d08ff5dc4dd54cd80699b8d7aa6299421f1aaf361e8fd7f7c6a040f1",
+      "recorded_at": "2026-11-15T20:36:28.930Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/check.test.js scripts/hooks/lib/staged-validator.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:096e45ec3ea1e5994b82dbf7f777fd0f547f831deacc5f1c837b51fa3da777f5",
+      "tree": "sha256:9726ede58ad70e18c0d52476b61549f082a1785b6395902349aedf821c448227",
+      "recorded_at": "2026-11-15T20:37:01.239Z",
+      "tests": 77,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "03f0f8fd0c6790fbe01684ba12da393b8245307a",
+      "mount": "sha256:d474a7c2a217d8b7350dd28b2434ece229b994618656c0353ddda0ed6e266ce6",
+      "command": "node --test scripts/check.test.js scripts/hooks/lib/staged-validator.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:080455c0166a3cf3e4eaae66b61c0710afdf2a2547bbe2a6bd8134f98666e8ae",
+      "tree": "sha256:9726ede58ad70e18c0d52476b61549f082a1785b6395902349aedf821c448227",
+      "recorded_at": "2026-11-15T20:37:01.239Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "03f0f8fd0c6790fbe01684ba12da393b8245307a",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/check.test.js scripts/hooks/lib/staged-validator.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eb8ac0ce904d12f5f25a71edcc92e4757c447c6538020c08ee8d72d63b184211",
+      "tree": "sha256:9726ede58ad70e18c0d52476b61549f082a1785b6395902349aedf821c448227",
+      "recorded_at": "2026-11-15T20:37:01.239Z",
+      "tests": 72
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4cdacf2b5f61c7aa967c5cebeb8c101c53ea00849152568df51895aa92a33e63",
+      "tree": "sha256:c8fb647d9fa2a63ff8b95f46e13dcec1e934e136bdac49f6efbd46c9be720f7b",
+      "recorded_at": "2026-11-15T20:45:16.840Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8a28ec7c82036d685034fdd354988ff52e0a3f2577b1a87719c0bb8520cddaa0",
+      "tree": "sha256:c8fb647d9fa2a63ff8b95f46e13dcec1e934e136bdac49f6efbd46c9be720f7b",
+      "recorded_at": "2026-11-15T20:45:16.840Z",
+      "tests": 99
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:c8fb647d9fa2a63ff8b95f46e13dcec1e934e136bdac49f6efbd46c9be720f7b",
+      "recorded_at": "2026-11-15T20:45:16.840Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e038c77d91a5a2f90bb60846f77593f5162591f10f4abfe441ae9f89df34d194",
+      "tree": "sha256:c8fb647d9fa2a63ff8b95f46e13dcec1e934e136bdac49f6efbd46c9be720f7b",
+      "recorded_at": "2026-11-15T20:45:16.840Z",
+      "tests": 26
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:29ccefe59f9422e26eb74726035a10ba73b4f75ef9d3e476b7a252792cb11f9d",
+      "tree": "sha256:c8fb647d9fa2a63ff8b95f46e13dcec1e934e136bdac49f6efbd46c9be720f7b",
+      "recorded_at": "2026-11-15T20:45:16.840Z",
+      "tests": 99
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:277e13618c0159de21c78a813ea3e750093d51f6fe69d8dcf06abe014adae026",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "220c7677a5f9fbcef5b3982dbbf8f63fbbc5a4a4",
+          "candidate_tree": "5e65949c9be9ed4df9bb8422dc06226143338ecc",
+          "paths": [
+            ".github/workflows/validate-harness.yml",
+            "CONTRIBUTING.md",
+            "docs/roadmaps/harness-evolution.md",
+            "openspec/specs/git-precommit-hook/spec.md",
+            "scripts/check.js",
+            "scripts/check.test.js",
+            "scripts/hooks/lib/staged-validator.js",
+            "scripts/hooks/lib/staged-validator.test.js",
+            "scripts/lib/test-support/ospec-cli.js",
+            "scripts/ospec.close.test.js",
+            "scripts/ospec.counterproof.test.js",
+            "scripts/ospec.impact.test.js",
+            "scripts/ospec.lifecycle.test.js",
+            "scripts/ospec.output.test.js",
+            "scripts/ospec.review-correction.test.js",
+            "scripts/ospec.review.test.js",
+            "scripts/ospec.test.js"
+          ],
+          "diff_hash": "sha256:b11c82212e767c8ffbd5bad0651fec59342dc6ea9ff13f30ae4d417f701d0178",
+          "paths_digest": "sha256:01e88c0743b7579fbb213a466a20b094260f7f9760c23323e09015b16ca305a3",
+          "authored_lines": 4482,
+          "original_changed_lines": 8541
+        },
+        "candidate_id": "sha256:875ec86f5ad670c1c50c3ec8c16dc879f7eb6b83f80f3641497f4ad410c264d3",
+        "paths": [
+          ".github/workflows/validate-harness.yml",
+          "CONTRIBUTING.md",
+          "docs/roadmaps/harness-evolution.md",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "scripts/check.js",
+          "scripts/check.test.js",
+          "scripts/hooks/lib/staged-validator.js",
+          "scripts/hooks/lib/staged-validator.test.js",
+          "scripts/lib/test-support/ospec-cli.js",
+          "scripts/ospec.close.test.js",
+          "scripts/ospec.counterproof.test.js",
+          "scripts/ospec.impact.test.js",
+          "scripts/ospec.lifecycle.test.js",
+          "scripts/ospec.output.test.js",
+          "scripts/ospec.review-correction.test.js",
+          "scripts/ospec.review.test.js",
+          "scripts/ospec.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "5e65949c9be9ed4df9bb8422dc06226143338ecc",
+        "original_changed_lines": 8541,
+        "authored_lines": 4482
+      },
+      "current_candidate_id": "sha256:875ec86f5ad670c1c50c3ec8c16dc879f7eb6b83f80f3641497f4ad410c264d3",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "220c7677a5f9fbcef5b3982dbbf8f63fbbc5a4a4",
+        "candidate_tree": "5e65949c9be9ed4df9bb8422dc06226143338ecc",
+        "paths": [
+          ".github/workflows/validate-harness.yml",
+          "CONTRIBUTING.md",
+          "docs/roadmaps/harness-evolution.md",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "scripts/check.js",
+          "scripts/check.test.js",
+          "scripts/hooks/lib/staged-validator.js",
+          "scripts/hooks/lib/staged-validator.test.js",
+          "scripts/lib/test-support/ospec-cli.js",
+          "scripts/ospec.close.test.js",
+          "scripts/ospec.counterproof.test.js",
+          "scripts/ospec.impact.test.js",
+          "scripts/ospec.lifecycle.test.js",
+          "scripts/ospec.output.test.js",
+          "scripts/ospec.review-correction.test.js",
+          "scripts/ospec.review.test.js",
+          "scripts/ospec.test.js"
+        ],
+        "diff_hash": "sha256:b11c82212e767c8ffbd5bad0651fec59342dc6ea9ff13f30ae4d417f701d0178",
+        "paths_digest": "sha256:01e88c0743b7579fbb213a466a20b094260f7f9760c23323e09015b16ca305a3",
+        "authored_lines": 4482,
+        "original_changed_lines": 8541
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "ci-speed-flakes:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "ci-speed-flakes:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-11-15T20:55:27.493Z"
+}

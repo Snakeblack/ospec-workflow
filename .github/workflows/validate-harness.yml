@@ -28,15 +28,28 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Windows runs the Node tests in two shards: one job took 6-12 min
-        # there against 2 min on Ubuntu (measured on this branch's experiment).
+        # The Node tests cost about 1900 s of runner time on Windows, 760 s on
+        # macOS and 320 s on Ubuntu (PR #519, 2026-11-15), with 3, 2 and 3
+        # files at a time. --test-shard deals the files out in turn, blind to
+        # their cost: with three Windows shards one of them summed 897 s
+        # against 457 and 612 s. Four Windows shards and three macOS shards
+        # keep the slowest job near 4-5 min.
         include:
           - os: ubuntu-latest
           - os: macos-latest
+            shard: 1/3
+          - os: macos-latest
+            shard: 2/3
+          - os: macos-latest
+            shard: 3/3
           - os: windows-latest
-            shard: 1/2
+            shard: 1/4
           - os: windows-latest
-            shard: 2/2
+            shard: 2/4
+          - os: windows-latest
+            shard: 3/4
+          - os: windows-latest
+            shard: 4/4
 
     steps:
       - name: Checkout

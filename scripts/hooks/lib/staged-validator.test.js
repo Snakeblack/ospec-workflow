@@ -197,6 +197,31 @@ test("findAffectedTests collects direct test files and corresponding source test
   assert.ok(tests.includes("scripts/hooks/pre-commit-hook.test.js"));
 });
 
+// The tests of one module split by area, or of another kind, are named
+// <name>.<part>.test.js beside it (scripts/ospec.review.test.js,
+// staged-validator.integration.test.js) and run with it.
+test("findAffectedTests runs the <name>.<part>.test.js files of a staged module with it [REQ-git-precommit-hook-002]", () => {
+  const listings = {
+    "c:/repo/scripts": ["check.js", "ospec.js", "ospec.test.js", "ospec.review.test.js", "ospec.close.test.js", "ospec-cli.test.js", "ospecx.test.js", "ospec.review.js"],
+    "c:/repo/scripts/hooks/lib": ["staged-validator.js", "staged-validator.test.js", "staged-validator.integration.test.js"],
+  };
+  // path.resolve keeps "c:/repo" on Windows and prefixes the cwd elsewhere.
+  const key = (p) => p.replace(/\\/g, "/").replace(/^.*?(c:\/repo)/i, "$1");
+  const fakeFs = {
+    existsSync: (p) => (listings[path.posix.dirname(key(p))] || []).includes(path.basename(p)),
+    readdirSync: (p) => listings[key(p)] || [],
+  };
+  assert.deepEqual(findAffectedTests(["scripts/ospec.js"], "c:/repo", { fs: fakeFs }).sort(), [
+    "scripts/ospec.close.test.js",
+    "scripts/ospec.review.test.js",
+    "scripts/ospec.test.js",
+  ]);
+  assert.deepEqual(findAffectedTests(["scripts/hooks/lib/staged-validator.js"], "c:/repo", { fs: fakeFs }).sort(), [
+    "scripts/hooks/lib/staged-validator.integration.test.js",
+    "scripts/hooks/lib/staged-validator.test.js",
+  ]);
+});
+
 test("findAffectedTests triggers contract and doc lints for agents/skills/openspec", () => {
   const staged = [
     "agents/sdd-apply.agent.md",

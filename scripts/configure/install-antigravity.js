@@ -27,7 +27,7 @@ const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, filesRow, packagesRow, reportAbor
 const { commandsFromSourceMcp, warnIfUvxMissing } = require("./mcp-prereqs.js");
 
 function usage() {
-  return "uso: install-antigravity [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>] [--verbose]\n";
+  return "uso: install-antigravity [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>] [--out <buildDir>] [--verbose]\n";
 }
 
 function parseArgs(argv) {
@@ -54,6 +54,15 @@ function parseArgs(argv) {
         return args;
       }
       args.dest = next;
+      i += 1;
+    } else if (arg === "--out") {
+      // The build directory, by default <source>/dist/antigravity.
+      const next = argv[i + 1];
+      if (!next || next.startsWith("--")) {
+        args.error = "missing value for --out";
+        return args;
+      }
+      args.out = next;
       i += 1;
     } else {
       args.error = `unknown argument: ${arg}`;
@@ -306,7 +315,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
   }
 
   const sourceDir = path.resolve(args.source || deps.sourceDir || cwd);
-  const outDir = deps.outDir || path.join(sourceDir, "dist", "antigravity");
+  const outDir = args.out ? path.resolve(cwd, args.out) : deps.outDir || path.join(sourceDir, "dist", "antigravity");
   const targetRoots = getDestinationRoots(args.dest, deps);
 
   reporter.plan(args.dryRun ? [PHASE_BUILD] : [PHASE_BUILD, PHASE_FILES]);

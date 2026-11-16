@@ -1,0 +1,308 @@
+{
+  "schema": "idd-state/v1",
+  "change": "ci-dist-test-isolation",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En la evidencia de la PR #519 (run 43832697041, intento 1, Windows 2/4), REQ-generator-005 de scripts/model-tier-contract.test.js falló con 'temporary generation must not change dist/**': dos tests escriben en el dist/ del repositorio mientras corren otros. El test de poda de install-cursor llama a main sin --source, así que main toma el repositorio (cwd) e ignora su sourceDir temporal y escribe dist/cursor; buildOspecHome de agy.test.js lanza la instalación real de antigravity, que reconstruye dist/antigravity porque install-antigravity no admite --out",
+    "acceptance": "Ningún test de la suite escribe en el dist/ del repositorio; model-tier-contract.test.js deja de competir con ellos; las 5 ejecuciones de la PR sobre el SHA final pasan en verde"
+  },
+  "facts": {
+    "open": [
+      "¿Arreglamos los dos escritores (el test de install-cursor pasa --source con su directorio temporal; install-antigravity acepta --out y buildOspecHome instala en un directorio temporal, así el bench tampoco pisa dist/antigravity), o solo pasamos model-tier-contract.test.js a SERIAL_TESTS, que quita la carrera en CI pero deja que la suite siga pisando el dist/ local?",
+      "¿Añadimos una guarda que falle si un test escribe en el dist/ del repositorio, o basta con la comprobación que ya hace model-tier-contract.test.js?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/configure/install-antigravity.js",
+      "scripts/configure/install-antigravity.test.js",
+      "scripts/configure/install-cursor.test.js",
+      "scripts/evals/bench/hosts/agy.js",
+      "scripts/evals/bench/hosts/agy.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/install-antigravity.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El instalador de antigravity sigue generando su target desde la fuente canónica con runConfigure; --out solo cambia el directorio donde deja el build"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "No se añade ninguna dependencia: el instalador y el bench usan solo la biblioteca estándar (fs, os, path)"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "La instalación no descarga nada; el build va a un directorio local temporal"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El target generado es el mismo en cualquier directorio de build: el test de digest de buildOspecHome compara dos instalaciones reales en directorios distintos"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Revisado el diff: install-antigravity.js solo añade el parseo de --out y path.resolve; agy.js solo añade os.tmpdir, mkdtempSync y rmSync. Ninguna llamada de red, ninguna dependencia nueva, y no toca el CLI ospec, los hooks ni las skills del flujo IDD, así que next, check y close no cambian",
+      "recorded_at": "2026-11-16T10:01:10.577Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 382,
+      "answer": "lo recomendado: (1) A, arreglar los dos escritores: el test de install-cursor pasa --source con su directorio temporal, install-antigravity acepta --out y buildOspecHome instala en un directorio temporal; (2) sin guarda nueva: basta la comprobación de model-tier-contract.test.js",
+      "source": "user",
+      "resolved_turn": 383
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-16T09:58:20.680Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-16T10:00:43.971Z",
+      "detail": {
+        "tree": "sha256:24a7d434ad0e509643faf54e054ea7de3524945d610b581af73b4f59a1524072",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-16T10:00:43.971Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:24a7d434ad0e509643faf54e054ea7de3524945d610b581af73b4f59a1524072",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-16T10:01:10.420Z",
+      "detail": {
+        "run": "run-10",
+        "tree": "sha256:703ce201b2997812bb08e2b25a81ef2544e7e44c78dd107e8d93d3344315767b",
+        "plan": "Compatibilidad: lo que el instalador escribe en el destino no cambia; --out es opcional y sin él el build sigue en <source>/dist/antigravity como antes. Los tests de instalación comprueban los ficheros instalados, y buildOspecHome hace dos instalaciones reales en directorios de build distintos con el mismo digest. Vuelta atrás: revertir el commit; ninguna instalación existente depende de --out"
+      }
+    }
+  ],
+  "base": "cd9242973417604d0085e465b3a17cf21c196548",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-antigravity.test.js scripts/evals/bench/hosts/agy.test.js scripts/configure/install-cursor.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d952cda944d93344a286650a670fe984e18bee1de9ded64520452a78f8be858d",
+      "tree": "sha256:5e836a77c2537d69dae4b0dc370f5a9a7974f856163e95a2f25ab2d3668ff269",
+      "recorded_at": "2026-11-16T09:57:39.329Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-antigravity.test.js scripts/evals/bench/hosts/agy.test.js scripts/configure/install-cursor.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b1668f35ef93caaa6107c6435a7a14a867931e905aa4371d1e710c96d593497c",
+      "tree": "sha256:703ce201b2997812bb08e2b25a81ef2544e7e44c78dd107e8d93d3344315767b",
+      "recorded_at": "2026-11-16T09:58:20.680Z",
+      "tests": 59,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "cd9242973417604d0085e465b3a17cf21c196548",
+      "mount": "sha256:b8b780898689fc21d0dc2a07abd2a38651fd1364739f0908d0c2f7ddf8f0b7cf",
+      "command": "node --test scripts/configure/install-antigravity.test.js scripts/evals/bench/hosts/agy.test.js scripts/configure/install-cursor.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:6e32a1262759f83fa11990256339dc351370b277f5a8f077b1a5a60e584d76f3",
+      "tree": "sha256:703ce201b2997812bb08e2b25a81ef2544e7e44c78dd107e8d93d3344315767b",
+      "recorded_at": "2026-11-16T09:58:20.680Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "cd9242973417604d0085e465b3a17cf21c196548",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/configure/install-antigravity.test.js scripts/evals/bench/hosts/agy.test.js scripts/configure/install-cursor.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:04e738ca7d7b289cc238c2ffb3dace5fee506380ccd24e124abe0ad45a6050e3",
+      "tree": "sha256:703ce201b2997812bb08e2b25a81ef2544e7e44c78dd107e8d93d3344315767b",
+      "recorded_at": "2026-11-16T09:58:20.680Z",
+      "tests": 57
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:52e09dad6dad9bb5f21431469d6e82d4ca1454117f9790cf9dc2d575de28649b",
+      "tree": "sha256:24a7d434ad0e509643faf54e054ea7de3524945d610b581af73b4f59a1524072",
+      "recorded_at": "2026-11-16T10:00:43.971Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:46f545ed0878e6ec9a001d1fcd717e8ffe774b5dc762a64f2660a8851b34b74d",
+      "tree": "sha256:24a7d434ad0e509643faf54e054ea7de3524945d610b581af73b4f59a1524072",
+      "recorded_at": "2026-11-16T10:00:43.971Z",
+      "tests": 48
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:24a7d434ad0e509643faf54e054ea7de3524945d610b581af73b4f59a1524072",
+      "recorded_at": "2026-11-16T10:00:43.971Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c4fee5894d764a4ffb5491f00294997d0238b4b4696c3f0b2e9f897d62b0e2c6",
+      "tree": "sha256:24a7d434ad0e509643faf54e054ea7de3524945d610b581af73b4f59a1524072",
+      "recorded_at": "2026-11-16T10:00:43.971Z",
+      "tests": 26
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:72be9b74ae8564902f4d545b72e21f4809803c0b435f583c615fdffe02ffb70a",
+      "tree": "sha256:24a7d434ad0e509643faf54e054ea7de3524945d610b581af73b4f59a1524072",
+      "recorded_at": "2026-11-16T10:00:43.971Z",
+      "tests": 48
+    },
+    {
+      "id": "run-10",
+      "purpose": "migration-test",
+      "command": "node --test scripts/configure/install-antigravity.test.js scripts/evals/bench/hosts/agy.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3f23d0e4ebd49f33eb8ae4aa2707c5f6612b9f16df9040b006c31f4da123f827",
+      "tree": "sha256:703ce201b2997812bb08e2b25a81ef2544e7e44c78dd107e8d93d3344315767b",
+      "recorded_at": "2026-11-16T10:01:10.420Z",
+      "tests": 31
+    }
+  ],
+  "closed_at": "2026-11-16T10:01:25.903Z"
+}
