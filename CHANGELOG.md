@@ -7,21 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- En la CI del commit de release de la PR #519, REQ-lifecycle-kernel-035 (readState y el proyector leen una línea larga en tiempo lineal, scripts/lib/ospec-state.test.js) tardó 2222 ms frente a su presupuesto de 1000 ms en Windows 3/4: los tests que miden tiempo de pared siguen en la fase paralela, donde la contención ha subido al correr a la vez las partes de ospec (ci-serial-timing-tests)
-
-## [2.178.1] - 2026-11-15
+## [2.178.1] - 2026-11-16
 
 ### Fixed
-- **Validate Harness tarda menos de la mitad y corre aparte los tests con plazo real** (ci-speed-flakes y ci-shards-rebalance; avance de E1.30, #344).
+- **Validate Harness tarda menos de la mitad y corre aparte los tests con plazo real** (ci-speed-flakes, ci-shards-rebalance y ci-serial-timing-tests; avance de E1.30, #344).
   - **El problema**: el job más lento de cada ejecución tardaba 672 s de mediana (máximo 877 s) y 13 de las 100 últimas ejecuciones se relanzaron. `scripts/ospec.test.js`, con 184 tests que `node --test` corre en serie en un solo proceso, tardaba 443 s en Windows y marcaba el shard que lo recibía. `codex-hook-shell.test.js` agotaba en Windows, bajo la contención de la suite, el plazo de 4 s del lanzador incluso tras su reintento.
   - **Contrato de la CLI partido por áreas**: `scripts/ospec.test.js` se queda con el núcleo y el resto pasa a `scripts/ospec.<área>.test.js` (counterproof, review, review-correction, close, impact, output y lifecycle), con los helpers comunes en `scripts/lib/test-support/ospec-cli.js`. Es un movimiento puro: los mismos 184 tests.
   - **Dos fases en `check.js`**: lista él mismo los ficheros de test y se los pasa a `node --test`. Los de `SERIAL_TESTS` (`codex-hook-shell.test.js` y `ospec-hooks-launch.test.js`) corren después de la fase paralela, de uno en uno; con `--shard`, cada uno en un shard. Si un fichero de la lista no existe, `check.js` falla, y un test compara la lista con el glob de Node.
+  - **Tests que miden tiempo de pared, también en serie**: en la CI de la PR, `REQ-lifecycle-kernel-035` (`ospec-state.test.js`) tardó 2222 ms frente a su presupuesto de 1000 ms, porque al correr a la vez las partes de `ospec` subió la contención. Subir el presupuesto no sirve, porque el lector cuadrático tardaba de 3 a 8 s. `SERIAL_TESTS` pasa a 11 ficheros: los 9 que miden tiempo con `process.hrtime` (unos 5,4 s en local) y los 2 de antes. Un test de `check.test.js` falla si un fichero de test que mide tiempo así no está en la lista.
   - **Más shards**: Windows pasa de 2 a 4 y macOS de 1 a 3. Con 3 y 2, el reparto por turnos de `--test-shard` dejaba un shard de Windows con 897 s de tests frente a 457 y 612 s.
   - **Pre-commit**: un `<nombre>.js` preparado ejecuta también sus `<nombre>.<parte>.test.js`, como las partes de `scripts/ospec.js` o `staged-validator.integration.test.js` (REQ-git-precommit-hook-002).
-  - **Medido en la PR #519**: 5 ejecuciones sobre la configuración final, todas en verde, sin fallos y sin reintentos. Job más lento: 258 s de mediana (máximo 375 s, por un shard de macOS lento en una ejecución); pared total: 263 s de mediana. `codex-hook-shell` tarda 20-31 s en la fase serie, frente a 75-101 s dentro de la suite. En local, `node scripts/check.js` pasa de unos 115 s a 65 s. Que no haya fallos en 8 ejecuciones aún no demuestra que la tasa de fallos haya bajado, así que E1.30 sigue abierto.
+  - **Medido en la PR #519**: 5 ejecuciones con 4 shards de Windows y 3 de macOS, antes de pasar a la fase serie los tests que miden tiempo; todas en verde, sin fallos y sin reintentos. Job más lento: 258 s de mediana (máximo 375 s, por un shard de macOS lento en una ejecución); pared total: 263 s de mediana. `codex-hook-shell` tarda 20-31 s en la fase serie, frente a 75-101 s dentro de la suite. En local, `node scripts/check.js` pasa de unos 115 s a unos 70 s. Que no haya fallos en 8 ejecuciones aún no demuestra que la tasa de fallos haya bajado, así que E1.30 sigue abierto.
 
-**Verificación directa**: `node scripts/check.js` (4640 tests pasando, 0 fallos y 5 omitidos), 59 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados.
+**Verificación directa**: `node scripts/check.js` (4641 tests pasando, 0 fallos y 5 omitidos), 441 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados.
 
 ## [2.178.0] - 2026-11-15
 
