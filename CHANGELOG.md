@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.178.2] - 2026-11-16
+
+### Fixed
+- **La contraprueba copia las dependencias del proyecto en vez de enlazarlas** (counterproof-isolated-dependencies, #518).
+  - **El problema**: `mountCounterproof` enlazaba con permiso de escritura los directorios de dependencias ignorados del proyecto (`node_modules`, `.venv`, `vendor`…) en el árbol temporal de la base. Un comando que reinstalaba en la base, como pnpm 12 ante un lockfile que no casa, escribía en los del proyecto: en retama-landing quedaron 24 enlaces de `node_modules` apuntando al árbol temporal ya borrado, con las versiones de la base.
+  - **Copia aislada**: cada montaje lleva su copia, clonada donde el sistema de ficheros lo admite (btrfs, APFS, XFS). Un enlace con destino dentro del repositorio apunta a la misma ruta del árbol temporal, así que un paquete del workspace es el de la base. En Windows, un enlace a un directorio se crea como junction, que no pide privilegios; pnpm los usa allí, siempre con ruta absoluta.
+  - **Límite**: un enlace que sale del repositorio (como el de `npm link`) y las rutas absolutas escritas dentro de los ficheros (shebangs de `.venv/bin`, el `.pth` de una instalación editable) siguen apuntando al original. Queda descrito en `handbook/idd/evidencia.md`.
+  - **Coste medido**: con el `node_modules` de retama-landing (37 605 ficheros y 2 202 enlaces), la copia a tmpfs tarda 0,85 s y ocupa 1,3 GB; con control son dos copias por llamada. Si no cabe, la contraprueba se omite con aviso.
+
+**Verificación directa**: `node scripts/check.js` (4645 tests pasando, 0 fallos y 5 omitidos), 446 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados.
+
 ## [2.178.1] - 2026-11-16
 
 ### Fixed

@@ -743,11 +743,11 @@ function readFitnessSources(root, base) {
 // The test side of a counterproof (E1.48): the tests of the diff and the test
 // data beside them. Every other path stays as the change's base holds it.
 const TEST_DATA = /(?:^|\/)(?:testdata|__snapshots__|fixtures|__fixtures__)\//i;
-// Ignored dependency directories a counterproof links in from the project, so
+// Ignored dependency directories a counterproof copies in from the project, so
 // a missing install never stands for a red: Node, Python virtualenvs, tox and
 // nox, PHP, Go and Ruby vendoring, Elixir, Dart, CocoaPods and Bower. Build
 // outputs (dist, build, target, _build) hold the candidate's product and are
-// never linked.
+// never copied.
 const DEPENDENCY_DIRS = Object.freeze(["node_modules", ".venv", "venv", ".tox", ".nox", "vendor", "deps", ".dart_tool", "Pods", "bower_components"]);
 
 /** The paths of the diff a counterproof takes from the working tree. */
@@ -805,23 +805,61 @@ function isIgnored(top, full) {
   }
 }
 
-// A link or junction goes, never what it points to.
-function removeLink(link) {
+// A copy of an ignored dependency directory for a counterproof (#518): a
+// command that reinstalls or caches in the worktree never writes in the
+// project's. A file is cloned where the file system can and copied where not.
+// A link keeps its target, except an absolute one into the repository, which
+// points to the same path in `tree`, so a workspace package is the base's too.
+// On Windows a link to a directory is a junction, which needs no privilege;
+// pnpm makes its links junctions there.
+function copyDependencies(source, target, { tops, tree }) {
+  fs.mkdirSync(target);
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    const from = path.join(source, entry.name);
+    const to = path.join(target, entry.name);
+    if (entry.isSymbolicLink()) copyLink(from, to, { tops, tree });
+    else if (entry.isDirectory()) copyDependencies(from, to, { tops, tree });
+    else if (entry.isFile()) fs.copyFileSync(from, to, fs.constants.COPYFILE_FICLONE);
+  }
+}
+
+// The same path in `tree` for an absolute link target inside the repository
+// (`tops`, as spelled and resolved), read as written or resolved: macOS spells
+// its temporary directory both ways. Any other target stays.
+function rebaseIntoTree(target, link, { tops, tree }) {
+  const spellings = [target];
   try {
-    fs.unlinkSync(link);
+    spellings.push(fs.realpathSync(link));
   } catch {
-    fs.rmdirSync(link);
+    // A dangling link keeps its target.
+  }
+  for (const spelling of spellings) {
+    for (const top of tops) {
+      const inside = path.relative(top, spelling);
+      if (inside !== ".." && !inside.startsWith(`..${path.sep}`) && !path.isAbsolute(inside)) return path.join(tree, inside);
+    }
+  }
+  return target;
+}
+
+function copyLink(from, to, { tops, tree }) {
+  let target = fs.readlinkSync(from);
+  if (path.isAbsolute(target)) target = rebaseIntoTree(target, from, { tops, tree });
+  if (process.platform === "win32" && fs.statSync(from, { throwIfNoEntry: false })?.isDirectory()) {
+    fs.symlinkSync(path.resolve(path.dirname(to), target), to, "junction");
+  } else {
+    fs.symlinkSync(target, to);
   }
 }
 
 /**
  * A temporary worktree of `base` for a counterproof (E1.48): the counterproof
  * paths as the working tree holds them, absent where the diff deletes them,
- * and the ignored dependency directories of the project and of the repository
- * root linked in. No hook runs and no LFS object is downloaded. `cwd` is the
- * project root inside it; `mask` lists the spellings of the worktree a command
- * may print, which runCommand masks so that two worktrees compare; `remove`
- * deletes it and prunes its git entry.
+ * and a copy of the ignored dependency directories of the project and of the
+ * repository root (#518). No hook runs and no LFS object is downloaded. `cwd`
+ * is the project root inside it; `mask` lists the spellings of the worktree a
+ * command may print, which runCommand masks so that two worktrees compare;
+ * `remove` deletes it, never following a link, and prunes its git entry.
  */
 function mountCounterproof(root, { base, paths }) {
   requireWorkTree(root);
@@ -832,9 +870,7 @@ function mountCounterproof(root, { base, paths }) {
   const prefix = git(root, ["rev-parse", "--show-prefix"]).trim();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-counterproof-"));
   const tree = path.join(dir, "tree");
-  const links = [];
   const remove = () => {
-    for (const link of links.splice(0)) removeLink(link);
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
     try {
       git(top, ["worktree", "prune"]);
@@ -864,6 +900,7 @@ function mountCounterproof(root, { base, paths }) {
       if (stat.isSymbolicLink()) fs.symlinkSync(fs.readlinkSync(from), to);
       else fs.copyFileSync(from, to);
     }
+    const tops = [...new Set([top, fs.realpathSync(top)])];
     const places = [[root, cwd], [top, tree]];
     for (const [from, to] of places) {
       for (const name of DEPENDENCY_DIRS) {
@@ -871,8 +908,7 @@ function mountCounterproof(root, { base, paths }) {
         const target = path.join(to, name);
         if (!fs.statSync(source, { throwIfNoEntry: false })?.isDirectory() || fs.lstatSync(target, { throwIfNoEntry: false })) continue;
         if (!isIgnored(top, source)) continue;
-        fs.symlinkSync(source, target, "junction");
-        links.push(target);
+        copyDependencies(source, target, { tops, tree });
       }
     }
     const real = fs.realpathSync(tree);
