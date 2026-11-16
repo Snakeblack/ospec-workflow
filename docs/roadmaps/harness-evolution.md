@@ -195,6 +195,23 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.72** | `failed-run-visibility` (#511: un check o un `ospec run` fallido guarda su salida completa en `.ospec/runs/<cambio>/<run>.log`, local y sin versionar, y la nombra bajo la cola; `state.yaml` no cambia y `close` borra las del cambio; en v2.175.1) | bugfix |
 | `done` | **E1.73** | `changelog-line` (#512: `ospec record changelog --change <id> --line` declara y corrige la línea que un cambio abierto publica en el changelog, y `--clear` vuelve al resumen; el intent, su aceptación y la sección que da el kind no cambian, no abre ningún gate y el remedio de `intent-conflict` la nombra; en v2.176.0) | feature |
 | `done` | **E1.74** | `follow-up-change` (#513: `ospec record completes --change <id> --of <cambio cerrado>` declara un seguimiento, que pasa su ceremonia entera y no añade entrada propia al changelog mientras la del cambio que completa siga bajo `[Unreleased]`; con una línea de `record changelog` sustituye el texto de esa entrada; se rechaza para un cambio sin archivar, ya publicado u otro seguimiento, y `close` lo vuelve a comprobar; en v2.177.0) | feature |
+| `pending` | **E1.75** | `open-facts-by-risk` (R2 de la comparativa del 2026-11-16: una feature solo tiene que preguntar al menos una categoría con `public-contract`, `persistent-data` o `security-boundary`; sin ellas basta la cobertura con `--cite` y `--quote`, y una de esas señales que `check` deriva después reabre `open-facts`) | feature |
+| `pending` | **E1.76** | `counterproof-editable-install` (#523: con una instalación editable en `.venv` y layout `src/`, la contraprueba importa el producto del candidato y no el de la base) | bugfix |
+| `pending` | **E1.77** | `change-request-log` (R9: el CLI escribe en `change.md` la petición literal y cada respuesta a un gate, con su fecha y su fuente; primer paso de E3.7) | feature |
+| `pending` | **E1.78** | `docs-figures-drift` (R12: un test de deriva para las cifras públicas, como los gates del README y del quickstart, un quickstart en inglés y una licencia coherente en todas las skills) | docs |
+| `pending` | **E1.79** | `risk-level` (R1: nivel `passive`, `standard` o `high` que calcula el CLI y del que salen la pregunta obligatoria, el verificador, las lentes de review y la delegación; el modelo puede subirlo, nunca bajarlo) | feature |
+| `pending` | **E1.80** | `claude-mod-companion` (M0: plugin compañero opcional `ospec-workflow-mod`, solo con mods de Claude, tras probar en vivo sus límites) | feature |
+| `pending` | **E1.81** | `claude-mod-change-band` (M1: banda sobre el prompt con el cambio activo, su nivel, lo pendiente y el gate abierto, y avisos al abrirse un gate o fallar un check; sustituye a R8) | feature |
+| `pending` | **E1.82** | `gate-dialog-provenance` (M2: en Claude, la respuesta a un gate por el diálogo nativo queda con la fuente `user-dialog` si la registra la capa de hooks y mods; sustituye a R7) | feature |
+| `pending` | **E1.83** | `acceptance-verify` (R3: en riesgo `high`, un verificador de solo lectura deriva sus pruebas del pedido congelado y las corre contra la base y la cabeza) | feature |
+| `pending` | **E1.84** | `preservation-test` (R6: el inverso de la contraprueba, un test que fija el comportamiento anterior y pasa en la base y en la cabeza, cuando el diff modifica código que importan ficheros de fuera del plan) | feature |
+| `pending` | **E1.85** | `claude-mod-edit-surface` (M3: en Claude, la superficie de edición de cada subagente se hace cumplir en tiempo real; la comprobación del diff de E4.13 sigue siendo la autoridad) | feature |
+| `pending` | **E1.86** | `claude-mod-context-brake` (M4: en Claude, el freno de delegación usa el contexto real de `$.session.usage`) | feature |
+| `pending` | **E1.87** | `claude-mod-spawn-brief` (M5: en Claude, el encargo de cada subagente lleva el cambio, sus obligaciones, su superficie y la referencia literal de E1.77) | feature |
+| `pending` | **E1.88** | `js-typecheck` (R13: `// @ts-check` con JSDoc y `tsc --noEmit --checkJs` en `scripts/check.js`, módulo a módulo desde `idd-*.js`; fuera del orden ▶) | refactor |
+| `pending` | **E1.89** | `signed-releases` (R11: checksums firmados y procedencia del build de cada release; detrás de E1.28 y fuera del orden ▶) | feature |
+| `pending` | **E1.90** | `counterproof-failure-log` (#522: una contraprueba o un control que falla deja su salida en `.ospec/runs/<cambio>/` y `run` y `check` citan la ruta; fuera del orden ▶) | feature |
+| `pending` | **E1.91** | `refactor-contract-warning` (#520: un `refactor` que declara un documento de contrato en su plan avisa de B9 al registrarlo, antes de editar; fuera del orden ▶) | feature |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -239,13 +256,13 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 
 **▶ SIGUIENTE:** el orden que sale de la [auditoría del harness frente a gentle-ai del 2026-10-25](../analysis/2026-10-25-auditoria-harness-frente-a-gentle-ai.md). Mantiene la decisión del usuario del 2026-10-23 (primero los defectos del harness, el banco después) y la del 2026-10-25: un change por sesión, y todo funciona en los 7 targets. Hasta la v2.151.0, la cola anterior dejó hechos E1.29, E1.31, E1.32 y E1.34–E1.41 y E4.12.
 
-E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1, E1.43 `close-revalidates-state` en v2.153.2 y E1.44 `ceremony-only-rises` en v2.153.3. E5.10 `progress-snapshot`, que el usuario pidió el 2026-10-26 por delante de E1.53, quedó hecho en v2.154.0, E1.53 `config-only-rises` en v2.154.1, E1.45 `cli-one-word-invocation` en v2.155.0, E1.46 `state-durability` en v2.156.0 y E1.47 `memory-loop-visible` en v2.157.0. E5.11 `progress-snapshot-v2`, que el usuario aceptó el 2026-10-26 por delante de E4.10, quedó hecho en v2.158.0. El 2026-10-27 el usuario colocó E1.55 `atomic-write-concurrent-rename` en el bloque A, por delante de E4.10, y aceptó detrás E5.12 `progress-snapshot-v3`. Ese mismo día pidió E1.56 `bench-browser-keyring` por delante de E1.55, y quedó hecho en v2.158.1, y E1.55 en v2.158.2. E5.12 `progress-snapshot-v3` quedó hecho en v2.159.0, y la parte del CLI y la skill de E4.10 `greenfield-foundation-hint`, el último del bloque A, en v2.160.0. Su medición pasa al bloque D, detrás de la corrida de validación de E4.6: sigue el bloque B con E4.15 `cli-chaining`, que quedó hecho en v2.161.0, y E4.16 `cli-terse-output` en v2.162.0. Ese mismo día el usuario aceptó E5.13 `progress-snapshot-v4`, un encargo de otra sesión, por delante de E4.3, y quedó hecho en v2.163.0. E4.3 `context-budget-ratchet`, el último del bloque B, quedó hecho en v2.164.0, y E4.17 `bench-knowledge-scenarios` en v2.165.0. El 2026-10-28 el usuario pidió por delante del bloque C el arreglo `cli-dropped-arguments`, hecho en v2.165.1. Del bloque C, la parte del CLI de E1.48 `base-counterproof` quedó hecha en v2.166.0, y su medición pasa a E4.14. La parte del CLI y los hooks de E1.49 `gate-turn-fence` quedó hecha en v2.167.0, y su medición pasa a E4.6. El 2026-10-30 el usuario aceptó E5.14 `delivery-integration-branch` (#458), un encargo de otra sesión, por delante de E1.50, y quedó hecho en v2.168.0. Después empezaron los arreglos de la review general del 2026-10-29, un lote por PR: `turn-fence-hosts` (PR1a) quedó hecho en v2.168.1, `turn-fence-robustness` (PR1b) en v2.168.2, `hooks-binary-fallback` (PR1c) en v2.168.3, el arreglo del test de la contraprueba, `safe-dest-test-tmpdir`, en v2.168.4 la carrera EPIPE del lanzador, `launcher-epipe-retry` y `launcher-epipe-reason`, en v2.168.5, los gates IDD que se podían saltar, `idd-gate-bypasses` (PR2a), en v2.168.6 la fricción del CLI, `idd-cli-friction` (PR2b), en v2.168.7, los huecos del CI, `ci-coverage-gaps` (PR3a), en v2.168.8 y el pendiente (j), `copilot-stop-deadline`, en v2.168.9. El 2026-11-03 el usuario pidió por delante `handbook`, que sustituye a `sdd-document`, y quedó hecho en v2.169.0, y después `claude-router`, el router de Claude para quien instala desde el marketplace, en v2.170.0. El encargo de otra sesión fue `pure-rename-signals`, el falso positivo de un renombre puro que paraba el foundation de app-restaurante, y quedó hecho en v2.170.1. Ese día el usuario colocó detrás E1.58 `contract-content-retract` y E1.61 `turn-fence-worktree`, dos observaciones de esa sesión, por delante de E1.50 `content-security-signal`. E1.58 quedó hecho en v2.170.2. Fuera del roadmap, la issue #475 de un usuario, la memoria de Engram bloqueada en el modo auto de Claude, quedó arreglada como `engram-auto-mode-allow` en v2.170.3, y E1.61 en v2.170.4. E1.50 `content-security-signal` quedó hecho en v2.171.0, con las filas nuevas E1.59, E1.60, E1.62 y E4.18 del plan del 2026-11-03 para cerrar la brecha del revisor frente a gentle-ai. Los huecos del guard de atribución quedaron hechos como `attribution-guard-gaps` y `attribution-stdin-feeders` en v2.171.1, con el hallazgo 4 de PR3b. PR3b, los gates locales de git, quedó hecho como `local-git-gates` en v2.171.2. PR4 se partió en cuatro PRs (4a archivado, 4b proyección del envelope, 4c runtime y prosa SDD, 4d linajes), 4a quedó hecho como `sdd-archive-chain` en v2.171.3 y 4b como `sdd-envelope-projection` en v2.171.4. El 2026-11-10 el usuario colocó detrás de 4b, en una PR propia, el arreglo de los lectores línea a línea de `state.yaml` que leen dentro de un escalar de bloque (el gate de archivado se abre con un `verdict: PASS` escrito dentro de un bloque), y quedó hecho como `state-yaml-opaque-scalars` en v2.171.5. Detrás, también en una PR propia (decisión del usuario), los lectores línea a línea de `config.yaml` quedaron hechos como `config-yaml-opaque-scalars` en v2.171.6. El 2026-11-11 el usuario colocó detrás, en otra PR propia, los lectores de `state.yaml` con el mismo patrón cuadrático ante un CR suelto y la paridad de blancos del escáner entre Node y Go. Ese mismo día pidió por delante dos arreglos de IDD que salieron de usarlo en un proyecto real, y el primero, los tests SQL que no contaban como tests (#488), quedó hecho como `idd-sql-tests` en v2.171.7, y el segundo, el cambio de `kind` entre `bug` y `feature` (#491), como `idd-kind-change` en v2.171.8. Detrás, también por delante del roadmap, la issue #485, que foundation pregunte la entrega y ofrezca el commit al terminar, quedó hecha como `foundation-delivery-handoff` en v2.172.0. La PR de los lectores de `state.yaml` ante un CR quedó hecha como `yaml-readers-linear-blank-parity` en v2.172.1, con el arreglo de un bucle de la CLI que salió al cerrarla (`review-limit-oversized-correction`). Ese mismo día el usuario pidió por delante del roadmap la issue #496, otro arreglo de IDD que salió de usarlo en un proyecto real: `public-contract` derivada por una ruta no se podía retirar con la respuesta del usuario, y quedó hecho como `retract-contract-by-impact-path` en v2.172.2. El 2026-11-12 el usuario pidió 4c por delante de E1.70, y quedó hecho como `sdd-runtime-prose` en v2.174.1; el CLI fino `ospec sdd <op>` que pedía su hallazgo 4 va en una PR propia justo detrás (4c2), por decisión del usuario. Siguen 4c2, E1.70, 4d, PR5 a PR8, y después E1.52, E1.59 y E1.60.
+E3.9 `delivery-release-changelog`, que el usuario pidió el 2026-10-25 por delante del bloque A, quedó hecho en v2.153.0. Del bloque A, E1.42 `idd-catalog-single-source` quedó hecho en v2.153.1, E1.43 `close-revalidates-state` en v2.153.2 y E1.44 `ceremony-only-rises` en v2.153.3. E5.10 `progress-snapshot`, que el usuario pidió el 2026-10-26 por delante de E1.53, quedó hecho en v2.154.0, E1.53 `config-only-rises` en v2.154.1, E1.45 `cli-one-word-invocation` en v2.155.0, E1.46 `state-durability` en v2.156.0 y E1.47 `memory-loop-visible` en v2.157.0. E5.11 `progress-snapshot-v2`, que el usuario aceptó el 2026-10-26 por delante de E4.10, quedó hecho en v2.158.0. El 2026-10-27 el usuario colocó E1.55 `atomic-write-concurrent-rename` en el bloque A, por delante de E4.10, y aceptó detrás E5.12 `progress-snapshot-v3`. Ese mismo día pidió E1.56 `bench-browser-keyring` por delante de E1.55, y quedó hecho en v2.158.1, y E1.55 en v2.158.2. E5.12 `progress-snapshot-v3` quedó hecho en v2.159.0, y la parte del CLI y la skill de E4.10 `greenfield-foundation-hint`, el último del bloque A, en v2.160.0. Su medición pasa al bloque D, detrás de la corrida de validación de E4.6: sigue el bloque B con E4.15 `cli-chaining`, que quedó hecho en v2.161.0, y E4.16 `cli-terse-output` en v2.162.0. Ese mismo día el usuario aceptó E5.13 `progress-snapshot-v4`, un encargo de otra sesión, por delante de E4.3, y quedó hecho en v2.163.0. E4.3 `context-budget-ratchet`, el último del bloque B, quedó hecho en v2.164.0, y E4.17 `bench-knowledge-scenarios` en v2.165.0. El 2026-10-28 el usuario pidió por delante del bloque C el arreglo `cli-dropped-arguments`, hecho en v2.165.1. Del bloque C, la parte del CLI de E1.48 `base-counterproof` quedó hecha en v2.166.0, y su medición pasa a E4.14. La parte del CLI y los hooks de E1.49 `gate-turn-fence` quedó hecha en v2.167.0, y su medición pasa a E4.6. El 2026-10-30 el usuario aceptó E5.14 `delivery-integration-branch` (#458), un encargo de otra sesión, por delante de E1.50, y quedó hecho en v2.168.0. Después empezaron los arreglos de la review general del 2026-10-29, un lote por PR: `turn-fence-hosts` (PR1a) quedó hecho en v2.168.1, `turn-fence-robustness` (PR1b) en v2.168.2, `hooks-binary-fallback` (PR1c) en v2.168.3, el arreglo del test de la contraprueba, `safe-dest-test-tmpdir`, en v2.168.4 la carrera EPIPE del lanzador, `launcher-epipe-retry` y `launcher-epipe-reason`, en v2.168.5, los gates IDD que se podían saltar, `idd-gate-bypasses` (PR2a), en v2.168.6 la fricción del CLI, `idd-cli-friction` (PR2b), en v2.168.7, los huecos del CI, `ci-coverage-gaps` (PR3a), en v2.168.8 y el pendiente (j), `copilot-stop-deadline`, en v2.168.9. El 2026-11-03 el usuario pidió por delante `handbook`, que sustituye a `sdd-document`, y quedó hecho en v2.169.0, y después `claude-router`, el router de Claude para quien instala desde el marketplace, en v2.170.0. El encargo de otra sesión fue `pure-rename-signals`, el falso positivo de un renombre puro que paraba el foundation de app-restaurante, y quedó hecho en v2.170.1. Ese día el usuario colocó detrás E1.58 `contract-content-retract` y E1.61 `turn-fence-worktree`, dos observaciones de esa sesión, por delante de E1.50 `content-security-signal`. E1.58 quedó hecho en v2.170.2. Fuera del roadmap, la issue #475 de un usuario, la memoria de Engram bloqueada en el modo auto de Claude, quedó arreglada como `engram-auto-mode-allow` en v2.170.3, y E1.61 en v2.170.4. E1.50 `content-security-signal` quedó hecho en v2.171.0, con las filas nuevas E1.59, E1.60, E1.62 y E4.18 del plan del 2026-11-03 para cerrar la brecha del revisor frente a gentle-ai. Los huecos del guard de atribución quedaron hechos como `attribution-guard-gaps` y `attribution-stdin-feeders` en v2.171.1, con el hallazgo 4 de PR3b. PR3b, los gates locales de git, quedó hecho como `local-git-gates` en v2.171.2. PR4 se partió en cuatro PRs (4a archivado, 4b proyección del envelope, 4c runtime y prosa SDD, 4d linajes), 4a quedó hecho como `sdd-archive-chain` en v2.171.3 y 4b como `sdd-envelope-projection` en v2.171.4. El 2026-11-10 el usuario colocó detrás de 4b, en una PR propia, el arreglo de los lectores línea a línea de `state.yaml` que leen dentro de un escalar de bloque (el gate de archivado se abre con un `verdict: PASS` escrito dentro de un bloque), y quedó hecho como `state-yaml-opaque-scalars` en v2.171.5. Detrás, también en una PR propia (decisión del usuario), los lectores línea a línea de `config.yaml` quedaron hechos como `config-yaml-opaque-scalars` en v2.171.6. El 2026-11-11 el usuario colocó detrás, en otra PR propia, los lectores de `state.yaml` con el mismo patrón cuadrático ante un CR suelto y la paridad de blancos del escáner entre Node y Go. Ese mismo día pidió por delante dos arreglos de IDD que salieron de usarlo en un proyecto real, y el primero, los tests SQL que no contaban como tests (#488), quedó hecho como `idd-sql-tests` en v2.171.7, y el segundo, el cambio de `kind` entre `bug` y `feature` (#491), como `idd-kind-change` en v2.171.8. Detrás, también por delante del roadmap, la issue #485, que foundation pregunte la entrega y ofrezca el commit al terminar, quedó hecha como `foundation-delivery-handoff` en v2.172.0. La PR de los lectores de `state.yaml` ante un CR quedó hecha como `yaml-readers-linear-blank-parity` en v2.172.1, con el arreglo de un bucle de la CLI que salió al cerrarla (`review-limit-oversized-correction`). Ese mismo día el usuario pidió por delante del roadmap la issue #496, otro arreglo de IDD que salió de usarlo en un proyecto real: `public-contract` derivada por una ruta no se podía retirar con la respuesta del usuario, y quedó hecho como `retract-contract-by-impact-path` en v2.172.2. El 2026-11-12 el usuario pidió 4c por delante de E1.70, y quedó hecho como `sdd-runtime-prose` en v2.174.1; el CLI fino `ospec sdd <op>` que pedía su hallazgo 4 va en una PR propia justo detrás (4c2), por decisión del usuario. El 2026-11-16 el usuario fijó el orden de la comparativa con gentle-ai (E1.75 a E1.91, más abajo). Siguen E1.75 `open-facts-by-risk`, E1.76 `counterproof-editable-install`, E1.51 `open-change-nudge`, E1.77 `change-request-log`, E1.78 `docs-figures-drift`, E1.79 `risk-level`, E1.80 `claude-mod-companion` y E1.81 `claude-mod-change-band`; después 4c2, E1.70, 4d, la PR de los tres avisos que quedan del guard de atribución y PR5 a PR8; y después E1.52, E1.59, E1.60, E1.82 `gate-dialog-provenance`, E1.83 `acceptance-verify`, E1.84 `preservation-test` y E3.7.
 
 1. **A. Corrección del harness.** E1.42 `idd-catalog-single-source` → E1.43 `close-revalidates-state` → E1.44 `ceremony-only-rises` → E1.53 `config-only-rises` → E1.45 `cli-one-word-invocation` → E1.46 `state-durability` → E1.47 `memory-loop-visible` → E1.56 `bench-browser-keyring` → E1.55 `atomic-write-concurrent-rename` → E4.10 `greenfield-foundation-hint`.
 2. **B. Economía**, antes que C porque C añade una ejecución de la suite: E4.15 `cli-chaining` → E4.16 `cli-terse-output` → E4.3 `context-budget-ratchet`, que fija los techos por target después de B.
 3. **E4.17** `bench-knowledge-scenarios`: escribe y congela escenarios sin correrlos. Es una excepción acotada a «banco después», decidida por el usuario el 2026-10-25 para que C no se ajuste sobre ellos.
-4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.58 `contract-content-retract` → E1.61 `turn-fence-worktree` → E1.50 `content-security-signal` → E1.52 `review-frozen-tree` → E1.59 `idd-runtime-review` → E1.60 `review-refuter` → E1.57 `idd-change-abandon` → E1.51 `open-change-nudge` → E3.7 `fact-ledger`. Entre E1.50 y E1.52 van los lotes que quedan de la review general del 2026-10-29 (PR4c2, PR4d y PR5 a PR8; PR4c quedó hecho en v2.174.1, los lectores de `state.yaml` ante un CR y la paridad de blancos del escáner en v2.172.1, los huecos del guard de atribución en v2.171.1, PR3b en v2.171.2, PR4a en v2.171.3, PR4b en v2.171.4, los lectores de `state.yaml` en v2.171.5 y los de `config.yaml` en v2.171.6), porque PR4 y PR5 tocan la base de los recibos de E1.52. Por delante de esos lotes van, desde el 2026-11-11, los ítems de las fricciones de proyectos reales: E1.63 `review-advisory-correction` → E1.64 `idd-config-in-diff` → E1.65 `counterproof-declared-docs` → E1.66 `first-gate-turn-fence` → E1.67 `check-path-scope` → E1.68 `build-scripts-declared` → E1.69 `impact-raise` → E1.70 `fitness-baseline-failing`.
-5. **D. Banco, todo junto.** E4.14 `bench-validation-readiness` (con el doble conteo) → corrida de validación de E4.6 en Claude y agy → medición de E4.10 en `todo-spa` y `receta-spa` → E4.18 `review-detection-bench`, con el escenario de sink de E4.17 → E4.4, recalculando antes su premisa → E4.13 `worker-delegation`, solo si E4.4 da evidencia (decisión del usuario del 2026-10-22) → E4.11 `workspace-root-resolution`, al final de la cola.
+4. **C. Superioridad en defectos.** E1.48 `base-counterproof` → E1.49 `gate-turn-fence` → E1.58 `contract-content-retract` → E1.61 `turn-fence-worktree` → E1.50 `content-security-signal` → E1.52 `review-frozen-tree` → E1.59 `idd-runtime-review` → E1.60 `review-refuter` → E1.82 `gate-dialog-provenance` → E1.83 `acceptance-verify` → E1.84 `preservation-test` → E3.7 `fact-ledger`. E1.57 `idd-change-abandon` quedó hecho por delante, en v2.178.0, y E1.51 `open-change-nudge` pasó el 2026-11-16 al grupo de la comparativa. Entre E1.50 y E1.52 van los lotes que quedan de la review general del 2026-10-29 (PR4c2, PR4d y PR5 a PR8; PR4c quedó hecho en v2.174.1, los lectores de `state.yaml` ante un CR y la paridad de blancos del escáner en v2.172.1, los huecos del guard de atribución en v2.171.1, PR3b en v2.171.2, PR4a en v2.171.3, PR4b en v2.171.4, los lectores de `state.yaml` en v2.171.5 y los de `config.yaml` en v2.171.6), porque PR4 y PR5 tocan la base de los recibos de E1.52. Por delante de esos lotes van, desde el 2026-11-11, los ítems de las fricciones de proyectos reales: E1.63 `review-advisory-correction` → E1.64 `idd-config-in-diff` → E1.65 `counterproof-declared-docs` → E1.66 `first-gate-turn-fence` → E1.67 `check-path-scope` → E1.68 `build-scripts-declared` → E1.69 `impact-raise` → E1.70 `fitness-baseline-failing`. Desde el 2026-11-16, por delante de 4c2, E1.70 y los lotes que quedan, van los ítems de la comparativa con gentle-ai: E1.75 `open-facts-by-risk` → E1.76 `counterproof-editable-install` → E1.51 `open-change-nudge` → E1.77 `change-request-log` → E1.78 `docs-figures-drift` → E1.79 `risk-level` → E1.80 `claude-mod-companion` → E1.81 `claude-mod-change-band`.
+5. **D. Banco, todo junto.** E4.14 `bench-validation-readiness` (con el doble conteo) → corrida de validación de E4.6 en Claude y agy → medición de E4.10 en `todo-spa` y `receta-spa` → E4.18 `review-detection-bench`, con el escenario de sink de E4.17 → E4.4, recalculando antes su premisa → E4.13 `worker-delegation`, solo si E4.4 da evidencia (decisión del usuario del 2026-10-22), con la superficie de edición de R5 → E1.85 `claude-mod-edit-surface` → E1.86 `claude-mod-context-brake` → E1.87 `claude-mod-spawn-brief` → E4.11 `workspace-root-resolution`, al final de la cola.
 
 E1.54 `lock-reclaim-rename`, residuo de E1.46 anotado el 2026-10-26, tiene prioridad baja y queda fuera del orden ▶ hasta que el usuario lo coloque. E1.55 `atomic-write-concurrent-rename`, otro residuo de E1.46 anotado el 2026-10-27, entró ese mismo día en el bloque A porque su flake ya había roto dos de las cuatro ejecuciones de Windows desde v2.158.0. E1.56 `bench-browser-keyring` entró también el 2026-10-27, por delante de E1.55, porque los checks de Chromium del banco fallaban en local tras cada reinicio y dejaban cientos de navegadores huérfanos.
 
@@ -256,6 +273,15 @@ E1.59 `idd-runtime-review`, E1.60 `review-refuter`, E1.62 `sdd-review-adoption` 
 E1.63 a E1.70 y E5.15 entraron el 2026-11-11 con la auditoría de sinergia entre ospec y dos proyectos reales que lo usan a diario, uno con 40 cambios IDD archivados y otro con 66. Nada estaba roto: el coste estaba en cada cambio. Las dos sesiones de esos proyectos auditaron su `idd/archive`, y lo que le toca a ospec se comprobó contra su código antes de abrir #498 a #503. #483, #490 y #494 eran los tres issues abiertos sin ítem. El usuario colocó los ocho de la Etapa 1 por delante de lo que queda del bloque C, porque hoy los paga cada cambio real. E1.63 va primero porque es lo que más tiempo cuesta: de 116 revisiones de confianza, todas aprobadas, salieron 117 hallazgos, y 113 no bloqueaban. Le siguen E1.64, del que depende un cambio pendiente de uno de los proyectos, y E1.65, que deja sin contraprueba a los proyectos cuyo producto es Markdown. E1.66 afecta al primer cambio de cada proyecto nuevo. E5.15 queda fuera del orden ▶, porque solo afecta a SDD. E1.63 quedó hecho en v2.173.0. E1.64, E1.65, E1.66, E1.68 y E1.69, los cinco arreglos acotados, quedaron hechos en v2.173.1 en un solo cambio, `idd-friction-fixes`, por decisión del usuario del 2026-11-12: E1.67 `check-path-scope` quedó hecho en v2.174.0: sigue E1.70 `fitness-baseline-failing`.
 
 E1.71 a E1.74 entraron el 2026-11-14 con el informe de fricciones de otro proyecto real, que cerró cuatro cambios IDD en un mismo PR. Lo que le toca a ospec se comprobó contra su código antes de abrir #510 a #513. El usuario pidió los cuatro por delante de 4c2 y E1.70. E1.71 y E1.72 quedaron hechos en v2.175.1 en un solo cambio, `failed-run-visibility`. E1.73 `changelog-line` quedó hecho en v2.176.0 y E1.74 `follow-up-change` en v2.177.0, cada uno en su PR, con lo que el usuario eligió: una línea de changelog propia y enmendable, que deja el intent inmutable, y un cambio de seguimiento que declara cuál completa, en vez de reabrir uno cerrado.
+
+E1.75 a E1.91 entraron el 2026-11-16 con la [comparativa del harness, el uso y el producto frente a gentle-ai](../analysis/2026-11-16-comparativa-gentle-ai.md), hecha sobre v2.178.1, y con las tres issues abiertas que no tenían ítem (#520, #522 y #523). La comparativa concluyó que ospec está mejor pensado y gentle-ai mejor montado: proporcionalidad, delegación, verificador independiente, review congelada y producto. El plan cierra esas brechas con el CLI, no con el prompt. Sus propuestas se contrastaron con el código antes de entrar:
+
+- R4 no añade ítem: es E1.52 → E1.59 → E1.60, con las lentes de E1.59 según el nivel de E1.79.
+- R5 entra en E4.13 y R10 en E5.9.
+- R7 y R8 no tienen fila: en Claude los sustituyen E1.82 y E1.81, y los demás hosts siguen con el gate en texto y sin línea de estado.
+- Los mods de Claude (E1.80 a E1.82 y E1.85 a E1.87) son una capa opcional en un plugin aparte. Sin él, o con los mods apagados, ospec funciona igual, y la garantía sigue en el CLI. M6, las herramientas nativas `ospec_*`, queda en «Aparcado».
+
+El usuario fijó el orden el mismo día. E1.75 abre la cola porque es la fricción que paga cada feature, y E1.76 va detrás porque es un defecto de la contraprueba. E1.51 sigue a E1.76, como se acordó al terminar la comparativa, y después van E1.77 y E1.78, sin dependencias. E1.79 va antes que los lotes de la review general, porque E1.59, E1.83, E1.84 y E4.13 dependen de su nivel, y detrás van E1.80 y E1.81. E1.82, E1.83 y E1.84 van detrás de E1.60, y E1.85 a E1.87 detrás de E4.13, en el bloque D. E1.88, E1.89 (detrás de E1.28), E1.90 y E1.91 quedan fuera del orden ▶ hasta que el usuario los coloque. Los ítems nuevos no tienen issue propia; #520, #522 y #523 llevan la etiqueta `roadmap:<ID>` del suyo.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -331,6 +357,14 @@ La matriz de eventos por target de la v2.151.0 está en la [auditoría](../analy
 | #513 | **E1.74** `follow-up-change` (nuevo; relacionado con E1.57) |
 | #503 | **E5.15** `registry-plugin-skills` (nuevo; fuera del orden ▶) |
 
+**Issues incorporados el 2026-11-16.** Son las tres abiertas sin ítem, dos de ellas salidas de #518. Llevan también la etiqueta `roadmap:<ID>`.
+
+| Issue | Cambio que lo cierra |
+| --- | --- |
+| #523 | **E1.76** `counterproof-editable-install` (nuevo; seguimiento de E1.48 y de #518) |
+| #522 | **E1.90** `counterproof-failure-log` (nuevo; seguimiento de E1.72 y de #518; fuera del orden ▶) |
+| #520 | **E1.91** `refactor-contract-warning` (nuevo; seguimiento de E1.44; fuera del orden ▶) |
+
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16, E1.12 en v2.117.17 y E1.14 en v2.117.18. E1.13 y E1.15 quedan hechos: el pre-commit sigue el modo activo y el sucesor de review IDD no pide aprobación. El plugin SDD del marketplace permanece en E5.8, por demanda.
 
 **Prioridades OSP aceptadas para la siguiente sesión:**
@@ -385,9 +419,23 @@ Auditoría del 2026-10-25 (un change por sesión, en este orden):
 A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.56 ─ E1.55 ─ E4.10
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
-C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ E1.63 ─ E1.64 ─ E1.65 ─ E1.66 ─ E1.67 ─ E1.68 ─ E1.69 ─ E1.70 ─ (lotes de la review general) ─ E1.52 ─ E1.59 ─ E1.60 ─ E1.57 ─ E1.51 ─ E3.7
-D: E4.14 ─ E4.6 (corrida de validación) ─ E4.18 ─ E4.4 ─ E4.13 ─ E4.11
+C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ E1.63 ─ E1.64 ─ E1.65 ─ E1.66 ─ E1.67 ─ E1.68 ─ E1.69 ─ E1.57
+   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.77 ─ E1.78 ─ E1.79 ─ E1.80 ─ E1.81
+   ─ 4c2 ─ E1.70 ─ 4d ─ (avisos del guard) ─ PR5…PR8 ─ E1.52 ─ E1.59 ─ E1.60 ─ E1.82 ─ E1.83 ─ E1.84 ─ E3.7
+D: E4.14 ─ E4.6 (corrida de validación) ─ E4.18 ─ E4.4 ─ E4.13 ─ E1.85 ─ E1.86 ─ E1.87 ─ E4.11
 E1.28 espera a que E1.30 cumpla su criterio de hecho: su plazo del 2026-10-29 quedó fallido el 2026-10-26.
+
+Comparativa del 2026-11-16 (dependencias, además del orden de C y D):
+E1.79 (R1) ─┬─ E1.59 (lentes por nivel)
+            ├─ E1.83 (R3; también E1.52)
+            ├─ E1.84 (R6; también E1.48)
+            └─ E4.13 (R5)
+E1.77 (R9) ─┬─ E3.7
+            └─ E1.87 (M5)
+E1.80 (M0) ─┬─ E1.81 (M1) / E1.82 (M2)
+            └─ E1.85 (M3) / E1.86 (M4) / E1.87 (M5), los tres también detrás de E4.13
+E1.30 ─ E1.28 ─ E1.89 (R11)
+Fuera del orden ▶: E1.88 (R13), E1.89, E1.90, E1.91 y E5.9 (con R10)
 ```
 
 E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado con escrituras atómicas propias hasta que `record` exista.
@@ -707,7 +755,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 
 - **Problema:** la puerta «publicar solo con CI verde» funciona, pero `main` sigue sin protección (el ruleset 18592390 existe con `enforcement: disabled` y `main` reporta `protected: false`), las actions van fijadas por tag, no hay Dependabot, `go.mod` declara 1.23 (fuera de soporte) y `publish-marketplace.yml` reescribe `release` con `--force`.
 - **Garantía que protege:** que lo instalado haya pasado el CI y que la cadena de suministro del harness resista (regla de entrada de seguridad). ADOPT-02 de la comparación con gentle-ai.
-- **Alcance:** activar el ruleset con `required_status_checks` (Validate Harness ubuntu/macOS/Windows y Build ospec-hooks); fijar las actions por SHA con comentario de versión; `.github/dependabot.yml` (github-actions, gomod y npm, semanal); `go.mod` a 1.26 y `setup-go` con `go-version-file`; `--force-with-lease` o documentar por qué `release` es una rama huérfana regenerada; `actionlint` limpio. Fuera: firma de releases y checksums (ADOPT-01).
+- **Alcance:** activar el ruleset con `required_status_checks` (Validate Harness ubuntu/macOS/Windows y Build ospec-hooks); fijar las actions por SHA con comentario de versión; `.github/dependabot.yml` (github-actions, gomod y npm, semanal); `go.mod` a 1.26 y `setup-go` con `go-version-file`; `--force-with-lease` o documentar por qué `release` es una rama huérfana regenerada; `actionlint` limpio. Fuera: firma de releases y checksums (ADOPT-01), que desde el 2026-11-16 son E1.89 `signed-releases`, detrás de este ítem.
 - **Avance (`ci-coverage-gaps`, 2026-11-01):** `go.mod` declara 1.26, los tres workflows leen la versión con `go-version-file` y `build-hooks.yml` pasa `govulncheck`. `build-hooks.yml` corre ya en todas las PRs y en `main`, y la publicación espera también a Build ospec-hooks. Sigue pendiente lo demás del alcance.
 - **Decisión pendiente:** `bypass_actors` del ruleset (admin en `pull_request`, `always` o sin bypass), la decide el usuario; revertir a `evaluate` si bloquea la publicación legítima hasta ajustar el bypass.
 - **Hecho cuando:** un push directo a `main` sin checks se rechaza; Dependabot abre su primera PR; CI verde con Go 1.26 en los tres SO; la publicación sigue esperando a Validate Harness y a Build ospec-hooks.
@@ -1168,8 +1216,9 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 
 - **Problema:** `trust-review` solo mira la confianza: credenciales, permisos y fronteras. Un cambio con concurrencia, transacciones o llamadas externas sin timeout ni reintento no recibe ninguna revisión de su fiabilidad en ejecución, aunque el agente `review-runtime` ya existe para el Quality Review Gate de SDD.
 - **Garantía que protege:** revisión independiente de los riesgos de ejecución: red, errores, reintentos, concurrencia y fallos parciales.
-- **Depende de:** E1.50, que da el patrón de señal por contenido, y E1.52, que congela el árbol que se revisa.
+- **Depende de:** E1.50, que da el patrón de señal por contenido; E1.52, que congela el árbol que se revisa; y E1.79 `risk-level`, del que sale el número de lentes.
 - **Alcance:**
+  - El número de lentes sale del nivel de E1.79 (R4 de la comparativa del 2026-11-16): ninguna en `passive`, una en `standard` con señal y las que deriven las señales en `high`. El objetivo es unos pocos miles de líneas sobre `review-lineage.js`, no un motor de transacciones como el de gentle-ai.
   - Señal `runtime-boundary` por contenido en las líneas añadidas a código de producto: concurrencia, transacciones y llamadas externas con reintento o timeout. La simple escritura de datos no la dispara.
   - Obligación aditiva `runtime-review`, sin renombrar `trust-review`. Un solo linaje con `selected_domains` `[trust, runtime]`, que `review-lineage.js` ya admite; `idd-review.js` deja de fijar `LENS` y `REVIEWER`.
   - `review-runtime` entra en `RESULT_LISTS` (`scripts/lib/review-receipt.js`) y en `REPO_SKILLS` (`scripts/configure/install-codex.js`), y el catálogo de `internal/iddsession/catalog.json` cambia con su golden de Go.
@@ -1298,6 +1347,177 @@ Origen y evidencia: [auditoría del 2026-10-25](../analysis/2026-10-25-auditoria
 - **Alcance:** lo decide el cambio entre las salidas de #490: ejecutar el check también sobre la base y avisar sin bloquear cuando falla en los dos lados, o no ejecutar los checks de un impacto `none`. La skill `foundation` comprueba cada `- Check:` al registrarlo y ofrece un ratchet o un check manual si ya falla.
 - **Targets:** los 7 (CLI y skill).
 - **Hecho cuando:** un cambio que no empeora un check que ya fallaba en la base cierra con un aviso que nombra el ADR; uno que hace fallar un check que pasaba sigue bloqueado.
+
+### Ítems de la comparativa del 2026-11-16 frente a gentle-ai
+
+Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparativa-gentle-ai.md). La etiqueta entre paréntesis es la de su propuesta (R1–R13 para el núcleo y el producto, M0–M5 para los mods de Claude) o su issue. El orden y sus motivos están en [Estado y orden](#orden-recomendado-de-trabajo). Los ítems del núcleo valen en los 7 targets y siguen su regla multi-target. Los mods son una capa opcional solo de Claude: ninguna garantía depende de ellos.
+
+### E1.75 — `open-facts-by-risk` (R2)
+
+- **Problema:** desde v2.148.0 una feature abre `open-facts` con al menos una pregunta (#390, `scripts/lib/idd-facts.js:35` y `:235`), aunque la petición y el código lo resuelvan todo. La regla nació de un escape real: una feature de una librería publicada lo resolvió todo con citas y dejó escapar un cambio del formato por defecto. Pero obliga a preguntar también en una feature sin riesgo, y es la fricción que más pesa en un cambio pequeño.
+- **Fila que mueve:** «Preguntas antes de empezar un cambio». La garantía de #390 se queda donde hay riesgo.
+- **Alcance:**
+  - Una feature solo tiene que preguntar al menos una categoría si el plan tiene `public-contract`, `persistent-data` o `security-boundary`, como proponía la propia #390. Sin esas señales basta la cobertura completa con `--cite` y `--quote`, que el CLI ya valida.
+  - Si `check` deriva después una de esas señales del diff, reabre `open-facts` con al menos una pregunta: la ceremonia solo sube (E1.44, E1.53).
+  - Cuando exista E1.79, la condición lee su nivel.
+  - La regla va en el `how` del CLI o en `references/open-facts.md`: `SKILL.md` está cerca de su techo.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando:**
+  - una feature sin señales de riesgo cierra sin preguntar, con todas sus categorías citadas;
+  - una con `public-contract` en el plan sigue exigiendo una pregunta;
+  - una cuyo diff deriva `persistent-data` reabre `open-facts`.
+
+### E1.76 — `counterproof-editable-install` (#523)
+
+- **Problema:** `pip install -e .`, y uv o poetry en modo editable, dejan en `.venv/lib/python*/site-packages` un `.pth` o un finder `__editable__*` con la ruta absoluta del proyecto. La contraprueba copia el `.venv` desde v2.178.2, y ese `.pth` sigue apuntando al árbol de trabajo. Con el layout `src/`, los tests del diff importan el producto del candidato, la contraprueba pasa y la obligación queda pendiente aunque el test sí detecte el cambio.
+- **Garantía que protege:** que la contraprueba de E1.48 pruebe el test contra el producto de la base.
+- **Alcance:** lo decide el cambio entre las salidas de #523: reescribir hacia el árbol temporal las rutas absolutas al repositorio de los `.pth` y los finders editables de la copia, o anteponer en el entorno del comando las rutas del árbol temporal que nombra el `.pth`.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando:** con una instalación editable en `.venv` y layout `src/`, la contraprueba importa el producto de la base, y un test lo reproduce.
+
+### E1.77 — `change-request-log` (R9)
+
+- **Problema:** `change.md` guarda intención, plan, decisiones y evidencia, pero la petición literal (`--request`) y las respuestas a los gates solo están en `state.yaml`. Revisores y verificadores acaban leyendo resúmenes. ODD guarda en su documento de feature las peticiones del usuario literales (S#) y un Log.
+- **Garantía que protege:** principio 8, con las respuestas legibles donde se revisa el cambio. Es el primer paso de E3.7.
+- **Alcance:**
+  - El CLI escribe en `change.md` una sección generada con la petición literal y cada respuesta a un gate, con su fecha y su fuente. La lista de secciones que admite `close` crece con ella.
+  - Los encargos citan por referencia («`change.md`, respuesta 2»), nunca un resumen.
+- **Hecho abierto:** si un cambio que hoy no escribe `change.md` (sin `--decision` ni `--work-units`) lo escribe por el log.
+- **Targets:** los 7 (CLI y disco).
+- **Hecho cuando:** un cambio con gates resueltos tiene en `change.md` la petición literal y cada respuesta con su fecha y su fuente, y esa sección coincide con `state.yaml` al cerrar.
+
+### E1.78 — `docs-figures-drift` (R12)
+
+- **Problema:** el README dice que el agente se detiene en nueve gates (`README.md:35`, `docs/en/README.md:30`) y `handbook/quickstart.md:47` dice seis. 27 skills declaran Apache-2.0 y 24 MIT AND Commons-Clause. El handbook solo está en español.
+- **Fila que mueve:** la curva de aprendizaje de la comparativa; sigue a E1.32 `docs-dx-corrections`.
+- **Alcance:**
+  - Un test de deriva para las cifras públicas (gates, targets y skills) contra el catálogo y los manifiestos, como `internal/app/docs_inventory_test.go` de gentle-ai.
+  - Un quickstart en inglés.
+  - Una licencia coherente en todas las skills. Cuál, lo decide el usuario en el cambio.
+- **Targets:** documentación.
+- **Hecho cuando:** README y quickstart dan las mismas cifras, y un test falla si una se desfasa; existe el quickstart en inglés; todas las skills declaran la licencia elegida.
+
+### E1.79 — `risk-level` (R1)
+
+- **Problema:** la proporcionalidad está repartida en piezas sueltas: `docs` y `refactor` no piden test rojo (`NO_RED_TEST_KINDS`, `scripts/lib/idd-signals.js:110`), un diff sin producto se salta la contraprueba (`PRODUCT_FREE_SKIP`, `scripts/lib/idd-check.js:27`) y la ceremonia solo sube (E1.44, E1.53). Falta un nivel único que gobierne la pregunta obligatoria, el verificador, las lentes de review y la delegación. gentle-ai lo calcula por contenido en código nativo y elige 0, 1 o 4 lentes.
+- **Garantía que protege:** principio 2, profundidad por impacto, calculada por el CLI (principio 4).
+- **Alcance:**
+  - Un campo `risk: passive | standard | high` derivado de las señales y del contenido del diff, visible en `next` y `status`. `check` lo recalcula y solo lo sube.
+  - El modelo puede subirlo con una razón; bajarlo, nunca.
+  - E1.75, E1.59, E1.83 y E4.13 lo leen. Las piezas actuales pasan a leerlo sin cambiar lo que hacen hoy.
+  - El catálogo de `internal/iddsession/catalog.json` cambia con su golden de Go.
+- **Hecho abierto:** la tabla exacta de señales y contenido a nivel.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando:** un corpus fija el nivel de cada tipo de cambio en JS y en Go; el nivel nunca baja entre dos `check`; un intento de bajarlo se rechaza con causa.
+
+### E1.80 — `claude-mod-companion` (M0)
+
+- **Problema:** desde la 2.1.287, Claude Code carga mods: módulos declarados en `modules` del `hooks.json` de un plugin, que ven cada llamada a herramienta (también las de subagentes), leen las respuestas de AskUserQuestion y dibujan en la interfaz. La API está en early access, y no se sabe cómo reacciona una Claude anterior a `modules`.
+- **Garantía que protege:** que la capa de Claude sea opcional (principio 6): ninguna garantía depende de ella.
+- **Alcance:**
+  - Antes de construir, se prueba en vivo: si una Claude anterior a 2.1.287 ignora `modules` o falla al cargar el plugin; si unas `answers` escritas por el modelo se saltan el diálogo; si `$.ui.ask` se puede resolver solo por inactividad; si el guard `sec-default` está activo en el plan del usuario; si `agentId` es fiable con agentes en segundo plano; y cómo se comportan las ejecuciones de más de 10 minutos con `$.process.spawn`. Lo que salga ajusta E1.81, E1.82 y E1.85 a E1.87.
+  - Un plugin aparte, `ospec-workflow-mod`, con `dependencies: ["ospec-workflow"]` y solo `modules`, en el mismo marketplace. Avisa de que está activo con `$.env.set("OSPEC_CLAUDE_MOD")`, y `ospec doctor` muestra su estado.
+- **Targets:** solo Claude Code.
+- **Hecho cuando:** las pruebas en vivo quedan anotadas con su versión de Claude Code; con el plugin instalado, `ospec doctor` lo ve activo; sin él, o con `--safe-mode`, nada cambia.
+
+### E1.81 — `claude-mod-change-band` (M1)
+
+- **Problema:** el usuario solo sabe en qué punto está el cambio si se lo pregunta al agente. Sustituye a R8, la línea de estado: `$.ui.status` sale con un prefijo ⚠ y los demás hosts no tienen línea de estado.
+- **Fila que mueve:** «saber qué pasa y qué falta» de la comparativa.
+- **Depende de:** E1.80; muestra el nivel de E1.79.
+- **Alcance:** una banda sobre el prompt, leída de `ospec status --json`, con el cambio, su nivel, las obligaciones pendientes y el gate abierto, y un aviso cuando se abre un gate o falla un check. `notify` no funciona en Desktop ni en VS Code: allí solo queda la banda.
+- **Targets:** Claude Code en terminal, Desktop y VS Code.
+- **Hecho cuando:** la banda refleja el estado tras cada orden del CLI; sin cambio abierto no aparece; un fallo del mod no afecta al CLI.
+
+### E1.82 — `gate-dialog-provenance` (M2)
+
+- **Problema:** un gate obliga a terminar el turno en texto, y una respuesta dada dentro del mismo turno queda `user-unverified` (E1.49). Sustituye a R7 en Claude.
+- **Garantía que protege:** principio 8, con una procedencia más fuerte que la del texto y un turno menos.
+- **Depende de:** E1.80, y que el CLI acepte la fuente nueva solo desde la capa de hooks y mods.
+- **Alcance:**
+  - El mod abre el gate con `$.ui.ask` o captura la respuesta de AskUserQuestion. Rechaza las `answers` escritas por el modelo y las que se resolvieron solas por inactividad (`afkTimeoutMs`).
+  - La respuesta queda con la fuente `user-dialog`, que el agente no puede usar en `record gate`. Cómo lo distingue el CLI lo decide el cambio.
+  - Un diálogo admite hasta 4 preguntas: un `open-facts` de 5 a 7 categorías necesita dos diálogos o el texto. En los demás hosts, o sin el mod, sigue el gate en texto.
+- **Targets:** solo Claude Code.
+- **Hecho cuando:** una respuesta por el diálogo queda `user-dialog` sin fin de turno; una escrita por el modelo o resuelta por inactividad, no; `record gate --source user-dialog` desde el agente se rechaza.
+
+### E1.83 — `acceptance-verify` (R3)
+
+- **Problema:** en IDD el mismo agente escribe el código y sus tests. La contraprueba demuestra que el test detecta algo, no que cubra lo que se pidió. El `verify-method.md` de gentle-ai deriva sus pruebas del pedido.
+- **Garantía que protege:** principio 3, cierre por evidencia, contra el pedido y no solo contra los tests del autor.
+- **Depende de:** E1.79 y E1.52, cuyo árbol congelado comparte.
+- **Alcance:**
+  - Una obligación `acceptance-verify`, solo en `high`. El CLI congela la intención, la aceptación, las respuestas a los gates (E1.77) y el diff.
+  - Un verificador de solo lectura deriva sus pruebas del pedido, las corre en un directorio aparte contra la base y la cabeza, y da un veredicto por criterio. Si algo falla, hay una corrección y una recomprobación limitada a los bloqueos.
+  - Reutiliza `scripts/lib/verify-lineage.js` de SDD (recomprobación, recuperación y almacén de candidatos), como `trust-review` reutiliza `review-lineage.js`.
+- **Targets:** los 7 (CLI). Cómo se lanza el verificador en un host sin subagentes lo decide el cambio.
+- **Hecho cuando:** un cambio `high` que pasa los tests del autor pero incumple un criterio de aceptación no cierra; uno que lo cumple cierra con un veredicto por criterio; un cambio `standard` no tiene la obligación.
+
+### E1.84 — `preservation-test` (R6)
+
+- **Problema:** `checks-pass` detecta cuándo se rompe un comportamiento que tiene tests. El hueco es el comportamiento vecino sin tests, en código que importan otros ficheros. Un grafo de llamadas por lenguaje sería caro y frágil.
+- **Garantía que protege:** que un cambio no rompa sin prueba un comportamiento existente que otros ficheros usan.
+- **Depende de:** E1.79 y la contraprueba de E1.48, cuyo montaje reutiliza.
+- **Alcance:** una obligación `preservation-test`, el inverso de la contraprueba: un test que fija el comportamiento anterior y que el CLI exige que pase en la base y en la cabeza. Se activa cuando el diff modifica, no solo añade, líneas de producto de un fichero que importan ficheros de fuera del plan (escaneo de imports en JS/TS, Python y Go primero) o que el proyecto declara en `impact.shared`.
+- **Targets:** los 7 (CLI).
+- **Hecho cuando:** modificar una función importada fuera del plan exige un test que pasa en la base y en la cabeza; un test que falla en la base no la satisface; solo añadir líneas no la deriva.
+
+### E1.85 — `claude-mod-edit-surface` (M3)
+
+- **Problema:** sin control en tiempo real, un worker delegado que se sale de su superficie solo se ve al comprobar su diff.
+- **Depende de:** E4.13, que da la superficie, y E1.80.
+- **Alcance:** `agent.spawn` da el `agentId` de cada worker y el mod le asocia su superficie; `tool.call` deniega Edit y Write fuera de ella y falla en cerrado con `.catch`. Las escrituras por Bash lo esquivan, así que la comprobación del diff de E4.13 sigue siendo la autoridad. Sin mods, el PreToolUse en Go puede limitar por tipo de agente, porque recibe `agent_id` y `agent_type`.
+- **Targets:** solo Claude Code.
+- **Hecho cuando:** un worker que edita fuera de su superficie recibe la denegación, y sin el mod la comprobación del diff lo rechaza igual.
+
+### E1.86 — `claude-mod-context-brake` (M4)
+
+- **Problema:** el umbral de contexto para delegar se calcula con estimaciones.
+- **Depende de:** E4.13 y E1.80.
+- **Alcance:** el mod lee el contexto real con `$.session.usage` y `turn.step`. Pasado un umbral, añade una nota con `$.session.append` o propone que la siguiente unidad la haga un worker. El dato es el del último request y falta justo tras compactar.
+- **Targets:** solo Claude Code.
+- **Hecho cuando:** pasado el umbral, la propuesta aparece una vez por unidad, y tras compactar no se dispara sin dato.
+
+### E1.87 — `claude-mod-spawn-brief` (M5)
+
+- **Problema:** cada encargo a un worker o a un revisor depende de que el agente principal copie bien el contexto.
+- **Depende de:** E4.13, E1.77 y E1.80.
+- **Alcance:** en `agent.spawn`, el mod añade al encargo el cambio, sus obligaciones, su superficie y la referencia literal de E1.77 («`change.md`, respuesta 2»). Solo añade; nunca quita nada del encargo.
+- **Targets:** solo Claude Code.
+- **Hecho cuando:** el encargo de un worker o de un revisor de ospec lleva esos datos sin que el agente principal los copie, y los subagentes ajenos a ospec no cambian.
+
+### E1.88 — `js-typecheck` (R13)
+
+- **Problema:** unas 75.000 líneas de JavaScript en `scripts/`, sin contar tests, no tienen linter ni comprobación de tipos.
+- **Garantía que protege:** que un error de tipos se vea antes de la suite.
+- **Alcance:** `// @ts-check` con JSDoc y `tsc --noEmit --checkJs` en `scripts/check.js`, módulo a módulo, empezando por los 21 `scripts/lib/idd-*.js`, con TypeScript fijado como dependencia de desarrollo. Se entrega en PRs encadenados.
+- **Criterio de apertura:** fuera del orden ▶ hasta que el usuario lo coloque.
+- **Hecho cuando:** los `idd-*.js` pasan `tsc --checkJs` en el CI de los tres sistemas, y un error de tipos rompe `check.js`.
+
+### E1.89 — `signed-releases` (R11)
+
+- **Problema:** `publish-marketplace.yml` reescribe la rama `release` con binarios sin checksums ni firma. gentle-ai firma sus checksums con minisign.
+- **Garantía que protege:** que lo instalado sea lo que construyó el CI (ADOPT-01).
+- **Depende de:** E1.28, que espera a E1.30.
+- **Alcance:** checksums firmados (minisign o cosign, lo decide el cambio) y procedencia del build de cada release. Los instaladores o `ospec doctor` la comprueban donde puedan.
+- **Criterio de apertura:** fuera del orden ▶ hasta que el usuario lo coloque.
+- **Hecho cuando:** cada release publica sus checksums firmados y su procedencia, y la comprobación de un binario alterado falla.
+
+### E1.90 — `counterproof-failure-log` (#522)
+
+- **Problema:** la contraprueba y su control solo registran `exit_code` y `output_sha256`, sin su salida (`runCounterproof` en `scripts/ospec.js`). `ospec run` y `ospec check` sí guardan la de un run que falla en `.ospec/runs/<cambio>/<run>.log` (E1.72). Cuando una contraprueba falla de forma inesperada no queda nada que leer: en #518 no se pudo ver qué hizo pnpm en la base.
+- **Garantía que protege:** evidencia legible de la contraprueba de E1.48.
+- **Alcance:** guardar con `keepRunOutput` la salida completa de cada contraprueba o control que falla, con la ruta del árbol temporal enmascarada, y citarla en la salida de `run` y `check`. El cambio decide si `close` la conserva.
+- **Criterio de apertura:** fuera del orden ▶ hasta que el usuario lo coloque.
+- **Hecho cuando:** una contraprueba o un control que falla deja su salida en `.ospec/runs/<cambio>/<run>.log`, `run` y `check` citan la ruta y un test lo fija.
+
+### E1.91 — `refactor-contract-warning` (#520)
+
+- **Problema:** la regla B9 (`kindMismatch` en `scripts/lib/idd-signals.js`) rechaza un `refactor` cuyo diff quita una línea de un contrato, pero solo desde el diff, en `check`, `run` y `close`. `record intent` y `signals` aceptan sin avisar un `refactor` que declara un documento de contrato. En un proyecto real, el rechazo llegó tras la review y los checks, y subir a feature volvió a abrir `open-facts`.
+- **Garantía que protege:** que la ceremonia que solo sube (E1.44) se vea cuando subir no cuesta nada.
+- **Alcance:** cuando el plan de un `refactor` declara un documento de contrato, `record intent` y `signals` devuelven un aviso en `warnings`, no un rechazo, con la ruta, la regla B9 y la orden para subir el kind.
+- **Criterio de apertura:** fuera del orden ▶ hasta que el usuario lo coloque.
+- **Hecho cuando:** un `refactor` con un documento de contrato en el plan recibe el aviso y se registra igual; con otro kind, o con una ruta que no es contrato, no hay aviso; `check` y `close` siguen rechazando con `kind-mismatch`.
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
@@ -1702,7 +1922,8 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
   - El worker solo construye. Ante un gate o una pregunta nueva (por ejemplo, cuando `ospec check` deriva una señal del diff), se para con `status: blocked`, el hilo principal pregunta y lo reanuda con la respuesta, donde el host lo permite (`SendMessage` en Claude). Es el patrón de los agentes SDD.
   - Las evidencias de IDD no dependen del modelo: la CLI registra los runs del worker igual que los del hilo principal.
 - **Alcance:** `ospec signals` o `ospec next` devuelven un bloque `delegation` con los tiers disponibles en el host y una sugerencia calculada en código (señales, unidades de trabajo y rutas). La skill solo dice que se presente en la misma ronda que `open-facts`, para no añadir una pregunta, con la opción de hacerlo en el hilo principal. ospec instala un worker por tier, con el modelo que resuelve E4.12, para los hosts que fijan el modelo en el fichero del agente.
-- **Restricciones:** funcionar con un solo modelo (sin tiers asignados o en `agy`, que hereda el modelo, todo queda en el hilo principal). La skill `idd` está a 263 B de su techo de 12 KiB, así que la lógica va en la CLI y el detalle en `references/` (E4.3). Los reviews y el cierre siguen en el hilo principal: en Claude un subagente no lanza subagentes, y Codex usa `max_depth: 1`. Corrige el principio 4 («trabaja en el hilo principal») y el brief («elegir el modelo del usuario» queda fuera de alcance: recomendar no es elegir), con un ADR nuevo.
+- **Superficie de edición** (R5 de la comparativa del 2026-11-16): el CLI emite por unidad la superficie de edición del worker a partir de `--path` y `--work-units`, y al volver comprueba que su diff no se sale de ella. `allowed-paths-validator.js` es del kernel de SDD, así que no se reutiliza tal cual. Las reglas de cuándo delegar van en el `how` del CLI o en `references/`, y el nivel de E1.79 entra en la sugerencia. En Claude, E1.85 y E1.86 lo hacen cumplir en tiempo real, y E1.87 enriquece el encargo.
+- **Restricciones:** funcionar con un solo modelo (sin tiers asignados o en `agy`, que hereda el modelo, todo queda en el hilo principal). La skill `idd` ocupa 10.601 B de su techo de 12 KiB (2026-11-16), así que la lógica va en la CLI y el detalle en `references/` (E4.3). Los reviews y el cierre siguen en el hilo principal: en Claude un subagente no lanza subagentes, y Codex usa `max_depth: 1`. Corrige el principio 4 («trabaja en el hilo principal») y el brief («elegir el modelo del usuario» queda fuera de alcance: recomendar no es elegir), con un ADR nuevo.
 - **Riesgos:** el worker empieza sin contexto y puede releer el código que ya leyó el hilo principal, de modo que delegar puede gastar más tokens; una pregunta más por cambio; un tier barato en un cambio mal estimado.
 - **Hechos abiertos:** qué entra en el traspaso al worker; cuándo se ofrece (si nunca en `docs` o en el suelo `direct`); si la elección se recuerda en `idd/config.yaml`; qué hace un host sin reanudación; cómo se presenta la justificación.
 - **Depende de** E4.4, que debe mostrar que delegar mantiene los escapados y la calidad y baja el coste, y de E4.12.
@@ -1785,7 +2006,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 - **E5.6 — deuda diferida H1–H7:** remediación del backlog de archive y runtime al terminar el roadmap (decisión del usuario del 2026-10-02).
 - **E5.7 — fin de la lectura de linajes v1:** retirar la lectura compatible de `schema_version: 1` (`4r-review-gate`, `LEGACY_DIMENSIONS`, la rama v1 de `review-correction`) y el clasificador v1 (`deriveReviewDimensions`, `validateReviewDecision`). Se abre a partir de v2.92.0, cuando termina la ventana de una versión menor de E0.3 (d).
 - **E5.8 — `sdd-marketplace-plugin`:** publicar un segundo plugin, `ospec-workflow-sdd`, en el marketplace de Claude. Desde v2.113.0, `publish-marketplace.yml` construye la build por defecto, sin `--with-sdd`, así que quien instala desde el marketplace no puede activar SDD; hoy solo puede instalarlo desde un checkout con `npm run setup:claude -- --with-sdd`. Primero hay que decidir entre un plugin completo con SDD que sustituye al principal y un complemento que solo añade el paquete SDD; el complemento obliga a resolver cómo conviven dos plugins: nombres de skills y agentes, hooks y runtime duplicados, y la ruta al CLI. Idea aprobada por el usuario el 2026-10-08 y aplazada: no es prioritaria. Se abre cuando alguien necesite SDD instalando desde el marketplace o al terminar E1.
-- **E5.9 — `installer-tui-and-skill-profiles`:** TUI coherente y desacoplada del núcleo, con paridad con el CLI (SDD, Strict TDD, Engram, router, `--dry-run` y ámbito global o de proyecto) y perfiles de skills instalables por dominio, con manifiesto declarativo, procedencia y lock. Propuesta de #348, analizada con condiciones; no adelanta a la cola actual (E4.6 → E4.10 → E4.3). Conserva el desacoplamiento del adaptador y no instala herramientas de terceros sin versión fijada.
+- **E5.9 — `installer-tui-and-skill-profiles`:** TUI coherente y desacoplada del núcleo, con paridad con el CLI (SDD, Strict TDD, Engram, router, `--dry-run` y ámbito global o de proyecto) y perfiles de skills instalables por dominio, con manifiesto declarativo, procedencia y lock. Propuesta de #348, analizada con condiciones; no adelanta a la cola actual (E4.6 → E4.10 → E4.3). Conserva el desacoplamiento del adaptador y no instala herramientas de terceros sin versión fijada. Desde el 2026-11-16 incluye R10 de la [comparativa con gentle-ai](../analysis/2026-11-16-comparativa-gentle-ai.md): un binario precompilado para Linux, macOS y Windows (amd64 y arm64), varios destinos en una pasada, modo no interactivo, desinstalación y un snapshot antes de escribir, con pantallas pequeñas sobre el protocolo JSON del adaptador y no un modelo de TUI monolítico.
 
 ### E5.10 — `progress-snapshot`
 
@@ -1888,6 +2109,7 @@ Se conserva el código y la documentación; no recibe inversión mientras no se 
 | CX2–CX6 (vistas derivadas, proyección de contexto, deltas de spec) | Que E0 o E4.3 no alcancen sus techos con medios más simples |
 | Capacidades nuevas del modo SDD (migrarlo al CLI, trocear su protocolo, gate de entrada agrupado) | Que usuarios del modo SDD lo pidan con un caso concreto |
 | Dream-RSI y aprendizaje de políticas | Que exista una política fija con evaluador congelado y cohorte de holdout |
+| M6 de la comparativa del 2026-11-16: herramientas nativas `ospec_*` en Claude, registradas por un mod con `$.tool.register` | Que el escape de argumentos por Bash (`--quote`, `--answer`) cause un fallo real, o que la API de mods salga de early access; el coste fijo es una segunda ruta de código, tokens de esquema en cada petición y un tope de 10 minutos por ejecución |
 
 ## Base entregada
 
@@ -1923,6 +2145,9 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-16: `roadmap-gentle-ai-comparison` (IDD, solo documentación, sin versión propia). Entran E1.75 a E1.91, de la [comparativa del harness, el uso y el producto frente a gentle-ai](../analysis/2026-11-16-comparativa-gentle-ai.md), y las tres issues abiertas sin ítem (#520, #522 y #523).
+  - Las propuestas R1 a R13 y los mods M0 a M6 se contrastaron con el código antes de entrar. R4 queda en E1.52 → E1.59 → E1.60, con las lentes según el nivel de E1.79; R5 entra en E4.13, R10 en E5.9 y R11 detrás de E1.28; R7 y R8 los sustituyen los mods; M6 pasa a «Aparcado».
+  - El usuario fijó el orden: E1.75, E1.76, E1.51, E1.77, E1.78, E1.79, E1.80 y E1.81 antes de 4c2, E1.70, 4d, los avisos del guard y PR5 a PR8; E1.82 a E1.84 detrás de E1.60, y E1.85 a E1.87 detrás de E4.13. E1.88 a E1.91 quedan fuera del orden ▶. Sigue E1.75 `open-facts-by-risk`.
 - 2026-11-16: `counterproof-isolated-dependencies` (IDD), publicado en v2.178.2. Cierra #518, el informe de retama-landing: la contraprueba de E1.48 enlazaba con permiso de escritura los directorios de dependencias del proyecto en su árbol temporal, y un comando que reinstalaba en la base (pnpm 12) escribía en los del proyecto. Ahora cada montaje lleva una copia, clonada donde el sistema de ficheros lo admite; un enlace absoluto dentro del repositorio apunta al árbol temporal, y en Windows un enlace a un directorio es un junction. Quedan fuera, en el handbook, los enlaces que salen del repositorio y las rutas absolutas dentro de los ficheros (shebangs de `.venv/bin`, `.pth` editables). Sigue la PR de solo documentación con el plan de la comparativa con gentle-ai.
 - 2026-11-16: `ci-speed-flakes`, `ci-shards-rebalance`, `ci-serial-timing-tests`, `ci-serial-browser-checks` y `ci-dist-test-isolation` (IDD), publicados en v2.178.1, dentro de E1.30, que sigue abierto. El job más lento de Validate Harness pasa de 672 s de mediana a 371 s. `scripts/ospec.test.js` se parte por áreas, `check.js` corre después de la fase paralela y de uno en uno los tests con plazo real (`SERIAL_TESTS`, con los que miden tiempo de pared y las comprobaciones de navegador del bench), Windows pasa a 4 shards y macOS a 3, y el pre-commit ejecuta las partes `<nombre>.<parte>.test.js` de un módulo. El siguiente cambio arregla la contraprueba que escribe en el `node_modules` del proyecto (#518), y después sigue E1.51.
 - 2026-11-15: `idd-change-abandon` (IDD), publicado en v2.178.0. E1.57 hecho, cierra #409. El usuario lo adelantó en el bloque C: era el recordatorio pendiente del informe de fricciones del 2026-11-14, y un proyecto real esperaba por él para sacar un cambio abierto sin versionar.
