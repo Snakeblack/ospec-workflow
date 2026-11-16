@@ -727,7 +727,8 @@ test("[E1.48] a counterproof worktree holds the base product, the tests of the w
     assert.deepStrictEqual([read("test/pages.test.js"), read("test/new.test.js")], ["new test", "added"]);
     assert.ok(!fs.existsSync(path.join(mounted.cwd, "test/gone.test.js")), "a test the diff deletes is absent");
     assert.strictEqual(read("node_modules/dep/index.js"), "installed");
-    assert.ok(fs.lstatSync(path.join(mounted.cwd, "node_modules")).isSymbolicLink());
+    const copied = fs.lstatSync(path.join(mounted.cwd, "node_modules"));
+    assert.ok(copied.isDirectory() && !copied.isSymbolicLink(), "a copy, never a link to the project's (#518)");
     assert.strictEqual(fs.readFileSync(path.join(mounted.cwd, "..", "node_modules/hoisted/index.js"), "utf8"), "hoisted");
     assert.ok(!fs.lstatSync(path.join(mounted.cwd, "vendor")).isSymbolicLink(), "a tracked vendor comes from the base");
     assert.ok(!fs.existsSync(path.join(mounted.cwd, "dist")), "a build output is never linked");
@@ -742,7 +743,7 @@ test("[E1.48] a counterproof worktree holds the base product, the tests of the w
   assert.strictEqual(fs.readFileSync(path.join(root, "src/pages.js"), "utf8"), "ceil", "the working tree is untouched");
 });
 
-test("[E1.48] a counterproof worktree links the ignored dependencies of Elixir, tox, nox, Dart, CocoaPods and Bower too", (t) => {
+test("[E1.48] a counterproof worktree copies the ignored dependencies of Elixir, tox, nox, Dart, CocoaPods and Bower too", (t) => {
   const root = gitRepo(t);
   const dirs = ["deps", ".tox", ".nox", ".dart_tool", "Pods", "bower_components"];
   write(root, ".gitignore", `${dirs.map((dir) => `${dir}/`).join("\n")}\n`);
@@ -757,6 +758,88 @@ test("[E1.48] a counterproof worktree links the ignored dependencies of Elixir, 
     mounted.remove();
   }
   for (const dir of dirs) assert.ok(fs.existsSync(path.join(root, dir, "installed.txt")), `removing it never follows ${dir}`);
+});
+
+// Every entry under `dir` with its content, or the target of a link, never followed.
+function dependencySnapshot(dir) {
+  const entries = {};
+  const walk = (at) => {
+    for (const entry of fs.readdirSync(at, { withFileTypes: true })) {
+      const full = path.join(at, entry.name);
+      const rel = path.relative(dir, full).split(path.sep).join("/");
+      if (entry.isSymbolicLink()) entries[rel] = `link ${fs.readlinkSync(full)}`;
+      else if (entry.isDirectory()) {
+        entries[rel] = "dir";
+        walk(full);
+      } else entries[rel] = `file ${fs.readFileSync(full, "utf8")}`;
+    }
+  };
+  walk(dir);
+  return entries;
+}
+
+// A link or junction to a directory, which Windows creates without privileges.
+function linkDir(target, link) {
+  fs.mkdirSync(path.dirname(link), { recursive: true });
+  fs.symlinkSync(target, link, "junction");
+}
+
+function unlinkDir(link) {
+  try {
+    fs.unlinkSync(link);
+  } catch {
+    fs.rmdirSync(link);
+  }
+}
+
+test("[#518] a counterproof worktree copies the ignored dependencies: a command that reinstalls them leaves the project's as they were", (t) => {
+  const repo = gitRepo(t);
+  const root = path.join(repo, "app");
+  write(repo, ".gitignore", "node_modules/\n.venv/\n");
+  write(root, "src/pages.js", "floor");
+  write(root, "packages/ui/index.js", "base ui");
+  commitAll(repo, "base");
+  const base = git(repo, "rev-parse", "HEAD").trim();
+  write(root, "packages/ui/index.js", "candidate ui");
+  // A pnpm install of the candidate, a hoisted one at the repository root and a virtualenv.
+  write(root, "node_modules/.pnpm/dep@2/node_modules/dep/index.js", "candidate");
+  write(root, "node_modules/.modules.yaml", "dep@2");
+  linkDir(".pnpm/dep@2/node_modules/dep", path.join(root, "node_modules/dep"));
+  // A workspace package linked relative (a junction, absolute, on Windows) and absolute.
+  linkDir("../packages/ui", path.join(root, "node_modules/ui"));
+  linkDir(path.join(root, "packages/ui"), path.join(root, "node_modules/ui-absolute"));
+  // A package linked from outside the repository, as npm link leaves it.
+  const outside = tempDir(t);
+  write(outside, "index.js", "outside");
+  linkDir(outside, path.join(root, "node_modules/linked"));
+  write(repo, "node_modules/hoisted/index.js", "hoisted");
+  write(root, ".venv/lib/site.py", "candidate");
+  const places = [path.join(root, "node_modules"), path.join(repo, "node_modules"), path.join(root, ".venv")];
+  const before = places.map(dependencySnapshot);
+
+  for (const paths of [["test/pages.test.js"], []]) {
+    const mounted = mountCounterproof(root, { base, paths });
+    try {
+      const deps = path.join(mounted.cwd, "node_modules");
+      assert.strictEqual(fs.readFileSync(path.join(deps, "dep/index.js"), "utf8"), "candidate", "the install of the project");
+      const read = (rel) => fs.readFileSync(path.join(deps, rel, "index.js"), "utf8");
+      assert.deepStrictEqual([read("ui"), read("ui-absolute")], ["base ui", "base ui"], "a workspace package is the base's");
+      assert.strictEqual(fs.realpathSync(path.join(deps, "linked")), fs.realpathSync(outside), "a link out of the repository keeps its target");
+      // pnpm reinstalls the base: a new version, the link moved, the old one pruned.
+      write(mounted.cwd, "node_modules/.pnpm/dep@1/node_modules/dep/index.js", "base");
+      unlinkDir(path.join(deps, "dep"));
+      linkDir(".pnpm/dep@1/node_modules/dep", path.join(deps, "dep"));
+      fs.rmSync(path.join(deps, ".pnpm/dep@2"), { recursive: true, force: true });
+      fs.writeFileSync(path.join(deps, ".modules.yaml"), "dep@1");
+      fs.writeFileSync(path.join(mounted.cwd, "..", "node_modules/hoisted/index.js"), "base");
+      fs.writeFileSync(path.join(mounted.cwd, ".venv/lib/site.py"), "base");
+      fs.writeFileSync(path.join(mounted.cwd, ".venv/lib/added.py"), "base");
+    } finally {
+      mounted.remove();
+    }
+    assert.deepStrictEqual(places.map(dependencySnapshot), before, `the mount of ${paths.length} paths writes nothing in the project`);
+    assert.strictEqual(fs.readFileSync(path.join(outside, "index.js"), "utf8"), "outside", "removing it never follows a link");
+  }
 });
 
 test("[E1.48] a counterproof worktree takes a test whose path is longer than 260 characters", (t) => {

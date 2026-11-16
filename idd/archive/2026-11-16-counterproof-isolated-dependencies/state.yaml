@@ -1,0 +1,387 @@
+{
+  "schema": "idd-state/v1",
+  "change": "counterproof-isolated-dependencies",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Issue #518: mountCounterproof (scripts/lib/idd-workspace.js) enlaza en el worktree temporal de la base los DEPENDENCY_DIRS reales del proyecto (node_modules, .venv, vendor…) con un symlink o junction escribible. Si el comando de la contraprueba o de su control reinstala dependencias en la base (pnpm 12 ante un lockfile que no casa), escribe a través del enlace en el directorio real: en retama-landing quedaron 24 symlinks de node_modules apuntando al árbol temporal borrado, con versiones de la base",
+    "acceptance": "Una contraprueba o un control cuyo comando escribe en el directorio de dependencias del árbol temporal deja el del proyecto como estaba (mismo contenido y mismos enlaces); un test lo reproduce con un comando que escribe en ese directorio; la contraprueba sigue encontrando las dependencias instaladas, sin reinstalar"
+  },
+  "facts": {
+    "open": [
+      "Cómo se aísla el directorio de dependencias del proyecto en el árbol temporal: copia por montaje, copia solo cuando el diff toca manifiestos o lockfiles, enlace con detección de cambios, o árbol de hardlinks",
+      "Dónde vive la copia: en os.tmpdir() como hoy (tmpfs en RAM en muchas distros Linux) o en el sistema de ficheros del proyecto",
+      "Si la contraprueba y su control llevan una copia cada uno o comparten una por llamada",
+      "Qué se hace con las rutas absolutas que algunos ecosistemas guardan dentro del directorio (shebangs de .venv/bin, .pth de instalaciones editables, enlaces absolutos al proyecto): dejarlas y documentar el límite, reescribirlas, o vigilar el directorio real tras la contraprueba",
+      "Si guardar en .ospec/runs la salida de la contraprueba que falla (tercera idea de la issue) entra en este cambio"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "handbook/idd/evidencia.md",
+      "scripts/lib/idd-workspace.js",
+      "scripts/lib/idd-workspace.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "La contraprueba copia en su árbol temporal los directorios de dependencias ignorados del proyecto y de la raíz del repositorio en vez de enlazarlos (#518): lo que corre en él nunca escribe en los del proyecto. Los ficheros se clonan donde el sistema de ficheros lo admite (COPYFILE_FICLONE) y se copian donde no",
+      "Una copia por montaje, en os.tmpdir() como el resto del árbol; si no cabe, el montaje falla con counterproof-unmounted y la contraprueba se omite con aviso",
+      "Las rutas absolutas que un ecosistema guarda dentro de los ficheros de esos directorios (shebangs de .venv/bin, .pth de instalaciones editables) se copian tal cual; el límite queda en handbook/idd/evidencia.md. Guardar la salida de la contraprueba que falla va en una issue aparte",
+      "Un enlace de la copia cuyo destino absoluto cae dentro del repositorio apunta a la misma ruta del árbol temporal, en todas las plataformas; en Windows un enlace a un directorio se recrea como junction, que no pide privilegios. Motivo: pnpm (symlink-dir) crea en Windows junctions, siempre absolutos, al .pnpm real. Los enlaces que salen del repositorio se copian tal cual (decisión del usuario, opción A)"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La regla de aislamiento de la contraprueba sigue en el CLI (mountCounterproof, scripts/lib/idd-workspace.js) con su test; la skill no gana prosa"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia ninguna señal, obligación ni gate: solo cómo se monta el árbol de la contraprueba"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "Refuerza la evidencia observada: la contraprueba ya no altera las dependencias del proyecto, así que los checks posteriores corren sobre el árbol real del cambio y no sobre dependencias de la base"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "No toca el estado en disco de IDD ni de SDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "El siguiente paso y las obligaciones no dependen de cómo se montan las dependencias de la contraprueba"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 393,
+      "answer": "todas las recomendadas: 1) copia por montaje con fs.cpSync (enlaces tal cual, clon CoW donde el FS lo admite); 2) la copia vive en os.tmpdir(), y si no cabe la contraprueba se omite con aviso; 3) una copia por montaje; 4) las rutas absolutas se dejan y el límite se documenta en handbook/idd/evidencia.md; 5) guardar la salida de la contraprueba va en una issue aparte. Entrega: una PR desde fix/counterproof-isolated-dependencies",
+      "source": "user",
+      "resolved_turn": 394
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-16T16:08:51.021Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-16T16:12:32.866Z",
+      "detail": {
+        "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-16T16:12:32.866Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume none"
+        ],
+        "records": [],
+        "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-16T16:14:34.447Z",
+      "detail": {
+        "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+        "runs": [
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-16T16:14:34.447Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume none"
+        ],
+        "records": [],
+        "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+        "fitness": [
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-16T16:15:00.406Z"
+    }
+  ],
+  "base": "0d6959fda00e988a1105d52be0088c7c462dff94",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=#518 scripts/lib/idd-workspace.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:b278c87fb8601b40eebf76d23a2e6305ade0eced9df65fa2127c93f7e75b1798",
+      "tree": "sha256:18ae23ec0fca94d7c465d68c9ee1b74d4202cbcc06297c0f1a3322fff7a26cef",
+      "recorded_at": "2026-11-16T15:58:48.006Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=#518 scripts/lib/idd-workspace.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f29c50754a5782c0889311e5130cc95812062e81b1257fee4e1fdb3c2c17a78e",
+      "tree": "sha256:44d71b988fcfcee4555bf4ae7c8be95ee86b427f122bddd85fa3c56faf5a69f8",
+      "recorded_at": "2026-11-16T16:08:51.021Z",
+      "tests": 1,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "0d6959fda00e988a1105d52be0088c7c462dff94",
+      "mount": "sha256:4a6b90ec80f5b89c76e586846a808c1cdcce0f4ccbf969eaf5ad99ba1483f580",
+      "command": "node --test --test-name-pattern=#518 scripts/lib/idd-workspace.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:9452dd02980601e915f58d0077075474a50f715ed2ffb890d89b41518b722997",
+      "tree": "sha256:44d71b988fcfcee4555bf4ae7c8be95ee86b427f122bddd85fa3c56faf5a69f8",
+      "recorded_at": "2026-11-16T16:08:51.021Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "0d6959fda00e988a1105d52be0088c7c462dff94",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=#518 scripts/lib/idd-workspace.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4da431fde4b766d96001ae3a47a22e0210124b87b39a44fe136c89aaa0960e48",
+      "tree": "sha256:44d71b988fcfcee4555bf4ae7c8be95ee86b427f122bddd85fa3c56faf5a69f8",
+      "recorded_at": "2026-11-16T16:08:51.021Z",
+      "tests": 1
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:80c380bbcdaa905f2086941cac9762629e038ff407eb94a7ebea694f52c110ae",
+      "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+      "recorded_at": "2026-11-16T16:12:32.866Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7534f85be768dd9ddcf77f980845db1b94014d6a3efed6420bb9e06bf06597cb",
+      "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+      "recorded_at": "2026-11-16T16:12:32.866Z",
+      "tests": 61
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e81cf18bac5a6b1e067b8cf7c27c092f427b9c1aa819539936697b3c4600157f",
+      "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+      "recorded_at": "2026-11-16T16:12:32.866Z",
+      "tests": 18
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ec531ca5ed86b0b16173dd7487305984f113199fd05ea3cbd3392d73570977b8",
+      "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+      "recorded_at": "2026-11-16T16:12:32.866Z",
+      "tests": 96
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9b3b49b96dde04b2dbf30161ca476bd5ca3c5ccd103f07f45e5d651f2e722fca",
+      "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+      "recorded_at": "2026-11-16T16:12:32.866Z",
+      "tests": 52
+    },
+    {
+      "id": "run-10",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:054ed935288ffcd33bf4d6df51fa989a1dc55283262401ed59a673acfdb846e7",
+      "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+      "recorded_at": "2026-11-16T16:14:34.447Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:86f2f03ac07e277a3e31159eeceb4a3241f031dbaed9a8e9bcda97466650f0d5",
+      "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+      "recorded_at": "2026-11-16T16:14:34.447Z",
+      "tests": 61
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b5e23bc4fd4e22d65aeab06c8230631f94c938341e6d5f23a6420027773dd7bc",
+      "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+      "recorded_at": "2026-11-16T16:14:34.447Z",
+      "tests": 18
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:14459ac65eb31720d214edf0f6d023bc255add51efb87012270393a004c132b2",
+      "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+      "recorded_at": "2026-11-16T16:14:34.447Z",
+      "tests": 96
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e0a3b88e54072ce7b8f4a1c9399c0e009fad0ee92e70b7fbe6ae70920e6e2e38",
+      "tree": "sha256:6f69a90fbb31d33f0f31e4f5be01baf7f375a3ed3933c2296f4f65b737210e4b",
+      "recorded_at": "2026-11-16T16:14:34.447Z",
+      "tests": 52
+    }
+  ],
+  "closed_at": "2026-11-16T16:15:00.406Z"
+}
