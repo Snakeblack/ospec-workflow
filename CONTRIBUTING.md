@@ -36,8 +36,10 @@ node scripts/check.js
 
 It runs the Node test files in parallel. Next, one file at a time, it runs the
 tests in `SERIAL_TESTS` of `scripts/check.js`, whose result depends on a real
-deadline such as the 4 s of the hooks launcher. A new test of that kind goes in
-that list. CI splits the files across shards with `--shard <index>/<total>`.
+deadline, such as the 4 s of the hooks launcher or the 1 s budget of a
+linear-time test. A new test of that kind goes in that list.
+`scripts/check.test.js` fails when a test file that measures wall time with
+`process.hrtime` or `performance.now` is missing from it. CI splits the files across shards with `--shard <index>/<total>`.
 `node --test` runs the tests of one file in sequence, so a long test file sets
 the time of its shard: split it by area into `<name>.<area>.test.js` beside
 the module, as `scripts/ospec.<area>.test.js` does. The pre-commit runs those

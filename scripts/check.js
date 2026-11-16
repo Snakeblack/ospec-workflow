@@ -86,12 +86,23 @@ function generateTarget(target, validate, deps = {}) {
 }
 
 // E1.30: tests bound to a real deadline (the hook launcher's 4 s, a spawn's own
-// timeout) missed it under the contention of the parallel suite on CI runners.
-// They run after it, one file at a time; with --shard the file at index j goes
-// to shard (j mod total) + 1.
+// timeout, the 1 s budget of a linear-time reader) missed it under the
+// contention of the parallel suite on CI runners. They run after it, one file
+// at a time; with --shard the file at index j goes to shard (j mod total) + 1.
+// scripts/check.test.js fails when a test file that measures wall time is
+// missing here.
 const SERIAL_TESTS = Object.freeze([
   "scripts/configure/codex-hook-shell.test.js",
   "scripts/hooks/ospec-hooks-launch.test.js",
+  "scripts/hooks/pre-compact.test.js",
+  "scripts/hooks/pre-tool-use.test.js",
+  "scripts/lib/capability-registry.test.js",
+  "scripts/lib/idd-config.test.js",
+  "scripts/lib/ospec-state.test.js",
+  "scripts/lib/route-dispatcher.test.js",
+  "scripts/lib/team-profile.test.js",
+  "scripts/lib/yaml-lite.test.js",
+  "scripts/route-dispatch-run.test.js",
 ]);
 
 // The files `node --test scripts/**/*.test.js tests/**/*.test.js` finds: its
@@ -151,6 +162,7 @@ function main(deps = {}) {
   const generate = deps.generateTarget || generateTarget;
   const runStaged = deps.runStagedChecks || runStagedChecks;
   const listTests = deps.listTestFiles || listTestFiles;
+  const serialTests = deps.serialTests || SERIAL_TESTS;
 
   const argv = deps.argv || (proc.argv ? proc.argv.slice(2) : []);
   const isStaged = argv.includes("--staged");
@@ -175,14 +187,14 @@ function main(deps = {}) {
 
     const shard = parseShard(argv);
     const files = listTests();
-    const missing = SERIAL_TESTS.find((file) => !files.includes(file));
+    const missing = serialTests.find((file) => !files.includes(file));
     if (missing) {
       throw new Error(`the deadline-bound test ${missing} does not exist: update SERIAL_TESTS in scripts/check.js`);
     }
-    const parallel = files.filter((file) => !SERIAL_TESTS.includes(file));
+    const parallel = files.filter((file) => !serialTests.includes(file));
     const label = shard ? ` (shard ${shard.index}/${shard.total})` : "";
     run(`Native Node tests${label}`, ["--test", ...(shard ? [`--test-shard=${shard.index}/${shard.total}`] : []), ...parallel]);
-    const serial = shard ? SERIAL_TESTS.filter((_, at) => at % shard.total === shard.index - 1) : SERIAL_TESTS;
+    const serial = shard ? serialTests.filter((_, at) => at % shard.total === shard.index - 1) : serialTests;
     if (serial.length > 0) {
       run(`Native Node tests, one file at a time${label}`, ["--test", "--test-concurrency=1", ...serial]);
     }

@@ -1,0 +1,209 @@
+{
+  "schema": "idd-state/v1",
+  "change": "ci-serial-timing-tests",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En la CI del commit de release de la PR #519, REQ-lifecycle-kernel-035 (readState y el proyector leen una línea larga en tiempo lineal, scripts/lib/ospec-state.test.js) tardó 2222 ms frente a su presupuesto de 1000 ms en Windows 3/4: los tests que miden tiempo de pared siguen en la fase paralela, donde la contención ha subido al correr a la vez las partes de ospec",
+    "acceptance": "Los tests que comprueban un presupuesto de tiempo de pared corren en la fase serie de check.js; Validate Harness vuelve a pasar en verde en la PR"
+  },
+  "facts": {
+    "open": [
+      "¿Pasan a SERIAL_TESTS los 8 ficheros que miden tiempo con process.hrtime (ospec-state, yaml-lite, route-dispatcher, pre-compact, team-profile, idd-config, capability-registry y pre-tool-use; unos 4,5 s en local), o solo ospec-state.test.js, el que ha fallado?",
+      "¿Añadimos un test que falle si un fichero de test que mide tiempo con process.hrtime o performance.now no está en SERIAL_TESTS, para que la lista no se quede atrás?",
+      "El commit de release ya está empujado y no se puede reescribir el historial: ¿añado el arreglo detrás y un último commit que actualice la sección 2.178.1 del CHANGELOG y el roadmap, sin tocar los manifiestos de versión?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "CONTRIBUTING.md",
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/check.js",
+      "scripts/check.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "SERIAL_TESTS pasa a los 10 ficheros con plazo real, en orden alfabético: los 2 de antes y los 8 que miden tiempo de pared con process.hrtime; el fichero j va al shard (j mod n)+1",
+      "Un test de check.test.js falla si un fichero de test que menciona process.hrtime o performance.now no está en SERIAL_TESTS; los presupuestos medidos con Date.now quedan fuera (el único, en idd-exec.test.js, es una guarda de cuelgue de 30 s)",
+      "La línea de este cambio entra en la sección 2.178.1 del CHANGELOG con un commit posterior al de release que no toca los manifiestos de versión: el commit de release ya estaba empujado",
+      "La guarda encontró un noveno fichero que la búsqueda inicial no vio, scripts/route-dispatch-run.test.js (tres presupuestos de 1 s, 0,9 s en local), que también pasa a SERIAL_TESTS: SERIAL_TESTS queda con 11 ficheros"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "retracted": [
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/check.js imports scripts/configure/cli.js, which uses writeFile",
+      "source": "diff",
+      "retract_reason": "scripts/check.js ya importaba scripts/configure/cli.js antes de este cambio, solo para detectar el CLI de claude; el cambio no toca datos persistentes ni migraciones",
+      "confirmed_by": "persistent data: scripts/check.js imports scripts/configure/cli.js, which uses writeFile",
+      "hits": [
+        "scripts/check.js imports scripts/configure/cli.js, which uses writeFile: fs.writeFileSync(abs, file.content);",
+        "scripts/check.js imports scripts/configure/cli.js, which uses writeFile: fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, destination, started_at: new Date().toISOString() }) + \"\\n\");",
+        "scripts/check.js imports scripts/hooks/lib/staged-validator.js, which uses writeFile: fsImpl.writeFileSync(tmpFile, content, \"utf8\");"
+      ],
+      "answer": "confirmo (no hay datos persistentes: el import de cli.js en check.js ya existía y solo sirve para detectar el CLI de claude)",
+      "answer_source": "user"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "withdrawn",
+      "evidence": [],
+      "withdrawn_reason": "scripts/check.js ya importaba scripts/configure/cli.js antes de este cambio, solo para detectar el CLI de claude; el cambio no toca datos persistentes ni migraciones"
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 373,
+      "answer": "todas las recomendadas: (1) los 8 ficheros que miden tiempo con process.hrtime pasan a SERIAL_TESTS; (2) un test de guarda falla si un fichero de test que mide tiempo con process.hrtime o performance.now no está en SERIAL_TESTS (los presupuestos con Date.now, como el de 30 s de idd-exec, quedan fuera); (3) el cambio escribe su propia línea en [Unreleased] y un último commit la lleva a la sección 2.178.1 del CHANGELOG y actualiza el roadmap sin tocar los manifiestos de versión; evidencia: 5 ejecuciones en el SHA final, como se acordó para la PR",
+      "source": "user",
+      "resolved_turn": 374
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-15T23:55:48.968Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-15T23:57:08.627Z",
+      "detail": {
+        "tree": "sha256:13141f41e89f84ce16899a6580691f3c7a8e315eccf8774541bba8e08845a83c",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-16T07:42:12.879Z"
+    }
+  ],
+  "base": "1ee55219252fb96f3293c054d832d6499eb21feb",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/check.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:4f946dfd2285119eb43959ffc83823ea09b24d3ae51295c986c0c3ee3c8e0f9f",
+      "tree": "sha256:282f2a702b6a37fb35057e61fe3ff84eef75e0408f782b47c474f2325dee59a7",
+      "recorded_at": "2026-11-15T23:55:19.162Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/check.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:92f1da53a513900b6738f5f560bfc74bdbf38ef890711981c5ea4690c84d804f",
+      "tree": "sha256:475f48768d20e7fc7d1b87eee1a222214503335edbfd99199609481af83e1b65",
+      "recorded_at": "2026-11-15T23:55:48.968Z",
+      "tests": 33,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "1ee55219252fb96f3293c054d832d6499eb21feb",
+      "mount": "sha256:5a3180ed9c284320553eb778f8be3c7daacf8a645e10790be61434d003afce48",
+      "command": "node --test scripts/check.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:9c881c577b200f26ca9b139af0faa30fc19b9d4cc863a626868715c1525b67f8",
+      "tree": "sha256:475f48768d20e7fc7d1b87eee1a222214503335edbfd99199609481af83e1b65",
+      "recorded_at": "2026-11-15T23:55:48.968Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "1ee55219252fb96f3293c054d832d6499eb21feb",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/check.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:986a61e92aa785a95d26c90df1c315a82162e95c71fd6b1635375b79f426de2d",
+      "tree": "sha256:475f48768d20e7fc7d1b87eee1a222214503335edbfd99199609481af83e1b65",
+      "recorded_at": "2026-11-15T23:55:48.968Z",
+      "tests": 32
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:de24cd14b0dd40b2064f601548042d95ac7f7d3e1c251c5d7e8203d37394d76b",
+      "tree": "sha256:13141f41e89f84ce16899a6580691f3c7a8e315eccf8774541bba8e08845a83c",
+      "recorded_at": "2026-11-15T23:57:08.627Z"
+    }
+  ],
+  "closed_at": "2026-11-16T07:42:12.879Z"
+}

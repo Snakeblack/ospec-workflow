@@ -11,6 +11,7 @@ const { main, generateTarget, runStep, claudeCliAvailable, findPython, listTestF
 const [CODEX_SHELL, LAUNCHER] = ["scripts/configure/codex-hook-shell.test.js", "scripts/hooks/ospec-hooks-launch.test.js"];
 const TEST_FILES = ["scripts/a.test.js", CODEX_SHELL, "scripts/configure/b.test.js", LAUNCHER, "tests/c.test.js"];
 const PARALLEL = ["scripts/a.test.js", "scripts/configure/b.test.js", "tests/c.test.js"];
+const SERIAL = [CODEX_SHELL, LAUNCHER];
 
 test("runStep throws a clear error when spawnSync cannot start", () => {
   const stdout = [];
@@ -88,6 +89,7 @@ test("main includes cursor and skips claude validation when the claude CLI is un
 
   main({
     listTestFiles: () => TEST_FILES,
+    serialTests: SERIAL,
     runStep: (name, args) => steps.push({ name, args }),
     claudeCliAvailable: () => false,
     findPython: () => null,
@@ -125,6 +127,7 @@ test("main runs the caveman-compress Python tests when Python 3 is available", (
   let exitCode;
   main({
     listTestFiles: () => TEST_FILES,
+    serialTests: SERIAL,
     runStep: (name, args, options) => steps.push({ name, args, options }),
     claudeCliAvailable: () => true,
     findPython: () => "python3",
@@ -156,7 +159,7 @@ test("findPython takes the first Python 3 on PATH and skips a failing probe", ()
   assert.equal(findPython({ spawnSync: () => ({ error: new Error("ENOENT") }) }), null);
 });
 
-function runSharded(argv, files = TEST_FILES) {
+function runSharded(argv, files = TEST_FILES, serialTests = SERIAL) {
   const steps = [];
   const generated = [];
   const stdout = [];
@@ -165,6 +168,7 @@ function runSharded(argv, files = TEST_FILES) {
   main({
     argv,
     listTestFiles: () => files,
+    serialTests,
     runStep: (name, args) => steps.push({ name, args }),
     claudeCliAvailable: () => false,
     findPython: () => null,
@@ -203,7 +207,7 @@ test("--shard runs one shard of the Node tests and generates the targets only on
 // own timeout) missed it under the contention of the parallel suite. Those run
 // after it, one file at a time, each on one shard.
 test("the deadline-bound tests leave the parallel phase and run after it, one file at a time, each on one shard", () => {
-  assert.deepEqual(SERIAL_TESTS, [CODEX_SHELL, LAUNCHER]);
+  assert.deepEqual(SERIAL_TESTS.slice(0, 2), [CODEX_SHELL, LAUNCHER]);
   const shards = [1, 2, 3].map((index) => runSharded(["--shard", `${index}/3`]));
   for (const [at, run] of shards.entries()) {
     assert.equal(run.exitCode, undefined);
@@ -214,6 +218,16 @@ test("the deadline-bound tests leave the parallel phase and run after it, one fi
     [["--test", "--test-concurrency=1", LAUNCHER]],
     [],
   ]);
+});
+
+// A test that holds work to a wall-clock budget belongs to SERIAL_TESTS: in the
+// parallel phase of PR #519, REQ-lifecycle-kernel-035 took 2.2 s against its
+// 1 s on a Windows runner. A budget measured with Date.now is not caught.
+test("every test file that measures wall time runs in the serial phase", () => {
+  const root = path.join(__dirname, "..");
+  const timed = listTestFiles(root).filter((file) => /process\.hrtime|performance\.now\(/.test(fs.readFileSync(path.join(root, file), "utf8")));
+  assert.ok(timed.length > 0, "the scan finds the timed tests");
+  assert.deepEqual(timed.filter((file) => !SERIAL_TESTS.includes(file)), [], "add them to SERIAL_TESTS in scripts/check.js");
 });
 
 test("a deadline-bound test that no longer exists fails the check before running anything", () => {

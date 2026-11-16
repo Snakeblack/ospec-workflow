@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- En la CI del commit de release de la PR #519, REQ-lifecycle-kernel-035 (readState y el proyector leen una línea larga en tiempo lineal, scripts/lib/ospec-state.test.js) tardó 2222 ms frente a su presupuesto de 1000 ms en Windows 3/4: los tests que miden tiempo de pared siguen en la fase paralela, donde la contención ha subido al correr a la vez las partes de ospec (ci-serial-timing-tests)
+
 ## [2.178.1] - 2026-11-15
 
 ### Fixed
