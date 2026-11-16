@@ -1,0 +1,86 @@
+{
+  "schema": "idd-state/v1",
+  "change": "roadmap-gentle-ai-comparison",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Llevar al roadmap el plan de la comparativa con gentle-ai del 2026-11-16: ítems nuevos de las propuestas R1-R13 y M0-M6, ajustes a E1.28, E1.59, E4.13 y E5.9, dependencias y orden ▶",
+    "acceptance": "docs/roadmaps/harness-evolution.md tiene una fila en Estado y orden y una sección por cada ítem nuevo (problema, garantía o fila que mueve, dependencias, targets y hecho cuando); E1.28, E1.59, E4.13 y E5.9 recogen sus ajustes; el ▶ y el diagrama de dependencias siguen el orden que fije el usuario; node scripts/check.js pasa"
+  },
+  "facts": {
+    "open": [
+      "Numeración de los ítems nuevos: ¿E1.75 en adelante con la etiqueta R/M entre paréntesis (como B1-B9 de la auditoría del 2026-10-25), y los mods M0-M5 también en la Etapa 1 o en la Etapa 5?",
+      "Orden ▶: ¿se confirma la cola acordada R2 → E1.51 → R9 → R12 → R1 → 4c2, E1.70, 4d, avisos del guard y PR5-PR8 → E1.52 → E1.59 → E1.60 → R3 → R6 → E3.7, con M0 y M1 detrás de R1, M2 detrás de E1.60, R5 (en E4.13) con M3-M5 en el bloque D, y R13, R11 y R10 fuera del orden ▶?",
+      "E1.28 deja hoy fuera la firma de releases y los checksums (ADOPT-01): ¿R11 amplía E1.28 o va como ítem propio detrás de E1.28? ¿E1.59 (lentes por nivel de R1), E4.13 (absorbe R5) y E5.9 (absorbe R10) se ajustan en su sección?",
+      "¿Se añade un documento de análisis fechado en docs/analysis/ con las notas, la revisión de las propuestas y el plan por olas, o solo el roadmap con un párrafo de origen (el artefacto es privado y no se puede enlazar)?",
+      "Issues: ¿se colocan en esta PR las tres abiertas sin ítem (#520, #522, #523) con su etiqueta roadmap:<ID>, y se abren issues en GitHub para los ítems nuevos (E1.59 y E1.60 no las tuvieron)?",
+      "M6 (herramientas nativas ospec_*) está aplazada: ¿fila pending o tabla Aparcado con criterio de reapertura?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/analysis/2026-11-16-comparativa-gentle-ai.md",
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 401,
+      "answer": "todas las recomendadas: 1) E1.75 en adelante con la etiqueta R/M entre paréntesis, mods M0-M5 también en la Etapa 1; 2) orden R2 → #523 → E1.51 → R9 → R12 → R1 → M0 → M1 → 4c2, E1.70, 4d, avisos del guard y PR5-PR8 → E1.52 → E1.59 → E1.60 → M2 → R3 → R6 → E3.7; R5 dentro de E4.13 con M3-M5 detrás en el bloque D; R13, R11 y R10 fuera del ▶; 3) R11 ítem propio detrás de E1.28; E1.59, E4.13 y E5.9 ajustados en su sección; 4) documento docs/analysis/2026-11-16-comparativa-gentle-ai.md condensado; 5) #520, #522 y #523 colocadas con etiqueta roadmap:<ID>, #523 en el ▶ detrás de R2, #522 y #520 fuera del ▶; sin issues nuevas para los ítems de la comparativa; 6) M6 en la tabla Aparcado con criterio de reapertura",
+      "source": "user",
+      "resolved_turn": 402
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-16T21:41:17.315Z",
+      "detail": {
+        "tree": "sha256:f25e20a809cae47b9bf15d3c62426981a2983059626e5ee0980a97ad351185cf",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "8537574681781f5b792cbdb37ebec47657a0dba9",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:89c9f0350f50bf5e478f770240ce54428827f6ac9be91fe22710275c392f14c2",
+      "tree": "sha256:f25e20a809cae47b9bf15d3c62426981a2983059626e5ee0980a97ad351185cf",
+      "recorded_at": "2026-11-16T21:41:17.315Z"
+    }
+  ],
+  "changelog_line": "**El roadmap registra E1.75 a E1.91 de la comparativa con gentle-ai** (roadmap-gentle-ai-comparison). Son las propuestas del análisis del 2026-11-16 (`docs/analysis/2026-11-16-comparativa-gentle-ai.md`), con los mods de Claude como capa opcional, y las tres issues abiertas sin ítem (#520, #522 y #523). E1.28, E1.59, E4.13 y E5.9 recogen sus ajustes, M6 queda aparcada y el orden ▶ sigue con E1.75, E1.76 y E1.51.",
+  "closed_at": "2026-11-16T21:41:40.551Z"
+}
