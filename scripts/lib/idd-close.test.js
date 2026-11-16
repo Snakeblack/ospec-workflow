@@ -76,6 +76,24 @@ test("close is refused while an obligation is pending or a gate is open", () => 
   assertCode(() => closeChange(bug, { closedAt: AT }), "change-closed");
 });
 
+// E1.75: a feature that cited every category and then took a public
+// contract, persistent data or a security boundary asks before it closes.
+test("close refuses a feature that owes a question with facts-unasked", () => {
+  const { citedCoverage } = require("./idd-facts.js");
+  const feature = recordIntent(null, { change: "add-codes", kind: "feature", summary: "Codes.", acceptance: "VERANO10 takes 10%.", coverage: citedCoverage() }).state;
+  const settled = { ...satisfyChecks(feature), change: "add-codes" };
+  assert.strictEqual(closeChange(settled, { closedAt: AT }).state.status, "closed", "no risk, no question");
+  const risky = recordSignal(settled, { id: "security-boundary", reason: "declared a security boundary", source: "declaration" }).state;
+  // trust-review stays pending, and the owed question is named first.
+  assert.throws(
+    () => closeChange(risky, { closedAt: AT }),
+    (error) =>
+      error.code === "facts-unasked" &&
+      error.message === "close refused: declared a security boundary, and the feature asks no category of open-facts" &&
+      error.how === "ospec next --change add-codes prints the record intent that asks one",
+  );
+});
+
 test("close refuses an obligation an active signal derives that the state withdrew or lost, before anything else (B2)", () => {
   const withdrawn = satisfyChecks(openTypo());
   Object.assign(withdrawn.obligations[0], { status: "withdrawn", evidence: [], withdrawn_reason: "edited by hand" });

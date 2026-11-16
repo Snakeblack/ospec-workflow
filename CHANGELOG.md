@@ -7,8 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.179.0] - 2026-11-16
+
+### Added
+- **Una feature solo tiene que preguntar una categoría de open-facts cuando el cambio tiene riesgo** (open-facts-by-risk, E1.75).
+  - **El problema**: desde #390 toda feature abría `open-facts` con al menos una pregunta, aunque la petición y el código lo resolvieran todo. Era la fricción que más pesaba en un cambio pequeño, y la garantía solo hacía falta donde hay riesgo.
+  - **Pregunta por riesgo**: con `public-contract`, `persistent-data` o `security-boundary` entre las señales, `record intent` sigue rechazando con `facts-undeclared` una cobertura sin preguntas, y el mensaje nombra la señal; vale para el plan de la misma escritura, una subida de tipo y `--security`. Sin esas señales, la cobertura con `--cite` y `--quote` abre el cambio sin gate. El escenario `public-library` de #390 deriva `public-contract` por el `package.json` publicado, así que la garantía sigue donde nació.
+  - **Pregunta debida**: si una de esas señales llega después (`ospec signals`, `record signal` o el diff en `ospec check`), se registra como siempre; `next` devuelve `ask-open-facts` con el `record intent` de la intención y las citas guardadas, `check` pide la decisión sobre `open-facts` y `close` se niega con `facts-unasked`. El `record intent` repetido solo puede convertir citas en preguntas, y abre una entrada `open-facts` nueva con la señal en su motivo.
+  - **Compatibilidad**: `state.yaml` no gana campos; una feature anterior con todas las categorías citadas sigue siendo válida y, si tiene una señal de riesgo, debe su pregunta antes de cerrar.
+
 ### Changed
 - **El roadmap registra E1.75 a E1.91 de la comparativa con gentle-ai** (roadmap-gentle-ai-comparison). Son las propuestas del análisis del 2026-11-16 (`docs/analysis/2026-11-16-comparativa-gentle-ai.md`), con los mods de Claude como capa opcional, y las tres issues abiertas sin ítem (#520, #522 y #523). E1.28, E1.59, E4.13 y E5.9 recogen sus ajustes, M6 queda aparcada y el orden ▶ sigue con E1.75, E1.76 y E1.51.
+
+**Verificación directa**: `node scripts/check.js` (4652 tests pasando, 0 fallos y 5 omitidos), 446 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados.
 
 ## [2.178.2] - 2026-11-16
 

@@ -6,6 +6,7 @@
 // spec. Pure data and validators: no filesystem access.
 
 const { CATEGORY_IDS, CORE_CATEGORY_IDS } = require("./idd-facts.js");
+const { IMPACT_SIGNALS } = require("./idd-impact.js");
 
 const MODES = Object.freeze(["idd", "sdd"]);
 // IDD is the default entry since E1.6 (REQ-idd-001).
@@ -784,6 +785,28 @@ function isIntentAmbiguous(state) {
   return state.gates.some((gate) => gate.id === "ambiguous-intent" && gate.status === "open");
 }
 
+// The features that ask at least one category (E1.75, REQ-idd-018).
+const RISKY_FEATURE = "a feature with a public contract, persistent data or a security boundary";
+
+// The risk signal a feature owes a question for (E1.75, REQ-idd-018): a
+// public contract, persistent data or a security boundary on a feature whose
+// coverage asks no category. Null otherwise, and for any other kind.
+function unaskedRisk(state) {
+  const coverage = state?.facts?.coverage;
+  if (state?.intent?.kind !== "feature" || !Array.isArray(coverage)) return null;
+  if (coverage.some((entry) => typeof entry?.question === "string")) return null;
+  return (state.signals || []).find((signal) => IMPACT_SIGNALS.includes(signal.id)) || null;
+}
+
+// The question an open feature owes, with its reason, asked where open-facts
+// sits in the gate order: an open gate before it is answered first.
+function owedQuestion(state) {
+  const risk = state?.status === "open" ? unaskedRisk(state) : null;
+  if (!risk) return null;
+  if (state.gates.some((gate) => gate.status === "open" && GATES.indexOf(gate.id) < GATES.indexOf("open-facts"))) return null;
+  return { signal: risk.id, reason: `${risk.reason}: ${RISKY_FEATURE} asks at least one category` };
+}
+
 function canWithdraw(state, obligationId) {
   for (const signal of state.signals) {
     if (SIGNAL_BY_ID.get(signal.id)?.obligation === obligationId) {
@@ -847,6 +870,7 @@ module.exports = {
   REFERENCE_KINDS,
   RUN_EVIDENCE,
   RETRACTABLE_SIGNALS,
+  RISKY_FEATURE,
   RUN_PURPOSES,
   SIGNALS,
   SIGNAL_SOURCES,
@@ -859,7 +883,9 @@ module.exports = {
   counterproofDetects,
   deriveObligations,
   isIntentAmbiguous,
+  owedQuestion,
   resolveMode,
   signalGaps,
+  unaskedRisk,
   validateState,
 };

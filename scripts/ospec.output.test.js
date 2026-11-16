@@ -587,6 +587,80 @@ test("[REQ-idd-018] the next of a new change prints the categories of the projec
   assert.strictEqual(ospec(tempRoot(t), "next", "--json").json.next_step.feature.categories.length, 7, "a project without code");
 });
 
+// E1.75: the question #390 asked of every feature is asked only with a
+// public contract, persistent data or a security boundary, in the plan or,
+// later, in the diff.
+const TOTALS = ["record", "intent", "--change", "add-totals", "--kind", "feature", "--summary", "Show page totals.", "--acceptance", "The footer shows 2 pages.", "--request", "Show the page totals in the footer."];
+const README_CITES = ["inputs", "uniqueness", "persistence", "copy", "errors"].flatMap((id, index) => ["--cite", `${id}=README.md:${index + 1}`]);
+const TOTALS_README = "Totals start at 1.\nOne total per page.\nTotals live in src/pages.txt.\nThe footer says Pages.\nA bad total stops verify.js.\n";
+
+function totalsProject(t) {
+  const { root, git } = project(t);
+  writeFile(root, "README.md", TOTALS_README);
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "readme");
+  return root;
+}
+
+test("[REQ-idd-018] a feature without risk signals opens and closes with every category cited (E1.75)", (t) => {
+  const root = totalsProject(t);
+  for (const risk of [["--path", "src/api/totals.js"], ["--security"]]) {
+    const refused = ospec(root, ...TOTALS, ...README_CITES, ...risk, "--json");
+    assert.strictEqual(refused.json.error.code, "facts-undeclared", risk.join(" "));
+    assert.match(refused.json.error.message, /: a feature with a public contract, persistent data or a security boundary must ask at least one category with --open-fact; cites and quotes cover the rest$/);
+    assert.match(refused.json.error.how, /--open-fact inputs:"<question>"/);
+    assert.ok(!fs.existsSync(path.join(root, "idd", "add-totals", "state.yaml")), "no state is written");
+  }
+  const opened = ospec(root, ...TOTALS, ...README_CITES, "--json");
+  assert.strictEqual(opened.code, 0, opened.stdout);
+  assert.deepStrictEqual(stateOf(root, "add-totals").gates, []);
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "add-totals", "--json").json.verdict, "ready");
+  const closed = ospec(root, "close", "--change", "add-totals", "--json");
+  assert.strictEqual(closed.code, 0, closed.stdout);
+});
+
+test("[REQ-idd-018] a kind raised to feature asks once its recorded signals carry a public contract (E1.75)", (t) => {
+  const root = totalsProject(t);
+  const refactor = ["record", "intent", "--change", "add-totals", "--kind", "refactor", "--summary", "Show page totals.", "--acceptance", "The footer shows 2 pages."];
+  assert.strictEqual(ospec(root, ...refactor, "--no-open-facts", "--basis", "The request fixes every behavior.", "--path", "src/api/totals.js", "--json").code, 0);
+  const raised = ospec(root, ...TOTALS, ...README_CITES, "--json");
+  assert.strictEqual(raised.json.error.code, "facts-undeclared");
+  assert.match(raised.json.error.message, /^public contract: touches src\/api\/totals\.js .*must ask at least one category with --open-fact/);
+  assert.strictEqual(stateOf(root, "add-totals").intent.kind, "refactor", "the refused raise writes nothing");
+  const asked = ospec(root, ...TOTALS, ...README_CITES.slice(2), "--open-fact", "inputs:¿Un total de 0 páginas se muestra como 0?", "--json");
+  assert.strictEqual(asked.code, 0, asked.stdout);
+  assert.deepStrictEqual(asked.json.next.pending_decision.questions, ["¿Un total de 0 páginas se muestra como 0?"]);
+});
+
+test("[REQ-idd-018] a diff that derives persistent data asks a cited feature before it closes (E1.75)", (t) => {
+  const root = totalsProject(t);
+  assert.strictEqual(ospec(root, ...TOTALS, ...README_CITES, "--json").code, 0);
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "db/migrations/001.sql", "CREATE TABLE totals (pages int);\n");
+  const checked = ospec(root, "check", "--change", "add-totals", "--json").json;
+  assert.ok(checked.added.signals.includes("persistent-data"), JSON.stringify(checked.added));
+  assert.strictEqual(checked.decision.gate, "open-facts");
+  const step = ospec(root, "next", "--change", "add-totals", "--json").json.next_step;
+  assert.deepStrictEqual([step.action, step.signal], ["ask-open-facts", "persistent-data"]);
+  assert.ok(step.command.startsWith(`ospec record intent --change add-totals --kind feature --summary "Show page totals."`), step.command);
+  // In text, next and the commands that write say how to turn a cite into a question.
+  const text = ospec(root, "next", "--change", "add-totals").stdout;
+  assert.ok(text.includes(`next: ask open facts: ${step.how}\nrun: ${step.command}\n`), text);
+  const written = ospec(root, "signals", "--change", "add-totals", "--path", "db/migrations/001.sql").stdout;
+  assert.ok(written.includes(`next (ask-open-facts): ${step.command}\n  ${step.how}\n`), written);
+  assert.strictEqual(ospec(root, "close", "--change", "add-totals", "--json").json.error.code, "facts-unasked");
+  // The command next printed, with the cite of one category turned into a
+  // question, opens open-facts with that question.
+  const question = "¿Una tabla totals vacía cuenta como 0 páginas?";
+  const asked = ospec(root, ...TOTALS, ...README_CITES.slice(0, 4), "--open-fact", `persistence:${question}`, ...README_CITES.slice(6), "--json");
+  assert.strictEqual(asked.code, 0, asked.stdout);
+  const gate = stateOf(root, "add-totals").gates.find((entry) => entry.id === "open-facts");
+  assert.strictEqual(gate.status, "open");
+  assert.match(gate.reason, /^persistent data: .*: a feature with a public contract, persistent data or a security boundary asks at least one category$/);
+  assert.deepStrictEqual(asked.json.next.pending_decision.questions, [question]);
+});
+
 // E4.16: the CLI writes the Plan of change.md from --path and its Decisions
 // from --decision "<text>", so a change with a decision closes without a hand
 // edit; --decision without its text is a usage error.

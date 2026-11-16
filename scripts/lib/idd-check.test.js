@@ -445,6 +445,23 @@ test("the verdict is missing while an obligation is pending, then needs-decision
   assert.strictEqual(checkVerdict(settledState, { checks: [] }).verdict, "ready");
 });
 
+// E1.75: the question a feature owes is a decision, named where open-facts
+// sits in the gate order.
+test("a feature that owes a question needs a decision on open-facts", () => {
+  const { citedCoverage } = require("./idd-facts.js");
+  let state = recordIntent(null, { change: "add-codes", kind: "feature", summary: "Codes.", acceptance: "VERANO10 takes 10%.", coverage: citedCoverage() }).state;
+  state = recordSignal(state, { id: "public-contract", reason: "public contract: touches src/api/codes.js", source: "diff" }).state;
+  for (const entry of state.obligations) entry.status = "withdrawn";
+  state.gates.push({ id: "irreversible-operation", status: "open", reason: "drops a column" });
+  const verdict = checkVerdict(state, { checks: [] });
+  assert.strictEqual(verdict.verdict, "needs-decision");
+  assert.deepStrictEqual(verdict.decision, {
+    gate: "open-facts",
+    question: "Before the change is built, answer these behavior questions that neither the request nor the code settles.",
+    reason: "public contract: touches src/api/codes.js: a feature with a public contract, persistent data or a security boundary asks at least one category",
+  });
+});
+
 function openMigration() {
   let state = openBug();
   ({ state } = recordSignal(state, { id: "persistent-data", reason: "touches db/migrations/004.sql", source: "diff" }));

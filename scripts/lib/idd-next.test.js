@@ -15,6 +15,18 @@ const { recordEvidence, recordGate, recordImpact, recordIntent, recordPlan, reco
 const FIXTURES_DIR = path.join(__dirname, "..", "fixtures", "idd");
 const NO_OPEN_FACTS = Object.freeze({ noOpenFacts: true, basis: "The request fixes every behavior." });
 
+// A feature that asked one category, as one with a public contract,
+// persistent data or a security boundary does (E1.75).
+function askedCoverage() {
+  return require("./idd-facts.js")
+    .citedCoverage()
+    .map((entry) => (entry.category === "inputs" ? { category: "inputs", question: "¿Se admiten más de 200 caracteres?" } : entry));
+}
+
+function answered(state) {
+  return recordGate(state, { id: "open-facts", action: "resolve", answer: "No, 200 como máximo.", source: "user" }).state;
+}
+
 function loadFixtures() {
   return fs
     .readdirSync(FIXTURES_DIR)
@@ -35,9 +47,10 @@ function stateFromFixture(fixture, signalOrder = (ids) => ids) {
         kind: input.intent.kind,
         summary: input.intent.summary,
         acceptance: input.intent.acceptance,
-        ...(feature ? { coverage: require("./idd-facts.js").citedCoverage() } : NO_OPEN_FACTS),
+        ...(feature ? { coverage: askedCoverage() } : NO_OPEN_FACTS),
       };
   let state = recordIntent(null, intent).state;
+  if (feature) state = answered(state);
   if (!input.intent.ambiguous) {
     state = recordPlan(state, {
       paths: input.paths,
@@ -144,6 +157,37 @@ test("open facts are asked before any obligation, as one batch of questions", ()
   state = recordGate(state, { id: "open-facts", action: "resolve", answer: "after; it throws", source: "user" }).state;
   assert.deepStrictEqual(nextForChange(state).next_step.obligation, "checks-pass");
   assert.strictEqual(nextForChange(state).pending_decision, null);
+});
+
+// E1.75: a risk signal that joins a feature whose categories are all cited
+// owes a question, asked where open-facts sits in the gate order.
+test("a feature that owes a question is asked to record it, with its cites and intent in the command (E1.75)", () => {
+  const { citedCoverage } = require("./idd-facts.js");
+  const coverage = citedCoverage().map((entry) => (entry.category === "inputs" ? { category: "inputs", cite: { kind: "path", path: "src/codes.js", line: 4 } } : entry));
+  const intent = { change: "discount-codes", kind: "feature", summary: "Codes take 10%.", acceptance: 'VERANO10 takes "10%".', request: "Add discount codes: the user asked for this behavior.", coverage };
+  let state = planned(intent);
+  assert.strictEqual(nextForChange(state).next_step.action, "satisfy-obligation", "no risk, no question");
+  state = recordSignal(state, { id: "persistent-data", reason: "persistent data: touches db/migrations/001.sql", source: "diff" }).state;
+  state = recordGate(state, { id: "irreversible-operation", action: "open", reason: "declared drop-column" }).state;
+  const result = nextForChange(state);
+  const cites = coverage.map((entry) => (entry.cite.kind === "path" ? `--cite "${entry.category}=${entry.cite.path}:${entry.cite.line}"` : `--quote "${entry.category}=${entry.cite.text}"`));
+  assert.deepStrictEqual(result.next_step, {
+    action: "ask-open-facts",
+    signal: "persistent-data",
+    how:
+      "persistent data: touches db/migrations/001.sql: a feature with a public contract, persistent data or a security boundary asks at least one category. " +
+      'Run this record intent with the --cite or --quote of at least one category replaced by --open-fact <category>:"<question>"; the other categories keep their cite, and the summary, acceptance and request stay the same. ' +
+      "The questions open open-facts.",
+    command: `ospec record intent --change discount-codes --kind feature --summary "Codes take 10%." --acceptance 'VERANO10 takes "10%".' --request "Add discount codes: the user asked for this behavior." ${cites.join(" ")}`,
+  });
+  assert.strictEqual(result.pending_decision.gate, "irreversible-operation");
+  // A gate before open-facts in the gate order is answered first.
+  const raised = { ...state, gates: [...state.gates, { id: "kind-change", status: "open", reason: "bug → feature" }] };
+  assert.deepStrictEqual(nextForChange(raised).next_step.gate, "kind-change");
+  // Once a category asks, the gates follow.
+  const asked = recordIntent(state, { ...intent, coverage: coverage.map((entry) => (entry.category === "persistence" ? { category: "persistence", question: "¿Un código caducado se lee como inválido?" } : entry)) }).state;
+  assert.deepStrictEqual(nextForChange(asked).next_step.gate, "open-facts");
+  assert.deepStrictEqual(nextForChange(asked).pending_decision.questions, ["¿Un código caducado se lee como inválido?"]);
 });
 
 test("a decision gate comes before the plan and the obligations it decides", () => {
@@ -328,7 +372,7 @@ test("next says how to declare an impact on the declared references", () => {
 });
 
 test("the contract step names where the project's contract documents and tests live (#400)", () => {
-  let state = planned({ change: "orders-api", kind: "feature", summary: "s", acceptance: "a", coverage: require("./idd-facts.js").citedCoverage() });
+  let state = answered(planned({ change: "orders-api", kind: "feature", summary: "s", acceptance: "a", coverage: askedCoverage() }));
   state = recordSignal(state, { id: "public-contract", reason: "diff", source: "diff" }).state;
   assert.strictEqual(
     nextForChange(state).next_step.how,
@@ -342,7 +386,7 @@ test("the contract step names where the project's contract documents and tests l
 });
 
 test("a boundary without a declared ADR suggests one and changes nothing else", () => {
-  let state = planned({ change: "orders-api", kind: "feature", summary: "s", acceptance: "a", coverage: require("./idd-facts.js").citedCoverage() });
+  let state = answered(planned({ change: "orders-api", kind: "feature", summary: "s", acceptance: "a", coverage: askedCoverage() }));
   state = recordSignal(state, { id: "public-contract", reason: "public contract: touches src/api/orders.js (matches **/api/**)", source: "declaration" }).state;
   const result = nextForChange(state);
   assert.deepStrictEqual(result.suggestions, [

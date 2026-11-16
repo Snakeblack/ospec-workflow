@@ -223,7 +223,9 @@ for (const target of Object.keys(ROUTERS)) {
     for (const category of ["inputs", "uniqueness", "persistence", "copy", "url-state", "accessibility", "errors"]) {
       assert.ok(facts.includes(`- \`${category}\`:`), `${target}: open facts must name ${category}`);
     }
-    assert.match(facts.replace(/\s+/g, " "), /At least one category is a question/, `${target}: a feature asks at least one category`);
+    // E1.75: the question is owed by risk, and next asks it when risk comes later.
+    assert.match(facts.replace(/\s+/g, " "), /With `public-contract`, `persistent-data` or `security-boundary` among the signals[^.]*, at least one category is a question/, `${target}: a feature with risk asks at least one category`);
+    assert.match(facts.replace(/\s+/g, " "), /`next` returns `ask-open-facts`/, `${target}: a risk that comes later asks through next`);
     // E4.16: url-state and accessibility belong to a user interface.
     assert.match(facts.replace(/\s+/g, " "), /code and no UI file \([^)]*\) leaves out `url-state` and `accessibility`/, `${target}: the categories depend on the project`);
 

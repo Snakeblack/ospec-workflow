@@ -2,7 +2,7 @@
 
 Read on demand from `skills/idd/SKILL.md` when rule 2 opens a `feature`. A
 feature declares fact categories instead of a plain list of questions, so the
-user sees the plan before it is built.
+user sees the plan of a risky change before it is built.
 
 ## The categories
 
@@ -26,9 +26,8 @@ category it covers. Fill it in.
 Record the intent with `--request "<the user's words>"` and cover every
 category once, with one of:
 
-- `--open-fact <category>:"<question>"`: a concrete question for the user. At
-  least one category is a question; one that only names the category is
-  refused.
+- `--open-fact <category>:"<question>"`: a concrete question for the user;
+  one that only names the category is refused.
 - `--cite <category>=<path:line>`: a line that exists and holds a letter or a
   digit, and that settles the behavior. It never names a manifest or a
   lockfile. Outside the documentation, it names a file the plan declares
@@ -41,6 +40,16 @@ No two categories share a cite or a quote. A refusal prints the full command:
 fix what it names and record again. A quote proves only that `--request` holds
 it, and you write `--request`: quote the user's words, never your own summary
 (`references/approvals.md`).
+
+With `public-contract`, `persistent-data` or `security-boundary` among the
+signals, from the plan of the same `record intent` or a raised kind, at least
+one category is a question, whichever it is; without them, cites and quotes
+may cover every category. When one of those signals joins later (`ospec
+signals`, `record signal` or the diff in `ospec check`), `next` returns
+`ask-open-facts` and `ospec close` refuses with `facts-unasked`: run the
+`record intent` of `next` with the cite of at least one category turned into
+an `--open-fact`, keeping the other cites and the same summary, acceptance and
+request.
 
 The questions open the `open-facts` gate: ask all of them at once, before
 editing anything.

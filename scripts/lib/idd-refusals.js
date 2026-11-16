@@ -51,7 +51,9 @@ const REFUSALS = Object.freeze({
   "evidence-stale": "run ospec check --change <id> on the current tree, then ospec close --change <id>",
   "evidence-time-required": { byDesign: CLI_ONLY },
   "facts-undeclared":
-    'declare the open facts with one --open-fact "<question>" each, or --no-open-facts --basis "<what settles every behavior>"; a feature covers each category with an --open-fact <category>:<question>, a --cite or a --quote',
+    'declare the open facts with one --open-fact "<question>" each, or --no-open-facts --basis "<what settles every behavior>"; a feature covers each category with an --open-fact <category>:<question>, a --cite or a --quote, and asks at least one with public-contract, persistent-data or security-boundary among its signals',
+  "facts-unasked":
+    'run the record intent of ospec next --change <id> --json (ask-open-facts), with the --cite or --quote of at least one category turned into --open-fact <category>:"<question>" and the rest as recorded; ask the user the questions it opens, then close again',
   "gate-answer-required": `add the user's answer: ${ANSWER}, or --source user-unverified for a relayed one`,
   "gate-conflict": `nothing to record: the gate keeps the answer it has; ${NEXT}`,
   "gate-managed-by-abandon": `ospec abandon --change <id> --reason "<why>" [--superseded-by <other change>] opens abandon, only when the user asked to give the change up; once open, resolve it with ospec record gate --change <id> --gate abandon --resolve ${ANSWER}`,
@@ -65,7 +67,7 @@ const REFUSALS = Object.freeze({
   "impact-config-invalid": "fix the impact: section of idd/config.yaml as the message says, keeping its other keys",
   "impact-conflict": "nothing to record: the declared impact stands; it is only raised, with its new reason, from none to conforms or from either to amends, supersedes or contradicts, and an amended or superseded ADR names its new ADR once, with --record",
   "impact-required": `add --impact <${IMPACTS.join("|")}> --reason "<why>", or --record <new ADR> once the impact amends or supersedes`,
-  "intent-conflict": "record intent again with the same --summary, --acceptance and --request, or open a new change for another one; only a raised --kind, or a bug that becomes a feature, changes it; when only the changelog entry should say more, ospec record changelog --change <id> --line \"<text>\" changes that line and keeps the intent",
+  "intent-conflict": "record intent again with the same --summary, --acceptance and --request, or open a new change for another one; only a raised --kind, a bug that becomes a feature, or a feature that owes a question (ask-open-facts) turning cites into --open-fact, changes it; when only the changelog entry should say more, ospec record changelog --change <id> --line \"<text>\" changes that line and keeps the intent",
   "kind-change-open": 'ask the user the kind-change question of ospec next, resolve it with ospec record gate --change <id> --gate kind-change --resolve --answer "<their words>" --source user, then record the intent again',
   "intent-incomplete": `pass --kind <${INTENT_KINDS.join("|")}>, --summary "<what>" and --acceptance "<observable result>"; an ambiguous intent keeps --request "<request>"`,
   "invalid-action": "pass --open or --resolve",
