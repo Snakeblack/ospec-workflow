@@ -37,6 +37,7 @@
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 
@@ -366,12 +367,21 @@ function hashFiles(root, relatives) {
 function buildOspecHome({ repoRoot, home, engram = null, baseEnv = process.env, spawnSyncImpl = spawnSync }) {
   fs.rmSync(home, { recursive: true, force: true });
   const configDir = path.join(home, ".gemini", "config");
-  const result = spawnSyncImpl(process.execPath, [
-    path.join(repoRoot, "scripts", "configure", "install-antigravity.js"),
-    "--no-sdd",
-    "--source", repoRoot,
-    "--dest", configDir,
-  ], { cwd: repoRoot, encoding: "utf8" });
+  // The build goes outside the checkout's dist/, which other runs and the
+  // test suite read, and is removed once installed.
+  const buildDir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-agy-build-"));
+  let result;
+  try {
+    result = spawnSyncImpl(process.execPath, [
+      path.join(repoRoot, "scripts", "configure", "install-antigravity.js"),
+      "--no-sdd",
+      "--source", repoRoot,
+      "--dest", configDir,
+      "--out", buildDir,
+    ], { cwd: repoRoot, encoding: "utf8" });
+  } finally {
+    fs.rmSync(buildDir, { recursive: true, force: true });
+  }
   if (result.status !== 0) throw new Error(`ospec install for antigravity failed: ${result.stderr || result.stdout}`);
   const manifest = JSON.parse(fs.readFileSync(path.join(configDir, ".ospec-workflow-install.json"), "utf8"));
   const memory = engram ? setupEngram({ engram, home, host: "agy", env: isolatedEnv(baseEnv, home), spawnSyncImpl }) : null;

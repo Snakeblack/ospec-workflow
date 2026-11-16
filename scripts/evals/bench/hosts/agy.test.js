@@ -505,6 +505,24 @@ function withFakeEngramSetup(bin, args, options) {
   return { status: 0, stdout: "" };
 }
 
+// The install builds antigravity outside the checkout's dist/, which other test
+// files digest while they run (PR #519), and removes that build afterwards.
+test("buildOspecHome builds the antigravity install outside the repository and removes it", () => {
+  const dir = tempDir();
+  const builds = [];
+  buildOspecHome({
+    repoRoot: REPO_ROOT,
+    home: path.join(dir, "home"),
+    spawnSyncImpl: (bin, args, options) => {
+      if (args.includes("--out")) builds.push(args[args.indexOf("--out") + 1]);
+      return withFakeEngramSetup(bin, args, options);
+    },
+  });
+  assert.equal(builds.length, 1, "the install names its build directory");
+  assert.ok(!path.resolve(builds[0]).startsWith(REPO_ROOT + path.sep), `${builds[0]} is outside the repository`);
+  assert.ok(!fs.existsSync(builds[0]), "the build directory is removed");
+});
+
 test("buildOspecHome with engram sets it up in the template, names its version, and digests it from any HOME", () => {
   const dir = tempDir();
   const engram = path.join(dir, "engram-src");

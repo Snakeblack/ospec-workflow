@@ -29,6 +29,28 @@ test("parseArgs handles arguments cleanly", () => {
   });
 });
 
+// The agy bench installs from the checkout: --out builds the target outside
+// the source's dist/, which other test files digest while they run (PR #519).
+test("--out builds the target in that directory and leaves the source's dist untouched", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "agy-install-out-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const sourceDir = path.join(root, "source");
+  fs.mkdirSync(sourceDir);
+  assert.equal(parseArgs(["--out", "build"]).out, "build");
+  assert.match(parseArgs(["--out"]).error, /missing value for --out/);
+  const built = [];
+  const exitCode = main(["--dry-run", "--source", sourceDir, "--out", path.join(root, "build")], {
+    runConfigure: ({ outDir }) => {
+      built.push(outDir);
+      return { exitCode: 0, validation: { errors: [] } };
+    },
+    stdout: { write() {} },
+    stderr: { write() {} },
+  });
+  assert.equal(exitCode, 0);
+  assert.deepEqual(built, [path.join(root, "build")]);
+});
+
 test("getHooksRootPosix translates paths properly", () => {
   assert.equal(
     getHooksRootPosix("/home/user/.gemini/config"),
