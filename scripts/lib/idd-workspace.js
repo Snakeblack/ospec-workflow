@@ -811,16 +811,98 @@ function isIgnored(top, full) {
 // A link keeps its target, except an absolute one into the repository, which
 // points to the same path in `tree`, so a workspace package is the base's too.
 // On Windows a link to a directory is a junction, which needs no privilege;
-// pnpm makes its links junctions there.
-function copyDependencies(source, target, { tops, tree }) {
+// pnpm makes its links junctions there. The files through which Python finds
+// an editable install or its interpreter are rewritten the same way (#523).
+function copyDependencies(source, target, context, place = null) {
   fs.mkdirSync(target);
   for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
     const from = path.join(source, entry.name);
     const to = path.join(target, entry.name);
-    if (entry.isSymbolicLink()) copyLink(from, to, { tops, tree });
-    else if (entry.isDirectory()) copyDependencies(from, to, { tops, tree });
-    else if (entry.isFile()) fs.copyFileSync(from, to, fs.constants.COPYFILE_FICLONE);
+    if (entry.isSymbolicLink()) copyLink(from, to, context);
+    else if (entry.isDirectory()) copyDependencies(from, to, context, pythonPlace(source, entry.name));
+    else if (entry.isFile()) {
+      fs.copyFileSync(from, to, fs.constants.COPYFILE_FICLONE);
+      if (place && PYTHON_PATH_FILES[place](entry.name)) rebaseFileContent(to, place, context);
+    }
   }
+}
+
+// Where Python keeps absolute paths in files (#523): the top level of a
+// site-packages, whose .pth and .egg-link files and editable finders
+// (setuptools, hatchling, pdm) name the project's code, and the scripts of a
+// virtualenv, whose shebang names its interpreter. The .exe launchers of
+// Windows hold that path inside the binary and stay as they are.
+const PYTHON_PATH_FILES = Object.freeze({
+  "site-packages": (name) => /\.(?:pth|egg-link|py)$/.test(name),
+  scripts: () => true,
+});
+
+function pythonPlace(parent, name) {
+  if (name === "site-packages") return "site-packages";
+  if ((name === "bin" || name === "Scripts") && fs.existsSync(path.join(parent, "pyvenv.cfg"))) return "scripts";
+  return null;
+}
+
+// Each whole repository path in a copied file, in any spelling of `tops`,
+// replaced by the same path in `tree`. The bytes are read as latin1, so the
+// encoding and the line endings of the file stay; a script without a shebang
+// is left as it is.
+function rebaseFileContent(file, place, { rebaseText }) {
+  const bytes = fs.readFileSync(file);
+  if (place === "scripts" && !(bytes[0] === 0x23 && bytes[1] === 0x21)) return;
+  const text = bytes.toString("latin1");
+  const rebased = rebaseText(text);
+  if (rebased !== text) fs.writeFileSync(file, Buffer.from(rebased, "latin1"));
+}
+
+/**
+ * A function that replaces each whole path into the repository in a latin1
+ * text by the same path in `tree`: each spelling of `tops`, and on Windows
+ * with forward slashes and with the doubled backslashes of a Python literal,
+ * whatever their case. A path only matches whole: `/repo` never matches in
+ * `/repo2` nor in `/mnt/repo`.
+ */
+function repositoryTextRebaser(tops, tree) {
+  const windows = process.platform === "win32";
+  const latin = (text) => Buffer.from(text, "utf8").toString("latin1");
+  const fold = (text) => (windows ? text.toLowerCase() : text);
+  const forms = new Map();
+  for (const top of tops) {
+    const pairs = windows
+      ? [
+          [top.replace(/\//g, "\\"), tree],
+          [top.replace(/\\/g, "/"), tree.replace(/\\/g, "/")],
+          [top.replace(/[\\/]/g, "\\\\"), tree.replace(/\\/g, "\\\\")],
+        ]
+      : [[top, tree]];
+    for (const [from, to] of pairs) forms.set(fold(latin(from)), latin(to));
+  }
+  const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const alternatives = [...forms.keys()].sort((left, right) => right.length - left.length).map(escape);
+  const name = "\\w.~\\x80-\\xff-";
+  const pattern = new RegExp(`(?<![${name}])(?:${alternatives.join("|")})(?![${name}])`, windows ? "gi" : "g");
+  return (text) => text.replace(pattern, (match) => forms.get(fold(match)));
+}
+
+// The environment variables whose entries a counterproof command resolves
+// paths through (#523): an activated virtualenv puts the project's on PATH.
+const ENV_PATH_LISTS = Object.freeze(["PATH", "VIRTUAL_ENV", "PYTHONPATH"]);
+
+/**
+ * `env` with each absolute entry of PATH, VIRTUAL_ENV and PYTHONPATH that
+ * points into the repository pointing to the same path in `tree`, the way an
+ * absolute link does; every other variable and entry stays.
+ */
+function rebaseEnvironment(env, context) {
+  const result = { ...env };
+  for (const key of Object.keys(result)) {
+    if (!ENV_PATH_LISTS.includes(process.platform === "win32" ? key.toUpperCase() : key)) continue;
+    result[key] = String(result[key])
+      .split(path.delimiter)
+      .map((entry) => (path.isAbsolute(entry) ? rebaseIntoTree(entry, entry, context) : entry))
+      .join(path.delimiter);
+  }
+  return result;
 }
 
 // The same path in `tree` for an absolute link target inside the repository
@@ -859,9 +941,10 @@ function copyLink(from, to, { tops, tree }) {
  * repository root (#518). No hook runs and no LFS object is downloaded. `cwd`
  * is the project root inside it; `mask` lists the spellings of the worktree a
  * command may print, which runCommand masks so that two worktrees compare;
+ * `env` is `env` with its repository paths pointing into the worktree (#523);
  * `remove` deletes it, never following a link, and prunes its git entry.
  */
-function mountCounterproof(root, { base, paths }) {
+function mountCounterproof(root, { base, paths, env = process.env }) {
   requireWorkTree(root);
   if (typeof base !== "string" || base === "" || base.startsWith("-")) {
     throw new IddWorkspaceError("counterproof-unmounted", `unknown counterproof base: ${JSON.stringify(base)}`);
@@ -900,7 +983,11 @@ function mountCounterproof(root, { base, paths }) {
       if (stat.isSymbolicLink()) fs.symlinkSync(fs.readlinkSync(from), to);
       else fs.copyFileSync(from, to);
     }
-    const tops = [...new Set([top, fs.realpathSync(top)])];
+    // The repository as git spells it, resolved, and as the project root spells
+    // it: macOS spells its temporary directory both ways.
+    const spelled = path.resolve(root, ...prefix.split("/").filter(Boolean).map(() => ".."));
+    const tops = [...new Set([top, fs.realpathSync(top), spelled])];
+    const context = { tops, tree, rebaseText: repositoryTextRebaser(tops, tree) };
     const places = [[root, cwd], [top, tree]];
     for (const [from, to] of places) {
       for (const name of DEPENDENCY_DIRS) {
@@ -908,12 +995,12 @@ function mountCounterproof(root, { base, paths }) {
         const target = path.join(to, name);
         if (!fs.statSync(source, { throwIfNoEntry: false })?.isDirectory() || fs.lstatSync(target, { throwIfNoEntry: false })) continue;
         if (!isIgnored(top, source)) continue;
-        copyDependencies(source, target, { tops, tree });
+        copyDependencies(source, target, context);
       }
     }
-    const real = fs.realpathSync(tree);
-    const mask = [...new Set([tree, real, tree.replace(/\\/g, "/"), real.replace(/\\/g, "/")])];
-    return { cwd, mask, remove };
+    const realTree = fs.realpathSync(tree);
+    const mask = [...new Set([tree, realTree, tree.replace(/\\/g, "/"), realTree.replace(/\\/g, "/")])];
+    return { cwd, mask, env: rebaseEnvironment(env, context), remove };
   } catch (error) {
     remove();
     const detail = String(error.stderr || error.message || error).trim().split("\n")[0];

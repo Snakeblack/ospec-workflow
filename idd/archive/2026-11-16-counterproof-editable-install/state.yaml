@@ -1,0 +1,513 @@
+{
+  "schema": "idd-state/v1",
+  "change": "counterproof-editable-install",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "La contraprueba importa el producto del candidato cuando .venv tiene una instalación editable: el .pth, el finder editable y los shebangs de la copia siguen apuntando al repositorio (#523, E1.76)",
+    "acceptance": "Con una instalación editable en .venv y layout src/, la contraprueba importa el producto de la base, y un test lo reproduce"
+  },
+  "facts": {
+    "open": [
+      "Mecanismo: ¿reescribir en la copia del .venv las rutas absolutas al repositorio hacia el árbol temporal, o anteponer en el entorno del comando un PYTHONPATH con las rutas del árbol que nombra el .pth?",
+      "Alcance de la reescritura: ¿los .pth, .egg-link y módulos .py sueltos de site-packages (finders editables de setuptools, hatchling y pdm) y también los scripts de bin/ del virtualenv (shebang y trampolín /bin/sh de rutas largas)?",
+      "Windows: los lanzadores .exe de Scripts/ (pip y uv) llevan la ruta del python dentro del binario. ¿Quedan fuera y documentados como límite?",
+      "Entorno heredado: con el .venv activado en la sesión, PATH y VIRTUAL_ENV apuntan al original. ¿Reescribir hacia el árbol temporal las entradas de PATH, VIRTUAL_ENV y PYTHONPATH que apuntan al repositorio?",
+      "Un editable que apunta a un directorio de build dentro del repositorio (modo strict de setuptools, meson-python, el .so de maturin) queda apuntando a un directorio que la contraprueba no copia: la contraprueba queda inconclusa en vez de dar un falso 'no detecta'. ¿Aceptable?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/evidencia.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-exec.js",
+      "scripts/lib/idd-workspace.js",
+      "scripts/lib/idd-workspace.test.js",
+      "scripts/ospec.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "La copia de las dependencias reescribe hacia el árbol temporal las rutas absolutas al repositorio (como git la escribe, resuelta o como la escribe la raíz del proyecto) que aparecen en los .pth, .egg-link y módulos .py sueltos de un site-packages, y en los scripts que empiezan por #! del bin/ o Scripts/ de un virtualenv (con pyvenv.cfg); la sustitución es byte a byte y solo de rutas completas, así que conserva la codificación y los finales de línea",
+      "El comando de la contraprueba y sus controles corren con PATH, VIRTUAL_ENV y PYTHONPATH reescritos: cada entrada que apunta al repositorio pasa a la misma ruta del árbol temporal (mountCounterproof devuelve el env y runCommand lo acepta)",
+      "Los lanzadores .exe de Scripts/ en Windows quedan fuera: llevan la ruta del python dentro del binario con formatos distintos en pip y uv; queda documentado como límite",
+      "Un editable que apunta a un build dentro del repositorio (modo strict de setuptools, meson-python, el .so de maturin) queda apuntando a un directorio que la contraprueba no copia, así que la contraprueba sale inconclusa en vez de dar un falso 'no detecta'"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    }
+  ],
+  "retracted": [
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/idd-workspace.js adds writeFile",
+      "source": "diff",
+      "retract_reason": "El writeFileSync nuevo de scripts/lib/idd-workspace.js reescribe ficheros de la copia temporal de las dependencias que monta la contraprueba en os.tmpdir() y que se borra al terminar; no toca ningún dato persistente del producto (state.yaml, archivo, config)",
+      "confirmed_by": "persistent data: scripts/lib/idd-workspace.js adds writeFile",
+      "hits": [
+        "scripts/lib/idd-workspace.js adds writeFile: if (rebased !== text) fs.writeFileSync(file, Buffer.from(rebased, \"latin1\"));",
+        "scripts/lib/idd-exec.js uses writeFile: fs.writeFileSync(path.join(dir, `${runId}.log`), output);",
+        "scripts/lib/idd-workspace.js uses writeFile: if (rebased !== text) fs.writeFileSync(file, Buffer.from(rebased, \"latin1\"));",
+        "scripts/ospec.js uses writeFile: if (rendered !== text) fs.writeFileSync(file, rendered);",
+        "scripts/ospec.js uses writeFile: if (replaced.written) fs.writeFileSync(target, replaced.text);",
+        "scripts/ospec.js uses writeFile: fs.writeFileSync(target, added.text);",
+        "scripts/lib/idd-exec.js imports scripts/lib/ospec-gitignore.js, which uses writeFile: fsImpl.writeFileSync(gitignorePath, payload, { flag: \"wx\" });",
+        "scripts/lib/idd-exec.js imports scripts/lib/ospec-gitignore.js, which uses writeFile: fsImpl.writeFileSync(gitignorePath, payload);",
+        "scripts/lib/idd-exec.js imports scripts/lib/ospec-gitignore.js, which uses writeFile: fsImpl.writeFileSync(ignore, SELF_IGNORE, { flag: \"wx\" });",
+        "scripts/ospec.js imports scripts/lib/atomic-write.js, which uses writeFile: await handle.writeFile(content, \"utf8\");",
+        "scripts/ospec.js imports scripts/lib/claude-router.js, which uses writeFile: fs.writeFileSync(temp, content, \"utf8\");",
+        "scripts/ospec.js imports scripts/lib/idd-exec.js, which uses writeFile: fs.writeFileSync(path.join(dir, `${runId}.log`), output);",
+        "scripts/ospec.js imports scripts/lib/idd-store.js, which uses writeFile: await fs.writeFile(file, livingDocTemplate(state), { encoding: \"utf8\", flag: \"wx\" });",
+        "scripts/ospec.js imports scripts/lib/idd-store.js, which uses writeFile: if (rendered !== text) await writeFile(file, rendered);",
+        "scripts/ospec.js imports scripts/lib/idd-store.js, which uses writeFile: await writeFile(file, serializeState(result.state));",
+        "scripts/ospec.js imports scripts/lib/idd-workspace.js, which uses writeFile: if (rebased !== text) fs.writeFileSync(file, Buffer.from(rebased, \"latin1\"));",
+        "scripts/ospec.js imports scripts/lib/ospec-state.js, which uses writeFile: await fs.writeFile(temporaryPath, summary, \"utf8\");",
+        "scripts/ospec.js imports scripts/lib/ospec-state.js, which uses writeFile: await handle.writeFile(token, \"utf8\");",
+        "scripts/ospec.js imports scripts/lib/ospec-state.js, which uses writeFile: fs.appendFile(eventPath, `${JSON.stringify(serializedEvent)}\\n`, \"utf8\"),",
+        "scripts/ospec.js imports scripts/lib/ospec-state.js, which uses writeFile: await fs.appendFile(filePath, `${JSON.stringify(record)}\\n`, \"utf8\");",
+        "scripts/ospec.js imports scripts/lib/ospec-state.js, which uses writeFile: await withFileLock(filePath, () => fs.appendFile(filePath, line, \"utf8\"));"
+      ],
+      "answer": "si, retirarla",
+      "answer_source": "user"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La reescritura de rutas de la contraprueba vive en el CLI (repositoryTextRebaser y rebaseEnvironment, scripts/lib/idd-workspace.js) con su test; la skill no gana prosa"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia ninguna señal, obligación ni gate: solo qué importa el comando en el árbol de la contraprueba"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "Refuerza la evidencia observada: con una instalación editable la contraprueba prueba el test contra el producto de la base, así que ya no deja pendiente una obligación que el test sí cumple"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "No toca el estado en disco de IDD ni de SDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "El siguiente paso y las obligaciones no dependen de cómo se reescriben las rutas de la copia de la contraprueba"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "La reescritura de rutas usa solo la biblioteca estándar de Node (fs, path, Buffer, RegExp); no añade ninguna dependencia"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "La reescritura es local (lectura y escritura de ficheros de la copia y del entorno del comando); no añade ninguna llamada de red al CLI, los hooks ni las skills"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "withdrawn",
+      "evidence": [],
+      "withdrawn_reason": "El writeFileSync nuevo de scripts/lib/idd-workspace.js reescribe ficheros de la copia temporal de las dependencias que monta la contraprueba en os.tmpdir() y que se borra al terminar; no toca ningún dato persistente del producto (state.yaml, archivo, config)"
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 413,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_turn": 414
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-16T23:45:40.928Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-16T23:49:08.561Z",
+      "detail": {
+        "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-16T23:49:08.561Z",
+      "detail": {
+        "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-workspace.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-16T23:54:55.103Z",
+      "detail": {
+        "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+        "runs": [
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-16T23:54:55.103Z",
+      "detail": {
+        "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+        "check": "ev-4",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-workspace.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-16T23:54:55.103Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume none",
+          "adr:0010 conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+        "fitness": [
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-16T23:54:55.230Z"
+    }
+  ],
+  "base": "201f32249c0d8b11f9de00804ce4a485b46b8790",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"#523\" scripts/lib/idd-workspace.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:fba1edbb69204abb0bae1dbb223dd12e95ce77278eb0b6d5f6bbe577ecb90480",
+      "tree": "sha256:d15fa0645f6d43a95ca320efca44fd98060bea83b19a0e653927cb8d54013c81",
+      "recorded_at": "2026-11-16T23:43:46.775Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"#523\" scripts/lib/idd-workspace.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a5b769ace0d2df26eb8d8bf851a4838e40560dd7a651efc2c876400d5470ea03",
+      "tree": "sha256:9b7bb3a447711d49fcbb140fd7902ef78af19dd2eeeff7114a7b0ab8438bc87e",
+      "recorded_at": "2026-11-16T23:45:40.928Z",
+      "tests": 2,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "201f32249c0d8b11f9de00804ce4a485b46b8790",
+      "mount": "sha256:226dfe96c24ee232b200244c1a12c0cb7778b96ffcb9d658ef5c0618ef068442",
+      "command": "node --test --test-name-pattern=\"#523\" scripts/lib/idd-workspace.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:de25766390f1b94625e690cce5ab121e0eb97599928043e32b17682469d664d4",
+      "tree": "sha256:9b7bb3a447711d49fcbb140fd7902ef78af19dd2eeeff7114a7b0ab8438bc87e",
+      "recorded_at": "2026-11-16T23:45:40.928Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "201f32249c0d8b11f9de00804ce4a485b46b8790",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"#523\" scripts/lib/idd-workspace.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8707b87d51be7078cdef8bc67f6f1844544983e374ec6ae61507d77cc66c2715",
+      "tree": "sha256:9b7bb3a447711d49fcbb140fd7902ef78af19dd2eeeff7114a7b0ab8438bc87e",
+      "recorded_at": "2026-11-16T23:45:40.928Z",
+      "tests": 1
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7353af1a6a6074d94f1d23ebbd6e26cb4b4b6f25f53a9912f4672a36c7afd085",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:49:08.561Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:570f6f23f0c99c5e46e6be02aab9a31b0a11c4cd3ed071ee39627a81aa71515f",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:49:08.561Z",
+      "tests": 61
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:73b3e1a1975483beb000f305b7576e7876e530fad4edd0d7bc4eab568a0b2d78",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:49:08.561Z",
+      "tests": 19
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cee27f1f0bf28e22553ec63822b2d6bfd43c7eaeab5534ddf12b2e2f6feaa5b0",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:49:08.561Z",
+      "tests": 96
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:594f3d401c2809553160da27817868dd2cf4f71d0c0acf28c73cd37819c96bee",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:49:08.561Z",
+      "tests": 53
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:49:08.561Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cba6f82e0f565ef6e8295f165d8234116411504ab92ca34f185931e4e5452e42",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:49:08.561Z",
+      "tests": 26
+    },
+    {
+      "id": "run-12",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2703fdb5110c101b8e6d80bed3aaf3eae7ee3bdb1cc06b26f3089211b959a3f8",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:54:55.103Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fb0fafaab0d114a15d09d2637c226c2206a60388041661817bfc937c439df46f",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:54:55.103Z",
+      "tests": 61
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7dad9fc0415d820eee9719e916664e9d52422dc10129f2e7fe84d12d43d0bcc7",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:54:55.103Z",
+      "tests": 19
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:723cb55c2a04face9a5d4eb1f6e6335c40f8979f26b8bfd23c8d9df7798d77a4",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:54:55.103Z",
+      "tests": 96
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fe4bb0158440f7faad44b85cd7d9a66edfd80565c9cb9409258c042c078f20ee",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:54:55.103Z",
+      "tests": 53
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:54:55.103Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:48d6a2f0f67d970f6b11bbb7c50dcf36dd6f8aa8037a4405638e130884314d0b",
+      "tree": "sha256:bad6792888c70c53419e75e45e5161a1d9a4604d3715e2bbf52b4f4f1a68d57c",
+      "recorded_at": "2026-11-16T23:54:55.103Z",
+      "tests": 26
+    }
+  ],
+  "changelog_line": "**La contraprueba importa el producto de la base con una instalación editable de Python en `.venv`** (counterproof-editable-install, #523). En la copia de las dependencias, las rutas absolutas al repositorio de los `.pth`, `.egg-link` y finders editables de `site-packages`, y de los scripts con shebang de un virtualenv, apuntan al árbol temporal; el comando y su control corren con `PATH`, `VIRTUAL_ENV` y `PYTHONPATH` cambiados igual. Quedan fuera los lanzadores `.exe` de Windows.",
+  "closed_at": "2026-11-16T23:54:55.230Z"
+}

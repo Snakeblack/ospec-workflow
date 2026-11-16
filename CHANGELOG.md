@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **La contraprueba importa el producto de la base con una instalación editable de Python en `.venv`** (counterproof-editable-install, #523). En la copia de las dependencias, las rutas absolutas al repositorio de los `.pth`, `.egg-link` y finders editables de `site-packages`, y de los scripts con shebang de un virtualenv, apuntan al árbol temporal; el comando y su control corren con `PATH`, `VIRTUAL_ENV` y `PYTHONPATH` cambiados igual. Quedan fuera los lanzadores `.exe` de Windows. (counterproof-editable-install)
+
 ## [2.179.0] - 2026-11-16
 
 ### Added

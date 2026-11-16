@@ -9,7 +9,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { execFileSync } = require("node:child_process");
+const { execFileSync, spawnSync } = require("node:child_process");
 
 const { resolvePatterns } = require("./idd-impact.js");
 const {
@@ -840,6 +840,103 @@ test("[#518] a counterproof worktree copies the ignored dependencies: a command 
     assert.deepStrictEqual(places.map(dependencySnapshot), before, `the mount of ${paths.length} paths writes nothing in the project`);
     assert.strictEqual(fs.readFileSync(path.join(outside, "index.js"), "utf8"), "outside", "removing it never follows a link");
   }
+});
+
+// A Python 3 interpreter on this host, or null.
+function python3() {
+  for (const command of ["python3", "python"]) {
+    const result = spawnSync(command, ["-c", "import sys; print(sys.version_info[0])"], { encoding: "utf8" });
+    if (result.status === 0 && result.stdout.trim() === "3") return command;
+  }
+  return null;
+}
+
+test("[#523] with an editable install in .venv and a src/ layout, a counterproof imports the base product", (t) => {
+  const python = python3();
+  if (!python) return t.skip("no Python 3 on this host");
+  const root = gitRepo(t);
+  write(root, ".gitignore", ".venv/\n");
+  write(root, "src/demo/__init__.py", "VALUE = 'base'\n");
+  commitAll(root, "base");
+  const base = git(root, "rev-parse", "HEAD").trim();
+  write(root, "src/demo/__init__.py", "VALUE = 'candidate'\n");
+  execFileSync(python, ["-m", "venv", "--without-pip", path.join(root, ".venv")]);
+  const windows = process.platform === "win32";
+  const scripts = path.join(root, ".venv", windows ? "Scripts" : "bin");
+  const interpreter = path.join(scripts, windows ? "python.exe" : "python");
+  const purelib = execFileSync(interpreter, ["-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"], { encoding: "utf8" }).trim();
+  // What pip install -e . leaves with setuptools or hatchling, and a console
+  // script with the /bin/sh trampoline pip writes for a long interpreter path.
+  const pth = path.join(purelib, "__editable__.demo-0.1.0.pth");
+  fs.writeFileSync(pth, `${path.join(root, "src")}\n`);
+  const script = path.join(scripts, "demo-value");
+  fs.writeFileSync(script, `#!/bin/sh\n'''exec' '${interpreter}' "$0" "$@"\n' '''\nimport demo\nprint(demo.VALUE)\n`, { mode: 0o755 });
+  const value = (file, args) => execFileSync(file, args, { cwd: root, encoding: "utf8" }).trim();
+  assert.strictEqual(value(interpreter, ["-c", "import demo; print(demo.VALUE)"]), "candidate", "the project imports its working tree");
+
+  const mounted = mountCounterproof(root, { base, paths: [] });
+  try {
+    const copy = path.join(mounted.cwd, ".venv", windows ? "Scripts" : "bin");
+    const run = (file, args) => execFileSync(file, args, { cwd: mounted.cwd, env: mounted.env, encoding: "utf8" }).trim();
+    assert.strictEqual(run(path.join(copy, windows ? "python.exe" : "python"), ["-c", "import demo; print(demo.VALUE)"]), "base", "the interpreter of the copy imports the base product");
+    if (!windows) assert.strictEqual(run(path.join(copy, "demo-value"), []), "base", "a script of the copy runs the interpreter of the copy");
+  } finally {
+    mounted.remove();
+  }
+  assert.strictEqual(fs.readFileSync(pth, "utf8"), `${path.join(root, "src")}\n`, "the project's install is untouched");
+});
+
+test("[#523] a counterproof points into the worktree the repository paths of a copied virtualenv and of the inherited environment", (t) => {
+  const root = gitRepo(t);
+  write(root, ".gitignore", ".venv/\nnode_modules/\n");
+  write(root, "src/demo/__init__.py", "");
+  commitAll(root, "base");
+  const base = git(root, "rev-parse", "HEAD").trim();
+  // A Python string literal, as setuptools writes the MAPPING of its finder.
+  const literal = (file) => `'${file.replace(/\\/g, "\\\\")}'`;
+  const site = ".venv/lib/python3.12/site-packages";
+  write(root, ".venv/pyvenv.cfg", "home = /usr/bin\n");
+  write(root, `${site}/__editable__.demo-0.1.0.pth`, `${path.join(root, "src")}\r\n${root}2${path.sep}src\r\n${path.join(os.tmpdir(), "elsewhere")}\r\n`);
+  write(root, `${site}/__editable___demo_0_1_0_finder.py`, `MAPPING: dict[str, str] = {'demo': ${literal(path.join(root, "demo"))}}\n`);
+  write(root, `${site}/demo.egg-link`, `${path.join(root, "src")}\n.\n`);
+  write(root, `${site}/demo-0.1.0.dist-info/direct_url.json`, `{"url": "file://${root}"}`);
+  write(root, `${site}/notes.txt`, root);
+  write(root, ".venv/bin/pytest", `#!${path.join(root, ".venv/bin/python")}\nimport sys\n`);
+  fs.chmodSync(path.join(root, ".venv/bin/pytest"), 0o755);
+  write(root, ".venv/bin/activate", `VIRTUAL_ENV=${root}\n`);
+  write(root, "node_modules/tool/bin/cli", `#!${path.join(root, "node_modules/.bin/node")}\n`);
+  const env = {
+    PATH: [path.join(root, ".venv/bin"), "relative/bin", path.join(os.tmpdir(), "elsewhere")].join(path.delimiter),
+    VIRTUAL_ENV: path.join(root, ".venv"),
+    PYTHONPATH: path.join(root, "src"),
+    OSPEC_OTHER: root,
+  };
+
+  const mounted = mountCounterproof(root, { base, paths: [], env });
+  try {
+    const tree = mounted.cwd;
+    const read = (rel) => fs.readFileSync(path.join(tree, rel), "utf8");
+    assert.strictEqual(read(`${site}/__editable__.demo-0.1.0.pth`), `${path.join(tree, "src")}\r\n${root}2${path.sep}src\r\n${path.join(os.tmpdir(), "elsewhere")}\r\n`, "only whole repository paths, line endings kept");
+    assert.strictEqual(read(`${site}/__editable___demo_0_1_0_finder.py`), `MAPPING: dict[str, str] = {'demo': ${literal(path.join(tree, "demo"))}}\n`);
+    assert.strictEqual(read(`${site}/demo.egg-link`), `${path.join(tree, "src")}\n.\n`);
+    assert.strictEqual(read(".venv/bin/pytest"), `#!${path.join(tree, ".venv/bin/python")}\nimport sys\n`);
+    if (process.platform !== "win32") assert.ok(fs.statSync(path.join(tree, ".venv/bin/pytest")).mode & 0o100, "the script stays executable");
+    // Nothing else is rewritten: package data, text files, scripts without a
+    // shebang and the bin/ of a package that is not a virtualenv.
+    assert.strictEqual(read(`${site}/demo-0.1.0.dist-info/direct_url.json`), `{"url": "file://${root}"}`);
+    assert.strictEqual(read(`${site}/notes.txt`), root);
+    assert.strictEqual(read(".venv/bin/activate"), `VIRTUAL_ENV=${root}\n`);
+    assert.strictEqual(read("node_modules/tool/bin/cli"), `#!${path.join(root, "node_modules/.bin/node")}\n`);
+    assert.deepStrictEqual(mounted.env, {
+      PATH: [path.join(tree, ".venv/bin"), "relative/bin", path.join(os.tmpdir(), "elsewhere")].join(path.delimiter),
+      VIRTUAL_ENV: path.join(tree, ".venv"),
+      PYTHONPATH: path.join(tree, "src"),
+      OSPEC_OTHER: root,
+    });
+  } finally {
+    mounted.remove();
+  }
+  assert.strictEqual(fs.readFileSync(path.join(root, site, "__editable__.demo-0.1.0.pth"), "utf8").split("\r\n")[0], path.join(root, "src"), "the project's copy is untouched");
 });
 
 test("[E1.48] a counterproof worktree takes a test whose path is longer than 260 characters", (t) => {

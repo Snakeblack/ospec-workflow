@@ -40,12 +40,14 @@ function masked(output, mask) {
 
 /**
  * @param {string} command  shell command line
- * @param {{cwd: string, timeoutMs?: number, mask?: string[]}} options
+ * @param {{cwd: string, timeoutMs?: number, mask?: string[], env?: NodeJS.ProcessEnv}} options
+ *   `env` replaces the inherited environment (a counterproof's, #523)
  * @returns {{result: {exit_code: number, output_sha256: string, output_tail: string[], timed_out?: true}, output: Buffer}}
  */
-function captureCommand(command, { cwd, timeoutMs, mask }) {
+function captureCommand(command, { cwd, timeoutMs, mask, env }) {
   const result = spawnSync(command, {
     cwd,
+    ...(env ? { env } : {}),
     shell: true,
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: MAX_OUTPUT_BYTES,

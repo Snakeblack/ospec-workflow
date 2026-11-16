@@ -1414,7 +1414,15 @@ objects, that holds the test paths of the diff and the files under
 tree holds them, absent where the diff deletes them, with the ignored
 `node_modules`, `.venv`, `venv`, `.tox`, `.nox`, `vendor`, `deps`,
 `.dart_tool`, `Pods` and `bower_components` of the project and of the
-repository root linked in; every other path stays as the base holds it.
+repository root copied in (#518); every other path stays as the base holds it.
+In that copy, each absolute path into the repository MUST point to the same
+path in the worktree: the target of a link, and inside a file the paths
+Python reads (#523), those of the `.pth`, `.egg-link` and `.py` files at the
+top of a `site-packages` and those of the scripts that start with `#!` in the
+`bin/` or `Scripts/` of a virtualenv, matched only as whole paths and keeping
+the other bytes. The entries of `PATH`, `VIRTUAL_ENV` and `PYTHONPATH` that
+point into the repository MUST point the same way in the environment of every
+command the counterproof runs, its controls included.
 There it MUST run the same command, or for `boundary-tests` each check the
 `check` runs, in order, until one fails and detects the change, in the project root
 with a timeout of 10 minutes, and remove the worktree. A failing command MUST
