@@ -2,8 +2,9 @@
 
 // Feature open-facts coverage (openspec/specs/idd/spec.md, REQ-idd-018).
 // A feature accounts for every category with a concrete question or a cite
-// the CLI has already resolved, and asks at least one of them (#390). Pure:
-// the caller reads files and the request.
+// the CLI has already resolved. Whether it must ask one depends on its risk
+// signals (E1.75), which idd-record.js knows. Pure: the caller reads files and
+// the request.
 
 const path = require("node:path");
 
@@ -32,7 +33,7 @@ const COVERAGE_RULES = [
   "Each category is one --open-fact naming a value, limit or format, one --cite <category>=<path:line> that exists and has a letter or digit,",
   'or one --quote <category>="<a literal fragment of --request, at least 12 characters>"; no two categories share a cite or a quote.',
   "A cite never names a manifest or a lockfile, and one outside the documentation names a file of the plan or the diff.",
-  "At least one category is an --open-fact: the user sees the plan before it is built.",
+  "With public-contract, persistent-data or security-boundary among its signals, at least one category is an --open-fact, so the user sees that plan before it is built.",
   "A question that only names the category is refused.",
 ].join(" ");
 
@@ -228,12 +229,6 @@ function coverageOf({ openFacts = [], cites = [], quotes = [], request, readFile
   if (reused) return reused;
   const missing = categories.filter((id) => !found.has(id));
   if (missing.length > 0) return problem("facts-undeclared", `a feature must cover ${missing.join(", ")}`);
-  // Cites settle nothing the user has not seen: the features that cited every
-  // category escaped hidden facts, the ones that asked did not (#390). Stored
-  // states keep validating through factsFromCoverage, which does not ask this.
-  if (![...found.values()].some((entry) => entry.question)) {
-    return problem("facts-undeclared", "a feature must ask at least one category with --open-fact; cites and quotes cover the rest");
-  }
   return { coverage: CATEGORY_IDS.filter((id) => found.has(id)).map((id) => found.get(id)) };
 }
 

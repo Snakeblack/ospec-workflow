@@ -710,7 +710,8 @@ obligations in work order, the pending decision, the next step and the
 knowledge references. The next step MUST be `resolve-gate` for the first open
 gate in the order `abandon`, `ambiguous-intent`, `kind-change`, `open-facts`, `adr-amend-or-contradict`,
 `irreversible-operation`, `review-limit`, `checks-changed`, `base-moved`, because every gate is a decision the user takes
-before the work it decides (REQ-idd-008); else `declare-plan` (with `how`
+before the work it decides (REQ-idd-008), with `ask-open-facts` in the place
+of `open-facts` while a feature owes its question (REQ-idd-018); else `declare-plan` (with `how`
 naming `ospec signals`) while the change has no recorded `plan`, no signal
 from the diff and no run; else the first pending obligation in the order
 `repro-test`, `tdd-red-green`, `boundary-tests`, `contract-spec-and-test`,
@@ -744,7 +745,9 @@ recorded, and `checks-pass`) or `living-doc` (E4.15), `trust-review` names
 first declared reference without its impact, and `living-doc` and `close`
 name `ospec close`. `configure-checks` names `ospec check --change <id>`, to
 run once the proposed checks are written, when it opens `checks-changed` for
-their approval (E1.49); `open-change` names the
+their approval (E1.49); `ask-open-facts` names the `record intent` of the
+change's summary, acceptance, request and cites, with `signal` and a `how`
+that turns at least one cite into an `--open-fact` (REQ-idd-018); `open-change` names the
 `record intent` template and carries `feature`, the `record intent` of a
 feature with one `--open-fact <category>:"<question>"` per category its
 project covers (REQ-idd-018), the rules of the categories and, when
@@ -1563,8 +1566,8 @@ prints it before the refusal.
 - AND changing the verifier MUST NOT count as a different tree for `ospec run`
 
 `ospec check` MUST answer `missing` while an obligation is pending, naming
-each with the reason it is not met, else `needs-decision` while a gate is open,
-else `ready`. While the intent is ambiguous it MUST answer `needs-decision`
+each with the reason it is not met, else `needs-decision` while a gate is open
+or a feature owes its question (REQ-idd-018), else `ready`. While the intent is ambiguous it MUST answer `needs-decision`
 without running anything. A completed check MUST exit with 0 whatever its
 answer; outside a git work tree it MUST be refused with `not-a-git-repo`
 (`git-not-found` without git).
@@ -2102,7 +2105,8 @@ or that correction waits for its validation, `ospec check` MUST NOT open
 that satisfies `checks-pass` was not recorded on the current tree, because the
 last `ospec check` settled every tree-bound obligation on that tree. It MUST
 then, under a lock held outside the change directory, settle `living-doc`
-(REQ-idd-004), refuse with `close-refused` naming every pending obligation and
+(REQ-idd-004), refuse with `facts-unasked` a feature that owes its question
+(REQ-idd-018), refuse with `close-refused` naming every pending obligation and
 open gate, write the changelog entry of REQ-idd-025 and record
 `status: closed` with `closed_at` atomically; that state is the resume marker. It MUST then rewrite the evidence section of `change.md`,
 when it exists, and move `idd/<change-id>/` to
@@ -2150,10 +2154,26 @@ and the paths of the plan; those two MUST be accepted when given, and a
 stored state MAY leave them out. Each category is covered
 with a concrete `--open-fact` that names a value, limit or format, a `--cite`
 of `path:line` that exists in the tree, or a `--quote` of at least 12 characters
-taken from `--request`, and at least one category MUST be a question, so a
-feature always opens `open-facts`; coverage made only of cites and quotes MUST
-be refused with `facts-undeclared`. A state recorded before this rule, with
-every category cited, MUST stay valid. A question is concrete when it holds a digit, a quoted
+taken from `--request`. Since E1.75, at least one category MUST be a question
+only when `public-contract`, `persistent-data` or `security-boundary` is among
+the change's signals, whichever category it is: `record intent` MUST refuse
+with `facts-undeclared` coverage made only of cites and quotes when the plan of
+the same write, the signals already recorded under a raised kind (REQ-idd-011)
+or `--security` derive one of them, naming the signal's reason, and without
+them such coverage MUST open the change with no `open-facts` gate. A state
+recorded before this rule, with every category cited, MUST stay valid. When
+one of those signals joins later a feature whose coverage asks nothing
+(`ospec signals`, `record signal` or the diff in `ospec check`), the question
+is owed: the signal MUST be recorded and its obligation derived as always,
+`next` MUST return `ask-open-facts` where `open-facts` sits in the gate order,
+`check` MUST answer `needs-decision` on `open-facts` with that reason when no
+obligation is pending, and `close` MUST refuse with `facts-unasked`. The
+`record intent` that pays it MUST repeat the intent and turn the cites or quotes of
+one or more categories into `--open-fact` questions, keeping every other
+category with its cite; it MUST then replace the facts and open a new
+`open-facts` entry whose reason names the signal, and any other change of the
+coverage MUST be refused with `intent-conflict`, as a repeated intent with
+other facts is once a category asks. A question is concrete when it holds a digit, a quoted
 value of at least 3 characters besides spaces, or a word beyond the category's
 own name. A cited line MUST hold a letter or a digit, and no two categories MAY
 share the same `path:line` or the same fragment. A cite of a manifest or a
@@ -2168,7 +2188,8 @@ MUST have open questions. A basis that cites nothing MUST
 be refused, and the refusal MUST include the command. A refused feature
 coverage MUST print the template of the categories its project covers, the one
 `next` gives before the change opens. The CLI usage MUST list
-the seven categories and the rule that at least one is a question. The declaration MUST be stored in `facts`, with repeated
+the seven categories and the rule that at least one is a question with those
+signals. The declaration MUST be stored in `facts`, with repeated
 questions recorded once. Open facts MUST open the `open-facts` gate, which only
 `record intent` opens, and which MUST be resolved only by the user's answer
 with its source. While it is open, `next` MUST return the questions as one
@@ -2199,14 +2220,30 @@ batch, so they are asked together before the change is built.
   it with `cite-outside-plan` until `ospec signals --path src/store.js`
   declares the file or the diff touches it
 
-#### Scenario: A feature asks at least one category
+#### Scenario: A feature asks at least one category when it has a risk signal
 
-- GIVEN a feature whose seven categories each cite a distinct existing line or
+- GIVEN a feature whose categories each cite a distinct existing line or
   fragment of `--request`
-- WHEN `record intent` runs
-- THEN it MUST be refused with `facts-undeclared` and the command
+- WHEN `record intent` runs with `--path src/api/totals.js` or `--security`
+- THEN it MUST be refused with `facts-undeclared`, the signal's reason and the
+  command
+- AND without them the same coverage MUST open the change with no gate, and the
+  change MUST close without asking
 - AND the same coverage with one category as a concrete `--open-fact` MUST open
   the change with `open-facts` open
+
+#### Scenario: A risk signal from the diff asks a cited feature
+
+- GIVEN a feature opened with every category cited and no risk signal
+- WHEN its diff adds `db/migrations/001.sql` and `ospec check` runs
+- THEN `persistent-data` MUST be recorded, `check` MUST name the decision on
+  `open-facts`, `next` MUST return `ask-open-facts` with the `record intent` of
+  its intent and cites, and `close` MUST refuse with `facts-unasked`
+- AND that `record intent` with the cite of `persistence` turned into an
+  `--open-fact` MUST open `open-facts` with that question and a reason naming
+  `persistent data`
+- AND a cite changed or a category dropped at the same time MUST be refused
+  with `intent-conflict`
 
 #### Scenario: A project without a UI covers five categories
 

@@ -57,7 +57,7 @@ const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvi
 const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
 const { ABANDON_GATE, ARCHIVE_ROOT, CHANGE_ID_PATTERN, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, counterproofDetects, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { TIMED_OUT_EXIT, captureCommand, dropRunOutputs, keepRunOutput, runCommand } = require("./lib/idd-exec.js");
-const { CATEGORY_IDS, UI_CATEGORY_IDS, countTests, projectCategories, resolveFeatureCoverage } = require("./lib/idd-facts.js");
+const { CATEGORY_IDS, UI_CATEGORY_IDS, countTests, featureCoverageHow, projectCategories, resolveFeatureCoverage } = require("./lib/idd-facts.js");
 const { fitnessPlan } = require("./lib/idd-fitness.js");
 const { memoryQuery, resolveReferences, touchedComponents } = require("./lib/idd-knowledge.js");
 const { CHECKS_REQUIRED, FOUNDATION_STEPS, nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
@@ -78,6 +78,7 @@ const {
   recordSignal,
   recordWithdraw,
   reopenDerived,
+  requireAskedRisk,
 } = require("./lib/idd-record.js");
 const {
   advisoryCorrection,
@@ -141,7 +142,8 @@ const USAGE = `Usage:
                       [--request <text>] [--answer <text> --source user|user-unverified] [<plan>]
   ospec record intent --change <id> --kind feature --summary <text> --acceptance <text> --request <text>
                       (--open-fact <category>:<question> | --cite <category>=<path:line> | --quote <category>=<fragment>)...
-                      categories: ${CATEGORY_IDS.join(", ")}; at least one is an --open-fact;
+                      categories: ${CATEGORY_IDS.join(", ")}; at least one is an --open-fact with
+                      public-contract, persistent-data or security-boundary among the signals;
                       ${UI_CATEGORY_IDS.join(" and ")} only with a UI file or no code (ospec next prints the template)
                       [<plan>]: [--path <file>]... [--work-units <n>] [--decision <text>]... [--operation <op>]...
                                 [--adr <id>]... [--quality <id>]... [--security], declared as ospec signals does
@@ -328,6 +330,7 @@ function reducerFor(type, values, root) {
         if (answered && !state?.gates.some((gate) => gate.id === "ambiguous-intent")) {
           throw new UsageError(`--answer and --source resolve an ambiguous intent: change ${values.change} has none`);
         }
+        const covered = feature ? featureCoverage(root, values) : null;
         const recorded = recordIntent(state, {
           base: state ? undefined : readHead(root),
           change: values.change,
@@ -339,13 +342,16 @@ function reducerFor(type, values, root) {
           openFacts: feature ? undefined : values["open-fact"],
           noOpenFacts: feature ? undefined : values["no-open-facts"],
           basis: feature ? undefined : values.basis,
-          coverage: feature ? featureCoverage(root, values) : undefined,
+          coverage: covered?.coverage,
           answer: values.answer,
           source: values.source,
         });
-        if (!plan) return recorded;
-        const declared = declarePlan(recorded.state, plan);
-        return { ...declared, changed: recorded.changed || declared.changed };
+        const written = plan ? declarePlan(recorded.state, plan) : null;
+        const result = written ? { ...written, changed: recorded.changed || written.changed } : recorded;
+        // The facts this write records ask a category once its plan has a
+        // public contract, persistent data or a security boundary (E1.75).
+        if (covered && JSON.stringify(state?.facts) !== JSON.stringify(recorded.state.facts)) requireAskedRisk(result.state, featureCoverageHow(covered.categories));
+        return result;
       };
     }
     case "assumption":
@@ -615,7 +621,8 @@ function citeTarget(root, file) {
 }
 
 // The categories of the project's profile (E4.16): its files and the plan of
-// the intent decide whether url-state and accessibility apply.
+// the intent decide whether url-state and accessibility apply. Returns the
+// coverage and those categories.
 function featureCoverage(root, values) {
   const { categories } = projectCategories({ files: readProjectFiles(root), planPaths: values.path || [], classify: classifyPath });
   const resolved = resolveFeatureCoverage({
@@ -633,7 +640,7 @@ function featureCoverage(root, values) {
     error.how = resolved.error.how;
     throw error;
   }
-  return resolved.coverage;
+  return { coverage: resolved.coverage, categories };
 }
 
 function runRecord(purpose, command, result, tree, recordedAt, extra = {}) {
@@ -1746,6 +1753,9 @@ function describeNext(result) {
     case "declare-plan":
       lines.push(`next: declare the plan: ${step.how}`);
       break;
+    case "ask-open-facts":
+      lines.push(`next: ask open facts: ${step.how}`);
+      break;
     case "satisfy-obligation":
       lines.push(`next: satisfy ${step.obligation} with ${step.evidence} evidence`);
       if (step.how) lines.push(step.how);
@@ -1802,6 +1812,7 @@ function describeStep(next) {
     if (step.how && !Object.hasOwn(RUN_OBLIGATIONS, step.obligation)) lines.push(`  ${step.how}`);
   } else if (step.action === "resolve-gate") lines.push(`next (gate ${step.gate})${command}`);
   else if (step.action === "declare-plan" || step.action === "configure-checks") lines.push(`next (${step.action}): ${step.how}`);
+  else if (step.action === "ask-open-facts") lines.push(`next (${step.action})${command}`, `  ${step.how}`);
   else if (step.action === "none") lines.push(`next: none, ${next.change} is ${next.status}`);
   else lines.push(`next (${step.action})${command}`);
   if (next.pending_decision) {

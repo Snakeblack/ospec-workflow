@@ -28,6 +28,7 @@ const {
   canClose,
   isIntentAmbiguous,
   signalGaps,
+  unaskedRisk,
 } = require("./idd-contract.js");
 const { IddRecordError } = require("./idd-record.js");
 
@@ -105,6 +106,9 @@ function closeChange(state, { closedAt, livingDoc = null }) {
   if (isIntentAmbiguous(state)) refuse("ambiguous-intent-open", "a change with an ambiguous intent cannot close");
   const gaps = signalGaps(state).map((gap) => `${gap.obligation} is ${gap.status} while signal ${gap.signal} derives it`);
   if (gaps.length > 0) refuse("close-refused", `close refused: ${gaps.join(", ")}`, `ospec check --change ${state.change} reopens it`);
+  // A risk signal joined a feature that cited every category (E1.75).
+  const risk = unaskedRisk(state);
+  if (risk) refuse("facts-unasked", `close refused: ${risk.reason}, and the feature asks no category of open-facts`, `ospec next --change ${state.change} prints the record intent that asks one`);
   const next = structuredClone(state);
   const doc = next.obligations.find((entry) => entry.id === LIVING_DOC && entry.status === "pending");
   if (doc) {

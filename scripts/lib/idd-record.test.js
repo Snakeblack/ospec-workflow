@@ -8,9 +8,10 @@
 const test = require("node:test");
 const assert = require("node:assert");
 
-const { validateState } = require("./idd-contract.js");
+const { unaskedRisk, validateState } = require("./idd-contract.js");
 const {
   IddRecordError,
+  requireAskedRisk,
   recordAssumption,
   recordChangelog,
   recordCompletes,
@@ -180,6 +181,58 @@ test("a feature without url-state and accessibility records and validates", () =
   assert.deepStrictEqual(state.facts.coverage.map((entry) => entry.category), [...CORE_CATEGORY_IDS]);
   const fewer = { ...state, facts: { coverage: state.facts.coverage.filter((entry) => entry.category !== "errors") } };
   assert.ok(validateState(fewer).errors.includes("facts.coverage must cover every feature category"));
+});
+
+// E1.75: a feature asks at least one category only with a public contract,
+// persistent data or a security boundary. One that joins a feature that cited
+// every category leaves the question owed: the repeated intent that asks turns
+// cited categories into questions, keeps the rest, and opens open-facts.
+const RISK_ASKS = "a feature with a public contract, persistent data or a security boundary asks at least one category";
+
+test("a feature owes a question once a risk signal joins its cites, and asks it through the repeated intent (E1.75)", () => {
+  const { citedCoverage } = require("./idd-facts.js");
+  const cited = recordIntent(null, { ...FEATURE, coverage: citedCoverage() }).state;
+  assert.strictEqual(unaskedRisk(cited), null);
+  assert.doesNotThrow(() => requireAskedRisk(cited, "the template"));
+  const question = "¿Un código caducado en codes.json se lee como inválido?";
+  const asked = citedCoverage().map((entry) => (entry.category === "persistence" ? { category: "persistence", question } : entry));
+  // Without a risk signal the facts stay as recorded.
+  assertCode(() => recordIntent(cited, { ...FEATURE, coverage: asked }), "intent-conflict");
+  assert.strictEqual(unaskedRisk(recordSignal(cited, { id: "multi-unit-or-decision", reason: "declared 2 work units", source: "declaration" }).state), null);
+
+  const signal = { id: "persistent-data", reason: "persistent data: touches db/migrations/001.sql", source: "diff" };
+  const risky = recordSignal(cited, signal).state;
+  assert.deepStrictEqual(unaskedRisk(risky), signal);
+  assert.deepStrictEqual(risky.gates, [], "the signal opens no gate without a question");
+  let thrown;
+  try {
+    requireAskedRisk(risky, "the template");
+  } catch (error) {
+    thrown = error;
+  }
+  assert.deepStrictEqual([thrown.code, thrown.how], ["facts-undeclared", "the template"]);
+  assert.strictEqual(thrown.message, `${signal.reason}: ${RISK_ASKS.replace("asks", "must ask")} with --open-fact; cites and quotes cover the rest`);
+
+  // The replay of the cites changes nothing; another cite, a category more or
+  // less, or another summary stay conflicts.
+  assert.strictEqual(recordIntent(risky, { ...FEATURE, coverage: citedCoverage() }).changed, false);
+  const recited = asked.map((entry) => (entry.category === "copy" ? { category: "copy", cite: { kind: "path", path: "README.md", line: 3 } } : entry));
+  assertCode(() => recordIntent(risky, { ...FEATURE, coverage: recited }), "intent-conflict");
+  assertCode(() => recordIntent(risky, { ...FEATURE, coverage: asked.filter((entry) => entry.category !== "url-state") }), "intent-conflict");
+  assertCode(() => recordIntent(risky, { ...FEATURE, summary: "Other codes.", coverage: asked }), "intent-conflict");
+
+  const { state, changed } = recordIntent(risky, { ...FEATURE, coverage: asked });
+  assert.strictEqual(changed, true);
+  assertValid(state);
+  assert.strictEqual(unaskedRisk(state), null);
+  assert.deepStrictEqual(state.facts.coverage.find((entry) => entry.category === "persistence"), { category: "persistence", question });
+  assert.deepStrictEqual(state.gates, [{ id: "open-facts", status: "open", reason: `${signal.reason}: ${RISK_ASKS}` }]);
+  // Once asked, the facts stay as recorded again.
+  const answered = recordGate(state, { id: "open-facts", action: "resolve", answer: "Sí, inválido.", source: "user" }).state;
+  const more = asked.map((entry) => (entry.category === "copy" ? { category: "copy", question: '¿El aviso dice "código caducado"?' } : entry));
+  assertCode(() => recordIntent(answered, { ...FEATURE, coverage: more }), "intent-conflict");
+  // A bug owes no category.
+  assert.strictEqual(unaskedRisk(recordSignal(opened(), signal).state), null);
 });
 
 test("no open facts records the basis and opens no gate", () => {

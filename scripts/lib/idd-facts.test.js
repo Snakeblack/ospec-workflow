@@ -6,6 +6,7 @@ const assert = require("node:assert");
 const {
   CATEGORY_IDS,
   CORE_CATEGORY_IDS,
+  COVERAGE_RULES,
   citedCoverage,
   countTests,
   factsFromCoverage,
@@ -86,13 +87,17 @@ test("missing categories are refused and name the command", () => {
   assert.match(result.error.message, /inputs/);
 });
 
-test("a feature asks at least one category; cites alone are refused (#390)", () => {
+// E1.75: the question #390 asked of every feature is asked where the change
+// has a public contract, persistent data or a security boundary; the record
+// that knows its signals (idd-record.js) asks it.
+test("cites alone cover a feature; its risk signals decide the question (E1.75)", () => {
   const tree = { "README.md": "one\ntwo\nthree\nfour\nfive\nsix\nseven\n" };
   const cites = CATEGORY_IDS.map((id, index) => `${id}=README.md:${index + 1}`);
   const cited = resolveFeatureCoverage({ cites, request: REQUEST, readFile: filesOf(tree) });
-  assert.strictEqual(cited.error.code, "facts-undeclared");
-  assert.match(cited.error.message, /at least one category with --open-fact/);
-  assert.match(cited.error.how, /At least one category is an --open-fact/);
+  assert.strictEqual(cited.error, undefined);
+  assert.ok(cited.coverage.every((entry) => entry.cite), "every category keeps its cite");
+  assert.match(COVERAGE_RULES, /With public-contract, persistent-data or security-boundary among its signals, at least one category is an --open-fact/);
+  assert.doesNotMatch(COVERAGE_RULES, /At least one category is an --open-fact: the user sees the plan before it is built/);
   const asked = resolveFeatureCoverage({
     openFacts: ["inputs:¿el título admite más de 200 caracteres?"],
     cites: cites.slice(1),

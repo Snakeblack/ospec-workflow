@@ -11,7 +11,7 @@
 // document and a test with every check passing. No filesystem access:
 // idd-exec.js runs the commands, idd-store.js persists.
 
-const { DECISIONS_ROOT, GATED_IMPACTS, GATES, OBLIGATIONS, RECORDED_IMPACTS, RUN_EVIDENCE, counterproofDetected, isIntentAmbiguous } = require("./idd-contract.js");
+const { DECISIONS_ROOT, GATED_IMPACTS, GATES, OBLIGATIONS, RECORDED_IMPACTS, RUN_EVIDENCE, counterproofDetected, isIntentAmbiguous, owedQuestion } = require("./idd-contract.js");
 const { GATE_QUESTIONS, WORK_ORDER } = require("./idd-next.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
 const { fitnessReason } = require("./idd-fitness.js");
@@ -610,7 +610,14 @@ function checkVerdict(state, { checks = [], results = [], treeChanged = false, r
       else if (entry.id === "living-doc") reason = `${livingDoc?.reason || "change.md was not read"}: ospec close records it once change.md is current`;
       return { obligation: entry.id, evidence, reason };
     });
-  const decision = openGates.length > 0 ? decisionFor(openGates[0]) : null;
+  // A feature that owes a question (E1.75) decides on open-facts, where it
+  // sits in the gate order.
+  const owed = owedQuestion(state);
+  const decision = owed
+    ? decisionFor({ id: "open-facts", reason: owed.reason })
+    : openGates.length > 0
+      ? decisionFor(openGates[0])
+      : null;
   const verdict = missing.length > 0 ? "missing" : decision ? "needs-decision" : "ready";
   return { verdict, missing, decision };
 }

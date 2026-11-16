@@ -1,0 +1,632 @@
+{
+  "schema": "idd-state/v1",
+  "change": "open-facts-by-risk",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "kind": "feature",
+    "summary": "Una feature solo tiene que preguntar al menos una categoría de open-facts cuando el cambio tiene public-contract, persistent-data o security-boundary; sin esas señales basta la cobertura con --cite y --quote, y una de ellas que llegue después vuelve a exigir la pregunta (E1.75).",
+    "acceptance": "Una feature sin señales de riesgo se abre y cierra con todas sus categorías citadas; una con public-contract en el plan sigue rechazada sin pregunta; una cuyo diff deriva persistent-data vuelve a exigir una pregunta y abre open-facts antes de poder cerrar."
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "Al repetir record intent para añadir la pregunta, ¿solo se acepta convertir categorías citadas en --open-fact, con las demás citas y el mismo summary, acceptance y request, o cualquier cobertura nueva válida que pregunte al menos una categoría?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿La pregunta obligatoria puede ser de cualquier categoría, como hoy, o tiene que ser de la categoría ligada a la señal (\"persistent-data\" con \"persistence\"; \"public-contract\" y \"security-boundary\" con \"inputs\" o \"errors\")?"
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 2155
+        }
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1360
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1364
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1363
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Cuando una señal de riesgo llega después de abrir una feature que no preguntó nada (por ospec signals, record signal o el diff en check): (A) check la registra y corre como siempre, next se para con un paso \"ask-open-facts\" que pide repetir record intent con al menos un --open-fact, lo que abre open-facts, y close se niega mientras tanto; (B) check y signals se niegan antes de correr nada, como kind-mismatch de E1.44, hasta que el intent pregunte; o (C) el CLI abre ya una entrada open-facts sin preguntas que no se resuelve hasta registrar una. ¿Cuál?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/lib/idd-check.js",
+      "scripts/lib/idd-check.test.js",
+      "scripts/lib/idd-close.js",
+      "scripts/lib/idd-close.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-facts.js",
+      "scripts/lib/idd-facts.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/lib/test-support/ospec-cli.js",
+      "scripts/ospec.js",
+      "scripts/ospec.output.test.js",
+      "skills/idd/references/open-facts.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Las tres señales de riesgo son IMPACT_SIGNALS de idd-impact.js (public-contract, persistent-data, security-boundary); E1.79 las sustituirá por su nivel.",
+      "La condición se evalúa sobre las señales del estado: record intent (y la subida de tipo) la exige en la misma escritura que declara el plan; una señal que llega después deja la cobertura sin preguntar, y next devuelve ask-open-facts antes que los gates y las obligaciones; close se niega con facts-unasked.",
+      "El record intent repetido de una feature que no preguntó y ya tiene una señal de riesgo acepta solo convertir categorías citadas en --open-fact: mismo intent, mismas citas en el resto; abre una entrada open-facts nueva, así el turno de apertura es el de las preguntas.",
+      "Precisa la anterior: ask-open-facts ocupa el sitio de open-facts en el orden de gates; abandon, ambiguous-intent y kind-change abiertos se responden antes, y los demás gates y las obligaciones después. check da needs-decision sobre open-facts y la salida de texto imprime el how del paso."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, generator, idd-engine, skills: ADR 0001, 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/test-support/ospec-cli.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "references/open-facts.md sigue saliendo de una fuente a los 7 targets; el protocolo lo comprueba en todos"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "la regla la calcula el CLI (unaskedRisk, owedQuestion, ask-open-facts, facts-unasked); la referencia solo la describe"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "la pregunta obligatoria pasa a depender de las mismas señales de impacto que añaden obligaciones: contrato público, datos persistentes o frontera de seguridad"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "close se niega con facts-unasked mientras la feature debe su pregunta; nada se da por cerrado sin el gate respondido"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "el cambio no lee ni escribe memoria"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "sin dependencias nuevas: solo módulos propios del CLI"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "solo cambia el estado IDD de idd/<change>/state.yaml, escrito por el CLI"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "next deriva ask-open-facts solo del estado guardado: intent, facts y señales"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "ninguna llamada de red nueva en el CLI, los hooks ni las skills"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "la misma referencia open-facts.md llega a los 7 targets; idd-protocol.test.js lo fija en cada uno"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Cada pieza nueva tiene tests en scripts/lib/idd-*.test.js (unaskedRisk y requireAskedRisk en idd-record.test.js, ask-open-facts en idd-next.test.js, facts-unasked en idd-close.test.js, la decisión en idd-check.test.js); references/open-facts.md describe la regla y nombra next y close, que la deciden.",
+      "recorded_at": "2026-11-16T22:39:44.829Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "git diff sin require de http, https, net, fetch ni child_process nuevos en scripts/lib ni en scripts/ospec.js; next, check y close leen solo el estado y el diff local.",
+      "recorded_at": "2026-11-16T22:39:44.988Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 407,
+      "answer": "las recomendadas (1A: check registra la señal y corre, next se para en ask-open-facts que pide repetir record intent con al menos un --open-fact, lo que abre open-facts, y close se niega mientras tanto; 2: cualquier categoría; 3: el record intent repetido solo convierte categorías citadas en --open-fact, con las demás citas y el mismo summary, acceptance y request)",
+      "source": "user",
+      "resolved_turn": 408
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-16T22:42:24.614Z",
+      "detail": {
+        "tree": "sha256:70c1d3faf4f92a25e350f44d055461b304c4c788efa6ba8be13f440d5e4e1415",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-16T22:42:24.614Z",
+      "detail": {
+        "tree": "sha256:70c1d3faf4f92a25e350f44d055461b304c4c788efa6ba8be13f440d5e4e1415",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.output.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-16T22:42:24.614Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:70c1d3faf4f92a25e350f44d055461b304c4c788efa6ba8be13f440d5e4e1415",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-16T22:43:23.344Z",
+      "detail": {
+        "run": "run-11",
+        "tree": "sha256:826a2203c18b94a3de18dd7e9cedbe0ee9bc86588a798ebc5a2d513e12e16431",
+        "plan": "Compatibilidad: no hay campos nuevos en state.yaml. Una feature con todas las categorías citadas ya era un estado válido (los anteriores a #390 lo siguen siendo), y la entrada open-facts que abre el record intent repetido usa el reason opcional que ya admite cualquier gate; un CLI anterior lee ambos sin cambios, y uno nuevo lee los antiguos igual, con la pregunta debida si la feature tiene una señal de riesgo. Vuelta atrás: revertir el commit; un cambio abierto con la pregunta debida vuelve a la regla de una pregunta por feature."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-16T22:45:09.339Z",
+      "detail": {
+        "tree": "sha256:1f0261312c536fcf2caa979a7d8c199e999292e0a51e484c64e0dbbf76f9a798",
+        "runs": [
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-16T22:45:09.339Z",
+      "detail": {
+        "tree": "sha256:1f0261312c536fcf2caa979a7d8c199e999292e0a51e484c64e0dbbf76f9a798",
+        "check": "ev-5",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-facts.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.output.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-16T22:45:09.339Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:1f0261312c536fcf2caa979a7d8c199e999292e0a51e484c64e0dbbf76f9a798",
+        "fitness": [
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-16T22:45:09.497Z"
+    }
+  ],
+  "base": "4cb1be68d53abb8000f44dfa36f129821e249c4b",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0c3981ef17c9d33d46cb9793c3f68ec59710551fdb7b086e6474bced8e03dc01",
+      "tree": "sha256:70c1d3faf4f92a25e350f44d055461b304c4c788efa6ba8be13f440d5e4e1415",
+      "recorded_at": "2026-11-16T22:42:24.614Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fce60a53613d680bac7d12a7460d95f0750e92d3c17a28c6796355e85925db82",
+      "tree": "sha256:70c1d3faf4f92a25e350f44d055461b304c4c788efa6ba8be13f440d5e4e1415",
+      "recorded_at": "2026-11-16T22:42:24.614Z",
+      "tests": 48
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4c7067400e50cd10f89b8c8508ee6b46759756505af67cf35cdf515255cb297d",
+      "tree": "sha256:70c1d3faf4f92a25e350f44d055461b304c4c788efa6ba8be13f440d5e4e1415",
+      "recorded_at": "2026-11-16T22:42:24.614Z",
+      "tests": 61
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:59f367fc74ff79a107494c996b79eccf3e391e651cd7023b77dcda91033516da",
+      "tree": "sha256:70c1d3faf4f92a25e350f44d055461b304c4c788efa6ba8be13f440d5e4e1415",
+      "recorded_at": "2026-11-16T22:42:24.614Z",
+      "tests": 19
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:080d4d817ea64e4d102e3be384052e489865d305183250fd0a003f1e4e3a17f2",
+      "tree": "sha256:70c1d3faf4f92a25e350f44d055461b304c4c788efa6ba8be13f440d5e4e1415",
+      "recorded_at": "2026-11-16T22:42:24.614Z",
+      "tests": 2
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:70c1d3faf4f92a25e350f44d055461b304c4c788efa6ba8be13f440d5e4e1415",
+      "recorded_at": "2026-11-16T22:42:24.614Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a205b478a84b159b6f3d5c8bf07b90eea05d561793cf0375749f766d8594491d",
+      "tree": "sha256:70c1d3faf4f92a25e350f44d055461b304c4c788efa6ba8be13f440d5e4e1415",
+      "recorded_at": "2026-11-16T22:42:24.614Z",
+      "tests": 26
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d8af243cf44c67e192f4c7e277fd6104db86222fb018c86b85921f0eddc8ff13",
+      "tree": "sha256:70c1d3faf4f92a25e350f44d055461b304c4c788efa6ba8be13f440d5e4e1415",
+      "recorded_at": "2026-11-16T22:42:24.614Z",
+      "tests": 96
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1710f9193e45725915275ccd08a1daabaf6b9ac1f36c823ea714ea29ea6cb12f",
+      "tree": "sha256:70c1d3faf4f92a25e350f44d055461b304c4c788efa6ba8be13f440d5e4e1415",
+      "recorded_at": "2026-11-16T22:42:24.614Z",
+      "tests": 53
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cc2f7d7faadb5e631a329af8349246317c52f776ed1d91e94c14b61a940a1014",
+      "tree": "sha256:70c1d3faf4f92a25e350f44d055461b304c4c788efa6ba8be13f440d5e4e1415",
+      "recorded_at": "2026-11-16T22:42:24.614Z",
+      "tests": 48
+    },
+    {
+      "id": "run-11",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-record.test.js scripts/lib/idd-facts.test.js scripts/lib/idd-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:763b3f8c183add4888caf6b18d6f2be7134c0cd2c184163b609e95fc2a3da097",
+      "tree": "sha256:826a2203c18b94a3de18dd7e9cedbe0ee9bc86588a798ebc5a2d513e12e16431",
+      "recorded_at": "2026-11-16T22:43:23.344Z",
+      "tests": 126
+    },
+    {
+      "id": "run-12",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:57343c49f4dbb34e34980966b60b46ca7d3b210e70cb1b3c720f06717fb5d254",
+      "tree": "sha256:1f0261312c536fcf2caa979a7d8c199e999292e0a51e484c64e0dbbf76f9a798",
+      "recorded_at": "2026-11-16T22:45:09.339Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5611efc7bae51b72019920d89e2ea29c792ad975f2ada436e0e8e8579fb09fb8",
+      "tree": "sha256:1f0261312c536fcf2caa979a7d8c199e999292e0a51e484c64e0dbbf76f9a798",
+      "recorded_at": "2026-11-16T22:45:09.339Z",
+      "tests": 48
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:694930af8565adedee1aeee472cbad20f27c233b25b508b07e13a068abd42355",
+      "tree": "sha256:1f0261312c536fcf2caa979a7d8c199e999292e0a51e484c64e0dbbf76f9a798",
+      "recorded_at": "2026-11-16T22:45:09.339Z",
+      "tests": 61
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a30e598cc2f754e24dc8e3a2e3b33568d63e1da9513cdbccfe72494af2df293c",
+      "tree": "sha256:1f0261312c536fcf2caa979a7d8c199e999292e0a51e484c64e0dbbf76f9a798",
+      "recorded_at": "2026-11-16T22:45:09.339Z",
+      "tests": 19
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4392871933b5663bf1e58a1d7d86508e4083407087feb1b3751836ee07a8d8ce",
+      "tree": "sha256:1f0261312c536fcf2caa979a7d8c199e999292e0a51e484c64e0dbbf76f9a798",
+      "recorded_at": "2026-11-16T22:45:09.339Z",
+      "tests": 2
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:1f0261312c536fcf2caa979a7d8c199e999292e0a51e484c64e0dbbf76f9a798",
+      "recorded_at": "2026-11-16T22:45:09.339Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:54ce9c41840b02289cfa4cb45b8e5e6bfd6d50e3fa393d755263a3af4611b109",
+      "tree": "sha256:1f0261312c536fcf2caa979a7d8c199e999292e0a51e484c64e0dbbf76f9a798",
+      "recorded_at": "2026-11-16T22:45:09.339Z",
+      "tests": 26
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4f2db38f56300b1b415bb0030147f5f7ef88c19d653218432604b79e497f9ee8",
+      "tree": "sha256:1f0261312c536fcf2caa979a7d8c199e999292e0a51e484c64e0dbbf76f9a798",
+      "recorded_at": "2026-11-16T22:45:09.339Z",
+      "tests": 96
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f0a886b988a76637051ce2543998a07ea9d8266df22f1d0de933d27a818377ce",
+      "tree": "sha256:1f0261312c536fcf2caa979a7d8c199e999292e0a51e484c64e0dbbf76f9a798",
+      "recorded_at": "2026-11-16T22:45:09.339Z",
+      "tests": 53
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1229eef819aeb183c62eee6b5ddb15822d5c18822a6686853fe5ef2ae49b91ab",
+      "tree": "sha256:1f0261312c536fcf2caa979a7d8c199e999292e0a51e484c64e0dbbf76f9a798",
+      "recorded_at": "2026-11-16T22:45:09.339Z",
+      "tests": 48
+    }
+  ],
+  "changelog_line": "**Una feature solo tiene que preguntar una categoría de open-facts cuando el cambio tiene riesgo** (open-facts-by-risk, E1.75). Con `public-contract`, `persistent-data` o `security-boundary` en el plan, `record intent` sigue exigiendo al menos un `--open-fact`; sin ellas basta la cobertura con `--cite` y `--quote`. Si una de esas señales llega después (`ospec signals`, `record signal` o el diff en `ospec check`), `next` devuelve `ask-open-facts`, `check` pide la decisión sobre `open-facts` y `close` se niega con `facts-unasked` hasta que el `record intent` repetido convierte una cita en pregunta.",
+  "closed_at": "2026-11-16T22:45:09.497Z"
+}

@@ -5,7 +5,7 @@
 // same inputs yield the same output, whatever order the state's signals were
 // recorded in.
 
-const { CHANGE_ROOT, DECISIONS_ROOT, GATES, IMPACTS, INTENT_KINDS, LIVING_DOC_FILE, OBLIGATIONS, RUN_EVIDENCE } = require("./idd-contract.js");
+const { CHANGE_ROOT, DECISIONS_ROOT, GATES, IMPACTS, INTENT_KINDS, LIVING_DOC_FILE, OBLIGATIONS, RUN_EVIDENCE, owedQuestion } = require("./idd-contract.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
 const { COVERAGE_RULES, featureCommand, projectCategories } = require("./idd-facts.js");
 const { classifyPath } = require("./idd-signals.js");
@@ -191,6 +191,25 @@ function declarePlanStep(change) {
   };
 }
 
+// The record intent a feature that owes a question runs (E1.75): its intent
+// and cites as recorded, for the agent to turn one cite into a question.
+function askOpenFactsStep(state, owed) {
+  const { change, intent, facts } = state;
+  const cites = facts.coverage.map(({ category, cite }) =>
+    cite.kind === "path" ? `--cite ${shellArg(`${category}=${cite.path}:${cite.line}`)}` : `--quote ${shellArg(`${category}=${cite.text}`)}`,
+  );
+  const request = intent.request != null ? ` --request ${shellArg(intent.request)}` : "";
+  return {
+    action: "ask-open-facts",
+    signal: owed.signal,
+    how:
+      `${owed.reason}. ` +
+      'Run this record intent with the --cite or --quote of at least one category replaced by --open-fact <category>:"<question>"; the other categories keep their cite, and the summary, acceptance and request stay the same. ' +
+      "The questions open open-facts.",
+    command: `ospec record intent --change ${change} --kind feature --summary ${shellArg(intent.summary)} --acceptance ${shellArg(intent.acceptance)}${request} ${cites.join(" ")}`,
+  };
+}
+
 function byWorkOrder(left, right) {
   return WORK_ORDER.indexOf(left.id) - WORK_ORDER.indexOf(right.id);
 }
@@ -257,6 +276,7 @@ function nextForChange(state, { checks, candidateCommand, contractPatterns, know
     .map(({ id, signal }) => ({ id, signal, evidence: EVIDENCE_BY_OBLIGATION.get(id) }));
   const openGates = state.gates.filter((gate) => gate.status === "open").sort(byGateOrder);
   const livingDoc = state.obligations.some((o) => o.id === "living-doc" && o.status !== "withdrawn");
+  const owed = owedQuestion(state);
 
   let nextStep;
   if (state.status === "closed") {
@@ -264,6 +284,8 @@ function nextForChange(state, { checks, candidateCommand, contractPatterns, know
   } else if (state.status === "abandoned") {
     // Abandoned and still under idd/: the archive was interrupted.
     nextStep = { action: "abandon", command: `ospec abandon --change ${state.change}` };
+  } else if (owed) {
+    nextStep = askOpenFactsStep(state, owed);
   } else if (openGates.length > 0) {
     // Every gate is the user's decision, taken before the work it decides
     // (REQ-idd-008, REQ-idd-018), in gate order: ambiguous-intent first.

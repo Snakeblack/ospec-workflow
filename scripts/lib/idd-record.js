@@ -22,12 +22,14 @@ const {
   RECORDED_IMPACTS,
   REFERENCE_KINDS,
   RETRACTABLE_SIGNALS,
+  RISKY_FEATURE,
   SIGNALS,
   SIGNAL_SOURCES,
   STATE_SCHEMA,
   canWithdraw,
   isIntentAmbiguous,
   signalGaps,
+  unaskedRisk,
 } = require("./idd-contract.js");
 const { factsFromCoverage } = require("./idd-facts.js");
 const { normalizePath } = require("./idd-impact.js");
@@ -160,6 +162,37 @@ function applyFacts(state, facts) {
   if (questionsOf(facts).length > 0) state.gates.push({ id: "open-facts", status: "open" });
 }
 
+/**
+ * Refuses a feature whose facts ask no category while a public contract,
+ * persistent data or a security boundary is among its signals (E1.75). The
+ * write that records the facts calls it once its plan is derived; `how` is
+ * the template of the categories its project covers.
+ */
+function requireAskedRisk(state, how) {
+  const risk = unaskedRisk(state);
+  if (!risk) return;
+  refuse("facts-undeclared", `${risk.reason}: ${RISKY_FEATURE} must ask at least one category with --open-fact; cites and quotes cover the rest`, how);
+}
+
+// A risk signal that joined a feature after its cites leaves the question
+// owed (E1.75): the repeated intent that asks only turns cited categories
+// into questions, keeps every other cite and opens open-facts.
+function askRisk(state, input, risk) {
+  const facts = factsFor(input);
+  const stored = new Map(state.facts.coverage.map((entry) => [entry.category, entry]));
+  const asked = new Set(facts.coverage.map((entry) => entry.category));
+  const changed =
+    facts.coverage.find((entry) => !stored.has(entry.category) || (entry.question == null && !sameJson(entry, stored.get(entry.category))))?.category ??
+    [...stored.keys()].find((category) => !asked.has(category));
+  if (changed !== undefined) {
+    refuse("intent-conflict", `change ${state.change} asks for ${risk.id} by turning cited categories into --open-fact questions; the other categories keep their cites, and ${changed} does not`);
+  }
+  const next = structuredClone(state);
+  next.facts = facts;
+  next.gates.push({ id: "open-facts", status: "open", reason: `${risk.reason}: ${RISKY_FEATURE} asks at least one category` });
+  return { state: next, changed: true };
+}
+
 // The kinds a resolved intent may move to (E1.44, B9): only up, from docs to a
 // refactor, a bug or a feature, and from a refactor to a bug or a feature. A bug
 // and a feature hold the same rank but take each other's place (#491): a
@@ -225,6 +258,10 @@ function recordIntent(state, input = {}) {
         return raiseIntent(state, { ...rest, request });
       }
       const candidate = resolvedIntent({ ...rest, request });
+      const risk = unaskedRisk(state);
+      if (risk && !input.ambiguous && input.kind === "feature" && input.coverage != null && sameJson(candidate, state.intent) && !sameFacts(state, input)) {
+        return askRisk(state, input, risk);
+      }
       if (input.ambiguous || !sameJson(candidate, state.intent) || !sameFacts(state, input)) {
         refuse("intent-conflict", `change ${state.change} already has a different resolved intent`);
       }
@@ -875,4 +912,5 @@ module.exports = {
   recordSignal,
   recordWithdraw,
   reopenDerived,
+  requireAskedRisk,
 };

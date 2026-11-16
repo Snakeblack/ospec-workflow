@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Una feature solo tiene que preguntar una categoría de open-facts cuando el cambio tiene riesgo** (open-facts-by-risk, E1.75). Con `public-contract`, `persistent-data` o `security-boundary` en el plan, `record intent` sigue exigiendo al menos un `--open-fact`; sin ellas basta la cobertura con `--cite` y `--quote`. Si una de esas señales llega después (`ospec signals`, `record signal` o el diff en `ospec check`), `next` devuelve `ask-open-facts`, `check` pide la decisión sobre `open-facts` y `close` se niega con `facts-unasked` hasta que el `record intent` repetido convierte una cita en pregunta. (open-facts-by-risk)
+
 ### Changed
 - **El roadmap registra E1.75 a E1.91 de la comparativa con gentle-ai** (roadmap-gentle-ai-comparison). Son las propuestas del análisis del 2026-11-16 (`docs/analysis/2026-11-16-comparativa-gentle-ai.md`), con los mods de Claude como capa opcional, y las tres issues abiertas sin ítem (#520, #522 y #523). E1.28, E1.59, E4.13 y E5.9 recogen sus ajustes, M6 queda aparcada y el orden ▶ sigue con E1.75, E1.76 y E1.51.
 
