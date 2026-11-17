@@ -219,9 +219,11 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.96** | `secret-guard-chdir-forms` (residuo de E1.95: un `cd` dentro del cuerpo de una función o de una rama de `case` no desactiva la exención de directorio de los guards de secretos; para que fugue hace falta además un directorio del espacio de trabajo que se llame como la clave; prioridad baja, fuera del orden ▶) | bugfix |
 | `pending` | **E1.97** | `archive-scan-friction` (el pre-commit bloquea el `state.yaml` de un cambio IDD archivado cuando un hallazgo de review cita un ejemplo con forma de secreto; el fichero es del CLI y no admite `ospec:allow-secret`, así que hoy el commit del archivo pide saltar el escáner entero; fuera del orden ▶, antes del próximo cambio que revise los guards) | bugfix |
 | `done` | **E1.98** | `own-skills` (versiones propias de chained-pr, cognitive-doc-design, comment-writer, judgment-day, skill-creator con su guía de estilo, work-unit-commits y las referencias de testing de stack-go, escritas desde lo que ospec es hoy; la guía y la sección 3 de la spec de skills piden lo que el tooling exige; `delivery.language` declara el idioma del proyecto y ninguna skill fija el español; las reglas de comportamiento de `rules/` con texto propio; en v2.183.0) | skills |
-| `pending` | **E1.100** | `own-sink-catalog` (catálogo propio de sinks de seguridad en `scripts/lib/idd-sinks.js`, que hoy adapta el de gentle-ai y lleva su aviso MIT en el fichero; con su revisión de confianza; justo detrás de E1.98) | refactor |
+| `done` | **E1.100** | `own-sink-catalog` (catálogo propio de sinks de seguridad en `scripts/lib/idd-sinks.js`, ordenado por debilidad y por lenguaje y sin el aviso de gentle-ai; conserva cada sink que se detectaba, con su etiqueta, y añade las formas que se escapaban de las mismas debilidades y la comprobación de host SSH desactivada (CWE-322); en v2.184.0) | feature |
+| `pending` | **E1.102** | `sink-catalog-xss-crypto` (dos debilidades nuevas para el catálogo de sinks: salida HTML sin escapar (CWE-79) y cifrado débil (CWE-327: DES, RC4, modo ECB), con un corpus de falsos positivos propio porque CWE-79 tiene muchos usos legítimos; justo detrás de E1.100) | feature |
 | `pending` | **E1.101** | `own-sdd-apply` (versión propia de la skill de fase `sdd-apply`, la última con texto de gentle-ai; con ella la sección de gentle-ai sale de `NOTICE`; detrás de E1.100) | skills |
 | `pending` | **E1.99** | `own-stack-skills` (lo mismo para las skills que conservan texto de ECC y de Caveman: las `stack-*`, accessibility, api-design, design-system, hexagonal-architecture y caveman-compress; con E1.101 hecho, `NOTICE` desaparece; fuera del orden ▶) | skills |
+| `pending` | **E1.103** | `product-ext-mts-cts` (`PRODUCT_EXT` de `scripts/lib/idd-signals.js` no reconoce `.mts` ni `.cts`, así que un módulo TypeScript con esas extensiones no cuenta como código de producto para ninguna señal; fuera del orden ▶) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -298,6 +300,8 @@ E1.96 `secret-guard-chdir-forms` y E1.97 `archive-scan-friction` entraron el 202
 E1.98 `own-skills` y E1.99 `own-stack-skills` entraron el 2026-11-17 durante E1.78, al medir cuánto texto de terceros conservan las skills. El usuario quiere versiones propias para no depender de gentle-ai: E1.98 va justo detrás de E1.78, por delante de E1.79, y E1.99, que cubre ECC y Caveman y es la parte más grande, queda fuera del orden ▶ hasta que la coloque.
 
 E1.100 `own-sink-catalog` y E1.101 `own-sdd-apply` entraron el 2026-11-17 al abrir E1.98. El usuario aprobó repartir el trabajo en varios cambios: E1.98 se quedó con las skills de utilidad, y detrás van, en este orden, el catálogo de sinks de `scripts/lib/idd-sinks.js`, que es código de la señal de seguridad, y `sdd-apply`, que es una skill de fase de SDD con tests de contrato. Los dos van por delante de E1.79.
+
+E1.102 `sink-catalog-xss-crypto` y E1.103 `product-ext-mts-cts` entraron el 2026-11-18 al abrir E1.100. El usuario eligió ampliar el catálogo solo dentro de sus debilidades y dejar CWE-79 y el cifrado débil para una fila propia, justo detrás. E1.103 es un defecto que salió al revisar las extensiones del catálogo y queda fuera del orden ▶ hasta que el usuario lo coloque.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -436,7 +440,7 @@ A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.56 �
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
 C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ E1.63 ─ E1.64 ─ E1.65 ─ E1.66 ─ E1.67 ─ E1.68 ─ E1.69 ─ E1.57
-   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.100 ─ E1.101 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
+   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.100 ─ E1.102 ─ E1.101 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
    ─ 4c2 ─ E1.70 ─ 4d ─ (avisos del guard) ─ PR5…PR8 ─ E1.52 ─ E1.59 ─ E1.60 ─ E1.82 ─ E1.83 ─ E1.84 ─ E3.7
 D: E4.14 ─ E4.6 (corrida de validación) ─ E4.18 ─ E4.4 ─ E4.13 ─ E1.85 ─ E1.86 ─ E1.87 ─ E4.11
 E1.28 espera a que E1.30 cumpla su criterio de hecho: su plazo del 2026-10-29 quedó fallido el 2026-10-26.
@@ -1636,6 +1640,16 @@ Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparat
 - **Garantía que protege:** la señal de seguridad por contenido (E1.50) no pierde ningún sink que hoy detecta.
 - **Hechos abiertos:** qué debilidades cubre y en qué lenguajes; si algún sink actual se retira.
 - **Hecho cuando:** el fichero no conserva el aviso de gentle-ai porque ya no adapta su catálogo, y los tests de `idd-sinks` y de `idd-signals` siguen detectando lo que detectaban.
+- **Respuestas del usuario (2026-11-18, gate `open-facts`, las recomendadas):**
+  - El catálogo cubre lo que detectaba y las formas que se escapaban dentro de las mismas debilidades. CWE-79 y el cifrado débil van a E1.102.
+  - Los mismos nueve lenguajes: Go, JS/TS, Python, Java/Kotlin, C#, Ruby, PHP, Rust y shell.
+  - No se retira ningún sink, y las etiquetas se conservan: forman parte de la clave con la que se guardan las respuestas que retiran la señal.
+- **Lo que salió en el cambio:**
+  - **Estructura.** Cada debilidad declara su etiqueta y sus reglas por lenguaje, y `sinkOf` recorre las reglas de la extensión en el orden de las debilidades. La debilidad nueva, la comprobación de host SSH desactivada (CWE-322), va la última para no quitarle la etiqueta a una línea que otra ya nombraba.
+  - **Formas nuevas.** Entre otras: `InsecureSkipVerify` asignado, `curl -sSk`, `wget --no-check-certificate`, `CURLOPT_SSL_VERIFYHOST`, `checkServerTrusted` con `throws`, `ssh.InsecureIgnoreHostKey()` y `AutoAddPolicy`, `dill` y `jsonpickle`, `exec()` de Python, `os.popen` y `os.system` con variable, `spawn` con `shell: true`, `Runtime.exec` compuesto, `md5.Sum([]byte(password))`, `cors({ origin: '*', credentials: true })`, `csrf(c -> c.disable())` y `DisableAntiforgery()`.
+  - **Modos de fichero.** `chmod` cuenta con cualquier modo que deje escribir a otros, porque la umask no lo filtra. Un fichero que se crea con `mkdir`, `open` o `WriteFile` sí pasa por la umask: ahí solo cuentan 0777, y 0666 en las llamadas que ya se detectaban. Un número dentro de una ruta o la máscara de `mode & 0o777` no son modos.
+  - **Sin pérdidas.** El corpus anterior pasa sin cambios, y cada forma que ya se detectaba tiene su caso. Contra el catálogo de `main`, 289 líneas y 2023 variantes de espaciado no pierden ni cambian ninguna etiqueta. Un método `exec` de base de datos (PDO, SQLite3, pg) conserva la de SQL compuesto. La etiqueta solo cambia cuando el SQL compuesto llega a algo que lo ejecuta como comando de shell o como código (`exec` o `system` de PHP y Ruby, `%x[...]` de Ruby, `exec` de Python, `Runtime.exec`): ahora nombra ese comando o ese código. En el código de producto de 16 repositorios locales (unas 700 000 líneas), los únicos hits nuevos son cinco `exec(compile(...))` de Python, que sí evalúan código.
+  - **Texto propio.** Quedan 6 de las 53 expresiones del original y las seis son el nombre de una API escrito de la única forma natural (`\bObjectInputStream\s*\(`, `\bDtdProcessing\.Parse\b`…); ninguna línea de 30 caracteres o más coincide.
 
 ### E1.101 — `own-sdd-apply`
 
@@ -1644,6 +1658,22 @@ Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparat
 - **Alcance:** una versión propia que conserve el contrato de la fase: los tests de `scripts/recommendation-ambiguity-contract.test.js`, `scripts/compact-lite-contract.test.js` y `scripts/eje-b-contract.test.js` siguen pasando. SDD sigue siendo compatible; la dirección es foundation e IDD.
 - **Garantía que protege:** que SDD aplique las tareas igual que hoy.
 - **Hecho cuando:** `sdd-apply` no conserva partes sustanciales de gentle-ai, `NOTICE` pierde la sección de gentle-ai y `metadata.author` de la skill nombra solo al autor del repositorio. Entonces el usuario decide si el README sigue diciendo que ospec se basa en gentle-ai.
+
+### E1.102 — `sink-catalog-xss-crypto`
+
+- **Origen:** E1.100. El usuario eligió dejar estas dos debilidades para una fila propia, justo detrás.
+- **Problema:** el catálogo de sinks no ve la salida HTML sin escapar (`dangerouslySetInnerHTML`, `innerHTML` compuesto, `bypassSecurityTrustHtml`, `v-html`, `mark_safe`, `template.HTML`, `Html.Raw`) ni el cifrado débil (DES, RC4, modo ECB).
+- **Alcance:** las dos debilidades en los lenguajes del catálogo, más las plantillas `.vue`, `.svelte` y `.astro` para CWE-79, con un corpus de falsos positivos: insertar HTML ya saneado es un uso legítimo frecuente.
+- **Garantía que protege:** la señal de seguridad por contenido (E1.50) sin una revisión de confianza por cada componente que pinta HTML de confianza.
+- **Hechos abiertos:** qué formas de CWE-79 cuentan solo con un valor compuesto o variable; si el cifrado débil cuenta siempre o solo con datos que no sean de prueba.
+- **Hecho cuando:** el corpus encuentra las dos debilidades, sus formas seguras no derivan la señal y el barrido de repositorios de E1.100 no da falsos positivos nuevos.
+
+### E1.103 — `product-ext-mts-cts`
+
+- **Origen:** E1.100, al revisar las extensiones del catálogo de sinks.
+- **Problema:** `PRODUCT_EXT` (`scripts/lib/idd-signals.js`) no reconoce `.mts` ni `.cts`. Un módulo TypeScript con esas extensiones no cuenta como código de producto: no deriva `untested-product`, `persistent-data` ni `security-boundary` por contenido.
+- **Alcance:** las dos extensiones en `PRODUCT_EXT`, en los nombres de test de JS/TS y en las reglas de JS del catálogo de sinks.
+- **Hecho cuando:** un `.mts` o un `.cts` cambiado cuenta como código de producto, y un `*.test.mts` como test.
 
 ### E1.99 — `own-stack-skills`
 
@@ -2304,6 +2334,12 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-18: `own-sink-catalog` (IDD), publicado en v2.184.0. E1.100 hecho: catálogo propio de sinks de seguridad.
+  - `scripts/lib/idd-sinks.js` ordena sus reglas por debilidad y por lenguaje y ya no adapta el catálogo de gentle-ai ni lleva su aviso.
+  - Conserva cada sink que se detectaba, con su etiqueta, y detecta las formas que se escapaban de las mismas debilidades y la comprobación de host SSH desactivada (CWE-322).
+  - `chmod` cuenta con cualquier modo que deje escribir a otros; un fichero que se crea pasa por la umask y solo cuenta con 0777.
+  - En unas 700 000 líneas de código de producto de 16 repositorios, los únicos hits nuevos son cinco `exec(compile(...))` de Python.
+  - Entran E1.102 `sink-catalog-xss-crypto`, justo detrás, y E1.103 `product-ext-mts-cts`, fuera del orden ▶. El orden ▶ sigue con E1.102.
 - 2026-11-17: `own-skills` (IDD), publicado en v2.183.0. E1.98 hecho: skills propias en lugar de las que conservaban texto de gentle-ai, y el idioma del proyecto declarado.
   - `chained-pr`, `cognitive-doc-design`, `comment-writer`, `judgment-day`, `skill-creator` con su guía de estilo, `work-unit-commits` y las referencias de testing de `stack-go` tienen texto propio: 0 % de líneas de 30 caracteres o más idénticas a las de gentle-ai. Citan `ospec team` en lugar de repetir lo que calcula el CLI.
   - La guía de estilo y la sección 3 de la spec de skills piden lo que el tooling lee: las reglas, bajo un encabezado que acaba en `Rules`. La sección 4.3 describe ahora la extracción que hace el código.

@@ -1,0 +1,889 @@
+{
+  "schema": "idd-state/v1",
+  "change": "own-sink-catalog",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "requested_at": "2026-11-17T22:44:44.410Z",
+    "kind": "feature",
+    "summary": "Catálogo propio de sinks de seguridad en scripts/lib/idd-sinks.js, derivado de las debilidades que security-boundary quiere ver y de las API de cada lenguaje, en lugar de la adaptación del de gentle-ai (E1.100)",
+    "acceptance": "scripts/lib/idd-sinks.js no adapta el catálogo de gentle-ai ni lleva su aviso MIT; cada línea que el catálogo anterior detectaba sigue derivando security-boundary con la misma etiqueta (el corpus actual de idd-sinks.test.js pasa sin cambios y una comparación contra el catálogo anterior no encuentra pérdidas); la spec de IDD y el handbook dejan de decir que está adaptado; node scripts/check.js pasa"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Qué cubre el catálogo propio? (a) solo lo que detecta hoy, reescrito; (b) además las formas que hoy se escapan dentro de las mismas once debilidades (por ejemplo cfg.InsecureSkipVerify = true, ssh.InsecureIgnoreHostKey(), os.MkdirAll(dir, 0777), fs.chmodSync(f, 0o777), spawn(cmd, { shell: true }), Runtime.getRuntime().exec compuesto, wget --no-check-certificate); (c) además dos debilidades nuevas: salida HTML sin escapar (CWE-79: dangerouslySetInnerHTML, innerHTML compuesto, bypassSecurityTrustHtml, v-html, mark_safe, template.HTML, Html.Raw) y cifrado débil (CWE-327: DES, RC4 y modo ECB)"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿En qué lenguajes aplica? Hoy: Go, JS/TS (.js .jsx .ts .tsx .mjs .cjs), Python, Java/Kotlin, C#, Ruby, PHP, Rust y shell (.sh .bash .zsh). ¿Se mantienen esos nueve y se añaden solo .mts/.cts y, si entra CWE-79, las plantillas .vue, .svelte y .astro; o entran también C/C++, Swift, Dart o PowerShell?"
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1636
+        }
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 1124
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/idd-sinks.js",
+          "line": 7
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1635
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿Se retira algún sink de los que hoy detecta, o se conservan todos con su etiqueta actual (las etiquetas forman parte de la clave de las respuestas ya dadas en cambios abiertos)?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-sinks.js",
+      "scripts/lib/idd-sinks.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El catálogo se ordena por debilidad: cada una declara su etiqueta y sus reglas por lenguaje (tabla LANGUAGES), y sinkOf recorre las reglas de la extensión en el orden de las debilidades; las etiquetas y el orden de las once debilidades de E1.50 se conservan porque forman parte de la clave de las retiradas respondidas",
+      "La comprobación de host SSH desactivada (ssh.InsecureIgnoreHostKey, AutoAddPolicy, StrictHostKeyChecking=no) lleva su propia etiqueta con CWE-322, porque una clave de host no es un certificado TLS, y va la última para no quitarle la etiqueta a una línea que otra debilidad ya nombraba",
+      "chmod cuenta con cualquier modo octal que deje escribir a otros (último dígito 2, 3, 6 o 7) porque la umask no lo filtra; mkdir, open y WriteFile pasan por la umask, así que las llamadas nuevas de creación solo cuentan con 777 y las ya detectadas conservan 0777, 0o777 y 0666; el modo tiene que ser un argumento propio, no un número dentro de una ruta ni la máscara de mode & 0o777",
+      "createHash solo cuenta en JS y MessageDigest solo en JVM: son API de esos lenguajes; la regla genérica de md5 o sha1 sobre una credencial sigue en los ocho lenguajes de backend",
+      "vm cuenta en sus llamadas runIn*Context, que ejecutan código; new vm.Script y compileFunction solo compilan y no cuentan (el validador del pre-commit compila para comprobar la sintaxis); spawn y execFile cuentan con shell: true solo cuando el comando no es una constante, porque spawn('npm', [...], { shell: true }) es la forma habitual en Windows",
+      "Las expresiones que tenían forma propia en el catálogo de gentle-ai se reescriben, casi siempre ampliándolas (curl -sSk, checkServerTrusted con throws, el verify de un HostnameVerifier anónimo, subprocess con shell=True y cualquier comando que no sea una lista ni una constante, CORS sin exigir punto y coma); quedan seis que solo nombran una API de la única forma natural",
+      "La prueba de que no se pierde nada es el corpus: el anterior sigue sin cambios y KNOWN añade un caso por cada alternativa que ya se detectaba y no tenía uno; la comparación contra el catálogo de main y el barrido de repositorios se hicieron fuera del repositorio",
+      "Las formas nuevas de comando compuesto de PHP y Ruby solo cuentan en una llamada a función, no en un método: el exec de PDO, SQLite3 o pg ejecuta SQL y conserva la etiqueta de SQL compuesto; una línea que pasa un literal SQL directamente a exec o system de PHP y Ruby, a exec de Python o a Runtime.exec informa del comando o del código que esa función ejecuta"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "declared a security boundary",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "el catálogo sigue siendo código del CLI (idd-sinks.js) con su corpus en idd-sinks.test.js; ninguna skill describe los sinks en prosa"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "security-boundary por contenido sigue derivando trust-review solo cuando el diff añade un sink a código de producto; el catálogo propio conserva cada sink de hoy y añade formas de las mismas debilidades, así la ceremonia sube solo con evidencia del diff"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "no cambia cómo sale de pending trust-review: revisión aprobada o retirada con la respuesta del usuario atada a los hits; las etiquetas de los sinks de hoy se conservan, así las respuestas ya dadas siguen casando"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "no toca dónde viven en disco SDD e IDD; solo cambia el catálogo que lee la derivación de señales de IDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "el catálogo es puro y determinista: el mismo diff da los mismos hits y etiquetas al reanudar, y las claves de las retiradas guardadas en el estado no cambian para los sinks de hoy"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "el catálogo usa solo RegExp de la biblioteca estándar y no añade dependencias a package.json"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "El catálogo sigue en scripts/lib/idd-sinks.js, código del CLI, con su corpus en scripts/lib/idd-sinks.test.js (SINKS, KNOWN, ADDED y ADDED_SAFE); el cambio no toca ninguna skill y ni la spec ni el handbook describen las reglas más allá de nombrar las debilidades y el fichero que las decide",
+      "recorded_at": "2026-11-17T23:06:32.935Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 526,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_at": "2026-11-17T22:50:12.509Z",
+      "resolved_turn": 527
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T23:06:23.665Z",
+      "detail": {
+        "tree": "sha256:1f35bf356633d534636392b53c1485948bb173683d1a57164bc2343cdcef92db",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T23:06:23.665Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "adr:0010 conforms"
+        ],
+        "records": [],
+        "tree": "sha256:1f35bf356633d534636392b53c1485948bb173683d1a57164bc2343cdcef92db",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-17T23:18:23.940Z",
+      "detail": {
+        "lineage_id": "sha256:cfd4a60bbbe3f6f8cc4c2c9530aa3e5f098e8e5154402f5e7f3feeed339d12f4",
+        "candidate_id": "sha256:e2db29c857b0f439a73ac8132ce03ce13b9833d3d2e6306cc886d7efd74479e0",
+        "candidate_tree": "4210f3267f84d451e3255c67e0f5717ce6c6ada2",
+        "findings_digest": "sha256:f6ee45a1ceadbf6295901303d474b7416cec9a354c37fd4bff6916eb31cd697a",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-correction",
+          "recorded_at": "2026-11-17T23:18:00.656Z",
+          "result_digest": "sha256:1b516836600b72cb28aad45ec592a6fff77c29bfbea27c8da85f9b3d3793720f"
+        }
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T23:20:32.626Z",
+      "detail": {
+        "tree": "sha256:38a6c599ed3a2a2c9c01ce297550fe457de0d4561d983fdedf39a411f1c7e8d8",
+        "runs": [
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T23:20:32.626Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "adr:0010 conforms"
+        ],
+        "records": [],
+        "tree": "sha256:38a6c599ed3a2a2c9c01ce297550fe457de0d4561d983fdedf39a411f1c7e8d8",
+        "fitness": [
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T23:22:30.720Z",
+      "detail": {
+        "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+        "runs": [
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T23:22:30.720Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "adr:0010 conforms"
+        ],
+        "records": [],
+        "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+        "fitness": [
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T23:24:37.535Z",
+      "detail": {
+        "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+        "runs": [
+          "run-22"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T23:24:37.535Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "adr:0010 conforms"
+        ],
+        "records": [],
+        "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+        "fitness": [
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26",
+          "run-27",
+          "run-28"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-17T23:24:37.944Z"
+    }
+  ],
+  "base": "12b68ab7caf1a09f3097a9a200ffeac565fac32f",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f9752902653d055d194243484080d5f5c059cd506949a74d3af165a1020c81fb",
+      "tree": "sha256:1f35bf356633d534636392b53c1485948bb173683d1a57164bc2343cdcef92db",
+      "recorded_at": "2026-11-17T23:06:23.665Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4a900a05bce1408653c363185674962affe60ee74e9fad666bddbfd18b177a34",
+      "tree": "sha256:1f35bf356633d534636392b53c1485948bb173683d1a57164bc2343cdcef92db",
+      "recorded_at": "2026-11-17T23:06:23.665Z",
+      "tests": 61
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d426c238dad97a296e71abdf0b4dfcf77714b3342ac54cd1b850bdddf40db919",
+      "tree": "sha256:1f35bf356633d534636392b53c1485948bb173683d1a57164bc2343cdcef92db",
+      "recorded_at": "2026-11-17T23:06:23.665Z",
+      "tests": 20
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ead69c9039354c8ef7356747db9f8f65f9cd731347ea04b8cf45fa06a6f3eeef",
+      "tree": "sha256:1f35bf356633d534636392b53c1485948bb173683d1a57164bc2343cdcef92db",
+      "recorded_at": "2026-11-17T23:06:23.665Z",
+      "tests": 100
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:35f27b19cdc68f749a4e9e6c4ff380531fcc9d6b742e3e6dccc4a102993b4af4",
+      "tree": "sha256:1f35bf356633d534636392b53c1485948bb173683d1a57164bc2343cdcef92db",
+      "recorded_at": "2026-11-17T23:06:23.665Z",
+      "tests": 58
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:1f35bf356633d534636392b53c1485948bb173683d1a57164bc2343cdcef92db",
+      "recorded_at": "2026-11-17T23:06:23.665Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e0413d708183c86770d1488f2b1c56e25d2c616d12e7f357463d59da4c5a4401",
+      "tree": "sha256:1f35bf356633d534636392b53c1485948bb173683d1a57164bc2343cdcef92db",
+      "recorded_at": "2026-11-17T23:06:23.665Z",
+      "tests": 26
+    },
+    {
+      "id": "run-8",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:364969a368876e5ace82eb8967ed2b332882a956ec3364286522b5039a29662f",
+      "tree": "sha256:38a6c599ed3a2a2c9c01ce297550fe457de0d4561d983fdedf39a411f1c7e8d8",
+      "recorded_at": "2026-11-17T23:20:32.626Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:92318849dc6b9e1db1c9f0b246544124ca5a1329492726b97159b33b8da7d3ec",
+      "tree": "sha256:38a6c599ed3a2a2c9c01ce297550fe457de0d4561d983fdedf39a411f1c7e8d8",
+      "recorded_at": "2026-11-17T23:20:32.626Z",
+      "tests": 61
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:079c21775501f73ced8eee8bc3d5cc68e45006ffc98acfd27de6f1fd2d3d5f97",
+      "tree": "sha256:38a6c599ed3a2a2c9c01ce297550fe457de0d4561d983fdedf39a411f1c7e8d8",
+      "recorded_at": "2026-11-17T23:20:32.626Z",
+      "tests": 20
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0e13a6a643340e80b49bec375804d8365044a222496a5a49457e33403aea789b",
+      "tree": "sha256:38a6c599ed3a2a2c9c01ce297550fe457de0d4561d983fdedf39a411f1c7e8d8",
+      "recorded_at": "2026-11-17T23:20:32.626Z",
+      "tests": 100
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3d7fd3ed8fae3139ede710f385996b7f6453482659609c32eb63183d3986a4c",
+      "tree": "sha256:38a6c599ed3a2a2c9c01ce297550fe457de0d4561d983fdedf39a411f1c7e8d8",
+      "recorded_at": "2026-11-17T23:20:32.626Z",
+      "tests": 58
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:38a6c599ed3a2a2c9c01ce297550fe457de0d4561d983fdedf39a411f1c7e8d8",
+      "recorded_at": "2026-11-17T23:20:32.626Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1e2d8d437d6b1dce20949fa084ae737debaf8ade3ea85d22a80749679ea95c7f",
+      "tree": "sha256:38a6c599ed3a2a2c9c01ce297550fe457de0d4561d983fdedf39a411f1c7e8d8",
+      "recorded_at": "2026-11-17T23:20:32.626Z",
+      "tests": 26
+    },
+    {
+      "id": "run-15",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6d3b534356a4761a721e68bacc48e97332267248469da8af98bb85a623795a43",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:22:30.720Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:84cf6d6e7d54825bc14f788a90c83e7eedcc9f1a0ea12a51fd905646bd4fd7b3",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:22:30.720Z",
+      "tests": 61
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a3500232fb03e67cd688003156bfb78c3e50bff40aee7ceb4088f510518fd616",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:22:30.720Z",
+      "tests": 20
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9185aa3c0e3a0f7b42979b341ddcf6ea8d7f14a4ed5b5d254327b78e02055636",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:22:30.720Z",
+      "tests": 100
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7f1610e80374fe96bed3dfeac1c1c6a8bb44c9eecdee1ae362af57ce40a7d61d",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:22:30.720Z",
+      "tests": 58
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:22:30.720Z"
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:141abd8788fb60468d29cd25dfa9ac148cb47d89b2e52d43d4adb4cce0fbc7ac",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:22:30.720Z",
+      "tests": 26
+    },
+    {
+      "id": "run-22",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d40d3a8086ece27e9905ad71822c0f656f9d510a5a4f5ca499da6d1d55f65203",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:24:37.535Z"
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:99d0053d5c84bba080d2be4cf054eba9b081a91cd940963cc40b6a6ae45ac4ce",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:24:37.535Z",
+      "tests": 61
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:58f99341f6343d1e8ae2c3608d5ded9fca9b24964f62083feb106a6408aa6fc2",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:24:37.535Z",
+      "tests": 20
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d7c99fc60e43dcefafa2cf108226611e9de2c7520a9d1564c25b13a242139b76",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:24:37.535Z",
+      "tests": 100
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:341bd7133d9a5922492dbfdb51abf8df60891933bb6b570b537b7b5414f25122",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:24:37.535Z",
+      "tests": 58
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:24:37.535Z"
+    },
+    {
+      "id": "run-28",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:84dc91a2674db4120928012776047da85bbd79002c494945e388c7a58391023a",
+      "tree": "sha256:dbfd69a3ca9da015554ad6a0712cb6e1775fd59ea60b16c3517c23e3d12f0fba",
+      "recorded_at": "2026-11-17T23:24:37.535Z",
+      "tests": 26
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:cfd4a60bbbe3f6f8cc4c2c9530aa3e5f098e8e5154402f5e7f3feeed339d12f4",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 6,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "793e73a0968fe2e7e0651271f5e0f5fe47ab72d4",
+          "candidate_tree": "8141f13482343f6e6f72ec739fd3225f837116d6",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "handbook/idd/flujo-idd.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/lib/idd-sinks.js",
+            "scripts/lib/idd-sinks.test.js"
+          ],
+          "diff_hash": "sha256:cc8e778bb95b9fb69a7f839678eea2d9c7051ab7cfa6a184f481772fbc03a953",
+          "paths_digest": "sha256:df2bc58a863761fd2c4a9268d0c027ecd3861d7131441fdb48422738d5406a61",
+          "authored_lines": 500,
+          "original_changed_lines": 657
+        },
+        "candidate_id": "sha256:3b0dd17919aee9dc5369a4c35f2b888a3a4c82f823b16dc37577bc4c06c69527",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/idd/flujo-idd.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/lib/idd-sinks.js",
+          "scripts/lib/idd-sinks.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "8141f13482343f6e6f72ec739fd3225f837116d6",
+        "original_changed_lines": 657,
+        "authored_lines": 500
+      },
+      "current_candidate_id": "sha256:e2db29c857b0f439a73ac8132ce03ce13b9833d3d2e6306cc886d7efd74479e0",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "793e73a0968fe2e7e0651271f5e0f5fe47ab72d4",
+        "candidate_tree": "4210f3267f84d451e3255c67e0f5717ce6c6ada2",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/idd/flujo-idd.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/lib/idd-sinks.js",
+          "scripts/lib/idd-sinks.test.js"
+        ],
+        "diff_hash": "sha256:15219b9b90aaafb2b4e0c1e4defd38a320ffc326b09f6722eda51f084cba7939",
+        "paths_digest": "sha256:df2bc58a863761fd2c4a9268d0c027ecd3861d7131441fdb48422738d5406a61",
+        "authored_lines": 500,
+        "original_changed_lines": 657
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "own-sink-catalog:lens-start:1:0",
+          "result_digest": "sha256:9c1ca7d13f4ec86f889e40b1da1d15ada8a749239c0f1a3a391dfc01c1a0673d",
+          "result": {
+            "findings": [
+              {
+                "severity": "CRITICAL",
+                "summary": "Regression against main: the Ruby %x rule at scripts/lib/idd-sinks.js:131 stops matching lines that main matched. After the opening delimiter, its character class now rejects |, ] and ! as well as ) and }. So any pipe, bracket or bang before the first #{ ends the match. On main, the rule at old-sinks.js:87 (%x[({][^)}]*#{...}) labelled `out = %x(ps aux | grep #{name})` and `out = %x{ls | wc -l #{dir}}` as composed shell command (CWE-78). I traced every .rb rule of the new catalog: sinkOf returns null for both lines. A Ruby change that adds such a line outside security paths derives no security-boundary and skips its trust review. This breaks the acceptance in idd/own-sink-catalog/change.md (no losses against the previous catalog) and makes the claim at docs/roadmaps/harness-evolution.md:1651 untrue. KNOWN only has `%x(ls #{dir})` (idd-sinks.test.js:132), so the suite stays green.",
+                "acceptance_criteria": "sinkOf('app/jobs/run.rb', 'out = %x(ps aux | grep #{name})') and sinkOf('app/jobs/run.rb', 'out = %x{ls | wc -l #{dir}}') return 'composed shell command (CWE-78)', and corpus cases cover both. Every line the main %x alternative matched (any characters other than ) or } between the delimiter and #{...}) returns the same label. The ADDED case `out = %x[ls #{dir}]` keeps passing.",
+                "location": "scripts/lib/idd-sinks.js:131"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "Lines main detected now get a different label. The widened PHP shell rule (idd-sinks.js:130 adds the double-quoted-$var and the 'literal' . forms) and the new Ruby call rule (line 131, system|exec|spawn followed by a double-quoted #{) also match the database exec methods. composed shell command comes before composed SQL in WEAKNESSES. So `$pdo->exec('DELETE FROM t WHERE id = ' . $id);`, `$pdo->exec(\"DELETE FROM sessions WHERE token = '$token'\");` (PDO and SQLite3 exec) and `conn.exec(\"SELECT * FROM users WHERE id = #{id}\")` (pg gem) move from 'composed SQL (CWE-89)' on main to 'composed shell command (CWE-78)'. The signal still derives, but the retraction key changes, so an answered retraction stops covering the line and the signal comes back. The reason also sends the trust reviewer to command injection for what is an SQL injection. This contradicts the acceptance (same label) and docs/roadmaps/harness-evolution.md:1651.",
+                "acceptance_criteria": "sinkOf returns 'composed SQL (CWE-89)' for web/repo.php `$pdo->exec('DELETE FROM t WHERE id = ' . $id);`, for web/repo.php `$pdo->exec(\"DELETE FROM sessions WHERE token = '$token'\");` and for app/repo.rb `conn.exec(\"SELECT * FROM users WHERE id = #{id}\")`, and corpus cases cover them. The ADDED lines for PHP exec and popen and for Ruby system keep 'composed shell command (CWE-78)'. `$pdo->exec($sql);` keeps the label it had on main.",
+                "location": "scripts/lib/idd-sinks.js:130"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "Missed sink in a newly widened form. The comment at scripts/lib/idd-sinks.js:89 says curl's -k may come bundled with other short options. But the bundle alternative on line 90 needs at least one letter before k, and the plain alternative needs whitespace right after -k. So `curl -kL https://internal/api`, `curl -ksS https://internal/api` and `curl -kfsSL https://internal/api` (k first in the bundle, a common idiom) derive nothing. A shell script that adds one of them outside security paths skips its trust review. This is not a regression (main missed these too). It is a gap in coverage that this change claims to add, and the corpus only tests `curl -sSk` (idd-sinks.test.js:168).",
+                "acceptance_criteria": "sinkOf('scripts/fetch.sh', 'curl -kL https://internal/api') and sinkOf('scripts/fetch.sh', 'curl -ksS https://internal/api') return 'disabled TLS verification (CWE-295)', and corpus cases cover both. The ADDED_SAFE line 'curl -o out.tar https://example.com/a.tar && tar -xkf out.tar' and the line 'wget -k https://example.com/docs/' still return null.",
+                "location": "scripts/lib/idd-sinks.js:90"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "own-sink-catalog:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-29b9c3c3baf16e81",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "Regression against main: the Ruby %x rule at scripts/lib/idd-sinks.js:131 stops matching lines that main matched. After the opening delimiter, its character class now rejects |, ] and ! as well as ) and }. So any pipe, bracket or bang before the first #{ ends the match. On main, the rule at old-sinks.js:87 (%x[({][^)}]*#{...}) labelled `out = %x(ps aux | grep #{name})` and `out = %x{ls | wc -l #{dir}}` as composed shell command (CWE-78). I traced every .rb rule of the new catalog: sinkOf returns null for both lines. A Ruby change that adds such a line outside security paths derives no security-boundary and skips its trust review. This breaks the acceptance in idd/own-sink-catalog/change.md (no losses against the previous catalog) and makes the claim at docs/roadmaps/harness-evolution.md:1651 untrue. KNOWN only has `%x(ls #{dir})` (idd-sinks.test.js:132), so the suite stays green.",
+          "acceptance_criteria": "sinkOf('app/jobs/run.rb', 'out = %x(ps aux | grep #{name})') and sinkOf('app/jobs/run.rb', 'out = %x{ls | wc -l #{dir}}') return 'composed shell command (CWE-78)', and corpus cases cover both. Every line the main %x alternative matched (any characters other than ) or } between the delimiter and #{...}) returns the same label. The ADDED case `out = %x[ls #{dir}]` keeps passing.",
+          "location": "scripts/lib/idd-sinks.js:131",
+          "blocking": true,
+          "resolution": "resolved"
+        },
+        {
+          "id": "F-d04e6cda1a74011e",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "Lines main detected now get a different label. The widened PHP shell rule (idd-sinks.js:130 adds the double-quoted-$var and the 'literal' . forms) and the new Ruby call rule (line 131, system|exec|spawn followed by a double-quoted #{) also match the database exec methods. composed shell command comes before composed SQL in WEAKNESSES. So `$pdo->exec('DELETE FROM t WHERE id = ' . $id);`, `$pdo->exec(\"DELETE FROM sessions WHERE token = '$token'\");` (PDO and SQLite3 exec) and `conn.exec(\"SELECT * FROM users WHERE id = #{id}\")` (pg gem) move from 'composed SQL (CWE-89)' on main to 'composed shell command (CWE-78)'. The signal still derives, but the retraction key changes, so an answered retraction stops covering the line and the signal comes back. The reason also sends the trust reviewer to command injection for what is an SQL injection. This contradicts the acceptance (same label) and docs/roadmaps/harness-evolution.md:1651.",
+          "acceptance_criteria": "sinkOf returns 'composed SQL (CWE-89)' for web/repo.php `$pdo->exec('DELETE FROM t WHERE id = ' . $id);`, for web/repo.php `$pdo->exec(\"DELETE FROM sessions WHERE token = '$token'\");` and for app/repo.rb `conn.exec(\"SELECT * FROM users WHERE id = #{id}\")`, and corpus cases cover them. The ADDED lines for PHP exec and popen and for Ruby system keep 'composed shell command (CWE-78)'. `$pdo->exec($sql);` keeps the label it had on main.",
+          "location": "scripts/lib/idd-sinks.js:130",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-c5110dbbec2f1338",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "Missed sink in a newly widened form. The comment at scripts/lib/idd-sinks.js:89 says curl's -k may come bundled with other short options. But the bundle alternative on line 90 needs at least one letter before k, and the plain alternative needs whitespace right after -k. So `curl -kL https://internal/api`, `curl -ksS https://internal/api` and `curl -kfsSL https://internal/api` (k first in the bundle, a common idiom) derive nothing. A shell script that adds one of them outside security paths skips its trust review. This is not a regression (main missed these too). It is a gap in coverage that this change claims to add, and the corpus only tests `curl -sSk` (idd-sinks.test.js:168).",
+          "acceptance_criteria": "sinkOf('scripts/fetch.sh', 'curl -kL https://internal/api') and sinkOf('scripts/fetch.sh', 'curl -ksS https://internal/api') return 'disabled TLS verification (CWE-295)', and corpus cases cover both. The ADDED_SAFE line 'curl -o out.tar https://example.com/a.tar && tar -xkf out.tar' and the line 'wget -k https://example.com/docs/' still return null.",
+          "location": "scripts/lib/idd-sinks.js:90",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:f6ee45a1ceadbf6295901303d474b7416cec9a354c37fd4bff6916eb31cd697a",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 26,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [
+        {
+          "attempt": 1,
+          "request_id": "own-sink-catalog:correction-start:1:3",
+          "finding_ids": [
+            "F-29b9c3c3baf16e81"
+          ],
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "scripts/lib/idd-sinks.js",
+            "scripts/lib/idd-sinks.test.js"
+          ],
+          "base_candidate_id": "sha256:3b0dd17919aee9dc5369a4c35f2b888a3a4c82f823b16dc37577bc4c06c69527",
+          "forecast_lines": 26,
+          "record_request_id": "own-sink-catalog:correction-record:1:4",
+          "actual_changed_lines": 26,
+          "corrected_candidate_id": "sha256:e2db29c857b0f439a73ac8132ce03ce13b9833d3d2e6306cc886d7efd74479e0",
+          "status": "passed"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "own-sink-catalog:validation:1:5",
+          "request_digest": "sha256:1b127f177fa7d239b22d51a1d6d5431aa0634136447699a13ead39f9692ca79b",
+          "outcomes": [
+            {
+              "id": "F-29b9c3c3baf16e81",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "Traza estática, sin ejecutar tests. La regla Ruby de idd-sinks.js:133 admite [^)\\n]* tras %x( y [^}\\n]* tras %x{. `out = %x(ps aux | grep #{name})` y `out = %x{ls | wc -l #{dir}}` llegan así a #\\{. Ninguna regla Ruby anterior coincide (TLS, deserialización, eval), de modo que sinkOf devuelve 'composed shell command (CWE-78)', la misma etiqueta que en main.",
+              "No hay pérdidas frente a old-sinks.js:87. Una línea sin salto de línea que cabe en [^)}] cabe también en [^)\\n] y en [^}\\n]. La alternativa de backtick `[^`\\n]*#\\{ pide menos que la de main, que exigía cerrar } y el backtick. Por eso cada línea que main etiquetaba por %x(, %x{ o backtick sigue dando la misma etiqueta.",
+              "En el corpus, idd-sinks.test.js:194-195 añaden las dos líneas del hallazgo con strictEqual a 'composed shell command (CWE-78)', dentro del test de ADDED (líneas 292-295). Las líneas 132, 193 y 196 cubren %x(, %x[ y %x|. No se me pasó el resultado de la suite, así que no afirmo que pase.",
+              "La corrección no causa ninguna regresión. securityHits (idd-signals.js:255-268) llama a sinkOf igual que antes, y la corrección solo amplía las clases que siguen al delimitador. Con ello la afirmación de docs/roadmaps/harness-evolution.md:1651 vuelve a ser cierta para estas líneas."
+            ]
+          },
+          "follow_up_count": 1,
+          "result": "passed"
+        }
+      ],
+      "follow_ups": [
+        {
+          "owner": "trust",
+          "summary": "`%x[psql -c \"SELECT * FROM t WHERE id = #{id}\"]` (o con %x|…| y %x!…!) pasa de 'composed SQL (CWE-89)' en main (old-sinks.js:100, porque old-sinks.js:87 solo abría con ( o {) a 'composed shell command (CWE-78)' (idd-sinks.js:133). Ya pasaba antes de la corrección. Ni harness-evolution.md:1651 ni change.md:37 incluyen %x entre los cambios de etiqueta aceptados, y el corpus no lo cubre. Está ligado a F-d04e6cda1a74011e, que queda fuera de este slice.",
+          "blocking": false
+        }
+      ],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "all-frozen-findings-resolved"
+    }
+  ],
+  "changelog_line": "**Catálogo propio de sinks de seguridad** (own-sink-catalog, E1.100): `scripts/lib/idd-sinks.js` ordena sus reglas por debilidad y por lenguaje y deja de adaptar el catálogo de gentle-ai. Conserva cada sink que se detectaba, con su etiqueta, y detecta las formas que se escapaban de las mismas debilidades (`curl -kL`, `InsecureSkipVerify` asignado, `spawn` con `shell: true`, `exec()` de Python, `chmod` con cualquier modo que deje escribir a otros…) y la comprobación de host SSH desactivada (CWE-322).",
+  "closed_at": "2026-11-17T23:24:37.944Z"
+}

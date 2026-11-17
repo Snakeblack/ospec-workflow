@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Catálogo propio de sinks de seguridad** (own-sink-catalog, E1.100): `scripts/lib/idd-sinks.js` ordena sus reglas por debilidad y por lenguaje y deja de adaptar el catálogo de gentle-ai. Conserva cada sink que se detectaba, con su etiqueta, y detecta las formas que se escapaban de las mismas debilidades (`curl -kL`, `InsecureSkipVerify` asignado, `spawn` con `shell: true`, `exec()` de Python, `chmod` con cualquier modo que deje escribir a otros…) y la comprobación de host SSH desactivada (CWE-322). (own-sink-catalog)
+
 ## [2.183.0] - 2026-11-17
 
 ### Added
