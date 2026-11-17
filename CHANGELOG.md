@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.180.1] - 2026-11-17
+
 ### Fixed
-- El escáner de secretos del commit y la censura de salida no ven lo mismo: el pre-commit deja pasar secretos que la censura reconoce (camelCase, asignaciones sin comillas, URL, Bearer) y bloquea código corriente con un campo key; una clave privada se lee con un comando de shell fuera de la lista de lectores (secret-guard-alignment)
+- **El escáner de secretos del commit y la censura de salida ven lo mismo, y un fichero sensible ya no se lee con un comando de shell fuera de la lista de lectores** (secret-guard-alignment, E1.92).
+  - **El problema**: el pre-commit dejaba pasar secretos que la censura reconoce (nombres en camelCase, asignaciones sin comillas, la contraseña de una URL, una cabecera `Bearer`) y bloqueaba código corriente con un campo `key`. Una clave privada se leía con `tac`, `sort` o `python3 -c`, y `.env` sin confirmación.
+  - **Nombres y forma de secreto**: los dos guards clasifican un nombre por su última palabra y comparten la forma de secreto. Una contraseña cuenta con cualquier valor de 6 caracteres o más; un token o un `key` con calificador (`api_key`, `jwtKey`), solo con forma de secreto; un `key` a secas o con otro prefijo, solo con un token opaco de 16 caracteres o más. El `key` de un elemento, de una traducción, de un almacenamiento o de una caché pasa. Sobre los ficheros versionados de nueve repositorios, las líneas que bloquearían un commit bajan de 209 a 62.
+  - **Pre-commit**: decide línea a línea sobre lo que el commit añade. Bloquea lo que marca el escáner o censuraría la censura, y da el fichero, la línea y el tipo, nunca el valor. Una línea con `ospec:allow-secret` no se escanea, y el hook dice cuántas saltó.
+  - **Censura de salida**: gana las cadenas de conexión (`Password=…`, `AccountKey=…`), el `Key` opaco de un `appsettings.json`, `contraseña` y `env(NOMBRE)` como referencia. Usa el modo de fichero sensible también cuando un comando de shell lee un `.env`.
+  - **Lecturas por shell**: cuentan más lectores (`sort`, `nl`, `tac`, `rev`, `cut`, `rg`, `uniq`, `strings`, `hexdump`, `diff`, `jq`, `yq`, `bat`). El lector se reconoce detrás de un envoltorio y sus opciones (`sudo -u root`, `timeout 30`, `env -S`), en un shell anidado, en un subshell o un grupo entre llaves, en una sustitución de comando o de proceso y en las cadenas del código de `python -c` o `node -e`. El patrón de `grep`, `sed` o `jq` no es un fichero, salvo que una opción ya lo haya dado.
+  - **Claves SSH**: una clave bajo `.ssh/` o con un nombre de OpenSSH se deniega además como argumento de cualquier comando y con un comodín (`~/.ssh/*`). Pasan los comandos que la usan sin imprimirla (`ssh -i`, `ssh-copy-id`, `ansible-playbook`, `chmod`, `ls`), una clave TLS que usa `curl` u `openssl`, un `.npmrc` que usa `npm` y una palabra que solo parece una clave (`rg id_token src/`, `jq .data.key`).
+  - **Node y Go**: `internal/testdata/secret-guards/cases.json` fija para los dos qué marca el escáner, qué censura la censura y qué decide el reconocedor de shell. El corpus destapó dos diferencias anteriores, ya corregidas: `.git/config` en una ruta relativa y un fichero llamado `.key`.
+  - **Límites**: los guards frenan la fuga accidental, no a un proceso que quiera leer. Quedan documentados en el handbook y en E1.95 `secret-guard-file-kinds`: `password: valor` sin comillas en un YAML o un INI, una clave bajo `.ssh/` con otro nombre y un directorio `id_*` que se deniega como operando de un lector. Buscar la ruta de una clave (`rg '.ssh/id_rsa' docs/`) se deniega; buscar su nombre a secas, no.
+  - **Compatibilidad**: no cambia ningún formato. El pre-commit bloquea líneas que antes pasaban y deja pasar otras que bloqueaba; un ejemplo legítimo se marca con `ospec:allow-secret`. Algunos comandos de shell que antes se ejecutaban ahora dan `deny` o piden confirmación.
+
+**Verificación directa**: `node scripts/check.js` (4915 tests pasando, 0 fallos y 5 omitidos), 452 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados; `gofmt`, `go vet` y `go test ./...` en verde. El cambio pasó cinco revisiones de confianza.
 
 ## [2.180.0] - 2026-11-17
 
