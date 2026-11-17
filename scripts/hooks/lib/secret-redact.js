@@ -23,7 +23,11 @@
  *   un prefijo que no califica (`cache_key`, `root_cause_key`) no se censura;
  * - los pares `nombre=valor` de una cadena de conexión (`Password=…`,
  *   `AccountKey=…`), también con una contraseña solo de letras cuando el par
- *   va entre `;` y la línea tiene otra clave de conexión (`Server=`, `Host=`).
+ *   va entre `;` y la línea tiene otra clave de conexión (`Server=`, `Host=`);
+ * - en un fichero de configuración (isConfigFile), además, las asignaciones
+ *   sin comillas en minúsculas con la misma forma (`api_key: …`) y una
+ *   contraseña de 4 caracteres o más aunque sea solo de letras
+ *   (`password: …`, `"Password": "…"`).
  *
  * PARIDAD: internal/hooks/secretredact.go es el espejo Go; ambos pasan el
  * corpus internal/testdata/secret-redaction/cases.json. Las expresiones evitan
@@ -33,7 +37,9 @@
 const {
   KNOWN_TOKEN_PATTERNS,
   MARKER_PREFIX,
+  classifySensitiveFile,
   findGenericCredentials,
+  isConfigFile,
   isOpaqueToken,
   isPlaceholder,
   isStrictSecret,
@@ -70,6 +76,10 @@ const UPPER_COLON_ASSIGN = /(^|[\t :|→])([A-Z][A-Z0-9_]*):[ \t]+([^ \t\f"'#;,(
 // `secrets.json`): cualquier `clave = valor` o `clave: valor` sin comillas,
 // también en minúsculas (INI de AWS, YAML).
 const SENSITIVE_FILE_ASSIGN = /(^|[\t :|→])((?:export[ \t]+)?)([A-Za-z_][A-Za-z0-9_.-]*)([ \t]*[:=][ \t]*)("[^"]*"|'[^']*'|[^ \t\f"'#;,]+)([ \t]*(?:#.*)?)$/g;
+// En un fichero de configuración el valor sin comillas llega hasta el blanco:
+// `#`, `;` y `,` son parte de él, y solo tras un blanco abren un comentario.
+// Una comilla lo descarta: es el texto de una cadena, no un valor.
+const CONFIG_FILE_ASSIGN = /(^|[\t :|→])([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*)([ \t]*[:=][ \t]*)([^ \t\f"'#][^ \t\f"']*)([ \t]+[#;].*|[ \t]*)$/g;
 const QUOTED_ASSIGN = /(^|[^A-Za-z0-9ñÑ_.$-])(?:"([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*)"|'([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*)'|([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*))[ \t]*(?::=|=>|:|=)[ \t]*(?:"([^"]*)"|'([^']*)')/g;
 // Un par `nombre=valor` sin espacios ni comillas: los de una cadena de
 // conexión (`Server=db;Password=…`), las opciones separadas por comas de Redis
@@ -105,6 +115,31 @@ function isAssignedSecret(key, value, unqualified = false) {
   return (isSensitiveKey(key) && isStrictSecret(value)) || (isGenericKey(key, unqualified) && isOpaqueToken(value));
 }
 
+/**
+ * Un nombre de contraseña: lo que elige una persona. `secret` queda fuera,
+ * porque también nombra un objeto (el `existingSecret` de un chart), y sigue
+ * pidiendo forma de secreto.
+ */
+function isPasswordKey(key) {
+  const words = keyWords(key);
+  const last = words.length - 1;
+  return last >= 0 && keyWordClass(words, last) === "human" && !words[last].endsWith("secret");
+}
+
+/**
+ * Contraseña de un fichero de configuración: 4 caracteres o más, sin blancos
+ * (una frase es una etiqueta) y que no sea referencia ni placeholder. Como en
+ * un `.env`, un valor que contiene `password` o `secret` sí cuenta.
+ */
+function isConfigPassword(value) {
+  return [...value].length >= 4 && !/[ \t]/.test(value) && !isPlaceholder(value, false);
+}
+
+/** Asignación de un fichero de configuración: la de código, o una contraseña. */
+function isConfigSecret(key, value, unqualified = false) {
+  return isAssignedSecret(key, value, unqualified) || (isPasswordKey(key) && isConfigPassword(value));
+}
+
 /** Valor de un `.env`: cualquier valor que no sea placeholder, de 4 caracteres o más. */
 function isEnvSecret(value) {
   return [...value].length >= 4 && !isPlaceholder(value, false);
@@ -129,8 +164,16 @@ function unquote(value) {
     : { quote: "", inner: value };
 }
 
-function redactLine(line, note, sensitiveFile, unqualified) {
-  let out = line.replace(DOTENV_ASSIGN, (match, prefix, _export, key, value) => {
+function redactLine(line, note, { sensitiveFile, unqualified, configFile }) {
+  let out = line;
+  if (configFile || sensitiveFile) {
+    out = out.replace(CONFIG_FILE_ASSIGN, (match, _prefix, key, _separator, value, trailing) => {
+      if (!isConfigSecret(key, value, unqualified)) return match;
+      note("assigned-secret");
+      return `${match.slice(0, match.length - value.length - trailing.length)}${marker("assigned-secret")}${trailing}`;
+    });
+  }
+  out = out.replace(DOTENV_ASSIGN, (match, prefix, _export, key, value) => {
     const { quote, inner } = unquote(value);
     // Dentro de una cadena o una lista ("API_KEY=x" en un test, el Env de
     // docker inspect) no es un .env: el valor debe parecer un secreto.
@@ -167,7 +210,8 @@ function redactLine(line, note, sensitiveFile, unqualified) {
     const key = dq ?? sq ?? bare;
     const value = dv ?? sv;
     const secret = isAssignedSecret(key, value, unqualified)
-      || (sensitiveFile && ((isSensitiveKey(key, true) && isEnvSecret(value)) || isOpaqueValue(value)));
+      || (sensitiveFile && ((isSensitiveKey(key, true) && isEnvSecret(value)) || isOpaqueValue(value)))
+      || (configFile && isPasswordKey(key) && isConfigPassword(value));
     if (!secret) return match;
     note("assigned-secret");
     return `${match.slice(0, match.length - value.length - 1)}${marker("assigned-secret")}${match[match.length - 1]}`;
@@ -178,13 +222,16 @@ function redactLine(line, note, sensitiveFile, unqualified) {
  * Censura los secretos de un texto. `sensitiveFile` (el texto viene de un
  * fichero que classifySensitiveFile marca por nombre) añade las asignaciones
  * sin comillas en minúsculas y los valores aleatorios de cualquier clave.
+ * `configFile` (el texto viene de un fichero de configuración, isConfigFile)
+ * añade solo las asignaciones sin comillas a un nombre sensible y las
+ * contraseñas solo de letras: el resto del fichero se lee entero.
  * `unqualifiedKeys` es del pre-commit, no de la censura de salida: trata el
  * `key` con un prefijo desconocido como el `key` a secas.
  *
  * @returns {{text: *, kinds: string[]}} `kinds` lista cada tipo censurado una
  *   vez, en el orden en que se censuró. Un no-string vuelve tal cual.
  */
-function redactSecrets(text, { sensitiveFile = false, unqualifiedKeys = false } = {}) {
+function redactSecrets(text, { sensitiveFile = false, configFile = false, unqualifiedKeys = false } = {}) {
   const kinds = [];
   if (typeof text !== "string" || text === "") return { text, kinds };
   const note = (kind) => {
@@ -217,7 +264,7 @@ function redactSecrets(text, { sensitiveFile = false, unqualifiedKeys = false } 
     .split("\n")
     .map((line) => {
       const cr = line.endsWith("\r") ? "\r" : "";
-      return redactLine(cr ? line.slice(0, -1) : line, note, sensitiveFile, unqualifiedKeys) + cr;
+      return redactLine(cr ? line.slice(0, -1) : line, note, { sensitiveFile, configFile, unqualified: unqualifiedKeys }) + cr;
     })
     .join("\n");
   return { text: out, kinds };
@@ -279,19 +326,38 @@ function isCoveredByRedaction(content, options = {}) {
  * censura la censura en modo normal. Para el commit, la censura cuenta además
  * el `key` con un prefijo desconocido y un token opaco en todas sus formas
  * (clave entre comillas, `NOMBRE=valor`, `NOMBRE: valor`), que el escáner solo
- * ve con el nombre sin comillas y el valor entre comillas.
+ * ve con el nombre sin comillas y el valor entre comillas. Con `configFile`
+ * (la línea es de un fichero de configuración) cuenta lo que la censura ve
+ * en ese modo.
  *
  * @returns {string|null} el id del patrón o el tipo censurado
  */
-function detectSecret(text) {
-  return scanContentForSecrets(text).patternId || redactSecrets(text, { unqualifiedKeys: true }).kinds[0] || null;
+function detectSecret(text, { configFile = false } = {}) {
+  return scanContentForSecrets(text).patternId || redactSecrets(text, { unqualifiedKeys: true, configFile }).kinds[0] || null;
+}
+
+/**
+ * Las opciones de censura de un texto que viene de estos ficheros, por sus
+ * nombres: modo de fichero sensible si la clasificación marca alguno (un
+ * directorio `id_service/` no es una clave) y modo de fichero de configuración.
+ */
+// The keys of a tool call PostToolUse takes the redaction mode from.
+const REDACTION_PATH_KEYS = ["file_path", "filePath", "path", "notebook_path"];
+
+function redactionOptionsFor(files, isDirectory = () => false) {
+  return {
+    sensitiveFile: files.some((file) => classifySensitiveFile(file, { directory: isDirectory(file) }) !== null),
+    configFile: files.some(isConfigFile),
+  };
 }
 
 module.exports = {
   MARKER_PREFIX,
+  REDACTION_PATH_KEYS,
   containsRedactionMarker,
   detectSecret,
   isCoveredByRedaction,
   redactDeep,
   redactSecrets,
+  redactionOptionsFor,
 };

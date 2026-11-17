@@ -705,7 +705,7 @@ test("blocks commit when git diff fails in Strict TDD verification [REQ-agent-sh
 // Built at runtime: the repository never holds a secret-shaped value.
 const OPAQUE = "aB3xY7kM9pQ2";
 
-function stagedBlob(t, content) {
+function stagedBlob(t, content, file = "deploy/Dockerfile") {
   const calls = { errors: [], logs: [], exitCode: null };
   t.mock.method(process, "exit", (code) => {
     if (calls.exitCode === null) calls.exitCode = code;
@@ -713,8 +713,8 @@ function stagedBlob(t, content) {
   t.mock.method(console, "error", (...args) => calls.errors.push(args.join(" ")));
   t.mock.method(console, "log", (...args) => calls.logs.push(args.join(" ")));
   t.mock.method(child_process, "spawnSync", (cmd, args) => {
-    if (cmd === "git" && args.includes("--cached")) return { status: 0, stdout: "deploy/Dockerfile\n" };
-    if (cmd === "git" && args[0] === "show" && args[1] === ":deploy/Dockerfile") return { status: 0, stdout: content };
+    if (cmd === "git" && args.includes("--cached")) return { status: 0, stdout: `${file}\n` };
+    if (cmd === "git" && args[0] === "show" && args[1] === `:${file}`) return { status: 0, stdout: content };
     if (cmd === "git" && args[0] === "show") return { status: 128, stdout: "", stderr: "fatal: no such path" };
     return { status: 0, stdout: "" };
   });
@@ -758,6 +758,36 @@ test("the allow marker covers only its own line [REQ-agent-shield-security-001]"
   runPreCommit();
   assert.equal(calls.exitCode, 1);
   assert.match(calls.errors.join("\n"), /Línea: 2/);
+});
+
+test("blocks an unquoted or letters-only password a configuration file adds [REQ-agent-shield-security-001]", (t) => {
+  const letters = "hunter".repeat(2);
+  const calls = stagedBlob(t, `db:\n  host: db.internal\n  password: ${letters}\n`, "config/database.yml");
+  runPreCommit();
+  assert.equal(calls.exitCode, 1);
+  const banner = calls.errors.join("\n");
+  assert.match(banner, /Archivo: config\/database\.yml/);
+  assert.match(banner, /Línea: 3/);
+  assert.match(banner, /Patrón detectado: assigned-secret/);
+  assert.equal(banner.includes(letters), false, "the value never reaches the output");
+});
+
+test("the same line outside a configuration file, a reference or the allow marker pass [REQ-agent-shield-security-001]", (t) => {
+  const letters = "hunter".repeat(2);
+  for (const [content, file] of [
+    [`  password: ${letters}\n`, "docs/setup.md"],
+    ["  password: ${DB_PASSWORD}\n  id-token: write\n  existingSecret: redis-auth\n", "deploy/values.yaml"],
+    [`  password: ${letters} # ospec:allow-secret\n`, "docker-compose.yml"],
+    [`{ "password": "${letters}" }\n`, "locales/en.json"],
+  ]) {
+    const calls = stagedBlob(t, content, file);
+    runPreCommit();
+    assert.equal(calls.exitCode, 0, file);
+    t.mock.restoreAll();
+  }
+  const calls = stagedBlob(t, `{ "Password": "${letters}" }\n`, "appsettings.json");
+  runPreCommit();
+  assert.equal(calls.exitCode, 1, "a configuration JSON blocks a letters-only password under a quoted key");
 });
 
 test("findAddedSecret returns the first finding and the lines it skipped", () => {

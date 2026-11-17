@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { extractShellReadPaths, fileExistsIn, namesDeniedFile } = require('./shell-file-access.js');
+const { directoryExistsIn, extractShellReadPaths, fileExistsIn, namesDeniedFile } = require('./shell-file-access.js');
 
 test('literal read operands keep quotes, separators and option values distinct', () => {
   for (const [command, expected] of [
@@ -53,6 +53,18 @@ test('an id_ name counts as a key when it is a file, not a directory', () => {
       assert.equal(namesDeniedFile(command, exists), false, command);
     }
     assert.equal(namesDeniedFile('openssl rsa -in id_deploy -text', exists), true);
+    // A reader over the directory reads no key; over the file it does.
+    const isDirectory = directoryExistsIn(workspace);
+    for (const command of ['rg TODO id_service', 'diff -r id_service src', 'grep -rn TODO ./id_service', 'rg cd id_service']) {
+      assert.equal(namesDeniedFile(command, exists, isDirectory), false, command);
+    }
+    assert.equal(namesDeniedFile('cat id_deploy', exists, isDirectory), true);
+    assert.equal(namesDeniedFile('rg TODO id_missing', exists, isDirectory), true);
+    // After a change of directory the workspace disk says nothing about the operand.
+    fs.mkdirSync(path.join(workspace, 'id_ed25519'));
+    for (const command of ['cd ~/.ssh && cat id_ed25519', '(cd ~/.ssh && cat id_ed25519)', 'env -C ~/.ssh cat id_ed25519', 'if true; then cd ~/.ssh; cat id_ed25519; fi', 'bash -c "cd ~/.ssh && cat id_ed25519"', 'if cd ~/.ssh; then cat id_ed25519; fi', '! cd ~/.ssh; cat id_ed25519', 'time cd ~/.ssh; cat id_ed25519', 'command cd ~/.ssh && cat id_ed25519', 'env -C/home/u/.ssh cat id_ed25519', 'echo $(cd ~/.ssh && cat id_ed25519)']) {
+      assert.equal(namesDeniedFile(command, exists, isDirectory), true, command);
+    }
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }

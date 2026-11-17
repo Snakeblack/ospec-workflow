@@ -23,10 +23,11 @@ func (h *postToolUseHandler) Name() string { return "post-tool-use" }
 
 var postToolUsePathKeys = []string{"file_path", "filePath", "path", "notebook_path"}
 
-// readsSensitiveFile: a read of a file the name classifier flags (.env*,
-// credentials, secrets.json…) is redacted in sensitive-file mode, also when a
-// shell command reads it (`cat .env`).
-func readsSensitiveFile(toolInput map[string]interface{}, response interface{}) bool {
+// readFiles returns the files a tool call reads. A file the name classifier
+// flags (.env*, credentials, secrets.json…) is redacted in sensitive-file mode
+// and a configuration file in its own mode, also when a shell command reads it
+// (`cat .env`, `cat config/database.yml`).
+func readFiles(toolInput map[string]interface{}, response interface{}) []string {
 	var candidates []string
 	for _, key := range postToolUsePathKeys {
 		if value, ok := toolInput[key].(string); ok {
@@ -43,12 +44,7 @@ func readsSensitiveFile(toolInput map[string]interface{}, response interface{}) 
 			}
 		}
 	}
-	for _, candidate := range candidates {
-		if classifySensitiveFile(candidate) != nil {
-			return true
-		}
-	}
-	return false
+	return candidates
 }
 
 func redactionNote(kinds []string) string {
@@ -79,7 +75,7 @@ func (h *postToolUseHandler) Run(stdin []byte) ([]byte, int) {
 	if err := decoder.Decode(&response); err != nil {
 		return nil, 1
 	}
-	value, kinds := redactDeep(response, readsSensitiveFile(input.ToolInput, response))
+	value, kinds := redactDeep(response, redactOptionsFor(readFiles(input.ToolInput, response), shellDirectoryExists))
 	if len(kinds) == 0 {
 		return nil, 0
 	}

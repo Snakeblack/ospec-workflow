@@ -171,9 +171,9 @@ var (
 	// ssh reads the identity and options itself: their values never leave the host.
 	shellScpOptions = shellSet("-i", "-o")
 	// Commands that use a file a name denies without printing it.
-	shellNameOnly = shellSet("ssh", "sftp", "ssh-add", "ssh-keygen", "chmod", "chown", "ls", "stat", "test", "[", "rm", "touch", "echo", "printf", "find", "ssh-copy-id", "ansible", "ansible-playbook")
+	shellNameOnly = shellSet("ssh", "sftp", "ssh-add", "ssh-keygen", "chmod", "chown", "ls", "stat", "test", "[", "rm", "touch", "echo", "printf", "find", "ssh-copy-id", "ansible", "ansible-playbook", "mkdir", "rmdir", "cd")
 	// The command is the next word that is not an option.
-	shellWrappers = shellSet("sudo", "doas", "env", "command", "exec", "nohup", "time", "nice", "timeout", "if", "then", "else", "elif", "while", "until", "do", "!", "{")
+	shellWrappers = shellSet("sudo", "doas", "env", "command", "exec", "nohup", "time", "nice", "timeout", "if", "then", "else", "elif", "while", "until", "do", "!")
 	// The options of a wrapper whose value is the next word.
 	shellUserOptions = shellSet("-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "-T", "-R", "-a",
 		"--user", "--group", "--chdir", "--host", "--prompt", "--role", "--type", "--other-user", "--close-from", "--command-timeout", "--chroot", "--auth-type")
@@ -197,8 +197,7 @@ var (
 	shellCodeSplitRe       = regexp.MustCompile(`[^A-Za-z0-9_.~/\\$*?-]+`)
 	shellCodeStringRe      = regexp.MustCompile("'[^']*'|\"[^\"]*\"|`[^`]*`")
 	shellKeyExtRe          = regexp.MustCompile(`\.(?:key|pem)$`)
-	shellSSHDirRe          = regexp.MustCompile(`(?:^|[\\/])\.ssh[\\/]`)
-	shellGlobPartRe        = regexp.MustCompile(`(?s)\[[^\]]*\]|.`)
+	shellChdirOptionRe     = regexp.MustCompile(`(?:^|\s)--chdir(?:[\s=]|$)|\benv\b[^\n;&|]*\s-C|\bsudo\b[^\n;&|]*\s-D`)
 	// The private keys OpenSSH names by default.
 	shellKeyNames = shellSet("id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", "id_ecdsa_sk", "id_ed25519_sk", "id_xmss")
 )
@@ -731,7 +730,7 @@ func classifyNamedFile(file string, exists func(string) bool) *sensitiveFileClas
 	base := shellBaseName(file)
 	onDisk := exists != nil && exists(file)
 	if found.kind == "private-key" {
-		sure := shellKeyNames[base] || (strings.HasPrefix(base, "id_") && shellKeyExtRe.MatchString(base)) || shellSSHDirRe.MatchString(file)
+		sure := shellKeyNames[base] || (strings.HasPrefix(base, "id_") && shellKeyExtRe.MatchString(base)) || underSSHDirectory(file)
 		if sure || onDisk {
 			return found
 		}
@@ -743,49 +742,19 @@ func classifyNamedFile(file string, exists func(string) bool) *sensitiveFileClas
 	return found
 }
 
-// globsSSHKey is true for a glob under a `.ssh` directory that an OpenSSH key
-// name matches: `~/.ssh/*`, `~/.ssh/id*`. A bracket expression matches any
-// character.
-func globsSSHKey(file string) bool {
-	base := shellBaseName(file)
-	if !shellSSHDirRe.MatchString(file) || !strings.ContainsAny(base, "*?[") {
-		return false
-	}
-	source := shellGlobPartRe.ReplaceAllStringFunc(base, func(part string) string {
-		switch {
-		case part == "*":
-			return ".*"
-		case part == "?" || (len(part) > 1 && part[0] == '['):
-			return "."
-		}
-		return regexp.QuoteMeta(part)
-	})
-	pattern, err := regexp.Compile("^" + source + "$")
-	if err != nil {
-		return true
-	}
-	for name := range shellKeyNames {
-		if pattern.MatchString(name) {
-			return true
-		}
-	}
-	return false
-}
-
 // namesSSHKey is true when a word of any command names an SSH private key: a
-// file under a `.ssh` directory, an OpenSSH name with a directory, or an
-// `id_` name that exists on disk. A bare word is not enough, and neither is a
-// `.key` extension: `--key=tls.key`, `{.data.key}` and `slides.key` are
-// ordinary arguments, and curl or openssl use a key without printing it.
+// file under a `.ssh` directory that the classifier denies (any name but the
+// public ones, a glob or an expansion included), an OpenSSH name with a
+// directory, or an `id_` name that exists on disk. A bare word is not enough,
+// and neither is a `.key` extension: `--key=tls.key`, `{.data.key}` and
+// `slides.key` are ordinary arguments, and curl or openssl use a key without
+// printing it.
 func namesSSHKey(file string, exists func(string) bool) bool {
-	if globsSSHKey(file) {
-		return true
-	}
 	if class := classifySensitiveFile(file); class == nil || class.kind != "private-key" {
 		return false
 	}
 	base := shellBaseName(file)
-	if shellSSHDirRe.MatchString(file) {
+	if underSSHDirectory(file) {
 		return true
 	}
 	if !strings.HasPrefix(base, "id_") {
@@ -806,13 +775,47 @@ func shellReadFiles(command string, exists func(string) bool) []string {
 	return files
 }
 
+// shellChangesDirectory is true when a command line changes directory: `cd`,
+// `pushd` or `popd` as a command (behind a wrapper or a keyword, in a nested
+// shell or a substitution), or the chdir option of a wrapper.
+func shellChangesDirectory(command string, depth int) bool {
+	found, codeNext := shellChdirOptionRe.MatchString(command), false
+	walkShellCommands(command, shellVisitor{
+		input: func(shellToken) {},
+		command: func(name string, _ shellToken) {
+			codeNext = false
+			found = found || name == "cd" || name == "pushd" || name == "popd"
+		},
+		word: func(name string, tok shellToken) {
+			if !shellShells[name] {
+				return
+			}
+			if codeNext && depth < shellMaxNesting {
+				found = found || shellChangesDirectory(tok.value, depth+1)
+			}
+			codeNext = !codeNext && shellCodeOptionRe.MatchString(tok.value)
+		},
+	})
+	if depth < shellMaxNesting {
+		for _, body := range shellSubstitutions(command) {
+			found = found || shellChangesDirectory(body, depth+1)
+		}
+	}
+	return found
+}
+
 // namesDeniedFile is true when the command line names a file the classifier
 // denies by name: a file it reads (an operand of a reader, a `<` target, a
 // string of inline code), or an SSH private key named by a word of any other
-// command.
-func namesDeniedFile(command string, exists func(string) bool) bool {
+// command. A directory a reader walks is not a key file, whatever its name.
+// exists and isDirectory may be nil.
+func namesDeniedFile(command string, exists, isDirectory func(string) bool) bool {
+	// After a change of directory the disk of the workspace says nothing
+	// about an operand.
+	moved := shellChangesDirectory(command, 0)
 	for _, file := range shellReadFiles(command, exists) {
-		if class := classifySensitiveFile(file); (class != nil && class.action == "deny") || globsSSHKey(file) {
+		directory := !moved && isDirectory != nil && isDirectory(file)
+		if class := classifySensitivePath(file, directory); class != nil && class.action == "deny" {
 			return true
 		}
 	}
@@ -844,4 +847,15 @@ func shellFileExists(file string) bool {
 	}
 	info, err := os.Stat(absolute)
 	return err == nil && info.Mode().IsRegular()
+}
+
+// shellDirectoryExists reports whether a word of a command line exists as a
+// directory, relative to the working directory of the hook.
+func shellDirectoryExists(file string) bool {
+	absolute, err := filepath.Abs(expandHome(file))
+	if err != nil {
+		return false
+	}
+	info, err := os.Stat(absolute)
+	return err == nil && info.IsDir()
 }

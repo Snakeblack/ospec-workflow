@@ -23,8 +23,8 @@ const {
   scanFileForSecrets,
   MAX_SCAN_SIZE_BYTES,
 } = require("./lib/secret-scan.js");
-const { containsRedactionMarker, isCoveredByRedaction, redactSecrets } = require("./lib/secret-redact.js");
-const { expandHome, extractShellReadPaths, fileExistsIn, namesDeniedFile, shellReadFiles, shellTokens } = require("./lib/shell-file-access.js");
+const { REDACTION_PATH_KEYS, containsRedactionMarker, isCoveredByRedaction, redactSecrets, redactionOptionsFor } = require("./lib/secret-redact.js");
+const { directoryExistsIn, expandHome, extractShellReadPaths, fileExistsIn, namesDeniedFile, shellReadFiles, shellTokens } = require("./lib/shell-file-access.js");
 
 /**
  * Regex that matches forbidden AI/model attribution: a `*-by:` trailer that
@@ -366,15 +366,17 @@ function readSmallFile(filePath) {
 // True when the file on disk holds something the output redaction would hide.
 function fileHoldsSecrets(filePath) {
   const content = readSmallFile(filePath);
-  const sensitiveFile = classifySensitiveFile(filePath) !== null;
-  return content !== null && redactSecrets(content, { sensitiveFile }).kinds.length > 0;
+  return content !== null && redactSecrets(content, redactionOptionsFor([filePath])).kinds.length > 0;
 }
 
 // The read exemption holds only when the redacted content leaves nothing the
 // secret scan would still ask about (an unreadable or oversized file asks).
-function readCoveredByRedaction(filePath) {
+// The mode of the file counts only when PostToolUse will use it too (`named`:
+// a path key of the call names the file); a file named any other way, as the
+// glob of a search, is redacted in normal mode.
+function readCoveredByRedaction(filePath, named) {
   const content = readSmallFile(filePath);
-  return content !== null && isCoveredByRedaction(content, { sensitiveFile: classifySensitiveFile(filePath) !== null });
+  return content !== null && isCoveredByRedaction(content, named ? redactionOptionsFor([filePath]) : {});
 }
 
 // Operands of a shell command that may name a file it writes.
@@ -551,6 +553,9 @@ function evaluateToolUseCore(input, opts) {
 
   if (process.env.DISABLE_AGENT_SHIELD !== "true") {
     const exists = fileExistsIn(workspace);
+    const isDirectory = directoryExistsIn(workspace);
+    // A directory is not a key file, whatever its name (`id_service/`).
+    const classify = (filePath) => classifySensitiveFile(filePath, { directory: isDirectory(filePath) });
     const paths = [
       ...extractPaths(input?.tool_input),
       ...collectKeyedStrings(input?.tool_input, DECLARED_PATH_KEYS).map((file) => path.resolve(workspace, file)),
@@ -560,7 +565,7 @@ function evaluateToolUseCore(input, opts) {
     // command is denied when it reads such a file, or when any of its words
     // names an SSH private key, except in the commands that use the key
     // without printing it.
-    if (paths.some((filePath) => classifySensitiveFile(filePath)?.action === "deny") || commands.some((command) => namesDeniedFile(command, exists))) {
+    if (paths.some((filePath) => classify(filePath)?.action === "deny") || commands.some((command) => namesDeniedFile(command, exists, isDirectory))) {
       return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente.");
     }
     const bodies = collectKeyedStrings(input?.tool_input, CONTENT_KEYS);
@@ -584,10 +589,11 @@ function evaluateToolUseCore(input, opts) {
       && process.env.DISABLE_SECRET_REDACTION !== "true"
       && commands.length === 0
       && READ_TOOLS.has(normalizeToolName(input?.tool_name));
+    const named = new Set(REDACTION_PATH_KEYS.map((key) => input?.tool_input?.[key]).filter((file) => typeof file === "string").map((file) => path.resolve(workspace, file)));
     for (const filePath of paths) {
-      if (readsRedacted && readCoveredByRedaction(filePath)) continue;
+      if (readsRedacted && readCoveredByRedaction(filePath, named.has(filePath))) continue;
       // Bloqueo/advertencia por nombre de archivo
-      const classification = classifySensitiveFile(filePath);
+      const classification = classify(filePath);
       if (classification && classification.action === "ask") {
         return makeDecision(
           "ask",

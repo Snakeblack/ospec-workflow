@@ -40,7 +40,9 @@ llegó a ejecutarse.
 > y `TestPostToolUse_ParityFixtures`, y su motor de censura con el corpus compartido
 > `internal/testdata/secret-redaction/cases.json`; el escáner, la censura y el
 > reconocedor de shell comparten además `internal/testdata/secret-guards/cases.json`
-> (E1.92); `session-start` es el siguiente
+> (E1.92), que desde E1.95 fija también qué fichero es de configuración, qué
+> deniega el clasificador por nombre y qué censura la censura en un fichero de
+> configuración; `session-start` es el siguiente
 > candidato. Ante un mismatch, decide el
 > comportamiento canónico y corrige la implementación rezagada — nunca "arregles" la fixture sola.
 

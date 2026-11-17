@@ -63,7 +63,7 @@ func TestRedactSecrets_SharedCorpus(t *testing.T) {
 		if tc.Output != nil {
 			want = expandCorpus(*tc.Output)
 		}
-		got, kinds := redactSecrets(input, tc.SensitiveFile)
+		got, kinds := redactSecrets(input, redactOptions{sensitiveFile: tc.SensitiveFile})
 		if got != want {
 			t.Errorf("%s:\n got %q\nwant %q", tc.Name, got, want)
 		}
@@ -72,7 +72,7 @@ func TestRedactSecrets_SharedCorpus(t *testing.T) {
 				t.Errorf("%s: kinds %v, want %v", tc.Name, kinds, tc.Kinds)
 			}
 		}
-		if again, _ := redactSecrets(got, tc.SensitiveFile); again != got {
+		if again, _ := redactSecrets(got, redactOptions{sensitiveFile: tc.SensitiveFile}); again != got {
 			t.Errorf("%s: not idempotent: %q", tc.Name, again)
 		}
 	}
@@ -87,7 +87,7 @@ func TestRedactDeep_KeepsShape(t *testing.T) {
 	if err := decoder.Decode(&response); err != nil {
 		t.Fatal(err)
 	}
-	value, kinds := redactDeep(response, false)
+	value, kinds := redactDeep(response, redactOptions{})
 	if !reflect.DeepEqual(kinds, []string{"github-token"}) {
 		t.Fatalf("kinds %v", kinds)
 	}

@@ -6,7 +6,7 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { classifySensitiveFile } = require('./secret-scan.js');
+const { classifySensitiveFile, underSshDirectory } = require('./secret-scan.js');
 
 // Commands that print the content of their file operands.
 const READERS = new Set([
@@ -29,9 +29,9 @@ const CONTENT_OPTIONS = new Set(['-encoding', '-totalcount', '-tail', '-readcoun
 const SCP_OPTIONS = new Set(['-i', '-o']);
 const VALUE_OPTIONS = new Map([['head', COUNT_OPTIONS], ['tail', COUNT_OPTIONS], ['get-content', CONTENT_OPTIONS], ['gc', CONTENT_OPTIONS], ['scp', SCP_OPTIONS]]);
 // Commands that use a file a name denies without printing it.
-const NAME_ONLY = new Set(['ssh', 'sftp', 'ssh-add', 'ssh-keygen', 'chmod', 'chown', 'ls', 'stat', 'test', '[', 'rm', 'touch', 'echo', 'printf', 'find', 'ssh-copy-id', 'ansible', 'ansible-playbook']);
+const NAME_ONLY = new Set(['ssh', 'sftp', 'ssh-add', 'ssh-keygen', 'chmod', 'chown', 'ls', 'stat', 'test', '[', 'rm', 'touch', 'echo', 'printf', 'find', 'ssh-copy-id', 'ansible', 'ansible-playbook', 'mkdir', 'rmdir', 'cd']);
 // The command is the next word that is not an option or the value of one.
-const WRAPPERS = new Set(['sudo', 'doas', 'env', 'command', 'exec', 'nohup', 'time', 'nice', 'timeout', 'if', 'then', 'else', 'elif', 'while', 'until', 'do', '!', '{']);
+const WRAPPERS = new Set(['sudo', 'doas', 'env', 'command', 'exec', 'nohup', 'time', 'nice', 'timeout', 'if', 'then', 'else', 'elif', 'while', 'until', 'do', '!']);
 const USER_OPTIONS = new Set([
   '-u', '-g', '-C', '-D', '-h', '-p', '-r', '-t', '-U', '-T', '-R', '-a',
   '--user', '--group', '--chdir', '--host', '--prompt', '--role', '--type', '--other-user', '--close-from', '--command-timeout', '--chroot', '--auth-type',
@@ -389,10 +389,6 @@ function baseName(file) {
   return file.split(/[\\/]/).pop().toLowerCase();
 }
 
-function underSshDirectory(file) {
-  return /(?:^|[\\/])\.ssh[\\/]/.test(file);
-}
-
 // The classification of a string of inline code that may not be a file: a
 // dictionary key, a property name. A name that only looks like a private key
 // (`id_token`, `ssl.key`) counts when it is one of the OpenSSH names, has an
@@ -410,27 +406,14 @@ function classifyNamedFile(file, exists = () => false) {
   return found;
 }
 
-// True for a glob under a `.ssh` directory that an OpenSSH key name matches:
-// `~/.ssh/*`, `~/.ssh/id*`. A bracket expression matches any character.
-function globsSshKey(file) {
-  const base = baseName(file);
-  if (!underSshDirectory(file) || !/[*?[]/.test(base)) return false;
-  const source = base.replace(/\[[^\]]*\]|[\s\S]/g, (part) => {
-    if (part === '*') return '.*';
-    return part === '?' || part.length > 1 ? '.' : part.replace(/[.\\+^$(){}|[\]]/g, '\\$&');
-  });
-  const pattern = new RegExp(`^${source}$`);
-  return [...KEY_NAMES].some((name) => pattern.test(name));
-}
-
 // True when a word of any command names an SSH private key: a file under a
-// `.ssh` directory, an OpenSSH name with a directory, or an `id_` name that
-// exists on disk. A bare word is not enough (`gh search code id_rsa`), and
-// neither is a `.key` extension: `--key=tls.key`, `{.data.key}` and
-// `slides.key` are ordinary arguments, and curl or openssl use a key without
-// printing it.
+// `.ssh` directory that the classifier denies (any name but the public ones,
+// a glob or an expansion included), an OpenSSH name with a directory, or an
+// `id_` name that exists on disk. A bare word is not enough (`gh search code
+// id_rsa`), and neither is a `.key` extension: `--key=tls.key`, `{.data.key}`
+// and `slides.key` are ordinary arguments, and curl or openssl use a key
+// without printing it.
 function namesSshKey(file, exists = () => false) {
-  if (globsSshKey(file)) return true;
   if (classifySensitiveFile(file)?.kind !== 'private-key') return false;
   const base = baseName(file);
   if (underSshDirectory(file)) return true;
@@ -447,11 +430,35 @@ function shellReadFiles(command, exists) {
   ];
 }
 
+const CHDIR_COMMANDS = new Set(['cd', 'pushd', 'popd']);
+const CHDIR_OPTION = /(?:^|\s)--chdir(?:[\s=]|$)|\benv\b[^\n;&|]*\s-C|\bsudo\b[^\n;&|]*\s-D/;
+
+// True when a command line changes directory: `cd`, `pushd` or `popd` as a
+// command (behind a wrapper or a keyword, in a nested shell or a
+// substitution), or the chdir option of a wrapper.
+function changesDirectory(command, depth = 0) {
+  let found = CHDIR_OPTION.test(command), codeNext = false;
+  walkCommands(command, {
+    input() {},
+    command(name) { codeNext = false; found = found || CHDIR_COMMANDS.has(name); },
+    word(name, token) {
+      if (!SHELLS.has(name)) return;
+      if (codeNext && depth < MAX_NESTING) found = found || changesDirectory(token.value, depth + 1);
+      codeNext = !codeNext && SHELL_CODE_OPTION.test(token.value);
+    },
+  });
+  return found || (depth < MAX_NESTING && shellSubstitutions(command).some((body) => changesDirectory(body, depth + 1)));
+}
+
 // True when the command line names a file the classifier denies by name: a
 // file it reads (an operand of a reader, a `<` target, a string of inline
-// code), or an SSH private key named by a word of any other command.
-function namesDeniedFile(command, exists) {
-  return shellReadFiles(command, exists).some((file) => classifySensitiveFile(file)?.action === 'deny' || globsSshKey(file))
+// code), or an SSH private key named by a word of any other command. A
+// directory a reader walks is not a key file, whatever its name; after a
+// change of directory the disk of the workspace says nothing about an operand.
+function namesDeniedFile(command, exists, isDirectory = () => false) {
+  const moved = changesDirectory(command);
+  const directory = (file) => !moved && isDirectory(file);
+  return shellReadFiles(command, exists).some((file) => classifySensitiveFile(file, { directory: directory(file) })?.action === 'deny')
     || extractShellNamedFiles(command).some((file) => namesSshKey(file, exists));
 }
 
@@ -471,8 +478,20 @@ function fileExistsIn(workspace) {
   };
 }
 
+// Whether a word of a command line exists as a directory of the workspace.
+function directoryExistsIn(workspace) {
+  return (file) => {
+    try {
+      return fs.statSync(path.resolve(workspace, expandHome(file))).isDirectory();
+    } catch {
+      return false;
+    }
+  };
+}
+
 module.exports = {
   classifyNamedFile,
+  directoryExistsIn,
   expandHome,
   namesSshKey,
   extractShellCodeFiles,

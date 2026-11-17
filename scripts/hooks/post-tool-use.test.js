@@ -50,10 +50,33 @@ test("a read of a sensitive file redacts in sensitive-file mode", () => {
   assert.equal(output.hookSpecificOutput.updatedToolOutput.file.content, "[default]\nregion = eu-west-1\naws_secret_access_key = [REDACTED:assigned-secret]\n");
   const plain = withEnv({ DISABLE_SECRET_REDACTION: undefined }, () => evaluatePostToolUse({
     tool_name: "Read",
-    tool_input: { file_path: "/repo/settings.ini" },
-    tool_response: { type: "text", file: { filePath: "/repo/settings.ini", content: "aws_secret_access_key = wJalrXUtnFEMIK7MDENGbPxRfiCYzR4tQ7nLpK12\n" } },
+    tool_input: { file_path: "/repo/notes.txt" },
+    tool_response: { type: "text", file: { filePath: "/repo/notes.txt", content: "aws_secret_access_key = wJalrXUtnFEMIK7MDENGbPxRfiCYzR4tQ7nLpK12\n" } },
   }));
   assert.equal(plain, null, "outside a sensitive file the unquoted lowercase form stays");
+});
+
+test("a read of a configuration file redacts its passwords and keeps the rest", () => {
+  const redacted = `[${"REDACTED"}:assigned-secret]`;
+  const opaque = "aB3xY7kM9pQ2wE5rT8uI1oP4";
+  const content = `host: db.internal\nbuild: ${opaque}\npassword: hunter#hunter;x,y # local\n`;
+  const read = (filePath) => withEnv({ DISABLE_SECRET_REDACTION: undefined }, () => evaluatePostToolUse({
+    tool_name: "Read",
+    tool_input: { file_path: filePath },
+    tool_response: { type: "text", file: { filePath, content } },
+  }));
+  assert.equal(
+    read("/repo/config/database.yml").hookSpecificOutput.updatedToolOutput.file.content,
+    `host: db.internal\nbuild: ${opaque}\npassword: ${redacted} # local\n`,
+    "only the value under a sensitive name goes",
+  );
+  assert.equal(read("/repo/docs/database.md"), null, "outside a configuration file the form is an expression or a type");
+  const json = withEnv({ DISABLE_SECRET_REDACTION: undefined }, () => evaluatePostToolUse({
+    tool_name: "Bash",
+    tool_input: { command: "cat api/appsettings.Development.json" },
+    tool_response: { stdout: '{\n  "Password": "hunterhunter"\n}\n', stderr: "", interrupted: false },
+  }));
+  assert.equal(json.hookSpecificOutput.updatedToolOutput.stdout, `{\n  "Password": "${redacted}"\n}\n`);
 });
 
 test("a shell command that reads a sensitive file redacts in sensitive-file mode", () => {
@@ -75,7 +98,8 @@ test("a shell command that reads a sensitive file redacts in sensitive-file mode
       command,
     );
   }
-  assert.equal(run("cat settings.ini"), null, "outside a sensitive file the unquoted lowercase form stays");
+  assert.equal(run("cat notes.txt"), null, "outside a sensitive file the unquoted lowercase form stays");
+  assert.equal(run("rg region id_service/"), null, "a directory whose name starts with id_ is not a key");
   assert.equal(run("source .env"), null, "a command that does not print the file keeps the normal mode");
   assert.equal(run("rg credentials src/"), null, "a search pattern is not a file");
 });

@@ -3,7 +3,7 @@
 const child_process = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
-const { classifySensitiveFile, MAX_SCAN_SIZE_BYTES } = require("./lib/secret-scan.js");
+const { classifySensitiveFile, isConfigFile, MAX_SCAN_SIZE_BYTES } = require("./lib/secret-scan.js");
 const { detectSecret } = require("./lib/secret-redact.js");
 const { getStagedAddedEntries, getStagedBlobSize } = require("./lib/staged-validator.js");
 const { readPrecommitStrict } = require("../lib/precommit-strict.js");
@@ -44,19 +44,21 @@ const ALLOW_MARKER = "ospec:allow-secret";
 
 /**
  * La primera línea añadida que el escáner marca o la censura censura, y
- * cuántas líneas con el marcador se saltaron antes de encontrarla.
+ * cuántas líneas con el marcador se saltaron antes de encontrarla. En un
+ * fichero de configuración (`configFile`) cuenta lo que la censura ve ahí.
  *
  * @param {{number: number, text: string}[]} entries
+ * @param {boolean} [configFile]
  * @returns {{finding: {line: number, patternId: string}|null, allowed: number}}
  */
-function findAddedSecret(entries) {
+function findAddedSecret(entries, configFile = false) {
   let allowed = 0;
   for (const { number, text } of entries) {
     if (text.includes(ALLOW_MARKER)) {
       allowed += 1;
       continue;
     }
-    const patternId = detectSecret(text);
+    const patternId = detectSecret(text, { configFile });
     if (patternId) return { finding: { line: number, patternId }, allowed };
   }
   return { finding: null, allowed };
@@ -143,7 +145,7 @@ function runPreCommit(options = {}) {
           const addedBytes = entries.reduce((total, entry) => total + Buffer.byteLength(entry.text, "utf8") + 1, 0);
           if (addedBytes >= maxScan) continue;
 
-          const { finding, allowed } = findAddedSecret(entries);
+          const { finding, allowed } = findAddedSecret(entries, isConfigFile(file));
           if (allowed > 0) {
             console.log(`OSPEC-PRECOMMIT: ${file}: ${allowed} línea(s) con ${ALLOW_MARKER} sin escanear.`);
           }

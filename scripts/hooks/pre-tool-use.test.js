@@ -245,6 +245,62 @@ test("a name that only looks like a private key counts for any command when the 
   assert.equal(decide(`python3 -c "print(open('credentials').read())"`), "ask");
 });
 
+test("a directory whose name starts with id_ is not a private key", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pre-tool-id-dir-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, "id_service"));
+  fs.writeFileSync(path.join(dir, "id_service", "main.go"), "package main\n");
+  fs.writeFileSync(path.join(dir, "id_deploy"), "not a real key\n");
+  const decide = (tool_name, tool_input) => withEnvVars({ DISABLE_AGENT_SHIELD: undefined, DISABLE_TOKEN_ADVISOR: "true", OSPEC_TARGET: undefined, OSPEC_CODEX_WRAPPER: undefined }, () =>
+    evaluateToolUse({ tool_name, tool_input, permission_mode: "default" }, { workspace: dir })?.hookSpecificOutput?.permissionDecision ?? null);
+  for (const command of ["rg TODO id_service", "rg TODO id_service/", "diff -r id_service src", "grep -rn TODO ./id_service"]) {
+    assert.equal(decide("Bash", { command }), null, command);
+  }
+  assert.equal(decide("Grep", { pattern: "TODO", path: path.join(dir, "id_service") }), null, "a read tool over the directory");
+  assert.equal(decide("Bash", { command: "cat id_deploy" }), "deny", "the file with that prefix is still a key");
+  assert.equal(decide("Read", { file_path: path.join(dir, "id_deploy") }), "deny");
+});
+
+test("under an ssh directory every file is a private key, except the public ones", () => {
+  const decide = (tool_name, tool_input) => withEnvVars({ DISABLE_AGENT_SHIELD: undefined, DISABLE_TOKEN_ADVISOR: "true", OSPEC_TARGET: undefined, OSPEC_CODEX_WRAPPER: undefined }, () =>
+    evaluateToolUse({ tool_name, tool_input, permission_mode: "bypassPermissions" })?.hookSpecificOutput?.permissionDecision ?? null);
+  for (const file of ["/home/dev/.ssh/aws-prod.pem", "/home/dev/.ssh/deploy_key", "/home/dev/.ssh/github", "/home/dev/.ssh/id_rsa.bak"]) {
+    assert.equal(decide("Read", { file_path: file }), "deny", file);
+    assert.equal(decide("Bash", { command: `cat ${file}` }), "deny", file);
+  }
+  for (const file of ["/home/dev/.ssh/config", "/home/dev/.ssh/known_hosts", "/home/dev/.ssh/authorized_keys", "/home/dev/.ssh/work.pub"]) {
+    assert.notEqual(decide("Read", { file_path: file }), "deny", file);
+    assert.notEqual(decide("Bash", { command: `cat ${file}` }), "deny", file);
+  }
+  for (const command of ["ssh -i ~/.ssh/work deploy@host uptime", "ssh-add ~/.ssh/work", "mkdir -p ~/.ssh/sockets", "chmod 600 ~/.ssh/work"]) {
+    assert.notEqual(decide("Bash", { command }), "deny", command);
+  }
+});
+
+test("a configuration file is read in its own redaction mode", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-config-mode-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const letters = "hunter".repeat(2);
+  const name = "pass" + "word";
+  const config = path.join(root, "database.yml");
+  const code = path.join(root, "database.js");
+  fs.writeFileSync(config, `host: db.internal\n${name}: "${letters}"\n`);
+  fs.writeFileSync(code, `const db = { ${name}: "${letters}" };\n`);
+  const marker = `[${"REDACTED"}:assigned-secret]`;
+  const decision = (input) => evaluateToolUse(input)?.hookSpecificOutput?.permissionDecision ?? null;
+  withEnvVars({ DISABLE_AGENT_SHIELD: undefined, DISABLE_SECRET_REDACTION: undefined, OSPEC_OUTPUT_REDACTION: "1", OSPEC_TARGET: undefined, OSPEC_CODEX_WRAPPER: undefined }, () => {
+    // The redaction covers the letters-only password of a configuration file,
+    // so its read needs no prompt; in code it still asks.
+    assert.equal(decision({ tool_name: "Read", tool_input: { file_path: config } }), null, "configuration file");
+    assert.equal(decision({ tool_name: "Read", tool_input: { file_path: code } }), "ask", "code");
+    // PostToolUse redacts a file named only by a glob in normal mode: the prompt stays.
+    assert.equal(decision({ tool_name: "Grep", tool_input: { pattern: "password", glob: config, output_mode: "content" } }), "ask", "glob");
+    assert.equal(decision({ tool_name: "grep", tool_input: { pattern: "password", include: config } }), "ask", "include");
+    // The model saw the marker instead of that password: writing it back is denied.
+    assert.equal(decision({ tool_name: "Write", tool_input: { file_path: config, content: `password: ${marker}\n` } }), "deny");
+  });
+});
+
 test("private key material in a read, write or edit is not silent", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pre-tool-key-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

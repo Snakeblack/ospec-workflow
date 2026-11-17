@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.181.1] - 2026-11-17
+
+### Fixed
+- **Los guards de secretos distinguen el fichero de configuración, la clave bajo `.ssh` y el directorio** (secret-guard-file-kinds, E1.95).
+  - **El problema**: E1.92 dejó tres límites escritos. Una contraseña sin comillas o solo de letras en un fichero de configuración no se censuraba ni bloqueaba el commit; una clave privada bajo `.ssh` con un nombre que no fuera `id_*` ni `*.key` se leía; y un directorio llamado `id_service/` se denegaba como si fuera una clave.
+  - **Fichero de configuración**: en un `.yml`, `.yaml`, `.ini`, `.properties`, `.toml`, `.conf` o `.cfg`, y en `appsettings*.json`, `local.settings.json`, `config.json`, `config.<entorno>.json` y `settings.json`, la censura de salida y el pre-commit ven `password: valor` sin comillas, una contraseña solo de letras y un `api_key: …` en minúsculas con forma de secreto. El valor sin comillas llega hasta el primer blanco, así que `#`, `;` y `,` son parte de él. El resto del fichero se lee entero.
+  - **Lo que no cuenta**: las traducciones (lo que hay bajo `locale(s)/`, `i18n/`, `l10n/`, `lang(s)/` o `translation(s)/`, y los `messages_es.properties`), una referencia (`${DB_PASSWORD}`), un valor cifrado por sops (`ENC[…]`), `id-token: write` y el nombre de un secreto (`existingSecret: redis-auth`). Un token, una clave y `secret` siguen pidiendo forma de secreto.
+  - **Claves bajo `.ssh`**: todo fichero cuenta como clave privada salvo `config`, `known_hosts`, `known_hosts.old`, `authorized_keys`, `authorized_keys2`, `environment`, `rc`, `allowed_signers`, `revoked_keys` y los `*.pub`. Un comodín o una expansión en el nombre se deniega salvo `*.pub`, y leer el directorio entero también (`grep -r … ~/.ssh`). Para copiar un fichero público a `.ssh/` hay que nombrar el destino.
+  - **Directorios**: una ruta que acaba en barra o que existe como directorio no es una clave por su nombre: `rg TODO id_service/` pasa, y un fichero `id_deploy` se sigue denegando. Si la orden cambia de directorio (`cd`, `pushd`, `env -C`…), la exención no consulta el disco.
+  - **Confirmación de lectura**: la exención que da la censura solo confía en el modo del fichero cuando lo nombra una clave de la que `PostToolUse` toma el modo. Una búsqueda que nombra el fichero solo por `glob` o `include` mantiene la confirmación.
+  - **Medición**: sobre los ficheros de configuración versionados de 15 repositorios, el modo no añade ninguna detección. Sobre los de `node_modules`, `/usr/share` y `/etc` añade 18: contraseñas de ejemplo y un token real.
+  - **Límites que quedan escritos en el handbook**: el modo necesita que la llamada nombre el fichero, y no añade una confirmación de lectura en los hosts que no reescriben la salida. Un `cd` dentro del cuerpo de una función o de una rama de `case` no se reconoce (E1.96).
+  - **Compatibilidad**: no cambia ningún formato. El cambio añade censuras, bloqueos del commit y denegaciones; `ospec:allow-secret` sigue valiendo para una línea de ejemplo.
+
+**Verificación directa**: `node scripts/check.js` (5015 tests pasando, 0 fallos y 5 omitidos), 455 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados; `gofmt`, `go vet` y `go test ./...` en verde. El cambio pasó dos revisiones de confianza, sin hallazgos bloqueantes y con sus correcciones validadas.
+
 ## [2.181.0] - 2026-11-17
 
 ### Added
