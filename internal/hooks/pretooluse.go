@@ -1258,16 +1258,26 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 			}
 		}
 		for _, cmd := range cmds {
-			for _, file := range extractShellReadPaths(cmd) {
-				if absolute, err := filepath.Abs(file); err == nil {
+			for _, file := range shellReadFiles(cmd, shellFileExists) {
+				if absolute, err := filepath.Abs(expandHome(file)); err == nil {
 					paths = append(paths, absolute)
 				}
 			}
 		}
+		// A shell command is denied when it reads such a file, or when any of
+		// its words names an SSH private key, except in the commands that use
+		// the key without printing it.
+		denied := false
 		for _, filePath := range paths {
 			if class := classifySensitiveFile(filePath); class != nil && class.action == "deny" {
-				return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."), 0
+				denied = true
 			}
+		}
+		for _, cmd := range cmds {
+			denied = denied || namesDeniedFile(cmd, shellFileExists)
+		}
+		if denied {
+			return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."), 0
 		}
 		bodies := collectKeyedStrings(rawInput.ToolInput, contentKeys)
 		// A redaction marker copied back over a file that keeps real secrets

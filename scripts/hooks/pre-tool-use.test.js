@@ -106,6 +106,38 @@ test("shell literal reads use AgentShield and preserve bypass policy", () => {
     ['cat <<-EOF\nsafe\nEOF\ncat id_rsa', 'deny'],
     ['cat <<-EOF\n\tcat id_rsa\n\tEOF\ncat .env', 'ask'],
     ['cat <<-EOF\n\tcat id_rsa\n\tEOF', null],
+    // Any command that names a denied file, not only the readers.
+    ['tac id_rsa', 'deny'],
+    ['cat $HOME/.ssh/id_rsa', 'deny'],
+    ['python3 -c "print(open(\'id_rsa\').read())"', 'deny'],
+    ['bash -lc "cat ~/.ssh/id_ed25519"', 'deny'],
+    ['openssl rsa -in ~/.ssh/id_ed25519 -text', 'deny'],
+    ['curl --cert client.crt --key client.key https://mtls.example.com', null],
+    ['jq -r .data.key values.json', null],
+    ['grep -rn "id_rsa" docs/', null],
+    ['echo $(cat ~/.ssh/id_rsa)', 'deny'],
+    ['KEY="$(cat ~/.ssh/id_rsa)" env', 'deny'],
+    ['node -pe "require(\'fs\').readFileSync(\'.npmrc\', \'utf8\')"', 'deny'],
+    ['echo "$(ssh -i ~/.ssh/id_deploy host uptime)"', null],
+    ["# it's the key\necho $(cat ~/.ssh/id_rsa)", 'deny'],
+    ["cat <<'EOF'\n$(cat ~/.ssh/id_rsa)\nEOF", null],
+    // A word that only looks like a key or a secrets file is not one.
+    ['rg id_token src/', null],
+    ['grep -rn id_token src/', null],
+    ['rg credentials src/', null],
+    ['npm test -- --grep feature/id_validacion', null],
+    ['python3 -c "print(d[\'id_token\'], cfg[\'credentials\'])"', null],
+    ['openssl rsa -in ~/.ssh/id_deploy -text', 'deny'],
+    ['ssh -i ~/.ssh/id_ed25519 deploy@host uptime', null],
+    ['chmod 600 ~/.ssh/id_rsa', null],
+    ['git status --short -- "notas sobre .npmrc y id_rsa"', null],
+    // More readers and nested shells for the files that ask.
+    ['sort .env', 'ask'],
+    ['bash -lc "cat .env"', 'ask'],
+    ['cat $HOME/app/.env', 'ask'],
+    ['echo $(cat .env)', 'ask'],
+    ['python3 -c "print(open(\'.env\').read())"', 'ask'],
+    ['source .env', null],
   ];
   withEnvVars({ DISABLE_AGENT_SHIELD: undefined, OSPEC_TARGET: undefined, OSPEC_CODEX_WRAPPER: undefined }, () => {
     for (const [command, expected] of cases) {
@@ -129,6 +161,9 @@ test('shell reads share the bounded content scan and explicit shield switch', (t
   const input = { tool_name: 'Bash', tool_input: { command: `cat "${file}"` } };
   withEnvVars({ DISABLE_AGENT_SHIELD: undefined, OSPEC_TARGET: undefined, OSPEC_CODEX_WRAPPER: undefined }, () => {
     assert.equal(evaluateToolUse(input).hookSpecificOutput.permissionDecision, 'ask');
+    // The scan follows a path under the home directory written with a tilde.
+    const home = { tool_name: 'Bash', tool_input: { command: 'cat ~/ordinary.txt' } };
+    withEnvVars({ HOME: root, USERPROFILE: root }, () => assert.equal(evaluateToolUse(home)?.hookSpecificOutput.permissionDecision, 'ask'));
     withEnvVars({ DISABLE_AGENT_SHIELD: 'true' }, () => assert.equal(evaluateToolUse(input), null));
   });
 });
@@ -194,6 +229,20 @@ test("denies commands with unacceptable destructive impact", () => {
   for (const command of commands) {
     assert.equal(decisionFor(command).permissionDecision, "deny", command);
   }
+});
+
+test("a name that only looks like a private key counts for any command when the file exists", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pre-tool-named-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const decide = (command) => withEnvVars({ DISABLE_AGENT_SHIELD: undefined, DISABLE_TOKEN_ADVISOR: "true", OSPEC_TARGET: undefined, OSPEC_CODEX_WRAPPER: undefined }, () =>
+    evaluateToolUse({ tool_name: "Bash", tool_input: { command }, permission_mode: "default" }, { workspace: dir })?.hookSpecificOutput?.permissionDecision ?? null);
+  assert.equal(decide("openssl rsa -in id_deploy -text"), null, "no such file: the word may be anything");
+  assert.equal(decide("rg credentials src/"), null);
+  fs.writeFileSync(path.join(dir, "id_deploy"), "not a real key\n");
+  fs.writeFileSync(path.join(dir, "credentials"), "[default]\nregion = eu-west-1\n");
+  assert.equal(decide("openssl rsa -in id_deploy -text"), "deny");
+  assert.equal(decide(`python3 -c "print(open('id_deploy').read())"`), "deny");
+  assert.equal(decide(`python3 -c "print(open('credentials').read())"`), "ask");
 });
 
 test("private key material in a read, write or edit is not silent", (t) => {

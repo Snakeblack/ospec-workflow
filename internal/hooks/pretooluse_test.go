@@ -70,6 +70,38 @@ func TestShellLiteralReads(t *testing.T) {
 		{"cat <<-EOF\nsafe\nEOF\ncat id_rsa", "deny"},
 		{"cat <<-EOF\n\tcat id_rsa\n\tEOF\ncat .env", "ask"},
 		{"cat <<-EOF\n\tcat id_rsa\n\tEOF", ""},
+		// Any command that names a denied file, not only the readers.
+		{`tac id_rsa`, "deny"},
+		{`cat $HOME/.ssh/id_rsa`, "deny"},
+		{`python3 -c "print(open('id_rsa').read())"`, "deny"},
+		{`bash -lc "cat ~/.ssh/id_ed25519"`, "deny"},
+		{`openssl rsa -in ~/.ssh/id_ed25519 -text`, "deny"},
+		{`curl --cert client.crt --key client.key https://mtls.example.com`, ""},
+		{`jq -r .data.key values.json`, ""},
+		{`grep -rn "id_rsa" docs/`, ""},
+		{`echo $(cat ~/.ssh/id_rsa)`, "deny"},
+		{`KEY="$(cat ~/.ssh/id_rsa)" env`, "deny"},
+		{`node -pe "require('fs').readFileSync('.npmrc', 'utf8')"`, "deny"},
+		{`echo "$(ssh -i ~/.ssh/id_deploy host uptime)"`, ""},
+		{"# it's the key\necho $(cat ~/.ssh/id_rsa)", "deny"},
+		{"cat <<'EOF'\n$(cat ~/.ssh/id_rsa)\nEOF", ""},
+		// A word that only looks like a key or a secrets file is not one.
+		{`rg id_token src/`, ""},
+		{`grep -rn id_token src/`, ""},
+		{`rg credentials src/`, ""},
+		{`npm test -- --grep feature/id_validacion`, ""},
+		{`python3 -c "print(d['id_token'], cfg['credentials'])"`, ""},
+		{`openssl rsa -in ~/.ssh/id_deploy -text`, "deny"},
+		{`ssh -i ~/.ssh/id_ed25519 deploy@host uptime`, ""},
+		{`chmod 600 ~/.ssh/id_rsa`, ""},
+		{`git status --short -- "notas sobre .npmrc y id_rsa"`, ""},
+		// More readers and nested shells for the files that ask.
+		{`sort .env`, "ask"},
+		{`bash -lc "cat .env"`, "ask"},
+		{`cat $HOME/app/.env`, "ask"},
+		{`echo $(cat .env)`, "ask"},
+		{`python3 -c "print(open('.env').read())"`, "ask"},
+		{`source .env`, ""},
 	}
 	for _, tc := range cases {
 		for _, mode := range []string{"default", "bypassPermissions"} {
@@ -104,6 +136,13 @@ func TestShellReadContentScan(t *testing.T) {
 	decision, _ := runPreToolUse(t, input)
 	if decision.PermissionDecision != "ask" {
 		t.Fatalf("content scan: got %s", decision.PermissionDecision)
+	}
+	// The scan follows a path under the home directory written with a tilde.
+	t.Setenv("HOME", filepath.Dir(file))
+	t.Setenv("USERPROFILE", filepath.Dir(file))
+	home, _ := json.Marshal(map[string]interface{}{"tool_name": "Bash", "tool_input": map[string]string{"command": "cat ~/ordinary.txt"}})
+	if decision, _ := runPreToolUse(t, home); decision.PermissionDecision != "ask" {
+		t.Fatalf("content scan under the home directory: got %s", decision.PermissionDecision)
 	}
 	t.Setenv("DISABLE_AGENT_SHIELD", "true")
 	decision, _ = runPreToolUse(t, input)
@@ -1392,5 +1431,40 @@ func TestFindActiveChangeName_ReadsTheRealStatus(t *testing.T) {
 	t.Chdir(ws)
 	if got := hooks.FindActiveChangeName(); got != "b-live" {
 		t.Fatalf("FindActiveChangeName() = %q, want b-live", got)
+	}
+}
+
+func TestNamedKeyCountsWhenTheFileExists(t *testing.T) {
+	t.Setenv("DISABLE_AGENT_SHIELD", "")
+	t.Setenv("DISABLE_TOKEN_ADVISOR", "true")
+	t.Setenv("OSPEC_TARGET", "")
+	t.Setenv("OSPEC_CODEX_WRAPPER", "")
+	dir := t.TempDir()
+	t.Chdir(dir)
+	decide := func(command string) string {
+		input, _ := json.Marshal(map[string]interface{}{
+			"tool_name": "Bash", "tool_input": map[string]string{"command": command}, "permission_mode": "default",
+		})
+		out, _ := hooks.Dispatch([]string{"pre-tool-use"}, input)
+		return decodePreToolUse(t, out).PermissionDecision
+	}
+	for _, command := range []string{"openssl rsa -in id_deploy -text", "rg credentials src/"} {
+		if got := decide(command); got != "" {
+			t.Errorf("%s without the file: got %q, want no decision", command, got)
+		}
+	}
+	for name, content := range map[string]string{"id_deploy": "not a real key\n", "credentials": "[default]\nregion = eu-west-1\n"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for command, want := range map[string]string{
+		"openssl rsa -in id_deploy -text":                "deny",
+		`python3 -c "print(open('id_deploy').read())"`:   "deny",
+		`python3 -c "print(open('credentials').read())"`: "ask",
+	} {
+		if got := decide(command); got != want {
+			t.Errorf("%s with the file: got %q, want %q", command, got, want)
+		}
 	}
 }

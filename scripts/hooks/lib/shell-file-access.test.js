@@ -1,7 +1,10 @@
 "use strict";
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { extractShellReadPaths } = require('./shell-file-access.js');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { extractShellReadPaths, fileExistsIn, namesDeniedFile } = require('./shell-file-access.js');
 
 test('literal read operands keep quotes, separators and option values distinct', () => {
   for (const [command, expected] of [
@@ -18,9 +21,9 @@ test('literal read operands keep quotes, separators and option values distinct',
     [`cat "$FILE"`, []],
     [`echo ok # ; cat .env`, []],
     [`cat '.env`, []],
-    ['grep API_KEY .env', ['API_KEY', '.env']],
-    ['sed -n 1p .env', ['1p', '.env']],
-    ["awk '{print}' .env", ['{print}', '.env']],
+    ['grep API_KEY .env', ['.env']],
+    ['sed -n 1p .env', ['.env']],
+    ["awk '{print}' .env", ['.env']],
     ['base64 .env', ['.env']],
     ['xxd .env', ['.env']],
     ['cp .env /tmp/out.env', ['.env', '/tmp/out.env']],
@@ -38,4 +41,19 @@ test('literal read operands keep quotes, separators and option values distinct',
     ['cat \\\n  .env', ['.env']],
     ['echo $((1<<2))\ncat .env', ['.env']],
   ]) assert.deepEqual(extractShellReadPaths(command), expected, command);
+});
+
+test('an id_ name counts as a key when it is a file, not a directory', () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'ospec-shell-'));
+  try {
+    fs.mkdirSync(path.join(workspace, 'id_service'));
+    fs.writeFileSync(path.join(workspace, 'id_deploy'), '');
+    const exists = fileExistsIn(workspace);
+    for (const command of ['cd id_service && npm test', 'go test ./id_service', 'git add id_service']) {
+      assert.equal(namesDeniedFile(command, exists), false, command);
+    }
+    assert.equal(namesDeniedFile('openssl rsa -in id_deploy -text', exists), true);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
 });

@@ -11,17 +11,22 @@
 
 const { redactDeep } = require("./lib/secret-redact.js");
 const { classifySensitiveFile } = require("./lib/secret-scan.js");
+const { fileExistsIn, shellReadFiles } = require("./lib/shell-file-access.js");
 
 const PATH_KEYS = ["file_path", "filePath", "path", "notebook_path"];
 
 // A read of a file the name classifier flags (.env*, credentials,
-// secrets.json…) is redacted in sensitive-file mode.
+// secrets.json…) is redacted in sensitive-file mode, also when a shell command
+// reads it (`cat .env`).
 function readsSensitiveFile(input) {
   const candidates = [];
   const toolInput = input.tool_input;
   if (toolInput && typeof toolInput === "object") {
     for (const key of PATH_KEYS) {
       if (typeof toolInput[key] === "string") candidates.push(toolInput[key]);
+    }
+    if (typeof toolInput.command === "string") {
+      candidates.push(...shellReadFiles(toolInput.command, fileExistsIn(process.cwd())));
     }
   }
   const file = input.tool_response && input.tool_response.file;

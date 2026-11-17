@@ -24,7 +24,7 @@ const {
   MAX_SCAN_SIZE_BYTES,
 } = require("./lib/secret-scan.js");
 const { containsRedactionMarker, isCoveredByRedaction, redactSecrets } = require("./lib/secret-redact.js");
-const { extractShellReadPaths, shellTokens } = require("./lib/shell-file-access.js");
+const { expandHome, extractShellReadPaths, fileExistsIn, namesDeniedFile, shellReadFiles, shellTokens } = require("./lib/shell-file-access.js");
 
 /**
  * Regex that matches forbidden AI/model attribution: a `*-by:` trailer that
@@ -550,16 +550,18 @@ function evaluateToolUseCore(input, opts) {
   if (writesCliOwnedFile(input, workspace)) return makeDecision("deny", CLI_OWNED_REASON);
 
   if (process.env.DISABLE_AGENT_SHIELD !== "true") {
+    const exists = fileExistsIn(workspace);
     const paths = [
       ...extractPaths(input?.tool_input),
       ...collectKeyedStrings(input?.tool_input, DECLARED_PATH_KEYS).map((file) => path.resolve(workspace, file)),
-      ...commands.flatMap(extractShellReadPaths).map((file) => path.resolve(workspace, file)),
+      ...commands.flatMap((command) => shellReadFiles(command, exists)).map((file) => path.resolve(workspace, expandHome(file))),
     ];
-    // Evaluate every hard file denial before any secret advisory.
-    for (const filePath of paths) {
-      if (classifySensitiveFile(filePath)?.action === "deny") {
-        return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente.");
-      }
+    // Evaluate every hard file denial before any secret advisory. A shell
+    // command is denied when it reads such a file, or when any of its words
+    // names an SSH private key, except in the commands that use the key
+    // without printing it.
+    if (paths.some((filePath) => classifySensitiveFile(filePath)?.action === "deny") || commands.some((command) => namesDeniedFile(command, exists))) {
+      return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente.");
     }
     const bodies = collectKeyedStrings(input?.tool_input, CONTENT_KEYS);
     // A redaction marker copied back over a file that keeps real secrets
