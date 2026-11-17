@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.182.1] - 2026-11-17
+
 ### Fixed
-- Cifras públicas coherentes con su fuente (gates, targets, revisores), un test que falla si se desfasan, un quickstart en inglés, una sola licencia declarada en todas las skills, el aviso de gentle-ai en NOTICE y el plugin del marketplace con LICENSE y NOTICE, que su manifiesto ya cita (E1.78, R12) (docs-figures-drift)
+- **Cifras públicas que siguen a su fuente y licencias coherentes** (docs-figures-drift, E1.78).
+  - **El plugin del marketplace sin licencia**: el manifiesto del marketplace declara `SEE LICENSE IN LICENSE`, pero el plugin publicado no llevaba ningún `LICENSE`. `buildClaudeMarketplace` copia ahora `LICENSE` y `NOTICE` a `plugins/ospec-workflow/` y se niega a construir sin `LICENSE`, antes de borrar la construcción anterior. Solo ese paquete los lleva: `install-target.js` copia la raíz de los paquetes de OpenCode y Copilot sobre la raíz del repositorio del usuario, donde un `LICENSE` sustituiría el del proyecto.
+  - **Cifras**: el quickstart y el catálogo del handbook decían seis gates y el README nueve. `scripts/docs-figures.test.js` compara cada cifra de gates, targets y revisores que dan `README.md`, `README.es.md`, `docs/en/` y `handbook/` (salvo `historia/`) con `internal/iddsession/catalog.json`, `scripts/lib/target-profiles` y `agents/review-*`, en cifra o en palabra, en inglés y en español. El quickstart lista también `abandon` y `router` entre los comandos.
+  - **Quickstart en inglés**: `docs/en/quickstart.md` traduce el del handbook, con enlaces al README y al handbook en lugar del índice de páginas.
+  - **Licencia única**: las 55 skills declaran `MIT AND Commons-Clause`, la licencia del repositorio; 27 decían Apache-2.0 y 4 ninguna. La spec de skills deja de fijar Apache-2.0 por tipo y la plantilla de skill-creator pide la licencia del proyecto que aloja la skill.
+  - **Avisos de terceros**: 21 skills conservan texto de tres obras publicadas con licencia MIT, gentle-ai, ECC y Caveman, y el repositorio no guardaba sus avisos. `NOTICE` los lleva, con la lista de skills de cada una, y esas skills nombran a sus autores en `metadata.author`. El test falla si una skill nombra un autor u origen de terceros que `NOTICE` no lista. E1.98 y E1.99 reescribirán esas skills para que `NOTICE` deje de hacer falta.
+  - **Contexto**: la línea `license` de la skill de IDD suma 12 bytes por target; los techos suben con la razón en su historial.
+
+**Verificación directa**: `node scripts/check.js` (5037 tests pasando, 0 fallos y 5 omitidos), 455 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados. El cambio no tocó una frontera de seguridad, así que no pidió revisión de confianza.
 
 ## [2.182.0] - 2026-11-17
 
