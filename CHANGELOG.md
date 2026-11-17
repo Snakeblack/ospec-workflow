@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- En Windows, la clasificación de Node no reconoce .git/config escrito con barras normales: compara con path.join('.git','config'), que allí lleva barra invertida, y Go sí lo reconoce con ToSlash. Seis casos del corpus compartido fallan en el CI de Windows (gitconfig-separator-parity)
+
 ## [2.180.1] - 2026-11-17
 
 ### Fixed

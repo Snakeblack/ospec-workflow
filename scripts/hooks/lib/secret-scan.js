@@ -223,7 +223,9 @@ function classifySensitiveFile(filePath) {
       filename === "id_rsa" || filename === "id_ecdsa" || filename === "id_ed25519");
   if (isSshKey || ext === ".key") return { action: "deny", kind: "private-key" };
 
-  if (filename === "config" && String(filePath).includes(path.join(".git", "config"))) {
+  // With either separator, as filepath.ToSlash does in Go: on Windows a
+  // command names `.git/config` and a resolved path `.git\config`.
+  if (filename === "config" && String(filePath).split(path.sep).join("/").includes(".git/config")) {
     return { action: "deny", kind: "git-config" };
   }
   if (filename === ".npmrc") return { action: "deny", kind: "npmrc" };

@@ -45,6 +45,20 @@ test("classifySensitiveFile: .git/config del workspace → deny git-config", () 
   assert.deepEqual(result, { action: "deny", kind: "git-config" });
 });
 
+test("classifySensitiveFile: en Windows .git/config cuenta con cualquiera de las dos barras", (t) => {
+  if (path.sep === "/") assert.equal(classifySensitiveFile(".git\\config/config"), null);
+  // Las funciones de ruta que el hook usa en Windows.
+  const { sep } = path;
+  t.after(() => { path.sep = sep; });
+  path.sep = path.win32.sep;
+  t.mock.method(path, "basename", path.win32.basename);
+  t.mock.method(path, "join", path.win32.join);
+  for (const file of [".git/config", "repo\\.git\\config", "C:\\repo\\.git/config"]) {
+    assert.deepEqual(classifySensitiveFile(file), { action: "deny", kind: "git-config" }, file);
+  }
+  assert.equal(classifySensitiveFile("repo\\config"), null);
+});
+
 test("classifySensitiveFile: .npmrc → deny npmrc", () => {
   const result = classifySensitiveFile("/home/user/.npmrc");
   assert.deepEqual(result, { action: "deny", kind: "npmrc" });
