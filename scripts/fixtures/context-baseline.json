@@ -7,9 +7,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10623,
-      "default_flow_bytes": 14126,
-      "memory_flow_bytes": 17074,
+      "idd_protocol_bytes": 10654,
+      "default_flow_bytes": 14157,
+      "memory_flow_bytes": 17105,
       "agent_read_bytes": {
         "review-change": 4757,
         "review-correction": 5373,
@@ -25,9 +25,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10619,
-      "default_flow_bytes": 14366,
-      "memory_flow_bytes": 17314,
+      "idd_protocol_bytes": 10650,
+      "default_flow_bytes": 14397,
+      "memory_flow_bytes": 17345,
       "agent_read_bytes": {
         "review-change": 4754,
         "review-correction": 5370,
@@ -43,9 +43,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10619,
-      "default_flow_bytes": 14366,
-      "memory_flow_bytes": 17314,
+      "idd_protocol_bytes": 10650,
+      "default_flow_bytes": 14397,
+      "memory_flow_bytes": 17345,
       "agent_read_bytes": {
         "review-change": 4740,
         "review-correction": 5356,
@@ -61,9 +61,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10619,
-      "default_flow_bytes": 14044,
-      "memory_flow_bytes": 16992,
+      "idd_protocol_bytes": 10650,
+      "default_flow_bytes": 14075,
+      "memory_flow_bytes": 17023,
       "agent_read_bytes": {
         "review-change": 4752,
         "review-correction": 5368,
@@ -79,9 +79,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10619,
-      "default_flow_bytes": 14047,
-      "memory_flow_bytes": 16995,
+      "idd_protocol_bytes": 10650,
+      "default_flow_bytes": 14078,
+      "memory_flow_bytes": 17026,
       "agent_read_bytes": {
         "review-change": 4797,
         "review-correction": 5413,
@@ -97,9 +97,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10619,
-      "default_flow_bytes": 14374,
-      "memory_flow_bytes": 17322,
+      "idd_protocol_bytes": 10650,
+      "default_flow_bytes": 14405,
+      "memory_flow_bytes": 17353,
       "agent_read_bytes": {
         "review-change": 4706,
         "review-correction": 5322,
@@ -115,9 +115,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10619,
-      "default_flow_bytes": 14376,
-      "memory_flow_bytes": 17324,
+      "idd_protocol_bytes": 10650,
+      "default_flow_bytes": 14407,
+      "memory_flow_bytes": 17355,
       "agent_read_bytes": {
         "review-change": 4761,
         "review-correction": 5377,
@@ -478,6 +478,111 @@
         ]
       },
       "reason": "E1.63: el validador recibe también los avisos de una revisión aprobada de IDD, con sus criterios en la petición"
+    },
+    {
+      "version": "2.181.1",
+      "metric": "idd_protocol_bytes",
+      "targets": {
+        "claude": [
+          10623,
+          10654
+        ],
+        "vscode": [
+          10619,
+          10650
+        ],
+        "github-copilot": [
+          10619,
+          10650
+        ],
+        "opencode": [
+          10619,
+          10650
+        ],
+        "codex": [
+          10619,
+          10650
+        ],
+        "cursor": [
+          10619,
+          10650
+        ],
+        "antigravity": [
+          10619,
+          10650
+        ]
+      },
+      "reason": "E1.77: la regla 2 de la skill de IDD pide --request con las palabras del usuario (respuesta del usuario del 2026-11-17)"
+    },
+    {
+      "version": "2.181.1",
+      "metric": "default_flow_bytes",
+      "targets": {
+        "claude": [
+          14126,
+          14157
+        ],
+        "vscode": [
+          14366,
+          14397
+        ],
+        "github-copilot": [
+          14366,
+          14397
+        ],
+        "opencode": [
+          14044,
+          14075
+        ],
+        "codex": [
+          14047,
+          14078
+        ],
+        "cursor": [
+          14374,
+          14405
+        ],
+        "antigravity": [
+          14376,
+          14407
+        ]
+      },
+      "reason": "E1.77: la regla 2 de la skill de IDD pide --request con las palabras del usuario (respuesta del usuario del 2026-11-17)"
+    },
+    {
+      "version": "2.181.1",
+      "metric": "memory_flow_bytes",
+      "targets": {
+        "claude": [
+          17074,
+          17105
+        ],
+        "vscode": [
+          17314,
+          17345
+        ],
+        "github-copilot": [
+          17314,
+          17345
+        ],
+        "opencode": [
+          16992,
+          17023
+        ],
+        "codex": [
+          16995,
+          17026
+        ],
+        "cursor": [
+          17322,
+          17353
+        ],
+        "antigravity": [
+          17324,
+          17355
+        ]
+      },
+      "reason": "E1.77: la regla 2 de la skill de IDD pide --request con las palabras del usuario (respuesta del usuario del 2026-11-17)"
     }
   ]
 }

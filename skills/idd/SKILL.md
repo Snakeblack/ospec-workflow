@@ -44,7 +44,7 @@ delete anything under `idd/` by hand.
    whether existing behavior, output or a published API may change. Do not
    decide them yourself.
 2. Open the change: pick a short kebab-case id from the request and record
-   the intent with `ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>"`
+   the intent with `ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>" --request "<the user's words>"`
    plus the open facts, one `--open-fact "<question>"` each, or
    `--no-open-facts --basis "<what settles every behavior>"` when there are
    none. A `feature` covers the categories of the template `ospec next`

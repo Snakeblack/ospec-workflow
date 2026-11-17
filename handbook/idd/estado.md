@@ -42,10 +42,12 @@ flowchart LR
 - Si una escritura se interrumpe, el último estado válido sigue legible. Si solo queda `state.yaml.bak`, `ospec doctor` lo señala y recomienda `ospec status`.
 - La evidencia no se escribe a mano: `ospec record` no acepta evidencia, y solo los comandos que observan una ejecución (`ospec run`, `ospec check`, `ospec review`) la registran.
 
-## change.md: plan y decisiones
+## change.md: plan, decisiones y palabras del usuario
 
-- Tiene cuatro secciones en orden: `Intent and acceptance`, `Plan`, `Decisions` y `Evidence`.
-- El modelo escribe las tres primeras. La sección `Evidence` la reescribe solo el CLI, entre los marcadores `<!-- ospec:evidence:start -->` y `<!-- ospec:evidence:end -->`.
+- Tiene cinco secciones en orden: `Intent and acceptance`, `Request and answers`, `Plan`, `Decisions` y `Evidence`.
+- El modelo escribe `Intent and acceptance`, `Plan` y `Decisions`. El CLI escribe el plan y las decisiones declarados entre sus marcadores, y reescribe él solo `Request and answers` y `Evidence`, cada una entre sus marcadores (`<!-- ospec:log:start -->` y `<!-- ospec:evidence:start -->`, con su `end`).
+- `Request and answers` guarda tus palabras literales: la petición (`--request`) y cada respuesta tuya que guarda `state.yaml`, la de cada gate y la de cada retracción con `--answer`. Cada respuesta va numerada, con el gate, la fuente y la fecha (`Answer 2 — open-facts, user, 2026-11-17T…`), y su texto va citado línea a línea con `> `. El número sigue el orden de las respuestas y nunca cambia, así que un encargo puede citar «`change.md`, answer 2» en vez de resumirla. Una respuesta guardada antes de que el CLI registrara la fecha dice `no date`.
+- Un `change.md` de un cambio abierto antes de esa sección la recibe delante de `Plan` en la siguiente escritura del estado.
 - Solo existe cuando la obligación `living-doc` está activa. Un cambio trivial, cuya única obligación es `checks-pass`, no tiene `change.md`.
 - La obligación `living-doc` se satisface al cerrar, y solo si `Plan` y `Decisions` no están vacíos.
 - Una decisión de desarrollo se queda en `change.md`. Nunca se convierte en ADR.
