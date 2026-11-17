@@ -7,8 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.183.0] - 2026-11-17
+
 ### Added
-- Skills propias en lugar de las que conservaban texto de gentle-ai (chained-pr, cognitive-doc-design, comment-writer, judgment-day, skill-creator con su guía de estilo, work-unit-commits y las referencias de testing de stack-go), y el idioma del proyecto declarado en `delivery.language`: el CLI lo imprime y ninguna skill fija el español (E1.98) (own-skills)
+- **Skills propias y el idioma del proyecto declarado** (own-skills, E1.98).
+  - **Skills con texto propio**: `chained-pr`, `cognitive-doc-design`, `comment-writer`, `judgment-day`, `skill-creator` con su guía de estilo, `work-unit-commits` y las referencias de testing de `stack-go` conservaban el texto de gentle-ai. Cada una tiene una versión propia, escrita desde lo que ospec es hoy: ninguna conserva líneas de 30 caracteres o más idénticas a las del original, salvo tres modismos de Go en los ejemplos. Citan `ospec team` para el presupuesto de revisión, la estrategia de entrega y el idioma, en lugar de repetir lo que calcula el CLI. Conservan sus nombres.
+  - **Qué cambia en cada una**: `chained-pr` corta la cadena sobre un historial lineal e integra por `git merge`, porque los hooks niegan el push forzado, y su referencia pasa a `chain-playbook.md`. `judgment-day` fija el árbol que se juzga y solo acepta hallazgos con evidencia. `skill-creator` decide antes si la guía debe ser una skill, una regla, un check o un ADR. `work-unit-commits` dice dónde van el archivo IDD y el commit de release.
+  - **Guía de estilo y spec de skills**: solo las reglas de una skill las lee un programa, bajo un encabezado que acaba en `Rules`; lo demás lo decide lo que el agente necesita. La sección 3 de la spec deja de exigir un esquema de seis secciones que 42 de las 55 skills no seguían. La sección 4.3 decía que el registro leía patrones y gates y que, sin sección de reglas, tomaba las quince primeras viñetas; el código no hace ninguna de las dos cosas, y la spec lo dice ahora.
+  - **`delivery.language`** (REQ-idd-029): el proyecto declara su idioma en `idd/config.yaml` con una etiqueta (`es`, `en`, `pt-BR`, `zh-Hant-TW`), que se acepta en mayúsculas o minúsculas y se guarda en su forma canónica; un nombre como `Spanish` termina con `config-invalid`. Gobierna los commits, las PR, el changelog, la documentación y los comentarios de código. Una respuesta sigue el idioma de su hilo, y el texto que se añade a un fichero ya escrito en otro idioma conserva ese. La documentación y los comentarios son concisos y funcionales, sin nombrar la herramienta que los escribió ni los motivos de la sesión.
+  - **Dónde lo ve el agente**: `ospec team` da el idioma con sus reglas y `ospec next` la etiqueta en cada paso de un cambio abierto, con las reglas completas al declarar el plan y al cerrar. Sin declarar, `next` sugiere `language-undeclared` y el agente propone el idioma del historial. SDD no lo lee, como el resto de `delivery`. La skill de `foundation` lo pregunta y este repositorio declara `es`.
+  - **Ninguna skill fija el español**: `branch-pr`, `caveman` y `gh-release-notes` también lo fijaban y siguen ahora el idioma del proyecto.
+  - **Reglas de comportamiento**: las cuatro reglas de `rules/no-model-attribution.instructions.md` idénticas a las de gentle-ai tienen texto propio, más corto.
+  - **`NOTICE`**: la sección de gentle-ai lista solo `sdd-apply`, que se reescribe en E1.101. El catálogo de sinks de `scripts/lib/idd-sinks.js`, que adapta el de gentle-ai y lleva su aviso en el fichero, se reescribe en E1.100.
+  - **Contexto**: la skill de IDD suma 316 bytes por target por la frase del idioma; los techos suben con la razón en su historial. El contexto siempre cargado baja 29 bytes.
+
+**Actualización**: declara `delivery.language` después de actualizar. Un `idd/config.yaml` sin la clave se lee igual que antes; una versión anterior del CLI rechaza la clave con `config-invalid`.
+
+**Verificación directa**: `node scripts/check.js` (5041 tests pasando, 0 fallos y 5 omitidos), 457 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados. El cambio no tocó una frontera de seguridad, así que no pidió revisión de confianza.
 
 ## [2.182.1] - 2026-11-17
 
