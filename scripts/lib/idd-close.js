@@ -24,6 +24,7 @@ const {
   GATED_IMPACTS,
   LIVING_DOC_FILE,
   LIVING_DOC_SECTIONS,
+  LOG_MARKERS,
   STATE_FILE,
   canClose,
   isIntentAmbiguous,
@@ -31,6 +32,7 @@ const {
   unaskedRisk,
 } = require("./idd-contract.js");
 const { IddRecordError } = require("./idd-record.js");
+const { renderBlock } = require("./idd-store.js");
 
 const LIVING_DOC = "living-doc";
 // The model writes these sections, and the CLI the plan and decisions it was
@@ -74,6 +76,12 @@ function livingDocStatus(text, { decisionRequired = true } = {}) {
     const body = withoutMarkers(sections.find((section) => section.heading === name).body).join("\n");
     if (body.trim() === "") return { ok: false, reason: `the section ${name} is empty in change.md` };
   }
+  // The CLI writes the request and answers between whole marker lines (E1.77).
+  const log = sections[1].body.map((line) => line.trim());
+  const logStart = log.indexOf(LOG_MARKERS.start);
+  if (logStart === -1 || log.indexOf(LOG_MARKERS.end, logStart + 1) === -1) {
+    return { ok: false, reason: "change.md lost its log markers" };
+  }
   const evidence = sections.at(-1).body.join("\n");
   const start = evidence.indexOf(EVIDENCE_MARKERS.start);
   if (start === -1 || evidence.indexOf(EVIDENCE_MARKERS.end, start) === -1) {
@@ -84,16 +92,12 @@ function livingDocStatus(text, { decisionRequired = true } = {}) {
 
 /** Rewrites only the CLI-owned text between the evidence markers. */
 function renderEvidence(text, state) {
-  const start = text.indexOf(EVIDENCE_MARKERS.start);
-  const end = text.indexOf(EVIDENCE_MARKERS.end, start);
-  if (start === -1 || end === -1) return text;
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
   const lines = state.evidence.map((entry) => {
     const attestation = entry.detail?.attestation ? `, ${entry.detail.attestation}` : "";
     return `- ${entry.id}: ${entry.kind} for ${entry.obligation} (${entry.recorded_at}${attestation})`;
   });
-  const body = lines.length ? `${eol}${lines.join(eol)}${eol}` : eol;
-  return `${text.slice(0, start + EVIDENCE_MARKERS.start.length)}${body}${text.slice(end)}`;
+  return renderBlock(text, EVIDENCE_MARKERS, lines, eol);
 }
 
 /**

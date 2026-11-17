@@ -11,7 +11,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { EVIDENCE_MARKERS, validateState } = require("./idd-contract.js");
+const { EVIDENCE_MARKERS, LOG_MARKERS, validateState } = require("./idd-contract.js");
 const { archiveChange, archiveName, closeChange, knowledgeRecords, livingDocStatus, renderEvidence, requireResumable, staleEvidence } = require("./idd-close.js");
 const { IddRecordError, recordIntent, recordSignal } = require("./idd-record.js");
 const { serializeState } = require("./idd-store.js");
@@ -41,6 +41,11 @@ const DOC = [
   "## Intent and acceptance",
   "",
   "Page the list.",
+  "",
+  "## Request and answers",
+  "",
+  LOG_MARKERS.start,
+  LOG_MARKERS.end,
   "",
   "## Plan",
   "",
@@ -150,6 +155,16 @@ test("the living document must keep its sections with a plan and decisions", () 
   assert.match(livingDocStatus(DOC.replace("## Plan", "## Steps")).reason, /sections .* in that order/);
   assert.match(livingDocStatus(DOC.replace(EVIDENCE_MARKERS.end, "")).reason, /evidence markers/);
   assert.match(livingDocStatus(null).reason, /change.md is missing/);
+});
+
+// E1.77: the log of the user's request and answers keeps its marker lines; a
+// marker quoted inside an answer is not one.
+test("the living document must keep the marker lines of its log", () => {
+  assert.match(livingDocStatus(DOC.replace(`${LOG_MARKERS.end}\n`, "")).reason, /log markers/);
+  assert.match(livingDocStatus(DOC.replace(`${LOG_MARKERS.start}\n`, "")).reason, /log markers/);
+  const quoted = DOC.replace(`${LOG_MARKERS.start}\n${LOG_MARKERS.end}`, `> ${LOG_MARKERS.start}\n> ${LOG_MARKERS.end}`);
+  assert.match(livingDocStatus(quoted).reason, /log markers/);
+  assert.match(livingDocStatus(DOC.replace("## Request and answers\n\n", "")).reason, /sections .* in that order/);
 });
 
 // E4.16: the markers of the CLI say nothing; Decisions may stay empty when the

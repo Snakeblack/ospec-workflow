@@ -1155,3 +1155,73 @@ test("[REQ-idd-025] a follow-up names one closed change whose entry is unpublish
   assertCode(() => recordCompletes(open, { of: "fix-readme", target: { ...target, unreleased: null } }), "completes-released");
   assertCode(() => recordCompletes({ ...open, status: "closed" }, { of: "fix-readme", target }), "change-closed");
 });
+
+// ---------------------------------------------------------------------------
+// E1.77: the time of the request and of each answer of the user
+// ---------------------------------------------------------------------------
+
+test("the request keeps the time it was first recorded, and a replay or a raised kind keeps it", () => {
+  const AT = "2026-11-17T10:00:00.000Z";
+  const LATER = "2026-11-17T11:00:00.000Z";
+  const state = recordIntent(null, { ...BUG_INTENT, request: "the last page is short", recordedAt: AT }).state;
+  assertValid(state);
+  assert.deepStrictEqual(state.intent, { request: "the last page is short", requested_at: AT, kind: "bug", summary: "Fix the last page.", acceptance: "Two full pages." });
+  assert.strictEqual(recordIntent(state, { ...BUG_INTENT, request: "the last page is short", recordedAt: LATER }).changed, false, "a replay keeps the time");
+  assert.strictEqual(recordIntent(state, { ...BUG_INTENT, recordedAt: LATER }).changed, false, "a replay without --request keeps it too");
+  assert.strictEqual(opened().intent.requested_at, undefined, "no request, no time");
+
+  const docs = recordIntent(null, { ...BUG_INTENT, kind: "docs", request: "the last page is short", recordedAt: AT }).state;
+  const raised = recordIntent(docs, { ...BUG_INTENT, request: "the last page is short", recordedAt: LATER }).state;
+  assert.strictEqual(raised.intent.requested_at, AT, "a raised kind keeps the time of its request");
+  const late = recordIntent(recordIntent(null, { ...BUG_INTENT, kind: "docs" }).state, { ...BUG_INTENT, request: "the last page is short", recordedAt: LATER }).state;
+  assert.strictEqual(late.intent.requested_at, LATER, "a request the raise brings takes the time of that write");
+});
+
+test("an ambiguous intent keeps the time of its request, and its resolution records the time of the answer", () => {
+  const AT = "2026-11-17T10:00:00.000Z";
+  const ANSWERED = "2026-11-17T10:05:00.000Z";
+  const ambiguous = recordIntent(null, { change: "improve-login", ambiguous: true, request: "Improve the login.", recordedAt: AT }).state;
+  assertValid(ambiguous);
+  assert.strictEqual(ambiguous.intent.requested_at, AT);
+  const resolution = { change: "improve-login", kind: "bug", summary: "Fix the timeout.", acceptance: "Login in < 2s.", ...NO_OPEN_FACTS, answer: "the timeout bug", source: "user" };
+  const { state } = recordIntent(ambiguous, { ...resolution, recordedAt: ANSWERED });
+  assertValid(state);
+  assert.strictEqual(state.intent.requested_at, AT);
+  assert.deepStrictEqual(state.gates, [{ id: "ambiguous-intent", status: "resolved", answer: "the timeout bug", source: "user", resolved_at: ANSWERED }]);
+  assert.strictEqual(recordIntent(state, { ...resolution, recordedAt: "2026-11-17T12:00:00.000Z" }).changed, false, "a replay keeps both times");
+});
+
+test("each answer to a gate and each retraction with the user's answer records its time, and a replay keeps it", () => {
+  const { recordRetract } = require("./idd-record.js");
+  const AT = "2026-11-17T10:00:00.000Z";
+  const open = recordGate(opened(), { id: "irreversible-operation", action: "open", reason: "drop the cache table" }).state;
+  const { state } = recordGate(open, { id: "irreversible-operation", action: "resolve", answer: "yes, drop it", source: "user", recordedAt: AT });
+  assertValid(state);
+  assert.strictEqual(state.gates[0].resolved_at, AT);
+  assert.strictEqual(recordGate(state, { id: "irreversible-operation", action: "resolve", answer: "yes, drop it", source: "user", recordedAt: "2026-11-17T11:00:00.000Z" }).changed, false);
+
+  const reason = "persistent data: scripts/postbuild.mjs uses writeFile";
+  const signalled = recordSignal(opened(), { id: "persistent-data", reason, source: "diff" }).state;
+  const answer = { id: "persistent-data", reason: "build output", confirmedBy: reason, hits: ["scripts/postbuild.mjs: await writeFile(path, header);"], answer: "Only dist/ is written.", source: "user", answerable: true };
+  const retracted = recordRetract(signalled, { ...answer, recordedAt: AT }).state;
+  assertValid(retracted);
+  assert.strictEqual(retracted.retracted[0].resolved_at, AT);
+  assert.strictEqual(recordRetract(retracted, { ...answer, recordedAt: "2026-11-17T11:00:00.000Z" }).changed, false);
+});
+
+test("validation accepts the times only as ISO 8601 UTC timestamps of a request or a resolved answer", () => {
+  const AT = "2026-11-17T10:00:00.000Z";
+  const withRequest = recordIntent(null, { ...BUG_INTENT, request: "r", recordedAt: AT }).state;
+  const broken = (mutate) => {
+    const copy = structuredClone(withRequest);
+    mutate(copy);
+    return validateState(copy).ok;
+  };
+  assert.strictEqual(broken(() => {}), true);
+  assert.strictEqual(broken((s) => { s.intent.requested_at = "yesterday"; }), false);
+  assert.strictEqual(broken((s) => { delete s.intent.request; }), false, "a time without its request");
+  assert.strictEqual(broken((s) => { s.gates.push({ id: "irreversible-operation", status: "open", resolved_at: AT }); }), false, "an open gate has no answer time");
+  assert.strictEqual(broken((s) => { s.gates.push({ id: "irreversible-operation", status: "resolved", answer: "yes", source: "user", resolved_at: "now" }); }), false);
+  assert.strictEqual(broken((s) => { s.gates.push({ id: "irreversible-operation", status: "resolved", answer: "yes", source: "user", resolved_at: AT }); }), true);
+  assert.strictEqual(broken((s) => { s.retracted = [{ id: "multi-unit-or-decision", reason: "r", source: "declaration", retract_reason: "x", resolved_at: AT }]; }), false, "a retraction without the user's answer has no answer time");
+});

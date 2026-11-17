@@ -1,0 +1,638 @@
+{
+  "schema": "idd-state/v1",
+  "change": "change-request-log",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "kind": "feature",
+    "summary": "El CLI escribe en change.md, en una sección propia entre marcadores, la petición literal del usuario y cada respuesta suya a un gate, con su fecha y su fuente, para que revisores y verificadores lean sus palabras y no un resumen (E1.77, R9)",
+    "acceptance": "Un cambio con gates resueltos tiene en change.md la petición literal y cada respuesta numerada con su fecha y su fuente, esa sección coincide con state.yaml al cerrar, y los tests del CLI lo fijan"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Qué entra en el log? Propuesta: la petición (--request) y cada respuesta del usuario que guarda el CLI: las de los nueve gates (también base-moved, review-limit, checks-changed y abandon) y las de una retracción con --answer (#416), por orden de llegada; sin --request el log empieza por las respuestas, el CLI no hace obligatorio --request (romper record intent) y la regla 2 de la skill de IDD pide --request con las palabras del usuario. ¿O solo las respuestas a los gates?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿Qué encargos citan el log por referencia? Propuesta: los que prepara el CLI para los agentes de solo lectura (el de review-trust en ospec review start y los de review-correction) ganan un campo que nombra idd/<cambio>/change.md, la sección y el número de entradas, solo cuando hay alguna, y next sigue nombrando change.md en knowledge_refs; los encargos de agent.spawn quedan para E1.87. ¿O ningún encargo cambia en este ítem y solo se deja el log citable?"
+      },
+      {
+        "category": "persistence",
+        "question": "Un cambio sin documento vivo (sin --decision ni --work-units, sin living-doc), ¿escribe change.md por el log? Propuesta: no; el log solo se escribe en un change.md que ya existe, y en un cambio trivial la petición y las respuestas siguen solo en state.yaml, como hoy (REQ-idd-002 no cambia); casi todo cambio con una respuesta del usuario declara una decisión y ya tiene change.md. Alternativa: un change.md con solo el título y el log, que close comprueba aparte y que la plantilla completa si después aparece living-doc (un segundo formato del documento)"
+      },
+      {
+        "category": "copy",
+        "question": "Formato. Propuesta: una sección ## Request and answers entre Intent and acceptance y Plan, escrita solo por el CLI entre <!-- ospec:log:start --> y <!-- ospec:log:end -->; la petición como «Request (fecha)» y cada respuesta como «Answer N — <gate>, <fuente>, <fecha>», numeradas desde 1 sin renumerar nunca, para citar «change.md, answer 2»; el texto del usuario va literal, cada línea como cita (> ), de modo que ninguna respuesta abre una sección ni cierra los marcadores. ¿Te vale o prefieres los rótulos en español?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "handbook/idd/estado.md",
+          "line": 45
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "handbook/idd/estado.md",
+          "line": 49
+        }
+      },
+      {
+        "category": "errors",
+        "question": "state.yaml no guarda hoy la fecha de una respuesta (un gate solo lleva su número de turno). Propuesta: desde este cambio el CLI guarda resolved_at (ISO 8601 UTC) en cada respuesta a un gate y en cada retracción con --answer, y requested_at al registrar la petición; una respuesta de un cambio abierto antes sale en el log como «sin fecha», sin inventarla. ¿O el log omite la fecha cuando falta?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/onboarding/reviewer.md",
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/estado.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/fixtures/context-baseline.json",
+      "scripts/lib/idd-close.js",
+      "scripts/lib/idd-close.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-review.js",
+      "scripts/lib/idd-review.test.js",
+      "scripts/lib/idd-store.js",
+      "scripts/lib/idd-store.test.js",
+      "scripts/ospec.close.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.lifecycle.test.js",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El log solo se escribe en un change.md que ya existe (respuesta del usuario): un cambio sin living-doc no crea change.md por él, y REQ-idd-002 no cambia.",
+      "Fechas (respuesta del usuario): el CLI guarda resolved_at en cada respuesta a un gate y en cada retracción con --answer, y requested_at al registrar la petición. Una respuesta anterior a este cambio sale como «no date», en inglés como el resto de los rótulos del log, y nunca se inventa una fecha.",
+      "Contenido (respuesta del usuario): la petición y todas las respuestas del usuario que guarda el CLI, las de los nueve gates y las de las retracciones con --answer. --request sigue siendo opcional en el CLI y la regla 2 de la skill de IDD lo pide. El orden y el número de cada respuesta salen de resolved_at, con las anteriores sin fecha delante, así que una respuesta nueva va siempre al final y ninguna se renumera.",
+      "Formato (respuesta del usuario): la sección ## Request and answers va entre Intent and acceptance y Plan, entre <!-- ospec:log:start --> y <!-- ospec:log:end -->, con «Request (<fecha>)» y «Answer N — <gate>, <fuente>, <fecha>» (una retracción se rotula retract <señal>) y el texto literal en cita. El CLI busca los marcadores del log como línea entera, así que un marcador dentro de una respuesta citada no corta el bloque.",
+      "Un change.md sin la sección, de un cambio abierto antes, la recibe del CLI delante de ## Plan en la siguiente escritura del estado, y close valida el documento tal como lo va a escribir. Con el título de la sección pero sin sus marcadores, close se niega, como con los marcadores de la evidencia.",
+      "Encargos (respuesta del usuario): el de review-trust y los de review-correction llevan request_log con la ruta de change.md, la sección y el número de entradas, solo cuando living-doc está activo y el log tiene alguna. El campo queda fuera del digest del encargo, que no cambia.",
+      "La regla 2 de la skill de IDD sube 31 bytes por pedir --request con las palabras del usuario; scripts/measure-context-baseline.js --update fija los techos nuevos de los 7 targets.",
+      "Como las palabras del usuario van ahora delante de Plan, Decisions y Evidence, los cuatro bloques del CLI (plan, decisiones, log y evidencia) buscan su marcador como línea entera y no como subcadena: una respuesta que contiene un marcador de plan o de evidencia no puede tomar el sitio del bloque real. Un marcador con texto en su misma línea deja de contar, y ese documento conserva su texto."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: touches scripts/lib/idd-store.js (matches scripts/lib/idd-store.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components change-state, cli, idd-engine, skills: ADR 0002, 0003, 0004, 0005, 0006, 0009, 0010, 0011 and quality scenario contract-compatibility, deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0002",
+      "impact": "conforms",
+      "reason": "state.yaml sigue siendo la autoridad: solo el CLI escribe requested_at y resolved_at, validados y bajo lock, y el log de change.md es una proyección que el CLI reescribe desde el estado en cada escritura"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "el orden, la numeración y el formato del log los calcula el CLI con tests; la skill solo pide --request con las palabras del usuario"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "no añade obligación ni señal: el log vive solo en el change.md que living-doc ya exige, y un cambio trivial sigue sin documento"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "living-doc sigue satisfecho solo por la evidencia de close, que ahora exige además los marcadores del log en el documento tal como el CLI lo escribe"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "no lee ni escribe memoria entre sesiones; el log vive en disco"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "los campos nuevos son opcionales dentro de idd-state/v1: un estado anterior sigue siendo válido y se lee sin fecha (no date), y un lector anterior ignora las claves anidadas nuevas"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "solo biblioteca estándar de Node; ninguna dependencia nueva"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "todo lo que escribe sigue bajo idd/<cambio>/; nada en openspec/"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "un state.yaml o un change.md de la versión anterior se leen: el estado sin fechas valida y el documento recibe la sección delante de Plan; ningún campo cambia de significado"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "el log se deriva por completo de state.yaml, con orden y número estables por resolved_at, así que una sesión nueva reescribe el mismo texto y next devuelve el mismo paso"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "no añade llamadas de red ni dependencia de memoria; el log se escribe en disco desde el estado"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Revisé el diff del CLI: los únicos require nuevos son idd-contract.js en idd-review.js e idd-store.js en idd-close.js, módulos locales; no hay fetch, http ni sockets, y next, check y close leen y escriben solo idd/<cambio>/ en disco",
+      "recorded_at": "2026-11-17T16:09:07.422Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 496,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_turn": 497
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-17T16:09:27.790Z",
+      "detail": {
+        "run": "run-1",
+        "tree": "sha256:2a32db5ef96a5e280ee3f44941cb176954d49f98f9cc47f37f2e4e4070989bb6",
+        "plan": "Compatible hacia delante: requested_at y resolved_at son opcionales dentro de idd-state/v1, así que un state.yaml anterior valida y sus respuestas salen en el log como no date, delante de las nuevas; un change.md anterior recibe la sección Request and answers delante de Plan en la siguiente escritura del estado, sin tocar el resto. Vuelta atrás: un CLI anterior ignora las claves anidadas nuevas, pero su close rechaza un change.md de cinco secciones; basta con borrar a mano la sección Request and answers, que se deriva entera de state.yaml."
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T16:10:00.123Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:0133cd4985b88d2a976be40718016f0224166f1b668fb6725913b525f7d02843",
+        "fitness": [
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T16:12:17.932Z",
+      "detail": {
+        "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+        "runs": [
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-17T16:12:17.932Z",
+      "detail": {
+        "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+        "check": "ev-3",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-close.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-review.test.js",
+          "scripts/lib/idd-store.test.js",
+          "scripts/ospec.close.test.js",
+          "scripts/ospec.lifecycle.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T16:12:17.932Z",
+      "detail": {
+        "refs": [
+          "adr:0002 conforms",
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+        "fitness": [
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-17T16:12:44.619Z",
+      "detail": {
+        "run": "run-24",
+        "tree": "sha256:be4829da657b595625fd12b366a13beb701517d6e79fe8375ddeef25b2ca3044",
+        "plan": "Compatible hacia delante: requested_at y resolved_at son opcionales dentro de idd-state/v1, así que un state.yaml anterior valida y sus respuestas salen en el log como no date, delante de las nuevas; un change.md anterior recibe la sección Request and answers delante de Plan en la siguiente escritura del estado, sin tocar el resto. Vuelta atrás: un CLI anterior ignora las claves anidadas nuevas, pero su close rechaza un change.md de cinco secciones; basta con borrar a mano la sección Request and answers, que se deriva entera de state.yaml."
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-17T16:13:17.728Z"
+    }
+  ],
+  "base": "76f1a607f645027d3a7dd5809b99f7b80eed7ba6",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/idd-record.test.js scripts/ospec.close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a63754f9fa145149e043513108b909020e6e0305a1d597c73d7aba3b0f8df9d3",
+      "tree": "sha256:2a32db5ef96a5e280ee3f44941cb176954d49f98f9cc47f37f2e4e4070989bb6",
+      "recorded_at": "2026-11-17T16:09:27.790Z",
+      "tests": 108
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:bf168072fdb93aafbb9fc5c2a96942341041c4364953c7853627f7ba566d3c5d",
+      "tree": "sha256:0133cd4985b88d2a976be40718016f0224166f1b668fb6725913b525f7d02843",
+      "recorded_at": "2026-11-17T16:10:00.123Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e91285f579dd88cf207653c8223d01e3ad9d346b2ff774dac9f725e8c7c9c021",
+      "tree": "sha256:0133cd4985b88d2a976be40718016f0224166f1b668fb6725913b525f7d02843",
+      "recorded_at": "2026-11-17T16:10:00.123Z",
+      "tests": 18
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:916d2e3df3be976f12d60c2e8eab58ecd5653370c159250c7e51d1307e2689a2",
+      "tree": "sha256:0133cd4985b88d2a976be40718016f0224166f1b668fb6725913b525f7d02843",
+      "recorded_at": "2026-11-17T16:10:00.123Z",
+      "tests": 61
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:80812a08761c6a790d4cb34a91a61aefb09144625e9e41fc8d184b00196c3dc6",
+      "tree": "sha256:0133cd4985b88d2a976be40718016f0224166f1b668fb6725913b525f7d02843",
+      "recorded_at": "2026-11-17T16:10:00.123Z",
+      "tests": 20
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e10ccc1b50a7a52449c3885ec8a4b4aa7d6504aa74e3a32433d8e305f100a5ae",
+      "tree": "sha256:0133cd4985b88d2a976be40718016f0224166f1b668fb6725913b525f7d02843",
+      "recorded_at": "2026-11-17T16:10:00.123Z",
+      "tests": 2
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:967c5febbdbed336e971fb1f1c7d3546e4088d289e8a4ea9a400e576cbb77bbe",
+      "tree": "sha256:0133cd4985b88d2a976be40718016f0224166f1b668fb6725913b525f7d02843",
+      "recorded_at": "2026-11-17T16:10:00.123Z",
+      "tests": 32
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:0133cd4985b88d2a976be40718016f0224166f1b668fb6725913b525f7d02843",
+      "recorded_at": "2026-11-17T16:10:00.123Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e0116ad60b44bcbf78c838aeb0e036b9df3242551b9a43383317efef47ee6416",
+      "tree": "sha256:0133cd4985b88d2a976be40718016f0224166f1b668fb6725913b525f7d02843",
+      "recorded_at": "2026-11-17T16:10:00.123Z",
+      "tests": 26
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:29e3c380cece1368204252fb4e51cc240cd4f60f98215644f5728cc236b070c9",
+      "tree": "sha256:0133cd4985b88d2a976be40718016f0224166f1b668fb6725913b525f7d02843",
+      "recorded_at": "2026-11-17T16:10:00.123Z",
+      "tests": 100
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ce1904eb8e41135967ee35065d7d1c2ece731a60abdb027765e351da095e03fd",
+      "tree": "sha256:0133cd4985b88d2a976be40718016f0224166f1b668fb6725913b525f7d02843",
+      "recorded_at": "2026-11-17T16:10:00.123Z",
+      "tests": 32
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d014ebe2485774d6c6c4ae56293292438c7f610f4c17909768bed66068daefea",
+      "tree": "sha256:0133cd4985b88d2a976be40718016f0224166f1b668fb6725913b525f7d02843",
+      "recorded_at": "2026-11-17T16:10:00.123Z",
+      "tests": 57
+    },
+    {
+      "id": "run-13",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7c22d5a0f3cbf9e6cd9b1755553bcc2f18208cb757ddb4ec62db3519cf146f22",
+      "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+      "recorded_at": "2026-11-17T16:12:17.932Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ac65e8ee8f064372310c5dceda39949629170e4d8a2abfe38cd0d7ec2e53c385",
+      "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+      "recorded_at": "2026-11-17T16:12:17.932Z",
+      "tests": 18
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:299b30b65b3ae0759b654a414ebf0f3905b1c27b6479cc9526b75f7aece45704",
+      "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+      "recorded_at": "2026-11-17T16:12:17.932Z",
+      "tests": 61
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0c7efdd5fc55ef81f4415cd1db856d02a6f49b4014c8e4267e4923c3838e509c",
+      "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+      "recorded_at": "2026-11-17T16:12:17.932Z",
+      "tests": 20
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cc48a5e9b9328c9afe4ec3a6c761d5a80d6beb42e161c0cad83d3137d1940b33",
+      "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+      "recorded_at": "2026-11-17T16:12:17.932Z",
+      "tests": 2
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3dd9007f26f9286bd5cb17284f6a15ae6ac1c72dd7a493f6f27240bb8a5ee691",
+      "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+      "recorded_at": "2026-11-17T16:12:17.932Z",
+      "tests": 32
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+      "recorded_at": "2026-11-17T16:12:17.932Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:be50a8e845bebed996a997440dc8721bb0361042353909e61edb46a49c3d80c4",
+      "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+      "recorded_at": "2026-11-17T16:12:17.932Z",
+      "tests": 26
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:423a60fda6dce0ba59d3ce181c95341ba1b0a628731b6beb37ca3b2195ba45cc",
+      "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+      "recorded_at": "2026-11-17T16:12:17.932Z",
+      "tests": 100
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:aae630ba41fb5b0c0548a5cdf03125adbc3db69e4c1ad13f27f8dd6f6977a16d",
+      "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+      "recorded_at": "2026-11-17T16:12:17.932Z",
+      "tests": 32
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:044631d002d54066f529d1f4d0b01d1c40750f16d35b7d2000372803b0f7eb02",
+      "tree": "sha256:da7e6ee450075e360e0529cd908b16eb160771a2f7facc81a9d2e1c8f13d9b0c",
+      "recorded_at": "2026-11-17T16:12:17.932Z",
+      "tests": 57
+    },
+    {
+      "id": "run-24",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/idd-record.test.js scripts/ospec.close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:43090eebde38d8d140a02a20d3f4b6cfb0910c722093a67baf81c233a52e420d",
+      "tree": "sha256:be4829da657b595625fd12b366a13beb701517d6e79fe8375ddeef25b2ca3044",
+      "recorded_at": "2026-11-17T16:12:44.619Z",
+      "tests": 108
+    }
+  ],
+  "closed_at": "2026-11-17T16:13:17.728Z"
+}

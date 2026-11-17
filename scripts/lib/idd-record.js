@@ -120,9 +120,14 @@ function addSignal(state, { id, reason, source }) {
   return true;
 }
 
+// The request keeps the time it was first recorded (E1.77): `requested_at`
+// comes from the stored intent, or from this write when it brings the request.
 function resolvedIntent(input) {
   const intent = {};
-  if (input.request != null) intent.request = input.request;
+  if (input.request != null) {
+    intent.request = input.request;
+    if (input.requested_at) intent.requested_at = input.requested_at;
+  }
   intent.kind = input.kind;
   intent.summary = input.summary;
   intent.acceptance = input.acceptance;
@@ -226,7 +231,8 @@ function raiseIntent(state, input) {
   const facts = factsFor(input);
   const asked = new Set(questionsOf(state.facts));
   const next = structuredClone(state);
-  next.intent = resolvedIntent(input);
+  const requestedAt = state.intent.request != null ? state.intent.requested_at : input.recordedAt;
+  next.intent = resolvedIntent({ ...input, requested_at: requestedAt });
   next.facts = facts;
   if (reverting) next.gates = next.gates.filter((gate) => !(gate.id === "open-facts" && gate.status === "open"));
   if (becomesFeature(state.intent.kind, input.kind)) {
@@ -257,7 +263,7 @@ function recordIntent(state, input = {}) {
         }
         return raiseIntent(state, { ...rest, request });
       }
-      const candidate = resolvedIntent({ ...rest, request });
+      const candidate = resolvedIntent({ ...rest, request, requested_at: state.intent.requested_at });
       const risk = unaskedRisk(state);
       if (risk && !input.ambiguous && input.kind === "feature" && input.coverage != null && sameJson(candidate, state.intent) && !sameFacts(state, input)) {
         return askRisk(state, input, risk);
@@ -281,11 +287,12 @@ function recordIntent(state, input = {}) {
     requireGateSource(input.source);
     const facts = factsFor(input);
     const next = structuredClone(state);
-    next.intent = resolvedIntent({ ...input, request: state.intent.request });
+    next.intent = resolvedIntent({ ...input, request: state.intent.request, requested_at: state.intent.requested_at });
     const gate = next.gates.find((entry) => entry.id === "ambiguous-intent");
     gate.status = "resolved";
     gate.answer = input.answer;
     gate.source = input.source;
+    if (input.recordedAt) gate.resolved_at = input.recordedAt;
     applyFacts(next, facts);
     addSignal(next, { id: "always", reason: ALWAYS_REASON, source: "declaration" });
     return { state: next, changed: true };
@@ -314,12 +321,12 @@ function recordIntent(state, input = {}) {
   }
   if (input.ambiguous) {
     requireText(input.request, "intent-incomplete", "an ambiguous intent must keep the original request");
-    next.intent = { request: input.request, kind: null, summary: null, acceptance: null };
+    next.intent = { request: input.request, ...(input.recordedAt ? { requested_at: input.recordedAt } : {}), kind: null, summary: null, acceptance: null };
     next.gates.push({ id: "ambiguous-intent", status: "open" });
   } else {
     validateResolvedIntent(input);
     const facts = factsFor(input);
-    next.intent = resolvedIntent(input);
+    next.intent = resolvedIntent({ ...input, requested_at: input.recordedAt });
     applyFacts(next, facts);
     addSignal(next, { id: "always", reason: ALWAYS_REASON, source: "declaration" });
   }
@@ -408,6 +415,7 @@ function recordGate(state, { id, action, reason, answer, source, recordedAt } = 
     gate.status = "resolved";
     gate.answer = answer;
     gate.source = source;
+    if (recordedAt) gate.resolved_at = recordedAt;
     if (id === BASE_GATE) moveBase(next, gate, recordedAt);
     if (id === ABANDON_GATE) abandonChange(next, gate, recordedAt);
     return { state: next, changed: true };
@@ -620,7 +628,7 @@ function recordPlan(state, { paths = [], workUnits = 1, nonObviousDecision = fal
 // too (`answerable`), with the `hits` the answer covers; the derivation keeps
 // it out while the diff holds no other. `refusedBecause` says why the diff
 // still refuses the answer.
-function recordRetract(state, { id, reason, confirmedBy = null, answerable = false, hits = [], refusedBecause = null, answer, source } = {}) {
+function recordRetract(state, { id, reason, confirmedBy = null, answerable = false, hits = [], refusedBecause = null, answer, source, recordedAt } = {}) {
   requireOpen(state);
   if (!SIGNAL_BY_ID.has(id)) refuse("unknown-signal", `unknown signal: ${id}`);
   if (!RETRACTABLE_SIGNALS.includes(id)) {
@@ -656,7 +664,7 @@ function recordRetract(state, { id, reason, confirmedBy = null, answerable = fal
   const next = structuredClone(state);
   next.signals = next.signals.filter((entry) => entry.id !== id);
   const entry = { id, reason: signal.reason, source: signal.source, retract_reason: reason };
-  if (answered) Object.assign(entry, { confirmed_by: confirmedBy, hits: [...hits], answer, answer_source: source });
+  if (answered) Object.assign(entry, { confirmed_by: confirmedBy, hits: [...hits], answer, answer_source: source, ...(recordedAt ? { resolved_at: recordedAt } : {}) });
   next.retracted = [...(next.retracted || []), entry];
   const target = next.obligations.find((entry) => entry.id === obligationId);
   if (target && target.status === "pending") {

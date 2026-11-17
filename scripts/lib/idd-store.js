@@ -21,9 +21,11 @@ const {
   EVIDENCE_MARKERS,
   LIVING_DOC_FILE,
   LIVING_DOC_SECTIONS,
+  LOG_MARKERS,
   PLAN_MARKERS,
   STATE_FIELDS,
   STATE_FILE,
+  userLog,
   validateState,
 } = require("./idd-contract.js");
 const { recoverOrphanBak, writeFileAtomic } = require("./atomic-write.js");
@@ -121,25 +123,81 @@ function decisionLines(plan, eol) {
   return (plan?.decisions || []).map((text) => `- ${text.replace(/\r?\n/g, `${eol}  `)}`);
 }
 
+// Each line of the text with the offset it starts at, without its line end.
+function linesWithOffsets(text) {
+  const lines = [];
+  let offset = 0;
+  for (const raw of text.split("\n")) {
+    lines.push({ offset, content: raw.replace(/\r$/, "") });
+    offset += raw.length + 1;
+  }
+  return lines;
+}
+
+// The lines of one pair of markers. A marker counts only as a whole line,
+// which a quoted answer of the log never is (E1.77), so a marker inside the
+// user's words cannot take the place of the CLI's.
+function markerLines(lines, markers) {
+  const start = lines.findIndex((line) => line.content.trim() === markers.start);
+  const end = start === -1 ? -1 : lines.findIndex((line, index) => index > start && line.content.trim() === markers.end);
+  return end === -1 ? null : { start: lines[start], end: lines[end] };
+}
+
 // Rewrites only the text between one pair of markers, keeping the file's line
 // endings; a document without them stays as it is.
-function renderBlock(text, markers, lines, eol) {
-  const start = text.indexOf(markers.start);
-  const end = text.indexOf(markers.end, start);
-  if (start === -1 || end === -1) return text;
-  const body = lines.length ? `${eol}${lines.join(eol)}${eol}` : eol;
-  return `${text.slice(0, start + markers.start.length)}${body}${text.slice(end)}`;
+function renderBlock(text, markers, body, eol) {
+  const found = markerLines(linesWithOffsets(text), markers);
+  if (!found) return text;
+  const inner = body.length ? `${eol}${body.join(eol)}${eol}` : eol;
+  return `${text.slice(0, found.start.offset + found.start.content.length)}${inner}${text.slice(found.end.offset)}`;
+}
+
+// The user's request and answers as the CLI writes them (E1.77): each text
+// literal, every line quoted, so no answer opens a section or holds a marker
+// line; a time recorded before resolved_at existed reads "no date".
+const NO_DATE = "no date";
+const LOG_HEADING = LIVING_DOC_SECTIONS[1];
+
+function quoted(text) {
+  return String(text).split(/\r?\n/).map((line) => (line === "" ? ">" : `> ${line}`));
+}
+
+function logLines(state) {
+  const { request, answers } = userLog(state);
+  const lines = [];
+  if (request) lines.push(`Request (${request.at ?? NO_DATE}):`, "", ...quoted(request.text), "");
+  answers.forEach((answer, index) => {
+    lines.push(`Answer ${index + 1} — ${answer.label}, ${answer.source}, ${answer.at ?? NO_DATE}:`, "", ...quoted(answer.text), "");
+  });
+  if (lines.at(-1) === "") lines.pop();
+  return lines;
+}
+
+// A document without the log, from a change opened before it, gets the
+// section before its Plan; one that keeps the heading without the markers
+// stays as it is, and close refuses it.
+function renderLog(text, state, eol) {
+  const body = logLines(state);
+  const lines = linesWithOffsets(text);
+  if (markerLines(lines, LOG_MARKERS)) return renderBlock(text, LOG_MARKERS, body, eol);
+  const heading = (line) => /^## (.+?)\s*$/.exec(line.content)?.[1];
+  if (lines.some((line) => line.content.trim() === LOG_MARKERS.start || heading(line) === LOG_HEADING)) return text;
+  const plan = lines.find((line) => heading(line) === LIVING_DOC_SECTIONS[2]);
+  if (!plan) return text;
+  const section = [`## ${LOG_HEADING}`, "", LOG_MARKERS.start, ...body, LOG_MARKERS.end, "", ""].join(eol);
+  return `${text.slice(0, plan.offset)}${section}${text.slice(plan.offset)}`;
 }
 
 function renderLivingDoc(text, state) {
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
   const planned = renderBlock(text, PLAN_MARKERS, planLines(state.plan), eol);
-  return renderBlock(planned, DECISIONS_MARKERS, decisionLines(state.plan, eol), eol);
+  return renderLog(renderBlock(planned, DECISIONS_MARKERS, decisionLines(state.plan, eol), eol), state, eol);
 }
 
 function livingDocTemplate(state) {
-  const [intentHeading, planHeading, decisionsHeading, evidenceHeading] = LIVING_DOC_SECTIONS;
+  const [intentHeading, logHeading, planHeading, decisionsHeading, evidenceHeading] = LIVING_DOC_SECTIONS;
   const lines = [`# ${state.change}`, "", `## ${intentHeading}`, "", state.intent.summary, "", `Acceptance: ${state.intent.acceptance}`, ""];
+  lines.push(`## ${logHeading}`, "", LOG_MARKERS.start, LOG_MARKERS.end, "");
   lines.push(`## ${planHeading}`, "", PLAN_MARKERS.start, PLAN_MARKERS.end, "");
   lines.push(`## ${decisionsHeading}`, "", DECISIONS_MARKERS.start, DECISIONS_MARKERS.end, "");
   lines.push(`## ${evidenceHeading}`, "", EVIDENCE_MARKERS.start, EVIDENCE_MARKERS.end, "");
@@ -199,6 +257,8 @@ module.exports = {
   listChanges,
   mutateChange,
   readChange,
+  renderBlock,
+  renderLivingDoc,
   serializeState,
   statePath,
 };

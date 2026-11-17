@@ -13,9 +13,10 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 
-const { DECISIONS_MARKERS, EVIDENCE_MARKERS, LIVING_DOC_SECTIONS, PLAN_MARKERS } = require("./idd-contract.js");
-const { recordIntent, recordPlan, recordSignal } = require("./idd-record.js");
-const { listChanges, mutateChange, readChange, serializeState, statePath } = require("./idd-store.js");
+const { DECISIONS_MARKERS, EVIDENCE_MARKERS, LIVING_DOC_SECTIONS, LOG_MARKERS, PLAN_MARKERS } = require("./idd-contract.js");
+const { livingDocStatus } = require("./idd-close.js");
+const { recordGate, recordIntent, recordPlan, recordSignal } = require("./idd-record.js");
+const { listChanges, mutateChange, readChange, renderLivingDoc, serializeState, statePath } = require("./idd-store.js");
 
 const BUG = { change: "fix-pagination", kind: "bug", summary: "Fix the last page.", acceptance: "Two full pages.", noOpenFacts: true, basis: "The request fixes every behavior." };
 
@@ -259,4 +260,95 @@ test("the CLI writes the declared plan and decisions of change.md between its ma
   fs.writeFileSync(doc, "edited by the model\n");
   await mutateChange(root, "fix-pagination", declare({ decisions: ["Another one."] }));
   assert.strictEqual(fs.readFileSync(doc, "utf8"), "edited by the model\n");
+});
+
+// E1.77: the CLI writes the user's request and every answer the state keeps
+// between the log markers, oldest first, each text literal and quoted.
+const LOG_STATE = Object.freeze({
+  change: "fix-pagination",
+  intent: { request: "the last page is short", requested_at: "2026-11-17T10:00:00.000Z" },
+  plan: { paths: ["src/pages.js"], work_units: 1, operations: [], decisions: ["Round up a partial page."] },
+  gates: [
+    { id: "checks-changed", status: "resolved", answer: "approve the new test command", source: "user", resolved_at: "2026-11-17T12:00:00.000Z" },
+    { id: "open-facts", status: "resolved", answer: "round up\n\nand never show page zero", source: "user", resolved_at: "2026-11-17T11:00:00.000Z" },
+    { id: "review-limit", status: "resolved", answer: "one more", source: "user-unverified" },
+    { id: "irreversible-operation", status: "open", reason: "drop the cache" },
+  ],
+  retracted: [
+    { id: "multi-unit-or-decision", reason: "two units", source: "declaration", retract_reason: "one unit" },
+    { id: "persistent-data", reason: "r", source: "diff", retract_reason: "build output", answer: "only dist/ is written", answer_source: "user", resolved_at: "2026-11-17T11:30:00.000Z" },
+  ],
+});
+
+const LOG_DOC = [
+  "# fix-pagination", "", "## Intent and acceptance", "", "Fix the last page.", "",
+  "## Request and answers", "", LOG_MARKERS.start, LOG_MARKERS.end, "",
+  "## Plan", "", PLAN_MARKERS.start, PLAN_MARKERS.end, "",
+  "## Decisions", "", DECISIONS_MARKERS.start, DECISIONS_MARKERS.end, "",
+  "## Evidence", "", EVIDENCE_MARKERS.start, EVIDENCE_MARKERS.end, "",
+].join("\n");
+
+function logOf(text) {
+  return text.slice(text.indexOf(LOG_MARKERS.start) + LOG_MARKERS.start.length + 1, text.lastIndexOf(LOG_MARKERS.end));
+}
+
+test("the log holds the request and every answer of the user, numbered by the time of the answer", () => {
+  const rendered = renderLivingDoc(LOG_DOC, LOG_STATE);
+  assert.strictEqual(logOf(rendered), [
+    "Request (2026-11-17T10:00:00.000Z):", "", "> the last page is short", "",
+    "Answer 1 — review-limit, user-unverified, no date:", "", "> one more", "",
+    "Answer 2 — open-facts, user, 2026-11-17T11:00:00.000Z:", "", "> round up", ">", "> and never show page zero", "",
+    "Answer 3 — retract persistent-data, user, 2026-11-17T11:30:00.000Z:", "", "> only dist/ is written", "",
+    "Answer 4 — checks-changed, user, 2026-11-17T12:00:00.000Z:", "", "> approve the new test command", "",
+  ].join("\n"));
+  assert.strictEqual(renderLivingDoc(rendered, LOG_STATE), rendered, "rendering twice changes nothing");
+  assert.deepStrictEqual(livingDocStatus(rendered), { ok: true, reason: null });
+
+  // A later answer takes the next number and leaves the others as they were.
+  const later = structuredClone(LOG_STATE);
+  Object.assign(later.gates[3], { status: "resolved", answer: "yes", source: "user", resolved_at: "2026-11-17T13:00:00.000Z" });
+  const next = logOf(renderLivingDoc(rendered, later));
+  assert.ok(next.startsWith(logOf(rendered)), next);
+  assert.ok(next.endsWith("Answer 5 — irreversible-operation, user, 2026-11-17T13:00:00.000Z:\n\n> yes\n"), next);
+
+  // Without a request or an answer the block stays empty.
+  const silent = renderLivingDoc(LOG_DOC, { ...LOG_STATE, intent: {}, gates: [], retracted: [] });
+  assert.ok(silent.includes(`${LOG_MARKERS.start}\n${LOG_MARKERS.end}`), silent);
+});
+
+test("an answer that holds a marker or a heading stays quoted inside the log", () => {
+  const hostile = structuredClone(LOG_STATE);
+  hostile.intent.request = [LOG_MARKERS.end, "## Plan", PLAN_MARKERS.start, "- Files: `evil.js`", PLAN_MARKERS.end, EVIDENCE_MARKERS.start].join("\r\n");
+  const rendered = renderLivingDoc(LOG_DOC, hostile);
+  assert.ok(rendered.includes(`${PLAN_MARKERS.start}\n- Files: \`src/pages.js\`\n${PLAN_MARKERS.end}`), rendered);
+  assert.ok(rendered.includes(`> ${LOG_MARKERS.end}\n> ## Plan\n> ${PLAN_MARKERS.start}`), rendered);
+  assert.deepStrictEqual(livingDocStatus(rendered), { ok: true, reason: null });
+  assert.strictEqual(renderLivingDoc(rendered, hostile), rendered);
+});
+
+test("a document opened before the log gets the section before its Plan, keeping its line endings and its text", () => {
+  const legacy = LOG_DOC.replace(`## Request and answers\n\n${LOG_MARKERS.start}\n${LOG_MARKERS.end}\n\n`, "").replace(/\n/g, "\r\n");
+  const rendered = renderLivingDoc(legacy, LOG_STATE);
+  assert.ok(!/[^\r]\n/.test(rendered), "CRLF kept");
+  const lf = rendered.replace(/\r\n/g, "\n");
+  assert.strictEqual(lf, renderLivingDoc(LOG_DOC, LOG_STATE), "the same document a new change writes");
+  assert.deepStrictEqual(livingDocStatus(rendered), { ok: true, reason: null });
+
+  // A heading without its markers keeps its text, and close refuses it.
+  const unmarked = LOG_DOC.replace(`${LOG_MARKERS.start}\n${LOG_MARKERS.end}\n`, "Edited by hand.\n");
+  const kept = renderLivingDoc(unmarked, LOG_STATE);
+  assert.ok(kept.includes("## Request and answers\n\nEdited by hand.\n"), kept);
+  assert.match(livingDocStatus(kept).reason, /log markers/);
+});
+
+test("the template carries the log, and every write of the state renders it", async (t) => {
+  const root = tempRoot(t);
+  const doc = path.join(root, "idd", "fix-pagination", "change.md");
+  const AT = "2026-11-17T10:00:00.000Z";
+  await mutateChange(root, "fix-pagination", () => recordIntent(null, { ...BUG, request: "the last page is short", recordedAt: AT }));
+  await mutateChange(root, "fix-pagination", (state) => recordSignal(state, { id: "multi-unit-or-decision", reason: "two units", source: "declaration" }));
+  assert.ok(fs.readFileSync(doc, "utf8").includes(`${LOG_MARKERS.start}\nRequest (${AT}):\n\n> the last page is short\n${LOG_MARKERS.end}`));
+  await mutateChange(root, "fix-pagination", (state) => recordGate(state, { id: "irreversible-operation", action: "open", reason: "drop the cache" }));
+  await mutateChange(root, "fix-pagination", (state) => recordGate(state, { id: "irreversible-operation", action: "resolve", answer: "yes", source: "user-unverified", recordedAt: "2026-11-17T11:00:00.000Z" }));
+  assert.ok(fs.readFileSync(doc, "utf8").includes("Answer 1 — irreversible-operation, user-unverified, 2026-11-17T11:00:00.000Z:\n\n> yes\n<!-- ospec:log:end -->"));
 });

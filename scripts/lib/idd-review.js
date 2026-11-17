@@ -14,6 +14,7 @@
 
 const crypto = require("node:crypto");
 
+const { CHANGE_ROOT, LIVING_DOC_FILE, LIVING_DOC_SECTIONS, userLog } = require("./idd-contract.js");
 const { IddRecordError } = require("./idd-record.js");
 const { resultDigest } = require("./review-receipt.js");
 const {
@@ -193,14 +194,26 @@ function validationDigest(lineage) {
   }));
 }
 
+// Where a reader finds the user's literal request and answers (E1.77): the
+// log of change.md, only while the document exists and the log holds an
+// entry. It stays outside every request digest.
+function requestLog(state) {
+  if (!state.obligations.some((entry) => entry.id === "living-doc" && entry.status !== "withdrawn")) return null;
+  const { request, answers } = userLog(state);
+  const entries = answers.length + (request ? 1 : 0);
+  if (entries === 0) return null;
+  return { request_log: { path: `${CHANGE_ROOT}/${state.change}/${LIVING_DOC_FILE}`, section: LIVING_DOC_SECTIONS[1], entries } };
+}
+
 // The request for the read-only validator of the one bounded correction.
-function validationRequest(lineage) {
+function validationRequest(state, lineage) {
   return {
     lineage_id: lineage.lineage_id,
     generation: lineage.generation,
     validator: VALIDATOR,
     finding_ids: unresolvedIds(lineage),
     paths: correctionPaths(lineage),
+    ...requestLog(state),
     request_digest: validationDigest(lineage),
     result_contract: VALIDATION_CONTRACT,
   };
@@ -220,7 +233,7 @@ function advisoryDigest(lineage, correction) {
 
 // The request for the read-only validator of an advisory correction. It
 // carries the findings, which no blocking lifecycle hands to the validator.
-function advisoryRequest(lineage, correction) {
+function advisoryRequest(state, lineage, correction) {
   const ids = new Set(correction.finding_ids);
   return {
     lineage_id: lineage.lineage_id,
@@ -230,6 +243,7 @@ function advisoryRequest(lineage, correction) {
     findings: lineage.findings.filter((finding) => ids.has(finding.id))
       .map(({ id, severity, summary, acceptance_criteria }) => ({ id, severity, summary, acceptance_criteria })),
     paths: [...correction.paths],
+    ...requestLog(state),
     request_digest: advisoryDigest(lineage, correction),
     result_contract: VALIDATION_CONTRACT,
   };
@@ -244,6 +258,7 @@ function reviewRequest(state, lineage) {
     lens: LENS,
     reviewer: REVIEWER,
     paths: [...lineage.genesis.paths],
+    ...requestLog(state),
     request_digest: requestDigest(lineage),
     result_contract: RESULT_CONTRACT,
   };
@@ -297,9 +312,9 @@ function startTrustReview(state, { candidate, reviewedChanged, correctionChanges
     current = escalateOversized(state, current);
     state = withReview(state, current);
   }
-  if (current && current.status === "validating") return { state, changed: false, validate: validationRequest(current) };
+  if (current && current.status === "validating") return { state, changed: false, validate: validationRequest(state, current) };
   const advisory = advisoryCorrection(state, current);
-  if (advisory && advisory.status === "validating") return { state, changed: false, validate: advisoryRequest(current, advisory) };
+  if (advisory && advisory.status === "validating") return { state, changed: false, validate: advisoryRequest(state, current, advisory) };
   if (current && !TERMINAL.has(current.status)) return { state, changed: false, request: reviewRequest(state, current) };
   if (current) {
     if (trustObligation(state).status === "satisfied") refuse("review-current", "the trust review of the current candidate is already approved");
@@ -468,7 +483,8 @@ function correctTrustReview(state, { changes, candidateTree, diffHash, findingId
       request_id: requestId(state, "correction-record", begun),
     });
   });
-  return { state: withReview(state, corrected), validate: validationRequest(corrected) };
+  const next = withReview(state, corrected);
+  return { state: next, validate: validationRequest(next, corrected) };
 }
 
 const SUCCESSOR = "run ospec review start for a successor review";
@@ -508,7 +524,7 @@ function correctAdvisory(state, lineage, { changes, candidateTree, diffHash, fin
   const target = trustObligation(next);
   target.status = "pending";
   target.evidence = [];
-  return { state: next, validate: advisoryRequest(lineage, correction) };
+  return { state: next, validate: advisoryRequest(next, lineage, correction) };
 }
 
 // The verdict of an advisory validation, in the shape the lineage asks of a

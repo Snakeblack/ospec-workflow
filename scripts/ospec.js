@@ -105,7 +105,7 @@ const claudeRouter = require("./lib/claude-router.js");
 const { IRREVERSIBLE_OPERATIONS, addedTests, answerHits, applyDerivation, classifyPath, deriveSignals, inlineTests, requireDeclaredCeremony, securityHits } = require("./lib/idd-signals.js");
 const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { writeFileAtomic } = require("./lib/atomic-write.js");
-const { IddStoreError, changeDir, listChanges, mutateChange, readChange, serializeState } = require("./lib/idd-store.js");
+const { IddStoreError, changeDir, listChanges, mutateChange, readChange, renderLivingDoc, serializeState } = require("./lib/idd-store.js");
 const { withFileLock } = require("./lib/ospec-state.js");
 const {
   EMPTY_TREE,
@@ -345,6 +345,7 @@ function reducerFor(type, values, root) {
           coverage: covered?.coverage,
           answer: values.answer,
           source: values.source,
+          recordedAt: new Date().toISOString(),
         });
         const written = plan ? declarePlan(recorded.state, plan) : null;
         const result = written ? { ...written, changed: recorded.changed || written.changed } : recorded;
@@ -398,7 +399,7 @@ function reducerFor(type, values, root) {
     case "retract":
       if (!values.signal) throw new UsageError("record retract needs --signal <id>");
       return existing((state) =>
-        recordRetract(state, { id: values.signal, reason: values.reason, answer: values.answer, source: values.source, ...diffConfirmation(root, state, values.signal) }),
+        recordRetract(state, { id: values.signal, reason: values.reason, answer: values.answer, source: values.source, recordedAt: new Date().toISOString(), ...diffConfirmation(root, state, values.signal) }),
       );
     case "impact": {
       const refs = declaredReferences(values);
@@ -1101,7 +1102,9 @@ function livingDocFile(root, changeId) {
 function readLivingDoc(root, state) {
   if (!state.obligations.some((entry) => entry.id === "living-doc" && entry.status !== "withdrawn")) return null;
   try {
-    return livingDocStatus(fs.readFileSync(livingDocFile(root, state.change), "utf8"), { decisionRequired: state.plan?.decision !== false });
+    // Validated as the CLI writes it: a document opened before the log gets
+    // its section on the next write (E1.77).
+    return livingDocStatus(renderLivingDoc(fs.readFileSync(livingDocFile(root, state.change), "utf8"), state), { decisionRequired: state.plan?.decision !== false });
   } catch (error) {
     if (error.code === "ENOENT") return livingDocStatus(null);
     throw error;
