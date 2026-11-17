@@ -1,6 +1,8 @@
 package hooks
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -23,9 +25,9 @@ func TestLiteralReadOperands(t *testing.T) {
 		{`cat "$FILE"`, nil},
 		{`echo ok # ; cat .env`, nil},
 		{`cat '.env`, nil},
-		{"grep API_KEY .env", []string{"API_KEY", ".env"}},
-		{"sed -n 1p .env", []string{"1p", ".env"}},
-		{"awk '{print}' .env", []string{"{print}", ".env"}},
+		{"grep API_KEY .env", []string{".env"}},
+		{"sed -n 1p .env", []string{".env"}},
+		{"awk '{print}' .env", []string{".env"}},
 		{"base64 .env", []string{".env"}},
 		{"xxd .env", []string{".env"}},
 		{"cp .env /tmp/out.env", []string{".env", "/tmp/out.env"}},
@@ -46,5 +48,24 @@ func TestLiteralReadOperands(t *testing.T) {
 		if got := extractShellReadPaths(tc.command); !reflect.DeepEqual(got, tc.paths) {
 			t.Errorf("%s: got %v, want %v", tc.command, got, tc.paths)
 		}
+	}
+}
+
+func TestIDNameCountsAsKeyOnlyWhenItIsAFile(t *testing.T) {
+	workspace := t.TempDir()
+	if err := os.Mkdir(filepath.Join(workspace, "id_service"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workspace, "id_deploy"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(workspace)
+	for _, command := range []string{"cd id_service && npm test", "go test ./id_service", "git add id_service"} {
+		if namesDeniedFile(command, shellFileExists) {
+			t.Errorf("%s: denied, want no objection", command)
+		}
+	}
+	if !namesDeniedFile("openssl rsa -in id_deploy -text", shellFileExists) {
+		t.Error("openssl rsa -in id_deploy -text: want deny")
 	}
 }

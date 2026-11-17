@@ -1,0 +1,479 @@
+{
+  "schema": "idd-state/v1",
+  "change": "gitconfig-separator-parity",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En Windows, la clasificación de Node no reconoce .git/config escrito con barras normales: compara con path.join('.git','config'), que allí lleva barra invertida, y Go sí lo reconoce con ToSlash. Seis casos del corpus compartido fallan en el CI de Windows",
+    "acceptance": "Con las funciones de ruta de Windows, classifySensitiveFile deniega .git/config con barras normales y con barras invertidas, como Go; el corpus compartido pasa en Windows"
+  },
+  "facts": {
+    "basis": "La spec de agent-shield deniega .git/config, la implementación de Go ya normaliza el separador con filepath.ToSlash y el corpus compartido fija el resultado esperado; solo cambia el separador que acepta Node en Windows"
+  },
+  "plan": {
+    "paths": [
+      "scripts/hooks/lib/secret-scan.js",
+      "scripts/hooks/lib/secret-scan.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/lib/secret-scan.js and 1 more (matches **/*secret*)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "El guard deniega .git/config en más casos (también con barra normal en Windows); no relaja ningún deny ni cambia el fallo cerrado"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; Node vuelve a coincidir con Go en la clasificación de .git/config"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "La clasificación solo gana casos denegados; el camino de error del hook no cambia"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1",
+        "ev-2"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-17T08:15:22.117Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-17T08:15:30.175Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-5",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-17T08:18:46.940Z",
+      "detail": {
+        "lineage_id": "sha256:4a9f35b65abee28bb8f2527aa6a8f38eff7f0a39835e382f40775aaccc94322b",
+        "candidate_id": "sha256:5644a1f9db6b9046956a413cecd4a9666b3c4a4fa0506d650b89e9dcf8ad8305",
+        "candidate_tree": "047af7b3cd2b4e8eef86f23fcd33db6b219e6f45",
+        "findings_digest": "sha256:e6bac8fd9db5adfef1956756be8df6aa8f49bbf222105c42f5b9c760165c7d38",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-17T08:18:32.229Z",
+          "result_digest": "sha256:6953b0230e9f1b370d162930aa0a57dc7dd58e55a4c714fbabaa0d6e199ee8fe"
+        }
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-17T08:21:06.165Z",
+      "detail": {
+        "lineage_id": "sha256:4a9f35b65abee28bb8f2527aa6a8f38eff7f0a39835e382f40775aaccc94322b",
+        "candidate_id": "sha256:5644a1f9db6b9046956a413cecd4a9666b3c4a4fa0506d650b89e9dcf8ad8305",
+        "candidate_tree": "8c572e809b1e1a769f2b2e1733d7ac881cdd6f31",
+        "findings_digest": "sha256:e6bac8fd9db5adfef1956756be8df6aa8f49bbf222105c42f5b9c760165c7d38",
+        "correction": "advisory",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-correction",
+          "recorded_at": "2026-11-17T08:20:55.310Z",
+          "result_digest": "sha256:c92eb37ae27614925750ca24ae443f1fd02c027b79a7f462a73814c3472d9424"
+        }
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T08:22:38.211Z",
+      "detail": {
+        "tree": "sha256:253f9c78409279fe6a237c43c91b8b001cbc53181b1ac79744711760a34501fb",
+        "runs": [
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T08:22:38.211Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:253f9c78409279fe6a237c43c91b8b001cbc53181b1ac79744711760a34501fb",
+        "fitness": [
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10"
+        ]
+      }
+    }
+  ],
+  "base": "be698cd97cbce33cbb8c60a02e9d6109feb978c0",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/lib/secret-scan.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:5af319556590155b4dbfef0b6062e5f13918776514bcf0eede6aad23110f018e",
+      "tree": "sha256:b2f18a0f135b47698418a629a6c4cd484863ce8e6f967845dc0eb081270326cb",
+      "recorded_at": "2026-11-17T08:15:14.294Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/lib/secret-scan.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1b09af315a7f0401724225a7a890840e3fbda9182fbae12b0945f9dd2c5b6f6f",
+      "tree": "sha256:051f4ff2a5b330cf9345f298967be60c8be5f5878ab3e34bfe9fc11de60a6397",
+      "recorded_at": "2026-11-17T08:15:22.117Z",
+      "tests": 49,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "be698cd97cbce33cbb8c60a02e9d6109feb978c0",
+      "mount": "sha256:aa8c812a82751243c707bf016214312e83dca0f641c63164746a88fe6c4d59f4",
+      "command": "node --test scripts/hooks/lib/secret-scan.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:87fcf824a46c9809a5552efeb2f43b3952bfd78674a0a1bb0b27138fb6ea4b6f",
+      "tree": "sha256:051f4ff2a5b330cf9345f298967be60c8be5f5878ab3e34bfe9fc11de60a6397",
+      "recorded_at": "2026-11-17T08:15:22.117Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "be698cd97cbce33cbb8c60a02e9d6109feb978c0",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/hooks/lib/secret-scan.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bd04ec4f7883b1b2949552583007feab850019b5b1dcc8326bf59b813582c169",
+      "tree": "sha256:051f4ff2a5b330cf9345f298967be60c8be5f5878ab3e34bfe9fc11de60a6397",
+      "recorded_at": "2026-11-17T08:15:22.117Z",
+      "tests": 48
+    },
+    {
+      "id": "run-5",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/lib/secret-scan.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9ed87b40178ece6f810cf479ee8c10bfbf010aac716d21069d8946b14be5dc46",
+      "tree": "sha256:4d31942a1aedb57a4a307e1089c3b8d92fe1125450dc1a6ba126e1bac0ebdd95",
+      "recorded_at": "2026-11-17T08:15:30.175Z",
+      "tests": 49,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-6",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a5e4e2dcddf3ea20190fd667e753e16666aec99007f8684ee381afebcb5403c7",
+      "tree": "sha256:253f9c78409279fe6a237c43c91b8b001cbc53181b1ac79744711760a34501fb",
+      "recorded_at": "2026-11-17T08:22:38.211Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:07ab67f7b2df6c3c694aba192c5274ffa2c3c42d9f4ebc6abd77d03fb232fe6d",
+      "tree": "sha256:253f9c78409279fe6a237c43c91b8b001cbc53181b1ac79744711760a34501fb",
+      "recorded_at": "2026-11-17T08:22:38.211Z",
+      "tests": 100
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:253f9c78409279fe6a237c43c91b8b001cbc53181b1ac79744711760a34501fb",
+      "recorded_at": "2026-11-17T08:22:38.211Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:07d416578a7fa4b3ca17282e3187da701890d0fdf4d7021166fe1fc9bb5982de",
+      "tree": "sha256:253f9c78409279fe6a237c43c91b8b001cbc53181b1ac79744711760a34501fb",
+      "recorded_at": "2026-11-17T08:22:38.211Z",
+      "tests": 26
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cbf858e05b3026d098f29b6d23f1e77752ced92fe067436d5a889c4fdbd98846",
+      "tree": "sha256:253f9c78409279fe6a237c43c91b8b001cbc53181b1ac79744711760a34501fb",
+      "recorded_at": "2026-11-17T08:22:38.211Z",
+      "tests": 100
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:4a9f35b65abee28bb8f2527aa6a8f38eff7f0a39835e382f40775aaccc94322b",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "9b3dd4794e3e1e44442b0439abb79f0c7eb55a4a",
+          "candidate_tree": "047af7b3cd2b4e8eef86f23fcd33db6b219e6f45",
+          "paths": [
+            "scripts/hooks/lib/secret-scan.js",
+            "scripts/hooks/lib/secret-scan.test.js"
+          ],
+          "diff_hash": "sha256:e5c6c5ff3c61b15574593588b960d957ca6e7be65aa4fd3a761280ff5b04a623",
+          "paths_digest": "sha256:a46164a1c28cb0d041b840d395d6fdc35997ffd60ab7c01458280df85344a3cd",
+          "authored_lines": 13,
+          "original_changed_lines": 14
+        },
+        "candidate_id": "sha256:5644a1f9db6b9046956a413cecd4a9666b3c4a4fa0506d650b89e9dcf8ad8305",
+        "paths": [
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/lib/secret-scan.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "047af7b3cd2b4e8eef86f23fcd33db6b219e6f45",
+        "original_changed_lines": 14,
+        "authored_lines": 13
+      },
+      "current_candidate_id": "sha256:5644a1f9db6b9046956a413cecd4a9666b3c4a4fa0506d650b89e9dcf8ad8305",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "9b3dd4794e3e1e44442b0439abb79f0c7eb55a4a",
+        "candidate_tree": "047af7b3cd2b4e8eef86f23fcd33db6b219e6f45",
+        "paths": [
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/lib/secret-scan.test.js"
+        ],
+        "diff_hash": "sha256:e5c6c5ff3c61b15574593588b960d957ca6e7be65aa4fd3a761280ff5b04a623",
+        "paths_digest": "sha256:a46164a1c28cb0d041b840d395d6fdc35997ffd60ab7c01458280df85344a3cd",
+        "authored_lines": 13,
+        "original_changed_lines": 14
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "gitconfig-separator-parity:lens-start:1:0",
+          "result_digest": "sha256:9949349bddded5a490528fa8799e0b99e10e73de85ea841707baa552a1592171",
+          "result": {
+            "findings": [
+              {
+                "severity": "SUGGESTION",
+                "summary": "scripts/hooks/lib/secret-scan.js:228 turns every backslash into a slash on every platform. Go's filepath.ToSlash (internal/hooks/secretscan.go:203) changes nothing on Linux/macOS, where the separator is already '/'. So the two classifiers still disagree off Windows when a path contains a literal backslash. Example input on Linux: `.git\\config/config`, a file named config inside a directory literally named `.git\\config`. Node takes basename 'config', normalises the path to `.git/config/config` and returns deny git-config. Go takes basename 'config', keeps the string as it is, finds no `.git/config` and returns nil. The difference fails closed: Node only over-denies, the new condition matches everything the old one matched, and on Windows both now deny `/` and `\\` spellings. It still contradicts the comment at lines 226-227 ('as filepath.ToSlash does in Go') and the parity contract at lines 8-9.",
+                "acceptance_criteria": "With the POSIX path functions, classifySensitiveFile(\".git\\\\config/config\") gives the same result in Node as Go's classifySensitiveFile gives on Linux. If the fail-closed difference is kept on purpose, the comment above the condition (and the parity doc) says so and no longer claims filepath.ToSlash semantics. In both cases, with the Windows path functions, `.git/config`, `repo\\\\.git\\\\config` and `C:\\\\repo\\\\.git/config` still return deny git-config, and `repo\\\\config` still returns null.",
+                "location": "scripts/hooks/lib/secret-scan.js:228"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "gitconfig-separator-parity:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-957209ae260df292",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "scripts/hooks/lib/secret-scan.js:228 turns every backslash into a slash on every platform. Go's filepath.ToSlash (internal/hooks/secretscan.go:203) changes nothing on Linux/macOS, where the separator is already '/'. So the two classifiers still disagree off Windows when a path contains a literal backslash. Example input on Linux: `.git\\config/config`, a file named config inside a directory literally named `.git\\config`. Node takes basename 'config', normalises the path to `.git/config/config` and returns deny git-config. Go takes basename 'config', keeps the string as it is, finds no `.git/config` and returns nil. The difference fails closed: Node only over-denies, the new condition matches everything the old one matched, and on Windows both now deny `/` and `\\` spellings. It still contradicts the comment at lines 226-227 ('as filepath.ToSlash does in Go') and the parity contract at lines 8-9.",
+          "acceptance_criteria": "With the POSIX path functions, classifySensitiveFile(\".git\\\\config/config\") gives the same result in Node as Go's classifySensitiveFile gives on Linux. If the fail-closed difference is kept on purpose, the comment above the condition (and the parity doc) says so and no longer claims filepath.ToSlash semantics. In both cases, with the Windows path functions, `.git/config`, `repo\\\\.git\\\\config` and `C:\\\\repo\\\\.git/config` still return deny git-config, and `repo\\\\config` still returns null.",
+          "location": "scripts/hooks/lib/secret-scan.js:228",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:e6bac8fd9db5adfef1956756be8df6aa8f49bbf222105c42f5b9c760165c7d38",
+      "correction_budget": {
+        "limit_lines": 7,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "advisory_corrections": [
+    {
+      "lineage_id": "sha256:4a9f35b65abee28bb8f2527aa6a8f38eff7f0a39835e382f40775aaccc94322b",
+      "status": "passed",
+      "finding_ids": [
+        "F-957209ae260df292"
+      ],
+      "paths": [
+        "scripts/hooks/lib/secret-scan.js",
+        "scripts/hooks/lib/secret-scan.test.js"
+      ],
+      "changed_lines": 6,
+      "candidate_tree": "8c572e809b1e1a769f2b2e1733d7ac881cdd6f31",
+      "diff_hash": "sha256:1a7d2d0f476e5c3688ab756cc0d0e3bb6bc3b05ed2140eedb824c3dd56bbbd63",
+      "recorded_at": "2026-11-17T08:19:35.480Z",
+      "validation": {
+        "recorded_at": "2026-11-17T08:21:06.165Z",
+        "outcomes": [
+          {
+            "id": "F-957209ae260df292",
+            "status": "resolved"
+          }
+        ],
+        "regression": {
+          "detected": false,
+          "evidence": [
+            "Not executed; I only read the code. secret-scan.js:228 now uses String(filePath).split(path.sep).join(\"/\"). With the POSIX path functions (sep \"/\") this changes nothing, so \".git\\\\config/config\" has basename \"config\", does not contain \".git/config\" and returns null. Go's filepath.ToSlash also changes nothing on Linux and returns nil (secretscan.go:203). The two now agree, and the comment at secret-scan.js:226-227 about ToSlash is accurate again.",
+            "secret-scan.test.js:49 asserts null for \".git\\\\config/config\" when path.sep is \"/\". Lines 53-59 switch to path.win32 sep and basename and assert deny git-config for \".git/config\", \"repo\\\\.git\\\\config\" and \"C:\\\\repo\\\\.git/config\", and null for \"repo\\\\config\". Tracing line 228 with sep \"\\\\\" gives the same results, so the Windows part of the acceptance criteria holds.",
+            "No .git/config path loses its deny on POSIX: repo/.git/config still matches (test line 44). On POSIX the condition now matches only paths that already contain \".git/config\" literally, a subset of what the old backslash-to-slash version matched, so there is no new false deny. nginx/config still returns null (line 110).",
+            "No path state leaks into later tests. The test saves path.sep before changing it and restores it in t.after (lines 51-53), which runs even when an assertion fails. node:test's t.mock restores the basename and join mocks when the test ends (lines 54-55), and the test is synchronous. No other file in the repository uses a literal .git\\config path that relied on the old Linux behaviour."
+          ]
+        },
+        "follow_ups": []
+      }
+    }
+  ],
+  "closed_at": "2026-11-17T08:22:50.274Z"
+}

@@ -81,3 +81,31 @@ func TestPostToolUse_SensitiveFileMode(t *testing.T) {
 		t.Fatalf("outside a sensitive file the unquoted lowercase form stays, got %s", out)
 	}
 }
+
+func TestPostToolUse_SensitiveFileModeForShellReads(t *testing.T) {
+	t.Setenv("DISABLE_SECRET_REDACTION", "")
+	stdout := `region = eu-west-1\naws_secret_access_key = wJalrXUtnFEMIK7MDENGbPxRfiCYzR4tQ7nLpK12\n`
+	run := func(command string) []byte {
+		input, _ := json.Marshal(map[string]interface{}{
+			"tool_name":     "Bash",
+			"tool_input":    map[string]string{"command": command},
+			"tool_response": json.RawMessage(`{"stdout":"` + stdout + `","stderr":"","interrupted":false}`),
+		})
+		out, _ := hooks.Dispatch([]string{"post-tool-use"}, input)
+		return out
+	}
+	redacted := "aws_secret_access_key = [" + "REDACTED" + ":assigned-secret]"
+	for _, command := range []string{
+		"cat ~/.aws/credentials", "sort .env", `bash -lc "tac $HOME/app/.env.local"`,
+		"echo $(cat .env)", `python3 -c "print(open('.env').read())"`, "perl -pe 1 .env",
+	} {
+		if out := run(command); !strings.Contains(string(out), redacted) || !strings.Contains(string(out), "region = eu-west-1") {
+			t.Errorf("%s: must be redacted in sensitive-file mode: %s", command, out)
+		}
+	}
+	for _, command := range []string{"cat settings.ini", "source .env", "rg credentials src/"} {
+		if out := run(command); out != nil {
+			t.Errorf("%s: must keep the normal mode, got %s", command, out)
+		}
+	}
+}

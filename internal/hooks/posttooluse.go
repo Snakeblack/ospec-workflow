@@ -24,13 +24,17 @@ func (h *postToolUseHandler) Name() string { return "post-tool-use" }
 var postToolUsePathKeys = []string{"file_path", "filePath", "path", "notebook_path"}
 
 // readsSensitiveFile: a read of a file the name classifier flags (.env*,
-// credentials, secrets.json…) is redacted in sensitive-file mode.
+// credentials, secrets.json…) is redacted in sensitive-file mode, also when a
+// shell command reads it (`cat .env`).
 func readsSensitiveFile(toolInput map[string]interface{}, response interface{}) bool {
 	var candidates []string
 	for _, key := range postToolUsePathKeys {
 		if value, ok := toolInput[key].(string); ok {
 			candidates = append(candidates, value)
 		}
+	}
+	if command, ok := toolInput["command"].(string); ok {
+		candidates = append(candidates, shellReadFiles(command, shellFileExists)...)
 	}
 	if object, ok := response.(map[string]interface{}); ok {
 		if file, ok := object["file"].(map[string]interface{}); ok {

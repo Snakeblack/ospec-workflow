@@ -56,6 +56,30 @@ test("a read of a sensitive file redacts in sensitive-file mode", () => {
   assert.equal(plain, null, "outside a sensitive file the unquoted lowercase form stays");
 });
 
+test("a shell command that reads a sensitive file redacts in sensitive-file mode", () => {
+  const value = "wJalrXUtnFEMIK7MDENGbPxRfiCYzR4tQ7nLpK12";
+  const redacted = `[${"REDACTED"}:assigned-secret]`;
+  const response = () => ({ stdout: `region = eu-west-1\naws_secret_access_key = ${value}\n`, stderr: "", interrupted: false });
+  const run = (command) => withEnv({ DISABLE_SECRET_REDACTION: undefined }, () => evaluatePostToolUse({
+    tool_name: "Bash",
+    tool_input: { command },
+    tool_response: response(),
+  }));
+  for (const command of [
+    "cat ~/.aws/credentials", "sort .env", 'bash -lc "tac $HOME/app/.env.local"',
+    "echo $(cat .env)", `python3 -c "print(open('.env').read())"`, "perl -pe 1 .env",
+  ]) {
+    assert.equal(
+      run(command).hookSpecificOutput.updatedToolOutput.stdout,
+      `region = eu-west-1\naws_secret_access_key = ${redacted}\n`,
+      command,
+    );
+  }
+  assert.equal(run("cat settings.ini"), null, "outside a sensitive file the unquoted lowercase form stays");
+  assert.equal(run("source .env"), null, "a command that does not print the file keeps the normal mode");
+  assert.equal(run("rg credentials src/"), null, "a search pattern is not a file");
+});
+
 test("an output without secrets, a missing response or the switch makes no decision", () => {
   withEnv({ DISABLE_SECRET_REDACTION: undefined }, () => {
     assert.equal(evaluatePostToolUse({ tool_name: "Bash", tool_response: { stdout: "ok", stderr: "" } }), null);

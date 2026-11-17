@@ -132,7 +132,8 @@ func TestScanContent_GenericTruePositives(t *testing.T) {
 		`api_key = 'abcdef123456'`,
 		`token: "abcdef123456"`,
 		`contraseña = "miClaveSegura"`,
-		`private_key: "-----BEGIN"`,
+		// Una clave generada tiene forma de secreto: se construye en ejecución.
+		`private_key: "` + strings.Repeat("0x4c0883a6", 4) + `"`,
 		`SECRET="deploy-secret-value"`,
 	} {
 		matched, patternID := scanContentForSecrets(content)
@@ -236,5 +237,30 @@ func TestScanFile_UnreadableAndTooLarge(t *testing.T) {
 func TestMaxScanSizeBytes_ParityContract(t *testing.T) {
 	if maxScanSizeBytes != 1024*1024 {
 		t.Errorf("maxScanSizeBytes = %d, want 1MB (contrato de paridad con JS)", maxScanSizeBytes)
+	}
+}
+
+func TestKeyWordClass(t *testing.T) {
+	for name, want := range map[string]string{
+		"password": "human", "dbPassword": "human", "DB_PASSWD": "human", "client-secret": "human", "contraseña": "human",
+		"db_pass": "human", "pass": "machine", "accessToken": "machine", "API_KEY": "machine", "apikey": "machine",
+		"private_key": "machine", "storage_account_key": "machine", "pwd": "machine", "credentials": "machine",
+		"jwt_key": "machine", "key": "generic", "STORAGE_KEY": "unqualified", "azure_openai_key": "unqualified",
+		"sortKey": "", "cache_key": "", "publicKey": "",
+		"monkey": "", "compass": "", "keyword": "", "max_tokens": "", "passwordField": "",
+	} {
+		words := keyWords(name)
+		if got := keyWordClass(words, len(words)-1); got != want {
+			t.Errorf("keyWordClass(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
+func TestFindGenericCredentials_NestedAssignment(t *testing.T) {
+	// Por partes: la línea entera tendría la forma que el pre-commit bloquea.
+	inner := strings.Join([]string{"password", "=", "'" + strings.Repeat("hunter", 2) + "'"}, " ")
+	got := findGenericCredentials(`title = "the ` + inner + `"`)
+	if len(got) != 1 || got[0] != inner {
+		t.Fatalf("got %q", got)
 	}
 }

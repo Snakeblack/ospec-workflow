@@ -3,8 +3,9 @@
 const child_process = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
-const { classifySensitiveFile, scanContentForSecrets, MAX_SCAN_SIZE_BYTES } = require("./lib/secret-scan.js");
-const { getStagedAddedLines, getStagedBlobSize } = require("./lib/staged-validator.js");
+const { classifySensitiveFile, MAX_SCAN_SIZE_BYTES } = require("./lib/secret-scan.js");
+const { detectSecret } = require("./lib/secret-redact.js");
+const { getStagedAddedEntries, getStagedBlobSize } = require("./lib/staged-validator.js");
 const { readPrecommitStrict } = require("../lib/precommit-strict.js");
 
 // check.js --staged lanza tests que crean sus propios repositorios: no deben
@@ -35,6 +36,30 @@ function envWithoutGitHookContext(source = process.env) {
     delete env[key];
   }
   return env;
+}
+
+// Una línea con este marcador no se escanea: es la excepción, visible en el
+// diff, para un ejemplo legítimo (un fixture, una URL de base de datos local).
+const ALLOW_MARKER = "ospec:allow-secret";
+
+/**
+ * La primera línea añadida que el escáner marca o la censura censura, y
+ * cuántas líneas con el marcador se saltaron antes de encontrarla.
+ *
+ * @param {{number: number, text: string}[]} entries
+ * @returns {{finding: {line: number, patternId: string}|null, allowed: number}}
+ */
+function findAddedSecret(entries) {
+  let allowed = 0;
+  for (const { number, text } of entries) {
+    if (text.includes(ALLOW_MARKER)) {
+      allowed += 1;
+      continue;
+    }
+    const patternId = detectSecret(text);
+    if (patternId) return { finding: { line: number, patternId }, allowed };
+  }
+  return { finding: null, allowed };
 }
 
 function runPreCommit(options = {}) {
@@ -98,9 +123,9 @@ function runPreCommit(options = {}) {
 
           // Solo cuenta lo que el commit añade: un fixture ya versionado no
           // bloquea un commit que no lo toca.
-          let content;
+          let entries;
           try {
-            content = getStagedAddedLines(repoRoot, file);
+            entries = getStagedAddedEntries(repoRoot, file);
           } catch (err) {
             console.error("\n======================================================================");
             console.error(`OSPEC-PRECOMMIT ERROR: No se pudo inspeccionar el contenido staged de ${file}`);
@@ -114,17 +139,23 @@ function runPreCommit(options = {}) {
             return;
           }
 
-          if (!content || typeof content !== "string") continue;
-          if (Buffer.byteLength(content, "utf8") >= maxScan) continue;
+          if (!Array.isArray(entries) || entries.length === 0) continue;
+          const addedBytes = entries.reduce((total, entry) => total + Buffer.byteLength(entry.text, "utf8") + 1, 0);
+          if (addedBytes >= maxScan) continue;
 
-          const scan = scanContentForSecrets(content);
-          if (scan.matched) {
+          const { finding, allowed } = findAddedSecret(entries);
+          if (allowed > 0) {
+            console.log(`OSPEC-PRECOMMIT: ${file}: ${allowed} línea(s) con ${ALLOW_MARKER} sin escanear.`);
+          }
+          if (finding) {
             console.error("\n======================================================================");
             console.error("OSPEC-PRECOMMIT ERROR: Se detectó una credencial o clave secreta en archivo staged.");
             console.error(`  Archivo: ${file}`);
-            console.error(`  Patrón detectado: ${scan.patternId}`);
+            console.error(`  Línea: ${finding.line}`);
+            console.error(`  Patrón detectado: ${finding.patternId}`);
             console.error("");
             console.error("Remueve las credenciales o secretos antes de realizar el commit.");
+            console.error(`Si la línea es un ejemplo y no un secreto, añádele ${ALLOW_MARKER} (en un comentario).`);
             console.error("Para omitir esta verificación (emergencias):");
             console.error("  DISABLE_AGENT_SHIELD=true git commit ...");
             console.error("  o: git commit --no-verify");
@@ -304,6 +335,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+  ALLOW_MARKER,
+  findAddedSecret,
   runPreCommit,
   envWithoutGitHookContext,
   commitIndexFile,

@@ -54,12 +54,39 @@ El estado de IDD lo escribe **solo** el CLI `ospec`. El hook bloquea que el asis
 
 ## AgentShield: secretos
 
-Revisa los ficheros que el asistente lee o escribe, el texto que escribe y los ficheros que lee un comando de shell (`cat`, `grep`, `cp`…).
+Revisa los ficheros que el asistente lee o escribe, el texto que escribe y los ficheros que nombra un comando de shell.
 
 - **Por nombre de fichero:** las claves privadas SSH, los `*.key`, `.npmrc` y el `.git/config` del repositorio **se bloquean**; `.env*`, `secrets.json` y `credentials` **piden confirmación**.
-- **Por contenido**, en ficheros de menos de 1 MB y en el texto escrito: tokens conocidos (GitHub, AWS, OpenAI, Anthropic, Google, Slack, Stripe, npm, GitLab, Hugging Face, SendGrid), cabeceras de clave privada, JWT y asignaciones como `password = "..."`. Piden confirmación.
+- **En un comando de shell:**
+  - Un fichero bloqueado por nombre se bloquea por cualquier vía que lo lea: `cat`, `tac`, `sort`, `python3 -c`, `node -pe`, `bash -c`, `sudo cat`, `sudo -u root cat`, `timeout 30 cat`, `env -S 'cat …'`, `echo $(cat …)`, `(cd ~ && cat …)`, `{ cat …; }`, `diff <(cat …)`, `< fichero`, con `$HOME` en la ruta o con un comodín (`id_*`, `~/.ssh/*`). También con el patrón de `grep` o `sed` en una opción o vacío (`grep -e. .npmrc`, `sed '' fichero`) y con la ruta en un literal de plantilla de `node -e`.
+  - Una clave SSH (bajo `.ssh/`, o con un nombre de OpenSSH como `id_rsa` o `id_ed25519`) se bloquea además como argumento de cualquier otro comando: `openssl rsa -in ~/.ssh/id_ed25519`, `dd if=…`, `curl -F file=@…`. Buscar su ruta también se bloquea (`rg '.ssh/id_rsa' docs/`); busca el nombre a secas (`rg id_rsa docs/`). Pasan los que la usan sin imprimirla: `ssh -i`, `ssh-add`, `ssh-keygen`, `ssh-copy-id`, `ansible-playbook --private-key`, `scp -i`, `chmod`, `chown`, `ls`, `stat`, `test`, `rm`, `touch`, `echo`, `printf` y `find`.
+  - Una clave TLS o un `.npmrc` pasan como argumento de un comando que no los imprime: `curl --key client.key`, `openssl req -key server.key`, `kubectl create secret tls --key=tls.key`, `npm publish --userconfig ~/.npmrc`.
+  - Una palabra que solo parece una clave no cuenta: `rg id_token src/`, `git checkout feature/id_check`, `jq .data.key` o `d['id_token']` en un `python -c` pasan. Fuera de `cat` y los demás lectores, un nombre que empieza por `id_` es una clave si está bajo `.ssh/`, es un nombre de OpenSSH con su directorio o existe como fichero; un directorio `id_service/` no cuenta.
+  - Un fichero que pide confirmación la pide con los comandos que imprimen su contenido: `cat`, `head`, `tail`, `grep`, `sed`, `awk`, `sort`, `nl`, `tac`, `rev`, `cut`, `rg`, `jq`, `cp` y otros, también dentro de `bash -c`, detrás de `sudo`, en una sustitución `$(…)` o en el código de `python -c`, `node -e` y similares.
+- **Por contenido**, en ficheros de menos de 1 MB y en el texto escrito: tokens conocidos (GitHub, AWS, OpenAI, Anthropic, Google, Slack, Stripe, npm, GitLab, Hugging Face, SendGrid), cabeceras de clave privada, JWT y asignaciones entre comillas a un nombre sensible (`password`, `dbPassword`, `api_key`, `accessToken`). Piden confirmación.
+  - El nombre decide: una contraseña cuenta con cualquier valor de 6 caracteres o más; un token o una clave con calificador (`api_key`, `jwtKey`), solo si el valor tiene forma de secreto; un `key` a secas o con otro prefijo (`azure_openai_key`), solo con un token opaco de 16 caracteres o más. El `key` de un elemento de JSX, una clave de traducción, un `storage_key` con un identificador o un `cache_key` con un hash no cuentan.
+  - En la salida, un `key` con un prefijo que no califica no se censura: suele guardar un hash o un identificador. El commit sí lo bloquea si el valor es opaco, se escriba como se escriba: `azure_openai_key = "…"`, `"azure_openai_key": "…"` en un JSON, `AZURE_OPENAI_KEY=…` o `AZURE_OPENAI_KEY: …`.
 - **Marcadores de censura:** escribir un `[REDACTED:…]` sobre un fichero que todavía guarda el secreto real se bloquea, para no destruirlo por error.
-- **En la salida** (`PostToolUse`): los secretos se censuran antes de que el modelo vea la respuesta, con un modo más estricto al leer ficheros sensibles.
+- **En la salida** (`PostToolUse`): los secretos se censuran antes de que el modelo vea la respuesta, venga de una herramienta de lectura o de un comando de shell.
+  - Un fichero de configuración se lee entero y solo se censuran sus secretos. En un `appsettings.json`, el nivel de log y el servidor de la base de datos se ven; la contraseña de la cadena de conexión (`Password=…`, `AccountKey=…`), un `ApiKey` y un `Key` aleatorio, no.
+  - Al leer un fichero sensible por nombre (`.env*`, `credentials`, `secrets.json`), también con `cat` o `sort`, la censura es más estricta: cualquier valor opaco, sea cual sea su clave.
+
+### Qué bloquea el commit
+
+El hook `pre-commit` revisa las líneas que el commit añade y lo cancela si una tiene algo que el escáner marca o que la censura censuraría. El mensaje da el fichero, la línea y el tipo, nunca el valor.
+
+Si la línea es un ejemplo y no un secreto (un fixture, la URL de una base de datos local), añádele `ospec:allow-secret` en un comentario. El commit pasa, el hook dice cuántas líneas saltó y la excepción queda a la vista en el diff.
+
+### Qué no cubren
+
+Los guards frenan la fuga accidental. No paran a un proceso que quiera leer:
+
+- No interpretan el shell: `source .env`, un script que abre el fichero, `xargs`, `find -exec`, una variable que guarda la ruta, un `eval` o el cuerpo de un heredoc no se ven. Tampoco un comando que no es lector e imprime una clave que no es SSH, como `openssl rsa -in server.key -text`.
+- Una contraseña solo de letras en código o en un JSON queda sin censurar en la salida, para no censurar etiquetas como `"password": "Contraseña"`. El commit sí la bloquea cuando el nombre va sin comillas.
+- Solo cuentan como clave privada los nombres `id_*` y `*.key`. Una clave con otro nombre bajo `.ssh/` (`aws-prod.pem`, `deploy_key`) no se bloquea por nombre: su lectura pide confirmación si el contenido lleva una cabecera de clave privada. Y un directorio que empieza por `id_` se bloquea como operando de `rg`, `grep` o `diff`.
+- Un nombre en minúsculas con un valor sin comillas, como `password: valor` en un YAML o `secret_key = valor` en un INI, no se censura en la salida ni bloquea el commit, salvo en un fichero sensible por nombre (`.env*`, `credentials`, `secrets.json`). En código esa forma es una expresión o un tipo, y los guards no saben qué fichero es de configuración.
+- Un secreto sin palabra clave ni formato conocido (una cadena aleatoria suelta, un valor en base64) no se reconoce. Tampoco una clave de proveedor corta o solo de letras bajo un nombre sin calificador (`vendor_key`), ni un valor bajo un `cache_key`, `sort_key` o `public_key`. Una clave de proveedor bajo un nombre sin calificador se bloquea en el commit si su valor es opaco, pero se ve en la salida.
+- VS Code, GitHub Copilot, Cursor y Antigravity no pueden reescribir la salida: ahí solo queda la confirmación de lectura.
 
 Se desactiva con `DISABLE_AGENT_SHIELD=true`. Los bloqueos de comandos y de ficheros del CLI no dependen de esa variable.
 
