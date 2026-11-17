@@ -17,3 +17,7 @@ var SetGitRunnerForTest = func(fn func(ctx context.Context, args []string) (stri
 
 var ResolveDispatchStatusForTest = resolveDispatchStatus
 var PersistResultEnvelopeForTest = persistResultEnvelope
+
+// NudgeFingerprint exposes the open-change nudge fingerprint (E1.51) to the
+// shared cases of internal/testdata/idd-nudge/.
+var NudgeFingerprint = nudgeFingerprint
