@@ -324,7 +324,7 @@ test("runConfigure accepts configurable reviewer and Codex policy from models.ya
   t.after(() => fs.rmSync(source, { recursive: true, force: true }));
   fs.cpSync(SOURCE, source, { recursive: true });
   const models = fs.readFileSync(path.join(process.cwd(), "models.yaml"), "utf8")
-    .replace("  review-trust: default", "  review-trust: premium")
+    .replace("  review-trust: premium", "  review-trust: default")
     .replace("model_reasoning_effort: low", "model_reasoning_effort: xhigh");
   fs.writeFileSync(path.join(source, "models.yaml"), models);
   const out = tmpOut(t);

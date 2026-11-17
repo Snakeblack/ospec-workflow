@@ -26,14 +26,14 @@ flowchart LR
 | Tier | Agentes | Claude | Otras herramientas |
 | --- | --- | --- | --- |
 | `cheap` | En SDD: `sdd-init`, `sdd-explore`, `sdd-tasks`, `sdd-archive`, `sdd-onboard` y el agente `handbook` | `haiku` | El modelo que asignes, o el de la sesión |
-| `default` | `review-trust`, `review-correction`, `review-runtime`, `review-evolution`, `review-efficiency`; en SDD, el orquestador, `sdd-spec`, `sdd-clarify`, `sdd-apply`, `sdd-reconcile` y `sdd-baseline` | `sonnet` | El modelo que asignes, o el de la sesión |
-| `premium` | `review-change`; en SDD, `sdd-propose`, `sdd-design`, `sdd-verify`, `sdd-workspace` y el agente `foundation` | `opus` | El modelo que asignes, o el de la sesión |
+| `default` | En SDD: el orquestador, `sdd-spec`, `sdd-clarify`, `sdd-apply`, `sdd-reconcile` y `sdd-baseline` | `sonnet` | El modelo que asignes, o el de la sesión |
+| `premium` | Los seis revisores (`review-change`, `review-trust`, `review-correction`, `review-runtime`, `review-evolution` y `review-efficiency`); en SDD, `sdd-propose`, `sdd-design`, `sdd-verify`, `sdd-workspace` y el agente `foundation` | `opus` | El modelo que asignes, o el de la sesión |
 
 En Codex, cada tier lleva además su esfuerzo de razonamiento (`high` en `premium` y `default`, `low` en `cheap`).
 
 ### En IDD
 
-IDD no tiene agentes de fase. El asistente principal, con el modelo de tu sesión, lleva el cambio y también ejecuta la skill `foundation`. Solo los revisores que delega usan su tier: `review-trust` y `review-correction`, ambos `default`.
+IDD no tiene agentes de fase. El asistente principal, con el modelo de tu sesión, lleva el cambio y también ejecuta la skill `foundation`. Solo los revisores que delega usan su tier: `review-trust` y `review-correction`, ambos `premium`, porque la review es la última barrera antes de cerrar un cambio. En Claude corren con `opus`; en las demás herramientas, con el modelo que asignes a `premium`.
 
 ---
 
