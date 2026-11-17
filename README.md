@@ -416,6 +416,7 @@ Additional servers must be activated explicitly. See [mcp-policy.md](docs/mcp-po
 | Document | Content |
 | --- | --- |
 | [ospec-workflow.mretamozo.com](https://ospec-workflow.mretamozo.com) | Web documentation: start page and quick start. |
+| [Quick guide](docs/en/quickstart.md) | How ospec-workflow works, what you do and what the agent does: the handbook quickstart in English. |
 | [A change from start to finish](https://ospec-workflow.mretamozo.com/empezar/primer-cambio/) | A real IDD example: what you ask, what it asks you and what you see at close (Spanish). |
 | [IDD guide](https://ospec-workflow.mretamozo.com/idd/flujo-idd/) | IDD, the default flow: obligations, evidence, gates and closing. |
 | [Foundation](https://ospec-workflow.mretamozo.com/idd/foundation/) | Architecture before the first change: the ADRs and how IDD works with each change's impact on them (Spanish). |
