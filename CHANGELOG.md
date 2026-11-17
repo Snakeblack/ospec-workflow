@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Skills propias en lugar de las que conservaban texto de gentle-ai (chained-pr, cognitive-doc-design, comment-writer, judgment-day, skill-creator con su guía de estilo, work-unit-commits y las referencias de testing de stack-go), y el idioma del proyecto declarado en `delivery.language`: el CLI lo imprime y ninguna skill fija el español (E1.98) (own-skills)
+
 ## [2.182.1] - 2026-11-17
 
 ### Fixed

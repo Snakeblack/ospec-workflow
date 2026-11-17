@@ -1,0 +1,832 @@
+{
+  "schema": "idd-state/v1",
+  "change": "own-skills",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "requested_at": "2026-11-17T21:26:34.629Z",
+    "kind": "feature",
+    "summary": "Versiones propias de las skills que conservan texto de gentle-ai: chained-pr, cognitive-doc-design, comment-writer, judgment-day, skill-creator con su guía de estilo, work-unit-commits y las referencias de testing de stack-go, escritas desde lo que ospec necesita hoy (E1.98)",
+    "acceptance": "Ninguno de esos ficheros conserva líneas largas idénticas a las de gentle-ai (comparación de líneas de 30 caracteres o más contra el clon, la medida de E1.78), sus SKILL.md nombran solo a manuel-retamozo-garcia como autor de gentle-ai hacia fuera, NOTICE deja de listarlas en la sección de gentle-ai y node scripts/check.js pasa"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿delivery.language acepta solo una etiqueta de idioma BCP 47 (es, en, fr, pt-BR), sin distinguir mayúsculas, y cualquier otro valor es un error de configuración como en las demás claves de delivery, o admite texto libre como 'Spanish'?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1611
+        }
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "idd/config.yaml",
+          "line": 14
+        }
+      },
+      {
+        "category": "copy",
+        "question": "¿Qué textos gobierna delivery.language: mensajes de commit, títulos y cuerpos de PR y entradas del changelog, mientras un comentario responde en el idioma de su hilo y solo cae al del proyecto cuando el hilo no tiene uno; o también la documentación y los comentarios de código, que hoy siguen el idioma que ya tiene cada fichero?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1612
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1614
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Cuando el proyecto no declara delivery.language: ¿el CLI lo señala como language-undeclared, el agente propone el idioma de los asuntos de los últimos commits (o el del usuario si el proyecto no tiene historial), lo escribe en idd/config.yaml solo tras tu aprobación y entretanto escribe en ese idioma del historial; o debe negarse a entregar hasta que esté declarado?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "NOTICE",
+      "docs/README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/entrega.md",
+      "handbook/idd/foundation.md",
+      "idd/config.yaml",
+      "openspec/specs/idd/spec.md",
+      "openspec/specs/skills/spec.md",
+      "rules/no-model-attribution.instructions.md",
+      "scripts/fixtures/context-baseline.json",
+      "scripts/lib/idd-config.js",
+      "scripts/lib/idd-config.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/team-profile.js",
+      "scripts/lib/team-profile.test.js",
+      "scripts/ospec.impact.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.output.test.js",
+      "skills/branch-pr/SKILL.md",
+      "skills/caveman/SKILL.md",
+      "skills/chained-pr/SKILL.md",
+      "skills/chained-pr/references/chain-playbook.md",
+      "skills/chained-pr/references/chaining-details.md",
+      "skills/cognitive-doc-design/SKILL.md",
+      "skills/comment-writer/SKILL.md",
+      "skills/foundation/SKILL.md",
+      "skills/gh-release-notes/SKILL.md",
+      "skills/idd/SKILL.md",
+      "skills/judgment-day/SKILL.md",
+      "skills/judgment-day/references/prompts-and-formats.md",
+      "skills/skill-creator/SKILL.md",
+      "skills/skill-creator/references/skill-style-guide.md",
+      "skills/stack-go/SKILL.md",
+      "skills/stack-go/references/testing-examples.md",
+      "skills/stack-go/references/testing.md",
+      "skills/work-unit-commits/SKILL.md"
+    ],
+    "work_units": 5,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "E1.98 se parte en dos cambios: este lleva las seis skills de utilidad y las referencias de testing de stack-go; sdd-apply va en un cambio propio y la sección de gentle-ai de NOTICE se queda solo con ella hasta entonces (respuesta del usuario)",
+      "La guía de estilo propia describe lo que el tooling de ospec exige (frontmatter, una sección de reglas que el registro extrae, tope del bloque compacto, referencias locales) y la sección 3 de la spec de skills cambia con ella; deja de ser obligatorio el esquema de seis secciones (respuesta del usuario)",
+      "Ninguna skill fija el español: la entrega se escribe en el idioma del proyecto, que se declara y que el CLI imprime; este repositorio declara el suyo (respuesta del usuario)",
+      "Las skills conservan sus nombres (respuesta del usuario)",
+      "Las cuatro reglas de comportamiento de rules/no-model-attribution.instructions.md idénticas a las de gentle-ai se reescriben en este cambio, alineadas con foundation e IDD (respuesta del usuario: corregirlos y mejorarlos)",
+      "delivery.language es una etiqueta de idioma (idioma, escritura y región opcionales: es, en, fr, pt-BR, zh-Hant-TW) que se acepta sin distinguir mayúsculas y se guarda en su forma canónica; otro valor es config-invalid (respuesta del usuario)",
+      "delivery.language gobierna los mensajes de commit, los títulos y cuerpos de PR, las entradas del changelog, la documentación y los comentarios de código; la documentación y los comentarios son concisos y funcionales, sin nombrar el harness ni los motivos dados en la sesión (respuesta del usuario)",
+      "Una respuesta en un hilo usa el idioma del hilo, y el texto que se añade a un fichero o a un árbol de documentación ya escrito en otro idioma conserva ese: el idioma declarado es el del proyecto y vale donde no hay otro establecido, que es la lectura de «el idioma que se usa»",
+      "Sin delivery.language, next da la sugerencia language-undeclared en los pasos de entrega: el agente propone el idioma de los asuntos de los últimos commits, o el del usuario si no hay historial, y lo escribe solo con aprobación; entretanto escribe en ese idioma (respuesta del usuario)",
+      "next imprime el idioma declarado en cada paso de un cambio abierto, no solo en declare-plan y close: el plan suele declararse con el intent y ese paso no aparece, y la documentación y los comentarios se escriben antes del cierre; las reglas completas van en ospec team, declare-plan y close, y la skill de IDD lleva la frase fija",
+      "SDD no lee delivery.language, como el resto de delivery: las skills de entrega llevan su propia escalera (lo que imprime ospec team, luego el historial, luego el usuario) y sirven igual sin IDD",
+      "caveman y gh-release-notes también fijaban el español en commits y notas de versión y pasan a seguir el idioma del proyecto, como branch-pr: la decisión del usuario vale para toda skill, no solo para las que venían de gentle-ai",
+      "La sección 4.3 de la spec de skills decía que el registro leía patrones, constraints y gates y que caía a las quince primeras viñetas; extractCompactRules solo lee encabezados que acaban en rules y no tiene caída, así que la spec se corrige para que la guía y ella digan lo mismo",
+      "La referencia de chained-pr pasa de chaining-details.md a chain-playbook.md, con el corte de ramas sobre un historial lineal y la integración por merge",
+      "La línea base de contexto sube 316 bytes por target en la skill de IDD: lleva la frase fija del idioma y de la documentación y los comentarios, que tiene que estar a la vista antes de la primera edición; el contexto siempre cargado baja 29 bytes porque las reglas de comportamiento quedaron más cortas"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/lib/idd-config.js and 1 more (matches scripts/lib/idd-config.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, foundation, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0009, 0010, 0011 and quality scenario contract-compatibility, deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "El idioma lo resuelve y lo imprime el CLI (ospec team, ospec next) con sus tests; las skills reescritas citan la orden que da cada valor (presupuesto de revisión, estrategia de entrega, idioma) en vez de repetirlo, y la guía de estilo lo exige"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia las señales ni las obligaciones: delivery.language solo añade guía y una sugerencia que nunca es un paso"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "El cierre sigue ligado a la misma evidencia; el idioma no es una obligación ni se comprueba"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones ni su frontera"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "idd/config.yaml no es un documento de máquina versionado por esquema; la clave nueva es opcional, y state.yaml y los snapshots conservan su forma y su versión"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas: la etiqueta de idioma se valida con una expresión regular propia"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "delivery.language vive en idd/config.yaml y SDD no lo lee, como el resto de delivery; las skills de entrega dan su escalera para proyectos sin IDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "Un idd/config.yaml sin delivery.language se lee igual que antes y next no añade campos; la clave nueva solo aparece cuando el proyecto la declara"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "El idioma se lee de idd/config.yaml en cada orden, sin estado de sesión: next da lo mismo al reanudar"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Ni el CLI ni las skills reescritas añaden llamadas de red; la sugerencia lee el historial local de git"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "delivery.language tiene tests en scripts/lib/idd-config.test.js, team-profile.test.js, idd-next.test.js y scripts/ospec.impact.test.js; las skills chained-pr, work-unit-commits, comment-writer, cognitive-doc-design y branch-pr citan ospec team para el presupuesto, la estrategia y el idioma",
+      "recorded_at": "2026-11-17T21:58:36.215Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El diff no añade llamadas de red: idd-config.js, team-profile.js e idd-next.js son puros y ospec.js solo imprime; las skills nombran git y gh, que ya usaban",
+      "recorded_at": "2026-11-17T21:58:36.377Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 519,
+      "answer": "1. lo recomendado, 2. lo recomendado, hay que poner gran esfuerzo en esto para que se note la mejora, 3. aqui realmente, no quiero que este en español, pero si que sepa que debe estarlo, pero si un ingles usa el harness, debe estar en ingles, o un frances pues en frances, es decir en el idioma que se usa, y esto lo debemos hacer robusto para que no falle, 4. lo recomendado, 5. corregirlos y mejorarlos para que encaje mejor con ospec-workflow, en general todo debe seguir la dirección de lo que es hoy ospec-workflow, compatibilidad con sdd si, pero la dirección hoy es foundation + idd.",
+      "source": "user",
+      "resolved_at": "2026-11-17T21:32:39.660Z",
+      "resolved_turn": 520
+    },
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 520,
+      "answer": "todas las recomendadas, pero la 2. quiero tambien en la documentación y comentarios del codigo, poniendo tambien unicamente para esto que sean concisas, funcionales, y sin referencias al harness o a motivos declarados en la sesion. tienes mi aprobación para hacerlo en distintos changes para hacer un mejor trabajo y que todo funcione correctamente y mejor de como esta ahora, en general.",
+      "source": "user",
+      "resolved_at": "2026-11-17T21:43:13.627Z",
+      "resolved_turn": 521
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T22:00:06.815Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0006 none",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:3d508b5e2e396c0a1f135b785028f13a4f3e43b46c526629ca0fb0e911f982b5",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-17T22:03:13.478Z",
+      "detail": {
+        "run": "run-11",
+        "tree": "sha256:972a5a3dccdf4843aa5d669a91b428d48264d7ab785146b7aa20f77fd746db9f",
+        "plan": "Ningún dato persistido cambia de forma: delivery.language es una clave opcional de idd/config.yaml, un fichero sin ella se lee igual que antes y state.yaml no gana campos. Vuelta atrás: quitar la clave del idd/config.yaml del proyecto, o revertir el cambio; un CLI anterior rechaza la clave con config-invalid, así que se declara después de actualizar."
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T22:04:59.246Z",
+      "detail": {
+        "tree": "sha256:a0db90dca2efda1915c5cc6de92a7d55349436d94d709215fe61dc46e8208a81",
+        "runs": [
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-17T22:04:59.246Z",
+      "detail": {
+        "tree": "sha256:a0db90dca2efda1915c5cc6de92a7d55349436d94d709215fe61dc46e8208a81",
+        "check": "ev-3",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/skills/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/ospec.impact.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T22:04:59.246Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0006 none",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:a0db90dca2efda1915c5cc6de92a7d55349436d94d709215fe61dc46e8208a81",
+        "fitness": [
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T22:07:02.299Z",
+      "detail": {
+        "tree": "sha256:fa60d5fb60767654aa489889113eec61fd8c781fe4acebe9bf8b8756950f862b",
+        "runs": [
+          "run-22"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-17T22:07:02.299Z",
+      "detail": {
+        "tree": "sha256:fa60d5fb60767654aa489889113eec61fd8c781fe4acebe9bf8b8756950f862b",
+        "check": "ev-6",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/skills/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/ospec.impact.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T22:07:02.299Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0006 none",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:fa60d5fb60767654aa489889113eec61fd8c781fe4acebe9bf8b8756950f862b",
+        "fitness": [
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26",
+          "run-27",
+          "run-28",
+          "run-29",
+          "run-30",
+          "run-31"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-17T22:07:26.661Z",
+      "detail": {
+        "run": "run-32",
+        "tree": "sha256:fad5f16761f6ce591ecc059ee81ba3756b742bd387ed2c21b415157f701403c7",
+        "plan": "Ningún dato persistido cambia de forma: delivery.language es una clave opcional de idd/config.yaml, un fichero sin ella se lee igual que antes y state.yaml no gana campos. Vuelta atrás: quitar la clave del idd/config.yaml del proyecto, o revertir el cambio; un CLI anterior rechaza la clave con config-invalid, así que se declara después de actualizar."
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-17T22:07:26.877Z"
+    }
+  ],
+  "base": "6a563d5e3dfbc56d8ffb3e9c66fcf93d90663396",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:8aead6e7c1b70afa6974b57801e36fc19a557891c4e07d0ec360507f63865b71",
+      "tree": "sha256:3d508b5e2e396c0a1f135b785028f13a4f3e43b46c526629ca0fb0e911f982b5",
+      "recorded_at": "2026-11-17T22:00:06.815Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6ba1d1d3f2311fc56778855e6d6493c2ee9d101bc63d867dd9748aac02eb5b99",
+      "tree": "sha256:3d508b5e2e396c0a1f135b785028f13a4f3e43b46c526629ca0fb0e911f982b5",
+      "recorded_at": "2026-11-17T22:00:06.815Z",
+      "tests": 61
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7cfdcbf620e8893db4ee6c8ef1910533de09bfd7429f8ffce9645e496e3ecd53",
+      "tree": "sha256:3d508b5e2e396c0a1f135b785028f13a4f3e43b46c526629ca0fb0e911f982b5",
+      "recorded_at": "2026-11-17T22:00:06.815Z",
+      "tests": 20
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bb90a624504942526610518fbcc5e38bc821eddd1b76217912565243c513be2f",
+      "tree": "sha256:3d508b5e2e396c0a1f135b785028f13a4f3e43b46c526629ca0fb0e911f982b5",
+      "recorded_at": "2026-11-17T22:00:06.815Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:32e2f14e1264e00ce2df2cfd855d771124a88adecceb6611fedc97e22fcbc800",
+      "tree": "sha256:3d508b5e2e396c0a1f135b785028f13a4f3e43b46c526629ca0fb0e911f982b5",
+      "recorded_at": "2026-11-17T22:00:06.815Z",
+      "tests": 32
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:3d508b5e2e396c0a1f135b785028f13a4f3e43b46c526629ca0fb0e911f982b5",
+      "recorded_at": "2026-11-17T22:00:06.815Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a4d365823dd4e0ff9a48df686ccb704dbbd80623b4e8ec35d050ee6a09645b50",
+      "tree": "sha256:3d508b5e2e396c0a1f135b785028f13a4f3e43b46c526629ca0fb0e911f982b5",
+      "recorded_at": "2026-11-17T22:00:06.815Z",
+      "tests": 26
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ff5e25a2dde247704e67a602c621676f26957aafd59fdd180e9c870521dfad7d",
+      "tree": "sha256:3d508b5e2e396c0a1f135b785028f13a4f3e43b46c526629ca0fb0e911f982b5",
+      "recorded_at": "2026-11-17T22:00:06.815Z",
+      "tests": 100
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5caf6836d2d876539e15bd005191ae60805529a5f4961a7891133a07aec9db33",
+      "tree": "sha256:3d508b5e2e396c0a1f135b785028f13a4f3e43b46c526629ca0fb0e911f982b5",
+      "recorded_at": "2026-11-17T22:00:06.815Z",
+      "tests": 32
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ab719fdd84bbf8727fe2cb3ea20fc77b7a158f2891f19bd08a7697251085727f",
+      "tree": "sha256:3d508b5e2e396c0a1f135b785028f13a4f3e43b46c526629ca0fb0e911f982b5",
+      "recorded_at": "2026-11-17T22:00:06.815Z",
+      "tests": 58
+    },
+    {
+      "id": "run-11",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-config.test.js scripts/lib/team-profile.test.js scripts/lib/idd-next.test.js scripts/ospec.impact.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:40258f4887e4188e70d236ae81b5029e358970d511c5f054fcea5ea29902021f",
+      "tree": "sha256:972a5a3dccdf4843aa5d669a91b428d48264d7ab785146b7aa20f77fd746db9f",
+      "recorded_at": "2026-11-17T22:03:13.478Z",
+      "tests": 100
+    },
+    {
+      "id": "run-12",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b94c9484c892981279da0818262571fc3b9dabd4817a6dd3f847c12de5583e26",
+      "tree": "sha256:a0db90dca2efda1915c5cc6de92a7d55349436d94d709215fe61dc46e8208a81",
+      "recorded_at": "2026-11-17T22:04:59.246Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f7b3916a00c150258af186fbf946dfa16e14344fd5780cdf81c9700f749d17e8",
+      "tree": "sha256:a0db90dca2efda1915c5cc6de92a7d55349436d94d709215fe61dc46e8208a81",
+      "recorded_at": "2026-11-17T22:04:59.246Z",
+      "tests": 61
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:00c35983759dccb0dd7f91c7da9f29b494e51fd7459dac7caa29873a5243a09e",
+      "tree": "sha256:a0db90dca2efda1915c5cc6de92a7d55349436d94d709215fe61dc46e8208a81",
+      "recorded_at": "2026-11-17T22:04:59.246Z",
+      "tests": 20
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6dce4ca1a08069201c4784126e4f5be404ac33e3160a680a869012e1b65b9d54",
+      "tree": "sha256:a0db90dca2efda1915c5cc6de92a7d55349436d94d709215fe61dc46e8208a81",
+      "recorded_at": "2026-11-17T22:04:59.246Z",
+      "tests": 2
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:21fecbcb52f6d4b027a0e5361c16eaeb28b1d334f4b265824ee059b47a275790",
+      "tree": "sha256:a0db90dca2efda1915c5cc6de92a7d55349436d94d709215fe61dc46e8208a81",
+      "recorded_at": "2026-11-17T22:04:59.246Z",
+      "tests": 32
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:a0db90dca2efda1915c5cc6de92a7d55349436d94d709215fe61dc46e8208a81",
+      "recorded_at": "2026-11-17T22:04:59.246Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c7e9b4f2a34533784d856dfd3e752f8e9c82308fc342d9a110025560974a22f6",
+      "tree": "sha256:a0db90dca2efda1915c5cc6de92a7d55349436d94d709215fe61dc46e8208a81",
+      "recorded_at": "2026-11-17T22:04:59.246Z",
+      "tests": 26
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a44bed1f245d94cc29ff517e28a7dbae5c5931d106a3ebee1d9f9574b6eabd48",
+      "tree": "sha256:a0db90dca2efda1915c5cc6de92a7d55349436d94d709215fe61dc46e8208a81",
+      "recorded_at": "2026-11-17T22:04:59.246Z",
+      "tests": 100
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:910d9a25351d0aacac9290e68db56b5263b23ddb58e766e90f5a5dd069603a19",
+      "tree": "sha256:a0db90dca2efda1915c5cc6de92a7d55349436d94d709215fe61dc46e8208a81",
+      "recorded_at": "2026-11-17T22:04:59.246Z",
+      "tests": 32
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:10253fe6219a81df227118fcfb9c5707d6feb9743f6628f87d09055ade7c4a01",
+      "tree": "sha256:a0db90dca2efda1915c5cc6de92a7d55349436d94d709215fe61dc46e8208a81",
+      "recorded_at": "2026-11-17T22:04:59.246Z",
+      "tests": 58
+    },
+    {
+      "id": "run-22",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3a6a8a5b3c4d1477d92d0e3c8ad4d035bd2365b4037cb921283d8d31a939f17",
+      "tree": "sha256:fa60d5fb60767654aa489889113eec61fd8c781fe4acebe9bf8b8756950f862b",
+      "recorded_at": "2026-11-17T22:07:02.299Z"
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d2154efa79987630f34c247138b742bdd2fca7d4cfffa29d6b896398a6af88f6",
+      "tree": "sha256:fa60d5fb60767654aa489889113eec61fd8c781fe4acebe9bf8b8756950f862b",
+      "recorded_at": "2026-11-17T22:07:02.299Z",
+      "tests": 61
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:da7c731820cd7d50f0638fdc4e7b5581fee41777998b21623566c71124ddd302",
+      "tree": "sha256:fa60d5fb60767654aa489889113eec61fd8c781fe4acebe9bf8b8756950f862b",
+      "recorded_at": "2026-11-17T22:07:02.299Z",
+      "tests": 20
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:de4e6df668f3ae8ccdae97aac9e23dc04e5a13f406521332e0fa0d55690af7f9",
+      "tree": "sha256:fa60d5fb60767654aa489889113eec61fd8c781fe4acebe9bf8b8756950f862b",
+      "recorded_at": "2026-11-17T22:07:02.299Z",
+      "tests": 2
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:83a77baa60a51947f218bd034e8b2caac22791ba44a62aa12fad743e7f5ec4f7",
+      "tree": "sha256:fa60d5fb60767654aa489889113eec61fd8c781fe4acebe9bf8b8756950f862b",
+      "recorded_at": "2026-11-17T22:07:02.299Z",
+      "tests": 32
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:fa60d5fb60767654aa489889113eec61fd8c781fe4acebe9bf8b8756950f862b",
+      "recorded_at": "2026-11-17T22:07:02.299Z"
+    },
+    {
+      "id": "run-28",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9a3a6ccdbd090e69edfb89b26ff4aca87eeadd03fbb73ae2a70b2840f36c1f18",
+      "tree": "sha256:fa60d5fb60767654aa489889113eec61fd8c781fe4acebe9bf8b8756950f862b",
+      "recorded_at": "2026-11-17T22:07:02.299Z",
+      "tests": 26
+    },
+    {
+      "id": "run-29",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:07f3dfb4d863182ea204fe367403a8172322591229e68592e4136bf2aa6f82ae",
+      "tree": "sha256:fa60d5fb60767654aa489889113eec61fd8c781fe4acebe9bf8b8756950f862b",
+      "recorded_at": "2026-11-17T22:07:02.299Z",
+      "tests": 100
+    },
+    {
+      "id": "run-30",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:89a2bc1cfa0064e5c9fdcae2323b6ed6f7460f27365506176a015029e13d818a",
+      "tree": "sha256:fa60d5fb60767654aa489889113eec61fd8c781fe4acebe9bf8b8756950f862b",
+      "recorded_at": "2026-11-17T22:07:02.299Z",
+      "tests": 32
+    },
+    {
+      "id": "run-31",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c165761af79a16ba9b694e35800f3dd7218b366338b1d6786130fca2e1784b1b",
+      "tree": "sha256:fa60d5fb60767654aa489889113eec61fd8c781fe4acebe9bf8b8756950f862b",
+      "recorded_at": "2026-11-17T22:07:02.299Z",
+      "tests": 58
+    },
+    {
+      "id": "run-32",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-config.test.js scripts/lib/team-profile.test.js scripts/lib/idd-next.test.js scripts/ospec.impact.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:354986984446031c7c579d6abfd39256d66256525dfed7d2e56555b4ed7f8bbe",
+      "tree": "sha256:fad5f16761f6ce591ecc059ee81ba3756b742bd387ed2c21b415157f701403c7",
+      "recorded_at": "2026-11-17T22:07:26.661Z",
+      "tests": 100
+    }
+  ],
+  "assumptions": [
+    "scripts/lib/idd-sinks.js (catálogo de sinks adaptado de gentle-ai, con su aviso MIT en el fichero) se reescribe en un cambio propio justo detrás de este, no aquí: es código de la señal de seguridad y lleva su revisión de confianza"
+  ],
+  "changelog_line": "Skills propias en lugar de las que conservaban texto de gentle-ai (chained-pr, cognitive-doc-design, comment-writer, judgment-day, skill-creator con su guía de estilo, work-unit-commits y las referencias de testing de stack-go), y el idioma del proyecto declarado en `delivery.language`: el CLI lo imprime y ninguna skill fija el español (E1.98)",
+  "closed_at": "2026-11-17T22:07:26.877Z"
+}

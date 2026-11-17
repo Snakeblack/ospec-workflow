@@ -218,8 +218,10 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.94** | `execution-profile-by-risk` (el CLI calcula por encargo el tier y el effort de cada agente que lanza ospec, sean revisores, el worker o las fases de SDD, a partir del nivel de E1.79, las señales y el tamaño del diff; `models.yaml` queda como suelo, el perfil solo sube y el modelo puede subirlo con una razón, nunca bajarlo; sustituye a `review-tier-by-risk`; detrás de E1.79) | feature |
 | `pending` | **E1.96** | `secret-guard-chdir-forms` (residuo de E1.95: un `cd` dentro del cuerpo de una función o de una rama de `case` no desactiva la exención de directorio de los guards de secretos; para que fugue hace falta además un directorio del espacio de trabajo que se llame como la clave; prioridad baja, fuera del orden ▶) | bugfix |
 | `pending` | **E1.97** | `archive-scan-friction` (el pre-commit bloquea el `state.yaml` de un cambio IDD archivado cuando un hallazgo de review cita un ejemplo con forma de secreto; el fichero es del CLI y no admite `ospec:allow-secret`, así que hoy el commit del archivo pide saltar el escáner entero; fuera del orden ▶, antes del próximo cambio que revise los guards) | bugfix |
-| `pending` | **E1.98** | `own-skills` (versiones propias y mejoradas de las skills que conservan texto de gentle-ai: chained-pr, cognitive-doc-design, comment-writer, judgment-day, skill-creator, work-unit-commits, la parte de `sdd-apply` y las referencias de testing de stack-go; su sección sale de `NOTICE`; justo detrás de E1.78) | skills |
-| `pending` | **E1.99** | `own-stack-skills` (lo mismo para las skills que conservan texto de ECC y de Caveman: las `stack-*`, accessibility, api-design, design-system, hexagonal-architecture y caveman-compress; con E1.98 hecho, `NOTICE` desaparece; fuera del orden ▶) | skills |
+| `done` | **E1.98** | `own-skills` (versiones propias de chained-pr, cognitive-doc-design, comment-writer, judgment-day, skill-creator con su guía de estilo, work-unit-commits y las referencias de testing de stack-go, escritas desde lo que ospec es hoy; la guía y la sección 3 de la spec de skills piden lo que el tooling exige; `delivery.language` declara el idioma del proyecto y ninguna skill fija el español; las reglas de comportamiento de `rules/` con texto propio; en v2.183.0) | skills |
+| `pending` | **E1.100** | `own-sink-catalog` (catálogo propio de sinks de seguridad en `scripts/lib/idd-sinks.js`, que hoy adapta el de gentle-ai y lleva su aviso MIT en el fichero; con su revisión de confianza; justo detrás de E1.98) | refactor |
+| `pending` | **E1.101** | `own-sdd-apply` (versión propia de la skill de fase `sdd-apply`, la última con texto de gentle-ai; con ella la sección de gentle-ai sale de `NOTICE`; detrás de E1.100) | skills |
+| `pending` | **E1.99** | `own-stack-skills` (lo mismo para las skills que conservan texto de ECC y de Caveman: las `stack-*`, accessibility, api-design, design-system, hexagonal-architecture y caveman-compress; con E1.101 hecho, `NOTICE` desaparece; fuera del orden ▶) | skills |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -294,6 +296,8 @@ El usuario fijó el orden el mismo día. E1.75 abre la cola porque es la fricci�
 E1.96 `secret-guard-chdir-forms` y E1.97 `archive-scan-friction` entraron el 2026-11-17 al entregar E1.95. E1.96 es un residuo de prioridad baja. E1.97 es una fricción de la entrega: conviene hacerlo antes del próximo cambio que revise los guards de secretos, E1.96 incluido, porque el commit de su archivo volvería a pedir que se salte el escáner. Los dos quedan fuera del orden ▶ hasta que el usuario los coloque.
 
 E1.98 `own-skills` y E1.99 `own-stack-skills` entraron el 2026-11-17 durante E1.78, al medir cuánto texto de terceros conservan las skills. El usuario quiere versiones propias para no depender de gentle-ai: E1.98 va justo detrás de E1.78, por delante de E1.79, y E1.99, que cubre ECC y Caveman y es la parte más grande, queda fuera del orden ▶ hasta que la coloque.
+
+E1.100 `own-sink-catalog` y E1.101 `own-sdd-apply` entraron el 2026-11-17 al abrir E1.98. El usuario aprobó repartir el trabajo en varios cambios: E1.98 se quedó con las skills de utilidad, y detrás van, en este orden, el catálogo de sinks de `scripts/lib/idd-sinks.js`, que es código de la señal de seguridad, y `sdd-apply`, que es una skill de fase de SDD con tests de contrato. Los dos van por delante de E1.79.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -432,7 +436,7 @@ A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.56 �
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
 C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ E1.63 ─ E1.64 ─ E1.65 ─ E1.66 ─ E1.67 ─ E1.68 ─ E1.69 ─ E1.57
-   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
+   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.100 ─ E1.101 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
    ─ 4c2 ─ E1.70 ─ 4d ─ (avisos del guard) ─ PR5…PR8 ─ E1.52 ─ E1.59 ─ E1.60 ─ E1.82 ─ E1.83 ─ E1.84 ─ E3.7
 D: E4.14 ─ E4.6 (corrida de validación) ─ E4.18 ─ E4.4 ─ E4.13 ─ E1.85 ─ E1.86 ─ E1.87 ─ E4.11
 E1.28 espera a que E1.30 cumpla su criterio de hecho: su plazo del 2026-10-29 quedó fallido el 2026-10-26.
@@ -1607,17 +1611,45 @@ Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparat
 ### E1.98 — `own-skills`
 
 - **Origen:** E1.78. Al medir el texto de terceros, el usuario pidió alejarse de gentle-ai con skills propias y mejoradas: le sirvió de base al principio, pero no quiere depender de él.
-- **Problema:** chained-pr (94 % de líneas idénticas), cognitive-doc-design (97 %), comment-writer y skill-creator (89 %), work-unit-commits (76 %), judgment-day (48 %), la parte de `sdd-apply` (32 %) y las referencias de testing de stack-go conservan el texto de gentle-ai. Mientras sea así, `NOTICE` tiene que llevar su aviso MIT.
-- **Alcance:** una versión propia de cada una, escrita desde lo que ospec necesita hoy y no como paráfrasis del original, que seguiría siendo obra derivada. Al terminar, la sección de gentle-ai sale de `NOTICE`, esas skills dejan de nombrar a sus autores en `metadata.author` y el usuario decide si el README sigue diciendo que ospec se basa en gentle-ai.
+- **Problema:** chained-pr (94 % de líneas idénticas), cognitive-doc-design (97 %), comment-writer y skill-creator (89 %), work-unit-commits (76 %), judgment-day (48 %), la parte de `sdd-apply` (32 %) y las referencias de testing de stack-go conservaban el texto de gentle-ai. Mientras fuera así, `NOTICE` tenía que llevar su aviso MIT.
+- **Alcance:** una versión propia de cada una, escrita desde lo que ospec necesita hoy y no como paráfrasis del original, que seguiría siendo obra derivada.
 - **Garantía que protege:** que ospec no dependa del texto de otro proyecto para sus skills.
-- **Hecho abierto:** si se parte en varios cambios.
-- **Hecho cuando:** ninguna skill conserva partes sustanciales de gentle-ai, medidas con la misma comparación de líneas que E1.78, y `scripts/docs-figures.test.js` pasa sin la sección de gentle-ai en `NOTICE`.
+- **Decisión del usuario (2026-11-17):**
+  - El trabajo se reparte en varios cambios. Este lleva las seis skills de utilidad y las referencias de testing de stack-go; `sdd-apply` va en E1.101 y el catálogo de sinks en E1.100.
+  - La guía de estilo propia describe lo que el tooling de ospec exige, y la sección 3 de la spec de skills cambia con ella.
+  - Ninguna skill fija el español. El idioma es el del proyecto: se declara y el CLI lo imprime. Gobierna commits, PR, changelog, documentación y comentarios de código, y la documentación y los comentarios son concisos y funcionales, sin nombrar el harness ni los motivos de la sesión.
+  - Las skills conservan sus nombres.
+  - Todo sigue la dirección de ospec hoy: foundation e IDD, con compatibilidad con SDD.
+- **Lo que salió en el cambio:**
+  - **Skills.** Las siete piezas miden 0 % de líneas de 30 caracteres o más idénticas a las del clon de gentle-ai, salvo tres modismos de Go en los ejemplos de testing. Ya no repiten valores que calcula el CLI: citan `ospec team` para el presupuesto de revisión, la estrategia de entrega y el idioma. `chained-pr` corta la cadena en commits de un historial lineal e integra con `git merge`, porque los hooks niegan el push forzado; `judgment-day` fija el árbol que se juzga y solo acepta hallazgos con evidencia; `skill-creator` decide antes si la guía debe ser una skill, una regla, un check o un ADR.
+  - **Guía y spec.** Solo las reglas de una skill las lee un programa, bajo un encabezado que acaba en `Rules`. La sección 4.3 de la spec decía que el registro también leía patrones y gates y que, sin sección de reglas, tomaba las quince primeras viñetas; el código no hace ninguna de las dos cosas, y la spec lo dice ahora.
+  - **Idioma.** `delivery.language` en `idd/config.yaml` es una etiqueta (`es`, `en`, `pt-BR`) que se acepta sin distinguir mayúsculas. `ospec team` da sus reglas y `ospec next` devuelve la etiqueta en cada paso de un cambio abierto. Sin declarar, `next` sugiere `language-undeclared` y el agente propone el idioma del historial. El texto que se añade a un fichero ya escrito en otro idioma conserva ese. `branch-pr`, `caveman` y `gh-release-notes` también fijaban el español y dejan de hacerlo. Este repositorio declara `es`.
+  - **Reglas.** Las cuatro reglas de comportamiento de `rules/no-model-attribution.instructions.md` idénticas a las de gentle-ai tienen texto propio.
+  - **`NOTICE`.** La sección de gentle-ai solo lista `sdd-apply`.
+- **Hecho cuando:** ninguna de esas skills conserva partes sustanciales de gentle-ai, medidas con la comparación de líneas de E1.78. Que la sección de gentle-ai salga de `NOTICE` pasa a E1.101.
+
+### E1.100 — `own-sink-catalog`
+
+- **Origen:** E1.98. `scripts/lib/idd-sinks.js` adapta el catálogo de sinks de gentle-ai (`internal/reviewtransaction/risk_dangerous_sink.go`) y lleva su aviso MIT dentro del fichero. El usuario pidió corregirlo y mejorarlo para que encaje con ospec.
+- **Problema:** mientras el catálogo sea una adaptación, ospec sigue llevando texto de gentle-ai fuera de las skills.
+- **Alcance:** un catálogo propio, derivado de las debilidades que la señal `security-boundary` quiere ver y de las API de cada lenguaje, con sus tests. Es código de la señal de seguridad: lleva revisión de confianza.
+- **Garantía que protege:** la señal de seguridad por contenido (E1.50) no pierde ningún sink que hoy detecta.
+- **Hechos abiertos:** qué debilidades cubre y en qué lenguajes; si algún sink actual se retira.
+- **Hecho cuando:** el fichero no conserva el aviso de gentle-ai porque ya no adapta su catálogo, y los tests de `idd-sinks` y de `idd-signals` siguen detectando lo que detectaban.
+
+### E1.101 — `own-sdd-apply`
+
+- **Origen:** E1.98, que la dejó fuera por ser una skill de fase del kernel de SDD con tests de contrato sobre su texto.
+- **Problema:** `skills/sdd-apply/SKILL.md` conserva un 35 % de líneas largas idénticas a las de gentle-ai, sobre todo los pasos y la plantilla del resumen que devuelve.
+- **Alcance:** una versión propia que conserve el contrato de la fase: los tests de `scripts/recommendation-ambiguity-contract.test.js`, `scripts/compact-lite-contract.test.js` y `scripts/eje-b-contract.test.js` siguen pasando. SDD sigue siendo compatible; la dirección es foundation e IDD.
+- **Garantía que protege:** que SDD aplique las tareas igual que hoy.
+- **Hecho cuando:** `sdd-apply` no conserva partes sustanciales de gentle-ai, `NOTICE` pierde la sección de gentle-ai y `metadata.author` de la skill nombra solo al autor del repositorio. Entonces el usuario decide si el README sigue diciendo que ospec se basa en gentle-ai.
 
 ### E1.99 — `own-stack-skills`
 
 - **Origen:** E1.78, con la misma decisión del usuario que E1.98.
 - **Problema:** stack-angular (99 %), stack-react, stack-springboot, api-design y design-system (95-96 %), stack-python, hexagonal-architecture, stack-kotlin y stack-vite (93-94 %), accessibility (90 %), stack-dotnet (81 %), stack-go (67 %) y stack-java (30 %) conservan el texto de ECC, y caveman-compress el de Caveman (46 %). Las de ECC suman unas 3200 de las cerca de 3600 líneas largas copiadas.
-- **Alcance:** versiones propias, como en E1.98. Con las dos hechas, `NOTICE` desaparece; `buildClaudeMarketplace` ya construye sin él.
+- **Alcance:** versiones propias, como en E1.98. Con E1.99 y E1.101 hechas, `NOTICE` desaparece; `buildClaudeMarketplace` ya construye sin él.
 - **Hecho abierto:** el orden y el reparto en cambios, porque son 14 skills.
 - **Hecho cuando:** ninguna skill conserva partes sustanciales de ECC ni de Caveman, y el repositorio no necesita `NOTICE`.
 
@@ -2272,6 +2304,12 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-17: `own-skills` (IDD), publicado en v2.183.0. E1.98 hecho: skills propias en lugar de las que conservaban texto de gentle-ai, y el idioma del proyecto declarado.
+  - `chained-pr`, `cognitive-doc-design`, `comment-writer`, `judgment-day`, `skill-creator` con su guía de estilo, `work-unit-commits` y las referencias de testing de `stack-go` tienen texto propio: 0 % de líneas de 30 caracteres o más idénticas a las de gentle-ai. Citan `ospec team` en lugar de repetir lo que calcula el CLI.
+  - La guía de estilo y la sección 3 de la spec de skills piden lo que el tooling lee: las reglas, bajo un encabezado que acaba en `Rules`. La sección 4.3 describe ahora la extracción que hace el código.
+  - `delivery.language` declara el idioma del proyecto (REQ-idd-029). `ospec team` da sus reglas y `ospec next` la etiqueta en cada paso; sin declarar, `next` sugiere `language-undeclared`. Ninguna skill fija el español, y este repositorio declara `es`.
+  - `NOTICE` lista solo `sdd-apply` en la sección de gentle-ai.
+  - El orden ▶ sigue con E1.100 `own-sink-catalog` y E1.101 `own-sdd-apply`.
 - 2026-11-17: `docs-figures-drift` (IDD), publicado en v2.182.1. E1.78 hecho: las cifras públicas siguen a su fuente y las licencias de las skills cuadran.
   - `scripts/docs-figures.test.js` falla si `README.md`, `README.es.md`, `docs/en/` o `handbook/` (salvo `historia/`) dan otra cifra de gates, targets o revisores que `internal/iddsession/catalog.json`, `scripts/lib/target-profiles` o `agents/review-*`. El quickstart y el catálogo del handbook decían seis gates; ahora dicen nueve.
   - El quickstart en inglés está en `docs/en/quickstart.md`, enlazado desde los dos README en inglés.
