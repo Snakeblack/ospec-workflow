@@ -1013,3 +1013,19 @@ test("spec-drift-session: drift git probe throws → status ok, no specDrift key
 });
 
 
+
+// E1.51: an IDD project needs no openspec/config.yaml.
+test("SessionStart gives the open IDD changes to the model and the user without openspec/", async (t) => {
+  const { execFileSync } = require("node:child_process");
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "session-start-idd-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  execFileSync("git", ["-C", root, "init", "-q", "-b", "main"]);
+  execFileSync(process.execPath, [path.join(__dirname, "..", "ospec.js"), "record", "intent", "--change", "fix-a", "--kind", "bug", "--summary", "Fix a.", "--acceptance", "a works.", "--no-open-facts", "--basis", "a one-line fix", "--root", root]);
+  const result = await runSessionStart({ input: { cwd: root, session_id: "s1" }, env: {}, gitRunner: () => "" });
+  assert.equal(result.ospecDetected, false);
+  assert.equal(result.hookSpecificOutput.hookEventName, "SessionStart");
+  assert.match(result.hookSpecificOutput.additionalContext, /^ospec: these IDD changes are open;.*\n- `fix-a`: Declare the plan: /);
+  assert.equal(result.systemMessage, "ospec: open IDD changes: `fix-a`.");
+  const off = await runSessionStart({ input: { cwd: root, session_id: "s2" }, env: { DISABLE_IDD_NUDGE: "true" } });
+  assert.equal(off.hookSpecificOutput, undefined);
+});

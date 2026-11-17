@@ -24,6 +24,8 @@ const {
 } = require("../lib/artifact-store.js");
 const { resolveWorkspaceCwd } = require("../lib/pathsafe.js");
 const { resolveGitState, composeAdvisory } = require("./lib/git-state.js");
+const { readIddSession } = require("./lib/idd-session.js");
+const { sessionStartNudge } = require("./lib/idd-nudge.js");
 
 const CACHE_VERSION = 2;
 const CACHE_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.cache;
@@ -93,21 +95,25 @@ async function runSessionStart({
   mode,
   now = () => new Date(),
   gitRunner = undefined,
+  env = process.env,
 } = {}) {
   const workspace = resolveWorkspace(input, fallbackCwd);
+  // E1.51: an IDD project needs no openspec/config.yaml, so the open changes
+  // are read before the ospec detection.
+  const iddStart = await iddSessionStart({ workspace, input, target, env });
   const store = await createArtifactStoreFromConfig({ mode, workspace });
   const cachePath = store.cachePath();
   const ospecDetected = await store.isInitialized();
 
   if (!ospecDetected) {
-    return {
+    return withIddStart({
       status: "ok",
       ospecDetected: false,
       registry: {
         status: "skipped",
         path: store.cacheRelativePath,
       },
-    };
+    }, iddStart);
   }
 
   let baselineHint = null;
@@ -270,7 +276,28 @@ async function runSessionStart({
     }
   }
 
-  return result;
+  return withIddStart(result, iddStart);
+}
+
+// E1.51: the open IDD changes for the model (additionalContext, which the
+// launcher translates for each host) and one line for the user. A failure
+// costs the context, never the session start.
+async function iddSessionStart({ workspace, input, target, env }) {
+  try {
+    const entries = await readIddSession(workspace);
+    return await sessionStartNudge({ workspace, input, entries, target, env });
+  } catch {
+    return null;
+  }
+}
+
+function withIddStart(result, iddStart) {
+  if (!iddStart) return result;
+  return {
+    ...result,
+    hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: iddStart.additionalContext },
+    systemMessage: result.systemMessage ? `${result.systemMessage}\n${iddStart.systemMessage}` : iddStart.systemMessage,
+  };
 }
 
 function matchGitignorePattern(line, file) {
