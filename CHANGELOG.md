@@ -7,9 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- En Windows, la clasificación de Node no reconoce .git/config escrito con barras normales: compara con path.join('.git','config'), que allí lleva barra invertida, y Go sí lo reconoce con ToSlash. Seis casos del corpus compartido fallan en el CI de Windows (gitconfig-separator-parity)
-
 ## [2.180.1] - 2026-11-17
 
 ### Fixed
@@ -20,11 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Censura de salida**: gana las cadenas de conexión (`Password=…`, `AccountKey=…`), el `Key` opaco de un `appsettings.json`, `contraseña` y `env(NOMBRE)` como referencia. Usa el modo de fichero sensible también cuando un comando de shell lee un `.env`.
   - **Lecturas por shell**: cuentan más lectores (`sort`, `nl`, `tac`, `rev`, `cut`, `rg`, `uniq`, `strings`, `hexdump`, `diff`, `jq`, `yq`, `bat`). El lector se reconoce detrás de un envoltorio y sus opciones (`sudo -u root`, `timeout 30`, `env -S`), en un shell anidado, en un subshell o un grupo entre llaves, en una sustitución de comando o de proceso y en las cadenas del código de `python -c` o `node -e`. El patrón de `grep`, `sed` o `jq` no es un fichero, salvo que una opción ya lo haya dado.
   - **Claves SSH**: una clave bajo `.ssh/` o con un nombre de OpenSSH se deniega además como argumento de cualquier comando y con un comodín (`~/.ssh/*`). Pasan los comandos que la usan sin imprimirla (`ssh -i`, `ssh-copy-id`, `ansible-playbook`, `chmod`, `ls`), una clave TLS que usa `curl` u `openssl`, un `.npmrc` que usa `npm` y una palabra que solo parece una clave (`rg id_token src/`, `jq .data.key`).
-  - **Node y Go**: `internal/testdata/secret-guards/cases.json` fija para los dos qué marca el escáner, qué censura la censura y qué decide el reconocedor de shell. El corpus destapó dos diferencias anteriores, ya corregidas: `.git/config` en una ruta relativa y un fichero llamado `.key`.
+  - **Node y Go**: `internal/testdata/secret-guards/cases.json` fija para los dos qué marca el escáner, qué censura la censura y qué decide el reconocedor de shell. El corpus destapó tres diferencias anteriores, ya corregidas: en Go, `.git/config` en una ruta relativa; en Node, un fichero llamado `.key` y, en Windows, `.git/config` escrito con barra normal (gitconfig-separator-parity).
   - **Límites**: los guards frenan la fuga accidental, no a un proceso que quiera leer. Quedan documentados en el handbook y en E1.95 `secret-guard-file-kinds`: `password: valor` sin comillas en un YAML o un INI, una clave bajo `.ssh/` con otro nombre y un directorio `id_*` que se deniega como operando de un lector. Buscar la ruta de una clave (`rg '.ssh/id_rsa' docs/`) se deniega; buscar su nombre a secas, no.
   - **Compatibilidad**: no cambia ningún formato. El pre-commit bloquea líneas que antes pasaban y deja pasar otras que bloqueaba; un ejemplo legítimo se marca con `ospec:allow-secret`. Algunos comandos de shell que antes se ejecutaban ahora dan `deny` o piden confirmación.
 
-**Verificación directa**: `node scripts/check.js` (4915 tests pasando, 0 fallos y 5 omitidos), 452 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados; `gofmt`, `go vet` y `go test ./...` en verde. El cambio pasó cinco revisiones de confianza.
+**Verificación directa**: `node scripts/check.js` (4916 tests pasando, 0 fallos y 5 omitidos), 452 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados; `gofmt`, `go vet` y `go test ./...` en verde. El cambio pasó cinco revisiones de confianza.
 
 ## [2.180.0] - 2026-11-17
 
