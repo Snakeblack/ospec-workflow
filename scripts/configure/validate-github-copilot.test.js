@@ -325,3 +325,15 @@ test("INSTALL-026: attribution sentinels fail closed on a stale build", (t) => {
 
   assert.ok(result.errors.some((error) => error.includes("attribution sentinel stale in scripts/lib/review-dimensions.js: missing validateAttributionOverride")));
 });
+
+// E1.51: Copilot CLI reads the sessionStart context at the top level.
+test("validate rejects a sessionStart or agentStop hook that does not name Copilot", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
+  fs.writeFileSync(
+    path.join(out, ".github/hooks/hooks.json"),
+    JSON.stringify({ version: 1, hooks: { agentStop: [{ type: "command", bash: "scripts/hooks/ospec-hooks-launch.js stop", powershell: "scripts/hooks/ospec-hooks-launch.js stop --host github-copilot" }] } }, null, 2),
+  );
+  const errors = validate(out).errors.filter((error) => error.includes("--host"));
+  assert.deepEqual(errors, [".github/hooks/hooks.json event agentStop[0] bash must end with --host github-copilot"]);
+});

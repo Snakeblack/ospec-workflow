@@ -42,6 +42,61 @@ const OUTPUT_REDACTION_FLAG = "--output-redaction";
 // the Claude Code router (scripts/lib/claude-router.js) before the child runs,
 // so a session outside an ospec project gets it too.
 const CLAUDE_ROUTER_FLAG = "--claude-router";
+// E1.51: the VS Code and GitHub Copilot builds name their host on their
+// SessionStart and Stop commands (target-transform.js), since neither sets a
+// marker of its own and each reads the answer in its own shape.
+const HOST_FLAG = "--host";
+const FLAGGED_HOSTS = new Set(["vscode", "github-copilot"]);
+
+// E1.51: how the end-of-turn hook of each host asks the agent to continue.
+// The child answers `decision: "block"` with the reason; OpenCode's plugin
+// sends the reason as a prompt instead (opencode-plugin.js).
+const CONTINUATION = {
+  claude: (reason) => ({ decision: "block", reason }),
+  codex: (reason) => ({ decision: "block", reason }),
+  "github-copilot": (reason) => ({ decision: "block", reason }),
+  vscode: (reason) => ({ hookSpecificOutput: { hookEventName: "Stop", decision: "block", reason } }),
+  cursor: (reason) => ({ followup_message: reason }),
+  antigravity: (reason) => ({ decision: "continue", reason }),
+};
+
+// The reason of a Stop answer that asks to continue, else null.
+function continuationReason(output) {
+  return isPlainObject(output) && output.decision === "block" && typeof output.reason === "string" && output.reason.trim()
+    ? output.reason
+    : null;
+}
+
+// The model-facing context a SessionStart answer carries (E1.51).
+function sessionContext(output) {
+  const context = isPlainObject(output) ? output.hookSpecificOutput?.additionalContext : undefined;
+  return typeof context === "string" && context.trim() ? context.trim() : "";
+}
+
+function hostFlag(argv) {
+  const index = argv.indexOf(HOST_FLAG);
+  const host = index >= 0 ? argv[index + 1] : undefined;
+  return FLAGGED_HOSTS.has(host) ? host : null;
+}
+
+// VS Code reads a Stop decision only inside hookSpecificOutput; Copilot CLI
+// reads the SessionStart context at the top level.
+function normalizeFlaggedHostOutput(host, subcommand, output) {
+  if (!isPlainObject(output)) return output;
+  if (subcommand === "stop") {
+    const reason = continuationReason(output);
+    if (!reason) return output;
+    const { decision: _decision, reason: _reason, ...rest } = output;
+    return { ...rest, ...CONTINUATION[host](reason) };
+  }
+  if (subcommand === "session-start" && host === "github-copilot") {
+    const context = sessionContext(output);
+    if (!context) return output;
+    const { hookSpecificOutput: _nested, ...rest } = output;
+    return { ...rest, additionalContext: context };
+  }
+  return output;
+}
 
 const CONTINUE = '{"continue":true}\n';
 // Leave one second for launch, normalization and host delivery (host: 5s).
@@ -151,12 +206,12 @@ function normalizeCodexHookOutput(subcommand, output) {
     const message = typeof output.systemMessage === "string" ? output.systemMessage.trim() : "";
     // Codex surfaces only additionalContext, so the structured fields the
     // orchestrator needs for skill injection ride along as a JSON line after
-    // the human-readable advisory.
+    // the human-readable advisory. The open IDD changes (E1.51) lead it.
     const context = Object.fromEntries(
-      Object.entries(output).filter(([key]) => key !== "status" && key !== "systemMessage"),
+      Object.entries(output).filter(([key]) => !["status", "systemMessage", "hookSpecificOutput"].includes(key)),
     );
     const json = JSON.stringify(context);
-    let additionalContext = message;
+    let additionalContext = [sessionContext(output), message].filter(Boolean).join("\n");
     if (json !== "{}") {
       additionalContext = additionalContext ? `${additionalContext}\n${json}` : json;
     }
@@ -198,9 +253,12 @@ function normalizeCodexHookOutput(subcommand, output) {
     return { decision: "block", reason: hook.additionalContext ? `${hook.additionalContext}\n${text}` : text };
   }
 
-  return typeof output.systemMessage === "string" && output.systemMessage.trim()
+  const systemMessage = typeof output.systemMessage === "string" && output.systemMessage.trim()
     ? { systemMessage: output.systemMessage.trim() }
     : {};
+  // Codex's Stop parser drops an answer with any key it does not know.
+  const reason = subcommand === "stop" ? continuationReason(output) : null;
+  return reason ? { ...CONTINUATION.codex(reason), ...systemMessage } : systemMessage;
 }
 
 // agy (Antigravity 1.4.2) runs a hook from the directory holding hooks.json
@@ -284,6 +342,10 @@ function normalizeAntigravityHookOutput(subcommand, output) {
     // The same model-facing context Codex receives as additionalContext.
     const context = normalizeCodexHookOutput(subcommand, output).hookSpecificOutput?.additionalContext;
     return context ? { injectSteps: [{ systemMessage: { systemMessage: context } }] } : {};
+  }
+  if (subcommand === "stop") {
+    const reason = continuationReason(output);
+    return reason ? CONTINUATION.antigravity(reason) : {};
   }
   return {};
 }
@@ -480,9 +542,18 @@ function normalizeCursorHookOutput(subcommand, output) {
         typeof output.hookSpecificOutput.additionalContext === "string" &&
         output.hookSpecificOutput.additionalContext.trim()) ||
       "";
-    return message
-      ? { continue: true, user_message: message }
-      : { continue: true };
+    // beforeSubmitPrompt hands additional_context to the model (E1.51).
+    const context = sessionContext(output);
+    return {
+      continue: true,
+      ...(message ? { user_message: message } : {}),
+      ...(context ? { additional_context: context } : {}),
+    };
+  }
+
+  if (subcommand === "stop") {
+    const reason = continuationReason(output);
+    if (reason) return CONTINUATION.cursor(reason);
   }
 
   return { continue: true };
@@ -646,7 +717,8 @@ function launch(argv, scriptDir, seen = {}) {
 
   const rawInput = stripUtf8Bom(fs.readFileSync(0, "utf8"));
   seen.rawInput = rawInput;
-  const cursorHost = isCursorHost(scriptDir, process.env, rawInput);
+  const flaggedHost = hostFlag(argv);
+  const cursorHost = !flaggedHost && isCursorHost(scriptDir, process.env, rawInput);
   const antigravityHost = process.env.OSPEC_TARGET === "antigravity";
   const adapted = antigravityHost
     ? adaptAntigravityHookInput(sub, rawInput)
@@ -703,6 +775,8 @@ function launch(argv, scriptDir, seen = {}) {
     writeAntigravityHookOutput(normalizeAntigravityHookOutput(sub, parseLastJson(result.stdout)));
   } else if (cursorHost) {
     process.stdout.write(`${JSON.stringify(normalizeCursorHookOutput(sub, parseLastJson(result.stdout)))}\n`);
+  } else if (flaggedHost && (sub === "stop" || sub === "session-start") && isPlainObject(parseLastJson(result.stdout))) {
+    process.stdout.write(`${JSON.stringify(normalizeFlaggedHostOutput(flaggedHost, sub, parseLastJson(result.stdout)))}\n`);
   } else if (router?.notice) {
     process.stdout.write(withSystemMessage(result.stdout, router.notice));
   } else if (result.stdout) {
@@ -727,7 +801,10 @@ if (require.main === module) {
 }
 
 module.exports = {
+  CONTINUATION,
   SUBCOMMANDS,
+  hostFlag,
+  normalizeFlaggedHostOutput,
   hostBinarySuffix,
   binaryCandidates,
   resolveBinary,

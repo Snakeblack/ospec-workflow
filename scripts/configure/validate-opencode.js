@@ -300,6 +300,13 @@ function validatePlugin(root, errors) {
   if (!text.includes('runHook("stop"') || !text.includes('"session.idle"') || !text.includes('"session.execution.succeeded"') || !text.includes("parentID")) {
     addError(errors, `${rel} must run the stop subcommand at the end of a turn of the root session (session.idle, session.execution.succeeded)`);
   }
+  // E1.51: OpenCode has no hook answer to continue a turn, so the plugin sends
+  // the Stop hook's reason as the next prompt and marks the turn it starts
+  // (stop_hook_active); session-start's context reaches the model without a
+  // turn.
+  if (!text.includes("stop_hook_active") || !text.includes('answer.decision === "block"') || !text.includes("hookSpecificOutput.additionalContext")) {
+    addError(errors, `${rel} must send the Stop hook's request to continue as the next prompt and inject the session-start context (E1.51)`);
+  }
   // session-start resolves skills/ from plugin_root; without it the binary
   // falls back to the plugin host's process cwd (the opencode server's) and
   // fails with "no SKILL.md files found in required skills root".

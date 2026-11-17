@@ -460,3 +460,14 @@ test("validateInstalled converts common-tree walk failures into errors", (t) => 
   assert.doesNotThrow(() => validateInstalled(root, { fs: hookRaceFs }));
   assert.ok(validateInstalled(root, { fs: hookRaceFs }).errors.some((error) => /hooks stat race/i.test(error)));
 });
+
+// E1.51: stop asks to continue and the first beforeSubmitPrompt carries the
+// open IDD changes.
+test("validate-cursor requires the stop and beforeSubmitPrompt hooks", (t) => {
+  const root = tmpRoot(t);
+  cleanTree(root);
+  const doc = JSON.parse(fs.readFileSync(path.join(root, "hooks.json"), "utf8"));
+  delete doc.hooks.stop;
+  fs.writeFileSync(path.join(root, "hooks.json"), JSON.stringify(doc));
+  assert.deepEqual(validate(root).errors, ["hooks.json event stop must run the stop subcommand"]);
+});

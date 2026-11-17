@@ -171,17 +171,37 @@ function permissionRequest(event, verdict) {
   return request;
 }
 
-function sessionStart(directory) {
+// The last JSON object a hook printed, or null: diagnostics may precede it.
+function lastJson(stdout) {
+  const lines = String(stdout || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    try {
+      const value = JSON.parse(lines[index]);
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        return value;
+      }
+    } catch {
+      // Not the answer.
+    }
+  }
+  return null;
+}
+
+// Returns the open IDD changes for the model (E1.51), or "" without any.
+function sessionStart(directory, sessionID) {
   try {
     // plugin_root tells the binary where the bundle's skills/ live; without it
     // the binary resolves skills/ against the opencode server's cwd.
-    runHook(
-      "session-start",
-      { cwd: directory, plugin_root: resolvePluginRoot() },
-      { cwd: directory },
-    );
+    const payload = { cwd: directory, plugin_root: resolvePluginRoot() };
+    if (sessionID) {
+      payload.session_id = sessionID;
+    }
+    const answer = lastJson(runHook("session-start", payload, { cwd: directory }).stdout);
+    const context = answer && answer.hookSpecificOutput && answer.hookSpecificOutput.additionalContext;
+    return typeof context === "string" ? context.trim() : "";
   } catch {
     // session-start is best-effort; never block a session on cache build.
+    return "";
   }
 }
 
@@ -198,11 +218,29 @@ async function isRootSession(readSession) {
   }
 }
 
+// E1.51: the sessions whose current turn the plugin started to continue one.
+const continued = new Set();
+
+// Runs the Stop hook and returns the reason it asks to continue with, or "".
 function turnEnd(directory, sessionID) {
+  const active = continued.delete(sessionID);
   try {
-    runHook("stop", { cwd: directory, session_id: sessionID }, { cwd: directory });
+    const answer = lastJson(runHook("stop", { cwd: directory, session_id: sessionID, stop_hook_active: active }, { cwd: directory }).stdout);
+    const reason = answer && answer.decision === "block" ? answer.reason : "";
+    return typeof reason === "string" ? reason.trim() : "";
   } catch {
     // The count is best-effort, like the session trace the hook also writes.
+    return "";
+  }
+}
+
+// Sends the reason as the next prompt without waiting for that turn.
+function continueSession(sessionID, send) {
+  continued.add(sessionID);
+  try {
+    Promise.resolve(send()).catch(() => continued.delete(sessionID));
+  } catch {
+    continued.delete(sessionID);
   }
 }
 
@@ -215,11 +253,25 @@ export const OspecWorkflowPlugin = async ({ directory, client }) => {
   return {
     event: async ({ event }) => {
       if (event && event.type === "session.created") {
-        sessionStart(directory);
+        const info = event.properties && event.properties.info;
+        const rootID = info && !info.parentID && typeof info.id === "string" ? info.id : "";
+        const context = sessionStart(directory, rootID);
+        if (context && rootID && client && client.session && typeof client.session.prompt === "function") {
+          try {
+            // noReply stores the context without starting a turn.
+            await client.session.prompt({ path: { id: rootID }, body: { noReply: true, parts: [{ type: "text", text: context }] } });
+          } catch {
+            // The context is best-effort.
+          }
+        }
       }
       const sessionID = event && event.type === "session.idle" && event.properties && event.properties.sessionID;
       if (sessionID && client && client.session && await isRootSession(async () => (await client.session.get({ path: { id: sessionID } })).data)) {
-        turnEnd(directory, sessionID);
+        const reason = turnEnd(directory, sessionID);
+        const send = client.session.promptAsync || client.session.prompt;
+        if (reason && typeof send === "function") {
+          continueSession(sessionID, () => send.call(client.session, { path: { id: sessionID }, body: { parts: [{ type: "text", text: reason }] } }));
+        }
       }
     },
     "tool.execute.before": async (input, output) => {
@@ -237,6 +289,21 @@ export const OspecWorkflowPlugin = async ({ directory, client }) => {
     },
   };
 };
+
+// E1.51: an instructions entry reaches the model at the next step without
+// queuing a turn; a runtime without it gets a synthetic message.
+async function injectContext(ctx, sessionID, text) {
+  try {
+    const entry = ctx.session && ctx.session.instructions && ctx.session.instructions.entry;
+    if (entry && typeof entry.put === "function") {
+      await entry.put({ sessionID, key: "ospec-open-changes", value: text });
+    } else if (ctx.session && typeof ctx.session.synthetic === "function") {
+      await ctx.session.synthetic({ sessionID, text });
+    }
+  } catch {
+    // The context is best-effort.
+  }
+}
 
 // v2 entrypoint: OpenCode 2.x calls setup(ctx); hooks and subscriptions are
 // registered through the context and disposed when the plugin unloads.
@@ -284,11 +351,19 @@ async function setupOspecWorkflow(ctx) {
     try {
       for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
         if (event && event.type === "session.created") {
-          sessionStart(directory);
+          const data = event.data || {};
+          const rootID = !data.parentID && typeof data.sessionID === "string" ? data.sessionID : "";
+          const context = sessionStart(directory, rootID);
+          if (context && rootID) {
+            await injectContext(ctx, rootID, context);
+          }
         }
         const sessionID = event && TURN_ENDS.has(event.type) && event.data && event.data.sessionID;
         if (sessionID && ctx.session && typeof ctx.session.get === "function" && await isRootSession(() => ctx.session.get({ sessionID }))) {
-          turnEnd(directory, sessionID);
+          const reason = turnEnd(directory, sessionID);
+          if (reason && typeof ctx.session.prompt === "function") {
+            continueSession(sessionID, () => ctx.session.prompt({ sessionID, text: reason }));
+          }
         }
       }
     } catch {

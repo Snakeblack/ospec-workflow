@@ -414,14 +414,24 @@ function nestHooks(file) {
   return { path: file.path, content: JSON.stringify({ ...obj, hooks: nested }, null, 2) };
 }
 
+// E1.51: the hosts without a marker of their own name themselves on the
+// events whose answer they read in their own shape (ospec-hooks-launch.js).
+const HOST_FLAG_EVENTS = new Set(["SessionStart", "Stop"]);
+
+function withHostFlag(event, command, profile) {
+  const host = profile.hooks.hostFlag;
+  return host && HOST_FLAG_EVENTS.has(event) && typeof command === "string" ? `${command} --host ${host}` : command;
+}
+
 // Flat hooks without the events the host would misread (VS Code runs
 // PostToolUse but ignores a rewritten output, so it would only inject the
 // "redacted" note over the original).
 function omitHookEvents(file, profile) {
   const obj = parseJsonFile(file);
-  const hooks = { ...(obj.hooks || {}) };
-  for (const event of profile.hooks.omitEvents) {
-    delete hooks[event];
+  const hooks = {};
+  for (const [event, entries] of Object.entries(obj.hooks || {})) {
+    if (profile.hooks.omitEvents.includes(event)) continue;
+    hooks[event] = entries.map((entry) => (entry && typeof entry === "object" ? { ...entry, command: withHostFlag(event, entry.command, profile) } : entry));
   }
   return { path: file.path, content: JSON.stringify({ ...obj, hooks }, null, 2) };
 }
@@ -443,7 +453,7 @@ function copilotHooks(file, profile) {
       continue; // no Copilot equivalent (e.g. PreCompact)
     }
     out[mapped] = entries.map((entry) => {
-      const command = stripVar ? entry.command.split(stripVar).join("") : entry.command;
+      const command = withHostFlag(event, stripVar ? entry.command.split(stripVar).join("") : entry.command, profile);
       const hook = { type: "command", bash: command, powershell: command };
       if (entry.timeout !== undefined) {
         hook.timeoutSec = entry.timeout;

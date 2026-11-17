@@ -59,6 +59,8 @@ function createFakeTree(files = {}) {
   };
 }
 
+const WRAPPER = 'node "__OSPEC_ANTIGRAVITY_ROOT__/scripts/hooks/ospec-antigravity-hook.js"';
+
 test("validate-antigravity passes for a valid generated tree", () => {
   const fakeFs = createFakeTree({
     "agents/sdd-apply.agent.md": "---\nname: sdd-apply\n---\nbody",
@@ -67,9 +69,9 @@ test("validate-antigravity passes for a valid generated tree", () => {
     "skills/accessibility/SKILL.md": "---\nname: accessibility\n---\nbody",
     "scripts/hooks/ospec-hooks-launch.js": "console.log('hook')",
     "hooks.json": JSON.stringify({
-      "ospec-session-start": { enabled: true, SessionStart: [{ type: "command", command: "x session-start" }] },
-      "ospec-pre-tool-use": { enabled: true, PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: "x pre-tool-use" }] }] },
-      "ospec-stop": { enabled: true, Stop: [{ type: "command", command: "x stop" }] },
+      "ospec-session-start": { enabled: true, SessionStart: [{ type: "command", command: `${WRAPPER} session-start` }] },
+      "ospec-pre-tool-use": { enabled: true, PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: `${WRAPPER} pre-tool-use` }] }] },
+      "ospec-stop": { enabled: true, Stop: [{ type: "command", command: `${WRAPPER} stop` }] },
     }),
   });
 
@@ -84,12 +86,13 @@ test("validate-antigravity flags hook shapes agy rejects", () => {
     "hooks.json": JSON.stringify({
       "ospec-session-start": { SessionStart: [{ matcher: ".*", hooks: [{ type: "command", command: "x" }] }] },
       "ospec-pre-tool-use": { PreToolUse: [{ type: "command", command: "x" }] },
-      "ospec-stop": { Stop: [{ type: "command", command: "x" }] },
+      "ospec-stop": { Stop: [{ type: "command", command: `${WRAPPER} stop` }] },
     }),
   });
 
   const errors = validate(path.resolve("/dist"), { fs: fakeFs }).errors.filter((e) => e.startsWith("hooks.json"));
   assert.deepEqual(errors, [
+    "hooks.json ospec-session-start.SessionStart must run scripts/hooks/ospec-antigravity-hook.js",
     "hooks.json ospec-session-start.SessionStart[0] must be a handler with a string command",
     "hooks.json ospec-pre-tool-use.PreToolUse[0] must be a matcher group with hooks",
   ]);
@@ -103,4 +106,18 @@ test("validate-antigravity flags missing required directories and forbidden path
   const res = validate(path.resolve("/dist"), { fs: fakeFs });
   assert.ok(res.errors.some((e) => e.includes("missing required path")));
   assert.ok(res.errors.some((e) => e.includes("forbidden target residue")));
+});
+
+// E1.51: only the wrapper makes the launcher answer in agy's shape.
+test("validate-antigravity flags a Stop or SessionStart that skips the agy wrapper", () => {
+  const launcher = 'node "__OSPEC_ANTIGRAVITY_ROOT__/scripts/hooks/ospec-hooks-launch.js"';
+  const fakeFs = createFakeTree({
+    "hooks.json": JSON.stringify({
+      "ospec-session-start": { SessionStart: [{ type: "command", command: `${WRAPPER} session-start` }] },
+      "ospec-pre-tool-use": { PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: `${WRAPPER} pre-tool-use` }] }] },
+      "ospec-stop": { Stop: [{ type: "command", command: `${launcher} stop` }] },
+    }),
+  });
+  const errors = validate(path.resolve("/dist"), { fs: fakeFs }).errors.filter((e) => e.startsWith("hooks.json"));
+  assert.deepEqual(errors, ["hooks.json ospec-stop.Stop must run scripts/hooks/ospec-antigravity-hook.js"]);
 });

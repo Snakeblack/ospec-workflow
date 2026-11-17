@@ -430,7 +430,7 @@ test("v1 runs the Stop hook when the root session goes idle, never for a subagen
   for (const sessionID of ["ses_child", "ses_gone", "ses_root"]) await hooks.event({ event: { type: "session.idle", properties: { sessionID } } });
   await hooks.event({ event: { type: "session.status", properties: { sessionID: "ses_root", status: { type: "idle" } } } });
 
-  assert.deepEqual(stopCalls(calls), [{ cwd: "/repo", session_id: "ses_root" }]);
+  assert.deepEqual(stopCalls(calls), [{ cwd: "/repo", session_id: "ses_root", stop_hook_active: false }]);
 });
 
 test("v2 runs the Stop hook when the root session's execution ends, never for a subagent or another event", async (t) => {
@@ -456,5 +456,84 @@ test("v2 runs the Stop hook when the root session's execution ends, never for a 
   await mod.default.setup(ctx);
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.deepEqual(stopCalls(calls), [{ cwd: "/repo", session_id: "ses_root" }, { cwd: "/repo", session_id: "ses_root" }]);
+  assert.deepEqual(stopCalls(calls), [
+    { cwd: "/repo", session_id: "ses_root", stop_hook_active: false },
+    { cwd: "/repo", session_id: "ses_root", stop_hook_active: false },
+  ]);
+});
+
+// E1.51 open-change-nudge: OpenCode has no hook answer to continue a turn, so
+// the plugin sends the reason as the next prompt, once, and injects the open
+// IDD changes without starting a turn.
+const ASK = '{"decision":"block","reason":"ospec: continue fix-a"}';
+const CONTEXT = '{"status":"ok","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"ospec: fix-a is open"}}';
+
+test("v1 sends the Stop hook's reason as the next prompt and marks the turn it starts", async (t) => {
+  let answer = ASK;
+  const { mod, calls } = await loadPluginWithStub(t, (subcommand) => ({ status: 0, stdout: subcommand === "stop" ? answer : CONTEXT }));
+  const prompts = [];
+  const client = {
+    session: {
+      get: async () => ({ data: ROOT_SESSION }),
+      prompt: async (request) => { prompts.push(["prompt", request]); },
+      promptAsync: async (request) => { prompts.push(["promptAsync", request]); },
+    },
+  };
+  const hooks = await mod.default.server({ directory: "/repo", client });
+  await hooks.event({ event: { type: "session.created", properties: { info: ROOT_SESSION } } });
+  await hooks.event({ event: { type: "session.created", properties: { info: CHILD_SESSION } } });
+  await hooks.event({ event: { type: "session.idle", properties: { sessionID: "ses_root" } } });
+  answer = '{"continue":true}';
+  await hooks.event({ event: { type: "session.idle", properties: { sessionID: "ses_root" } } });
+  await hooks.event({ event: { type: "session.idle", properties: { sessionID: "ses_root" } } });
+
+  assert.deepEqual(calls.filter((call) => call.subcommand === "session-start").map((call) => call.input.session_id), ["ses_root", undefined]);
+  assert.deepEqual(prompts, [
+    ["prompt", { path: { id: "ses_root" }, body: { noReply: true, parts: [{ type: "text", text: "ospec: fix-a is open" }] } }],
+    ["promptAsync", { path: { id: "ses_root" }, body: { parts: [{ type: "text", text: "ospec: continue fix-a" }] } }],
+  ]);
+  assert.deepEqual(stopCalls(calls).map((input) => input.stop_hook_active), [false, true, false]);
+});
+
+test("v2 sends the Stop hook's reason as the next prompt and injects the open changes as instructions", async (t) => {
+  // Like the hook, it asks nothing in a turn that already continues one.
+  const { mod, calls } = await loadPluginWithStub(t, (subcommand, input) => ({ status: 0, stdout: subcommand !== "stop" ? CONTEXT : input.stop_hook_active ? '{"continue":true}' : ASK }));
+  const sent = [];
+  const events = [
+    { type: "session.created", data: { sessionID: "ses_root" } },
+    { type: "session.created", data: { sessionID: "ses_child", parentID: "ses_root" } },
+    { type: "session.execution.succeeded", data: { sessionID: "ses_root" } },
+    { type: "session.execution.succeeded", data: { sessionID: "ses_root" } },
+  ];
+  const ctx = {
+    ...fakeContext(),
+    event: { subscribe: () => (async function* () { yield* events; })() },
+    session: {
+      get: async () => ROOT_SESSION,
+      prompt: async (request) => { sent.push(["prompt", request]); },
+      instructions: { entry: { put: async (request) => { sent.push(["instructions", request]); } } },
+    },
+  };
+  await mod.default.setup(ctx);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(sent, [
+    ["instructions", { sessionID: "ses_root", key: "ospec-open-changes", value: "ospec: fix-a is open" }],
+    ["prompt", { sessionID: "ses_root", text: "ospec: continue fix-a" }],
+  ]);
+  assert.deepEqual(stopCalls(calls).map((input) => input.stop_hook_active), [false, true], "the turn the plugin started tells the hook");
+  assert.deepEqual(calls.filter((call) => call.subcommand === "session-start").map((call) => call.input.session_id), ["ses_root", undefined]);
+});
+
+test("v2 without instructions entries injects the open changes as a synthetic message", async (t) => {
+  const { mod } = await loadPluginWithStub(t, () => ({ status: 0, stdout: CONTEXT }));
+  const sent = [];
+  const ctx = {
+    ...fakeContext(),
+    event: { subscribe: () => (async function* () { yield { type: "session.created", data: { sessionID: "ses_root" } }; })() },
+    session: { get: async () => ROOT_SESSION, synthetic: async (request) => { sent.push(request); } },
+  };
+  await mod.default.setup(ctx);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(sent, [{ sessionID: "ses_root", text: "ospec: fix-a is open" }]);
 });

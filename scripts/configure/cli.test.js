@@ -873,9 +873,12 @@ test("every target runs the stop hook on its end-of-turn event (E1.49)", (t) => 
     const out = tmpOut(t);
     runConfigure({ sourceDir: root, target, outDir: out, validate: false, withSdd: true });
     const runs = commands(endOfTurn(JSON.parse(fs.readFileSync(path.join(out, file), "utf8"))));
-    assert.ok(runs.length > 0 && runs.every((command) => /scripts[\\/]hooks[\\/]ospec-[a-z-]+\.js" stop$/.test(command)), `${target}: ${JSON.stringify(runs)}`);
+    // E1.51: VS Code and Copilot name their host, so the launcher answers in its shape.
+    const host = { vscode: " --host vscode", "github-copilot": " --host github-copilot" }[target] ?? "";
+    const pattern = new RegExp(`scripts[\\\\/]hooks[\\\\/]ospec-[a-z-]+\\.js" stop${host}$`);
+    assert.ok(runs.length > 0 && runs.every((command) => pattern.test(command)), `${target}: ${JSON.stringify(runs)}`);
   }
   const out = tmpOut(t);
   runConfigure({ sourceDir: root, target: "opencode", outDir: out, validate: false, withSdd: true });
-  assert.match(fs.readFileSync(path.join(out, ".opencode/plugins/ospec.js"), "utf8"), /runHook\("stop", \{ cwd: directory, session_id: sessionID \}/);
+  assert.match(fs.readFileSync(path.join(out, ".opencode/plugins/ospec.js"), "utf8"), /runHook\("stop", \{ cwd: directory, session_id: sessionID, stop_hook_active: active \}/);
 });

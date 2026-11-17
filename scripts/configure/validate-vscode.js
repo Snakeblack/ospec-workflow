@@ -40,6 +40,26 @@ function validateVsCodeTarget(outDir, deps = {}) {
     errors.push(`missing skills directory at ${skillsDir}`);
   }
 
+  // E1.51: VS Code reads a Stop decision only inside hookSpecificOutput, so the
+  // session and end-of-turn hooks name their host to the launcher.
+  const hooksJson = path.join(outDir, "hooks", "hooks.json");
+  if (fsImpl.existsSync(hooksJson)) {
+    let hooks = null;
+    try {
+      hooks = JSON.parse(fsImpl.readFileSync(hooksJson, "utf8")).hooks;
+    } catch (err) {
+      errors.push(`invalid JSON in hooks/hooks.json: ${err.message}`);
+    }
+    for (const event of ["SessionStart", "Stop"]) {
+      const entries = hooks && Array.isArray(hooks[event]) ? hooks[event] : [];
+      for (const entry of entries) {
+        if (typeof entry?.command !== "string" || !entry.command.endsWith(" --host vscode")) {
+          errors.push(`hooks/hooks.json ${event} command must end with --host vscode`);
+        }
+      }
+    }
+  }
+
   for (const { rel, needles } of ATTRIBUTION_SENTINELS) {
     const abs = path.join(outDir, rel);
     if (!fsImpl.existsSync(abs)) {

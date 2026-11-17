@@ -43,6 +43,8 @@ module.exports = {
       Stop: "agentStop",
     },
     stripPathVar: "${CLAUDE_PLUGIN_ROOT}/",
+    // Copilot CLI reads the sessionStart context at the top level (E1.51).
+    hostFlag: "github-copilot",
   },
 
   // MCP is project-level for Copilot CLI: .mcp.json (root) is kept at the repo

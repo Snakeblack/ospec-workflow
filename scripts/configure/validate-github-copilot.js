@@ -295,6 +295,20 @@ function validateHooks(root, errors, fsImpl) {
       }
     }
   }
+
+  // E1.51: Copilot CLI reads the sessionStart context at the top level, so the
+  // session and end-of-turn hooks name their host and the launcher answers in
+  // that shape.
+  for (const eventName of ["sessionStart", "agentStop"]) {
+    const actions = Array.isArray(parsed.hooks[eventName]) ? parsed.hooks[eventName] : [];
+    for (const [index, action] of actions.entries()) {
+      for (const shell of ["bash", "powershell"]) {
+        if (typeof action?.[shell] === "string" && !action[shell].endsWith(" --host github-copilot")) {
+          addError(errors, `${rel} event ${eventName}[${index}] ${shell} must end with --host github-copilot`);
+        }
+      }
+    }
+  }
 }
 
 // Each phase agent's "Skills to load before work" section names skills/<...>.md

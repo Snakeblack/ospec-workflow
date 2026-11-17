@@ -201,10 +201,11 @@ test("claude nests flat event entries preserving type/command/timeout", () => {
   assert.deepEqual(h.hooks.PreToolUse, [{ hooks: [{ type: "command", command: "node y.js", timeout: 5 }] }]);
 });
 
-test("vscode leaves hooks flat (identity)", () => {
+test("vscode leaves hooks flat, naming its host on SessionStart and Stop (E1.51)", () => {
   const out = transform({ files: makeSource(), profile: vscode, models: MODELS });
   const h = JSON.parse(find(out, "hooks/hooks.json").content);
-  assert.deepEqual(h.hooks.SessionStart, [{ type: "command", command: "node x.js" }]);
+  assert.deepEqual(h.hooks.SessionStart, [{ type: "command", command: "node x.js --host vscode" }]);
+  assert.deepEqual(h.hooks.PreToolUse, [{ type: "command", command: "node y.js", timeout: 5 }]);
 });
 
 // E1.27: PostToolUse redaction reaches only the hosts that rewrite tool
@@ -551,7 +552,8 @@ test("github-copilot reshapes hooks into .github/hooks/hooks.json with the Copil
   assert.ok(parsed.hooks.preToolUse, "PreToolUse -> preToolUse");
   // command -> bash/powershell, timeout -> timeoutSec
   assert.equal(parsed.hooks.sessionStart[0].type, "command");
-  assert.equal(parsed.hooks.sessionStart[0].bash, "node x.js");
+  // E1.51: Copilot CLI reads the sessionStart context at the top level.
+  assert.equal(parsed.hooks.sessionStart[0].bash, "node x.js --host github-copilot");
   assert.equal(parsed.hooks.preToolUse[0].timeoutSec, 5);
 });
 
