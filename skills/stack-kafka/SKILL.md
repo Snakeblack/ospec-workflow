@@ -1,7 +1,7 @@
 ---
 name: stack-kafka
 description: "Apache Kafka messaging — idempotence, error handling, manual offset committing, schema registry, partition ordering"
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

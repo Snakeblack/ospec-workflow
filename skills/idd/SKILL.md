@@ -1,7 +1,7 @@
 ---
 name: idd
 description: "Impact-driven development protocol: run a code change through the ospec CLI, which derives its obligations and decides when it is done. Trigger: a code change, unless SDD is requested or mode: sdd."
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

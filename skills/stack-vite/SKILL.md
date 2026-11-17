@@ -1,9 +1,9 @@
 ---
 name: stack-vite
 description: "Vite frontend build tool — configuration, plugins, asset loading"
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "affaan-mustafa, manuel-retamozo-garcia"
   version: "1.0"
 capabilities: [vite]
 ---

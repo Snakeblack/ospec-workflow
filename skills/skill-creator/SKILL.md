@@ -1,9 +1,9 @@
 ---
 name: skill-creator
 description: "Trigger: new skills, agent instructions, documenting AI usage patterns. Create LLM-first skills with valid frontmatter."
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "gentleman-programming, manuel-retamozo-garcia"
   version: "1.0"
 ---
 
@@ -56,7 +56,7 @@ skills/{skill-name}/
 ---
 name: {skill-name}
 description: "Trigger: {essential trigger words users or agents will say}. {What this skill does}."
-license: Apache-2.0
+license: {the license of the project that hosts the skill}
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

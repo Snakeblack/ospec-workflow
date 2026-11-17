@@ -87,6 +87,8 @@ modes keep separate state: `idd/` for IDD, `openspec/changes/` for SDD.
 
 ## Where to read next
 
+- [Quick guide](quickstart.md): how ospec-workflow works, what you do and what
+  the agent does, in five minutes.
 - Web guide: [IDD](https://ospec-workflow.mretamozo.com/idd/flujo-idd/) (the
   default flow) and [SDD mode (optional)](https://ospec-workflow.mretamozo.com/sdd/modo-sdd/).
 - IDD contract: [`openspec/specs/idd/spec.md`](../../openspec/specs/idd/spec.md).

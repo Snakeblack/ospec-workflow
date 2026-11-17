@@ -1,7 +1,7 @@
 ---
 name: branch-pr
 description: "Create pull requests with branch, validation, and publication checks. Trigger: creating, opening, or preparing PRs for review."
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "2.1"

@@ -416,6 +416,7 @@ Additional servers must be activated explicitly. See [mcp-policy.md](docs/mcp-po
 | Document | Content |
 | --- | --- |
 | [ospec-workflow.mretamozo.com](https://ospec-workflow.mretamozo.com) | Web documentation: start page and quick start. |
+| [Quick guide](docs/en/quickstart.md) | How ospec-workflow works, what you do and what the agent does: the handbook quickstart in English. |
 | [A change from start to finish](https://ospec-workflow.mretamozo.com/empezar/primer-cambio/) | A real IDD example: what you ask, what it asks you and what you see at close (Spanish). |
 | [IDD guide](https://ospec-workflow.mretamozo.com/idd/flujo-idd/) | IDD, the default flow: obligations, evidence, gates and closing. |
 | [Foundation](https://ospec-workflow.mretamozo.com/idd/foundation/) | Architecture before the first change: the ADRs and how IDD works with each change's impact on them (Spanish). |
@@ -456,5 +457,7 @@ execution and trust surface.
 This project is licensed under the MIT License with the [Commons Clause](https://commonsclause.com/) restriction. See [LICENSE](LICENSE) for the full text.
 
 Free use, modification and redistribution, including by companies. Selling it or offering paid services whose value comes substantially from the software (hosting, consulting or support) is not allowed without permission ([hello@mretamozo.com](mailto:hello@mretamozo.com)). Versions published before this change were released under plain MIT.
+
+Every skill declares that same license. Some keep text from three works published under the MIT License (gentle-ai, ECC and Caveman): [NOTICE](NOTICE) keeps the copyright notice of each and the skills that keep its text, and ships with the Claude marketplace plugin next to `LICENSE`.
 
 Uso, modificación y redistribución libres, también para empresas. No está permitido venderlo ni ofrecer servicios de pago cuyo valor proviene sustancialmente del software (alojamiento, consultoría o soporte) sin permiso ([hello@mretamozo.com](mailto:hello@mretamozo.com)). Las versiones publicadas antes de este cambio se distribuyeron bajo MIT sin Commons Clause.

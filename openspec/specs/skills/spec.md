@@ -43,7 +43,7 @@ directly by the user. Examples: `caveman`, `branch-pr`, `chained-pr`, `skill-cre
 
 Identifying traits:
 - No `disable-model-invocation` or `user-invocable` override in frontmatter.
-- License is typically `Apache-2.0`.
+- License is `MIT AND Commons-Clause`, as for every skill (section 2.1).
 - These skills ARE indexed by the registry scanner and injected into sub-agent prompts
   as compact rules.
 
@@ -76,7 +76,7 @@ A technology has exactly one stack skill; its sub-areas live in that skill's `re
 
 Identifying traits:
 - No `disable-model-invocation` or `user-invocable` override in frontmatter.
-- License is `Apache-2.0` (matching the utility tier).
+- License is `MIT AND Commons-Clause`, as for every skill (section 2.1).
 - Frontmatter description must be a meaningful description of the technology domain and key use cases to support judgment-based selection.
 - Frontmatter contains the `capabilities` field.
 - These skills ARE indexed by the registry scanner and injected into sub-agent prompts.
@@ -99,8 +99,8 @@ Every `SKILL.md` MUST open with a YAML frontmatter block delimited by `---`.
 |---|---|---|
 | `name` | string | Slug matching the directory name |
 | `description` | string | Single physical line, double-quoted, YAML-safe; MUST encode trigger words; <=160 chars SHOULD, <=250 chars MUST |
-| `license` | string | `MIT AND Commons-Clause` for SDD phase skills; `Apache-2.0` for utility skills |
-| `metadata.author` | string | `manuel-retamozo-garcia` |
+| `license` | string | `MIT AND Commons-Clause`, the license of the repository, in every skill; `scripts/docs-figures.test.js` fails on any other |
+| `metadata.author` | string | `manuel-retamozo-garcia`; a skill that keeps the text of a third-party work also names its authors, listed in `NOTICE`, and one taken whole may give `metadata.origin` instead |
 | `metadata.version` | string | Quoted semantic string (e.g., `"1.0"`, `"2.0"`) |
 
 ### 2.2 Optional Fields (SDD Phase Skills Only)
@@ -489,7 +489,7 @@ items are excluded because `Purpose` does not match the rules-section pattern.
 
 ### 7.7 Stack skill excluded from SDD-phase tier conventions
 
-- GIVEN a file at `skills/stack-dotnet/SKILL.md` with `license: Apache-2.0`
+- GIVEN a file at `skills/stack-dotnet/SKILL.md` with `license: MIT AND Commons-Clause`
   and NO `disable-model-invocation` or `user-invocable` fields
 - WHEN the registry scanner processes it
 - THEN it is indexed as a normal registry entry (same as a utility skill)

@@ -1,9 +1,9 @@
 ---
 name: stack-java
 description: "Java coding standards for Spring Boot and Quarkus services — naming, immutability, Optional, streams, DI"
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "affaan-mustafa, manuel-retamozo-garcia"
   version: "1.0"
 capabilities: [java]
 ---

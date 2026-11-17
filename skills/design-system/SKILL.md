@@ -1,6 +1,7 @@
 ---
 name: design-system
 description: "Generate or audit design systems and visual consistency. Trigger: design system, design tokens, visual audit, styling PRs."
+license: MIT AND Commons-Clause
 metadata:
   origin: ECC
 ---

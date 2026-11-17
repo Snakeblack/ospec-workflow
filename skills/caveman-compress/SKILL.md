@@ -1,9 +1,9 @@
 ---
 name: caveman-compress
 description: "Trigger: /caveman:compress <filepath>, compress memory file. Compress prose files while preserving technical content and backups."
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "julius-brussee, manuel-retamozo-garcia"
   version: "1.0"
 ---
 

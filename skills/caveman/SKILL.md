@@ -1,7 +1,7 @@
 ---
 name: caveman
 description: "Terse replies, commit messages and review comments without losing technical accuracy. Trigger: caveman mode, talk like caveman, less tokens, be brief, /caveman, caveman help, commit message, /caveman commit, review the diff, /caveman review"
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "2.0"

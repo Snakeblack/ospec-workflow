@@ -1,7 +1,7 @@
 ---
 name: stack-webmcp
 description: "Trigger: WebMCP, document.modelContext, web tools, AI browser agent. Web Model Context Protocol client-side tool standard."
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

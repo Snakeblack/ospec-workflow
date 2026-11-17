@@ -1,9 +1,9 @@
 ---
 name: comment-writer
 description: "Write warm, direct collaboration comments. Trigger: PR feedback, issue replies, reviews, Slack messages, or GitHub comments."
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "gentleman-programming, manuel-retamozo-garcia"
   version: "1.0"
 ---
 

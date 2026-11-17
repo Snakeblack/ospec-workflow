@@ -1,6 +1,7 @@
 ---
 name: accessibility
 description: "WCAG 2.2 AA design, implementation and audit for Web and Native UI. Trigger: accessibility, a11y, ARIA, screen reader, keyboard navigation, WCAG."
+license: MIT AND Commons-Clause
 metadata:
   origin: ECC
 ---

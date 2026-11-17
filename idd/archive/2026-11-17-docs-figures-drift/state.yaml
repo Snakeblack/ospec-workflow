@@ -1,0 +1,457 @@
+{
+  "schema": "idd-state/v1",
+  "change": "docs-figures-drift",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Cifras públicas coherentes con su fuente (gates, targets, revisores), un test que falla si se desfasan, un quickstart en inglés, una sola licencia declarada en todas las skills, el aviso de gentle-ai en NOTICE y el plugin del marketplace con LICENSE y NOTICE, que su manifiesto ya cita (E1.78, R12)",
+    "acceptance": "El quickstart y el catálogo del handbook dicen nueve gates como el README; un test nuevo falla si una cifra pública de gates, targets o revisores difiere de catalog.json, de los perfiles de target o de agents/review-*, o si una skill declara otra licencia que MIT AND Commons-Clause; existe docs/en/quickstart.md enlazado desde README.md y docs/en/README.md; NOTICE lleva el aviso MIT de gentle-ai y la lista de skills derivadas; el plugin que construye buildClaudeMarketplace lleva LICENSE y NOTICE en plugins/ospec-workflow/"
+  },
+  "facts": {
+    "open": [
+      "Licencia de las skills: hoy 27 declaran Apache-2.0, 24 MIT AND Commons-Clause y 4 ninguna. ¿Todas MIT AND Commons-Clause (la del LICENSE del repo) o se conserva Apache-2.0 en las derivadas de gentle-ai?",
+      "Atribución: 8 skills derivan de skills de gentle-ai (repo MIT, sus skills declaran Apache-2.0) y el repo no conserva su aviso de copyright. ¿Se añade un fichero NOTICE con ese aviso y la lista de skills derivadas en este cambio?",
+      "Plantilla de skill-creator: escribe license Apache-2.0 en las skills nuevas de cualquier proyecto. ¿Se cambia o se deja?",
+      "Ubicación del quickstart en inglés: ¿docs/en/quickstart.md enlazado desde README.md y docs/en/README.md, o dentro de handbook/ con i18n en la web?",
+      "Contenido del quickstart en inglés: ¿traducción completa (con el índice de páginas en español) o todo salvo el índice, sustituido por enlaces al README y al handbook?",
+      "Alcance del test de deriva: ¿qué cifras (gates, targets, revisores) y qué ficheros (README, README.es, docs/en, handbook salvo historia/) cubre?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "NOTICE",
+      "README.es.md",
+      "README.md",
+      "docs/en/README.md",
+      "docs/en/quickstart.md",
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/agentes/catalogo.md",
+      "handbook/legal/license.md",
+      "handbook/quickstart.md",
+      "scripts/configure/claude-marketplace.js",
+      "scripts/configure/claude-marketplace.test.js",
+      "scripts/docs-figures.test.js",
+      "skills",
+      "skills/accessibility/SKILL.md",
+      "skills/caveman-compress/SKILL.md",
+      "skills/skill-creator/SKILL.md",
+      "skills/stack-angular/SKILL.md"
+    ],
+    "work_units": 3,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "LICENSE y NOTICE viajan solo en el plugin del marketplace de Claude (plugins/ospec-workflow/), que es la única distribución que no pasa por un clon del repo: install-target.js copia la raíz de los paquetes de OpenCode y Copilot sobre la raíz del repositorio del usuario y sustituiría su LICENSE (respuesta del usuario)",
+      "Todas las skills declaran MIT AND Commons-Clause; las derivadas de gentle-ai llevan author con los dos nombres y NOTICE conserva su aviso MIT hasta que E1.98 own-skills las reescriba (respuesta del usuario)",
+      "El quickstart en inglés vive en docs/en/quickstart.md fuera del handbook, que sigue en un solo idioma, y sustituye el índice de páginas por enlaces al README y al handbook (respuesta del usuario)",
+      "El test de deriva lee las cifras de su fuente: gates de internal/iddsession/catalog.json, targets de scripts/lib/target-profiles y revisores de agents/review-*.agent.md; recorre README.md, README.es.md, docs/en y handbook salvo historia/, en cifra o palabra, en inglés y en español",
+      "NOTICE lleva una sección por proyecto de origen con su aviso MIT y la lista de skills que conservan su texto: gentle-ai, ECC (affaan-m) y caveman, copiada cuando caveman aún era MIT; las copias llevan author con los nombres de origen y el propio, y las cuatro con origin: ECC solo ganan la licencia (respuesta del usuario)",
+      "La reescritura se parte: E1.98 own-skills reescribe las de gentle-ai justo detrás de E1.78 y E1.99 own-stack-skills las de ECC y caveman, fuera del orden ▶; NOTICE se queda hasta que las dos estén hechas (respuesta del usuario)",
+      "La línea base de contexto sube 12 bytes por target: la línea license de la skill de IDD pasa de Apache-2.0 a MIT AND Commons-Clause, consecuencia de la licencia única que eligió el usuario"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component skills: ADR 0003, 0006 and quality scenario offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/claude-marketplace.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "none",
+      "reason": "Solo cambia cifras de la documentación, la licencia del frontmatter de las skills y un test de deriva; ninguna regla de proceso pasa del CLI a la prosa ni al revés"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones ni lo que el CLI lee para decidir"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "Ni el test ni los documentos añaden llamadas de red al CLI, los hooks ni las skills; el test lee ficheros del repositorio"
+    },
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "LICENSE y NOTICE salen de la raíz de la fuente canónica y los copia la construcción del marketplace; no se edita a mano ningún árbol generado y la transformación de los targets no cambia"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "La copia usa solo node:fs y no añade dependencias ni descargas"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Los árboles que genera cli.js no cambian y sus golden siguen iguales; los dos ficheros legales solo van al paquete del marketplace, porque los demás targets se instalan desde el clon, que ya los lleva en la raíz"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 508,
+      "answer": "«recomendado todas menos la 2 que antes de decidir quiero entender por que debo poner el aviso de gentle-ai» / «ok, si coinciden demasiado esta bien, aunque me gustaria alejarme de gentle-ai hacer nuestros propias skills mejoradas con respecto a esas para que no tenga que mencionarlo» / «los recomendados». Resuelto: (1) todas las skills MIT AND Commons-Clause, también las 4 sin licencia; (2) NOTICE en la raíz con el aviso MIT de gentle-ai y la lista de skills derivadas, enlazado desde handbook/legal/license.md, y LICENSE y NOTICE dentro de cada paquete generado; author con los dos nombres en las copias; (3) la plantilla de skill-creator usa la licencia del proyecto donde se crea la skill; (4) docs/en/quickstart.md enlazado desde README.md y docs/en/README.md; (5) todo el quickstart salvo el índice, sustituido por enlaces al README y al handbook; (6) el test cubre gates, targets y revisores en README.md, README.es.md, docs/en y handbook salvo historia/, más la licencia de cada skill; (B) fila nueva E1.98 own-skills justo detrás de E1.78 para reescribir las skills derivadas y quitar el NOTICE",
+      "source": "user",
+      "resolved_turn": 511
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-17T20:04:22.460Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T20:17:58.224Z",
+      "detail": {
+        "refs": [
+          "adr:0003 none",
+          "adr:0006 none",
+          "scenario:offline-operation none",
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:4c9d1172a4384da4158f9f9debc2f428c321d5da76aab773856c2cbf8a62e3cd",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-17T20:18:56.874Z",
+      "detail": {
+        "run": "run-11",
+        "tree": "sha256:1b13d55c56ddf5001211e70d56a119a4b114bf80fb56b023dbaa70977941d83c",
+        "plan": "Compatibilidad: la construcción del marketplace solo añade LICENSE y NOTICE a plugins/ospec-workflow/; el resto del paquete y el manifiesto no cambian, así que un plugin ya instalado sigue funcionando y la siguiente actualización trae los dos ficheros. Una fuente sin LICENSE deja de construir y conserva la construcción anterior; el repositorio y la rama release siempre lo llevan. Vuelta atrás: revertir el commit; los dos ficheros desaparecen del paquete en la siguiente publicación."
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T20:20:54.707Z",
+      "detail": {
+        "tree": "sha256:2f2c3e71c3526f2f7da51ce8f9802472f702017465567f590053e82ff21483a6",
+        "runs": [
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T20:20:54.707Z",
+      "detail": {
+        "refs": [
+          "adr:0003 none",
+          "adr:0006 none",
+          "scenario:offline-operation none",
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:2f2c3e71c3526f2f7da51ce8f9802472f702017465567f590053e82ff21483a6",
+        "fitness": [
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-17T20:21:18.327Z"
+    }
+  ],
+  "base": "5a37b822af6d101a6d7d840c07b79d49b9e3f1a4",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/claude-marketplace.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:8a47f0f96ef5a7e71278b204ebd2e3303600ce1da97d2eca1809c85118f2d2c3",
+      "tree": "sha256:5378ce95d5f58b89ade7ccd92afdee90158ab7c5467ffc112e5fc276c242d297",
+      "recorded_at": "2026-11-17T20:03:55.102Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/claude-marketplace.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:afcdf741f65070ce3ba421810469cbeddbb545a2e8a61a4833c29512ac87e947",
+      "tree": "sha256:480451e22fc6bb053b88058ee33c1981c62c73c5df12dffd83f84d0023a95437",
+      "recorded_at": "2026-11-17T20:04:22.460Z",
+      "tests": 13,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "5a37b822af6d101a6d7d840c07b79d49b9e3f1a4",
+      "mount": "sha256:f346e337a12711194c89ca0301e36bc5b7fe4d21322d4ec70416464e62195a44",
+      "command": "node --test scripts/configure/claude-marketplace.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:5535b2d9a7e3d6fb52c6a7b5ca8a5696b1ee5d373480709281dedcc7a6b64ab0",
+      "tree": "sha256:480451e22fc6bb053b88058ee33c1981c62c73c5df12dffd83f84d0023a95437",
+      "recorded_at": "2026-11-17T20:04:22.460Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "5a37b822af6d101a6d7d840c07b79d49b9e3f1a4",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/configure/claude-marketplace.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7b5ee1fdc006615fa7442594fd3a3cd95249964048e654c9f629c505bf9c2594",
+      "tree": "sha256:480451e22fc6bb053b88058ee33c1981c62c73c5df12dffd83f84d0023a95437",
+      "recorded_at": "2026-11-17T20:04:22.460Z",
+      "tests": 10
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:8b2eec04b2e10815a287bda6897d975aac695d5bc028b29c9c29c136d4113579",
+      "tree": "sha256:4c9d1172a4384da4158f9f9debc2f428c321d5da76aab773856c2cbf8a62e3cd",
+      "recorded_at": "2026-11-17T20:17:58.224Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a5d4caa561478bc347db190413144f4b4a7b0e999f2a8157c76a4bca0d138b22",
+      "tree": "sha256:4c9d1172a4384da4158f9f9debc2f428c321d5da76aab773856c2cbf8a62e3cd",
+      "recorded_at": "2026-11-17T20:17:58.224Z",
+      "tests": 2
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1dd706e911ffc26d323448705f09fc1a79895092a54facfd1e4757bb441c3a11",
+      "tree": "sha256:4c9d1172a4384da4158f9f9debc2f428c321d5da76aab773856c2cbf8a62e3cd",
+      "recorded_at": "2026-11-17T20:17:58.224Z",
+      "tests": 48
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4c9d1172a4384da4158f9f9debc2f428c321d5da76aab773856c2cbf8a62e3cd",
+      "recorded_at": "2026-11-17T20:17:58.224Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:05331e2a6815eeef904fd7c2d824cf4027861ea38217f4c618a9d11f6c79d6eb",
+      "tree": "sha256:4c9d1172a4384da4158f9f9debc2f428c321d5da76aab773856c2cbf8a62e3cd",
+      "recorded_at": "2026-11-17T20:17:58.224Z",
+      "tests": 26
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d9772095cc80bfce4a575305f3ba549ed99649668d600b1cbbb7d6c26e2eb8b1",
+      "tree": "sha256:4c9d1172a4384da4158f9f9debc2f428c321d5da76aab773856c2cbf8a62e3cd",
+      "recorded_at": "2026-11-17T20:17:58.224Z",
+      "tests": 48
+    },
+    {
+      "id": "run-11",
+      "purpose": "migration-test",
+      "command": "node --test scripts/configure/claude-marketplace.test.js scripts/configure/with-extras.test.js scripts/configure/with-sdd.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:93f656a37520ffd79248b152ac26be6d13a9531ccc1973e952b016a6ff66c58a",
+      "tree": "sha256:1b13d55c56ddf5001211e70d56a119a4b114bf80fb56b023dbaa70977941d83c",
+      "recorded_at": "2026-11-17T20:18:56.874Z",
+      "tests": 53
+    },
+    {
+      "id": "run-12",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b80c391846b3af20677a01f868ac39252180badb2228c5ed47c3417422876481",
+      "tree": "sha256:2f2c3e71c3526f2f7da51ce8f9802472f702017465567f590053e82ff21483a6",
+      "recorded_at": "2026-11-17T20:20:54.707Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:75a2df0910a2a9ad75e333f82290c206780ac3785e8b6844074890777230a305",
+      "tree": "sha256:2f2c3e71c3526f2f7da51ce8f9802472f702017465567f590053e82ff21483a6",
+      "recorded_at": "2026-11-17T20:20:54.707Z",
+      "tests": 2
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8e241cb59b6e7bf6d3b11165579af9755c8e5436c9c30dce4287ada2e0362875",
+      "tree": "sha256:2f2c3e71c3526f2f7da51ce8f9802472f702017465567f590053e82ff21483a6",
+      "recorded_at": "2026-11-17T20:20:54.707Z",
+      "tests": 48
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:2f2c3e71c3526f2f7da51ce8f9802472f702017465567f590053e82ff21483a6",
+      "recorded_at": "2026-11-17T20:20:54.707Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3c17187b33445cb9893822c3b634ceb242e0fa4a56f81ca22b27f599b104f805",
+      "tree": "sha256:2f2c3e71c3526f2f7da51ce8f9802472f702017465567f590053e82ff21483a6",
+      "recorded_at": "2026-11-17T20:20:54.707Z",
+      "tests": 26
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:81e11751af65b1cf84d3ac8fd5e41e3613144f58d51d3059983b958b61c96971",
+      "tree": "sha256:2f2c3e71c3526f2f7da51ce8f9802472f702017465567f590053e82ff21483a6",
+      "recorded_at": "2026-11-17T20:20:54.707Z",
+      "tests": 48
+    }
+  ],
+  "closed_at": "2026-11-17T20:21:18.327Z"
+}

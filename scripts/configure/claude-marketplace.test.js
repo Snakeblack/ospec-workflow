@@ -108,6 +108,52 @@ test("buildClaudeMarketplace forwards an injected generator seam", (t) => {
   assert.equal(calls[0].outDir, result.pluginDir);
 });
 
+// A source tree with the manifest the build reads and the given legal files.
+function legalSource(t, files) {
+  const source = tmp(t);
+  fs.mkdirSync(path.join(source, ".claude-plugin"), { recursive: true });
+  fs.copyFileSync(path.join(SOURCE, ".claude-plugin", "plugin.json"), path.join(source, ".claude-plugin", "plugin.json"));
+  for (const [name, content] of Object.entries(files)) fs.writeFileSync(path.join(source, name), content);
+  return source;
+}
+
+const STUB_DEPS = Object.freeze({
+  runConfigure: () => ({ exitCode: 0, validation: null }),
+  validateAttributionSentinels: () => [],
+});
+
+function buildFrom(source, out) {
+  return buildClaudeMarketplace({ source, out, validate: false, marketplaceName: "ospec-tools", pluginName: "ospec-workflow" }, STUB_DEPS);
+}
+
+// The marketplace entry says "SEE LICENSE IN LICENSE": the published plugin
+// carries that LICENSE and the NOTICE of the third-party work it derives from.
+test("the marketplace plugin carries the source LICENSE and NOTICE", (t) => {
+  const source = legalSource(t, { LICENSE: "MIT License + Commons Clause\n", NOTICE: "Third-party notices\n" });
+  const result = buildFrom(source, path.join(tmp(t), "build"));
+
+  assert.equal(fs.readFileSync(path.join(result.pluginDir, "LICENSE"), "utf8"), "MIT License + Commons Clause\n");
+  assert.equal(fs.readFileSync(path.join(result.pluginDir, "NOTICE"), "utf8"), "Third-party notices\n");
+});
+
+test("the marketplace plugin builds without a NOTICE when the source has none", (t) => {
+  const source = legalSource(t, { LICENSE: "MIT License\n" });
+  const result = buildFrom(source, path.join(tmp(t), "build"));
+
+  assert.ok(fs.existsSync(path.join(result.pluginDir, "LICENSE")));
+  assert.equal(fs.existsSync(path.join(result.pluginDir, "NOTICE")), false);
+});
+
+test("the marketplace build refuses a source without LICENSE and keeps the previous build", (t) => {
+  const source = legalSource(t, { NOTICE: "Third-party notices\n" });
+  const out = tmp(t);
+  fs.mkdirSync(path.join(out, ".claude-plugin"), { recursive: true });
+  fs.writeFileSync(path.join(out, ".claude-plugin", "marketplace.json"), "{}");
+
+  assert.throws(() => buildFrom(source, out), /LICENSE/);
+  assert.equal(fs.readFileSync(path.join(out, ".claude-plugin", "marketplace.json"), "utf8"), "{}");
+});
+
 test("INSTALL-026: marketplace build fails closed when attribution sentinels are stale", (t) => {
   const out = tmp(t);
   const build = buildClaudeMarketplace({ source: SOURCE, out, validate: false, marketplaceName: "ospec-tools", pluginName: "ospec-workflow" });

@@ -1,9 +1,9 @@
 ---
 name: chained-pr
 description: "Trigger: PRs over 400 lines, stacked PRs, review slices. Split oversized changes into chained PRs that protect review focus."
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "gentleman-programming, manuel-retamozo-garcia"
   version: "1.0"
 ---
 

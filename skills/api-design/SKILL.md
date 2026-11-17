@@ -1,6 +1,7 @@
 ---
 name: api-design
 description: "REST API design: resource naming, status codes, pagination, filtering, errors, versioning and rate limiting. Trigger: designing or reviewing HTTP APIs, endpoints, API contracts."
+license: MIT AND Commons-Clause
 metadata:
   origin: ECC
 ---
