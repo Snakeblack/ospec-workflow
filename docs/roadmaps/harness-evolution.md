@@ -213,9 +213,9 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.90** | `counterproof-failure-log` (#522: una contraprueba o un control que falla deja su salida en `.ospec/runs/<cambio>/` y `run` y `check` citan la ruta; fuera del orden ▶) | feature |
 | `pending` | **E1.91** | `refactor-contract-warning` (#520: un `refactor` que declara un documento de contrato en su plan avisa de B9 al registrarlo, antes de editar; fuera del orden ▶) | feature |
 | `done` | **E1.92** | `secret-guard-alignment` (el escáner de secretos del commit y la censura de salida comparten la clasificación de nombres y la forma de secreto; el pre-commit bloquea, línea a línea, lo que cualquiera de los dos ve, da la línea y respeta el marcador `ospec:allow-secret`; un fichero denegado por nombre se deniega por cualquier vía de shell que lo lea (más lectores, envoltorios, shells anidados, sustituciones, código de un intérprete), y una clave SSH, como argumento de cualquier comando; la censura gana las cadenas de conexión; en v2.180.1) | bugfix |
-| `pending` | **E1.93** | `reviewers-premium-tier` (los cinco revisores que `models.yaml` deja en `default` pasan a `premium`, como `review-change`; decisión del usuario del 2026-11-17; detrás de E1.92) | feature |
+| `done` | **E1.93** | `reviewers-premium-tier` (los cinco revisores que `models.yaml` dejaba en `default` pasan a `premium`, como `review-change`: en Claude se generan con `opus` y en los demás hosts con el modelo que el usuario asignó a `premium`, o el de la sesión; el validador sigue aceptando cualquier tier conocido; decisión del usuario del 2026-11-17; en v2.181.0) | feature |
 | `pending` | **E1.95** | `secret-guard-file-kinds` (lo que E1.92 deja documentado como límite: un modo de fichero de configuración para `password: valor` sin comillas y contraseñas solo de letras, las claves bajo `.ssh` con otro nombre y el directorio `id_*` que se deniega como si fuera una clave; detrás de E1.93) | bugfix |
-| `pending` | **E1.94** | `review-tier-by-risk` (`ospec review start` devuelve el tier del revisor, que el CLI calcula del nivel de E1.79 y del tamaño del diff; el tier solo sube, y la lente de confianza no baja de `premium`; detrás de E1.79) | feature |
+| `pending` | **E1.94** | `execution-profile-by-risk` (el CLI calcula por encargo el tier y el effort de cada agente que lanza ospec, sean revisores, el worker o las fases de SDD, a partir del nivel de E1.79, las señales y el tamaño del diff; `models.yaml` queda como suelo, el perfil solo sube y el modelo puede subirlo con una razón, nunca bajarlo; sustituye a `review-tier-by-risk`; detrás de E1.79) | feature |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -285,7 +285,7 @@ E1.75 a E1.91 entraron el 2026-11-16 con la [comparativa del harness, el uso y e
 - R7 y R8 no tienen fila: en Claude los sustituyen E1.82 y E1.81, y los demás hosts siguen con el gate en texto y sin línea de estado.
 - Los mods de Claude (E1.80 a E1.82 y E1.85 a E1.87) son una capa opcional en un plugin aparte. Sin él, o con los mods apagados, ospec funciona igual, y la garantía sigue en el CLI. M6, las herramientas nativas `ospec_*`, queda en «Aparcado».
 
-El usuario fijó el orden el mismo día. E1.75 abre la cola porque es la fricción que paga cada feature, y E1.76 va detrás porque es un defecto de la contraprueba. E1.51 sigue a E1.76, como se acordó al terminar la comparativa, y después van E1.77 y E1.78, sin dependencias. E1.79 va antes que los lotes de la review general, porque E1.59, E1.83, E1.84 y E4.13 dependen de su nivel, y detrás van E1.80 y E1.81. E1.82, E1.83 y E1.84 van detrás de E1.60, y E1.85 a E1.87 detrás de E4.13, en el bloque D. E1.88, E1.89 (detrás de E1.28), E1.90 y E1.91 quedan fuera del orden ▶ hasta que el usuario los coloque. El 2026-11-17, al entregar E1.51, el usuario colocó E1.92 justo detrás, por delante de E1.77. El mismo día, durante E1.92, pidió que los revisores corran con Opus como mínimo: E1.93 va justo detrás de E1.92, y E1.94, que elige el tier del revisor según el riesgo, detrás de E1.79, de quien depende. Los ítems nuevos no tienen issue propia; #520, #522 y #523 llevan la etiqueta `roadmap:<ID>` del suyo.
+El usuario fijó el orden el mismo día. E1.75 abre la cola porque es la fricción que paga cada feature, y E1.76 va detrás porque es un defecto de la contraprueba. E1.51 sigue a E1.76, como se acordó al terminar la comparativa, y después van E1.77 y E1.78, sin dependencias. E1.79 va antes que los lotes de la review general, porque E1.59, E1.83, E1.84 y E4.13 dependen de su nivel, y detrás van E1.80 y E1.81. E1.82, E1.83 y E1.84 van detrás de E1.60, y E1.85 a E1.87 detrás de E4.13, en el bloque D. E1.88, E1.89 (detrás de E1.28), E1.90 y E1.91 quedan fuera del orden ▶ hasta que el usuario los coloque. El 2026-11-17, al entregar E1.51, el usuario colocó E1.92 justo detrás, por delante de E1.77. El mismo día, durante E1.92, pidió que los revisores corran con Opus como mínimo: E1.93 va justo detrás de E1.92, y E1.94, que elige el tier del revisor según el riesgo, detrás de E1.79, de quien depende. Al entregar E1.93 pidió que la elección fuera automática y valiera para todos los agentes: E1.94 pasa a ser `execution-profile-by-risk`, en el mismo sitio del orden. Los ítems nuevos no tienen issue propia; #520, #522 y #523 llevan la etiqueta `roadmap:<ID>` del suyo.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -1572,29 +1572,32 @@ Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparat
 
 ### E1.93 — `reviewers-premium-tier`
 
-- **Problema:** `models.yaml` deja `review-trust`, `review-correction`, `review-runtime`, `review-evolution` y `review-efficiency` en el tier `default`, que en Claude es Sonnet; solo `review-change` va en `premium`. Durante E1.92 la revisión de confianza se lanzó con Sonnet y el usuario la mandó repetir con Opus.
+- **Problema:** `models.yaml` dejaba `review-trust`, `review-correction`, `review-runtime`, `review-evolution` y `review-efficiency` en el tier `default`, que en Claude es Sonnet; solo `review-change` iba en `premium`. Durante E1.92 la revisión de confianza se lanzó con Sonnet y el usuario la mandó repetir con Opus.
 - **Decisión del usuario (2026-11-17):** los revisores corren con Opus como mínimo.
 - **Garantía que protege:** la review como última barrera antes de `close` (principio 9).
-- **Alcance:** los cinco revisores pasan a `premium` en `models.yaml`, con sus goldens por target. Es la única política de agente a tier, así que vale para los 7 hosts: en Claude es el alias `opus` y en los demás, el modelo que el usuario asigne a `premium` (E4.12).
+- **Alcance:** los cinco revisores pasan a `premium` en `models.yaml`. Es la única política de agente a tier, así que vale para todos los hosts con modelo por agente: en Claude es el alias `opus` y en los demás, el modelo que el usuario asigne a `premium` (E4.12), o el de la sesión si no asigna ninguno.
+- **Sin suelo en el validador:** `validateSddModelPolicy` sigue aceptando cualquier tier conocido para un revisor (REQ-generator-005 y el ADR-005 de `docs/adr/` quedan como estaban). El usuario dejó la elección al agente: una regla nueva en la tabla no compensa si el tier lo va a calcular el CLI en E1.94.
 - **Coste:** cada review gasta más. Es el precio aceptado hasta que E1.94 lo ajuste al riesgo.
-- **Hecho cuando:** los agentes revisores generados declaran el tier `premium` en cada target y el validador de `models.yaml` lo fija.
+- **Hecho cuando:** los agentes revisores generados llevan el modelo del tier `premium` en cada target, y el test de contrato de tiers lo comprueba para los seis revisores, con y sin modelos del usuario.
 
-### E1.94 — `review-tier-by-risk`
+### E1.94 — `execution-profile-by-risk`
 
-- **Propuesta del usuario (2026-11-17):** que el modelo de un revisor se elija según un criterio y la complejidad del cambio, no de forma fija.
-- **Problema:** E1.79 decide cuántas lentes de review se lanzan, pero no con qué tier, y E4.13 solo sugiere un tier para el worker que construye.
+- **Propuesta del usuario (2026-11-17):** que el modelo y el effort se elijan según un criterio, el impacto y la complejidad de lo que se esté haciendo, no con una tabla fija, y que valga para todos los agentes que lanza ospec, no solo para los revisores. Sustituye a `review-tier-by-risk`, que solo elegía el tier del revisor.
+- **Problema:** `models.yaml` asigna un tier fijo por agente y no mira el cambio; el effort solo lo lleva Codex, por tier. E1.79 decide cuántas lentes de review se lanzan, pero no con qué tier ni con qué effort; E4.13 solo sugiere un tier para el worker que construye, y los agentes de fase de SDD no entran en ninguno de los dos.
+- **Decisión del usuario (2026-11-17), estrategia híbrida:**
+  - `models.yaml` queda como suelo: el tier mínimo de cada agente.
+  - El CLI calcula en código, por encargo, el tier y el effort a partir del nivel de E1.79, las señales y el tamaño del diff (ficheros y líneas), y solo los sube.
+  - El modelo puede subirlos con una razón; bajarlos, nunca. Es el patrón de E1.79.
+- **Automático al subir** (criterio del agente, que el usuario delegó): subir no pregunta. Delegar la construcción en un tier más barato que el del hilo principal sigue siendo la oferta de E4.13, hasta que E4.4 lo mida.
 - **Alcance:**
-  - `ospec review start` añade a su petición el tier del revisor, calculado en código a partir del nivel de E1.79 y del tamaño del diff (ficheros y líneas).
-  - El tier solo sube. La lente de confianza no baja de `premium`, y ningún revisor baja del tier que tenga en `models.yaml`.
-  - En Claude, el hilo principal lanza el agente con ese modelo. En los hosts que fijan el modelo en la definición del agente hace falta un agente por tier, como prevé E4.13 para el worker.
-- **Tensión con E4.4:** el roadmap pide un experimento antes de cualquier routing adaptativo. Aquí el criterio es determinista y solo sube el tier, así que no cambia una garantía por un ahorro. El usuario decide si aun así espera a E4.4.
+  - Cada comando que entrega un encargo devuelve su perfil, con el tier y el effort: `ospec review start` y `ospec review correct` para los revisores, el bloque `delegation` de E4.13 para el worker y el despacho de las fases de SDD.
+  - E1.93 deja a los revisores en `premium`, que es el tier más alto: para ellos el cálculo solo decide el effort, y E1.59, el número de lentes.
+  - En Claude, el hilo principal lanza el agente con ese modelo y ese effort. En los hosts que fijan el modelo en la definición del agente hace falta un agente por tier, como prevé E4.13 para el worker; un tier sin modelo asignado hereda el de la sesión (E4.12).
+  - Las reglas nombran tiers y niveles de effort, nunca modelos (E4.12). Hoy los perfiles de Claude, Codex y OpenCode declaran un campo de effort; el resto no tiene.
+- **Tensión con E4.4:** el roadmap pide un experimento antes de cualquier routing adaptativo. Aquí el criterio es determinista y solo sube, así que no cambia una garantía por un ahorro. Bajar de tier sí lo haría, y queda fuera hasta E4.4.
 - **Depende de:** E1.79 `risk-level` y E1.93.
-- **Hecho abierto:** la tabla de nivel y tamaño a tier.
-- **Hecho cuando:** un corpus fija el tier de cada combinación en JS y en Go, y una review de un cambio `high` se lanza en `premium` en Claude y en un segundo host.
-
-## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
-
-**Resultado de la etapa:** al crear un proyecto, ospec hace las preguntas que haría un arquitecto con experiencia en proyectos serios. Captura la información funcional, el contexto del equipo, los atributos de calidad y las restricciones, y produce **ADRs de arquitectura agnósticos de tecnología**, separados de la selección tecnológica. Las preguntas no salen de un cuestionario fijo: salen de los huecos de conocimiento que más condicionan las decisiones pendientes. La foundation sirve igual a IDD y al modo SDD.
+- **Hechos abiertos:** la tabla de nivel, señales y tamaño a tier y effort; qué niveles de effort admite cada host y cómo degrada el que no tiene ninguno; si en SDD el perfil lo pide el orquestador al CLI en cada fase.
+- **Hecho cuando:** un corpus fija el tier y el effort de cada tipo de encargo en JS y en Go; ningún encargo sale por debajo del suelo de `models.yaml`; en Claude y en un segundo host el agente se lanza con el perfil calculado.
 
 ### El algoritmo: ciclo de descubrimiento guiado por huecos de decisión
 
@@ -2218,6 +2221,11 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-17: `reviewers-premium-tier` (IDD), publicado en v2.181.0. E1.93 hecho: los seis revisores corren en el tier `premium`.
+  - `review-trust`, `review-correction`, `review-runtime`, `review-evolution` y `review-efficiency` pasan de `default` a `premium` en `models.yaml`. En Claude se generan con `opus`; en los demás hosts, con el modelo que el usuario asignó a `premium`, o el de la sesión.
+  - El validador no gana un suelo: cualquier tier conocido sigue siendo válido para un revisor. El test de contrato de tiers comprueba ahora también el modelo generado de los seis revisores en cada target.
+  - El usuario pidió que la elección sea automática y valga para todos los agentes. E1.94 pasa de `review-tier-by-risk` a `execution-profile-by-risk`: tier y effort por encargo, calculados por el CLI sobre el suelo de `models.yaml`, que solo suben.
+  - El orden ▶ sigue con E1.95 `secret-guard-file-kinds` y E1.77 `change-request-log`.
 - 2026-11-17: `secret-guard-alignment` (IDD), publicado en v2.180.1. E1.92 hecho: el escáner de secretos del commit y la censura de salida ven lo mismo.
   - Los dos clasifican un nombre por su última palabra y comparten la forma de secreto. El escáner ve el camelCase y deja pasar el `key` de un elemento, de una traducción o de un almacenamiento. Sobre los ficheros versionados de nueve repositorios del usuario, las líneas que bloquearían un commit bajan de 209 a 62.
   - El pre-commit bloquea, línea a línea, lo que marca el escáner o censuraría la censura, y da el fichero, la línea y el tipo. Una línea con `ospec:allow-secret` no se escanea.

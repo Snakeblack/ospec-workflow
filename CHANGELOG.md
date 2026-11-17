@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Los cinco revisores que models.yaml deja en default (review-trust, review-correction, review-runtime, review-evolution, review-efficiency) pasan al tier premium, como review-change (reviewers-premium-tier)
+
 ## [2.180.1] - 2026-11-17
 
 ### Fixed
