@@ -812,16 +812,22 @@ func fileHoldsSecrets(filePath string) bool {
 	if !ok {
 		return false
 	}
-	_, kinds := redactSecrets(content, classifySensitiveFile(filePath) != nil)
+	_, kinds := redactSecrets(content, redactOptionsFor([]string{filePath}, nil))
 	return len(kinds) > 0
 }
 
 // readCoveredByRedaction: the read exemption holds only when the redacted
 // content leaves nothing the secret scan would still ask about (an unreadable
-// or oversized file asks).
-func readCoveredByRedaction(filePath string) bool {
+// or oversized file asks). The mode of the file counts only when PostToolUse
+// will use it too (named: a path key of the call names the file); a file named
+// any other way, as the glob of a search, is redacted in normal mode.
+func readCoveredByRedaction(filePath string, named bool) bool {
 	content, ok := readSmallFile(filePath)
-	return ok && isCoveredByRedaction(content, classifySensitiveFile(filePath) != nil)
+	options := redactOptions{}
+	if named {
+		options = redactOptionsFor([]string{filePath}, nil)
+	}
+	return ok && isCoveredByRedaction(content, options)
 }
 
 var shellOperandSeparatorRe = regexp.MustCompile("[ \t\r\n\f\v;|&<>\"'`]+")
@@ -1267,14 +1273,18 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 		// A shell command is denied when it reads such a file, or when any of
 		// its words names an SSH private key, except in the commands that use
 		// the key without printing it.
+		// A directory is not a key file, whatever its name (`id_service/`).
+		classify := func(filePath string) *sensitiveFileClass {
+			return classifySensitivePath(filePath, shellDirectoryExists(filePath))
+		}
 		denied := false
 		for _, filePath := range paths {
-			if class := classifySensitiveFile(filePath); class != nil && class.action == "deny" {
+			if class := classify(filePath); class != nil && class.action == "deny" {
 				denied = true
 			}
 		}
 		for _, cmd := range cmds {
-			denied = denied || namesDeniedFile(cmd, shellFileExists)
+			denied = denied || namesDeniedFile(cmd, shellFileExists, shellDirectoryExists)
 		}
 		if denied {
 			return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."), 0
@@ -1312,12 +1322,20 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 			os.Getenv("DISABLE_SECRET_REDACTION") != "true" &&
 			len(cmds) == 0 &&
 			isReadTool(input.ToolName)
+		named := map[string]bool{}
+		for _, key := range postToolUsePathKeys {
+			if file, ok := rawInput.ToolInput[key].(string); ok {
+				if absolute, err := filepath.Abs(file); err == nil {
+					named[absolute] = true
+				}
+			}
+		}
 		for _, filePath := range paths {
-			if readsRedacted && readCoveredByRedaction(filePath) {
+			if readsRedacted && readCoveredByRedaction(filePath, named[filePath]) {
 				continue
 			}
 			// Bloqueo/advertencia por nombre de archivo (secretscan.go)
-			if class := classifySensitiveFile(filePath); class != nil {
+			if class := classify(filePath); class != nil {
 				return makeDecision("ask", "Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"), 0
 			}
 

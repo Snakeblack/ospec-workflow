@@ -186,16 +186,78 @@ type sensitiveFileClass struct {
 	kind   string
 }
 
+var (
+	underSSHDirectoryRe = regexp.MustCompile(`(?i)(?:^|[\\/])\.ssh[\\/]+[^\\/]`)
+	// Lo que un directorio `.ssh` guarda sin ser una clave privada, además de
+	// los `*.pub`. Cualquier otro fichero bajo `.ssh` cuenta como clave, se
+	// llame como se llame (`aws-prod.pem`, `deploy_key`, `github`), y también
+	// un comodín o una expansión, que pueden nombrar una (`*.pem`, `known_*`,
+	// `$KEY`), y el propio directorio, porque leerlo entero lee sus claves
+	// (`grep -r … ~/.ssh`).
+	sshPublicNames = map[string]bool{
+		"config": true, "known_hosts": true, "known_hosts.old": true, "authorized_keys": true, "authorized_keys2": true,
+		"environment": true, "rc": true, "allowed_signers": true, "revoked_keys": true,
+	}
+	// Ficheros de configuración: ahí `password: valor` es una asignación, no
+	// una expresión ni un tipo, y la censura la ve sin comillas y con una
+	// contraseña solo de letras. De los JSON solo entran los de configuración
+	// por nombre: en el resto viven las etiquetas (`"password": "Contraseña"`).
+	// Por lo mismo queda fuera una traducción: un fichero bajo un directorio
+	// de traducciones (`locales/es.yml`, `locale/de-DE.ini`) o un bundle de
+	// Java con sufijo de idioma (`messages_es.properties`).
+	translationDirectoryRe = regexp.MustCompile(`(?i)(?:^|[\\/])(?:locales?|i18n|l10n|langs?|translations?)[\\/]`)
+	translationBundleRe    = regexp.MustCompile(`_[a-z]{2}(?:_[a-z]{2})?\.properties$`)
+	configExtensions       = map[string]bool{".yml": true, ".yaml": true, ".ini": true, ".properties": true, ".toml": true, ".conf": true, ".cfg": true}
+	configJSONNameRe       = regexp.MustCompile(`^(?:appsettings.*|local\.settings|config(?:\.[^.]+)?|settings)\.json$`)
+)
+
+// lastSegment devuelve el último tramo de una ruta, con cualquiera de las dos
+// barras, en minúsculas.
+func lastSegment(filePath string) string {
+	trimmed := strings.TrimRight(filePath, `/\`)
+	if index := strings.LastIndexAny(trimmed, `/\`); index >= 0 {
+		trimmed = trimmed[index+1:]
+	}
+	return strings.ToLower(trimmed)
+}
+
+// underSSHDirectory: un fichero bajo un directorio `.ssh`, a cualquier
+// profundidad.
+func underSSHDirectory(filePath string) bool {
+	return underSSHDirectoryRe.MatchString(filePath)
+}
+
+func isConfigFile(filePath string) bool {
+	filename := lastSegment(filePath)
+	if translationDirectoryRe.MatchString(filePath) || translationBundleRe.MatchString(filename) {
+		return false
+	}
+	return configExtensions[filepath.Ext(filename)] || configJSONNameRe.MatchString(filename)
+}
+
 // classifySensitiveFile clasifica un path por nombre de archivo. Devuelve nil
 // cuando el archivo no coincide con ninguna categoría sensible.
 func classifySensitiveFile(filePath string) *sensitiveFileClass {
+	return classifySensitivePath(filePath, false)
+}
+
+// classifySensitivePath es classifySensitiveFile con lo que el llamante sabe
+// del disco: un directorio (directory, o una ruta que acaba en barra) no es
+// una clave por llamarse `id_service` o `certs.key`; `.ssh` y lo que hay bajo
+// él sí cuentan, porque leerlos lee sus claves.
+func classifySensitivePath(filePath string, directory bool) *sensitiveFileClass {
 	filename := strings.ToLower(filepath.Base(filePath))
 	ext := filepath.Ext(filename)
 
 	isSSHKey := strings.HasPrefix(filename, "id_") &&
 		(ext == "" || ext == ".key" || ext == ".pem" ||
 			filename == "id_rsa" || filename == "id_ecdsa" || filename == "id_ed25519")
-	if isSSHKey || ext == ".key" {
+	isDirectory := directory || strings.HasSuffix(filePath, "/") || strings.HasSuffix(filePath, `\`)
+	if (isSSHKey || ext == ".key") && !isDirectory {
+		return &sensitiveFileClass{action: "deny", kind: "private-key"}
+	}
+	name := lastSegment(filePath)
+	if name == ".ssh" || (underSSHDirectory(filePath) && !sshPublicNames[name] && !strings.HasSuffix(name, ".pub")) {
 		return &sensitiveFileClass{action: "deny", kind: "private-key"}
 	}
 

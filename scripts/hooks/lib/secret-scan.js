@@ -111,7 +111,7 @@ const PLACEHOLDER_PARTS = [
 ];
 const DESCRIPTIVE_PARTS = new Set(["password", "passwd", "secret", "token"]);
 // `env(NOMBRE)` es la referencia de config.toml de Supabase.
-const REFERENCE_PARTS = ["${", "$(", "{{", "process.env", "os.environ", "getenv", "secrets.", "env("];
+const REFERENCE_PARTS = ["${", "$(", "{{", "process.env", "os.environ", "getenv", "secrets.", "env(", "ENC["];
 
 /** 16 caracteres alfanuméricos seguidos o más, con letra y con dígito. */
 function hasOpaqueRun(value) {
@@ -205,14 +205,60 @@ function findGenericCredentials(content) {
   return found;
 }
 
+/** El último tramo de una ruta, con cualquiera de las dos barras, en minúsculas. */
+function lastSegment(filePath) {
+  return String(filePath || "").split(/[\\/]/).filter(Boolean).pop()?.toLowerCase() || "";
+}
+
+/** Un fichero bajo un directorio `.ssh`, a cualquier profundidad. */
+function underSshDirectory(filePath) {
+  return /(?:^|[\\/])\.ssh[\\/]+[^\\/]/i.test(String(filePath || ""));
+}
+
 /**
- * Clasifica un path por nombre de archivo.
+ * Lo que un directorio `.ssh` guarda sin ser una clave privada, además de los
+ * `*.pub`. Cualquier otro fichero bajo `.ssh` cuenta como clave, se llame como
+ * se llame (`aws-prod.pem`, `deploy_key`, `github`), y también un comodín o
+ * una expansión, que pueden nombrar una (`*.pem`, `known_*`, `$KEY`), y el
+ * propio directorio, porque leerlo entero lee sus claves (`grep -r … ~/.ssh`).
+ */
+const SSH_PUBLIC_NAMES = new Set([
+  "config", "known_hosts", "known_hosts.old", "authorized_keys", "authorized_keys2",
+  "environment", "rc", "allowed_signers", "revoked_keys",
+]);
+
+/**
+ * Ficheros de configuración: ahí `password: valor` es una asignación, no una
+ * expresión ni un tipo, y la censura y el pre-commit la ven sin comillas y con
+ * una contraseña solo de letras. De los JSON solo entran los de configuración
+ * por nombre: en el resto viven las etiquetas (`"password": "Contraseña"`).
+ * Por lo mismo queda fuera una traducción: un fichero bajo un directorio de
+ * traducciones (`locales/es.yml`, `locale/de-DE.ini`) o un bundle de Java con
+ * sufijo de idioma (`messages_es.properties`).
+ */
+const TRANSLATION_DIRECTORY = /(?:^|[\\/])(?:locales?|i18n|l10n|langs?|translations?)[\\/]/i;
+const TRANSLATION_BUNDLE = /_[a-z]{2}(?:_[a-z]{2})?\.properties$/;
+const CONFIG_EXTENSIONS = new Set([".yml", ".yaml", ".ini", ".properties", ".toml", ".conf", ".cfg"]);
+const CONFIG_JSON_NAME = /^(?:appsettings.*|local\.settings|config(?:\.[^.]+)?|settings)\.json$/;
+
+function isConfigFile(filePath) {
+  const filename = lastSegment(filePath);
+  if (TRANSLATION_DIRECTORY.test(String(filePath || "")) || TRANSLATION_BUNDLE.test(filename)) return false;
+  const ext = filename.includes(".") ? filename.slice(filename.lastIndexOf(".")) : "";
+  return CONFIG_EXTENSIONS.has(ext) || CONFIG_JSON_NAME.test(filename);
+}
+
+/**
+ * Clasifica un path por nombre de archivo. Un directorio (`directory`, o una
+ * ruta que acaba en barra) no es una clave por llamarse `id_service` o
+ * `certs.key`; `.ssh` y lo que hay bajo él sí cuentan, porque leerlos lee sus
+ * claves.
  *
  * @returns {{action: "deny"|"ask", kind: string}|null}
  *   deny → private-key | git-config | npmrc
  *   ask  → env-file | secrets-file
  */
-function classifySensitiveFile(filePath) {
+function classifySensitiveFile(filePath, { directory = false } = {}) {
   const filename = path.basename(String(filePath || "")).toLowerCase();
   // From the last dot, as filepath.Ext does in Go: `.key` is an extension too.
   const ext = filename.includes(".") ? filename.slice(filename.lastIndexOf(".")) : "";
@@ -221,7 +267,12 @@ function classifySensitiveFile(filePath) {
     filename.startsWith("id_") &&
     (ext === "" || ext === ".key" || ext === ".pem" ||
       filename === "id_rsa" || filename === "id_ecdsa" || filename === "id_ed25519");
-  if (isSshKey || ext === ".key") return { action: "deny", kind: "private-key" };
+  const isDirectory = directory || /[\\/]$/.test(String(filePath || ""));
+  if ((isSshKey || ext === ".key") && !isDirectory) return { action: "deny", kind: "private-key" };
+  const name = lastSegment(filePath);
+  if (name === ".ssh" || (underSshDirectory(filePath) && !SSH_PUBLIC_NAMES.has(name) && !name.endsWith(".pub"))) {
+    return { action: "deny", kind: "private-key" };
+  }
 
   // With either separator, as filepath.ToSlash does in Go: on Windows a
   // command names `.git/config` and a resolved path `.git\config`.
@@ -282,6 +333,8 @@ function scanFileForSecrets(filePath) {
 
 module.exports = {
   classifySensitiveFile,
+  isConfigFile,
+  underSshDirectory,
   scanContentForSecrets,
   scanFileForSecrets,
   findGenericCredentials,

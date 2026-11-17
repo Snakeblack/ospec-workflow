@@ -1468,3 +1468,120 @@ func TestNamedKeyCountsWhenTheFileExists(t *testing.T) {
 		}
 	}
 }
+
+// E1.95: a directory whose name starts with id_ is not a private key, as an
+// operand of a reader or as the path of a read tool. Mirrors pre-tool-use.test.js.
+func TestPreToolUse_IDDirectoryIsNotAKey(t *testing.T) {
+	t.Setenv("DISABLE_AGENT_SHIELD", "")
+	t.Setenv("DISABLE_TOKEN_ADVISOR", "true")
+	t.Setenv("OSPEC_TARGET", "")
+	t.Setenv("OSPEC_CODEX_WRAPPER", "")
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.Mkdir(filepath.Join(dir, "id_service"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{filepath.Join("id_service", "main.go"): "package main\n", "id_deploy": "not a real key\n"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	decide := func(toolName string, toolInput map[string]string) string {
+		input, _ := json.Marshal(map[string]interface{}{"tool_name": toolName, "tool_input": toolInput, "permission_mode": "default"})
+		out, _ := hooks.Dispatch([]string{"pre-tool-use"}, input)
+		return decodePreToolUse(t, out).PermissionDecision
+	}
+	for _, command := range []string{"rg TODO id_service", "rg TODO id_service/", "diff -r id_service src", "grep -rn TODO ./id_service"} {
+		if got := decide("Bash", map[string]string{"command": command}); got != noDecision {
+			t.Errorf("%s: got %q, want no decision", command, got)
+		}
+	}
+	if got := decide("Grep", map[string]string{"pattern": "TODO", "path": filepath.Join(dir, "id_service")}); got != noDecision {
+		t.Errorf("a read tool over the directory: got %q, want no decision", got)
+	}
+	if got := decide("Bash", map[string]string{"command": "cat id_deploy"}); got != "deny" {
+		t.Errorf("cat id_deploy: got %q, want deny", got)
+	}
+	if got := decide("Read", map[string]string{"file_path": filepath.Join(dir, "id_deploy")}); got != "deny" {
+		t.Errorf("Read of id_deploy: got %q, want deny", got)
+	}
+}
+
+// E1.95: under an ssh directory every file is a private key, except the
+// public ones. Mirrors pre-tool-use.test.js.
+func TestPreToolUse_SSHDirectoryFiles(t *testing.T) {
+	t.Setenv("DISABLE_AGENT_SHIELD", "")
+	t.Setenv("DISABLE_TOKEN_ADVISOR", "true")
+	t.Setenv("OSPEC_TARGET", "")
+	t.Setenv("OSPEC_CODEX_WRAPPER", "")
+	decide := func(toolName string, toolInput map[string]string) string {
+		input, _ := json.Marshal(map[string]interface{}{"tool_name": toolName, "tool_input": toolInput, "permission_mode": "bypassPermissions"})
+		out, _ := hooks.Dispatch([]string{"pre-tool-use"}, input)
+		return decodePreToolUse(t, out).PermissionDecision
+	}
+	for _, file := range []string{"/home/dev/.ssh/aws-prod.pem", "/home/dev/.ssh/deploy_key", "/home/dev/.ssh/github", "/home/dev/.ssh/id_rsa.bak"} {
+		if got := decide("Read", map[string]string{"file_path": file}); got != "deny" {
+			t.Errorf("Read of %s: got %q, want deny", file, got)
+		}
+		if got := decide("Bash", map[string]string{"command": "cat " + file}); got != "deny" {
+			t.Errorf("cat %s: got %q, want deny", file, got)
+		}
+	}
+	for _, file := range []string{"/home/dev/.ssh/config", "/home/dev/.ssh/known_hosts", "/home/dev/.ssh/authorized_keys", "/home/dev/.ssh/work.pub"} {
+		if got := decide("Read", map[string]string{"file_path": file}); got == "deny" {
+			t.Errorf("Read of %s: denied", file)
+		}
+		if got := decide("Bash", map[string]string{"command": "cat " + file}); got == "deny" {
+			t.Errorf("cat %s: denied", file)
+		}
+	}
+	for _, command := range []string{"ssh -i ~/.ssh/work deploy@host uptime", "ssh-add ~/.ssh/work", "mkdir -p ~/.ssh/sockets", "chmod 600 ~/.ssh/work"} {
+		if got := decide("Bash", map[string]string{"command": command}); got == "deny" {
+			t.Errorf("%s: denied", command)
+		}
+	}
+}
+
+// E1.95: a configuration file is read in its own redaction mode. The
+// redaction covers its letters-only password, so its read needs no prompt and
+// the marker cannot be written back over it. Mirrors pre-tool-use.test.js.
+func TestPreToolUse_ConfigFileRedactionMode(t *testing.T) {
+	t.Setenv("DISABLE_AGENT_SHIELD", "")
+	t.Setenv("DISABLE_SECRET_REDACTION", "")
+	t.Setenv("OSPEC_TARGET", "")
+	t.Setenv("OSPEC_CODEX_WRAPPER", "")
+	t.Setenv("OSPEC_OUTPUT_REDACTION", "1")
+	root := t.TempDir()
+	password := strings.Repeat("hunter", 2)
+	write := func(name, content string) string {
+		file := filepath.Join(root, name)
+		if err := os.WriteFile(file, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return file
+	}
+	config := write("database.yml", "host: db.internal\npassword: \""+password+"\"\n")
+	code := write("database.js", "const db = { password: \""+password+"\" };\n")
+	marker := "[" + "REDACTED" + ":assigned-secret]"
+	decision := func(input map[string]interface{}) string {
+		stdin, _ := json.Marshal(input)
+		got, _ := runPreToolUse(t, stdin)
+		return got.PermissionDecision
+	}
+	if got := decision(map[string]interface{}{"tool_name": "Read", "tool_input": map[string]interface{}{"file_path": config}}); got != noDecision {
+		t.Errorf("configuration file: got %q, want no decision", got)
+	}
+	if got := decision(map[string]interface{}{"tool_name": "Read", "tool_input": map[string]interface{}{"file_path": code}}); got != "ask" {
+		t.Errorf("code: got %q, want ask", got)
+	}
+	// PostToolUse redacts a file named only by a glob in normal mode: the prompt stays.
+	if got := decision(map[string]interface{}{"tool_name": "Grep", "tool_input": map[string]interface{}{"pattern": "password", "glob": config, "output_mode": "content"}}); got != "ask" {
+		t.Errorf("glob: got %q, want ask", got)
+	}
+	if got := decision(map[string]interface{}{"tool_name": "grep", "tool_input": map[string]interface{}{"pattern": "password", "include": config}}); got != "ask" {
+		t.Errorf("include: got %q, want ask", got)
+	}
+	if got := decision(map[string]interface{}{"tool_name": "Write", "tool_input": map[string]interface{}{"file_path": config, "content": "pass" + "word: " + marker + "\n"}}); got != "deny" {
+		t.Errorf("marker over the configuration file: got %q, want deny", got)
+	}
+}

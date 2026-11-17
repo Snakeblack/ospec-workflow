@@ -61,11 +61,26 @@ func TestIDNameCountsAsKeyOnlyWhenItIsAFile(t *testing.T) {
 	}
 	t.Chdir(workspace)
 	for _, command := range []string{"cd id_service && npm test", "go test ./id_service", "git add id_service"} {
-		if namesDeniedFile(command, shellFileExists) {
+		if namesDeniedFile(command, shellFileExists, nil) {
 			t.Errorf("%s: denied, want no objection", command)
 		}
 	}
-	if !namesDeniedFile("openssl rsa -in id_deploy -text", shellFileExists) {
+	if !namesDeniedFile("openssl rsa -in id_deploy -text", shellFileExists, nil) {
 		t.Error("openssl rsa -in id_deploy -text: want deny")
+	}
+	// A reader over the directory reads no key; over the file it does.
+	for _, command := range []string{"rg TODO id_service", "diff -r id_service src", "grep -rn TODO ./id_service", "rg cd id_service"} {
+		if namesDeniedFile(command, shellFileExists, shellDirectoryExists) {
+			t.Errorf("%s: denied, want no objection", command)
+		}
+	}
+	// After a change of directory the workspace disk says nothing about the operand.
+	if err := os.Mkdir(filepath.Join(workspace, "id_ed25519"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range []string{"cat id_deploy", "rg TODO id_missing", "cd ~/.ssh && cat id_ed25519", "(cd ~/.ssh && cat id_ed25519)", "env -C ~/.ssh cat id_ed25519", "if true; then cd ~/.ssh; cat id_ed25519; fi", `bash -c "cd ~/.ssh && cat id_ed25519"`, "if cd ~/.ssh; then cat id_ed25519; fi", "! cd ~/.ssh; cat id_ed25519", "time cd ~/.ssh; cat id_ed25519", "command cd ~/.ssh && cat id_ed25519", "env -C/home/u/.ssh cat id_ed25519", "echo $(cd ~/.ssh && cat id_ed25519)"} {
+		if !namesDeniedFile(command, shellFileExists, shellDirectoryExists) {
+			t.Errorf("%s: want deny", command)
+		}
 	}
 }

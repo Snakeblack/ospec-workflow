@@ -38,6 +38,11 @@ var (
 	// `clave: valor` sin comillas, también en minúsculas (INI de AWS, YAML).
 	sensitiveFileAssignRe = regexp.MustCompile(`(^|[\t :|→])((?:export[ \t]+)?)([A-Za-z_][A-Za-z0-9_.-]*)([ \t]*[:=][ \t]*)("[^"]*"|'[^']*'|[^ \t\f"'#;,]+)([ \t]*(?:#.*)?)$`)
 	quotedAssignRe        = regexp.MustCompile(`(^|[^A-Za-z0-9ñÑ_.$-])(?:"([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*)"|'([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*)'|([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*))[ \t]*(?::=|=>|:|=)[ \t]*(?:"([^"]*)"|'([^']*)')`)
+	// En un fichero de configuración el valor sin comillas llega hasta el
+	// blanco: `#`, `;` y `,` son parte de él, y solo tras un blanco abren un
+	// comentario. Una comilla lo descarta: es el texto de una cadena, no un
+	// valor.
+	configFileAssignRe = regexp.MustCompile(`(^|[\t :|→])([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*)([ \t]*[:=][ \t]*)([^ \t\f"'#][^ \t\f"']*)([ \t]+[#;].*|[ \t]*)$`)
 	// Un par `nombre=valor` sin espacios ni comillas: los de una cadena de
 	// conexión, las opciones separadas por comas de Redis y un `password=…`
 	// en minúsculas. El valor acaba en el separador.
@@ -71,7 +76,7 @@ var (
 	}
 	descriptiveParts = map[string]bool{"password": true, "passwd": true, "secret": true, "token": true}
 	// `env(NOMBRE)` es la referencia de config.toml de Supabase.
-	referenceParts = []string{"${", "$(", "{{", "process.env", "os.environ", "getenv", "secrets.", "env("}
+	referenceParts = []string{"${", "$(", "{{", "process.env", "os.environ", "getenv", "secrets.", "env(", "ENC["}
 )
 
 // isSensitiveKey: por la última palabra, `DB_PASSWORD`, `apiKey` o
@@ -158,6 +163,52 @@ func isPlaceholder(value string, descriptive bool) bool {
 
 // isEnvSecret: valor de un `.env`, cualquier valor que no sea placeholder, de
 // 4 caracteres o más.
+// isPasswordKey: un nombre de contraseña, lo que elige una persona. `secret`
+// queda fuera, porque también nombra un objeto (el `existingSecret` de un
+// chart), y sigue pidiendo forma de secreto.
+func isPasswordKey(key string) bool {
+	words := keyWords(key)
+	last := len(words) - 1
+	return last >= 0 && keyWordClass(words, last) == "human" && !strings.HasSuffix(words[last], "secret")
+}
+
+// isConfigPassword: contraseña de un fichero de configuración. 4 caracteres o
+// más, sin blancos (una frase es una etiqueta) y que no sea referencia ni
+// placeholder. Como en un `.env`, un valor que contiene `password` o `secret`
+// sí cuenta.
+func isConfigPassword(value string) bool {
+	return utf8.RuneCountInString(value) >= 4 && !blankRe.MatchString(value) && !isPlaceholder(value, false)
+}
+
+// isConfigSecret: asignación de un fichero de configuración. La de código, o
+// una contraseña.
+func isConfigSecret(key, value string) bool {
+	return isAssignedSecret(key, value) || (isPasswordKey(key) && isConfigPassword(value))
+}
+
+// redactOptions dice de qué fichero viene un texto. sensitiveFile (el nombre
+// lo marca classifySensitiveFile) añade las asignaciones sin comillas en
+// minúsculas y los valores aleatorios de cualquier clave; configFile
+// (isConfigFile) añade solo las asignaciones sin comillas a un nombre
+// sensible y las contraseñas solo de letras: el resto se lee entero.
+type redactOptions struct {
+	sensitiveFile bool
+	configFile    bool
+}
+
+// redactOptionsFor da las opciones de censura de un texto que viene de estos
+// ficheros, por sus nombres. isDirectory puede ser nil: un directorio
+// `id_service/` no es una clave.
+func redactOptionsFor(files []string, isDirectory func(string) bool) redactOptions {
+	var options redactOptions
+	for _, file := range files {
+		directory := isDirectory != nil && isDirectory(file)
+		options.sensitiveFile = options.sensitiveFile || classifySensitivePath(file, directory) != nil
+		options.configFile = options.configFile || isConfigFile(file)
+	}
+	return options
+}
+
 func isEnvSecret(value string) bool {
 	return utf8.RuneCountInString(value) >= 4 && !isPlaceholder(value, false)
 }
@@ -230,8 +281,21 @@ func unquote(value string) (string, string) {
 	return "", value
 }
 
-func redactLine(line string, notes *redactionNotes, sensitiveFile bool) string {
-	out := replaceMatches(dotenvAssignRe, line, func(text string, m []int) (string, bool) {
+func redactLine(line string, notes *redactionNotes, options redactOptions) string {
+	sensitiveFile := options.sensitiveFile
+	out := line
+	if options.configFile || sensitiveFile {
+		out = replaceMatches(configFileAssignRe, out, func(text string, m []int) (string, bool) {
+			key, _ := group(text, m, 2)
+			value, _ := group(text, m, 4)
+			if !isConfigSecret(key, value) {
+				return "", false
+			}
+			notes.note("assigned-secret")
+			return text[m[0]:m[8]] + redactionMarker("assigned-secret") + text[m[10]:m[11]], true
+		})
+	}
+	out = replaceMatches(dotenvAssignRe, out, func(text string, m []int) (string, bool) {
 		prefix, _ := group(text, m, 1)
 		key, _ := group(text, m, 3)
 		value, _ := group(text, m, 4)
@@ -302,7 +366,8 @@ func redactLine(line string, notes *redactionNotes, sensitiveFile bool) string {
 		}
 		value, _ := group(text, m, valueGroup)
 		secret := isAssignedSecret(key, value) ||
-			(sensitiveFile && ((isSensitiveKey(key, true) && isEnvSecret(value)) || isOpaqueValue(value)))
+			(sensitiveFile && ((isSensitiveKey(key, true) && isEnvSecret(value)) || isOpaqueValue(value))) ||
+			(options.configFile && isPasswordKey(key) && isConfigPassword(value))
 		if !secret {
 			return "", false
 		}
@@ -315,7 +380,7 @@ func redactLine(line string, notes *redactionNotes, sensitiveFile bool) string {
 // censurado una vez, en el orden en que se censuró. sensitiveFile (el texto
 // viene de un fichero que classifySensitiveFile marca por nombre) añade las
 // asignaciones sin comillas en minúsculas y los valores aleatorios.
-func redactSecrets(text string, sensitiveFile bool) (string, []string) {
+func redactSecrets(text string, options redactOptions) (string, []string) {
 	notes := &redactionNotes{}
 	if text == "" {
 		return text, nil
@@ -371,7 +436,7 @@ func redactSecrets(text string, sensitiveFile bool) (string, []string) {
 		if strings.HasSuffix(line, "\r") {
 			cr, line = "\r", strings.TrimSuffix(line, "\r")
 		}
-		lines[i] = redactLine(line, notes, sensitiveFile) + cr
+		lines[i] = redactLine(line, notes, options) + cr
 	}
 	return strings.Join(lines, "\n"), notes.kinds
 }
@@ -380,13 +445,13 @@ func redactSecrets(text string, sensitiveFile bool) (string, []string) {
 // forma: el host descarta una salida reescrita que no coincide con la de la
 // herramienta. Los objetos se recorren por clave ordenada para que los tipos
 // salgan en un orden estable.
-func redactDeep(value interface{}, sensitiveFile bool) (interface{}, []string) {
+func redactDeep(value interface{}, options redactOptions) (interface{}, []string) {
 	notes := &redactionNotes{}
 	var walk func(current interface{}) interface{}
 	walk = func(current interface{}) interface{} {
 		switch typed := current.(type) {
 		case string:
-			text, kinds := redactSecrets(typed, sensitiveFile)
+			text, kinds := redactSecrets(typed, options)
 			for _, kind := range kinds {
 				notes.note(kind)
 			}
@@ -422,8 +487,8 @@ func containsRedactionMarker(text string) bool {
 // isCoveredByRedaction: tras censurar content, el escáner de secretscan.go no
 // encuentra nada fuera de los marcadores. PreToolUse solo deja de preguntar
 // en ese caso.
-func isCoveredByRedaction(content string, sensitiveFile bool) bool {
-	text, kinds := redactSecrets(content, sensitiveFile)
+func isCoveredByRedaction(content string, options redactOptions) bool {
+	text, kinds := redactSecrets(content, options)
 	// A private key is never covered: a partial read (offset, Grep) returns
 	// body lines without the header that marks them.
 	for _, kind := range kinds {

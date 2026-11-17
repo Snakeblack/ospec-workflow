@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const { scanContentForSecrets } = require("./secret-scan.js");
+const { classifySensitiveFile, isConfigFile, scanContentForSecrets } = require("./secret-scan.js");
 const redact = require("./secret-redact.js");
 const shell = require("./shell-file-access.js");
 
@@ -39,6 +39,18 @@ for (const entry of corpus.content) {
     // The pre-commit blocks what either guard sees, and what `commit` names
     // when neither does.
     assert.equal(redact.detectSecret(input), scanner || redaction[0] || entry.commit || null, "commit");
+    // In a configuration file the redaction sees more, and the pre-commit
+    // blocks it too.
+    const config = entry.config || redaction;
+    assert.deepEqual(redact.redactSecrets(input, { configFile: true }).kinds, config, "config file");
+    assert.equal(redact.detectSecret(input, { configFile: true }), scanner || config[0] || entry.commit || null, "commit of a config file");
+  });
+}
+
+for (const entry of corpus.files) {
+  test(`file kind: ${entry.path}`, () => {
+    assert.equal(isConfigFile(entry.path), entry.config === true, "config");
+    assert.equal(classifySensitiveFile(entry.path)?.action === "deny", entry.deny === true, "deny");
   });
 }
 

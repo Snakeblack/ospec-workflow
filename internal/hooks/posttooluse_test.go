@@ -77,7 +77,7 @@ func TestPostToolUse_SensitiveFileMode(t *testing.T) {
 	if !strings.Contains(string(out), `aws_secret_access_key = [REDACTED:assigned-secret]`) || !strings.Contains(string(out), "region = eu-west-1") {
 		t.Fatalf("credentials must be redacted in sensitive-file mode: %s", out)
 	}
-	if out := read("/repo/settings.ini"); out != nil {
+	if out := read("/repo/notes.txt"); out != nil {
 		t.Fatalf("outside a sensitive file the unquoted lowercase form stays, got %s", out)
 	}
 }
@@ -103,9 +103,40 @@ func TestPostToolUse_SensitiveFileModeForShellReads(t *testing.T) {
 			t.Errorf("%s: must be redacted in sensitive-file mode: %s", command, out)
 		}
 	}
-	for _, command := range []string{"cat settings.ini", "source .env", "rg credentials src/"} {
+	// A directory whose name starts with id_ is not a key.
+	for _, command := range []string{"cat notes.txt", "source .env", "rg credentials src/", "rg region id_service/"} {
 		if out := run(command); out != nil {
 			t.Errorf("%s: must keep the normal mode, got %s", command, out)
 		}
+	}
+}
+
+// E1.95: a configuration file is redacted in its own mode. Only the value
+// under a sensitive name goes; the same content elsewhere is left as is.
+// Mirrors post-tool-use.test.js.
+func TestPostToolUse_ConfigFileMode(t *testing.T) {
+	t.Setenv("DISABLE_SECRET_REDACTION", "")
+	redacted := "[" + "REDACTED" + ":assigned-secret]"
+	opaque := "aB3xY7kM9pQ2wE5rT8uI1oP4"
+	content := `host: db.internal\nbuild: ` + opaque + `\npassword: hunter#hunter;x,y # local\n`
+	read := func(path string) []byte {
+		out, _ := hooks.Dispatch([]string{"post-tool-use"}, []byte(`{"tool_name":"Read","tool_input":{"file_path":"`+path+`"},"tool_response":{"type":"text","file":{"filePath":"`+path+`","content":"`+content+`"}}}`))
+		return out
+	}
+	out := string(read("/repo/config/database.yml"))
+	if !strings.Contains(out, `password: `+redacted+` # local\n`) || !strings.Contains(out, "host: db.internal") || !strings.Contains(out, "build: "+opaque) {
+		t.Fatalf("only the value under a sensitive name goes: %s", out)
+	}
+	if out := read("/repo/docs/database.md"); out != nil {
+		t.Fatalf("outside a configuration file the form is an expression or a type, got %s", out)
+	}
+	input, _ := json.Marshal(map[string]interface{}{
+		"tool_name":     "Bash",
+		"tool_input":    map[string]string{"command": "cat api/appsettings.Development.json"},
+		"tool_response": map[string]interface{}{"stdout": "{\n  \"Password\": \"hunterhunter\"\n}\n", "stderr": "", "interrupted": false},
+	})
+	shell, _ := hooks.Dispatch([]string{"post-tool-use"}, input)
+	if !strings.Contains(string(shell), `\"Password\": \"`+redacted+`\"`) {
+		t.Fatalf("a configuration JSON read by a shell command redacts a letters-only password: %s", shell)
 	}
 }

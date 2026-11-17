@@ -9,16 +9,14 @@
 //
 // PARIDAD: internal/hooks/posttooluse.go.
 
-const { redactDeep } = require("./lib/secret-redact.js");
-const { classifySensitiveFile } = require("./lib/secret-scan.js");
-const { fileExistsIn, shellReadFiles } = require("./lib/shell-file-access.js");
+const { REDACTION_PATH_KEYS: PATH_KEYS, redactDeep, redactionOptionsFor } = require("./lib/secret-redact.js");
+const { directoryExistsIn, fileExistsIn, shellReadFiles } = require("./lib/shell-file-access.js");
 
-const PATH_KEYS = ["file_path", "filePath", "path", "notebook_path"];
-
-// A read of a file the name classifier flags (.env*, credentials,
-// secrets.json…) is redacted in sensitive-file mode, also when a shell command
-// reads it (`cat .env`).
-function readsSensitiveFile(input) {
+// The files a tool call reads. A file the name classifier flags (.env*,
+// credentials, secrets.json…) is redacted in sensitive-file mode and a
+// configuration file in its own mode, also when a shell command reads it
+// (`cat .env`, `cat config/database.yml`).
+function readFiles(input) {
   const candidates = [];
   const toolInput = input.tool_input;
   if (toolInput && typeof toolInput === "object") {
@@ -31,7 +29,7 @@ function readsSensitiveFile(input) {
   }
   const file = input.tool_response && input.tool_response.file;
   if (file && typeof file.filePath === "string") candidates.push(file.filePath);
-  return candidates.some((candidate) => classifySensitiveFile(candidate) !== null);
+  return candidates;
 }
 
 function redactionNote(kinds) {
@@ -41,7 +39,7 @@ function redactionNote(kinds) {
 function evaluatePostToolUse(input) {
   if (process.env.DISABLE_SECRET_REDACTION === "true") return null;
   if (!input || typeof input !== "object" || input.tool_response === undefined) return null;
-  const { value, kinds } = redactDeep(input.tool_response, { sensitiveFile: readsSensitiveFile(input) });
+  const { value, kinds } = redactDeep(input.tool_response, redactionOptionsFor(readFiles(input), directoryExistsIn(process.cwd())));
   if (kinds.length === 0) return null;
   return {
     hookSpecificOutput: {
