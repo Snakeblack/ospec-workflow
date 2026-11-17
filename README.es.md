@@ -335,12 +335,12 @@ Los hooks descargan del prompt tareas repetitivas del ciclo de vida y aplican po
 
 | Evento | Responsabilidad |
 | --- | --- |
-| `SessionStart` | Refresca la caché compacta de skills, ejecuta escaneos de seguridad de **AgentShield** (alertas por archivos `.env` expuestos o credenciales en `.git/config`) y, si el proyecto tiene OpenSpec, avisa de deriva de specs (modo SDD). |
+| `SessionStart` | Da al modelo cada cambio IDD abierto con su siguiente paso, refresca la caché compacta de skills, ejecuta escaneos de seguridad de **AgentShield** (alertas por archivos `.env` expuestos o credenciales en `.git/config`) y, si el proyecto tiene OpenSpec, avisa de deriva de specs (modo SDD). |
 | `PreToolUse` | Bloquea o solicita confirmación para comandos peligrosos, evalúa límites de **Token Budget Advisor** (límite de 50k tokens por petición, 150k tokens acumulados solo con un cambio SDD activo) e implementa **AgentShield** (bloqueo de claves SSH, `.npmrc`, `.git/config`, y prompts interactivos ante secretos). |
 | `PostToolUse` | Censura los secretos de la salida de las herramientas antes de que la vea el modelo. |
 | `PreCompact` | Persiste un resumen recuperable antes de compactar contexto. |
 | `SubagentStop` | Registra telemetría (tokens y duración) por agente y, para los agentes `sdd-*` del cambio SDD activo, persiste su resultado en su `state.yaml`. Avisa si la resolución de skills se degrada y nunca bloquea el turno. |
-| `Stop` | Cuenta el fin del turno en `.ospec/turns`, que sirve de valla a las respuestas de los gates IDD (E1.49), y registra la continuidad mínima de la sesión. |
+| `Stop` | Cuenta el fin del turno en `.ospec/turns`, que sirve de valla a las respuestas de los gates IDD (E1.49), y registra la continuidad mínima de la sesión. Si la sesión movió un cambio IDD abierto cuyo siguiente paso no necesita respuesta del usuario y no hay ningún gate abierto, pide una vez al agente que siga con él (E1.51). |
 
 ### Variables de Entorno de Bypass (Harness Gates)
 
@@ -350,6 +350,7 @@ Puedes omitir temporalmente las distintas comprobaciones de seguridad, presupues
 - `DISABLE_TOKEN_ADVISOR=true`: Desactiva la comprobación del tamaño de tokens estimados en lecturas de archivos de la sesión (Token Budget Advisor).
 - `DISABLE_OSPEC_PRECOMMIT=true`: Desactiva la ejecución local de la validación del espacio de trabajo y Strict TDD en el hook pre-commit de Git.
 - `DISABLE_SPEC_DRIFT_GUARD=true` (modo SDD): desactiva el aviso de deriva de specs de OpenSpec en SessionStart y PreToolUse.
+- `DISABLE_IDD_NUDGE=true`: desactiva los cambios IDD abiertos que SessionStart da al modelo y la petición de seguir con uno al terminar el turno.
 
 Los hooks ejecutan código nativo (Node.js o ejecutables Go optimizados). `.ospec/cache` y `.ospec/session` son auxiliares; **`idd/` y el estado de OpenSpec en disco siguen siendo la fuente de verdad**.
 

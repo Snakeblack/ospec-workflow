@@ -335,12 +335,12 @@ Hooks offload repetitive lifecycle-cycle tasks from the prompt and enforce secur
 
 | Event | Responsibility |
 | --- | --- |
-| `SessionStart` | Refreshes the compact skill cache, runs **AgentShield** security scans (alerts for exposed `.env` files or credentials in `.git/config`) and, when the project has OpenSpec, warns about spec drift (SDD mode). |
+| `SessionStart` | Tells the model each open IDD change and its next step, refreshes the compact skill cache, runs **AgentShield** security scans (alerts for exposed `.env` files or credentials in `.git/config`) and, when the project has OpenSpec, warns about spec drift (SDD mode). |
 | `PreToolUse` | Blocks or asks for confirmation for dangerous commands, evaluates **Token Budget Advisor** limits (limit of 50k tokens per request, 150k accumulated tokens only with an active SDD change) and implements **AgentShield** (blocking of SSH keys, `.npmrc`, `.git/config`, and interactive prompts for secrets). |
 | `PostToolUse` | Redacts secrets from tool output before the model sees it. |
 | `PreCompact` | Persists a recoverable summary before compacting context. |
 | `SubagentStop` | Records telemetry (tokens and duration) per agent and, for the `sdd-*` agents of the active SDD change, persists their result in its `state.yaml`. It warns when skill resolution degrades and never blocks the turn. |
-| `Stop` | Counts the end of the turn in `.ospec/turns`, which fences the answers to the IDD gates (E1.49), and records minimal session continuity. |
+| `Stop` | Counts the end of the turn in `.ospec/turns`, which fences the answers to the IDD gates (E1.49), and records minimal session continuity. When the session moved an open IDD change whose next step needs no answer from the user and no gate is open, it asks the agent once to continue it (E1.51). |
 
 ### Bypass Environment Variables (Harness Gates)
 
@@ -350,6 +350,7 @@ You can temporarily skip the various security checks, budgets, and validators us
 - `DISABLE_TOKEN_ADVISOR=true`: Disables the estimated token-size check on file reads during the session (Token Budget Advisor).
 - `DISABLE_OSPEC_PRECOMMIT=true`: Disables local workspace-validation and Strict TDD enforcement in the Git pre-commit hook.
 - `DISABLE_SPEC_DRIFT_GUARD=true` (SDD mode): Turns off the OpenSpec spec-drift warning in SessionStart and PreToolUse.
+- `DISABLE_IDD_NUDGE=true`: Turns off the open IDD changes SessionStart gives the model and the request to continue one at the end of a turn.
 
 Hooks run native code (Node.js or optimized Go executables). `.ospec/cache` and `.ospec/session` are auxiliary; **`idd/` and OpenSpec state on disk remain the source of truth**.
 

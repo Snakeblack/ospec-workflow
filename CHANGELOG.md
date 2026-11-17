@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- El Stop de cada host pide al agente que siga, una sola vez por cambio y huella, cuando un cambio IDD abierto que la sesión tocó tiene trabajo pendiente y ningún gate abierto; SessionStart inyecta al modelo el paso de cada cambio IDD abierto, también sin openspec/config.yaml (E1.51). (open-change-nudge)
+
 ## [2.179.1] - 2026-11-17
 
 ### Fixed
