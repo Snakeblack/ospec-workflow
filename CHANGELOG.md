@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- El escáner de secretos del commit y la censura de salida no ven lo mismo: el pre-commit deja pasar secretos que la censura reconoce (camelCase, asignaciones sin comillas, URL, Bearer) y bloquea código corriente con un campo key; una clave privada se lee con un comando de shell fuera de la lista de lectores (secret-guard-alignment)
+
 ## [2.180.0] - 2026-11-17
 
 ### Added

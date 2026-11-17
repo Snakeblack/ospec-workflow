@@ -38,7 +38,9 @@ llegó a ejecutarse.
 > extiende el contrato para los dos a la vez. Empezado por `pre-tool-use` (el camino
 > caliente); `post-tool-use` (E1.27) se verifica byte a byte con `post-tool-use-*`
 > y `TestPostToolUse_ParityFixtures`, y su motor de censura con el corpus compartido
-> `internal/testdata/secret-redaction/cases.json`; `session-start` es el siguiente
+> `internal/testdata/secret-redaction/cases.json`; el escáner, la censura y el
+> reconocedor de shell comparten además `internal/testdata/secret-guards/cases.json`
+> (E1.92); `session-start` es el siguiente
 > candidato. Ante un mismatch, decide el
 > comportamiento canónico y corrige la implementación rezagada — nunca "arregles" la fixture sola.
 
@@ -84,6 +86,7 @@ Lo mismo aplica a `internal/skillreg/skillreg.go` (espeja `skill-registry.js`),
 | `scripts/hooks/lib/idd-session.js` | `iddsession/iddsession.go` | cambios IDD abiertos y su siguiente paso; el catálogo lo embebe de `catalog.json`, que emite `scripts/lib/idd-catalog.js` |
 | `scripts/hooks/lib/secret-scan.js` | `hooks/secretscan.go` | agent-shield: clasificación de archivos sensibles + escaneo de credenciales |
 | `scripts/hooks/lib/secret-redact.js` | `hooks/secretredact.go` | censura de secretos en la salida de las herramientas (E1.27) |
+| `scripts/hooks/lib/shell-file-access.js` | `hooks/shellfileaccess.go` | ficheros que un comando de shell lee o nombra (lectores, envoltorios, shells anidados) |
 | `agent-identity.js` | `agentidentity/agentidentity.go` | resolución canónica de agentes, prefijos de host y conjunto cerrado |
 | parser YAML inline | `yamllite/yamllite.go` | solo lectura |
 

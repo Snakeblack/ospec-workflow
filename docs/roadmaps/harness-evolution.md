@@ -212,7 +212,10 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.89** | `signed-releases` (R11: checksums firmados y procedencia del build de cada release; detrás de E1.28 y fuera del orden ▶) | feature |
 | `pending` | **E1.90** | `counterproof-failure-log` (#522: una contraprueba o un control que falla deja su salida en `.ospec/runs/<cambio>/` y `run` y `check` citan la ruta; fuera del orden ▶) | feature |
 | `pending` | **E1.91** | `refactor-contract-warning` (#520: un `refactor` que declara un documento de contrato en su plan avisa de B9 al registrarlo, antes de editar; fuera del orden ▶) | feature |
-| `pending` | **E1.92** | `secret-guard-alignment` (el escáner de secretos del commit y la censura de salida no ven lo mismo: el escáner deja pasar nombres en camelCase y asignaciones sin comillas y marca cualquier `key` con un texto entre comillas, y una clave privada se lee con un comando fuera de la lista de lectores; detrás de E1.51) | bugfix |
+| `done` | **E1.92** | `secret-guard-alignment` (el escáner de secretos del commit y la censura de salida comparten la clasificación de nombres y la forma de secreto; el pre-commit bloquea, línea a línea, lo que cualquiera de los dos ve, da la línea y respeta el marcador `ospec:allow-secret`; un fichero denegado por nombre se deniega por cualquier vía de shell que lo lea (más lectores, envoltorios, shells anidados, sustituciones, código de un intérprete), y una clave SSH, como argumento de cualquier comando; la censura gana las cadenas de conexión; en v2.180.1) | bugfix |
+| `pending` | **E1.93** | `reviewers-premium-tier` (los cinco revisores que `models.yaml` deja en `default` pasan a `premium`, como `review-change`; decisión del usuario del 2026-11-17; detrás de E1.92) | feature |
+| `pending` | **E1.95** | `secret-guard-file-kinds` (lo que E1.92 deja documentado como límite: un modo de fichero de configuración para `password: valor` sin comillas y contraseñas solo de letras, las claves bajo `.ssh` con otro nombre y el directorio `id_*` que se deniega como si fuera una clave; detrás de E1.93) | bugfix |
+| `pending` | **E1.94** | `review-tier-by-risk` (`ospec review start` devuelve el tier del revisor, que el CLI calcula del nivel de E1.79 y del tamaño del diff; el tier solo sube, y la lente de confianza no baja de `premium`; detrás de E1.79) | feature |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -282,7 +285,7 @@ E1.75 a E1.91 entraron el 2026-11-16 con la [comparativa del harness, el uso y e
 - R7 y R8 no tienen fila: en Claude los sustituyen E1.82 y E1.81, y los demás hosts siguen con el gate en texto y sin línea de estado.
 - Los mods de Claude (E1.80 a E1.82 y E1.85 a E1.87) son una capa opcional en un plugin aparte. Sin él, o con los mods apagados, ospec funciona igual, y la garantía sigue en el CLI. M6, las herramientas nativas `ospec_*`, queda en «Aparcado».
 
-El usuario fijó el orden el mismo día. E1.75 abre la cola porque es la fricción que paga cada feature, y E1.76 va detrás porque es un defecto de la contraprueba. E1.51 sigue a E1.76, como se acordó al terminar la comparativa, y después van E1.77 y E1.78, sin dependencias. E1.79 va antes que los lotes de la review general, porque E1.59, E1.83, E1.84 y E4.13 dependen de su nivel, y detrás van E1.80 y E1.81. E1.82, E1.83 y E1.84 van detrás de E1.60, y E1.85 a E1.87 detrás de E4.13, en el bloque D. E1.88, E1.89 (detrás de E1.28), E1.90 y E1.91 quedan fuera del orden ▶ hasta que el usuario los coloque. El 2026-11-17, al entregar E1.51, el usuario colocó E1.92 justo detrás, por delante de E1.77. Los ítems nuevos no tienen issue propia; #520, #522 y #523 llevan la etiqueta `roadmap:<ID>` del suyo.
+El usuario fijó el orden el mismo día. E1.75 abre la cola porque es la fricción que paga cada feature, y E1.76 va detrás porque es un defecto de la contraprueba. E1.51 sigue a E1.76, como se acordó al terminar la comparativa, y después van E1.77 y E1.78, sin dependencias. E1.79 va antes que los lotes de la review general, porque E1.59, E1.83, E1.84 y E4.13 dependen de su nivel, y detrás van E1.80 y E1.81. E1.82, E1.83 y E1.84 van detrás de E1.60, y E1.85 a E1.87 detrás de E4.13, en el bloque D. E1.88, E1.89 (detrás de E1.28), E1.90 y E1.91 quedan fuera del orden ▶ hasta que el usuario los coloque. El 2026-11-17, al entregar E1.51, el usuario colocó E1.92 justo detrás, por delante de E1.77. El mismo día, durante E1.92, pidió que los revisores corran con Opus como mínimo: E1.93 va justo detrás de E1.92, y E1.94, que elige el tier del revisor según el riesgo, detrás de E1.79, de quien depende. Los ítems nuevos no tienen issue propia; #520, #522 y #523 llevan la etiqueta `roadmap:<ID>` del suyo.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -421,7 +424,7 @@ A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.56 �
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
 C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ E1.63 ─ E1.64 ─ E1.65 ─ E1.66 ─ E1.67 ─ E1.68 ─ E1.69 ─ E1.57
-   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.77 ─ E1.78 ─ E1.79 ─ E1.80 ─ E1.81
+   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
    ─ 4c2 ─ E1.70 ─ 4d ─ (avisos del guard) ─ PR5…PR8 ─ E1.52 ─ E1.59 ─ E1.60 ─ E1.82 ─ E1.83 ─ E1.84 ─ E3.7
 D: E4.14 ─ E4.6 (corrida de validación) ─ E4.18 ─ E4.4 ─ E4.13 ─ E1.85 ─ E1.86 ─ E1.87 ─ E4.11
 E1.28 espera a que E1.30 cumpla su criterio de hecho: su plazo del 2026-10-29 quedó fallido el 2026-10-26.
@@ -1554,6 +1557,40 @@ Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparat
   - un fichero que el clasificador deniega por nombre se deniega como operando literal de cualquier comando de shell, no solo de los lectores;
   - el handbook describe el límite; paridad Node y Go, y revisión de confianza.
 - **Hecho cuando:** un corpus compartido por Node y Go fija qué ve cada guard; el pre-commit rechaza cada caso que la censura censura; los falsos positivos de arriba pasan; `tac` o `python3 -c` sobre una clave privada dan `deny`.
+- **Como quedó (2026-11-17):** la denegación como argumento de «cualquier comando» vale solo para las claves SSH. Aplicada a todos los ficheros denegados, bloqueaba usos corrientes que no imprimen nada (`curl --key client.key`, `openssl req -key server.key`, `npm publish --userconfig ~/.npmrc`, `jq .data.key`); esos ficheros se deniegan por las vías que los leen. El escáner trata además el `key` con un prefijo desconocido, y la censura gana las cadenas de conexión, que no estaban en la propuesta.
+
+### E1.95 — `secret-guard-file-kinds`
+
+- **Origen:** los avisos de la cuarta y la quinta revisión de confianza de E1.92 que no cabían en una corrección acotada, y la decisión que E1.92 dejó al usuario.
+- **Decisión del usuario (2026-11-17):** quiere el modo de fichero de configuración, y dejó el orden a criterio del agente. Va detrás de E1.93, para que su revisión de confianza ya corra en `premium`, y delante de E1.77, porque cierra límites que el handbook de E1.92 deja escritos.
+- **Alcance:**
+  - un modo de fichero de configuración (`.yml`, `.yaml`, `.ini`, `.properties`, `appsettings*.json`…) en el que la censura y el pre-commit ven `password: valor` sin comillas y las contraseñas solo de letras; la lista exacta de ficheros es un hecho abierto del cambio;
+  - una clave privada bajo `.ssh` con un nombre que no es `id_*` ni `*.key` (`aws-prod.pem`, `deploy_key`) se deniega por nombre, sin denegar `config`, `known_hosts` ni `*.pub`;
+  - un directorio cuyo nombre empieza por `id_` deja de denegarse como operando de un lector (`rg TODO id_service/`) y como ruta de una herramienta de lectura;
+  - tres retoques que dejó el último validador de E1.92: el caso `( cd sub && npm test )` en el corpus, decir en la spec que la confirmación por contenido de una clave con otro nombre solo vale para los lectores, y quitar la entrada `{` de la lista de envoltorios, que ya no casa nunca.
+- **Hecho cuando:** el corpus compartido fija los tres casos en Node y Go, y el handbook retira esos límites.
+
+### E1.93 — `reviewers-premium-tier`
+
+- **Problema:** `models.yaml` deja `review-trust`, `review-correction`, `review-runtime`, `review-evolution` y `review-efficiency` en el tier `default`, que en Claude es Sonnet; solo `review-change` va en `premium`. Durante E1.92 la revisión de confianza se lanzó con Sonnet y el usuario la mandó repetir con Opus.
+- **Decisión del usuario (2026-11-17):** los revisores corren con Opus como mínimo.
+- **Garantía que protege:** la review como última barrera antes de `close` (principio 9).
+- **Alcance:** los cinco revisores pasan a `premium` en `models.yaml`, con sus goldens por target. Es la única política de agente a tier, así que vale para los 7 hosts: en Claude es el alias `opus` y en los demás, el modelo que el usuario asigne a `premium` (E4.12).
+- **Coste:** cada review gasta más. Es el precio aceptado hasta que E1.94 lo ajuste al riesgo.
+- **Hecho cuando:** los agentes revisores generados declaran el tier `premium` en cada target y el validador de `models.yaml` lo fija.
+
+### E1.94 — `review-tier-by-risk`
+
+- **Propuesta del usuario (2026-11-17):** que el modelo de un revisor se elija según un criterio y la complejidad del cambio, no de forma fija.
+- **Problema:** E1.79 decide cuántas lentes de review se lanzan, pero no con qué tier, y E4.13 solo sugiere un tier para el worker que construye.
+- **Alcance:**
+  - `ospec review start` añade a su petición el tier del revisor, calculado en código a partir del nivel de E1.79 y del tamaño del diff (ficheros y líneas).
+  - El tier solo sube. La lente de confianza no baja de `premium`, y ningún revisor baja del tier que tenga en `models.yaml`.
+  - En Claude, el hilo principal lanza el agente con ese modelo. En los hosts que fijan el modelo en la definición del agente hace falta un agente por tier, como prevé E4.13 para el worker.
+- **Tensión con E4.4:** el roadmap pide un experimento antes de cualquier routing adaptativo. Aquí el criterio es determinista y solo sube el tier, así que no cambia una garantía por un ahorro. El usuario decide si aun así espera a E4.4.
+- **Depende de:** E1.79 `risk-level` y E1.93.
+- **Hecho abierto:** la tabla de nivel y tamaño a tier.
+- **Hecho cuando:** un corpus fija el tier de cada combinación en JS y en Go, y una review de un cambio `high` se lanza en `premium` en Claude y en un segundo host.
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
@@ -2181,6 +2218,15 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-17: `secret-guard-alignment` (IDD), publicado en v2.180.1. E1.92 hecho: el escáner de secretos del commit y la censura de salida ven lo mismo.
+  - Los dos clasifican un nombre por su última palabra y comparten la forma de secreto. El escáner ve el camelCase y deja pasar el `key` de un elemento, de una traducción o de un almacenamiento. Sobre los ficheros versionados de nueve repositorios del usuario, las líneas que bloquearían un commit bajan de 209 a 62.
+  - El pre-commit bloquea, línea a línea, lo que marca el escáner o censuraría la censura, y da el fichero, la línea y el tipo. Una línea con `ospec:allow-secret` no se escanea.
+  - Un fichero denegado por nombre se deniega por cualquier vía de shell que lo lea: más lectores, detrás de `sudo`, en `bash -c`, en una sustitución `$(…)` o en el código de `python -c`. Una clave SSH se deniega además como argumento de cualquier comando, salvo los que la usan sin imprimirla (`ssh -i`, `chmod`, `ls`). Una clave TLS que usa `curl` u `openssl`, un `.npmrc` que usa `npm` o una palabra que solo parece una clave (`id_token` como patrón de búsqueda, `jq .data.key`) pasan: la regla de «cualquier comando» para todos los ficheros denegados daba esos falsos positivos y se estrechó.
+  - La censura gana las cadenas de conexión, el `Key` opaco de un `appsettings.json` y `contraseña`, y usa el modo de fichero sensible cuando un comando de shell lee un `.env`.
+  - Hubo cinco revisiones de confianza (Opus). La cuarta encontró un lector que pasaba dentro de un subshell entre paréntesis; se corrigió con las sustituciones de proceso, los comodines bajo `.ssh` y el `timeout` como envoltorio. Lo que no cabía en una corrección acotada queda en E1.95 `secret-guard-file-kinds`.
+  - Las dos primeras aprobaron con avisos, corregidos en el mismo cambio: tokens con `:` o con puntos y claves de proveedor que el escáner nuevo dejaba pasar, en todas sus formas de escribirse, y lecturas por sustitución de comandos, también detrás de un apóstrofo en un comentario o en un heredoc.
+  - Sigue fuera de la censura la contraseña solo de letras en un JSON con la clave entre comillas. Lo cierra E1.95, con un modo de fichero de configuración que el usuario aprobó.
+  - El orden ▶ sigue con E1.93 `reviewers-premium-tier` y E1.95 `secret-guard-file-kinds`; E1.94 `review-tier-by-risk` queda detrás de E1.79.
 - 2026-11-17: `open-change-nudge` (IDD), publicado en v2.180.0. E1.51 hecho: un cambio IDD abierto ya no se queda sin `close` sin que nadie lo vea.
   - SessionStart da al modelo cada cambio abierto con su siguiente paso, también en un proyecto sin `openspec/config.yaml`. Stop pide una vez por huella que siga con uno que la sesión movió, cuando su paso no necesita al usuario y no hay ningún gate abierto. `DISABLE_IDD_NUDGE=true` lo apaga.
   - Los 7 targets pueden pedirlo, cada uno en su forma; los validadores fijan la matriz, y los casos compartidos fijan la paridad entre Node y Go. Quedó verificado en vivo en Claude Code y, en parte, en OpenCode.
