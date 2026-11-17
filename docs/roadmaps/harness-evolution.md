@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.181.0, 2026-11-17.
+> **Versión de referencia:** v2.181.1, 2026-11-17.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -216,6 +216,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.93** | `reviewers-premium-tier` (los cinco revisores que `models.yaml` dejaba en `default` pasan a `premium`, como `review-change`: en Claude se generan con `opus` y en los demás hosts con el modelo que el usuario asignó a `premium`, o el de la sesión; el validador sigue aceptando cualquier tier conocido; decisión del usuario del 2026-11-17; en v2.181.0) | feature |
 | `done` | **E1.95** | `secret-guard-file-kinds` (cierra los límites que E1.92 dejó escritos: en un fichero de configuración la censura y el pre-commit ven `password: valor` sin comillas y las contraseñas solo de letras, sin tocar las traducciones; bajo un directorio `.ssh` todo fichero es una clave salvo una lista de nombres públicos, y leer el directorio entero también se deniega; un directorio no es una clave por llamarse `id_*`) | bugfix |
 | `pending` | **E1.94** | `execution-profile-by-risk` (el CLI calcula por encargo el tier y el effort de cada agente que lanza ospec, sean revisores, el worker o las fases de SDD, a partir del nivel de E1.79, las señales y el tamaño del diff; `models.yaml` queda como suelo, el perfil solo sube y el modelo puede subirlo con una razón, nunca bajarlo; sustituye a `review-tier-by-risk`; detrás de E1.79) | feature |
+| `pending` | **E1.96** | `secret-guard-chdir-forms` (residuo de E1.95: un `cd` dentro del cuerpo de una función o de una rama de `case` no desactiva la exención de directorio de los guards de secretos; para que fugue hace falta además un directorio del espacio de trabajo que se llame como la clave; prioridad baja, fuera del orden ▶) | bugfix |
+| `pending` | **E1.97** | `archive-scan-friction` (el pre-commit bloquea el `state.yaml` de un cambio IDD archivado cuando un hallazgo de review cita un ejemplo con forma de secreto; el fichero es del CLI y no admite `ospec:allow-secret`, así que hoy el commit del archivo pide saltar el escáner entero; fuera del orden ▶, antes del próximo cambio que revise los guards) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -286,6 +288,8 @@ E1.75 a E1.91 entraron el 2026-11-16 con la [comparativa del harness, el uso y e
 - Los mods de Claude (E1.80 a E1.82 y E1.85 a E1.87) son una capa opcional en un plugin aparte. Sin él, o con los mods apagados, ospec funciona igual, y la garantía sigue en el CLI. M6, las herramientas nativas `ospec_*`, queda en «Aparcado».
 
 El usuario fijó el orden el mismo día. E1.75 abre la cola porque es la fricción que paga cada feature, y E1.76 va detrás porque es un defecto de la contraprueba. E1.51 sigue a E1.76, como se acordó al terminar la comparativa, y después van E1.77 y E1.78, sin dependencias. E1.79 va antes que los lotes de la review general, porque E1.59, E1.83, E1.84 y E4.13 dependen de su nivel, y detrás van E1.80 y E1.81. E1.82, E1.83 y E1.84 van detrás de E1.60, y E1.85 a E1.87 detrás de E4.13, en el bloque D. E1.88, E1.89 (detrás de E1.28), E1.90 y E1.91 quedan fuera del orden ▶ hasta que el usuario los coloque. El 2026-11-17, al entregar E1.51, el usuario colocó E1.92 justo detrás, por delante de E1.77. El mismo día, durante E1.92, pidió que los revisores corran con Opus como mínimo: E1.93 va justo detrás de E1.92, y E1.94, que elige el tier del revisor según el riesgo, detrás de E1.79, de quien depende. Al entregar E1.93 pidió que la elección fuera automática y valiera para todos los agentes: E1.94 pasa a ser `execution-profile-by-risk`, en el mismo sitio del orden. Los ítems nuevos no tienen issue propia; #520, #522 y #523 llevan la etiqueta `roadmap:<ID>` del suyo.
+
+E1.96 `secret-guard-chdir-forms` y E1.97 `archive-scan-friction` entraron el 2026-11-17 al entregar E1.95. E1.96 es un residuo de prioridad baja. E1.97 es una fricción de la entrega: conviene hacerlo antes del próximo cambio que revise los guards de secretos, E1.96 incluido, porque el commit de su archivo volvería a pedir que se salte el escáner. Los dos quedan fuera del orden ▶ hasta que el usuario los coloque.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -1574,9 +1578,24 @@ Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparat
   - Bajo `.ssh` se deniega todo salvo `config`, `known_hosts`, `known_hosts.old`, `authorized_keys`, `authorized_keys2`, `environment`, `rc`, `allowed_signers`, `revoked_keys` y los `*.pub`.
 - **Lo que salió de medir** (ficheros de configuración versionados de 15 repositorios del usuario, y los de `node_modules`, `/usr/share` y `/etc`, sin imprimir valores):
   - Con cualquier valor de 4 caracteres o más, `id-token: write` de un workflow daba un falso positivo. Por eso solo los nombres de contraseña aceptan un valor solo de letras; un token, una clave y `secret` siguen pidiendo forma de secreto (`existingSecret: redis-auth` nombra un objeto).
-  - Las traducciones (`locale/de-DE.ini`) daban 127 de las 144 detecciones nuevas. Quedan fuera lo que hay bajo `locale(s)/`, `i18n/`, `l10n/`, `lang(s)/` o `translation(s)/` y los bundles `messages_es.properties`. Las 17 que quedan son contraseñas de ejemplo y un token real; en los repositorios del usuario no hay ninguna.
+  - Las traducciones (`locale/de-DE.ini`) daban 127 de las 144 detecciones nuevas. Quedan fuera lo que hay bajo `locale(s)/`, `i18n/`, `l10n/`, `lang(s)/` o `translation(s)/` y los bundles `messages_es.properties`. Las que quedan (18, con la regla final) son contraseñas de ejemplo y un token real; en los repositorios del usuario no hay ninguna.
 - **Lo que entra además:** leer el directorio `.ssh` entero con un lector o una herramienta de lectura (`grep -r … ~/.ssh`) se deniega, porque la regla nueva no valdría si el directorio se pudiera leer de una vez; un comodín o una expansión bajo `.ssh` se deniega salvo `*.pub`, lo que sustituye a la comparación con los nombres de OpenSSH; `mkdir`, `rmdir` y `cd` se suman a los comandos que nombran sin leer.
 - **Límites que quedan escritos en el handbook:** el modo de fichero de configuración necesita que la llamada nombre el fichero (una búsqueda sobre un directorio se censura como código) y no añade una confirmación de lectura en los hosts que no reescriben la salida; un comando que no es lector y copia `.ssh` entero (`rsync`) no se ve.
+
+### E1.96 — `secret-guard-chdir-forms`
+
+- **Origen:** observación no bloqueante del validador de la segunda revisión de confianza de E1.95.
+- **Problema:** la exención de directorio (un directorio no es una clave por llamarse `id_*`) deja de consultar el disco cuando la orden cambia de directorio, pero solo reconoce un `cd`, `pushd` o `popd` que el recorrido de comandos visita como comando. Dentro del cuerpo de una función (`f() { cd ~/.ssh; }; f; cat id_ed25519`) o de una rama de `case` no lo ve.
+- **Riesgo:** bajo. Hace falta además un directorio del espacio de trabajo que se llame como la clave, así que no es una fuga accidental.
+- **Hecho cuando:** el corpus compartido fija esas dos formas en Node y Go, o la spec las deja escritas como límite.
+
+### E1.97 — `archive-scan-friction`
+
+- **Origen:** la entrega de E1.95. El usuario aprobó saltar el escáner para el commit del archivo «como opción excepcional» y pidió la fila si quita fricción.
+- **Problema:** `state.yaml` guarda literalmente los hallazgos de los revisores. En un cambio que revisa los guards de secretos, esos hallazgos citan ejemplos con forma de secreto (`password: 'hunterhunter'`), y el pre-commit bloquea el commit del archivo. El fichero es del CLI: no se puede editar ni lleva `ospec:allow-secret`. La única salida hoy es `DISABLE_AGENT_SHIELD=true`, que apaga el escáner para todo el commit.
+- **Garantía que protege:** el pre-commit como barrera (principio 9). Una excepción que el usuario tiene que conceder a mano en cada cambio de este tipo acaba concediéndose sin mirar.
+- **Hechos abiertos:** si el CLI censura los ejemplos con forma de secreto al guardar un hallazgo, de modo que el archivo pase el escáner por construcción, o si el pre-commit exime los ficheros que solo escribe el CLI; qué impide en el segundo caso esconder un secreto real en uno de ellos.
+- **Hecho cuando:** el archivo de un cambio cuyos hallazgos citan un ejemplo con forma de secreto se confirma sin saltar el escáner, y un secreto real en ese mismo archivo sigue bloqueando el commit.
 
 ### E1.93 — `reviewers-premium-tier`
 
@@ -2229,11 +2248,13 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
-- 2026-11-17: `secret-guard-file-kinds` (IDD). E1.95 hecho: los guards de secretos distinguen el fichero de configuración, la clave bajo `.ssh` y el directorio.
+- 2026-11-17: `secret-guard-file-kinds` (IDD), publicado en v2.181.1. E1.95 hecho: los guards de secretos distinguen el fichero de configuración, la clave bajo `.ssh` y el directorio.
   - En un fichero de configuración (`.yml`, `.yaml`, `.ini`, `.properties`, `.toml`, `.conf`, `.cfg` y los JSON de configuración por nombre) la censura y el pre-commit ven `password: valor` sin comillas, una contraseña solo de letras y un `api_key: …` en minúsculas. El resto del fichero se lee entero, y las traducciones quedan fuera.
   - Bajo un directorio `.ssh` todo fichero cuenta como clave privada salvo `config`, `known_hosts`, `authorized_keys`, los `*.pub` y pocos más; leer el directorio entero también se deniega.
   - Un directorio no es una clave por su nombre: `rg TODO id_service/` pasa, y un fichero `id_deploy` se sigue denegando.
   - El corpus compartido gana la sección `files` y el campo `config`, y fija los tres casos en Node y Go.
+  - Hubo dos revisiones de confianza (Opus), aprobadas sin hallazgos bloqueantes. Sus avisos se corrigieron dentro del cambio: una búsqueda que nombra el fichero solo por `glob` mantiene la confirmación de lectura, una contraseña con `#`, `;` o `,` dentro se censura entera y un `cd` previo desactiva la exención de directorio. El `cd` dentro de una función o de una rama de `case` queda para E1.96.
+  - El commit del archivo IDD saltó el escáner de secretos del pre-commit (`DISABLE_AGENT_SHIELD=true`, con la aprobación del usuario, como excepción): `state.yaml` guarda los hallazgos de los revisores, que citan contraseñas de ejemplo, y es un fichero del CLI. E1.97 quita esa fricción.
   - El orden ▶ sigue con E1.77 `change-request-log`.
 - 2026-11-17: `reviewers-premium-tier` (IDD), publicado en v2.181.0. E1.93 hecho: los seis revisores corren en el tier `premium`.
   - `review-trust`, `review-correction`, `review-runtime`, `review-evolution` y `review-efficiency` pasan de `default` a `premium` en `models.yaml`. En Claude se generan con `opus`; en los demás hosts, con el modelo que el usuario asignó a `premium`, o el de la sesión.
