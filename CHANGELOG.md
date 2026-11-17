@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.179.1] - 2026-11-17
+
+### Fixed
+- **La contraprueba importa el producto de la base con una instalación editable de Python en `.venv`** (counterproof-editable-install, #523, E1.76).
+  - **El problema**: `pip install -e .`, y uv o poetry en modo editable, dejan en `.venv` rutas absolutas al proyecto: el `.pth` de un layout `src/`, el `MAPPING` del finder de setuptools con layout plano y el shebang de los scripts de `.venv/bin`, que con rutas largas es un trampolín `/bin/sh`. La copia de la contraprueba las conservaba, así que los tests del diff importaban el producto del candidato, la contraprueba pasaba y la obligación quedaba pendiente aunque el test sí detectara el cambio. Reescribir solo el `.pth` no bastaba: `.venv/bin/pytest` y `uv run pytest` arrancaban el Python del `.venv` original.
+  - **Rutas de Python en la copia**: las rutas absolutas al repositorio apuntan al árbol temporal en los `.pth`, `.egg-link` y módulos `.py` sueltos de `site-packages` y en los scripts con shebang del `bin/` o `Scripts/` de un virtualenv. La sustitución es byte a byte y solo de rutas completas (`/repo` no casa en `/repo2` ni en `/mnt/repo`), así que la codificación y los finales de línea no cambian. Reconoce el repositorio como lo escribe git, resuelto y como lo escribe la raíz del proyecto, y en Windows también con barras normales y con las barras dobles de un literal de Python.
+  - **Entorno del comando**: la contraprueba y su control corren con las entradas de `PATH`, `VIRTUAL_ENV` y `PYTHONPATH` que apuntan al repositorio cambiadas igual, para que un `.venv` activado en la sesión no se cuele.
+  - **Límites**: los lanzadores `.exe` de `Scripts/` en Windows llevan la ruta del Python dentro del binario y siguen usando el entorno del proyecto (`python -m pytest` sí queda arreglado). Un editable que apunta a un build dentro del repositorio (el modo `strict` de setuptools, meson-python, el `.so` de maturin) apunta a un directorio que la contraprueba no copia y da un rojo no concluyente. Queda descrito en `handbook/idd/evidencia.md`.
+  - **Compatibilidad**: `state.yaml` y la evidencia no cambian; `mountCounterproof` y `runCommand` solo ganan el parámetro opcional `env`. La spec deja de decir que las dependencias se enlazan, que desde #518 se copian.
+
+**Verificación directa**: `node scripts/check.js` (4654 tests pasando, 0 fallos y 5 omitidos), 446 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados.
+
 ## [2.179.0] - 2026-11-16
 
 ### Added

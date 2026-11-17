@@ -681,7 +681,7 @@ function runCounterproof(root, state, { diff, commands, checks = [], context }) 
   const results = [];
   const mounted = {};
   const on = (key, files) => (mounted[key] ??= mountCounterproof(root, { base: state.base, paths: files }));
-  const execute = (where, command) => runCommand(command, { cwd: where.cwd, timeoutMs: COUNTERPROOF_TIMEOUT_MS, mask: where.mask });
+  const execute = (where, command) => runCommand(command, { cwd: where.cwd, env: where.env, timeoutMs: COUNTERPROOF_TIMEOUT_MS, mask: where.mask });
   const reused = (prior) => ({
     id: prior.id,
     reused: true,
