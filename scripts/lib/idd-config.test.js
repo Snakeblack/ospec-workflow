@@ -86,7 +86,7 @@ test("[REQ-idd-013] at least one check runs on every change: every check scoped 
 });
 
 test("an absent or empty configuration yields the defaults", () => {
-  const defaults = { mode: null, strictTdd: false, team: null, delivery: { branching: null, changelog: null, release: null, integration_branch: null, production_branch: null }, checks: [], impact: {}, contracts: {} };
+  const defaults = { mode: null, strictTdd: false, team: null, delivery: { branching: null, changelog: null, release: null, integration_branch: null, production_branch: null, language: null }, checks: [], impact: {}, contracts: {} };
   assert.deepStrictEqual(parseIddConfig(""), defaults);
   assert.deepStrictEqual(parseIddConfig("# only a comment\n\n"), defaults);
 });
@@ -112,7 +112,7 @@ test("mode, strict_tdd and the impact section are read", () => {
     mode: "idd",
     strictTdd: true,
     team: null,
-    delivery: { branching: null, changelog: null, release: null, integration_branch: null, production_branch: null },
+    delivery: { branching: null, changelog: null, release: null, integration_branch: null, production_branch: null, language: null },
     checks: [],
     impact: {
       stack: ["node", "go"],
@@ -155,7 +155,7 @@ test("the team section declares the profile and decides strict_tdd unless it is 
 });
 
 test("[REQ-idd-023] the delivery section declares the branching and refuses any other key or value", () => {
-  const only = (branching) => ({ branching, changelog: null, release: null, integration_branch: null, production_branch: null });
+  const only = (branching) => ({ branching, changelog: null, release: null, integration_branch: null, production_branch: null, language: null });
   assert.deepStrictEqual(parseIddConfig("delivery:\n  branching: serial   # one PR in flight\n").delivery, only("serial"));
   assert.deepStrictEqual(parseIddConfig("delivery:\n  branching: parallel\n").delivery, only("parallel"));
   assert.deepStrictEqual(parseIddConfig("delivery:\n").delivery, only(null));
@@ -169,9 +169,9 @@ test("[REQ-idd-023] the delivery section declares the branching and refuses any 
 
 test("[REQ-idd-025] the delivery section declares the changelog and the release cadence", () => {
   const delivery = (text) => parseIddConfig(`delivery:\n${text}`).delivery;
-  assert.deepStrictEqual(delivery("  changelog: CHANGELOG.md\n  release: per-change\n"), { branching: null, changelog: "CHANGELOG.md", release: "per-change", integration_branch: null, production_branch: null });
-  assert.deepStrictEqual(delivery('  changelog: "docs/release notes.md"\n  release: batched\n'), { branching: null, changelog: "docs/release notes.md", release: "batched", integration_branch: null, production_branch: null });
-  assert.deepStrictEqual(delivery("  changelog: none\n  release: none\n"), { branching: null, changelog: "none", release: "none", integration_branch: null, production_branch: null });
+  assert.deepStrictEqual(delivery("  changelog: CHANGELOG.md\n  release: per-change\n"), { branching: null, changelog: "CHANGELOG.md", release: "per-change", integration_branch: null, production_branch: null, language: null });
+  assert.deepStrictEqual(delivery('  changelog: "docs/release notes.md"\n  release: batched\n'), { branching: null, changelog: "docs/release notes.md", release: "batched", integration_branch: null, production_branch: null, language: null });
+  assert.deepStrictEqual(delivery("  changelog: none\n  release: none\n"), { branching: null, changelog: "none", release: "none", integration_branch: null, production_branch: null, language: null });
   // close writes the changelog, so it stays a relative path inside the project.
   for (const outside of ["/etc/CHANGELOG.md", "../CHANGELOG.md", "docs/../../CHANGELOG.md", "C:/CHANGELOG.md", "docs\\CHANGELOG.md", "./CHANGELOG.md", "docs/"]) {
     refused(`delivery:\n  changelog: ${outside}\n`, /delivery.changelog must be a relative path inside the project or none, got /);
@@ -189,6 +189,7 @@ test("[REQ-idd-023] the delivery section declares an integration branch apart fr
     release: "batched",
     integration_branch: "dev",
     production_branch: "main",
+    language: null,
   });
   // Without production_branch, production is the default branch, unnamed.
   assert.deepStrictEqual([delivery("  integration_branch: feature/next.1\n").integration_branch, delivery("  integration_branch: dev\n").production_branch], ["feature/next.1", null]);
@@ -205,6 +206,18 @@ test("[REQ-idd-023] the delivery section declares an integration branch apart fr
   assert.strictEqual(delivery("  integration_branch: dev\n  release: none\n").release, "none");
   // Branch names are case-sensitive, as in git.
   assert.strictEqual(delivery("  integration_branch: Main\n  production_branch: main\n").integration_branch, "Main");
+});
+
+test("[REQ-idd-029] the delivery section declares the language of the project as a tag, in any case", () => {
+  const language = (value) => parseIddConfig(`delivery:\n  language: ${value}\n`).delivery.language;
+  // A language, then an optional script and an optional region, kept canonical.
+  assert.deepStrictEqual(["es", "EN", "fil", "pt-br", "es-419", "zh-hant", "ZH-HANT-tw", '"fr"'].map(language), ["es", "en", "fil", "pt-BR", "es-419", "zh-Hant", "zh-Hant-TW", "fr"]);
+  assert.strictEqual(parseIddConfig("delivery:\n  branching: serial\n").delivery.language, null);
+  // A name, a locale with an underscore or a list is not a tag.
+  for (const bad of ["Spanish", "e", "es_ES", "es-", "-es", "es-ES-valencia", "es-Latn-ES-x", '"es en"', "[es, en]", '""']) {
+    refused(`delivery:\n  language: ${bad}\n`, /delivery.language must be a language tag such as es, en or pt-BR, got /);
+  }
+  refused("delivery:\n  language:\n", /delivery.language must be a language tag such as es, en or pt-BR, got nothing/);
 });
 
 test("the contracts section lists documents and tests", () => {

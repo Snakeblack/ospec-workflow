@@ -114,6 +114,12 @@ or configuration switch only for a need present in this change, and record
 the choice with `--decision "<text>"` when it is not obvious. Leave unrelated code as
 it is: report a defect outside the change instead of fixing it in passing.
 
+Write commits, pull requests, the changelog, documentation and code comments
+in the `language` `next` prints, or without one in that of the project's
+history; a reply follows its thread and an edit its file. Keep documentation
+and comments concise and functional: never name this protocol or the
+session's reasons.
+
 ## Tests by risk
 
 Test what would cost something if it broke: business rules, validation,

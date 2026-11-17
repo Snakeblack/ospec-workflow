@@ -182,8 +182,11 @@ explicit approval, preserving its other keys:
   and the alternatives with their tradeoffs: `serial` (one pull request in
   flight) or `parallel` (several branches, each integrating the default
   branch before its merge); a changelog path or `none`; `per-change`,
-  `batched` or `none`. Add `integration_branch` only when the team integrates
-  apart from production. `ospec close` writes the changelog and proposes a
+  `batched` or `none`. Ask the `language` too, as a tag (`es`, `en`,
+  `pt-BR`): the one the project's commits, pull requests, changelog,
+  documentation and code comments are written in, which no profile decides;
+  recommend the one the user writes in. Add `integration_branch` only when
+  the team integrates apart from production. `ospec close` writes the changelog and proposes a
   release only once they are declared. The delivery strategy `ospec team`
   names follows from `team.size`: changing it means changing the size. A
   `delivery:` already declared keeps its values unless the user changes them.

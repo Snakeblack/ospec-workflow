@@ -1,101 +1,64 @@
 ---
 name: skill-creator
-description: "Trigger: new skills, agent instructions, documenting AI usage patterns. Create LLM-first skills with valid frontmatter."
+description: "Create or rework a skill, after deciding it should be one. Trigger: new skill, create a skill, rework a skill, agent instructions."
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
-  version: "1.0"
----
-
-## Activation Contract
-
-Create a skill when:
-- A pattern is used repeatedly and AI needs guidance
-- Project-specific conventions differ from generic best practices
-- Complex workflows need step-by-step instructions
-- Decision trees help AI choose the right approach
-
-Do not create a skill when the pattern is trivial, one-off, or better served by normal documentation.
-
-## Hard Rules
-
-- When working in this repo, first follow `references/skill-style-guide.md` as the normative source before creating or updating skills.
-- If that guide is unavailable, use the compact inline rules below.
-- A skill is a runtime instruction contract for an LLM, not human documentation.
-- Do not add a `Keywords` section; preserve essential trigger words in `description`.
-- References must point to local files.
-- Keep the skill body concise: target 180–450 tokens, recommended max 700, hard max 1000.
-
-## Decision Gates
-
-| Need | Action |
-|------|--------|
-| Code templates, schemas, fixtures, generated examples | Put them in `assets/` |
-| Conceptual detail, edge cases, existing docs | Put local links in `references/` |
-| Long explanation in `SKILL.md` | Move it to a supporting file |
-| Multiple meaningful paths | Add a compact decision table |
-
-## Execution Steps
-
-1. Check whether `references/skill-style-guide.md` exists; if it does, apply it before the inline fallback rules.
-2. Confirm the skill does not already exist and the pattern is reusable.
-3. Create or update `skills/{skill-name}/SKILL.md` using this required structure:
-
-```
-skills/{skill-name}/
-├── SKILL.md              # Required - main skill file
-├── assets/               # Optional - templates, schemas, examples
-│   ├── template.py
-│   └── schema.json
-└── references/           # Optional - links to local docs
-    └── docs.md           # Points to docs/developer-guide/*.mdx
-```
-4. Use this frontmatter shape:
-
-```markdown
----
-name: {skill-name}
-description: "Trigger: {essential trigger words users or agents will say}. {What this skill does}."
-license: {the license of the project that hosts the skill}
-metadata:
   author: manuel-retamozo-garcia
-  version: "1.0"
+  version: "2.0"
 ---
-```
-5. Write sections in this order: Activation Contract, Hard Rules, Decision Gates, Execution Steps, Output Contract, References.
-6. Register the skill in `AGENTS.md` when it is a project skill.
 
-## Inline Fallback Rules
+## When to Use
 
-- `description` MUST be one physical line, quoted, YAML-safe, and include essential trigger words first.
-- `description` SHOULD be <=160 chars and MUST be <=250 chars.
-- Frontmatter MUST include `name`, `description`, `license`, `metadata.author`, and `metadata.version`.
-- Use imperative instructions, not tutorials or background prose.
-- Put supporting material in `assets/` or `references/`, not the main skill body.
+Load this skill to write a new skill or to rework one that agents misapply or
+load at the wrong time. First decide where the guidance belongs: most of it is
+not a skill.
 
-Good:
+| The guidance is | It belongs in |
+|---|---|
+| A procedure some tasks need, too long to restate each time | A skill |
+| A rule that holds for every task of the project | The project's instruction file (`AGENTS.md` or the host's equivalent) |
+| Something a command can check | A check in `idd/config.yaml`, a linter or a test: a check that fails beats an instruction |
+| An architecture decision and its reasons | An ADR, through the `foundation` skill |
+| How to use the product | The documentation |
+| Needed once | Nowhere: say it in the reply |
 
-```yaml
-description: "Trigger: Jira task, ticket, issue, task creation. Create Jira tasks in the team format."
-```
+## Rules
 
-Bad:
+- Read `references/skill-style-guide.md` before writing; it decides the frontmatter, the body and the size of a skill.
+- Search the existing skills first: extend the skill that already owns the subject instead of adding a second one.
+- Write the description for the moment of choice: it names the situations that load the skill, in the words a user would use.
+- Put the rules under a heading that ends in `Rules`, each one checkable in the result and readable alone.
+- Name the command that prints a value the `ospec` CLI computes; never copy the value into the skill.
+- Write down every point where the agent stops for the user: commits, pull requests, releases and anything published or irreversible.
+- Keep in `SKILL.md` what every use needs, and move what only some uses need to `references/`.
 
-```yaml
-description: >
-  Create Jira tasks in the team format.
-  Trigger: Jira task, ticket, issue, or task creation.
-Keywords: jira, task
-```
+## Steps
 
-## Output Contract
+1. Write the situations that should load the skill and two that should not.
+   If the first list is empty or matches every task, stop: the table above
+   says where the guidance goes.
+2. Pick the directory. In ospec-workflow it is `skills/<name>/`. In a project
+   it is the skills directory of its host (`.claude/skills/`,
+   `.agent/skills/`, `.gemini/skills/` or `skills/`).
+3. Write the frontmatter, then the body in the order of the style guide: when
+   to use, rules, procedure, output, references.
+4. Read the rules alone, as a sub-agent receives them. Rewrite any rule that
+   needs its section to make sense.
+5. Try the skill on a real task of each situation of step 1, and cut every
+   line the agent did not need.
+6. Run the checklist that closes the style guide. In a project that uses SDD,
+   refresh the registry with the `skill-registry` skill so delegations carry
+   the new rules.
 
-Return:
-- Files created or modified.
-- Whether the repo style guide or inline fallback rules were used.
-- Any AGENTS.md registration change.
-- Any supporting files added under `assets/` or `references/`.
+Reworking a skill follows the same steps, starting from the task where it
+failed. Raise `metadata.version` when the agent will behave differently.
+
+## Output
+
+Report the files created or changed, the situations the skill was tried on,
+and anything left for the user: a registry refresh, or an instruction file
+that should name the skill.
 
 ## References
 
-- `references/skill-style-guide.md` — normative LLM-first skill style guide for this repo.
+- [references/skill-style-guide.md](references/skill-style-guide.md): frontmatter, body, writing rules, size and the delivery checklist. Read it before step 3.

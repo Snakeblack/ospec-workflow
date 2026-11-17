@@ -27,7 +27,7 @@ Los gates se resuelven solo con una respuesta explícita del usuario, pero su pr
 
 El perfil de equipo (`team:` con `size` y `experience`) decide la estrategia de entrega, el umbral de review, Strict TDD y la mentoría sin volver a preguntar. Cada modo lo declara en su configuración: `idd/config.yaml` u `openspec/config.yaml`. `ospec team` muestra el perfil y sus defaults (REQ-idd-023).
 
-La entrega (`delivery` en `idd/config.yaml`) dice cómo llega cada cambio: `branching` (`serial` o `parallel`), `changelog` y `release` (`per-change`, `batched` o `none`). `ospec next` y `ospec close` devuelven sus razones y sus reglas, que son solo guía: ospec no lee git (REQ-idd-023, REQ-idd-025). Un proyecto que integra en una rama de desarrollo y solo lleva a producción lo que ya se puede usar declara su rama de integración, y si quiere, la de producción, que por defecto es la rama por defecto del repositorio:
+La entrega (`delivery` en `idd/config.yaml`) dice cómo llega cada cambio: `branching` (`serial` o `parallel`), `changelog` y `release` (`per-change`, `batched` o `none`). `ospec next` y `ospec close` devuelven sus razones y sus reglas, que son solo guía: ospec no lee git (REQ-idd-023, REQ-idd-025). `language` declara el idioma del proyecto con una etiqueta (`es`, `en`, `pt-BR`): en él se escriben los commits, las PR, el changelog, la documentación y los comentarios de código, y `ospec next` lo devuelve en cada paso (REQ-idd-029). Un proyecto que integra en una rama de desarrollo y solo lleva a producción lo que ya se puede usar declara su rama de integración, y si quiere, la de producción, que por defecto es la rama por defecto del repositorio:
 
 ```yaml
 delivery:

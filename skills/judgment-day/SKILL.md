@@ -1,52 +1,54 @@
 ---
 name: judgment-day
-description: "Trigger: judgment day, dual review, adversarial review, juzgar. Run blind dual review, fix confirmed issues, then re-judge."
+description: "Run two independent reviewers over a fixed target and keep only findings with evidence. Trigger: judgment day, dual review, adversarial review, second opinion, juzgar."
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
-  version: "1.4"
+  author: manuel-retamozo-garcia
+  version: "2.0"
 ---
 
-## Activation Contract
+## When to Use
 
-Load this skill only when the user explicitly asks for Judgment Day, dual/adversarial review, or equivalent Spanish trigger (`juzgar`, `que lo juzguen`). Review a specific target: files, feature, PR, or architecture slice.
+Load this skill only when the user asks for it: a judgment day, a dual or
+adversarial review, a second opinion on some code. It is a review on demand
+over any target, and it satisfies no obligation of a change: in IDD the trust
+review runs through `ospec review`, and in SDD through the review gate.
 
-## Hard Rules
+## Rules
 
-- Resolve project skills before launching agents: read skill registry, match compact rules by target files/task, and inject the same `Project Standards` block into both judge prompts and fix prompts.
-- Launch **two blind judges in parallel** with identical target and criteria; never review the code yourself.
-- Wait for both judges before synthesis; never accept a partial verdict.
-- Classify warnings as `WARNING (real)` only if normal intended use can trigger them; otherwise downgrade to INFO as `WARNING (theoretical)`.
-- Ask before fixing Round 1 confirmed issues.
-- After any fix agent runs, immediately re-launch both judges in parallel before commit/push/done/session summary.
-- Terminal states are only `JUDGMENT: APPROVED` or `JUDGMENT: ESCALATED`.
-- After 2 fix iterations with remaining issues, ask the user whether to continue.
+- Fix the target before judging: a commit, a range (`<base>..<head>`) or a list of files at a commit. Both judges and every later round read that same tree.
+- Launch two judges at once, read-only, with the same brief and no view of each other's answer.
+- Wait for both answers; one answer is not a verdict.
+- Accept a finding only with its evidence: the file and line, and how normal use reaches it. Open the cited lines yourself; a finding whose evidence is not there is dropped.
+- A finding both judges report is confirmed. A finding only one reports is confirmed only if its evidence holds when you read it; otherwise list it as unconfirmed.
+- A problem that only a contrived or impossible input reaches is a note, never a blocking finding.
+- Change nothing without the user's answer: show the confirmed findings and ask which to fix.
+- Fix through the project's normal flow: in an IDD project a fix is a change, or part of the change still open.
+- After a fix, judge again the new tree: the fixed findings and the lines the fix touched.
+- Stop after two rounds of fixes with confirmed findings left, and ask the user how to go on.
+- End with one of two states: `APPROVED`, with no confirmed blocking finding, or `ESCALATED`, with what is left for a person to decide.
 
-## Decision Gates
+## Steps
 
-| Condition | Action |
-|---|---|
-| Target unclear | Ask for scope; do not launch judges. |
-| No skill registry | Warn, proceed with generic criteria, and record `Skill Resolution: none`. |
-| Both judges find same CRITICAL/real WARNING | Confirmed; ask/fix according to round rules. |
-| One judge finds issue | Suspect; report and triage, do not auto-fix. |
-| Judges contradict | Escalate for manual decision. |
-| Round 2+ has only theoretical warnings/suggestions | Report as INFO; do not re-judge. |
+1. Agree the target and what matters most in it. Without a clear target, ask
+   and launch nothing.
+2. Gather the project's standards that apply to the files: its instruction
+   file, and the compact rules of the skill registry when it has one. The
+   same block goes to both judges and to the fixer.
+3. Launch both judges with the brief of `references/prompts-and-formats.md`,
+   on the strongest review model the host offers.
+4. Verify the evidence of every finding and build the table of the round.
+5. Show the table and ask what to fix. With nothing confirmed that blocks,
+   the state is `APPROVED`.
+6. Hand the approved findings to one fixer with the fixer brief, record the
+   new commit as the target, and repeat from step 3 for that round.
 
-## Execution Steps
+## Output
 
-1. Confirm target and optional custom criteria.
-2. Resolve compact project standards from registry or warn if missing.
-3. Start Judge A and Judge B concurrently via delegation.
-4. Synthesize findings into confirmed, suspect, contradiction, and INFO buckets.
-5. Ask before Round 1 fixes; delegate a separate fix agent for confirmed approved fixes only.
-6. Re-judge in parallel after fixes; repeat until approved, escalated, or user asks to stop.
-7. Before any terminal action, verify every active Judgment Day has a terminal state.
-
-## Output Contract
-
-Return `## Judgment Day — {target}` with round number, verdict table, confirmed/suspect/contradiction counts, fixes applied, re-judgment result, `Skill Resolution`, and final `JUDGMENT: APPROVED ✅` or `JUDGMENT: ESCALATED ⚠️`.
+One block per round: the target, the table of findings with their status
+(confirmed, unconfirmed, note, dropped), the fixes applied and the final
+state. Say which standards the judges received, or that the project had none.
 
 ## References
 
-- [references/prompts-and-formats.md](references/prompts-and-formats.md) — judge/fix prompts, warning rubric, verdict tables, and language snippets.
+- [references/prompts-and-formats.md](references/prompts-and-formats.md): the brief for the judges, the brief for the fixer and the table of a round. Open it at step 3.

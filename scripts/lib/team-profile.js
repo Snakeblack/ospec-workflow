@@ -109,6 +109,19 @@ function integrationGuidance({ integration, production }) {
   };
 }
 
+// The language the project is written in, and what it covers (REQ-idd-029). A reply and an
+// edit follow the language already in place, so one file never mixes two.
+function languageGuidance(tag) {
+  return {
+    reasons: ["delivery.language is declared in idd/config.yaml", "one declared language keeps the history and the documentation readable by the whole team"],
+    how: [
+      `write commit messages, pull request titles and bodies, changelog entries, documentation and code comments in ${tag}`,
+      "a reply in a thread uses the language of the thread, and text added to a file or a documentation tree already written in another language keeps that one",
+      "keep documentation and code comments concise and functional: what a reader needs to use or change the code, never the tooling that wrote them or the reasons given in the session",
+    ].join("; "),
+  };
+}
+
 // The value without a profile or a declaration, and why it is recommended.
 const RECOMMENDED = Object.freeze({
   branching: { value: "serial", why: "serial cannot conflict" },
@@ -210,7 +223,7 @@ function resolveDelivery(key, declared, profile, context) {
 }
 
 /**
- * @param {{ idd?: { mode: string|null, team: object|null, delivery?: { branching: string|null, changelog: string|null, release: string|null, integration_branch?: string|null, production_branch?: string|null } }|null, openspecText?: string|null, mode?: "idd"|"sdd"|null }} sources
+ * @param {{ idd?: { mode: string|null, team: object|null, delivery?: { branching: string|null, changelog: string|null, release: string|null, integration_branch?: string|null, production_branch?: string|null, language?: string|null } }|null, openspecText?: string|null, mode?: "idd"|"sdd"|null }} sources
  * `idd` is the parsed idd/config.yaml; null means that file is absent, as a
  * null text does. `mode` reads one mode's declaration whatever mode is active.
  */
@@ -237,6 +250,9 @@ function resolveTeam({ idd = null, openspecText = null, mode: requested = null }
     changelog: resolveDelivery("changelog", declared("changelog"), profile, context),
     release: resolveDelivery("release", declared("release"), profile, context),
   };
+  // Only a declared language adds its rules: nothing is recommended without one.
+  const language = declared("language");
+  if (language) result.language = { value: language, source: "idd/config.yaml", ...languageGuidance(language) };
   // Only a declared integration branch adds its rules.
   if (context.integration) {
     const { reasons, how } = integrationGuidance(context);

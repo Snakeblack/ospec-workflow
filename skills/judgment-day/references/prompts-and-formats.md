@@ -1,75 +1,89 @@
-# Judgment Day Prompts and Formats
+# Briefs and Formats
 
-## Judge Prompt
+Text to hand to the judges and to the fixer, and the table that closes a
+round. Fill every `<placeholder>`; write the briefs in English and the report
+to the user in their language.
 
-```markdown
-You are an adversarial code reviewer. Your ONLY job is to find problems.
+## Brief for a judge
 
-## Target
-{files, feature, architecture, component}
-
-## Project Standards (auto-resolved)
-{matching compact rules, if available}
-
-## Review Criteria
-- Correctness: logical errors and behavior mismatches
-- Edge cases: missing states, inputs, or platform constraints
-- Error handling: propagation, logging, recovery
-- Performance: N+1, wasteful loops, excessive allocations
-- Security: injection, secrets, auth boundaries
-- Naming/conventions: project standards and local patterns
-{custom criteria, if provided}
-
-## Return Format
-Findings only. No praise.
-
-Each finding:
-- Severity: CRITICAL | WARNING (real) | WARNING (theoretical) | SUGGESTION
-- File: path/to/file.ext (line N if applicable)
-- Description: what is wrong and why it matters
-- Suggested fix: one-line intent
-
-WARNING rule: normal intended use can trigger it → `WARNING (real)`; contrived/malicious/impossible path → `WARNING (theoretical)`.
-
-If clean: `VERDICT: CLEAN — No issues found.`
-
-Always end with: `Skill Resolution: {injected|fallback-registry|fallback-path|none} — {details}`.
-```
-
-## Fix Agent Prompt
+Both judges receive exactly this text.
 
 ```markdown
-You are a surgical fix agent. Apply ONLY the confirmed issues listed below.
+Review the target below and report what is wrong with it. You only read: do
+not edit, run destructive commands or contact anyone.
 
-## Confirmed Issues to Fix
-{confirmed findings table}
+Target: <commit, range or files at a commit>
+Focus: <what the user cares about most, or "none">
 
-## Project Standards (auto-resolved)
-{matching compact rules, if available}
+Standards of the project:
+<the rules that apply to these files, or "none">
 
-## Instructions
-- Fix only confirmed issues.
-- Do not refactor beyond the required fix.
-- Do not change unflagged code.
-- If fixing a repeated pattern in touched files, fix all occurrences of that same pattern.
-- Return changed file, line, and fix summary.
+Look for:
+- behavior that differs from what the code, its tests or its documentation promise;
+- inputs and states the code does not handle: empty, missing, repeated, concurrent, too large;
+- errors that are swallowed, misreported or leave data half written;
+- trust boundaries: unvalidated input, secrets, permissions, injection;
+- work that grows with the data when it does not need to;
+- departures from the standards above.
 
-End with: `Skill Resolution: {injected|fallback-registry|fallback-path|none} — {details}`.
+Report each finding as:
+- Severity: BLOCKER, CRITICAL, WARNING or SUGGESTION
+- Where: <path>:<line>
+- What happens: <the wrong behavior, observable>
+- How it is reached: <the call, input or state that triggers it in normal use,
+  or "contrived" when only an unrealistic input does>
+- Change: <what to do, in one line>
+
+Report only what you can point to in the code. Do not praise, summarize or
+guess. With nothing to report, answer exactly: NO FINDINGS.
 ```
 
-## Verdict Table
+## Brief for the fixer
 
 ```markdown
-| Finding | Judge A | Judge B | Severity | Status |
-|---------|---------|---------|----------|--------|
-| Missing null check in auth.go:42 | ✅ | ✅ | CRITICAL | Confirmed |
-| Windows volume root edge case | ❌ | ✅ | WARNING (theoretical) | INFO |
-| Naming mismatch | ✅ | ❌ | SUGGESTION | Suspect |
+Fix the findings below and nothing else.
+
+Target: <commit>
+
+Findings:
+<the confirmed findings the user approved, each with its path, line and change>
+
+Standards of the project:
+<the same block the judges received>
+
+- Change only what a finding needs. Leave the rest of the code as it is.
+- When the same defect repeats in a file you touch, fix every occurrence and say so.
+- Add or adjust the test that would have caught each finding.
+- Run the project's checks before answering.
+
+Answer with, for each finding: the files and lines changed, the test that
+covers it, and the result of the checks.
 ```
 
-Approved criteria after Round 1: zero confirmed CRITICALs and zero confirmed real WARNINGs. Theoretical warnings and suggestions may remain.
+## Table of a round
 
-## Language Snippets
+```markdown
+## Judgment day: <target>, round <n>
 
-- Spanish: “Juicio iniciado”, “Los jueces trabajan en paralelo”, “Los jueces coinciden”, “Juicio terminado — Aprobado”, “Escalado — necesita revisión humana”.
-- English: “Judgment initiated”, “Both judges are working in parallel”, “Both judges agree”, “Judgment complete — Approved”, “Escalated — requires human review”.
+| # | Finding | Where | Judge A | Judge B | Severity | Status |
+|---|---|---|---|---|---|---|
+| 1 | Open range exports nothing | src/range.js:41 | yes | yes | CRITICAL | Confirmed |
+| 2 | Retry repeats a rejected login | src/http.js:88 | yes | no | WARNING | Confirmed (evidence read) |
+| 3 | Path fails on a drive root | src/paths.js:12 | no | yes | WARNING | Note (contrived) |
+| 4 | Index out of range in `pick` | src/list.js:7 | yes | no | CRITICAL | Dropped (line guards it) |
+
+Standards given to the judges: <source, or "none">
+State: <APPROVED | ESCALATED | fixes pending approval>
+```
+
+Status values:
+
+| Status | Meaning |
+|---|---|
+| Confirmed | Both judges report it, or one does and its evidence holds |
+| Unconfirmed | One judge reports it and the evidence could not be settled |
+| Note | Real only under a contrived input; never blocks |
+| Dropped | The cited lines do not show it |
+
+`BLOCKER` and `CRITICAL` findings block, and so does a `WARNING` that normal
+use reaches. `APPROVED` needs none of them confirmed.

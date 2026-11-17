@@ -24,7 +24,7 @@ metadata:
 
 ## Commit Mode Rules
 
-- `<type>(<scope>): <resumen en imperativo>` in Spanish imperative (`añade`, `corrige`), ≤50 characters, never over 72.
+- `<type>(<scope>): <imperative summary>` in the project's language (the `language` of `ospec team`, else that of the recent commit subjects), ≤50 characters, never over 72.
 - No AI attribution, `Co-Authored-By`, emojis or model names (`rules/no-model-attribution.instructions.md`).
 - Body, wrapped at 72, only for a non-obvious why, `BREAKING CHANGE:`, migrations, security fixes or reverts.
 - Return only the message in a fenced block; never stage or commit.

@@ -1,50 +1,83 @@
 ---
 name: chained-pr
-description: "Trigger: PRs over 400 lines, stacked PRs, review slices. Split oversized changes into chained PRs that protect review focus."
+description: "Split a change over the review budget into chained pull requests, each reviewable alone. Trigger: chained PRs, stacked PRs, large PR."
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
-  version: "1.0"
+  author: manuel-retamozo-garcia
+  version: "2.0"
 ---
 
-## Activation Contract
+## When to Use
 
-Load this skill when a planned PR may exceed **400 changed lines**, SDD forecasts `400-line budget risk: High` or `Chained PRs recommended: Yes`, or the user asks for chained/stacked PRs, review slices, or reviewer-load control.
+Load this skill when the changed lines of a branch exceed the review budget,
+when SDD tasks forecast that they will, or when the user asks for chained or
+stacked pull requests. A diff within the budget goes in one pull request with
+`branch-pr`.
 
-## Hard Rules
+The budget and what to do above it are not decided here. `ospec team` prints
+both: `delivery: <strategy> (review budget <n> lines)`. In SDD the tasks
+artifact carries the same strategy and the forecast.
 
-- Split PRs over **400 changed lines** unless a maintainer explicitly accepts `size:exception`.
-- Keep each PR reviewable in about **≤60 minutes**.
-- Use one deliverable work unit per PR; keep tests/docs with the unit they verify.
-- State start, end, prior dependencies, follow-up work, and out-of-scope items in every chained PR.
-- Every child PR must include a dependency diagram marking the current PR with `📍`.
-- In Feature Branch Chain, create a draft/no-merge tracker PR; child PR #1 targets the tracker branch, later children target the immediate parent branch.
-- Treat polluted diffs as base bugs: retarget or rebase until only the current work unit appears.
-- Do not mix chain strategies after the user chooses one.
-
-## Decision Gates
-
-| Condition | Action |
+| Strategy | Above the budget |
 |---|---|
-| PR ≤400 changed lines and focused | Keep single PR. |
-| PR >400, each slice can land independently | Use Stacked PRs to main. |
-| PR >400, feature must integrate before main | Use Feature Branch Chain with tracker. |
-| Generated/vendor/migration diff cannot split cleanly | Ask maintainer for `size:exception`. |
-| SDD provides `delivery_strategy` | Follow it before apply/PR creation. |
+| `single-pr` | Ask the user: accept the size as an exception, or split |
+| `ask-on-risk` | Ask the user: chain, or accept the size as an exception |
+| `auto-chain` | Split without asking, and report the chain |
+| `exception-ok` (SDD) | One pull request, with the accepted exception written in it |
 
-## Execution Steps
+An accepted exception is one pull request labeled `size:exception`, with the
+reason in its body. When `ospec team` prints no delivery line, or the project
+has no `ospec`, ask the user what to do above 400 changed lines.
 
-1. Estimate changed lines and identify independent work units.
-2. Ask for a chain strategy when none is cached and the budget is exceeded.
-3. Create branches/PRs using the chosen strategy only.
-4. Add Chain Context to each PR without replacing the repo PR template.
-5. Verify each PR independently: CI/tests/docs/manual checks, rollback scope, and clean diff.
-6. Keep tracker PR draft/no-merge until all child PRs are reviewed and integrated.
+## Rules
 
-## Output Contract
+- Count what a reviewer reads: additions plus deletions against the base, leaving out lockfiles and generated files, which the pull request body names.
+- Cut the chain between commits, never inside one: each slice is one or more whole work units, with their tests and documentation.
+- Each slice passes the project's checks alone, on top of the slices before it.
+- Each pull request targets the branch of the slice before it, so its diff shows one slice; the first targets the base, or the tracker branch of a `feature-branch-chain`.
+- Use one shape for the whole chain: `stacked-to-main` or `feature-branch-chain`.
+- Never rewrite a pushed branch: bring a moved parent in with `git merge`.
+- Merge in order, from the first slice; a later slice never merges before the ones it stands on.
+- Version files and the changelog section of a release go in the last pull request only.
+- Each pull request body carries the chain block: position, base, what the slice leaves working and what waits for a later one.
+- Opening pull requests is the user's decision: show the chain and wait, unless the strategy is `auto-chain`.
 
-Return the chosen strategy, PR order, current PR boundary, dependency diagram, review budget (`additions + deletions`), verification plan, and any `size:exception` rationale.
+## Choosing the Shape
+
+| Question | Shape |
+|---|---|
+| Can each slice reach the base branch by itself without breaking users? | `stacked-to-main`: slices merge into the base one by one |
+| Must nothing reach the base until the whole change is ready? | `feature-branch-chain`: slices gather in a tracker branch, which merges once |
+
+The base is the default branch, or the integration branch when `ospec team`
+prints one. When SDD tasks name a `Chain strategy`, use that one.
+
+## Steps
+
+1. Commit by work unit first (`work-unit-commits`): the chain is cut from a
+   linear history.
+2. Measure each commit and group consecutive ones into slices within the
+   budget. A single commit above it is split into smaller units, or goes as
+   one slice with an accepted exception.
+3. Check out the last commit of each slice and run the project's checks.
+   Move the cut when a slice fails alone.
+4. Show the user the chain: for each slice its commits, its changed lines and
+   what it leaves working. Wait for their answer.
+5. Create one branch per slice at its last commit, push them, and open the
+   pull requests from the first slice on, as `references/chain-playbook.md`
+   shows.
+6. After each merge, bring the base into the next slice and re-target its
+   pull request when the host did not.
+
+In IDD the change closes once, before the chain is cut: its archive and its
+changelog line travel in the last slice. With serial branching the chain is
+one delivery, so its pull requests may be open together.
+
+## Output
+
+Report the shape, the pull requests in order with their base and changed
+lines, the check run on each slice, and any exception with its reason.
 
 ## References
 
-- [references/chaining-details.md](references/chaining-details.md) — strategy diagrams, PR body section, branch commands, and reviewer guidance.
+- [references/chain-playbook.md](references/chain-playbook.md): the commands for each shape, the chain block of the pull request body and how to repair a diff that shows another slice. Open it at step 5.

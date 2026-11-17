@@ -2,14 +2,14 @@
   "schema": "ospec-context-baseline/v1",
   "targets": {
     "claude": {
-      "always_on_bytes": 3503,
+      "always_on_bytes": 3474,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10666,
-      "default_flow_bytes": 14169,
-      "memory_flow_bytes": 17117,
+      "skill_listing_bytes": 4769,
+      "idd_protocol_bytes": 10982,
+      "default_flow_bytes": 14456,
+      "memory_flow_bytes": 17404,
       "agent_read_bytes": {
         "review-change": 4757,
         "review-correction": 5373,
@@ -20,14 +20,14 @@
       }
     },
     "vscode": {
-      "always_on_bytes": 3747,
+      "always_on_bytes": 3718,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10662,
-      "default_flow_bytes": 14409,
-      "memory_flow_bytes": 17357,
+      "skill_listing_bytes": 4769,
+      "idd_protocol_bytes": 10978,
+      "default_flow_bytes": 14696,
+      "memory_flow_bytes": 17644,
       "agent_read_bytes": {
         "review-change": 4754,
         "review-correction": 5370,
@@ -38,14 +38,14 @@
       }
     },
     "github-copilot": {
-      "always_on_bytes": 3747,
+      "always_on_bytes": 3718,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10662,
-      "default_flow_bytes": 14409,
-      "memory_flow_bytes": 17357,
+      "skill_listing_bytes": 4769,
+      "idd_protocol_bytes": 10978,
+      "default_flow_bytes": 14696,
+      "memory_flow_bytes": 17644,
       "agent_read_bytes": {
         "review-change": 4740,
         "review-correction": 5356,
@@ -56,14 +56,14 @@
       }
     },
     "opencode": {
-      "always_on_bytes": 3425,
+      "always_on_bytes": 3396,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10662,
-      "default_flow_bytes": 14087,
-      "memory_flow_bytes": 17035,
+      "skill_listing_bytes": 4769,
+      "idd_protocol_bytes": 10978,
+      "default_flow_bytes": 14374,
+      "memory_flow_bytes": 17322,
       "agent_read_bytes": {
         "review-change": 4752,
         "review-correction": 5368,
@@ -74,14 +74,14 @@
       }
     },
     "codex": {
-      "always_on_bytes": 3428,
+      "always_on_bytes": 3399,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10662,
-      "default_flow_bytes": 14090,
-      "memory_flow_bytes": 17038,
+      "skill_listing_bytes": 4769,
+      "idd_protocol_bytes": 10978,
+      "default_flow_bytes": 14377,
+      "memory_flow_bytes": 17325,
       "agent_read_bytes": {
         "review-change": 4797,
         "review-correction": 5413,
@@ -92,14 +92,14 @@
       }
     },
     "cursor": {
-      "always_on_bytes": 3755,
+      "always_on_bytes": 3726,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10662,
-      "default_flow_bytes": 14417,
-      "memory_flow_bytes": 17365,
+      "skill_listing_bytes": 4769,
+      "idd_protocol_bytes": 10978,
+      "default_flow_bytes": 14704,
+      "memory_flow_bytes": 17652,
       "agent_read_bytes": {
         "review-change": 4706,
         "review-correction": 5322,
@@ -110,14 +110,14 @@
       }
     },
     "antigravity": {
-      "always_on_bytes": 3757,
+      "always_on_bytes": 3728,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
-      "idd_protocol_bytes": 10662,
-      "default_flow_bytes": 14419,
-      "memory_flow_bytes": 17367,
+      "skill_listing_bytes": 4769,
+      "idd_protocol_bytes": 10978,
+      "default_flow_bytes": 14706,
+      "memory_flow_bytes": 17654,
       "agent_read_bytes": {
         "review-change": 4761,
         "review-correction": 5377,
@@ -688,6 +688,111 @@
         ]
       },
       "reason": "la línea license de la skill de IDD pasa de Apache-2.0 a MIT AND Commons-Clause (E1.78, licencia única elegida por el usuario)"
+    },
+    {
+      "version": "2.182.1",
+      "metric": "idd_protocol_bytes",
+      "targets": {
+        "claude": [
+          10666,
+          10982
+        ],
+        "vscode": [
+          10662,
+          10978
+        ],
+        "github-copilot": [
+          10662,
+          10978
+        ],
+        "opencode": [
+          10662,
+          10978
+        ],
+        "codex": [
+          10662,
+          10978
+        ],
+        "cursor": [
+          10662,
+          10978
+        ],
+        "antigravity": [
+          10662,
+          10978
+        ]
+      },
+      "reason": "la skill de IDD gana la frase del idioma del proyecto y de cómo se escriben documentación y comentarios (delivery.language, REQ-idd-029, pedido por el usuario en E1.98)"
+    },
+    {
+      "version": "2.182.1",
+      "metric": "default_flow_bytes",
+      "targets": {
+        "claude": [
+          14169,
+          14485
+        ],
+        "vscode": [
+          14409,
+          14725
+        ],
+        "github-copilot": [
+          14409,
+          14725
+        ],
+        "opencode": [
+          14087,
+          14403
+        ],
+        "codex": [
+          14090,
+          14406
+        ],
+        "cursor": [
+          14417,
+          14733
+        ],
+        "antigravity": [
+          14419,
+          14735
+        ]
+      },
+      "reason": "la skill de IDD gana la frase del idioma del proyecto y de cómo se escriben documentación y comentarios (delivery.language, REQ-idd-029, pedido por el usuario en E1.98)"
+    },
+    {
+      "version": "2.182.1",
+      "metric": "memory_flow_bytes",
+      "targets": {
+        "claude": [
+          17117,
+          17433
+        ],
+        "vscode": [
+          17357,
+          17673
+        ],
+        "github-copilot": [
+          17357,
+          17673
+        ],
+        "opencode": [
+          17035,
+          17351
+        ],
+        "codex": [
+          17038,
+          17354
+        ],
+        "cursor": [
+          17365,
+          17681
+        ],
+        "antigravity": [
+          17367,
+          17683
+        ]
+      },
+      "reason": "la skill de IDD gana la frase del idioma del proyecto y de cómo se escriben documentación y comentarios (delivery.language, REQ-idd-029, pedido por el usuario en E1.98)"
     }
   ]
 }

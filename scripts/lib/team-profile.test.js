@@ -144,6 +144,24 @@ test("[REQ-idd-023] delivery.branching wins over the profile, and without either
   assert.deepStrictEqual([sdd.branching.value, sdd.branching.source], ["serial", "team profile"]);
 });
 
+test("[REQ-idd-029] a declared delivery.language gives the language of every text the project writes, and nothing recommends one", () => {
+  const { language } = resolveTeam({ idd: parseIddConfig("team:\n  size: solo\ndelivery:\n  language: PT-br\n") });
+  assert.deepStrictEqual([language.value, language.source], ["pt-BR", "idd/config.yaml"]);
+  assert.match(language.reasons[0], /delivery.language is declared in idd\/config.yaml/);
+  // What it covers, what keeps its own language, and how documentation and comments read.
+  assert.match(language.how, /^write commit messages, pull request titles and bodies, changelog entries, documentation and code comments in pt-BR; /);
+  assert.match(language.how, /a reply in a thread uses the language of the thread/);
+  assert.match(language.how, /already written in another language keeps that one/);
+  assert.match(language.how, /concise and functional: .*never the tooling that wrote them or the reasons given in the session$/);
+  // No profile and no default decides a language: undeclared, the key is absent.
+  for (const text of ["team:\n  size: multi-team\n", "checks:\n  test: npm test\n", "delivery:\n  branching: serial\n"]) {
+    assert.ok(!("language" in resolveTeam({ idd: parseIddConfig(text) })));
+  }
+  assert.ok(!("language" in resolveTeam({})));
+  // SDD keeps its own configuration (ADR 0011): the IDD delivery section is not read.
+  assert.ok(!("language" in resolveTeam({ idd: parseIddConfig("mode: sdd\ndelivery:\n  language: es\n"), openspecText: "team:\n  size: solo\n" })));
+});
+
 test("[REQ-idd-025] delivery.changelog and delivery.release win over the profile, which only recommends them", () => {
   const explicit = resolveTeam({ idd: parseIddConfig("team:\n  size: small\ndelivery:\n  changelog: docs/HISTORY.md\n  release: per-change\n") });
   assert.deepStrictEqual([explicit.changelog.value, explicit.changelog.source], ["docs/HISTORY.md", "idd/config.yaml"]);

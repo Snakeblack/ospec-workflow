@@ -231,6 +231,7 @@ delivery:
   branching: parallel
   changelog: CHANGELOG.md
   release: batched
+  language: es
 ```
 
 | Clave | Para qué sirve en IDD |
@@ -239,7 +240,7 @@ delivery:
 | `team:` | El perfil de equipo de la ronda de equipo. `ospec team` deriva de él la entrega, la revisión, Strict TDD y la mentoría. `strict_tdd:` solo se añade si tu listón de tests se aparta de ese valor por defecto. |
 | `impact:` | Las rutas de contratos públicos, datos persistentes y fronteras de seguridad de la estructura elegida, más `stack:` si los servicios tienen sus manifiestos por debajo de la raíz. Activan `public-contract`, `persistent-data` y `security-boundary`. |
 | `contracts.documents:` | Dónde viven los documentos de contrato (OpenAPI, proto, esquemas). |
-| `delivery:` | Cómo llegan los cambios al repositorio: `branching`, `changelog`, `release` y, si integras aparte de producción, `integration_branch` (ver [Entrega](/handbook/idd/entrega.md)). Se pregunta después de escribir las claves anteriores: foundation ejecuta `ospec team`, que lee ese perfil, y te presenta cada valor con su origen, sus motivos y las alternativas. Solo con estos valores declarados `ospec close` escribe el CHANGELOG y propone la versión. La estrategia de entrega (`single-pr`, `ask-on-risk` o `auto-chain`) sale del tamaño del equipo: para cambiarla se cambia `team.size`. Si `delivery:` ya estaba declarado, conserva sus valores salvo que tú los cambies. |
+| `delivery:` | Cómo llegan los cambios al repositorio: `branching`, `changelog`, `release`, `language` (el idioma en que se escriben commits, PR, changelog, documentación y comentarios) y, si integras aparte de producción, `integration_branch` (ver [Entrega](/handbook/idd/entrega.md)). Se pregunta después de escribir las claves anteriores: foundation ejecuta `ospec team`, que lee ese perfil, y te presenta cada valor con su origen, sus motivos y las alternativas. Solo con estos valores declarados `ospec close` escribe el CHANGELOG y propone la versión. La estrategia de entrega (`single-pr`, `ask-on-risk` o `auto-chain`) sale del tamaño del equipo: para cambiarla se cambia `team.size`. Si `delivery:` ya estaba declarado, conserva sus valores salvo que tú los cambies. |
 
 Como cualquier cambio de checks o de ajustes de ceremonia, el primer `ospec check` abre el gate `checks-changed` y no ejecuta nada hasta que apruebas esos valores.
 

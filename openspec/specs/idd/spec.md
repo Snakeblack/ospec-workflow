@@ -1288,8 +1288,9 @@ absent every key takes its default. Its top-level keys MUST be only `mode`
 `strict_tdd` (`true` or `false`; absent, the team profile decides it and,
 without a profile, `false`), `team` (the team profile of REQ-idd-023),
 `delivery` (the `branching`, `integration_branch` and `production_branch` of
-REQ-idd-023 and the `changelog` and `release` of REQ-idd-025; absent, the
-profile decides or recommends them), `checks` (the checks
+REQ-idd-023, the `changelog` and `release` of REQ-idd-025 and the `language`
+of REQ-idd-029; absent, the profile decides or recommends them, except the
+language, which only the project declares), `checks` (the checks
 `ospec check` runs in declared order, REQ-idd-014, each as `name: command` or,
 scoped to the paths that justify it, as `name:` with `run: <command>` and
 `paths` below it; absent means none), `impact` (the impact section of REQ-idd-012) and `contracts`
@@ -2783,7 +2784,8 @@ makes `ospec close` act; the profile and the recommendation only advise.
 
 `ospec team [--mode <idd|sdd>] [--json]` MUST be read-only and MUST return
 the mode, the profile, its `source`, its `defaults`, the `branching`, the
-`changelog`, the `release` and, when declared, the `integration`. Without `--mode` the
+`changelog`, the `release` and, when declared, the `integration` and the
+`language` (REQ-idd-029). Without `--mode` the
 mode is the active one: IDD when `idd/config.yaml` exists and its `mode` is
 not `sdd`, else SDD; `--mode` reads that mode's declaration whatever mode is
 active, and another value is a usage error. IDD MUST read only
@@ -2796,7 +2798,7 @@ and MUST NOT let an unreadable configuration change its next step. For an IDD
 change whose next step is `declare-plan` or `close`, where the branching
 decides something, `ospec next` MUST return `delivery` (the `branching`, its
 `source`, `reasons` and `how`, plus the resolved `changelog` and `release`,
-and the `integration` when declared),
+and the `integration` and the `language` when declared),
 and with source `recommended` also the suggestion `branching-undeclared`, which
 is never a step: the agent proposes the value to the user and writes
 `delivery.branching` only after approval. While `delivery.changelog` or
@@ -2857,6 +2859,70 @@ the suggestion `changelog-undeclared` or `release-undeclared` in the same way.
 - WHEN `ospec team` runs
 - THEN the profile MUST be `size: multi-team` with source
   `openspec/config.yaml scale`
+
+### Requirement: Declared Project Language {#REQ-idd-029}
+
+A project MAY declare the language it is written in as `delivery.language` in
+`idd/config.yaml`: a language tag made of a language of two or three letters,
+an optional script of four letters and an optional region of two letters or
+three digits, joined by hyphens (`es`, `en`, `fr`, `pt-BR`, `zh-Hant-TW`). The
+tag MUST be read in any case and kept in its canonical one (language in lower
+case, script capitalized, region in upper case). Any other value, a language
+name such as `Spanish` included, MUST be refused with `config-invalid`. No
+profile and no default decides a language, and SDD MUST NOT read it.
+
+A declared language MUST resolve to `language`: its `value`, its `source`
+(`idd/config.yaml`), its `reasons` and its `how`, the rules the agent
+follows:
+
+- commit messages, pull request titles and bodies, changelog entries,
+  documentation and code comments are written in that language;
+- a reply in a thread uses the language of the thread, and text added to a
+  file or a documentation tree already written in another language keeps that
+  one;
+- documentation and code comments are concise and functional: they say what a
+  reader needs to use or change the code, and never name the tooling that
+  wrote them or the reasons given in the session.
+
+It MUST be guidance only: no text is read or checked. `ospec team` MUST return
+`language` when it is declared and, as text, MUST say that it is not declared
+in an IDD project that lacks it. `ospec next` MUST return the tag as
+`language` on every step of a change that is neither closed nor abandoned, and
+the step a writing command prints MUST carry it, because documentation and
+comments are written before the delivery steps; where it returns `delivery`
+(REQ-idd-023), `delivery.language` MUST hold the resolved language with its
+rules. While `delivery.language` is not declared, `ospec next` MUST add the
+suggestion `language-undeclared` wherever it returns `delivery`, which is
+never a step: the agent proposes the language of the recent commit subjects,
+or the user's when the project has no history, writes it only after approval,
+and until then writes in that language. A configuration that does not parse
+MUST leave both out and MUST NOT change the next step.
+
+#### Scenario: The declared language reaches every step
+
+- GIVEN `delivery: { language: PT-br }` and an open change
+- WHEN `ospec team` and `ospec next` run, at `declare-plan`, while the change
+  is built and at `close`
+- THEN `ospec team` MUST return `pt-BR` with source `idd/config.yaml` and its
+  rules
+- AND every `ospec next` MUST return `language: pt-BR`, with the rules in
+  `delivery.language` at `declare-plan` and `close` only
+- AND no `language-undeclared` suggestion MUST be present
+
+#### Scenario: An undeclared language is suggested, never guessed
+
+- GIVEN an `idd/config.yaml` without `delivery.language`
+- WHEN `ospec next` reaches `declare-plan` or `close`
+- THEN it MUST return no `language` and the suggestion `language-undeclared`,
+  which tells the agent to propose the language of the commit history, or the
+  user's, as a tag
+- AND while the change is built it MUST return neither
+
+#### Scenario: A language name is not a tag
+
+- GIVEN `delivery: { language: Spanish }`, `es_ES` or an empty value
+- WHEN any command reads the configuration
+- THEN it MUST be refused with `config-invalid`, naming `delivery.language`
 
 ### Requirement: Knowledge Records At Close {#REQ-idd-024}
 

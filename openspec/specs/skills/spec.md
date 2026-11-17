@@ -227,26 +227,46 @@ capability needs.
 
 ## 3. Skill Body Structure
 
-Every skill body MUST use sections in this order (omit only sections that are truly
-irrelevant):
+Only the rules of a skill body are read by a program (§4.3); the rest is
+shaped by what the agent needs. A skill body MUST:
 
-1. **Activation Contract** — exact conditions that load or activate the skill.
-2. **Hard Rules** — MUST/MUST NOT constraints the LLM cannot override.
-3. **Decision Gates** — compact tables for meaningful branching choices.
-4. **Execution Steps** — ordered, imperative operational workflow.
-5. **Output Contract** — required return format, artifact list, or response shape.
-6. **References** — local file paths only; no external URLs as primary references.
+1. Open by saying when the skill is used, so an agent that loads it by name
+   can tell at once whether it applies.
+2. Put the rules that must reach SDD sub-agents under a heading whose text
+   ends in `Rules` (`## Rules`, `## Hard Rules`, `## Commit Rules`), as list
+   items or table rows. A skill without such a heading gives sub-agents no
+   compact rules.
+3. Write each rule so that it reads right alone, since it is injected without
+   its section, and so that the result shows whether it was followed.
+4. Name the `ospec` command that prints a value the CLI computes (the review
+   budget, the delivery strategy, the language, an obligation, a gate)
+   instead of restating the value.
+5. Say where the agent stops for the user: commits, pull requests, releases
+   and anything published or irreversible.
+6. Reference local files only, by relative path.
 
-### 3.1 Body Budget
+No section name or order is required beyond the rules heading. The
+recommended order is: when to use, rules, procedure, output, references
+(`skills/skill-creator/references/skill-style-guide.md`). A skill that uses
+other section names, such as `Activation Contract` or `Hard Rules`, conforms
+when it meets the six points above.
 
-| Tier | Limit |
+A skill MUST NOT fix the language of what the agent writes: commit messages,
+pull requests, comments and documentation follow the language of the project
+(`delivery.language`, REQ-idd-029), then the language the project already
+uses, then the user's.
+
+### 3.1 Size
+
+| What | Limit |
 |---|---|
-| Target | 180–450 tokens |
-| Recommended max | 700 tokens |
-| Hard max | 1000 tokens |
+| Compact rules of a skill (§17) | 450 estimated tokens, enforced; 50 to 150 is the target |
+| Rules extracted per skill (§4.3) | The first 15 |
+| `skills/idd/SKILL.md` (REQ-generator-024) | 12 KiB, enforced by `scripts/configure/idd-protocol.test.js` |
 
-When a skill exceeds 200 lines, the registry scanner reads only frontmatter and the
-`Hard Rules` / `Critical Patterns` sections for compact-rule extraction.
+No other limit on the body is enforced. A `SKILL.md` SHOULD hold what every
+use needs and move the rest to `references/`; over 150 lines it SHOULD be
+split.
 
 ### 3.2 SDD Phase Skill Body Convention
 
@@ -314,21 +334,26 @@ Given/When/Then:
 
 - **Given** the body of a SKILL.md (frontmatter stripped),
   **When** `extractCompactRules` processes it,
-  **Then** it scans for `##`–`####` headings whose text matches the pattern
-  `(hard|critical|core|decision)? (rules|patterns|constraints|gates)` (case-insensitive).
+  **Then** it enters a rules section at every `##`–`####` heading whose text
+  ends in `rules`, after at most three other words (`Rules`, `Hard Rules`,
+  `Commit Mode Rules`), or starts with `reglas`, case-insensitive, and leaves
+  it at any other heading. A heading that contains a word starting with `anti`
+  is never a rules section.
 
-- **Given** a matching rules section,
+- **Given** a rules section,
   **When** the scanner reads list items (`-`, `*`, `+`, or `N.`),
-  **Then** each item is stripped of its list marker and added as a compact rule.
+  **Then** each item is stripped of its list marker and added as a compact rule,
+  once.
 
 - **Given** a table row inside a rules section,
   **When** the row is not a separator (`---`) or a header row whose first cell is
   `rule` or `gate`,
-  **Then** the first two columns are joined as `col0: col1 - col2...` and added.
+  **Then** its cells are joined as `col0: col1 - col2...` and added.
 
-- **Given** no matching rules section in the body,
-  **When** `extractCompactRules` exhausts the document,
-  **Then** it falls back to the first 15 list items found anywhere in the body.
+- **Given** no rules section in the body,
+  **When** extraction completes,
+  **Then** the skill has no compact rules: patterns, gates and activation
+  lists are not read, because they mislead once injected out of context.
 
 - **Given** more than 15 candidate rules,
   **When** extraction completes,
@@ -417,15 +442,16 @@ The `skills/branch-pr/SKILL.md` MUST include a section titled `## Multi-Develope
 | Default branch protection | NEVER edit files or commit while on the default branch (e.g., `main`) |
 | Sync coordination | Pull the latest default branch before branching; rebase only a branch never pushed, and once pushed merge the default branch into it, since the hooks deny force-pushing |
 | Parallel work | Each developer works on a dedicated branch; changes are integrated via PR only, never by direct push |
-| Commit conventions | Use Conventional Commits with Spanish imperative; each commit MUST be atomic and buildable |
+| Commit conventions | Use Conventional Commits with the subject in the project's language, imperative; each commit MUST be atomic and buildable |
+| Language | Commit messages and the PR title and body follow the `language` of `ospec team` (REQ-idd-029), then the language of the recent commit subjects, then the user's; no skill fixes a language |
 
-The section SHOULD be 10–20 lines so it remains within the skill body budget (§3.1, skills spec).
+The section SHOULD be 10–20 lines, so the skill stays short (§3.1).
 
 #### Scenario: Multi-developer section present
 
 - GIVEN `skills/branch-pr/SKILL.md` contains the `## Multi-Developer Collaboration` section
 - WHEN the section is read
-- THEN all six strategies in the table above MUST be represented
+- THEN all seven strategies in the table above MUST be represented
 
 #### Scenario: Compact rules include default-branch protection
 

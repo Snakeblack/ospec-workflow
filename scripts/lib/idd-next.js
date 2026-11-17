@@ -269,6 +269,16 @@ function closeOptionSuggestions(delivery) {
     }));
 }
 
+// The language is the user's to declare: nothing recommends one, so the
+// suggestion says where to read it from (REQ-idd-029).
+function languageSuggestion() {
+  return {
+    id: "language-undeclared",
+    reason: "delivery.language is not declared",
+    how: "propose the language of the commit history, or the user's, as a tag (es, pt-BR)",
+  };
+}
+
 function nextForChange(state, { checks, candidateCommand, contractPatterns, knowledge, team, delivery, projectFiles } = {}) {
   const pending = state.obligations
     .filter((obligation) => obligation.status === "pending")
@@ -331,7 +341,11 @@ function nextForChange(state, { checks, candidateCommand, contractPatterns, know
     result.delivery = delivery;
     if (delivery.source === "recommended") suggestions.push(branchingSuggestion(delivery));
     suggestions.push(...closeOptionSuggestions(delivery));
+    if (!delivery.language) suggestions.push(languageSuggestion());
   }
+  // The declared language on every step of a live change: documentation and
+  // comments are written long before the delivery steps return its rules.
+  if (delivery?.language && nextStep.action !== "none") result.language = delivery.language.value;
   if (suggestions.length > 0) result.suggestions = suggestions;
   // The delivery and mentorship the team profile decides (E3.4, REQ-idd-023).
   if (team) result.team = team;
