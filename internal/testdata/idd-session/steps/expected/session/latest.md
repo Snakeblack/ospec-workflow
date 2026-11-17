@@ -2,7 +2,7 @@
 
 - Ended at: `2026-10-09T12:00:00Z`
 - Session: `session-idd`
-- Active change: `s-adr`, `s-boundary`, `s-checks`, `s-checks-changed`, `s-close`, `s-contract`, `s-gate`, `s-limit`, `s-living`, `s-migration`, `s-review`, `s-tdd`, `s-vague` (ambiguous: 13 open changes)
+- Active change: `s-adr`, `s-boundary`, `s-checks`, `s-checks-changed`, `s-close`, `s-contract`, `s-gate`, `s-limit`, `s-living`, `s-migration`, `s-owed`, `s-review`, `s-tdd`, `s-vague` (ambiguous: 14 open changes)
 - Current phase: `multiple`
 - Change status: `multiple`
 - Detailed summary: `None`
@@ -19,6 +19,7 @@ Several changes are open; choose the one to resume:
 - `s-limit` (idd): Resolve the `review-limit` gate with the user: `ospec next --change s-limit` shows what to ask.
 - `s-living` (idd): Satisfy `living-doc` with living-doc-current evidence: the CLI writes the Plan of idd/s-living/change.md from --path and its Decisions from --decision "<text>"; add by hand what they leave out, then ospec close --change s-living.
 - `s-migration` (idd): Satisfy `migration-compat-and-test` with migration-test evidence: ospec run --change s-migration --obligation migration-compat-and-test --command "<migration test>" --plan "<compatibility or rollback>".
+- `s-owed` (idd): Run `ospec next --change s-owed`.
 - `s-review` (idd): Satisfy `trust-review` with frozen-review evidence: ospec review start --change s-review, dispatch review-trust on the returned paths, then ospec review record --change s-review --result '<findings json>'.
 - `s-tdd` (idd): Satisfy `tdd-red-green` with tdd-red-green evidence: ospec run --change s-tdd --obligation tdd-red-green --command "<test>" [--unit <name>]: failing before the code, passing after it, with the test in a test file of the diff; it must also fail against the base product.
 - `s-vague` (idd): Resolve the `ambiguous-intent` gate with the user: `ospec next --change s-vague` shows what to ask.

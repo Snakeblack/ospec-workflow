@@ -38,6 +38,8 @@ Cuenta el turno y deja la traza"]
 
 ### 1. `SessionStart` (Inicio de Sesión)
 - Se ejecuta en cuanto abres tu asistente de IA.
+- Da al modelo cada cambio IDD abierto con su siguiente paso, y a ti una línea con sus nombres, también en un proyecto sin OpenSpec. En Claude Code y Codex vuelve a hacerlo al reanudar o compactar la sesión, y en Copilot CLI al reanudarla; en Cursor, solo con el primer mensaje de cada conversación.
+- En un proyecto con `idd/` guarda la huella con la que empieza la sesión (el árbol de trabajo y el estado de cada cambio abierto), que `Stop` compara.
 - Comprueba si las habilidades cambiaron y regenera la caché (`skill-registry`).
 - Inyecta las variables de entorno y las capacidades del proyecto.
 
@@ -65,4 +67,6 @@ Cuenta el turno y deja la traza"]
 - Se ejecuta al terminar cada turno del agente.
 - Suma uno a `.ospec/turns` en la raíz del proyecto, el primer directorio hacia arriba que tiene `.git`, aunque la sesión esté en un subdirectorio. Con esa cuenta el CLI comprueba que una respuesta a un gate llegó en un turno posterior a la pregunta ([Los nueve gates](/handbook/idd/flujo-idd.md#quién-responde)).
 - Escribe la traza de la sesión en `.ospec/session/latest.md`, con el cambio abierto y el siguiente paso.
-- No bloquea: si no puede contar el turno o escribir la traza, deja continuar con un aviso.
+- Pide al agente que siga cuando un cambio IDD abierto tiene un siguiente paso que no necesita tu respuesta (declarar el plan, satisfacer una obligación o cerrarlo), no hay ningún gate abierto y la huella cambió desde el inicio de la sesión. Lo pide una sola vez por huella, nunca en el turno que ya continúa una petición, y su texto le dice que, si paró para esperarte, termine el turno, y que, si el cambio está sustituido o descartado, te pregunte por `ospec abandon`. Las huellas viven en `.ospec/idd-nudge.json`. Cada host lo recibe en su forma: bloqueo en Claude Code, Codex, VS Code y Copilot CLI, `followup_message` en Cursor, `decision: "continue"` en Antigravity y un prompt del plugin en OpenCode.
+- `DISABLE_IDD_NUDGE=true` apaga la petición y los cambios abiertos del inicio de sesión.
+- No bloquea por un fallo: si no puede contar el turno, escribir la traza o leer el árbol de trabajo, deja continuar con un aviso.

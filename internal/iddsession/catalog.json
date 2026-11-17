@@ -129,5 +129,10 @@
   "gate_statuses": [
     "open",
     "resolved"
+  ],
+  "impact_signals": [
+    "public-contract",
+    "persistent-data",
+    "security-boundary"
   ]
 }

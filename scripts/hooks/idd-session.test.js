@@ -34,7 +34,8 @@ async function runCase(t, caseName) {
   const workspace = copyWorkspace(t, caseName);
   const input = JSON.parse(fs.readFileSync(path.join(CASES_DIR, caseName, "input.json"), "utf8"));
   const compacted = await runPreCompact({ input: { cwd: workspace } });
-  const stopped = await runStop({ input: { cwd: workspace, ...input } });
+  // The trace alone: the nudge (E1.51) has its own cases in idd-nudge/.
+  const stopped = await runStop({ input: { cwd: workspace, ...input }, env: { DISABLE_IDD_NUDGE: "true" } });
   const expectedDir = path.join(CASES_DIR, caseName, "expected");
   for (const file of expectedFiles(expectedDir).sort()) {
     assert.equal(
@@ -72,7 +73,9 @@ test("several open changes are listed without choosing one, SDD first and IDD by
 
 test("every kind of next step is written as ospec next gives it", async (t) => {
   const { stopped } = await runCase(t, "steps");
-  assert.equal(stopped.openChanges.length, 13);
+  // s-owed is a feature that owes a question (ask-open-facts, E1.75), which
+  // the Go hooks write the same way since E1.51.
+  assert.equal(stopped.openChanges.length, 14);
 });
 
 test("malformed open states are skipped and the valid change is written as if alone", async (t) => {

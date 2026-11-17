@@ -12,7 +12,8 @@ module.exports = {
   commandFile: { from: ".prompt.md", to: ".prompt.md" },
   // VS Code's PostToolUse cannot replace a tool result, so the E1.27
   // redaction hook would only inject its note over the original output.
-  hooks: { omitEvents: ["PostToolUse"] },
+  // hostFlag: VS Code reads a Stop decision only inside hookSpecificOutput (E1.51).
+  hooks: { omitEvents: ["PostToolUse"], hostFlag: "vscode" },
   model: true,
   validate: ["node", "scripts/configure/validate-vscode.js", "{out}"],
 };

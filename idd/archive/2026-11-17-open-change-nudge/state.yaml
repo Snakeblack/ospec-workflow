@@ -1,0 +1,859 @@
+{
+  "schema": "idd-state/v1",
+  "change": "open-change-nudge",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "kind": "feature",
+    "summary": "El Stop de cada host pide al agente que siga, una sola vez por cambio y huella, cuando un cambio IDD abierto que la sesión tocó tiene trabajo pendiente y ningún gate abierto; SessionStart inyecta al modelo el paso de cada cambio IDD abierto, también sin openspec/config.yaml (E1.51).",
+    "acceptance": "Con un cambio IDD abierto con obligaciones pendientes, sin gates abiertos y el árbol cambiado en la sesión, el Stop de cada uno de los 7 targets devuelve la petición de seguir en el formato de su host, y un segundo Stop con la misma huella devuelve continue; con un gate abierto, sin cambios en la sesión o con la marca de continuación del host no pide nada; SessionStart en un proyecto con idd/ y sin openspec/config.yaml entrega al modelo el paso de cada cambio abierto; los validadores de los targets fijan la matriz y Node y Go dan la misma salida."
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Qué pasos de ospec next piden seguir al terminar el turno? Propuesta: satisfy-obligation, declare-plan y también close (todo satisfecho pero sin cerrar, justo el caso que la sesión siguiente no ve); no piden seguir resolve-gate (parada legítima) ni configure-checks (espera que el usuario apruebe el comando de checks). Con varios cambios abiertos, una sola petición que nombra cada cambio con uno de esos pasos."
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿Qué cuenta como el mismo árbol y como que el árbol cambió en la sesión? Propuesta: la huella de readTreeFingerprint (HEAD, diff y no rastreados, sin idd/) más el estado de cada cambio abierto, así que resolver un gate o registrar evidencia y parar también cuenta; la línea base es la huella que guarda el inicio de la sesión (SessionStart, o el primer beforeSubmitPrompt en Cursor) y, si falta, la del primer Stop de esa sesión, que entonces no pide nada. Una huella ya pedida no vuelve a pedir nunca, en ninguna sesión."
+      },
+      {
+        "category": "persistence",
+        "question": "La línea base de cada sesión y las huellas ya pedidas se guardan en un fichero de .ospec/ (fuera de git), recortado a las sesiones más recientes. Si falta o está corrupto, ¿se empieza de cero como .ospec/turns (como mucho una petición repetida una vez) o Stop calla hasta que la sesión vuelva a tener línea base?"
+      },
+      {
+        "category": "copy",
+        "question": "La petición de seguir va en inglés, como el resto del texto para el modelo: cada cambio con su paso (la línea de describeStep) y dos salidas, si paraste para esperar una respuesta del usuario dilo y vuelve a terminar el turno, y si el cambio está sustituido o descartado pregunta al usuario por ospec abandon. Al inicio de la sesión, ¿el paso va solo al modelo o también una línea visible para el usuario (systemMessage, como los avisos de seguridad y de git) en los hosts que la muestran?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1093
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1092
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Si la huella no se puede calcular (git falla, no hay repositorio, se agota el plazo del hook) o el estado de un cambio no se lee, propuesta: Stop no pide seguir, devuelve continue con un systemMessage que dice por qué, y SessionStart inyecta lo que pudo leer. ¿Y un interruptor que apague la petición y la inyección, DISABLE_IDD_NUDGE=true en el entorno como DISABLE_GIT_COLLABORATION_GUARD, o ninguno?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "docs/target-capabilities.md",
+      "internal/hooks/sessionstart.go",
+      "internal/hooks/stop.go",
+      "internal/iddsession/iddsession.go",
+      "openspec/specs/hooks/spec.md",
+      "scripts/configure/validate-antigravity.js",
+      "scripts/configure/validate-codex.js",
+      "scripts/configure/validate-cursor.js",
+      "scripts/configure/validate-github-copilot.js",
+      "scripts/configure/validate-opencode.js",
+      "scripts/configure/validate-vscode.js",
+      "scripts/hooks/lib/idd-session.js",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/session-start.js",
+      "scripts/hooks/stop.js",
+      "scripts/lib/target-profiles/github-copilot.js",
+      "scripts/lib/target-profiles/opencode-plugin.js",
+      "scripts/lib/target-profiles/vscode.js",
+      "scripts/lib/target-transform.js"
+    ],
+    "work_units": 4,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Piden seguir los pasos satisfy-obligation, declare-plan y close; resolve-gate y configure-checks no. Con varios cambios abiertos va una sola petición que los nombra a todos.",
+      "La huella es readTreeFingerprint más el estado de cada cambio IDD abierto; la línea base de la sesión la guarda su inicio (SessionStart, o el primer beforeSubmitPrompt en Cursor) y, si falta, el primer Stop de la sesión, que entonces no pide nada. Una huella ya pedida no vuelve a pedir en ninguna sesión.",
+      "Las líneas base y las huellas pedidas viven en un fichero de .ospec/ recortado a las sesiones más recientes; si falta o está corrupto se empieza de cero, como .ospec/turns.",
+      "La petición (en inglés) da el paso de cada cambio y dos salidas: esperar al usuario y terminar el turno, o preguntarle por ospec abandon si el cambio está sustituido o descartado. Al inicio, el paso va al modelo y una línea al usuario donde el host la muestra.",
+      "Sin huella o sin estado legible el Stop no pide seguir y devuelve continue con un systemMessage que dice por qué; DISABLE_IDD_NUDGE=true apaga la petición y la inyección.",
+      "VS Code y Copilot llevan una marca de host en los comandos generados, porque VS Code solo lee la decisión dentro de hookSpecificOutput y Copilot lee additionalContext en el nivel superior; Codex recibe solo decision y reason, porque rechaza cualquier otra clave.",
+      "La huella no reutiliza readTreeFingerprint: la calculan los hooks (idd-nudge.js e iddnudge.go) sobre los bytes crudos de git, para que Node y Go den el mismo valor, y deja fuera idd/<cambio>/ y todo .ospec/; el estado de cada cambio abierto entra por su state.yaml.",
+      "SessionStart guarda la huella inicial en cualquier proyecto con idd/, aunque no haya cambios abiertos, para que un cambio abierto en la misma sesión pueda pedir seguir en su primer Stop.",
+      "Go aprende el paso ask-open-facts de E1.75 (owedQuestion), con impact_signals en el catálogo embebido, porque la acción del paso decide si se pide seguir y su versión del siguiente paso no lo conocía."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/lib/idd-session.js and 3 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components generator, hooks: ADR 0001, 0008, 0010 and quality scenario guard-fail-closed, offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/idd-catalog.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El protocolo de cada host sale del mismo hooks/hooks.json: el lanzador traduce la salida y la transformación de VS Code y Copilot añade la marca de host a sus comandos; no se edita a mano ningún árbol generado y el golden de cada target se regenera."
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "La petición de seguir y la inyección solo informan, así que fallan abiertas: sin huella o sin estado legible el Stop devuelve continue con un aviso; los guards de seguridad no cambian."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo biblioteca estándar en Node y en Go; la huella y el registro se portan al binario y la paridad la fijan los golden compartidos."
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "none",
+      "reason": "Ni la petición de seguir ni la inyección deciden sobre operaciones destructivas o secretos; los guards de PreToolUse y de git no cambian."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "La huella y el registro son locales (git y .ospec/), sin red ni memoria entre sesiones; la reanudación sale del estado en disco."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "La matriz de cada target sale de la fuente canónica y la fijan sus validadores y los golden regenerados."
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La decisión de pedir seguir la calcula código con tests (idd-nudge.js, iddnudge.go) a partir de la acción de nextForChange; el texto para el modelo cita los comandos de ospec y no reimplementa ninguna regla en prosa."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "El cambio no toca la derivación de señales ni las obligaciones; los hooks solo leen el siguiente paso que ya calcula el CLI."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "La petición de seguir recuerda que un cambio solo está hecho tras ospec close y nunca satisface una obligación: el cierre sigue ligado a la evidencia que registra el CLI."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "Los hooks solo leen idd/ para el nudge y no tocan el estado de SDD; los cambios SDD no piden seguir."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "La sesión nueva recibe al empezar el paso de cada cambio abierto calculado desde su estado en disco, el mismo que devuelve ospec next; los casos compartidos fijan que Node y Go den el mismo paso, también ask-open-facts."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "El cambio no añade órdenes a ospec (scripts/ospec.js sin cambios) ni toca skills/. La regla del nudge vive en scripts/hooks/lib/idd-nudge.js e internal/hooks/iddnudge.go, con tests en idd-nudge.test.js, idd-nudge.parity.test.js e iddnudge_test.go; el texto para el modelo cita ospec next, ospec close y ospec abandon sin reescribir la regla.",
+      "recorded_at": "2026-11-17T01:38:09.362Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "idd-nudge.js solo importa node:crypto, node:fs, node:path, node:child_process (git local) y módulos locales; iddnudge.go solo la biblioteca estándar y git local; el plugin de OpenCode no añade fetch ni red. next, check y close no cambian: el nudge solo lee el estado y escribe .ospec/idd-nudge.json.",
+      "recorded_at": "2026-11-17T01:38:09.534Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 426,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_turn": 427
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-17T01:37:28.423Z",
+      "detail": {
+        "run": "run-12",
+        "tree": "sha256:96f75bb01d13a26b66cd6a1a9f5567817449c4a9d1264e471944da94afb74a00",
+        "plan": "El registro .ospec/idd-nudge.json es nuevo y no hay formato anterior que migrar. Un registro que falta, está corrupto o tiene entradas mal formadas se lee vacío o sin ellas, en Node y en Go, y como mucho repite una petición una vez. Rollback: borrar el fichero (está bajo .ospec/, ignorado por git) o DISABLE_IDD_NUDGE=true. catalog.json solo gana impact_signals, que un binario anterior ignora."
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T01:39:55.067Z",
+      "detail": {
+        "tree": "sha256:a99f117c53c831dc358962faa2999875f88d8f4b4989a0c72811fbf7dc4d762b",
+        "runs": [
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T01:39:55.067Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed none",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms",
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms"
+        ],
+        "records": [],
+        "tree": "sha256:a99f117c53c831dc358962faa2999875f88d8f4b4989a0c72811fbf7dc4d762b",
+        "fitness": [
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-17T01:43:06.457Z",
+      "detail": {
+        "lineage_id": "sha256:667e8c374336dcd1b1aa71f9e56f52cdcc67a09d736d437e17daf1b7838ee629",
+        "candidate_id": "sha256:310d25d39b9a15a47f316b7136cdfdad33db5b7b714af19d79aac3d66619c1f5",
+        "candidate_tree": "584e0c5e9b81cc9abaf524e7421d1e1a04404f0a",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-17T01:42:40.368Z",
+          "result_digest": "sha256:373972e95a8038802a428f93966357567ea51259b499e98c6451646c7a7853a4"
+        }
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-17T01:43:45.641Z"
+    }
+  ],
+  "base": "1c85202b55f69e2e43ead15ccd98b09e4a0de60c",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:6c8d224e1ecf79d8871b6b78cb2ed666b522822f694c544b783c104f5856f312",
+      "tree": "sha256:26b7214b18b783a0f83df6790312aacbae8827a80ff8b9a1e913f245d659a55f",
+      "recorded_at": "2026-11-17T01:34:00.878Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:50934a10e4865d055685a46455b12c9633f93b350122d4e42ca15cdca263c95d",
+      "tree": "sha256:26b7214b18b783a0f83df6790312aacbae8827a80ff8b9a1e913f245d659a55f",
+      "recorded_at": "2026-11-17T01:34:00.878Z",
+      "tests": 48
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:19f9a6c3b7cb457d9dbde33258a96ac6e978826223e8c01f5372a0d4e39347b5",
+      "tree": "sha256:26b7214b18b783a0f83df6790312aacbae8827a80ff8b9a1e913f245d659a55f",
+      "recorded_at": "2026-11-17T01:34:00.878Z",
+      "tests": 99
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:26b7214b18b783a0f83df6790312aacbae8827a80ff8b9a1e913f245d659a55f",
+      "recorded_at": "2026-11-17T01:34:00.878Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:684f3828daf0835a8f590723185f6d707b7efaae196e1f6b6610d0b86f5fb567",
+      "tree": "sha256:26b7214b18b783a0f83df6790312aacbae8827a80ff8b9a1e913f245d659a55f",
+      "recorded_at": "2026-11-17T01:34:00.878Z",
+      "tests": 26
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8f5f72bbd5e0b8c056d64359b501eaaaf659b802a9d3eaa982bf604f9a0222d6",
+      "tree": "sha256:26b7214b18b783a0f83df6790312aacbae8827a80ff8b9a1e913f245d659a55f",
+      "recorded_at": "2026-11-17T01:34:00.878Z",
+      "tests": 99
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7e38b65cf0e90d70ca248f5b4432f2db6b8ee314b73e119d6c42b8dcd247495d",
+      "tree": "sha256:26b7214b18b783a0f83df6790312aacbae8827a80ff8b9a1e913f245d659a55f",
+      "recorded_at": "2026-11-17T01:34:00.878Z",
+      "tests": 48
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3b73ec6c5a00628093de98d42311481594a16aa1015a101f7bc81b9cb7a303b1",
+      "tree": "sha256:26b7214b18b783a0f83df6790312aacbae8827a80ff8b9a1e913f245d659a55f",
+      "recorded_at": "2026-11-17T01:34:00.878Z",
+      "tests": 61
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1fa8d04a1a4a8aba5ebdc71d68111120ef081396d72aae53e8c17f9d380eb22f",
+      "tree": "sha256:26b7214b18b783a0f83df6790312aacbae8827a80ff8b9a1e913f245d659a55f",
+      "recorded_at": "2026-11-17T01:34:00.878Z",
+      "tests": 19
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:13f71d2188491893700513165c503b04e6d3b3e79458398b1d18bc296891078d",
+      "tree": "sha256:26b7214b18b783a0f83df6790312aacbae8827a80ff8b9a1e913f245d659a55f",
+      "recorded_at": "2026-11-17T01:34:00.878Z",
+      "tests": 96
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c0a013ed318abd4c47725fb2a5d18e1ae2045b605b19970ad82bf98cf8658a3a",
+      "tree": "sha256:26b7214b18b783a0f83df6790312aacbae8827a80ff8b9a1e913f245d659a55f",
+      "recorded_at": "2026-11-17T01:34:00.878Z",
+      "tests": 53
+    },
+    {
+      "id": "run-12",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/lib/idd-nudge.test.js scripts/hooks/lib/idd-nudge.parity.test.js && go test ./internal/hooks/ -run IddNudge",
+      "exit_code": 0,
+      "output_sha256": "sha256:d2fb727bc43aecc1b21a0981abbc12c5ef39e677e61a85044f57a6973fbc60be",
+      "tree": "sha256:96f75bb01d13a26b66cd6a1a9f5567817449c4a9d1264e471944da94afb74a00",
+      "recorded_at": "2026-11-17T01:37:28.423Z",
+      "tests": 19
+    },
+    {
+      "id": "run-13",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:505775a59c5ce4caafe8c62d929a10d995917b3aa44e72ded5c0a4a86c4e20d0",
+      "tree": "sha256:a99f117c53c831dc358962faa2999875f88d8f4b4989a0c72811fbf7dc4d762b",
+      "recorded_at": "2026-11-17T01:39:55.067Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:82192d1802296af12bdf2054beec8bffe070f8df57777b6827c25bfc46f96120",
+      "tree": "sha256:a99f117c53c831dc358962faa2999875f88d8f4b4989a0c72811fbf7dc4d762b",
+      "recorded_at": "2026-11-17T01:39:55.067Z",
+      "tests": 48
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ced4ed616b9dce1732e2a609c69e529b314c66e3097bd6aedf2ea898add4a26c",
+      "tree": "sha256:a99f117c53c831dc358962faa2999875f88d8f4b4989a0c72811fbf7dc4d762b",
+      "recorded_at": "2026-11-17T01:39:55.067Z",
+      "tests": 99
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:a99f117c53c831dc358962faa2999875f88d8f4b4989a0c72811fbf7dc4d762b",
+      "recorded_at": "2026-11-17T01:39:55.067Z"
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2e30aaed72d868ce2901445ea4a69d2f94f687b75c53e0d11a659f4b633aec07",
+      "tree": "sha256:a99f117c53c831dc358962faa2999875f88d8f4b4989a0c72811fbf7dc4d762b",
+      "recorded_at": "2026-11-17T01:39:55.067Z",
+      "tests": 26
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9aff517da2acf83a5a31a43f52bf0cd4ee42cb0b13a48b5873cb5896a176d512",
+      "tree": "sha256:a99f117c53c831dc358962faa2999875f88d8f4b4989a0c72811fbf7dc4d762b",
+      "recorded_at": "2026-11-17T01:39:55.067Z",
+      "tests": 99
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7f363713b3de47bc7fea7d9b8a0ddbf2c4ef1887162173e939b58b7dfbdf3af8",
+      "tree": "sha256:a99f117c53c831dc358962faa2999875f88d8f4b4989a0c72811fbf7dc4d762b",
+      "recorded_at": "2026-11-17T01:39:55.067Z",
+      "tests": 48
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1f4da52cf444a5f8808329ffa3b5043041badb974be0ef2dcd25c94a588c6d47",
+      "tree": "sha256:a99f117c53c831dc358962faa2999875f88d8f4b4989a0c72811fbf7dc4d762b",
+      "recorded_at": "2026-11-17T01:39:55.067Z",
+      "tests": 61
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:128e906139b85d2231ed49b04cdcb2a3f70d24579739bb1d7b99582c9358b981",
+      "tree": "sha256:a99f117c53c831dc358962faa2999875f88d8f4b4989a0c72811fbf7dc4d762b",
+      "recorded_at": "2026-11-17T01:39:55.067Z",
+      "tests": 19
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:83f024341cc0ca8d2593dcf1a94755a259e77dbb24ec3e03e425ee20eff20122",
+      "tree": "sha256:a99f117c53c831dc358962faa2999875f88d8f4b4989a0c72811fbf7dc4d762b",
+      "recorded_at": "2026-11-17T01:39:55.067Z",
+      "tests": 96
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2a98fd4b8d57008afb326b1cf22149b0bbae0eae40c9aa409f6e32225cf2c52b",
+      "tree": "sha256:a99f117c53c831dc358962faa2999875f88d8f4b4989a0c72811fbf7dc4d762b",
+      "recorded_at": "2026-11-17T01:39:55.067Z",
+      "tests": 53
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:667e8c374336dcd1b1aa71f9e56f52cdcc67a09d736d437e17daf1b7838ee629",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "3aad5c7ae1cdab6c0ccd178fd4bae35748aa5e86",
+          "candidate_tree": "584e0c5e9b81cc9abaf524e7421d1e1a04404f0a",
+          "paths": [
+            "README.es.md",
+            "README.md",
+            "docs/roadmaps/harness-evolution.md",
+            "docs/target-capabilities.md",
+            "handbook/proteccion/hooks.md",
+            "internal/hooks/export_test.go",
+            "internal/hooks/iddnudge.go",
+            "internal/hooks/iddnudge_test.go",
+            "internal/hooks/iddsession_golden_test.go",
+            "internal/hooks/sessionstart.go",
+            "internal/hooks/stop.go",
+            "internal/iddsession/catalog.json",
+            "internal/iddsession/iddsession.go",
+            "internal/testdata/idd-nudge/README.md",
+            "internal/testdata/idd-nudge/case.json",
+            "internal/testdata/idd-nudge/workspace/.gitignore",
+            "internal/testdata/idd-nudge/workspace/app.js",
+            "internal/testdata/idd-nudge/workspace/idd/config.yaml",
+            "internal/testdata/idd-nudge/workspace/idd/fix-a/state.yaml",
+            "internal/testdata/idd-nudge/workspace/idd/s-close/state.yaml",
+            "internal/testdata/idd-session/steps/expected/session/latest.md",
+            "internal/testdata/idd-session/steps/expected/session/s-owed/session-summary.md",
+            "internal/testdata/idd-session/steps/workspace/idd/s-owed/state.yaml",
+            "openspec/specs/hooks/spec.md",
+            "scripts/configure/__fixtures__/golden/github-copilot/.github/hooks/hooks.json",
+            "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+            "scripts/configure/cli.test.js",
+            "scripts/configure/install-global-copilot.test.js",
+            "scripts/configure/validate-antigravity.js",
+            "scripts/configure/validate-antigravity.test.js",
+            "scripts/configure/validate-codex.js",
+            "scripts/configure/validate-codex.test.js",
+            "scripts/configure/validate-cursor.js",
+            "scripts/configure/validate-cursor.test.js",
+            "scripts/configure/validate-github-copilot.js",
+            "scripts/configure/validate-github-copilot.test.js",
+            "scripts/configure/validate-opencode.js",
+            "scripts/configure/validate-opencode.test.js",
+            "scripts/configure/validate-vscode.js",
+            "scripts/configure/validate-vscode.test.js",
+            "scripts/hooks/idd-session.test.js",
+            "scripts/hooks/lib/idd-nudge.js",
+            "scripts/hooks/lib/idd-nudge.parity.test.js",
+            "scripts/hooks/lib/idd-nudge.test.js",
+            "scripts/hooks/lib/idd-session.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/hooks/session-start.js",
+            "scripts/hooks/session-start.test.js",
+            "scripts/hooks/stop.js",
+            "scripts/hooks/stop.test.js",
+            "scripts/lib/idd-catalog.js",
+            "scripts/lib/target-profiles/github-copilot.js",
+            "scripts/lib/target-profiles/opencode-plugin.js",
+            "scripts/lib/target-profiles/opencode-plugin.test.js",
+            "scripts/lib/target-profiles/vscode.js",
+            "scripts/lib/target-transform.js",
+            "scripts/lib/target-transform.test.js"
+          ],
+          "diff_hash": "sha256:860390946a6e7e7707517a64ba309a6c93cd8c304a4bb7031738ad5d1f3923f3",
+          "paths_digest": "sha256:074d8d95ef4909ff81160efdcd50bbb98807d453755c11ea79a782e8aeb61d68",
+          "authored_lines": 2578,
+          "original_changed_lines": 2682
+        },
+        "candidate_id": "sha256:310d25d39b9a15a47f316b7136cdfdad33db5b7b714af19d79aac3d66619c1f5",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "handbook/proteccion/hooks.md",
+          "internal/hooks/export_test.go",
+          "internal/hooks/iddnudge.go",
+          "internal/hooks/iddnudge_test.go",
+          "internal/hooks/iddsession_golden_test.go",
+          "internal/hooks/sessionstart.go",
+          "internal/hooks/stop.go",
+          "internal/iddsession/catalog.json",
+          "internal/iddsession/iddsession.go",
+          "internal/testdata/idd-nudge/README.md",
+          "internal/testdata/idd-nudge/case.json",
+          "internal/testdata/idd-nudge/workspace/.gitignore",
+          "internal/testdata/idd-nudge/workspace/app.js",
+          "internal/testdata/idd-nudge/workspace/idd/config.yaml",
+          "internal/testdata/idd-nudge/workspace/idd/fix-a/state.yaml",
+          "internal/testdata/idd-nudge/workspace/idd/s-close/state.yaml",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-owed/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-owed/state.yaml",
+          "openspec/specs/hooks/spec.md",
+          "scripts/configure/__fixtures__/golden/github-copilot/.github/hooks/hooks.json",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/install-global-copilot.test.js",
+          "scripts/configure/validate-antigravity.js",
+          "scripts/configure/validate-antigravity.test.js",
+          "scripts/configure/validate-codex.js",
+          "scripts/configure/validate-codex.test.js",
+          "scripts/configure/validate-cursor.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/configure/validate-github-copilot.js",
+          "scripts/configure/validate-github-copilot.test.js",
+          "scripts/configure/validate-opencode.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/configure/validate-vscode.js",
+          "scripts/configure/validate-vscode.test.js",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/hooks/lib/idd-nudge.js",
+          "scripts/hooks/lib/idd-nudge.parity.test.js",
+          "scripts/hooks/lib/idd-nudge.test.js",
+          "scripts/hooks/lib/idd-session.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/session-start.js",
+          "scripts/hooks/session-start.test.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-catalog.js",
+          "scripts/lib/target-profiles/github-copilot.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/target-profiles/vscode.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "584e0c5e9b81cc9abaf524e7421d1e1a04404f0a",
+        "original_changed_lines": 2682,
+        "authored_lines": 2578
+      },
+      "current_candidate_id": "sha256:310d25d39b9a15a47f316b7136cdfdad33db5b7b714af19d79aac3d66619c1f5",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "3aad5c7ae1cdab6c0ccd178fd4bae35748aa5e86",
+        "candidate_tree": "584e0c5e9b81cc9abaf524e7421d1e1a04404f0a",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "handbook/proteccion/hooks.md",
+          "internal/hooks/export_test.go",
+          "internal/hooks/iddnudge.go",
+          "internal/hooks/iddnudge_test.go",
+          "internal/hooks/iddsession_golden_test.go",
+          "internal/hooks/sessionstart.go",
+          "internal/hooks/stop.go",
+          "internal/iddsession/catalog.json",
+          "internal/iddsession/iddsession.go",
+          "internal/testdata/idd-nudge/README.md",
+          "internal/testdata/idd-nudge/case.json",
+          "internal/testdata/idd-nudge/workspace/.gitignore",
+          "internal/testdata/idd-nudge/workspace/app.js",
+          "internal/testdata/idd-nudge/workspace/idd/config.yaml",
+          "internal/testdata/idd-nudge/workspace/idd/fix-a/state.yaml",
+          "internal/testdata/idd-nudge/workspace/idd/s-close/state.yaml",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-owed/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-owed/state.yaml",
+          "openspec/specs/hooks/spec.md",
+          "scripts/configure/__fixtures__/golden/github-copilot/.github/hooks/hooks.json",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/install-global-copilot.test.js",
+          "scripts/configure/validate-antigravity.js",
+          "scripts/configure/validate-antigravity.test.js",
+          "scripts/configure/validate-codex.js",
+          "scripts/configure/validate-codex.test.js",
+          "scripts/configure/validate-cursor.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/configure/validate-github-copilot.js",
+          "scripts/configure/validate-github-copilot.test.js",
+          "scripts/configure/validate-opencode.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/configure/validate-vscode.js",
+          "scripts/configure/validate-vscode.test.js",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/hooks/lib/idd-nudge.js",
+          "scripts/hooks/lib/idd-nudge.parity.test.js",
+          "scripts/hooks/lib/idd-nudge.test.js",
+          "scripts/hooks/lib/idd-session.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/session-start.js",
+          "scripts/hooks/session-start.test.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/idd-catalog.js",
+          "scripts/lib/target-profiles/github-copilot.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/target-profiles/vscode.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "diff_hash": "sha256:860390946a6e7e7707517a64ba309a6c93cd8c304a4bb7031738ad5d1f3923f3",
+        "paths_digest": "sha256:074d8d95ef4909ff81160efdcd50bbb98807d453755c11ea79a782e8aeb61d68",
+        "authored_lines": 2578,
+        "original_changed_lines": 2682
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "open-change-nudge:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "open-change-nudge:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-11-17T01:43:45.641Z"
+}

@@ -54,6 +54,7 @@ type catalogFile struct {
 	IntentKinds        []string `json:"intent_kinds"`
 	ObligationStatuses []string `json:"obligation_statuses"`
 	GateStatuses       []string `json:"gate_statuses"`
+	ImpactSignals      []string `json:"impact_signals"`
 }
 
 var (
@@ -74,6 +75,9 @@ var (
 	intentKinds        map[string]bool
 	obligationStatuses map[string]bool
 	gateStatuses       map[string]bool
+	// impactSignals is IMPACT_SIGNALS of idd-impact.js: a feature with one of
+	// them owes a question (E1.75).
+	impactSignals map[string]bool
 )
 
 func setOf(ids []string) map[string]bool {
@@ -104,6 +108,7 @@ func init() {
 	intentKinds = setOf(catalog.IntentKinds)
 	obligationStatuses = setOf(catalog.ObligationStatuses)
 	gateStatuses = setOf(catalog.GateStatuses)
+	impactSignals = setOf(catalog.ImpactSignals)
 }
 
 type idStatus struct {
@@ -122,6 +127,9 @@ type State struct {
 		Kind    *string `json:"kind"`
 		Summary *string `json:"summary"`
 	} `json:"intent"`
+	Facts *struct {
+		Coverage json.RawMessage `json:"coverage"`
+	} `json:"facts"`
 	Plan    json.RawMessage `json:"plan"`
 	Signals []*struct {
 		ID     string `json:"id"`
@@ -134,11 +142,15 @@ type State struct {
 	Runs        []json.RawMessage `json:"runs"`
 }
 
-// Entry is an open IDD change with the next step the session files show.
+// Entry is an open IDD change with the next step the session files show:
+// Action is the step's action and GateOpen whether a gate waits for the user
+// (E1.51).
 type Entry struct {
 	Change     string
 	State      *State
 	NextAction string
+	Action     string
+	GateOpen   bool
 }
 
 // Read returns the open IDD changes of workspace, by id, with their next
@@ -151,7 +163,13 @@ func Read(workspace string) []Entry {
 	hasChecks := checksDeclared(workspace)
 	entries := make([]Entry, 0, len(states))
 	for _, state := range states {
-		entries = append(entries, Entry{Change: state.Change, State: state, NextAction: DescribeStep(state, hasChecks)})
+		entries = append(entries, Entry{
+			Change:     state.Change,
+			State:      state,
+			NextAction: DescribeStep(state, hasChecks),
+			Action:     StepAction(state, hasChecks),
+			GateOpen:   len(state.OpenGates()) > 0,
+		})
 	}
 	return entries
 }
@@ -367,28 +385,87 @@ func (s *State) planDeclared() bool {
 	return len(s.Runs) > 0
 }
 
+// owesQuestion mirrors owedQuestion of idd-contract.js (E1.75): an open
+// feature with a public contract, persistent data or a security boundary
+// whose coverage asks no category, unless a gate before open-facts is open.
+func (s *State) owesQuestion() bool {
+	if s.Status != "open" || s.Intent == nil || s.Intent.Kind == nil || *s.Intent.Kind != "feature" || s.Facts == nil {
+		return false
+	}
+	var coverage []json.RawMessage
+	if json.Unmarshal(s.Facts.Coverage, &coverage) != nil || coverage == nil {
+		return false
+	}
+	for _, raw := range coverage {
+		var entry map[string]json.RawMessage
+		if json.Unmarshal(raw, &entry) != nil {
+			continue
+		}
+		// typeof question === "string": null or another type does not ask.
+		if question := strings.TrimSpace(string(entry["question"])); strings.HasPrefix(question, "\"") {
+			return false
+		}
+	}
+	risky := false
+	for _, signal := range s.Signals {
+		if impactSignals[signal.ID] {
+			risky = true
+			break
+		}
+	}
+	if !risky {
+		return false
+	}
+	openFacts := indexOf(gateOrder, "open-facts")
+	for _, gate := range s.Gates {
+		if gate.Status == "open" && indexOf(gateOrder, gate.ID) < openFacts {
+			return false
+		}
+	}
+	return true
+}
+
+// StepAction is the action of nextForChange of idd-next.js for an open
+// change (E1.51).
+func StepAction(s *State, hasChecks bool) string {
+	if s.owesQuestion() {
+		return "ask-open-facts"
+	}
+	// Every gate is the user's decision, taken before the work it decides.
+	if len(s.OpenGates()) > 0 {
+		return "resolve-gate"
+	}
+	if !s.planDeclared() {
+		return "declare-plan"
+	}
+	if pending := s.PendingObligations(); len(pending) > 0 {
+		if !hasChecks && checksRequired[pending[0]] {
+			return "configure-checks"
+		}
+		return "satisfy-obligation"
+	}
+	return "close"
+}
+
 // DescribeStep is describeStep of idd-session.js: the next step of an open
 // change, as one line of the session files.
 func DescribeStep(s *State, hasChecks bool) string {
 	change := s.Change
-	resolveGate := func(gate string) string {
-		return "Resolve the `" + gate + "` gate with the user: `ospec next --change " + change + "` shows what to ask."
-	}
-	// Every gate is the user's decision, taken before the work it decides.
-	if open := s.OpenGates(); len(open) > 0 {
-		return resolveGate(open[0])
-	}
-	if !s.planDeclared() {
+	switch StepAction(s, hasChecks) {
+	case "resolve-gate":
+		return "Resolve the `" + s.OpenGates()[0] + "` gate with the user: `ospec next --change " + change + "` shows what to ask."
+	case "declare-plan":
 		return "Declare the plan: `ospec signals --change " + change + " [--path <file>]... [--work-units <n>] [--decision \"<text>\"]... [--operation <op>]`."
-	}
-	if pending := s.PendingObligations(); len(pending) > 0 {
-		first := pending[0]
-		if !hasChecks && checksRequired[first] {
-			return "Configure the project checks before `checks-pass`: `ospec next --change " + change + "` proposes the command, which needs the user's approval."
-		}
+	case "configure-checks":
+		return "Configure the project checks before `checks-pass`: `ospec next --change " + change + "` proposes the command, which needs the user's approval."
+	case "satisfy-obligation":
+		first := s.PendingObligations()[0]
 		return "Satisfy `" + first + "` with " + evidenceKinds[first] + " evidence: " + strings.ReplaceAll(how[first], changePlaceholder, change) + "."
+	case "close":
+		return "Close it: `ospec close --change " + change + "`."
+	default:
+		return "Run `ospec next --change " + change + "`."
 	}
-	return "Close it: `ospec close --change " + change + "`."
 }
 
 func renderList(values []string) string {

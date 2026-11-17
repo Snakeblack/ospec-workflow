@@ -334,3 +334,41 @@ test("a turn end with a cwd that does not exist is counted in the hook's directo
   assert.equal(await fs.readFile(path.join(workspace, ".ospec", "turns"), "utf8"), "1\n");
   await assert.rejects(fs.access(path.join(workspace, "ghost")));
 });
+
+// E1.51: a real IDD change, opened by the CLI in a git repository.
+function iddProject(t) {
+  const root = require("node:fs").mkdtempSync(path.join(os.tmpdir(), "stop-nudge-"));
+  t.after(() => require("node:fs").rmSync(root, { recursive: true, force: true }));
+  execFileSync("git", ["-C", root, "init", "-q", "-b", "main"]);
+  const ospec = (...args) => execFileSync(process.execPath, [path.join(__dirname, "..", "ospec.js"), ...args, "--root", root], { encoding: "utf8" });
+  ospec("record", "intent", "--change", "fix-a", "--kind", "bug", "--summary", "Fix a.", "--acceptance", "a works.", "--no-open-facts", "--basis", "a one-line fix");
+  return { root, ospec };
+}
+
+test("Stop asks once to continue an open IDD change the session moved", async (t) => {
+  const { root } = iddProject(t);
+  execFileSync(process.execPath, [path.join(__dirname, "session-start.js")], { input: JSON.stringify({ cwd: root, session_id: "s1" }), encoding: "utf8" });
+  assert.equal(runStopProcess({ cwd: root, session_id: "s1" }), '{"continue":true}\n', "nothing moved yet");
+  await fs.writeFile(path.join(root, "a.js"), "module.exports = 1;\n");
+  const asked = JSON.parse(runStopProcess({ cwd: root, session_id: "s1" }));
+  assert.deepEqual(Object.keys(asked), ["decision", "reason"]);
+  assert.equal(asked.decision, "block");
+  assert.match(asked.reason, /- `fix-a`: Declare the plan: `ospec signals --change fix-a/);
+  assert.equal(runStopProcess({ cwd: root, session_id: "s1" }), '{"continue":true}\n', "never twice for the same tree");
+});
+
+test("Stop asks nothing while a gate of an open IDD change waits for the user", async (t) => {
+  const { root, ospec } = iddProject(t);
+  ospec("record", "gate", "--change", "fix-a", "--gate", "irreversible-operation", "--open", "--reason", "drop the table");
+  execFileSync(process.execPath, [path.join(__dirname, "session-start.js")], { input: JSON.stringify({ cwd: root, session_id: "s1" }), encoding: "utf8" });
+  await fs.writeFile(path.join(root, "a.js"), "module.exports = 1;\n");
+  assert.equal(runStopProcess({ cwd: root, session_id: "s1" }), '{"continue":true}\n');
+});
+
+test("the Stop answer carries the request, the failures and the warnings", () => {
+  const { stopOutput } = require("./stop.js");
+  assert.deepEqual(stopOutput(), { continue: true });
+  assert.deepEqual(stopOutput({ nudge: { reason: "go on" } }), { decision: "block", reason: "go on" });
+  assert.deepEqual(stopOutput({ failure: "count failed", nudge: { reason: "go on" } }), { decision: "block", reason: "go on", systemMessage: "count failed" });
+  assert.deepEqual(stopOutput({ failure: "count failed", nudge: { warning: "no tree" } }), { continue: true, systemMessage: "count failed\nno tree" });
+});

@@ -271,6 +271,14 @@ function validateNativeHooks(root, errors) {
       }
     }
   }
+  // E1.51: the wrapper marks the host, so the launcher answers SessionStart
+  // and Stop in Codex's shape (its Stop parser drops any other key).
+  for (const event of ["SessionStart", "Stop"]) {
+    const commands = (Array.isArray(parsed.hooks[event]) ? parsed.hooks[event] : []).flatMap((group) => (Array.isArray(group?.hooks) ? group.hooks : []));
+    if (commands.length === 0 || !commands.every((hook) => typeof hook?.command === "string" && hook.command.includes("scripts/hooks/ospec-codex-hook.js"))) {
+      addError(errors, `hooks.json hooks.${event} must run scripts/hooks/ospec-codex-hook.js`);
+    }
+  }
 }
 
 function validate(root, deps = {}) {

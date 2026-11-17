@@ -99,6 +99,14 @@ function validateHooksJson(root, errors, fsImpl = fs) {
       errors.push(`hooks.json missing required hook group: ${group}`);
     }
   }
+  // E1.51: the wrapper marks the host, so the launcher asks to continue with
+  // decision "continue" and injects the open IDD changes through injectSteps.
+  for (const [group, event] of [["ospec-stop", "Stop"], ["ospec-session-start", "SessionStart"]]) {
+    const entries = Array.isArray(parsed[group]?.[event]) ? parsed[group][event] : [];
+    if (entries.length === 0 || !entries.every((entry) => isHandler(entry) && entry.command.includes("scripts/hooks/ospec-antigravity-hook.js"))) {
+      errors.push(`hooks.json ${group}.${event} must run scripts/hooks/ospec-antigravity-hook.js`);
+    }
+  }
 
   for (const [group, spec] of Object.entries(parsed)) {
     if (!spec || typeof spec !== "object") continue;

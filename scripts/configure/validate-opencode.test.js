@@ -280,3 +280,16 @@ test("INSTALL-026: attribution sentinels fail closed on an unmapped kernel tool 
 
   assert.ok(result.errors.some((error) => error.includes("attribution sentinel missing (unmapped kernel tool reference): scripts/lib/review-gate-state.js")));
 });
+
+// E1.51: the request to continue and the session context need the plugin.
+test("validate rejects a plugin that drops the request to continue or the session context", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
+  const file = path.join(out, ".opencode/plugins/ospec.js");
+  const plugin = fs.readFileSync(file, "utf8");
+  for (const dropped of ["stop_hook_active", 'answer.decision === "block"', "hookSpecificOutput.additionalContext"]) {
+    assert.ok(plugin.includes(dropped), dropped);
+    fs.writeFileSync(file, plugin.split(dropped).join("dropped"));
+    assert.ok(validate(out).errors.some((error) => error.includes("must send the Stop hook's request to continue")), dropped);
+  }
+});

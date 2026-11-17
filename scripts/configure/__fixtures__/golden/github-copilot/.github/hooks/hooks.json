@@ -4,8 +4,8 @@
     "sessionStart": [
       {
         "type": "command",
-        "bash": "scripts/hooks/ospec-hooks session-start",
-        "powershell": "scripts/hooks/ospec-hooks session-start"
+        "bash": "scripts/hooks/ospec-hooks session-start --host github-copilot",
+        "powershell": "scripts/hooks/ospec-hooks session-start --host github-copilot"
       }
     ],
     "preToolUse": [

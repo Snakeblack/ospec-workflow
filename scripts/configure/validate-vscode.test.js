@@ -47,3 +47,15 @@ test("INSTALL-026: attribution sentinels fail closed on an unmapped kernel tool 
 
   assert.ok(result.errors.some((error) => error.includes("attribution sentinel missing (unmapped kernel tool reference): scripts/lib/review-gate-state.js")));
 });
+
+// E1.51: VS Code reads a Stop decision only inside hookSpecificOutput.
+test("validate rejects a Stop or SessionStart hook that does not name VS Code", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: path.join(__dirname, "..", ".."), target: "vscode", outDir: out, validate: false, withSdd: true });
+  assert.deepEqual(validateVsCodeTarget(out).errors, [], "the real source names the host");
+  const file = path.join(out, "hooks", "hooks.json");
+  const doc = JSON.parse(fs.readFileSync(file, "utf8"));
+  doc.hooks.Stop[0].command = doc.hooks.Stop[0].command.replace(" --host vscode", "");
+  fs.writeFileSync(file, JSON.stringify(doc));
+  assert.deepEqual(validateVsCodeTarget(out).errors, ["hooks/hooks.json Stop command must end with --host vscode"]);
+});

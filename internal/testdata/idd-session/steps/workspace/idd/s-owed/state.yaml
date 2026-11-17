@@ -1,0 +1,109 @@
+{
+  "schema": "idd-state/v1",
+  "change": "s-owed",
+  "mode": "idd",
+  "status": "open",
+  "intent": {
+    "request": "add the export endpoint now",
+    "kind": "feature",
+    "summary": "Owed question.",
+    "acceptance": "It asks."
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "cite": {
+          "kind": "path",
+          "path": "docs/spec.md",
+          "line": 1
+        }
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "docs/spec.md",
+          "line": 2
+        }
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "docs/spec.md",
+          "line": 3
+        }
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "docs/spec.md",
+          "line": 4
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/spec.md",
+          "line": 5
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "docs/spec.md",
+          "line": 6
+        }
+      },
+      {
+        "category": "errors",
+        "cite": {
+          "kind": "path",
+          "path": "docs/spec.md",
+          "line": 7
+        }
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "src/export.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "the export reads tokens",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "gates": [],
+  "evidence": [],
+  "base": "0a156c119a356f1174d7205fad087cb15ff0b3c6"
+}

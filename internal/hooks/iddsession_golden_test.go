@@ -80,6 +80,8 @@ func dispatchContinue(t *testing.T, hook string, payload map[string]any) {
 }
 
 func TestIddSessionGoldenCases(t *testing.T) {
+	// The trace alone: the nudge (E1.51) has its own cases in idd-nudge/.
+	t.Setenv("DISABLE_IDD_NUDGE", "true")
 	for _, name := range []string{"one-idd", "many", "steps", "malformed"} {
 		t.Run(name, func(t *testing.T) {
 			caseDir := filepath.Join(iddSessionCases, name)
@@ -123,6 +125,7 @@ func TestIddSessionGoldenCases(t *testing.T) {
 }
 
 func TestIddSessionSkipsUnreadableStates(t *testing.T) {
+	t.Setenv("DISABLE_IDD_NUDGE", "true")
 	ws := t.TempDir()
 	copyTree(t, filepath.Join(iddSessionCases, "one-idd", "workspace"), ws)
 	if err := os.MkdirAll(filepath.Join(ws, "idd", "broken"), 0o755); err != nil {

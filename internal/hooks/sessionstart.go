@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snakeblack/ospec-workflow/internal/iddsession"
 	"github.com/snakeblack/ospec-workflow/internal/skillreg"
 	"github.com/snakeblack/ospec-workflow/internal/store"
 )
@@ -41,7 +42,29 @@ type sessionStartOutput struct {
 	Baseline         *baselineResult         `json:"baseline,omitempty"`
 	Security         *securityResult         `json:"security,omitempty"`
 	GitCollaboration *gitCollaborationResult `json:"gitCollaboration,omitempty"`
-	SystemMessage    string                  `json:"systemMessage,omitempty"`
+	// HookSpecificOutput carries the open IDD changes for the model (E1.51).
+	HookSpecificOutput *sessionStartContext `json:"hookSpecificOutput,omitempty"`
+	SystemMessage      string               `json:"systemMessage,omitempty"`
+}
+
+type sessionStartContext struct {
+	HookEventName     string `json:"hookEventName"`
+	AdditionalContext string `json:"additionalContext"`
+}
+
+// withIddStart is withIddStart of session-start.js: the open IDD changes for
+// the model and one line for the user.
+func withIddStart(out sessionStartOutput, start *nudgeStart) sessionStartOutput {
+	if start == nil {
+		return out
+	}
+	out.HookSpecificOutput = &sessionStartContext{HookEventName: "SessionStart", AdditionalContext: start.additionalContext}
+	if out.SystemMessage != "" {
+		out.SystemMessage += "\n" + start.systemMessage
+	} else {
+		out.SystemMessage = start.systemMessage
+	}
+	return out
 }
 
 // gitCollaborationResult holds the git collaboration advisory data.
@@ -100,7 +123,9 @@ func (h *sessionStartHandler) Run(stdin []byte) ([]byte, int) {
 	if err := json.Unmarshal(stdin, &input); err != nil {
 		return errorOutput(err), 1
 	}
-	return runSessionStart(input)
+	var raw map[string]any
+	_ = json.Unmarshal(stdin, &raw)
+	return runSessionStart(input, raw)
 }
 
 func canonicalRuntimePath(directory string) string {
@@ -114,7 +139,7 @@ func canonicalRuntimePath(directory string) string {
 	return absolute
 }
 
-func runSessionStart(input sessionStartInput) ([]byte, int) {
+func runSessionStart(input sessionStartInput, raw map[string]any) ([]byte, int) {
 	// Resolve workspace.
 	workspace := strings.TrimSpace(input.Cwd)
 	if workspace == "" {
@@ -122,6 +147,9 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 		workspace = "."
 	}
 	workspace = filepath.Clean(workspace)
+	// E1.51: an IDD project needs no openspec/config.yaml, so the open changes
+	// are read before the ospec detection.
+	iddStart := sessionStartNudge(workspace, raw, iddsession.Read(workspace), os.Getenv("OSPEC_TARGET"))
 
 	s := store.NewStore(workspace)
 
@@ -131,14 +159,14 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 	}
 
 	if !initialized {
-		out := sessionStartOutput{
+		out := withIddStart(sessionStartOutput{
 			Status:        "ok",
 			OspecDetected: false,
 			Registry: registryResult{
 				Status: "skipped",
 				Path:   store.CacheRelPath,
 			},
-		}
+		}, iddStart)
 		b, _ := json.Marshal(out)
 		return b, 0
 	}
@@ -350,7 +378,7 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 		}
 	}
 
-	b, _ := json.Marshal(out)
+	b, _ := json.Marshal(withIddStart(out, iddStart))
 	return b, 0
 }
 

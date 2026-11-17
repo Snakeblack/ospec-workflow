@@ -10,6 +10,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { GATES, GATE_STATUSES, INTENT_KINDS, OBLIGATIONS, OBLIGATION_STATUSES, SIGNALS, SIGNAL_SOURCES } = require("./idd-contract.js");
+const { IMPACT_SIGNALS } = require("./idd-impact.js");
 const { CHECKS_REQUIRED, HOW, WORK_ORDER } = require("./idd-next.js");
 
 const CATALOG_FILE = "internal/iddsession/catalog.json";
@@ -31,6 +32,9 @@ function iddCatalog() {
     intent_kinds: [...INTENT_KINDS],
     obligation_statuses: [...OBLIGATION_STATUSES],
     gate_statuses: [...GATE_STATUSES],
+    // The signals a feature owes a question for (E1.75), which decide the
+    // ask-open-facts step of the session hooks (E1.51).
+    impact_signals: [...IMPACT_SIGNALS],
   };
 }
 

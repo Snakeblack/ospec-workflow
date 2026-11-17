@@ -1,0 +1,115 @@
+{
+  "commit": [
+    ".gitignore",
+    "app.js",
+    "idd/config.yaml"
+  ],
+  "fingerprint": {
+    "write": {
+      "app.js": "module.exports = 2;\n",
+      "notes.txt": "untracked\n",
+      ".ospec/own.txt": "ospec's own state\n",
+      "idd/fix-a/change.md": "# fix-a\n",
+      "node_modules/x.js": "ignored\n"
+    },
+    "ids": [
+      "fix-a",
+      "s-close"
+    ],
+    "expected": "sha256:36d5701f25899548d89cfd6920888314ab88b98a123d58adab6be5220bcd36b0"
+  },
+  "steps": [
+    {
+      "hook": "session-start",
+      "input": {
+        "session_id": "s1"
+      },
+      "expect": {
+        "status": "ok",
+        "ospecDetected": false,
+        "registry": {
+          "status": "skipped",
+          "path": ".ospec/cache/skill-registry.cache.json"
+        },
+        "hookSpecificOutput": {
+          "hookEventName": "SessionStart",
+          "additionalContext": "ospec: these IDD changes are open; their state is on disk and `ospec next --change <id>` gives each one's full next step:\n- `fix-a`: Satisfy `repro-test` with repro-run-pair evidence: ospec run --change fix-a --obligation repro-test --command \"<test>\": once failing before the fix, again passing after it, with the test in a test file of the diff; it must also fail against the base product.\n- `s-close`: Close it: `ospec close --change s-close`.\nA change is done only after `ospec close`."
+        },
+        "systemMessage": "ospec: open IDD changes: `fix-a`, `s-close`."
+      }
+    },
+    {
+      "hook": "stop",
+      "input": {
+        "session_id": "s1"
+      },
+      "expect": {
+        "continue": true
+      }
+    },
+    {
+      "write": {
+        "app.js": "module.exports = 2;\n"
+      }
+    },
+    {
+      "hook": "stop",
+      "input": {
+        "session_id": "s1"
+      },
+      "expect": {
+        "decision": "block",
+        "reason": "ospec: these open IDD changes have a next step that needs no answer from the user:\n- `fix-a`: Satisfy `repro-test` with repro-run-pair evidence: ospec run --change fix-a --obligation repro-test --command \"<test>\": once failing before the fix, again passing after it, with the test in a test file of the diff; it must also fail against the base product.\n- `s-close`: Close it: `ospec close --change s-close`.\nContinue with them; a change is done only after `ospec close`. If you stopped to wait for the user's answer, say so and end your turn again. If a change was superseded or discarded, ask the user whether to abandon it with `ospec abandon --change <id> --reason \"<why>\"`."
+      }
+    },
+    {
+      "hook": "stop",
+      "input": {
+        "session_id": "s1"
+      },
+      "expect": {
+        "continue": true
+      }
+    },
+    {
+      "write": {
+        "app.js": "module.exports = 3;\n"
+      }
+    },
+    {
+      "hook": "stop",
+      "input": {
+        "session_id": "s1",
+        "stop_hook_active": true
+      },
+      "expect": {
+        "continue": true
+      }
+    },
+    {
+      "hook": "stop",
+      "input": {
+        "session_id": "s2"
+      },
+      "expect": {
+        "continue": true
+      }
+    },
+    {
+      "write": {
+        "notes.txt": "a new file\n"
+      }
+    },
+    {
+      "hook": "stop",
+      "input": {
+        "session_id": "s2"
+      },
+      "expect": {
+        "decision": "block",
+        "reason": "ospec: these open IDD changes have a next step that needs no answer from the user:\n- `fix-a`: Satisfy `repro-test` with repro-run-pair evidence: ospec run --change fix-a --obligation repro-test --command \"<test>\": once failing before the fix, again passing after it, with the test in a test file of the diff; it must also fail against the base product.\n- `s-close`: Close it: `ospec close --change s-close`.\nContinue with them; a change is done only after `ospec close`. If you stopped to wait for the user's answer, say so and end your turn again. If a change was superseded or discarded, ask the user whether to abandon it with `ospec abandon --change <id> --reason \"<why>\"`."
+      }
+    }
+  ],
+  "record": "{\n  \"sessions\": [\n    {\n      \"id\": \"s1\",\n      \"base\": \"sha256:2e275704c4fc11e8be6f4a1a2ad29b5e1b600ca73523f6e47707af010849495a\"\n    },\n    {\n      \"id\": \"s2\",\n      \"base\": \"sha256:14b71071f1cac9ffce312f80ebb847fceaca49c3b5ef486a02f4c114ff9fd6fa\"\n    }\n  ],\n  \"asked\": [\n    {\n      \"change\": \"fix-a\",\n      \"fingerprint\": \"sha256:8b4eea2f43c7b47e88bea5e8506b07aa9f18492b0b964b25f039aacea1a0eb5c\"\n    },\n    {\n      \"change\": \"s-close\",\n      \"fingerprint\": \"sha256:8b4eea2f43c7b47e88bea5e8506b07aa9f18492b0b964b25f039aacea1a0eb5c\"\n    },\n    {\n      \"change\": \"fix-a\",\n      \"fingerprint\": \"sha256:0098c6e0eab285dbb8228aef2f56c7fabe00efca8aed5b9548038ee107d33093\"\n    },\n    {\n      \"change\": \"s-close\",\n      \"fingerprint\": \"sha256:0098c6e0eab285dbb8228aef2f56c7fabe00efca8aed5b9548038ee107d33093\"\n    }\n  ]\n}\n"
+}

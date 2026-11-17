@@ -91,10 +91,14 @@ async function checksDeclared(workspace) {
   return countDeclaredChecks(await readText(path.join(workspace, ...CONFIG_FILE.split("/")))) > 0;
 }
 
+function nextStep(state, { hasChecks }) {
+  return nextForChange(state, hasChecks ? {} : { checks: [] }).next_step;
+}
+
 /** The next step of an open change, as one line of the session files. */
 function describeStep(state, { hasChecks }) {
   const { change } = state;
-  const step = nextForChange(state, hasChecks ? {} : { checks: [] }).next_step;
+  const step = nextStep(state, { hasChecks });
   switch (step.action) {
     case "resolve-gate":
       return `Resolve the \`${step.gate}\` gate with the user: \`ospec next --change ${change}\` shows what to ask.`;
@@ -144,12 +148,22 @@ function renderIddSummary(state, nextAction) {
   ].join("\n");
 }
 
-/** The open IDD changes with their next step, ready for the session files. */
+/**
+ * The open IDD changes with their next step, ready for the session files:
+ * `action` is the step's action and `gateOpen` whether a gate waits for the
+ * user (E1.51).
+ */
 async function readIddSession(workspace) {
   const states = await openIddChanges(workspace);
   if (states.length === 0) return [];
   const hasChecks = await checksDeclared(workspace);
-  return states.map((state) => ({ change: state.change, state, nextAction: describeStep(state, { hasChecks }) }));
+  return states.map((state) => ({
+    change: state.change,
+    state,
+    nextAction: describeStep(state, { hasChecks }),
+    action: nextStep(state, { hasChecks }).action,
+    gateOpen: state.gates.some((gate) => gate.status === "open"),
+  }));
 }
 
 module.exports = {

@@ -245,6 +245,14 @@ function validateHooks(root, errors, fsImpl = fs) {
       }
     }
   }
+  // E1.51: stop asks to continue with followup_message and the first
+  // beforeSubmitPrompt of a conversation carries the open IDD changes.
+  for (const [eventName, subcommand] of [["stop", "stop"], ["beforeSubmitPrompt", "session-start"]]) {
+    const actions = Array.isArray(parsed.hooks[eventName]) ? parsed.hooks[eventName] : [];
+    if (!actions.some((action) => typeof action?.command === "string" && new RegExp(`\\s${subcommand}$`).test(action.command))) {
+      addError(errors, `${rel} event ${eventName} must run the ${subcommand} subcommand`);
+    }
+  }
 }
 
 function validateInstalledHooks(root, errors, fsImpl = fs) {

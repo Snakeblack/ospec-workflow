@@ -21,12 +21,14 @@ function trace() {
     const { extractFirstScalar, formatNextAction } = require("./pre-compact.js");
     const { ARTIFACT_STORE_RELATIVE_PATHS, createArtifactStoreFromConfig } = require("../lib/artifact-store.js");
     const { readIddSession } = require("./lib/idd-session.js");
+    const { stopNudge } = require("./lib/idd-nudge.js");
     traceModules = {
       createArtifactStoreFromConfig,
       extractFirstScalar,
       formatNextAction,
       latestRelativePath: ARTIFACT_STORE_RELATIVE_PATHS.latestSession,
       readIddSession,
+      stopNudge,
     };
   }
   return traceModules;
@@ -161,15 +163,19 @@ async function runStop({
   fallbackCwd = process.cwd(),
   mode,
   now = () => new Date(),
+  env = process.env,
 } = {}) {
-  const { createArtifactStoreFromConfig, extractFirstScalar, formatNextAction, latestRelativePath, readIddSession } = trace();
+  const { createArtifactStoreFromConfig, extractFirstScalar, formatNextAction, latestRelativePath, readIddSession, stopNudge } = trace();
   const workspace = resolveWorkspaceCwd(input.cwd, fallbackCwd);
   const store = await createArtifactStoreFromConfig({ mode, workspace });
   const sddChanges = await store.findActiveChanges();
   const iddSession = await readIddSession(workspace);
 
   if (iddSession.length > 0) {
-    return writeWithIdd({ input, now, store, sddChanges, iddSession });
+    const result = await writeWithIdd({ input, now, store, sddChanges, iddSession });
+    // E1.51: after the trace, so a trace that cannot be written asks nothing.
+    const nudge = await stopNudge({ workspace, input, entries: iddSession, env });
+    return nudge ? { ...result, nudge } : result;
   }
 
   const activeChange = sddChanges[0] || null;
@@ -294,16 +300,26 @@ async function countTurn(input, fallbackCwd = process.cwd()) {
   }
 }
 
+// The hook's answer: `decision: "block"` with the reason asks the agent to
+// continue (E1.51), which the launcher translates for each host; otherwise
+// `continue: true`. Every failure and warning rides on systemMessage.
+function stopOutput({ failure = null, nudge = null } = {}) {
+  const systemMessage = [failure, nudge?.warning].filter(Boolean).join("\n");
+  const answer = nudge?.reason ? { decision: "block", reason: nudge.reason } : { continue: true };
+  return systemMessage ? { ...answer, systemMessage } : answer;
+}
+
 async function main() {
   let failure = null;
+  let nudge = null;
   try {
     const input = await readJsonInput();
     failure = await countTurn(input);
-    await runStop({ input });
+    nudge = (await runStop({ input })).nudge ?? null;
   } catch (error) {
     failure = `Stop hook could not write the session trace: ${error.message}`;
   }
-  process.stdout.write(failure ? `${JSON.stringify({ continue: true, systemMessage: failure })}\n` : '{"continue":true}\n');
+  process.stdout.write(`${JSON.stringify(stopOutput({ failure, nudge }))}\n`);
 }
 
 if (require.main === module) {
@@ -317,4 +333,5 @@ module.exports = {
   countTurn,
   renderLatestSummary,
   runStop,
+  stopOutput,
 };

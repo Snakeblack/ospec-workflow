@@ -1,10 +1,13 @@
 // stop hook handler.
 // Ports runStop from scripts/hooks/stop.js.
-// Always exits 0 and emits {"continue":true}. Uses internal/store + internal/yamllite.
-// It also counts the turn end in .ospec/turns (E1.49).
+// Always exits 0 and emits {"continue":true}, or {"decision":"block","reason"}
+// when it asks the agent to continue an open IDD change (E1.51). Uses
+// internal/store + internal/yamllite. It also counts the turn end in
+// .ospec/turns (E1.49).
 package hooks
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -52,15 +55,49 @@ func (h *stopHandler) Run(stdin []byte) ([]byte, int) {
 	// E1.49: every turn end is counted in the project before the trace, so a
 	// trace that cannot be written still counts it.
 	counted := countTurnEnd(turnsRoot(resolveCwd(input.Cwd)))
-	if err := runStop(input); err != nil {
-		return continueWithError(fmt.Sprintf("Stop hook could not write the session trace: %s", err.Error())), 0
-	}
+	var raw map[string]any
+	_ = json.Unmarshal(stdin, &raw)
+	failure := ""
 	if counted != nil {
-		return continueWithError(fmt.Sprintf("Stop hook could not count the turn end: %s", counted.Error())), 0
+		failure = fmt.Sprintf("Stop hook could not count the turn end: %s", counted.Error())
 	}
+	reason, warning, err := runStop(input, raw)
+	if err != nil {
+		failure = fmt.Sprintf("Stop hook could not write the session trace: %s", err.Error())
+		reason, warning = "", ""
+	}
+	return stopAnswer(failure, reason, warning), 0
+}
 
-	b, _ := json.Marshal(map[string]bool{"continue": true})
-	return b, 0
+// stopAnswer is stopOutput of stop.js: decision "block" with the reason asks
+// the agent to continue (E1.51), which the launcher translates for each host;
+// otherwise continue. Every failure and warning rides on systemMessage.
+func stopAnswer(failure, reason, warning string) []byte {
+	var messages []string
+	for _, message := range []string{failure, warning} {
+		if message != "" {
+			messages = append(messages, message)
+		}
+	}
+	systemMessage := strings.Join(messages, "\n")
+	var answer any
+	if reason != "" {
+		answer = struct {
+			Decision      string `json:"decision"`
+			Reason        string `json:"reason"`
+			SystemMessage string `json:"systemMessage,omitempty"`
+		}{"block", reason, systemMessage}
+	} else {
+		answer = struct {
+			Continue      bool   `json:"continue"`
+			SystemMessage string `json:"systemMessage,omitempty"`
+		}{true, systemMessage}
+	}
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+	_ = encoder.Encode(answer)
+	return bytes.TrimRight(buf.Bytes(), "\n")
 }
 
 // maxTurn is the largest count the CLI reads (Number.MAX_SAFE_INTEGER).
@@ -101,16 +138,21 @@ func countTurnEnd(workspace string) error {
 	return store.WriteFileAtomic(turnsPath, strconv.FormatUint(turn+1, 10)+"\n")
 }
 
-func runStop(input stopInput) error {
+func runStop(input stopInput, raw map[string]any) (reason, warning string, err error) {
 	workspace := resolveCwd(input.Cwd)
 	s := store.NewStore(workspace)
 
 	changes, err := s.FindActiveChanges()
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	if idd := iddsession.Read(workspace); len(idd) > 0 {
-		return writeLatestWithIdd(s, workspace, input, changes, idd)
+		if err := writeLatestWithIdd(s, workspace, input, changes, idd); err != nil {
+			return "", "", err
+		}
+		// E1.51: after the trace, so a trace that cannot be written asks nothing.
+		reason, warning = stopNudge(workspace, raw, idd)
+		return reason, warning, nil
 	}
 
 	var activeChange *store.ActiveChange
@@ -171,7 +213,7 @@ func runStop(input stopInput) error {
 		nextAction:      nextAction,
 	})
 
-	return writeLatest(s, latestContent)
+	return "", "", writeLatest(s, latestContent)
 }
 
 // resolveStopTimestamp uses input.timestamp, else the current UTC time.

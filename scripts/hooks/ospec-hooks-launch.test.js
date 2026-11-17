@@ -1182,3 +1182,85 @@ test("REQ-lifecycle-kernel-034: resolveInvocation ignores a backend written insi
   const readFileSync = () => "artifact_store:\n  notes: |\n    backend: workspace-federated\n  backend: openspec\n";
   assert.deepEqual(resolveInvocation("session-start", HOOKS_DIR, suffix, exists, readFileSync, {}), { command: platform, args: ["session-start"] });
 });
+
+// E1.51 open-change-nudge: the request to continue and the session context in
+// each host's shape.
+test("the Stop request to continue reaches each target in its host's shape", (t) => {
+  const asked = { status: 0, stdout: '{"decision":"block","reason":"go on"}\n', stderr: "" };
+  const cases = [
+    ["claude", ["stop"], { decision: "block", reason: "go on" }],
+    ["codex", ["stop"], { decision: "block", reason: "go on" }],
+    [null, ["stop", "--host", "github-copilot"], { decision: "block", reason: "go on" }],
+    [null, ["stop", "--host", "vscode"], { hookSpecificOutput: { hookEventName: "Stop", decision: "block", reason: "go on" } }],
+    ["cursor", ["stop"], { followup_message: "go on" }],
+    ["antigravity", ["stop"], { decision: "continue", reason: "go on" }],
+  ];
+  for (const [target, argv, expected] of cases) {
+    const { written } = runLauncher(t, { argv, stdin: '{"session_id":"s1"}', outcome: asked, target });
+    assert.deepEqual(JSON.parse(written), expected, `${target ?? argv[2]}`);
+  }
+  const { CONTINUATION } = require("./ospec-hooks-launch.js");
+  assert.deepEqual(Object.keys(CONTINUATION).sort(), ["antigravity", "claude", "codex", "cursor", "github-copilot", "vscode"]);
+});
+
+test("a Stop that asks nothing keeps each target's no-objection answer", (t) => {
+  const quiet = { status: 0, stdout: '{"continue":true}\n', stderr: "" };
+  const cases = [
+    ["codex", ["stop"], {}],
+    [null, ["stop", "--host", "vscode"], { continue: true }],
+    ["cursor", ["stop"], { continue: true }],
+  ];
+  for (const [target, argv, expected] of cases) {
+    const { written } = runLauncher(t, { argv, stdin: "{}", outcome: quiet, target });
+    assert.deepEqual(JSON.parse(written), expected, `${target ?? argv[2]}`);
+  }
+  const { written } = runLauncher(t, { argv: ["stop"], stdin: "{}", outcome: quiet, target: "antigravity" });
+  assert.equal(written, "", "agy gets nothing at all");
+});
+
+test("Codex keeps only the keys its Stop parser knows", () => {
+  assert.deepEqual(
+    normalizeCodexHookOutput("stop", { decision: "block", reason: "go on", systemMessage: "warn", hookSpecificOutput: { hookEventName: "Stop" } }),
+    { decision: "block", reason: "go on", systemMessage: "warn" },
+  );
+  assert.deepEqual(normalizeCodexHookOutput("stop", { decision: "block", reason: " " }), {});
+});
+
+test("the open IDD changes lead the SessionStart context of every target", (t) => {
+  const child = {
+    status: "ok",
+    ospecDetected: false,
+    registry: { status: "skipped" },
+    hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: "ospec: open changes" },
+    systemMessage: "ospec: open IDD changes: `fix-a`.",
+  };
+  assert.deepEqual(normalizeCodexHookOutput("session-start", child), {
+    hookSpecificOutput: {
+      hookEventName: "SessionStart",
+      additionalContext: 'ospec: open changes\nospec: open IDD changes: `fix-a`.\n{"ospecDetected":false,"registry":{"status":"skipped"}}',
+    },
+  });
+  assert.equal(normalizeAntigravityHookOutput("session-start", child).injectSteps[0].systemMessage.systemMessage.split("\n")[0], "ospec: open changes");
+  assert.deepEqual(normalizeCursorHookOutput("session-start", child), {
+    continue: true,
+    user_message: "ospec: open IDD changes: `fix-a`.",
+    additional_context: "ospec: open changes",
+  });
+  const outcome = { status: 0, stdout: `${JSON.stringify(child)}\n`, stderr: "" };
+  const copilot = JSON.parse(runLauncher(t, { argv: ["session-start", "--host", "github-copilot"], stdin: "{}", outcome, target: null }).written);
+  assert.equal(copilot.additionalContext, "ospec: open changes");
+  assert.equal(copilot.hookSpecificOutput, undefined, "one copy of the context");
+  const vscode = JSON.parse(runLauncher(t, { argv: ["session-start", "--host", "vscode"], stdin: "{}", outcome, target: null }).written);
+  assert.deepEqual(vscode.hookSpecificOutput, child.hookSpecificOutput);
+  const claude = JSON.parse(runLauncher(t, { argv: ["session-start"], stdin: "{}", outcome, target: "claude" }).written);
+  assert.deepEqual(claude, child);
+});
+
+test("only a known host name after --host selects a host", () => {
+  const { hostFlag } = require("./ospec-hooks-launch.js");
+  assert.equal(hostFlag(["stop", "--host", "vscode"]), "vscode");
+  assert.equal(hostFlag(["session-start", "--host", "github-copilot"]), "github-copilot");
+  assert.equal(hostFlag(["stop", "--host", "cursor"]), null);
+  assert.equal(hostFlag(["stop", "--host"]), null);
+  assert.equal(hostFlag(["stop"]), null);
+});

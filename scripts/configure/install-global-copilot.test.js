@@ -169,7 +169,7 @@ test("setup:copilot installs hooks that count the end of a turn in the repositor
 
   const [hook] = JSON.parse(fs.readFileSync(path.join(dest, "hooks", "hooks.json"), "utf8")).hooks.agentStop;
   const installed = path.resolve(dest).split(path.sep).join("/");
-  assert.equal(hook.powershell, `node '${installed.replace("'", "''").replace("\u2019", "\u2019\u2019")}/scripts/hooks/ospec-hooks-launch.js' stop`);
+  assert.equal(hook.powershell, `node '${installed.replace("'", "''").replace("\u2019", "\u2019\u2019")}/scripts/hooks/ospec-hooks-launch.js' stop --host github-copilot`);
   const shell = process.platform === "win32"
     ? { program: "powershell.exe", args: ["-NoProfile", "-NonInteractive", "-Command", hook.powershell] }
     : { program: "/bin/sh", args: ["-c", hook.bash] };

@@ -229,3 +229,18 @@ test("validate-codex rejects sdd-apply or sdd-verify without disabled network_ac
   assert.match(result.errors.join("\n"), /\.codex\/agents\/sdd-apply\.toml must disable network access in sandbox/);
 });
 
+
+// E1.51: only the wrapper makes the launcher answer in Codex's shape.
+test("validate-codex rejects a Stop or SessionStart hook that skips the Codex wrapper", (t) => {
+  const root = makeValidCodexTree(t);
+  const wrapper = 'node "__OSPEC_RUNTIME__/scripts/hooks/ospec-codex-hook.js"';
+  const launcher = 'node "__OSPEC_RUNTIME__/scripts/hooks/ospec-hooks-launch.js"';
+  fs.writeFileSync(path.join(root, "hooks.json"), JSON.stringify({
+    hooks: {
+      SessionStart: [{ matcher: ".*", hooks: [{ type: "command", command: `${wrapper} session-start` }] }],
+      Stop: [{ matcher: ".*", hooks: [{ type: "command", command: `${launcher} stop` }] }],
+    },
+  }));
+  const errors = validate(root).errors.filter((error) => error.startsWith("hooks.json"));
+  assert.deepEqual(errors, ["hooks.json hooks.Stop must run scripts/hooks/ospec-codex-hook.js"]);
+});

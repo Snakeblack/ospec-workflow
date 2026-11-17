@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.180.0] - 2026-11-17
+
+### Added
+- **Un cambio IDD abierto ya no se queda sin `close` sin que nadie lo vea** (open-change-nudge, E1.51).
+  - **El problema**: un cambio podía quedarse a medias al terminar un turno, y la sesión siguiente no sabía que existía. Nada lo recordaba al empezar ni pedía seguir al parar.
+  - **Al empezar la sesión**: `SessionStart` da al modelo cada cambio IDD abierto con su siguiente paso, también en un proyecto con `idd/` y sin `openspec/config.yaml`.
+  - **Al terminar el turno**: `Stop` pide al agente que siga, una sola vez por cambio y huella, cuando la sesión movió el árbol o el estado, el paso no necesita al usuario (`declare-plan`, `satisfy-obligation` o `close`) y no hay ningún gate abierto. No lo pide con `resolve-gate` ni `configure-checks`, ni en el turno que ya continúa una petición. La petición da dos salidas: decir que se espera al usuario, o preguntarle por `ospec abandon`.
+  - **La huella**: cubre `HEAD`, el diff binario, los ficheros no rastreados y el `state.yaml` de cada cambio abierto, sin `idd/<cambio>/` ni `.ospec/`. Vive en `.ospec/idd-nudge.json`, con la huella con la que empezó cada sesión y las que ya se pidieron. Sin huella o sin estado legible, `Stop` no pide nada y lo dice en un aviso. `DISABLE_IDD_NUDGE=true` lo apaga todo.
+  - **Los siete targets**: cada host lee la petición en su forma. Claude Code, Codex y Copilot CLI reciben `decision: "block"`; VS Code, la misma decisión dentro de `hookSpecificOutput`; Cursor, un `followup_message`; Antigravity, `decision: "continue"`; y el plugin de OpenCode manda la razón como el siguiente prompt. VS Code y Copilot CLI llevan `--host` en sus comandos de `SessionStart` y `Stop`, y cada validador de target fija su parte.
+  - **Node y Go**: `scripts/hooks/lib/idd-nudge.js` e `internal/hooks/iddnudge.go` comparten los casos de `internal/testdata/idd-nudge/`, que fijan la misma huella, las mismas respuestas y el mismo registro. La versión en Go del siguiente paso aprende `ask-open-facts` (E1.75), que no conocía.
+  - **Verificado en vivo**: en Claude Code 2.1.325, el modelo recibe los cambios abiertos y el `Stop` le hace seguir una vez. En OpenCode 2.0.32 recibe los cambios y el `Stop` pide seguir, pero el turno de continuación no se observó. Codex, Copilot CLI, Cursor, Antigravity y VS Code quedan sin verificar en vivo en `docs/target-capabilities.md`.
+  - **Compatibilidad**: `state.yaml` no cambia. La spec de hooks gana REQ-hooks-034.
+
+**Verificación directa**: `node scripts/check.js` (4691 tests pasando, 0 fallos y 5 omitidos), 451 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados; y el gate de Go (`gofmt`, `go vet` y `go test ./...`).
+
 ## [2.179.1] - 2026-11-17
 
 ### Fixed
