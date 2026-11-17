@@ -12,11 +12,11 @@
       "memory_flow_bytes": 17074,
       "agent_read_bytes": {
         "review-change": 4757,
-        "review-correction": 5375,
-        "review-efficiency": 14551,
-        "review-evolution": 14757,
-        "review-runtime": 14619,
-        "review-trust": 14524
+        "review-correction": 5373,
+        "review-efficiency": 14549,
+        "review-evolution": 14755,
+        "review-runtime": 14617,
+        "review-trust": 14522
       }
     },
     "vscode": {

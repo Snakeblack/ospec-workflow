@@ -42,13 +42,14 @@ agents:
   handbook: cheap
 
   # Reviewers:
-  # Each reviewer can use any known tier.
+  # The review is the last barrier before a change closes, so every reviewer
+  # runs on premium (E1.93). Each reviewer can use any known tier.
   review-change: premium
-  review-correction: default
-  review-trust: default
-  review-runtime: default
-  review-evolution: default
-  review-efficiency: default
+  review-correction: premium
+  review-trust: premium
+  review-runtime: premium
+  review-evolution: premium
+  review-efficiency: premium
 
   _default: premium
 

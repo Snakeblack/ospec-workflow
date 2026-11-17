@@ -10,6 +10,7 @@ const test = require("node:test");
 const { parseModels, runConfigure } = require("./configure/cli.js");
 const { parse, getField } = require("./lib/frontmatter.js");
 const {
+  REQUIRED_QUALITY_REVIEW_AGENTS,
   REQUIRED_SDD_AGENTS,
   sddAgentsByTier,
   validateSddModelPolicy,
@@ -93,7 +94,7 @@ test("REQ-generator-005 all model routing choices in models.yaml are accepted", 
   const models = clone(parseModels(MODELS_TEXT));
   models.agents["sdd-propose"] = "premium";
   models.agents.handbook = "default";
-  models.agents["review-trust"] = "premium";
+  models.agents["review-trust"] = "default";
   models.agents._default = "premium";
   models.tiers.premium.codex.model_reasoning_effort = "high";
   models.tiers.default.codex.model_reasoning_effort = "xhigh";
@@ -121,6 +122,12 @@ for (const userModels of [undefined, USER_MODELS]) {
     const models = parseModels(MODELS_TEXT);
     const partition = sddAgentsByTier(models.agents);
     const allAgents = Object.values(partition).flat();
+    // E1.93: the reviewers are generated with the model of their tier too.
+    const tiered = Object.entries(partition).map(([tier, agents]) => [
+      tier,
+      [...agents, ...REQUIRED_QUALITY_REVIEW_AGENTS.filter(agent => models.agents[agent] === tier)],
+    ]);
+    assert.equal(tiered.flatMap(([, agents]) => agents).length, allAgents.length + REQUIRED_QUALITY_REVIEW_AGENTS.length);
     const beforeDist = treeDigest(path.join(ROOT, "dist"));
     const base = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-tier-contract-"));
     t.after(() => fs.rmSync(base, { recursive: true, force: true }));
@@ -128,7 +135,7 @@ for (const userModels of [undefined, USER_MODELS]) {
     for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"]) {
       const out = path.join(base, target);
       assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true, userModels }).exitCode, 0);
-      for (const [tier, agents] of Object.entries(partition)) {
+      for (const [tier, agents] of tiered) {
         for (const agent of agents) {
           const generated = outputPath(out, target, agent);
           if (generated === null) continue;

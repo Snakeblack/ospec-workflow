@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.181.0] - 2026-11-17
+
+### Added
+- **Los seis revisores corren en el tier `premium`** (reviewers-premium-tier, E1.93).
+  - **El problema**: `models.yaml` dejaba `review-trust`, `review-correction`, `review-runtime`, `review-evolution` y `review-efficiency` en `default`, que en Claude es `sonnet`. Solo `review-change` iba en `premium`, y la review es la última barrera antes de cerrar un cambio.
+  - **El cambio**: los cinco pasan a `premium`. En Claude sus agentes se generan con `model: opus`; en Codex, OpenCode, Cursor, VS Code y GitHub Copilot usan el modelo que el usuario asignó a `premium`, o el de la sesión si no asignó ninguno.
+  - **El validador no cambia**: sigue aceptando cualquier tier conocido para un revisor. `models.yaml` es la única política de agente a tier (REQ-generator-005).
+  - **Tests**: el test de contrato de tiers comprueba el modelo generado de los seis revisores en cada target, con y sin modelos del usuario; antes solo cubría los agentes de SDD. Los techos de contexto de Claude bajan dos bytes por revisor.
+  - **Roadmap**: E1.94 pasa de `review-tier-by-risk` a `execution-profile-by-risk`. El CLI calculará por encargo el tier y el effort de cada agente que lanza ospec (revisores, worker y fases de SDD) sobre el suelo de `models.yaml`; el perfil solo sube.
+  - **Compatibilidad**: no cambia ningún formato. Cada review gasta más en un host con un modelo asignado a `premium`; sin asignación, los revisores heredan el modelo de la sesión, como antes.
+
+**Verificación directa**: `node scripts/check.js` (4916 tests pasando, 0 fallos y 5 omitidos), 452 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados. El cambio pasó una revisión de confianza, sin hallazgos.
+
 ## [2.180.1] - 2026-11-17
 
 ### Fixed

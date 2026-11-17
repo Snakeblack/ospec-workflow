@@ -1313,7 +1313,7 @@ test("persistPhaseCost records only exact review lifecycle agents with UTF-8 fal
   assert.equal(records.at(-1).phase, "review-correction");
   assert.equal(records.at(-1).relaunch, true, "only a prior successful row for the same review phase relaunches");
   assert.equal(records.at(-1).estimated_artifact_tokens, 0);
-  assert.equal(records.at(-1).model_tier, "default", "configured review agent tier is retained while absent numeric fields fall back to zero");
+  assert.equal(records.at(-1).model_tier, "premium", "configured review agent tier is retained while absent numeric fields fall back to zero");
 });
 
 test("persistPhaseCost canonicalizes a host-prefixed sdd dispatch to the same row as the bare name (regresión prefijo)", async (t) => {

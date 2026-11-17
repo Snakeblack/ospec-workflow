@@ -1,0 +1,615 @@
+{
+  "schema": "idd-state/v1",
+  "change": "reviewers-premium-tier",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "los reviewers deben ser opus minimo; sí, cámbialas a opus en un cambio aparte",
+    "kind": "feature",
+    "summary": "Los cinco revisores que models.yaml deja en default (review-trust, review-correction, review-runtime, review-evolution, review-efficiency) pasan al tier premium, como review-change",
+    "acceptance": "Con el models.yaml del producto, cada target genera los seis agentes revisores con el tier premium (model: opus en Claude; en los demás hosts, el modelo que el usuario asignó a premium o el de la sesión), y el handbook y la spec del generador lo dicen"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "cite": {
+          "kind": "request",
+          "text": "deben ser opus minimo"
+        }
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "models.yaml",
+          "line": 4
+        }
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "models.yaml",
+          "line": 11
+        }
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "handbook/agentes/modelos.md",
+          "line": 36
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "models.yaml",
+          "line": 1
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "models.yaml",
+          "line": 45
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Si alguien edita models.yaml y deja un revisor por debajo de premium, ¿el validador debe rechazarlo (suelo en código: la generación aborta con un error nuevo, lo que enmienda REQ-generator-005 y el ADR-005, que hoy solo permiten invariantes estructurales) o basta con cambiar el valor en models.yaml y dejar el validador como está (cualquier tier conocido sigue siendo válido)?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/agentes/modelos.md",
+      "models.yaml",
+      "openspec/specs/generator/spec.md",
+      "scripts/configure/cli.test.js",
+      "scripts/fixtures/context-baseline.json",
+      "scripts/hooks/subagent-stop.test.js",
+      "scripts/model-tier-contract.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El validador de models.yaml no gana una regla de suelo para los revisores: solo cambian los cinco valores (opción B). El usuario delegó la elección («lo recomendado», «haz lo que creas que es mejor») y la recomendación era B, porque el tier lo calculará el CLI (E1.94 reescrito) y REQ-generator-005 y el ADR-005 siguen intactos.",
+      "E1.94 se reescribe en el roadmap como ítem general: tier y effort por encargo para todos los agentes que lanza ospec (revisores, worker y fases de SDD), con la estrategia híbrida que eligió el usuario («la 4»): suelo en models.yaml, el CLI sube según el riesgo de E1.79 y el modelo puede subir con una razón, nunca bajar. Subir es automático; delegar en un tier más barato sigue siendo una oferta de E4.13 hasta que E4.4 lo mida.",
+      "La línea base de contexto baja dos bytes por revisor en Claude (el alias opus es más corto que sonnet); scripts/measure-context-baseline.js --update fija los techos nuevos.",
+      "El test de costes por fase (scripts/hooks/subagent-stop.test.js) lee el models.yaml del producto, así que su tier esperado para review-correction pasa de default a premium; tocar un fichero bajo scripts/hooks activa la señal security-boundary y su revisión de confianza."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/subagent-stop.test.js (matches scripts/hooks/**)",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Solo se edita la fuente canónica (models.yaml); cada target se genera desde ella y el test de contrato comprueba el modelo de los revisores generados en los seis targets"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "El cambio no añade dependencias ni toca el runtime de los hooks: cambia cinco valores de una tabla que ya se distribuye"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "Es un cambio de datos de configuración: no añade llamadas de red al CLI, los hooks ni las skills"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El tier de los revisores sale de models.yaml para todos los targets y los goldens de cli.test.js no cambian"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "none",
+      "reason": "Bajo scripts/hooks solo cambia un valor esperado de un test de telemetría (el tier premium de review-correction); ningún guard ni su modo de fallo cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "none",
+      "reason": "El cambio no toca ningún guard: el hook SubagentStop sigue leyendo el tier de models.yaml igual que antes"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "git diff: solo cambian models.yaml, dos tests, el handbook, la spec del generador y el roadmap; ningún fichero del CLI, de los hooks ni de las skills, y ninguna llamada de red nueva",
+      "recorded_at": "2026-11-17T09:19:31.843Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 463,
+      "answer": "ok lo recomendado, la 4, y respexto a lo que decido, realmente haz lo que creas que es mejor y beneficioso",
+      "source": "user",
+      "resolved_turn": 465
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T09:20:03.077Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 none",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:cf538e82ec8ad9ce9027ce959127c20c45681e22ca88cfbd63e4aab0a6835d7d",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T09:20:55.743Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 none",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:85cc34d4cacbbb0511a3d66efe2dd5f89a344e60dc062259ae7bb4d4fe0343e8",
+        "fitness": [
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-17T09:24:54.744Z",
+      "detail": {
+        "lineage_id": "sha256:2d0b302e4b6978766232f6f897e0522e2dbdf970646112a2eb7666d40847c45a",
+        "candidate_id": "sha256:e8844bb97ae9a67fb3ec870e5993b44e0335bccb8f070e57d2481364b09bef55",
+        "candidate_tree": "1bc6c7be3791d4e214354da933f2486e52af50b3",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-17T09:24:44.448Z",
+          "result_digest": "sha256:119aa276ed585ae49130c0263ca555350bf48224c38e3e448523cb34e5bca351"
+        }
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T09:26:34.732Z",
+      "detail": {
+        "tree": "sha256:236b55cf29346c47175755fbada5c1effd7dc056ead153f9399528edc5c3b7dc",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T09:26:34.732Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 none",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms",
+          "adr:0008 none",
+          "scenario:guard-fail-closed none"
+        ],
+        "records": [],
+        "tree": "sha256:236b55cf29346c47175755fbada5c1effd7dc056ead153f9399528edc5c3b7dc",
+        "fitness": [
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-17T09:26:35.061Z"
+    }
+  ],
+  "base": "c697749ee1589222de52dc6da4c04c44586149d5",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:c98466a9c1f43ce809d53eb261a29a77de6b780773569da213679575b7b9dadc",
+      "tree": "sha256:cf538e82ec8ad9ce9027ce959127c20c45681e22ca88cfbd63e4aab0a6835d7d",
+      "recorded_at": "2026-11-17T09:20:03.077Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:11ca46f913132d021587676a3569c24af1316fbb15cbe4c0248d7de6f86a39ce",
+      "tree": "sha256:cf538e82ec8ad9ce9027ce959127c20c45681e22ca88cfbd63e4aab0a6835d7d",
+      "recorded_at": "2026-11-17T09:20:03.077Z",
+      "tests": 48
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:cf538e82ec8ad9ce9027ce959127c20c45681e22ca88cfbd63e4aab0a6835d7d",
+      "recorded_at": "2026-11-17T09:20:03.077Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bc387619b78b73ef78960f6ed3e62900aa3d60dbde062f1aa226159b59d7fa3e",
+      "tree": "sha256:cf538e82ec8ad9ce9027ce959127c20c45681e22ca88cfbd63e4aab0a6835d7d",
+      "recorded_at": "2026-11-17T09:20:03.077Z",
+      "tests": 26
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:47f142323af35dc0f9688c80f094c2bcee2306c7db257aeb434440c639967048",
+      "tree": "sha256:cf538e82ec8ad9ce9027ce959127c20c45681e22ca88cfbd63e4aab0a6835d7d",
+      "recorded_at": "2026-11-17T09:20:03.077Z",
+      "tests": 48
+    },
+    {
+      "id": "run-6",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:c91b83761dec3d6460ffec9de25a9621b0f14c2f6d91ed98f794fa9606103a30",
+      "tree": "sha256:85cc34d4cacbbb0511a3d66efe2dd5f89a344e60dc062259ae7bb4d4fe0343e8",
+      "recorded_at": "2026-11-17T09:20:55.743Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:055cb8a89481ce04039dfade8fa625ede8b4a676e21fc7833d0bfb775aeb79d2",
+      "tree": "sha256:85cc34d4cacbbb0511a3d66efe2dd5f89a344e60dc062259ae7bb4d4fe0343e8",
+      "recorded_at": "2026-11-17T09:20:55.743Z",
+      "tests": 48
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:85cc34d4cacbbb0511a3d66efe2dd5f89a344e60dc062259ae7bb4d4fe0343e8",
+      "recorded_at": "2026-11-17T09:20:55.743Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4a0ad9ef265f8beea2682f52076c4a11da5ac070200707aabb8cf7eb2ae5e373",
+      "tree": "sha256:85cc34d4cacbbb0511a3d66efe2dd5f89a344e60dc062259ae7bb4d4fe0343e8",
+      "recorded_at": "2026-11-17T09:20:55.743Z",
+      "tests": 26
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1fac3a70ba4cba64385ae19db61e7934b344b999e11f5dc8ac98894790f5b7bb",
+      "tree": "sha256:85cc34d4cacbbb0511a3d66efe2dd5f89a344e60dc062259ae7bb4d4fe0343e8",
+      "recorded_at": "2026-11-17T09:20:55.743Z",
+      "tests": 48
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:217f4b4fc068a4a032926a78de9699f48e9d5a55ca29fe88e48f7c2dc13f0c0b",
+      "tree": "sha256:236b55cf29346c47175755fbada5c1effd7dc056ead153f9399528edc5c3b7dc",
+      "recorded_at": "2026-11-17T09:26:34.732Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:14520e5e8a74fc157466e6e493bb19cf0f67ef9abdee1b287c43e8024c9d42c8",
+      "tree": "sha256:236b55cf29346c47175755fbada5c1effd7dc056ead153f9399528edc5c3b7dc",
+      "recorded_at": "2026-11-17T09:26:34.732Z",
+      "tests": 48
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:236b55cf29346c47175755fbada5c1effd7dc056ead153f9399528edc5c3b7dc",
+      "recorded_at": "2026-11-17T09:26:34.732Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2dedd65f88309386743ec41d20fc7bdbdf6b6724aaf7b2db16ceb63571147111",
+      "tree": "sha256:236b55cf29346c47175755fbada5c1effd7dc056ead153f9399528edc5c3b7dc",
+      "recorded_at": "2026-11-17T09:26:34.732Z",
+      "tests": 26
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:93f42f089484dc03b1770ff620dc5a0f712e5853a7c3a8f32a32016721390f70",
+      "tree": "sha256:236b55cf29346c47175755fbada5c1effd7dc056ead153f9399528edc5c3b7dc",
+      "recorded_at": "2026-11-17T09:26:34.732Z",
+      "tests": 48
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6096b3915ac921b7a19e02e9820e47c4dc89e620121fcfa21cd546c30fdd311a",
+      "tree": "sha256:236b55cf29346c47175755fbada5c1effd7dc056ead153f9399528edc5c3b7dc",
+      "recorded_at": "2026-11-17T09:26:34.732Z",
+      "tests": 100
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1320e40a066af5b4bb1fee882a22a78f840fc76e04a7af4247d9d27f144ffb73",
+      "tree": "sha256:236b55cf29346c47175755fbada5c1effd7dc056ead153f9399528edc5c3b7dc",
+      "recorded_at": "2026-11-17T09:26:34.732Z",
+      "tests": 100
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:2d0b302e4b6978766232f6f897e0522e2dbdf970646112a2eb7666d40847c45a",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "1fa532e036718da1b077351ef2ef8399245b1d62",
+          "candidate_tree": "1bc6c7be3791d4e214354da933f2486e52af50b3",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "handbook/agentes/modelos.md",
+            "models.yaml",
+            "openspec/specs/generator/spec.md",
+            "scripts/configure/cli.test.js",
+            "scripts/fixtures/context-baseline.json",
+            "scripts/hooks/subagent-stop.test.js",
+            "scripts/model-tier-contract.test.js"
+          ],
+          "diff_hash": "sha256:cd5c383641071236b98f361c80af82bebc5b9266dd8cb49d1d1a881e3bd0ea77",
+          "paths_digest": "sha256:d1e5c5df537a028753c78350454004931c90117a46226b69fb5b6522485010b6",
+          "authored_lines": 61,
+          "original_changed_lines": 99
+        },
+        "candidate_id": "sha256:e8844bb97ae9a67fb3ec870e5993b44e0335bccb8f070e57d2481364b09bef55",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/agentes/modelos.md",
+          "models.yaml",
+          "openspec/specs/generator/spec.md",
+          "scripts/configure/cli.test.js",
+          "scripts/fixtures/context-baseline.json",
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/model-tier-contract.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "1bc6c7be3791d4e214354da933f2486e52af50b3",
+        "original_changed_lines": 99,
+        "authored_lines": 61
+      },
+      "current_candidate_id": "sha256:e8844bb97ae9a67fb3ec870e5993b44e0335bccb8f070e57d2481364b09bef55",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "1fa532e036718da1b077351ef2ef8399245b1d62",
+        "candidate_tree": "1bc6c7be3791d4e214354da933f2486e52af50b3",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/agentes/modelos.md",
+          "models.yaml",
+          "openspec/specs/generator/spec.md",
+          "scripts/configure/cli.test.js",
+          "scripts/fixtures/context-baseline.json",
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/model-tier-contract.test.js"
+        ],
+        "diff_hash": "sha256:cd5c383641071236b98f361c80af82bebc5b9266dd8cb49d1d1a881e3bd0ea77",
+        "paths_digest": "sha256:d1e5c5df537a028753c78350454004931c90117a46226b69fb5b6522485010b6",
+        "authored_lines": 61,
+        "original_changed_lines": 99
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "reviewers-premium-tier:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "reviewers-premium-tier:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 50,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-11-17T09:26:35.061Z"
+}

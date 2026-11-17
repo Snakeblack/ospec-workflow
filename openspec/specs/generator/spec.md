@@ -452,7 +452,7 @@ that tier when assigned (with the tier's Codex effort), otherwise Claude's alias
 otherwise no `model` at all, so the agent inherits the session model without
 error. Contract tests MUST derive the agent→tier partition from `models.yaml`
 and verify generated model parity against it with and without a user
-assignment.
+assignment, for the SDD agents and for the six quality reviewers.
 (Previously: `models.yaml` pinned a model per tier and target, including Codex's
 Sol/Terra/Luna pairs, and the validator enforced those pins.)
 
@@ -462,6 +462,13 @@ Sol/Terra/Luna pairs, and the validator enforced those pins.)
 - WHEN the model-tier contract is validated
 - THEN every listed SDD agent MUST occur in exactly one known tier
 - AND the validator MUST accept the mapping without comparing it to a hardcoded prior partition
+
+#### Scenario: Reviewer tier in models.yaml reaches every model-capable target
+
+- GIVEN `models.yaml` maps the six quality reviewers to a known tier
+- WHEN model-capable target outputs are generated
+- THEN each generated reviewer MUST carry the model that tier resolves to, like any SDD agent
+- AND the validator MUST accept any known tier for a reviewer
 
 #### Scenario: Agent tier reassignment in models.yaml is honored
 
