@@ -75,13 +75,14 @@ artifacts there.
 `state.yaml` MUST declare `schema` as `idd-state/v1` and hold only `change`, `mode`,
 `status` (`open`, `closed` or `abandoned`, REQ-idd-028), `intent` (`kind` in `bug`, `feature`,
 `refactor`, `docs`, plus `summary` and `acceptance`, and optionally the original
-`request`), `facts` (the open-facts declaration of REQ-idd-018: either `open`,
+`request` with `requested_at`, the time it was first recorded, E1.77), `facts` (the open-facts declaration of REQ-idd-018: either `open`,
 the list of open questions, `basis`, why none is open, or `coverage` for a
 feature), `assumptions` (text recorded with `ospec record assumption`), optionally `changelog_line` (the one line of text `ospec record changelog` declares, REQ-idd-025) and `completes` (the id of the closed change a follow-up completes, never its own, REQ-idd-025), `signals` (each with `id`, `reason` and `source`, `declaration` or
 `diff`), `obligations` (each with `id`, `signal`, `status` in `pending`,
 `satisfied`, `withdrawn`, the `evidence` ids that satisfy it and, when
 withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
-`resolved`, an optional `reason`, when resolved, `answer` and `source` and, for
+`resolved`, an optional `reason`, when resolved, `answer`, `source` and, since
+E1.77, `resolved_at`, the time of the answer, and, for
 `checks-changed`, the `checks` it approves, each with its `name` and `command`
 and, for a check scoped to paths (REQ-idd-014), its `paths`,
 and the `config` it approves, its `strict_tdd`, `impact` and `contracts`, which
@@ -100,8 +101,8 @@ of the base the user approved, REQ-idd-014, oldest first, with its `from`,
 and `operations`, plus `decisions`, the texts of `--decision`, once there is
 one), `retracted` (each declared signal retracted under
 REQ-idd-006, with its `id`, `reason`, `source` and `retract_reason`, plus
-`confirmed_by`, `hits`, `answer` and `answer_source` when the user's answer
-retracted it), `impacts`
+`confirmed_by`, `hits`, `answer`, `answer_source` and, since E1.77,
+`resolved_at` when the user's answer retracted it), `impacts`
 (each declared architecture reference of REQ-idd-020, with its `kind`, `adr` or
 `scenario`, its `id`, its `impact`, null until declared, the `reason` once
 declared, the `previous` impacts it was raised from, oldest first, each with
@@ -117,7 +118,7 @@ lineage, with its `lineage_id`, `status`, `finding_ids`, `paths`,
 `changed_lines`, `candidate_tree`, `diff_hash`, `recorded_at` and, once
 decided, the `validation` it got), plus `closed_at` once the change is
 closed (REQ-idd-017), an ISO 8601 UTC timestamp, since it names the archive. A state without `base`, `base_moves`, `plan`, `retracted`, `impacts`,
-`attestations`, `runs`, `reviews`, `advisory_corrections`, `facts`, `assumptions`, `changelog_line` or `completes` MUST stay valid, as the states written before they existed. While the
+`attestations`, `runs`, `reviews`, `advisory_corrections`, `facts`, `assumptions`, `changelog_line` or `completes`, and a request or an answer without its time, MUST stay valid, as the states written before they existed. `requested_at` and `resolved_at` MUST be ISO 8601 UTC timestamps, and only of a request or of a resolved answer. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
 request, and `signals` and `obligations` MUST be empty. `state.yaml` MUST be
@@ -149,23 +150,40 @@ written as JSON, which is valid YAML 1.2. Only the `ospec` CLI MAY write
 ### Requirement: Living Document Template {#REQ-idd-004}
 
 When the `living-doc` obligation is active, `change.md` MUST carry the sections
-`Intent and acceptance`, `Plan`, `Decisions` and `Evidence`, in that order. The
-model writes the first three. After every write of the state, the CLI MUST
+`Intent and acceptance`, `Request and answers`, `Plan`, `Decisions` and
+`Evidence`, in that order. The model writes `Intent and acceptance`, `Plan`
+and `Decisions`. After every write of the state, the CLI MUST
 write the declared plan (its files, its work units above one and its
 operations) between `<!-- ospec:plan:start -->` and `<!-- ospec:plan:end -->`
 in `Plan`, and the texts of `--decision` between
 `<!-- ospec:decisions:start -->` and `<!-- ospec:decisions:end -->` in
 `Decisions`, keeping the line endings of the file and the text outside the
 markers (E4.16). A document without those markers, as changes opened before
-them have, MUST keep its text. The `Evidence` section MUST be written only by the
+them have, MUST keep its text. The `Request and answers` section MUST be
+written only by the CLI, between `<!-- ospec:log:start -->` and
+`<!-- ospec:log:end -->` (E1.77): the `request` of the intent as
+`Request (<requested_at>):` and every answer of the user that the state keeps,
+to a gate or to a retraction (REQ-idd-006), as
+`Answer <n> — <gate id, or retract <signal>>, <source>, <resolved_at>:`, each
+followed by its text, literal, with every line quoted (`> `). Answers are
+numbered from 1 in the order of their `resolved_at`; one without its time, recorded
+before it existed, reads `no date` and comes first, so a new answer always
+takes the next number and none is renumbered. A document without the section,
+from a change opened before it, MUST get it before its `Plan` on the next write
+of the state; one that keeps the heading without its markers MUST keep its
+text. The `Evidence` section MUST be written only by the
 CLI, between `<!-- ospec:evidence:start -->` and `<!-- ospec:evidence:end -->`.
+The CLI MUST take a marker only as a whole line, so a marker quoted inside the
+user's words never replaces one of its own.
 The `living-doc` obligation MUST be satisfied only by a `living-doc-current`
-evidence entry recorded at close, and only when `change.md` keeps the four
-sections in order, its `Plan` is not empty, its `Decisions` is not empty unless
-the declared plan holds no decision, and the evidence markers are in place. A
+evidence entry recorded at close, and only when `change.md`, as the CLI writes
+it, keeps the five sections in order, its `Plan` is not empty, its `Decisions`
+is not empty unless the declared plan holds no decision, and the evidence and
+log markers are in place. A
 marker line alone MUST NOT count as content, and it MUST end the decision
 before it for the knowledge records of REQ-idd-024. While it is current,
-`ospec check` MUST NOT report it as missing.
+`ospec check` MUST NOT report it as missing. A change without `living-doc`
+writes no log: its request and answers stay in `state.yaml` (REQ-idd-002).
 
 #### Scenario: Evidence section is CLI-owned
 
@@ -181,6 +199,26 @@ before it for the knowledge records of REQ-idd-024. While it is current,
 - THEN `close` MUST succeed and return that decision as a knowledge record
 - AND a change of two work units without a decision MUST close with an empty
   `Decisions`, and `--decision` without its text MUST be a usage error
+
+#### Scenario: The log keeps the user's words
+
+- GIVEN a change with `living-doc` recorded with `--request "page the list"`
+  whose `open-facts` gate the user answered "round up"
+- WHEN it closes
+- THEN the archived `change.md` MUST hold, between the log markers,
+  `Request (<requested_at>):` with `> page the list` and
+  `Answer 1 — open-facts, user, <resolved_at>:` with `> round up`, the times
+  being those of `state.yaml`
+- AND an answer whose text holds a log marker or a `## ` line MUST stay inside
+  the log, quoted
+
+#### Scenario: A document opened before the log gets it
+
+- GIVEN a `change.md` with the four sections it had before E1.77 and a state
+  whose answers have no `resolved_at`
+- WHEN the CLI writes the state
+- THEN `Request and answers` MUST appear before `Plan`, each answer reading
+  `no date`, and the rest of the text MUST stay as it was
 
 ### Requirement: Signal Obligation Evidence Catalog {#REQ-idd-005}
 
@@ -1892,7 +1930,12 @@ the changed line counts, from a snapshot of the working tree that excludes
 the changes and the archive under `idd/`) and return the request for the independent `review-trust` reviewer;
 while a review is in progress it MUST return that review instead.
 The request MUST carry a `request_digest` of its lineage, generation,
-candidate tree and paths, and the `result_contract` the result follows. Each
+candidate tree and paths, and the `result_contract` the result follows. While
+`change.md` exists and its log holds an entry (REQ-idd-004), this request and
+both validation requests below MUST also carry `request_log`, with the `path`
+of `change.md`, its `section` and its number of `entries`, outside every
+digest (E1.77): the reader cites the user's words by reference
+(`change.md, answer 2`), never by a summary. Each
 `result_contract`, this one and the validation one below, MUST name the format
 limits the CLI enforces: `cites` a non-empty list of cites inside the file,
 finding `summary` and `acceptance_criteria` of at most 1000 characters, and for

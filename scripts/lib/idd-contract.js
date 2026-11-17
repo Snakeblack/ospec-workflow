@@ -17,7 +17,7 @@ const ARCHIVE_ROOT = "idd/archive";
 const STATE_FILE = "state.yaml";
 const CHANGE_ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const LIVING_DOC_FILE = "change.md";
-const LIVING_DOC_SECTIONS = Object.freeze(["Intent and acceptance", "Plan", "Decisions", "Evidence"]);
+const LIVING_DOC_SECTIONS = Object.freeze(["Intent and acceptance", "Request and answers", "Plan", "Decisions", "Evidence"]);
 const EVIDENCE_MARKERS = Object.freeze({
   start: "<!-- ospec:evidence:start -->",
   end: "<!-- ospec:evidence:end -->",
@@ -26,6 +26,9 @@ const EVIDENCE_MARKERS = Object.freeze({
 // model keeps the rest of the Plan and Decisions sections.
 const PLAN_MARKERS = Object.freeze({ start: "<!-- ospec:plan:start -->", end: "<!-- ospec:plan:end -->" });
 const DECISIONS_MARKERS = Object.freeze({ start: "<!-- ospec:decisions:start -->", end: "<!-- ospec:decisions:end -->" });
+// The CLI writes the user's request and answers between these (E1.77); the
+// section belongs to it alone.
+const LOG_MARKERS = Object.freeze({ start: "<!-- ospec:log:start -->", end: "<!-- ospec:log:end -->" });
 
 const STATE_SCHEMA = "idd-state/v1";
 const STATE_FIELDS = Object.freeze([
@@ -147,6 +150,27 @@ const ANSWER_RETRACTABLE_SIGNALS = Object.freeze(["persistent-data", "public-con
 const SIGNAL_BY_ID = new Map(SIGNALS.map((signal) => [signal.id, signal]));
 const OBLIGATION_BY_ID = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation]));
 
+/**
+ * The user's words the CLI keeps (E1.77): the request and every answer, to a
+ * gate or to a retraction, oldest first. An answer recorded before resolved_at
+ * existed has no time and goes first, so a new answer always takes the next
+ * number and none is renumbered.
+ */
+function userLog(state) {
+  const request = state?.intent?.request != null ? { text: state.intent.request, at: state.intent.requested_at ?? null } : null;
+  const answers = [
+    ...(state?.gates || [])
+      .filter((gate) => gate.status === "resolved" && gate.answer)
+      .map((gate) => ({ label: gate.id, source: gate.source, at: gate.resolved_at ?? null, text: gate.answer })),
+    ...(state?.retracted || [])
+      .filter((entry) => entry?.answer)
+      .map((entry) => ({ label: `retract ${entry.id}`, source: entry.answer_source, at: entry.resolved_at ?? null, text: entry.answer })),
+  ];
+  const time = (entry) => entry.at ?? "";
+  answers.sort((left, right) => (time(left) < time(right) ? -1 : time(left) > time(right) ? 1 : 0));
+  return { request, answers };
+}
+
 function resolveMode({ changeMode, projectMode } = {}) {
   for (const mode of [changeMode, projectMode]) {
     if (mode == null) continue;
@@ -170,6 +194,7 @@ function validateState(state) {
   const errors = [];
   const fail = (message) => errors.push(message);
   const isText = (value) => typeof value === "string" && value.trim() !== "";
+  const isTime = (value) => typeof value === "string" && CLOSE_TIME.test(value);
 
   if (state == null || typeof state !== "object") {
     return { ok: false, errors: ["state must be an object"] };
@@ -246,6 +271,10 @@ function validateState(state) {
     }
   }
   if (intent.request != null && typeof intent.request !== "string") fail("intent.request must be text");
+  // E1.77: the time the request and each answer of the user were recorded.
+  if (intent.requested_at !== undefined && (intent.request == null || !isTime(intent.requested_at))) {
+    fail("intent.requested_at is the time the request was recorded, as an ISO 8601 UTC timestamp");
+  }
   validateFacts(state, fail);
   validatePlan(state.plan, fail);
   validateImpacts(state.impacts, fail);
@@ -268,6 +297,9 @@ function validateState(state) {
       }
     } else if (!isText(entry.reason) || !SIGNAL_SOURCES.includes(entry.source) || !isText(entry.retract_reason)) {
       fail(`retracted signal ${entry.id} needs its reason, source and the reason it was retracted`);
+    }
+    if (entry?.resolved_at !== undefined && (!answered || !isTime(entry.resolved_at))) {
+      fail(`retracted signal ${entry.id}: resolved_at is the time of the user's answer, as an ISO 8601 UTC timestamp`);
     }
   }
 
@@ -332,6 +364,9 @@ function validateState(state) {
     if (gate.reason != null && typeof gate.reason !== "string") fail(`gate ${gate.id} reason must be text`);
     if (gate.status === "resolved" && (!gate.answer || !gate.source)) {
       fail(`gate ${gate.id} is resolved without the user's answer and its source`);
+    }
+    if (gate.resolved_at !== undefined && (gate.status !== "resolved" || !isTime(gate.resolved_at))) {
+      fail(`gate ${gate.id}: resolved_at is the time of the user's answer, as an ISO 8601 UTC timestamp`);
     }
     // E1.49: the turn count of its opening and of its answer, and the source
     // an answer was declared with when no turn ended in between.
@@ -862,6 +897,7 @@ module.exports = {
   INTENT_KINDS,
   LIVING_DOC_FILE,
   LIVING_DOC_SECTIONS,
+  LOG_MARKERS,
   MODES,
   OBLIGATIONS,
   OBLIGATION_STATUSES,
@@ -887,5 +923,6 @@ module.exports = {
   resolveMode,
   signalGaps,
   unaskedRisk,
+  userLog,
   validateState,
 };

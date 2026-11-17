@@ -48,7 +48,8 @@ test("[E1.49] an answer declared user before a turn ends after the gate opened i
   assert.deepStrictEqual(resolved.json.warnings, [
     "gate irreversible-operation recorded user-unverified: no turn ended between the gate's opening and the answer; this answer stays user-unverified and close lists it; ask the next gate by ending your turn with its questions, and record its answer after the user replies",
   ]);
-  assert.deepStrictEqual(stateOf(root, "fix-readme").gates[0], {
+  const answered = stateOf(root, "fix-readme").gates[0];
+  assert.deepStrictEqual(answered, {
     id: "irreversible-operation",
     status: "resolved",
     reason: "drop the old pages",
@@ -56,6 +57,7 @@ test("[E1.49] an answer declared user before a turn ends after the gate opened i
     opened_turn: 3,
     answer: "Go ahead.",
     source: "user-unverified",
+    resolved_at: answered.resolved_at,
     resolved_turn: 3,
     declared_source: "user",
     unverified_reason: "no turn ended between the gate's opening and the answer",
@@ -117,7 +119,9 @@ test("[E1.49] an answer after a turn end keeps user, and a gate opened before E1
   const legacy = ospec(root, "record", "gate", "--change", "fix-readme", "--gate", "adr-amend-or-contradict", "--resolve", "--answer", "Amend it.", "--source", "user", "--json");
   assert.strictEqual(legacy.code, 0, legacy.stderr);
   assert.strictEqual(legacy.json.warnings, undefined);
-  assert.deepStrictEqual(stateOf(root, "fix-readme").gates[1], { id: "adr-amend-or-contradict", status: "resolved", reason: "ADR 0003: the hook decides", answer: "Amend it.", source: "user" });
+  const amended = stateOf(root, "fix-readme").gates[1];
+  assert.deepStrictEqual(amended, { id: "adr-amend-or-contradict", status: "resolved", reason: "ADR 0003: the hook decides", answer: "Amend it.", source: "user", resolved_at: amended.resolved_at });
+  assert.match(amended.resolved_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, "the time of the answer (E1.77)");
 });
 
 test("[E1.49] without a turn count the ambiguous intent answered user is recorded user-unverified", (t) => {

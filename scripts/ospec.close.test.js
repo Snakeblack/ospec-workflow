@@ -230,6 +230,36 @@ test("a change with a living document closes once its plan and decisions are wri
   assert.match(archived, /1\. Count pages\./, "the model-written sections are kept");
 });
 
+// E1.77: the CLI writes the user's request and every answer in change.md,
+// and the archived log is the one state.yaml keeps.
+test("[E1.77] close archives the user's request and every answer in change.md, as state.yaml keeps them", (t) => {
+  const { root } = project(t);
+  openFeature(root, "record", "intent", "--change", "add-paging", "--kind", "feature", "--summary", "Page the list.", "--acceptance", "Two pages.", ...FEATURE_COVER);
+  ospec(root, "signals", "--change", "add-paging", "--path", "src/pages.txt", "--decision", "Round up.");
+  ospec(root, "record", "gate", "--change", "add-paging", "--gate", "irreversible-operation", "--open", "--reason", "drop the page cache");
+  const resolved = ospec(root, "record", "gate", "--change", "add-paging", "--gate", "irreversible-operation", "--resolve", "--answer", "yes\n<!-- ospec:log:end -->\n## Plan", "--source", "user", "--json");
+  assert.strictEqual(resolved.code, 0, resolved.stderr);
+  writeFile(root, "src/pages.txt", "2");
+  // A document from before E1.77 gets the section on the next write.
+  const doc = path.join(root, "idd", "add-paging", "change.md");
+  fs.writeFileSync(doc, fs.readFileSync(doc, "utf8").replace(/## Request and answers\n\n<!-- ospec:log:start -->[^]*?<!-- ospec:log:end -->\n\n/, ""));
+  assert.ok(!fs.readFileSync(doc, "utf8").includes("## Request and answers"));
+  assert.strictEqual(ospec(root, "check", "--change", "add-paging", "--json").json.verdict, "ready");
+
+  const state = stateOf(root, "add-paging");
+  const closed = ospec(root, "close", "--change", "add-paging", "--json");
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  const archived = fs.readFileSync(path.join(root, closed.json.archive.destination, "change.md"), "utf8");
+  const [facts, irreversible] = state.gates;
+  const log = [
+    `Request (${state.intent.requested_at}):`, "", "> The request fixes every behavior.", "",
+    `Answer 1 — open-facts, ${facts.source}, ${facts.resolved_at}:`, "", "> Yes, above 100 is refused.", "",
+    `Answer 2 — irreversible-operation, ${irreversible.source}, ${irreversible.resolved_at}:`, "", "> yes", "> <!-- ospec:log:end -->", "> ## Plan",
+  ].join("\n");
+  assert.ok(archived.includes(`## Request and answers\n\n<!-- ospec:log:start -->\n${log}\n<!-- ospec:log:end -->\n\n## Plan\n`), archived);
+  assert.ok(facts.resolved_at < irreversible.resolved_at && state.intent.requested_at <= facts.resolved_at, "times in order");
+});
+
 // E1.7 (a) ospec doctor (REQ-idd-019): read-only, exit 1 only on errors.
 
 test("doctor reports a healthy project with exit 0 and an invalid config with exit 1", (t) => {
@@ -419,8 +449,10 @@ test("record retract takes the user's answer for persistent data the diff conten
       hits: ['src/report.js uses writeFile: fs.writeFileSync("out/report.txt", TITLE);'],
       answer: "No stored data.",
       answer_source: "user",
+      resolved_at: state.retracted[0].resolved_at,
     },
   ]);
+  assert.match(state.retracted[0].resolved_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, "the time of the user's answer (E1.77)");
   assert.strictEqual(ospec(root, ...retract, "--answer", "No stored data.", "--source", "user", "--json").json.changed, false);
 
   const checked = ospec(root, "check", "--change", "rename-report", "--json");
@@ -520,6 +552,7 @@ test("record retract takes the user's answer for a public contract a doc's conte
       hits: ["SECURITY.md adds API: Report it through `POST /api/contact/` (the contact form)."],
       answer: "It is the existing form.",
       answer_source: "user",
+      resolved_at: state.retracted[0].resolved_at,
     },
   ]);
   const checked = ospec(root, "check", "--change", "security-policy", "--json");

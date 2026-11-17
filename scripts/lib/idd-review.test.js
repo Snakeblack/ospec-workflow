@@ -744,3 +744,32 @@ test("an advisory correction in the state must belong to an approved review and 
   early.advisory_corrections[0].validation = { outcomes: [], regression: { detected: false, evidence: ["x"] }, follow_ups: [] };
   assert.strictEqual(validateState(early).ok, false);
 });
+
+// E1.77: the requests name where the user's literal words are, outside every
+// digest, only while change.md exists and its log holds an entry.
+test("each review and validation request names the log of change.md while it holds the user's words", () => {
+  const { recordGate } = require("./idd-record.js");
+  const logged = (state) => {
+    let next = recordSignal(state, { id: "multi-unit-or-decision", reason: "declared a decision", source: "declaration" }).state;
+    next = recordGate(next, { id: "irreversible-operation", action: "open", reason: "drop the cache" }).state;
+    return recordGate(next, { id: "irreversible-operation", action: "resolve", answer: "yes", source: "user", recordedAt: AT }).state;
+  };
+  const LOG = { path: "idd/rotate-tokens/change.md", section: "Request and answers", entries: 1 };
+
+  const plain = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true });
+  assert.strictEqual(plain.request.request_log, undefined, "no living document, no reference");
+  const silent = recordSignal(openAuth(), { id: "multi-unit-or-decision", reason: "declared a decision", source: "declaration" }).state;
+  assert.strictEqual(startTrustReview(silent, { candidate: candidate(), reviewedChanged: true }).request.request_log, undefined, "an empty log, no reference");
+
+  const started = startTrustReview(logged(openAuth()), { candidate: candidate(), reviewedChanged: true });
+  assert.deepStrictEqual(started.request.request_log, LOG);
+  assert.strictEqual(started.request.request_digest, plain.request.request_digest, "the reference stays outside the digest");
+
+  const frozen = recordTrustFindings(started.state, { result: answer(started.state, [BLOCKER]), recordedAt: AT, lineCount }).state;
+  assert.deepStrictEqual(correct(frozen).validate.request_log, LOG, "the blocking validation names it");
+  assert.deepStrictEqual(startTrustReview(correct(frozen).state, { candidate: candidate(), reviewedChanged: true }).validate.request_log, LOG, "and so does its repeat");
+
+  const approved = recordTrustFindings(started.state, { result: answer(started.state, [ADVICE]), recordedAt: AT, lineCount }).state;
+  const changed = settleReviewFreshness(approved, { reviewedChanged: true, correctionChanges: FIX });
+  assert.deepStrictEqual(correctAdvisory(changed).validate.request_log, LOG, "the advisory validation names it");
+});
