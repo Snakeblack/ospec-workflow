@@ -17,16 +17,31 @@
  *   (`NOMBRE=valor` en mayúsculas) el valor además debe parecer un secreto:
  *   8 caracteres o más, sin espacios, con letra y con dígito o símbolo. Una
  *   contraseña solo de letras en código queda sin censurar: es el precio de
- *   no censurar etiquetas (`"password": "Contraseña"`).
+ *   no censurar etiquetas (`"password": "Contraseña"`);
+ * - el valor de un `key` a secas (`"Key"` en un appsettings) solo cuando es
+ *   un token opaco: 16 caracteres alfanuméricos seguidos o más. Un `key` con
+ *   un prefijo que no califica (`cache_key`, `root_cause_key`) no se censura;
+ * - los pares `nombre=valor` de una cadena de conexión (`Password=…`,
+ *   `AccountKey=…`), también con una contraseña solo de letras cuando el par
+ *   va entre `;` y la línea tiene otra clave de conexión (`Server=`, `Host=`).
  *
  * PARIDAD: internal/hooks/secretredact.go es el espejo Go; ambos pasan el
  * corpus internal/testdata/secret-redaction/cases.json. Las expresiones evitan
  * lookbehind, retrorreferencias y `\s` para comportarse igual en RE2.
  */
 
-const { KNOWN_TOKEN_PATTERNS, GENERIC_CREDENTIAL_REGEX } = require("./secret-scan.js");
+const {
+  KNOWN_TOKEN_PATTERNS,
+  MARKER_PREFIX,
+  findGenericCredentials,
+  isOpaqueToken,
+  isPlaceholder,
+  isStrictSecret,
+  keyWordClass,
+  keyWords,
+  scanContentForSecrets,
+} = require("./secret-scan.js");
 
-const MARKER_PREFIX = "[REDACTED:";
 const MARKER_RE = /\[REDACTED:[a-z0-9-]+\]/;
 
 function marker(kind) {
@@ -55,32 +70,13 @@ const UPPER_COLON_ASSIGN = /(^|[\t :|→])([A-Z][A-Z0-9_]*):[ \t]+([^ \t\f"'#;,(
 // `secrets.json`): cualquier `clave = valor` o `clave: valor` sin comillas,
 // también en minúsculas (INI de AWS, YAML).
 const SENSITIVE_FILE_ASSIGN = /(^|[\t :|→])((?:export[ \t]+)?)([A-Za-z_][A-Za-z0-9_.-]*)([ \t]*[:=][ \t]*)("[^"]*"|'[^']*'|[^ \t\f"'#;,]+)([ \t]*(?:#.*)?)$/g;
-const QUOTED_ASSIGN = /(^|[^A-Za-z0-9_.$-])(?:"([A-Za-z_][A-Za-z0-9_.-]*)"|'([A-Za-z_][A-Za-z0-9_.-]*)'|([A-Za-z_][A-Za-z0-9_.-]*))[ \t]*(?::=|=>|:|=)[ \t]*(?:"([^"]*)"|'([^']*)')/g;
-
-const SENSITIVE_WORDS = new Set(["password", "passwd", "passphrase", "pass", "pwd", "secret", "token", "apikey", "credential", "credentials", "privatekey"]);
-const SENSITIVE_ENDINGS = ["password", "passwd", "secret", "token", "apikey"];
-const KEY_QUALIFIERS = new Set(["api", "access", "secret", "private", "auth", "encryption", "signing", "master", "client"]);
-const PLACEHOLDER_WORDS = new Set([
-  "null", "nil", "none", "undefined", "true", "false", "yes", "no", "on", "off", "empty",
-  "changeme", "password", "passwd", "secret", "token", "example", "sample", "dummy",
-  "placeholder", "redacted", "todo", "tbd", "fixme", "test",
-  "pass", "pwd", "contraseña", "contrasena", "clave",
-]);
-// Un valor que nombra lo que es ("superSecretAdmin123", "password123",
-// "token-123") es un ejemplo: un secreto generado nunca contiene esas palabras.
-const PLACEHOLDER_PARTS = [
-  "your", "example", "placeholder", "changeme", "change_me", "change-me", "dummy", "xxxx", "****", "replace", "...",
-  "password", "passwd", "secret", "token",
-];
-const DESCRIPTIVE_PARTS = new Set(["password", "passwd", "secret", "token"]);
-const REFERENCE_PARTS = ["${", "$(", "{{", "process.env", "os.environ", "getenv", "secrets."];
-
-function isSensitiveWord(words, index) {
-  const word = words[index];
-  if (SENSITIVE_WORDS.has(word)) return true;
-  if (word === "key" && KEY_QUALIFIERS.has(words[index - 1] || "")) return true;
-  return SENSITIVE_ENDINGS.some((ending) => word.endsWith(ending));
-}
+const QUOTED_ASSIGN = /(^|[^A-Za-z0-9ñÑ_.$-])(?:"([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*)"|'([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*)'|([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*))[ \t]*(?::=|=>|:|=)[ \t]*(?:"([^"]*)"|'([^']*)')/g;
+// Un par `nombre=valor` sin espacios ni comillas: los de una cadena de
+// conexión (`Server=db;Password=…`), las opciones separadas por comas de Redis
+// y un `password=…` en minúsculas. El valor acaba en el separador.
+const CONNECTION_PAIR = /(^|[;,"' \t])([A-Za-z][A-Za-z0-9_.]*)=([^;,"' \t(){}[\]<>&]+)/g;
+// Otra clave de una cadena de conexión en la misma línea.
+const CONNECTION_KEY = /(?:^|[;"' \t])(?:server|data source|host|hostname|database|initial catalog|user id|uid|user|username|accountname|endpoint|defaultendpointsprotocol)[ \t]*=/i;
 
 /**
  * Por la última palabra: `DB_PASSWORD`, `apiKey` o `client_secret` sí;
@@ -88,33 +84,25 @@ function isSensitiveWord(words, index) {
  * basta cualquier palabra: `SECRET_KEY_BASE`.
  */
 function isSensitiveKey(key, anyWord = false) {
-  const words = key.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase().split(/[_.-]+/).filter(Boolean);
+  const words = keyWords(key);
   if (words.length === 0) return false;
-  if (!anyWord) return isSensitiveWord(words, words.length - 1);
-  return words.some((_word, index) => isSensitiveWord(words, index));
-}
-
-function isRepeatedChar(value) {
-  const chars = [...value];
-  return chars.every((ch) => ch === chars[0]);
+  const sensitive = (index) => ["human", "machine"].includes(keyWordClass(words, index));
+  return anyWord ? words.some((_word, index) => sensitive(index)) : sensitive(words.length - 1);
 }
 
 /**
- * Referencias, plantillas, placeholders, URLs, rutas, números y nombres de
- * constante. Sin `descriptive` (un `.env`), un valor que contiene `password`
- * o `secret` sí cuenta como secreto: ahí nadie escribe ejemplos.
+ * Un `key` a secas (`key`, `"Key"`). Con `unqualified` (el pre-commit) también
+ * un `key` con un prefijo desconocido (`azure_openai_key`).
  */
-function isPlaceholder(value, descriptive = true) {
-  if (!value || value.startsWith(MARKER_PREFIX) || value.startsWith("$") || value.startsWith("{")) return true;
-  if (REFERENCE_PARTS.some((part) => value.includes(part))) return true;
-  if (/<[^>]*>/.test(value) || /^%[A-Za-z0-9_]+%$/.test(value) || /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value)) return true;
-  const lower = value.toLowerCase();
-  const parts = descriptive ? PLACEHOLDER_PARTS : PLACEHOLDER_PARTS.filter((part) => !DESCRIPTIVE_PARTS.has(part));
-  if (PLACEHOLDER_WORDS.has(lower) || parts.some((part) => lower.includes(part))) return true;
-  if (/^[0-9]+$/.test(value) || isRepeatedChar(value)) return true;
-  if (/^(?:\/|\.{1,2}\/|~\/|[A-Za-z]:[\\/])/.test(value) || /\.(?:pem|key|crt|cer|p12|pfx|json|txt|ya?ml|env)$/i.test(value)) return true;
-  if (/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/.test(value)) return true;
-  return /^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+$/.test(value);
+function isGenericKey(key, unqualified = false) {
+  const words = keyWords(key);
+  const kind = words.length > 0 ? keyWordClass(words, words.length - 1) : null;
+  return kind === "generic" || (unqualified && kind === "unqualified");
+}
+
+/** Asignación en código o configuración: el valor debe tener la forma que pide el nombre. */
+function isAssignedSecret(key, value, unqualified = false) {
+  return (isSensitiveKey(key) && isStrictSecret(value)) || (isGenericKey(key, unqualified) && isOpaqueToken(value));
 }
 
 /** Valor de un `.env`: cualquier valor que no sea placeholder, de 4 caracteres o más. */
@@ -134,21 +122,6 @@ function isOpaqueValue(value) {
     && !isPlaceholder(value, false);
 }
 
-/**
- * Valor en código o configuración: además debe parecer un secreto. Los
- * separadores de identificador (`-`, `_`, `.`) no cuentan como símbolo
- * ("user-owned"), un `:` delata un id con espacio de nombres ("opaque:t1") y
- * un `-` inicial, un argumento de CLI ("--node-id=n1").
- */
-function isStrictSecret(value) {
-  return [...value].length >= 8
-    && !/[ \t:]/.test(value)
-    && !value.startsWith("-")
-    && /[A-Za-z]/.test(value)
-    && /[0-9!-,/;-@[-^`{-~]/.test(value)
-    && !isPlaceholder(value);
-}
-
 function unquote(value) {
   const quote = value[0];
   return (quote === '"' || quote === "'") && value.length >= 2 && value[value.length - 1] === quote
@@ -156,13 +129,15 @@ function unquote(value) {
     : { quote: "", inner: value };
 }
 
-function redactLine(line, note, sensitiveFile) {
+function redactLine(line, note, sensitiveFile, unqualified) {
   let out = line.replace(DOTENV_ASSIGN, (match, prefix, _export, key, value) => {
     const { quote, inner } = unquote(value);
     // Dentro de una cadena o una lista ("API_KEY=x" en un test, el Env de
     // docker inspect) no es un .env: el valor debe parecer un secreto.
     const embedded = prefix !== "" && `"'[{,;`.includes(prefix);
-    const secret = embedded ? isSensitiveKey(key) && isStrictSecret(inner) : isSensitiveKey(key, true) && isEnvSecret(inner);
+    const secret = embedded
+      ? isAssignedSecret(key, inner, unqualified)
+      : (isSensitiveKey(key, true) && isEnvSecret(inner)) || (isGenericKey(key, unqualified) && isOpaqueToken(inner));
     if (!secret && !(sensitiveFile && isOpaqueValue(inner))) return match;
     note("assigned-secret");
     return `${match.slice(0, match.length - value.length)}${quote}${marker("assigned-secret")}${quote}`;
@@ -176,14 +151,22 @@ function redactLine(line, note, sensitiveFile) {
     });
   }
   out = out.replace(UPPER_COLON_ASSIGN, (match, _prefix, key, value, trailing) => {
-    if (!isSensitiveKey(key) || !isStrictSecret(value)) return match;
+    if (!isAssignedSecret(key, value, unqualified)) return match;
     note("assigned-secret");
     return `${match.slice(0, match.length - value.length - trailing.length)}${marker("assigned-secret")}${trailing}`;
+  });
+  out = out.replace(CONNECTION_PAIR, (match, prefix, key, value, offset, whole) => {
+    if (!isSensitiveKey(key)) return match;
+    const delimited = prefix === ";" || whole[offset + match.length] === ";";
+    const secret = delimited && CONNECTION_KEY.test(whole) ? isEnvSecret(value) : isStrictSecret(value);
+    if (!secret) return match;
+    note("assigned-secret");
+    return `${match.slice(0, match.length - value.length)}${marker("assigned-secret")}`;
   });
   return out.replace(QUOTED_ASSIGN, (match, _prefix, dq, sq, bare, dv, sv) => {
     const key = dq ?? sq ?? bare;
     const value = dv ?? sv;
-    const secret = (isSensitiveKey(key) && isStrictSecret(value))
+    const secret = isAssignedSecret(key, value, unqualified)
       || (sensitiveFile && ((isSensitiveKey(key, true) && isEnvSecret(value)) || isOpaqueValue(value)));
     if (!secret) return match;
     note("assigned-secret");
@@ -195,11 +178,13 @@ function redactLine(line, note, sensitiveFile) {
  * Censura los secretos de un texto. `sensitiveFile` (el texto viene de un
  * fichero que classifySensitiveFile marca por nombre) añade las asignaciones
  * sin comillas en minúsculas y los valores aleatorios de cualquier clave.
+ * `unqualifiedKeys` es del pre-commit, no de la censura de salida: trata el
+ * `key` con un prefijo desconocido como el `key` a secas.
  *
  * @returns {{text: *, kinds: string[]}} `kinds` lista cada tipo censurado una
  *   vez, en el orden en que se censuró. Un no-string vuelve tal cual.
  */
-function redactSecrets(text, { sensitiveFile = false } = {}) {
+function redactSecrets(text, { sensitiveFile = false, unqualifiedKeys = false } = {}) {
   const kinds = [];
   if (typeof text !== "string" || text === "") return { text, kinds };
   const note = (kind) => {
@@ -232,7 +217,7 @@ function redactSecrets(text, { sensitiveFile = false } = {}) {
     .split("\n")
     .map((line) => {
       const cr = line.endsWith("\r") ? "\r" : "";
-      return redactLine(cr ? line.slice(0, -1) : line, note, sensitiveFile) + cr;
+      return redactLine(cr ? line.slice(0, -1) : line, note, sensitiveFile, unqualifiedKeys) + cr;
     })
     .join("\n");
   return { text: out, kinds };
@@ -286,16 +271,26 @@ function isCoveredByRedaction(content, options = {}) {
   for (const { regex } of KNOWN_TOKEN_PATTERNS) {
     if (regex.test(text)) return false;
   }
-  const generic = new RegExp(GENERIC_CREDENTIAL_REGEX.source, "gi");
-  for (const match of text.matchAll(generic)) {
-    if (!containsRedactionMarker(match[0])) return false;
-  }
-  return true;
+  return findGenericCredentials(text).every(containsRedactionMarker);
+}
+
+/**
+ * Lo que el pre-commit bloquea en una línea: lo que marca el escáner o
+ * censura la censura en modo normal. Para el commit, la censura cuenta además
+ * el `key` con un prefijo desconocido y un token opaco en todas sus formas
+ * (clave entre comillas, `NOMBRE=valor`, `NOMBRE: valor`), que el escáner solo
+ * ve con el nombre sin comillas y el valor entre comillas.
+ *
+ * @returns {string|null} el id del patrón o el tipo censurado
+ */
+function detectSecret(text) {
+  return scanContentForSecrets(text).patternId || redactSecrets(text, { unqualifiedKeys: true }).kinds[0] || null;
 }
 
 module.exports = {
   MARKER_PREFIX,
   containsRedactionMarker,
+  detectSecret,
   isCoveredByRedaction,
   redactDeep,
   redactSecrets,

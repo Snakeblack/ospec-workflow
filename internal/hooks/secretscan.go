@@ -46,19 +46,138 @@ var knownTokenPatterns = []knownTokenPattern{
 	{"sendgrid-api-key", regexp.MustCompile(`\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}`)},
 }
 
-// genericCredentialRegex detecta asignaciones genéricas de credencial:
-// `password = "..."` o similares.
-//
-// Endurecido contra falsos positivos:
-//   - `(?:^|[^a-z])` exige que la keyword no sea sufijo de otra palabra
-//     ("monkey:", "turkey =") pero admite prefijos con `_`/`-` ("db_password",
-//     "api-key"). RE2 no soporta lookbehind, por eso el grupo consumidor.
-//   - `[ \t]*` (en vez de `\s*`) y `[^"'\n]` obligan a que keyword y valor
-//     convivan en la misma línea; el regex original cruzaba saltos de línea y
-//     combinaba texto sin relación real.
-var genericCredentialRegex = regexp.MustCompile(
-	`(?i)(?:^|[^a-z])(?:password|passwd|pass|contrase[nñ]a|secret|key|token|private_key)[ \t]*[:=][ \t]*["'][^"'` + "\n" + `]{6,}["']`,
+// Nombres sensibles, por palabras (`DB_PASSWORD`, `apiKey`, `client-secret`).
+// La clase de la palabra decide qué valor cuenta como secreto, y es la misma
+// para el escáner y para la censura (secretredact.go); ver keyWordClass en
+// secret-scan.js.
+var (
+	humanWords     = map[string]bool{"password": true, "passwd": true, "passphrase": true, "secret": true, "contraseña": true, "contrasena": true}
+	humanEndings   = []string{"password", "passwd", "secret"}
+	machineWords   = map[string]bool{"pwd": true, "token": true, "apikey": true, "credential": true, "credentials": true, "privatekey": true}
+	machineEndings = []string{"token", "apikey"}
+	keyQualifiers  = map[string]bool{
+		"api": true, "access": true, "secret": true, "private": true, "auth": true, "encryption": true, "signing": true, "master": true, "client": true,
+		"account": true, "jwt": true, "hmac": true, "security": true, "subscription": true,
+	}
+	// Prefijos de `key` que nombran un dato que no es secreto.
+	plainKeyQualifiers = map[string]bool{
+		"cache": true, "sort": true, "partition": true, "primary": true, "foreign": true, "idempotency": true, "dedupe": true, "hash": true, "object": true, "row": true,
+		"public": true, "publishable": true, "anon": true, "site": true, "cause": true,
+	}
+
+	camelBoundaryRe = regexp.MustCompile(`([a-z0-9])([A-Z])`)
+	keySeparatorRe  = regexp.MustCompile(`[_.-]+`)
+	alnumRunRe      = regexp.MustCompile(`[A-Za-z0-9]{16,}`)
+	asciiDigitRe    = regexp.MustCompile(`[0-9]`)
+
+	// genericAssignmentRe: un nombre sin comillas pegado a `:` o `=` y un valor
+	// entre comillas de 6 caracteres o más, en la misma línea. El tope del
+	// nombre es el de secret-scan.js, donde evita un coste cuadrático.
+	genericAssignmentRe = regexp.MustCompile(`([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]{0,80})[ \t]*[:=][ \t]*["']([^"'` + "\n" + `]{6,})["']`)
 )
+
+func keyWords(name string) []string {
+	split := strings.ToLower(camelBoundaryRe.ReplaceAllString(name, "${1}_${2}"))
+	var words []string
+	for _, word := range keySeparatorRe.Split(split, -1) {
+		if word != "" {
+			words = append(words, word)
+		}
+	}
+	return words
+}
+
+// keyWordClass devuelve "human", "machine", "generic", "unqualified" o "".
+// El escáner marca un key unqualified (prefijo desconocido) con un token
+// opaco; la censura no lo toca.
+func keyWordClass(words []string, index int) string {
+	word := words[index]
+	if humanWords[word] {
+		return "human"
+	}
+	// `pass` a secas es ambiguo ("first pass"); con prefijo (`db_pass`) no.
+	if word == "pass" {
+		if len(words) == 1 {
+			return "machine"
+		}
+		return "human"
+	}
+	if machineWords[word] {
+		return "machine"
+	}
+	if word == "key" {
+		qualifier := ""
+		if index > 0 {
+			qualifier = words[index-1]
+		}
+		if keyQualifiers[qualifier] {
+			return "machine"
+		}
+		if len(words) == 1 {
+			return "generic"
+		}
+		// Un prefijo que nombra un dato que no es secreto (`cache_key`).
+		if plainKeyQualifiers[qualifier] {
+			return ""
+		}
+		return "unqualified"
+	}
+	for _, ending := range humanEndings {
+		if strings.HasSuffix(word, ending) {
+			return "human"
+		}
+	}
+	for _, ending := range machineEndings {
+		if strings.HasSuffix(word, ending) {
+			return "machine"
+		}
+	}
+	return ""
+}
+
+// hasOpaqueRun: 16 caracteres alfanuméricos seguidos o más, con letra y con
+// dígito.
+func hasOpaqueRun(value string) bool {
+	for _, run := range alnumRunRe.FindAllString(value, -1) {
+		if asciiLetterRe.MatchString(run) && asciiDigitRe.MatchString(run) {
+			return true
+		}
+	}
+	return false
+}
+
+// isOpaqueToken: un valor sin blancos, que no es placeholder y lleva un tramo
+// opaco (ver isOpaqueToken en secret-scan.js).
+func isOpaqueToken(value string) bool {
+	return !blankRe.MatchString(value) && !isPlaceholder(value, true) && hasOpaqueRun(value)
+}
+
+// findGenericCredentials devuelve las asignaciones genéricas de content que
+// cuentan como credencial: nombre human con cualquier valor, machine con
+// forma de secreto, y generic o unqualified con un token opaco.
+func findGenericCredentials(content string) []string {
+	var found []string
+	offset := 0
+	for {
+		m := genericAssignmentRe.FindStringSubmatchIndex(content[offset:])
+		if m == nil {
+			return found
+		}
+		words := keyWords(content[offset+m[2] : offset+m[3]])
+		kind := ""
+		if len(words) > 0 {
+			kind = keyWordClass(words, len(words)-1)
+		}
+		value := content[offset+m[4] : offset+m[5]]
+		if kind == "human" || (kind == "machine" && isStrictSecret(value)) || ((kind == "generic" || kind == "unqualified") && isOpaqueToken(value)) {
+			found = append(found, content[offset+m[0]:offset+m[1]])
+			offset += m[1]
+		} else {
+			// El valor de un nombre corriente puede contener otra asignación.
+			offset += m[3]
+		}
+	}
+}
 
 // sensitiveFileClass describe la clasificación por nombre de archivo.
 // action: "deny" (private-key | git-config | npmrc) o "ask" (env-file | secrets-file).
@@ -80,7 +199,8 @@ func classifySensitiveFile(filePath string) *sensitiveFileClass {
 		return &sensitiveFileClass{action: "deny", kind: "private-key"}
 	}
 
-	if filename == "config" && strings.Contains(filepath.ToSlash(filePath), "/.git/config") {
+	// Sin la barra inicial: también una ruta relativa (`.git/config`), como en JS.
+	if filename == "config" && strings.Contains(filepath.ToSlash(filePath), ".git/config") {
 		return &sensitiveFileClass{action: "deny", kind: "git-config"}
 	}
 	if filename == ".npmrc" {
@@ -107,7 +227,7 @@ func scanContentForSecrets(content string) (bool, string) {
 			return true, p.id
 		}
 	}
-	if genericCredentialRegex.MatchString(content) {
+	if len(findGenericCredentials(content)) > 0 {
 		return true, "generic-credential"
 	}
 	return false, ""

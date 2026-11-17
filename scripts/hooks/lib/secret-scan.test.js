@@ -10,8 +10,10 @@ const {
   classifySensitiveFile,
   scanContentForSecrets,
   scanFileForSecrets,
+  findGenericCredentials,
+  keyWordClass,
+  keyWords,
   KNOWN_TOKEN_PATTERNS,
-  GENERIC_CREDENTIAL_REGEX,
   MAX_SCAN_SIZE_BYTES,
 } = require("./secret-scan.js");
 
@@ -151,7 +153,8 @@ const GENERIC_TRUE_POSITIVES = [
   "api_key = 'abcdef123456'",
   'token: "abcdef123456"',
   'contraseña = "miClaveSegura"',
-  'private_key: "-----BEGIN"',
+  // Una clave generada tiene forma de secreto: se construye en ejecución.
+  'private_key: "' + "0x4c0883a6".repeat(4) + '"',
   'SECRET="deploy-secret-value"',
 ];
 
@@ -194,9 +197,38 @@ test("scanContentForSecrets: contenido vacío o no-string → no match", () => {
   assert.equal(scanContentForSecrets(undefined).matched, false);
 });
 
-test("GENERIC_CREDENTIAL_REGEX: keyword al inicio de línea posterior sí dispara", () => {
+test("scanContentForSecrets: keyword al inicio de línea posterior sí dispara", () => {
   const sample = 'línea uno\npassword: "superSecretAdmin123"';
-  assert.equal(GENERIC_CREDENTIAL_REGEX.test(sample), true);
+  assert.equal(scanContentForSecrets(sample).patternId, "generic-credential");
+});
+
+test("keyWordClass: la última palabra del nombre decide la regla del valor", () => {
+  const classOf = (name) => {
+    const words = keyWords(name);
+    return keyWordClass(words, words.length - 1);
+  };
+  for (const [name, expected] of [
+    ["password", "human"], ["dbPassword", "human"], ["DB_PASSWD", "human"], ["client-secret", "human"], ["contraseña", "human"],
+    ["db_pass", "human"], ["pass", "machine"], ["accessToken", "machine"], ["API_KEY", "machine"], ["apikey", "machine"],
+    ["private_key", "machine"], ["storage_account_key", "machine"], ["pwd", "machine"], ["credentials", "machine"],
+    ["jwt_key", "machine"], ["key", "generic"], ["STORAGE_KEY", "unqualified"], ["azure_openai_key", "unqualified"],
+    ["sortKey", null], ["cache_key", null], ["publicKey", null],
+    ["monkey", null], ["compass", null], ["keyword", null], ["max_tokens", null], ["passwordField", null],
+  ]) {
+    assert.equal(classOf(name), expected, name);
+  }
+});
+
+test("findGenericCredentials: una asignación dentro del valor de un nombre corriente también cuenta", () => {
+  // Por partes: la línea entera tendría la forma que el pre-commit bloquea.
+  const inner = ["password", "=", `'${"hunter".repeat(2)}'`].join(" ");
+  assert.deepEqual(findGenericCredentials(`title = "the ${inner}"`), [inner]);
+});
+
+test("findGenericCredentials: una tira larga de caracteres de nombre no cuesta tiempo cuadrático", () => {
+  const started = Date.now();
+  assert.deepEqual(findGenericCredentials("aB3_".repeat(100000)), []);
+  assert.ok(Date.now() - started < 5000);
 });
 
 // ---------------------------------------------------------------------------

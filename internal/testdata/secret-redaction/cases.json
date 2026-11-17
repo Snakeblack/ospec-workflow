@@ -220,6 +220,21 @@
       "input": "\"Env\": [\"POSTGRES_PASSWORD=Pg5ecret9x\", \"PGDATA=/var/lib/postgresql/data\"]",
       "output": "\"Env\": [\"POSTGRES_PASSWORD=[REDACTED:assigned-secret]\", \"PGDATA=/var/lib/postgresql/data\"]",
       "kinds": ["assigned-secret"]
-    }
+    },
+    {"name": "connection string password between semicolons, only letters", "input": "\"DefaultConnection\": \"Server=db.internal;Database=app;User Id=sa;Password={{alpha:12}};TrustServerCertificate=True\"", "output": "\"DefaultConnection\": \"Server=db.internal;Database=app;User Id=sa;Password=[REDACTED:assigned-secret];TrustServerCertificate=True\"", "kinds": ["assigned-secret"]},
+    {"name": "odbc password after a pair that is not sensitive", "input": "\"Legacy\": \"Data Source=db;Initial Catalog=app;UID=sa;PWD={{fill:12}}\"", "output": "\"Legacy\": \"Data Source=db;Initial Catalog=app;UID=sa;PWD=[REDACTED:assigned-secret]\"", "kinds": ["assigned-secret"]},
+    {"name": "azure storage account key keeps the rest of the connection string", "input": "\"Storage\": \"DefaultEndpointsProtocol=https;AccountName=acme;AccountKey={{fill:86}}==;EndpointSuffix=core.windows.net\"", "output": "\"Storage\": \"DefaultEndpointsProtocol=https;AccountName=acme;AccountKey=[REDACTED:assigned-secret];EndpointSuffix=core.windows.net\"", "kinds": ["assigned-secret"]},
+    {"name": "service bus shared access key, not its name", "input": "\"Bus\": \"Endpoint=sb://acme.servicebus.windows.net/;SharedAccessKeyName=Root;SharedAccessKey={{fill:43}}=\"", "output": "\"Bus\": \"Endpoint=sb://acme.servicebus.windows.net/;SharedAccessKeyName=Root;SharedAccessKey=[REDACTED:assigned-secret]\"", "kinds": ["assigned-secret"]},
+    {"name": "redis options separated by commas", "input": "\"Redis\": \"cache.internal:6380,password={{fill:16}},ssl=True\"", "output": "\"Redis\": \"cache.internal:6380,password=[REDACTED:assigned-secret],ssl=True\"", "kinds": ["assigned-secret"]},
+    {"name": "lowercase pair without quotes", "input": "password={{fill:12}}", "output": "password=[REDACTED:assigned-secret]", "kinds": ["assigned-secret"]},
+    {"name": "bare key with an opaque token in json", "input": "  \"Key\": \"{{fill:48}}\",", "output": "  \"Key\": \"[REDACTED:assigned-secret]\",", "kinds": ["assigned-secret"]},
+    {"name": "key qualified by jwt", "input": "jwtKey: \"{{fill:32}}\"", "output": "jwtKey: \"[REDACTED:assigned-secret]\"", "kinds": ["assigned-secret"]},
+    {"name": "spanish password name", "input": "contraseña = \"{{fill:12}}\"", "output": "contraseña = \"[REDACTED:assigned-secret]\"", "kinds": ["assigned-secret"]},
+    {"name": "connection string password only of letters outside a connection string", "input": "retry(password={{alpha:12}}, attempts=3)"},
+    {"name": "keyword arguments with identifiers", "input": "conn = connect(host=db_host, user=db_user, password=db_password)"},
+    {"name": "minified loop with a token assignment", "input": "for(i=0;token=next();i++){}"},
+    {"name": "cache key that holds a hash", "input": "\"diff_cache_key\": \"{{fill:64}}\","},
+    {"name": "bare key with an identifier", "input": "key: \"app_v2_storage_state\""},
+    {"name": "supabase env reference", "input": "openai_api_key = \"env(OPENAI_API_KEY)\""}
   ]
 }

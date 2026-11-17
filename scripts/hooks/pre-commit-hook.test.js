@@ -701,3 +701,91 @@ test("blocks commit when git diff fails in Strict TDD verification [REQ-agent-sh
   assert.equal(exitCode, 1);
 });
 
+
+// Built at runtime: the repository never holds a secret-shaped value.
+const OPAQUE = "aB3xY7kM9pQ2";
+
+function stagedBlob(t, content) {
+  const calls = { errors: [], logs: [], exitCode: null };
+  t.mock.method(process, "exit", (code) => {
+    if (calls.exitCode === null) calls.exitCode = code;
+  });
+  t.mock.method(console, "error", (...args) => calls.errors.push(args.join(" ")));
+  t.mock.method(console, "log", (...args) => calls.logs.push(args.join(" ")));
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "git" && args.includes("--cached")) return { status: 0, stdout: "deploy/Dockerfile\n" };
+    if (cmd === "git" && args[0] === "show" && args[1] === ":deploy/Dockerfile") return { status: 0, stdout: content };
+    if (cmd === "git" && args[0] === "show") return { status: 128, stdout: "", stderr: "fatal: no such path" };
+    return { status: 0, stdout: "" };
+  });
+  return calls;
+}
+
+test("blocks a commit the output redaction would redact, with the line and without the value [REQ-agent-shield-security-001]", (t) => {
+  const calls = stagedBlob(t, `FROM node:22\nENV DB_PASSWORD=${OPAQUE}\n`);
+  runPreCommit();
+  assert.equal(calls.exitCode, 1);
+  const banner = calls.errors.join("\n");
+  assert.match(banner, /Archivo: deploy\/Dockerfile/);
+  assert.match(banner, /Línea: 2/);
+  assert.match(banner, /Patrón detectado: assigned-secret/);
+  assert.match(banner, /ospec:allow-secret/);
+  assert.equal(banner.includes(OPAQUE), false, "the value never reaches the output");
+});
+
+test("blocks a camelCase credential the scanner used to miss [REQ-agent-shield-security-001]", (t) => {
+  const calls = stagedBlob(t, `const dbPassword = "${"hunter".repeat(2)}";\n`);
+  runPreCommit();
+  assert.equal(calls.exitCode, 1);
+  assert.match(calls.errors.join("\n"), /Patrón detectado: generic-credential/);
+});
+
+test("allows ordinary code with a key field [REQ-agent-shield-security-001]", (t) => {
+  const calls = stagedBlob(t, 'tool.register({ key: "ospec-open-changes" });\nconst STORAGE_KEY = "app_v2_storage_state";\n');
+  runPreCommit();
+  assert.equal(calls.exitCode, 0);
+});
+
+test("a line with the allow marker is not scanned and is reported [REQ-agent-shield-security-001]", (t) => {
+  const calls = stagedBlob(t, `ENV DB_PASSWORD=${OPAQUE} # ospec:allow-secret\n`);
+  runPreCommit();
+  assert.equal(calls.exitCode, 0);
+  assert.ok(calls.logs.some((line) => /deploy\/Dockerfile: 1 línea\(s\) con ospec:allow-secret/.test(line)), calls.logs.join("\n"));
+});
+
+test("the allow marker covers only its own line [REQ-agent-shield-security-001]", (t) => {
+  const calls = stagedBlob(t, `ENV A=${OPAQUE} # ospec:allow-secret\nENV API_TOKEN=${OPAQUE}\n`);
+  runPreCommit();
+  assert.equal(calls.exitCode, 1);
+  assert.match(calls.errors.join("\n"), /Línea: 2/);
+});
+
+test("findAddedSecret returns the first finding and the lines it skipped", () => {
+  const { findAddedSecret } = require("./pre-commit-hook.js");
+  assert.deepEqual(
+    findAddedSecret([
+      { number: 3, text: "plain" },
+      { number: 7, text: `token: "${OPAQUE}" // ospec:allow-secret` },
+      { number: 9, text: `Authorization: Bearer ${OPAQUE.repeat(2)}` },
+      { number: 12, text: `password: "${"hunter".repeat(2)}"` },
+    ]),
+    { finding: { line: 9, patternId: "bearer-token" }, allowed: 1 },
+  );
+  assert.deepEqual(findAddedSecret([{ number: 1, text: "plain" }]), { finding: null, allowed: 0 });
+});
+
+test("blocks a vendor key under an unqualified name in every way of writing it [REQ-agent-shield-security-001]", (t) => {
+  const { findAddedSecret } = require("./pre-commit-hook.js");
+  const opaque = OPAQUE.repeat(3);
+  for (const text of [
+    `azure_openai_key = "${opaque}"`,
+    `  "azure_openai_key": "${opaque}",`,
+    `ENV AZURE_OPENAI_KEY=${opaque}`,
+    `  AZURE_OPENAI_KEY: ${opaque}`,
+  ]) {
+    assert.notEqual(findAddedSecret([{ number: 1, text }]).finding, null, text.replace(opaque, "<opaque>"));
+  }
+  for (const text of [`  "diff_cache_key": "${opaque}",`, `CACHE_KEY=${opaque}`, `root_cause_key: "${opaque}"`, '  "storage_key": "app_v2_storage_state",']) {
+    assert.equal(findAddedSecret([{ number: 1, text }]).finding, null, text.replace(opaque, "<opaque>"));
+  }
+});

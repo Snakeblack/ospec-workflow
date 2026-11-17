@@ -129,21 +129,33 @@ function getStagedContent(repoRoot, relativePath, deps = {}) {
  * @throws {Error} Si el blob staged no se puede leer: el escaneo falla cerrado.
  */
 function getStagedAddedLines(repoRoot, relativePath, deps = {}) {
+  const entries = getStagedAddedEntries(repoRoot, relativePath, deps);
+  return entries === null ? null : entries.map((entry) => entry.text).join("\n");
+}
+
+/**
+ * Las líneas de getStagedAddedLines con su número en el blob staged, para
+ * decir dónde está lo que bloquea el commit.
+ *
+ * @returns {{number: number, text: string}[]|null}
+ */
+function getStagedAddedEntries(repoRoot, relativePath, deps = {}) {
   const staged = typeof deps.getStagedContent === "function"
     ? deps.getStagedContent(repoRoot, relativePath, deps)
     : getStagedContent(repoRoot, relativePath, deps);
   if (staged === null || typeof staged !== "string") return null;
   const head = getHeadContent(repoRoot, relativePath, deps);
-  if (!head) return staged;
   const remaining = new Map();
-  for (const line of head.split("\n")) remaining.set(line, (remaining.get(line) || 0) + 1);
-  const added = [];
-  for (const line of staged.split("\n")) {
-    const count = remaining.get(line) || 0;
-    if (count > 0) remaining.set(line, count - 1);
-    else added.push(line);
+  if (head) {
+    for (const line of head.split("\n")) remaining.set(line, (remaining.get(line) || 0) + 1);
   }
-  return added.join("\n");
+  const added = [];
+  staged.split("\n").forEach((text, index) => {
+    const count = remaining.get(text) || 0;
+    if (count > 0) remaining.set(text, count - 1);
+    else added.push({ number: index + 1, text });
+  });
+  return added;
 }
 
 /**
@@ -551,6 +563,7 @@ module.exports = {
   getStagedFiles,
   getStagedBlobSize,
   getStagedContent,
+  getStagedAddedEntries,
   getStagedAddedLines,
   checkStagedSyntax,
   findAffectedTests,

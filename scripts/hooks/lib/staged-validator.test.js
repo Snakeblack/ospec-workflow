@@ -9,6 +9,7 @@ const {
   getStagedFiles,
   getStagedBlobSize,
   getStagedContent,
+  getStagedAddedEntries,
   getStagedAddedLines,
   checkStagedSyntax,
   findAffectedTests,
@@ -576,6 +577,15 @@ function gitShow(blobs) {
 test("getStagedAddedLines returns the staged lines HEAD does not have, counting repeats", () => {
   const spawnSync = gitShow({ ":a.txt": "keep\nnew\nkeep\nkeep\n", "HEAD:a.txt": "keep\nkeep\nold\n" });
   assert.equal(getStagedAddedLines("/repo", "a.txt", { spawnSync }), "new\nkeep");
+});
+
+test("getStagedAddedEntries gives each added line its number in the staged blob", () => {
+  const spawnSync = gitShow({ ":a.txt": "keep\nnew\nkeep\nkeep\n", "HEAD:a.txt": "keep\nkeep\nold\n" });
+  assert.deepEqual(getStagedAddedEntries("/repo", "a.txt", { spawnSync }), [{ number: 2, text: "new" }, { number: 4, text: "keep" }]);
+  assert.deepEqual(
+    getStagedAddedEntries("/repo", "b.txt", { spawnSync: gitShow({ ":b.txt": "one\ntwo" }) }),
+    [{ number: 1, text: "one" }, { number: 2, text: "two" }],
+  );
 });
 
 test("getStagedAddedLines counts the whole blob when HEAD has no version", () => {

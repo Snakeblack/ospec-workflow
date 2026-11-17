@@ -37,10 +37,14 @@ var (
 	// Solo en un fichero sensible por nombre: cualquier `clave = valor` o
 	// `clave: valor` sin comillas, también en minúsculas (INI de AWS, YAML).
 	sensitiveFileAssignRe = regexp.MustCompile(`(^|[\t :|→])((?:export[ \t]+)?)([A-Za-z_][A-Za-z0-9_.-]*)([ \t]*[:=][ \t]*)("[^"]*"|'[^']*'|[^ \t\f"'#;,]+)([ \t]*(?:#.*)?)$`)
-	quotedAssignRe        = regexp.MustCompile(`(^|[^A-Za-z0-9_.$-])(?:"([A-Za-z_][A-Za-z0-9_.-]*)"|'([A-Za-z_][A-Za-z0-9_.-]*)'|([A-Za-z_][A-Za-z0-9_.-]*))[ \t]*(?::=|=>|:|=)[ \t]*(?:"([^"]*)"|'([^']*)')`)
+	quotedAssignRe        = regexp.MustCompile(`(^|[^A-Za-z0-9ñÑ_.$-])(?:"([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*)"|'([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*)'|([A-Za-zñÑ_][A-Za-z0-9ñÑ_.-]*))[ \t]*(?::=|=>|:|=)[ \t]*(?:"([^"]*)"|'([^']*)')`)
+	// Un par `nombre=valor` sin espacios ni comillas: los de una cadena de
+	// conexión, las opciones separadas por comas de Redis y un `password=…`
+	// en minúsculas. El valor acaba en el separador.
+	connectionPairRe = regexp.MustCompile(`(^|[;,"' \t])([A-Za-z][A-Za-z0-9_.]*)=([^;,"' \t(){}\[\]<>&]+)`)
+	// Otra clave de una cadena de conexión en la misma línea.
+	connectionKeyRe = regexp.MustCompile(`(?i)(?:^|[;"' \t])(?:server|data source|host|hostname|database|initial catalog|user id|uid|user|username|accountname|endpoint|defaultendpointsprotocol)[ \t]*=`)
 
-	camelBoundaryRe  = regexp.MustCompile(`([a-z0-9])([A-Z])`)
-	keySeparatorRe   = regexp.MustCompile(`[_.-]+`)
 	angleTemplateRe  = regexp.MustCompile(`<[^>]*>`)
 	windowsVarRe     = regexp.MustCompile(`^%[A-Za-z0-9_]+%$`)
 	urlValueRe       = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*://`)
@@ -53,10 +57,6 @@ var (
 	dottedIdentRe    = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+$`)
 	asciiLetterRe    = regexp.MustCompile(`[A-Za-z]`)
 	digitOrSymbolRe  = regexp.MustCompile(`[0-9!-,/;-@\[-^` + "`" + `{-~]`)
-	blankOrColonRe   = regexp.MustCompile(`[ \t:]`)
-	sensitiveWords   = map[string]bool{"password": true, "passwd": true, "passphrase": true, "pass": true, "pwd": true, "secret": true, "token": true, "apikey": true, "credential": true, "credentials": true, "privatekey": true}
-	sensitiveEndings = []string{"password", "passwd", "secret", "token", "apikey"}
-	keyQualifiers    = map[string]bool{"api": true, "access": true, "secret": true, "private": true, "auth": true, "encryption": true, "signing": true, "master": true, "client": true}
 	placeholderWords = map[string]bool{
 		"null": true, "nil": true, "none": true, "undefined": true, "true": true, "false": true, "yes": true, "no": true, "on": true, "off": true, "empty": true,
 		"changeme": true, "password": true, "passwd": true, "secret": true, "token": true, "example": true, "sample": true, "dummy": true,
@@ -70,45 +70,43 @@ var (
 		"password", "passwd", "secret", "token",
 	}
 	descriptiveParts = map[string]bool{"password": true, "passwd": true, "secret": true, "token": true}
-	referenceParts   = []string{"${", "$(", "{{", "process.env", "os.environ", "getenv", "secrets."}
+	// `env(NOMBRE)` es la referencia de config.toml de Supabase.
+	referenceParts = []string{"${", "$(", "{{", "process.env", "os.environ", "getenv", "secrets.", "env("}
 )
 
-func isSensitiveWord(words []string, index int) bool {
-	word := words[index]
-	if sensitiveWords[word] || (word == "key" && index > 0 && keyQualifiers[words[index-1]]) {
-		return true
+// isSensitiveKey: por la última palabra, `DB_PASSWORD`, `apiKey` o
+// `client_secret` sí; `max_tokens`, `primary_key` o `passwordField` no. Con
+// anyWord (un `.env`) basta cualquier palabra: `SECRET_KEY_BASE`.
+func isSensitiveKey(key string, anyWord bool) bool {
+	words := keyWords(key)
+	if len(words) == 0 {
+		return false
 	}
-	for _, ending := range sensitiveEndings {
-		if strings.HasSuffix(word, ending) {
+	sensitive := func(index int) bool {
+		class := keyWordClass(words, index)
+		return class == "human" || class == "machine"
+	}
+	if !anyWord {
+		return sensitive(len(words) - 1)
+	}
+	for index := range words {
+		if sensitive(index) {
 			return true
 		}
 	}
 	return false
 }
 
-// isSensitiveKey: por la última palabra, `DB_PASSWORD`, `apiKey` o
-// `client_secret` sí; `max_tokens`, `primary_key` o `passwordField` no. Con
-// anyWord (un `.env`) basta cualquier palabra: `SECRET_KEY_BASE`.
-func isSensitiveKey(key string, anyWord bool) bool {
-	split := strings.ToLower(camelBoundaryRe.ReplaceAllString(key, "${1}_${2}"))
-	var words []string
-	for _, word := range keySeparatorRe.Split(split, -1) {
-		if word != "" {
-			words = append(words, word)
-		}
-	}
-	if len(words) == 0 {
-		return false
-	}
-	if !anyWord {
-		return isSensitiveWord(words, len(words)-1)
-	}
-	for index := range words {
-		if isSensitiveWord(words, index) {
-			return true
-		}
-	}
-	return false
+// isGenericKey: un `key` a secas (`key`, `"Key"`).
+func isGenericKey(key string) bool {
+	words := keyWords(key)
+	return len(words) > 0 && keyWordClass(words, len(words)-1) == "generic"
+}
+
+// isAssignedSecret: asignación en código o configuración, cuyo valor debe
+// tener la forma que pide el nombre.
+func isAssignedSecret(key, value string) bool {
+	return (isSensitiveKey(key, false) && isStrictSecret(value)) || (isGenericKey(key) && isOpaqueToken(value))
 }
 
 func isRepeatedChar(value string) bool {
@@ -154,7 +152,8 @@ func isPlaceholder(value string, descriptive bool) bool {
 	if pathStartRe.MatchString(value) || fileExtensionRe.MatchString(value) {
 		return true
 	}
-	return constantNameRe.MatchString(value) || dottedIdentRe.MatchString(value)
+	// Un valor con puntos y un tramo opaco es un token, no una propiedad.
+	return constantNameRe.MatchString(value) || (dottedIdentRe.MatchString(value) && !hasOpaqueRun(value))
 }
 
 // isEnvSecret: valor de un `.env`, cualquier valor que no sea placeholder, de
@@ -176,7 +175,8 @@ func isOpaqueValue(value string) bool {
 // secreto (ver isStrictSecret en secret-redact.js).
 func isStrictSecret(value string) bool {
 	return utf8.RuneCountInString(value) >= 8 &&
-		!blankOrColonRe.MatchString(value) &&
+		!blankRe.MatchString(value) &&
+		(!strings.Contains(value, ":") || hasOpaqueRun(value)) &&
 		!strings.HasPrefix(value, "-") &&
 		asciiLetterRe.MatchString(value) &&
 		digitOrSymbolRe.MatchString(value) &&
@@ -239,9 +239,9 @@ func redactLine(line string, notes *redactionNotes, sensitiveFile bool) string {
 		// Dentro de una cadena o una lista no es un .env: el valor debe
 		// parecer un secreto.
 		embedded := prefix != "" && strings.Contains(`"'[{,;`, prefix)
-		secret := isSensitiveKey(key, true) && isEnvSecret(inner)
+		secret := (isSensitiveKey(key, true) && isEnvSecret(inner)) || (isGenericKey(key) && isOpaqueToken(inner))
 		if embedded {
-			secret = isSensitiveKey(key, false) && isStrictSecret(inner)
+			secret = isAssignedSecret(key, inner)
 		}
 		if !secret && !(sensitiveFile && isOpaqueValue(inner)) {
 			return "", false
@@ -264,11 +264,29 @@ func redactLine(line string, notes *redactionNotes, sensitiveFile bool) string {
 	out = replaceMatches(upperColonAssignRe, out, func(text string, m []int) (string, bool) {
 		key, _ := group(text, m, 2)
 		value, _ := group(text, m, 3)
-		if !isSensitiveKey(key, false) || !isStrictSecret(value) {
+		if !isAssignedSecret(key, value) {
 			return "", false
 		}
 		notes.note("assigned-secret")
 		return text[m[0]:m[6]] + redactionMarker("assigned-secret") + text[m[8]:m[9]], true
+	})
+	out = replaceMatches(connectionPairRe, out, func(text string, m []int) (string, bool) {
+		prefix, _ := group(text, m, 1)
+		key, _ := group(text, m, 2)
+		value, _ := group(text, m, 3)
+		if !isSensitiveKey(key, false) {
+			return "", false
+		}
+		delimited := prefix == ";" || (m[1] < len(text) && text[m[1]] == ';')
+		secret := isStrictSecret(value)
+		if delimited && connectionKeyRe.MatchString(text) {
+			secret = isEnvSecret(value)
+		}
+		if !secret {
+			return "", false
+		}
+		notes.note("assigned-secret")
+		return text[m[0]:m[6]] + redactionMarker("assigned-secret"), true
 	})
 	return replaceMatches(quotedAssignRe, out, func(text string, m []int) (string, bool) {
 		key := ""
@@ -283,7 +301,7 @@ func redactLine(line string, notes *redactionNotes, sensitiveFile bool) string {
 			valueGroup = 6
 		}
 		value, _ := group(text, m, valueGroup)
-		secret := (isSensitiveKey(key, false) && isStrictSecret(value)) ||
+		secret := isAssignedSecret(key, value) ||
 			(sensitiveFile && ((isSensitiveKey(key, true) && isEnvSecret(value)) || isOpaqueValue(value)))
 		if !secret {
 			return "", false
@@ -418,7 +436,7 @@ func isCoveredByRedaction(content string, sensitiveFile bool) bool {
 			return false
 		}
 	}
-	for _, match := range genericCredentialRegex.FindAllString(text, -1) {
+	for _, match := range findGenericCredentials(text) {
 		if !containsRedactionMarker(match) {
 			return false
 		}
