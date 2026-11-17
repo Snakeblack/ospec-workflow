@@ -1,0 +1,1195 @@
+{
+  "schema": "idd-state/v1",
+  "change": "secret-guard-file-kinds",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Los guards de secretos dejan tres límites documentados por E1.92: no ven una contraseña sin comillas o solo de letras en un fichero de configuración, no deniegan por nombre una clave privada bajo .ssh que no se llama id_* ni *.key, y deniegan un directorio cuyo nombre empieza por id_ como si fuera una clave",
+    "acceptance": "El corpus compartido fija los tres casos en Node y Go: en un fichero de configuración la censura de salida y el pre-commit ven password: valor sin comillas y una contraseña solo de letras; un lector sobre una clave bajo .ssh con otro nombre da deny, y config, known_hosts y *.pub no; rg TODO id_service/ y una herramienta de lectura sobre un directorio id_* no se deniegan; el handbook retira esos límites"
+  },
+  "facts": {
+    "open": [
+      "¿Qué ficheros entran en el modo de fichero de configuración? Propuesta: por extensión .yml, .yaml, .ini, .properties, .toml, .conf y .cfg; por nombre appsettings*.json, local.settings.json, config.json, config.<entorno>.json y settings.json; el resto de los JSON queda fuera, porque ahí viven las etiquetas de traducción",
+      "Bajo un directorio .ssh, ¿se deniega todo fichero salvo una lista de nombres que no son claves (config, known_hosts, known_hosts.old, authorized_keys, authorized_keys2, *.pub, environment, rc, allowed_signers, revoked_keys), o solo los nombres con forma de clave (*.pem, *.ppk, *key*)?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/harness-go-js-parity.md",
+      "docs/harness-runtime.md",
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/proteccion/guardrails.md",
+      "internal/hooks/posttooluse.go",
+      "internal/hooks/posttooluse_test.go",
+      "internal/hooks/pretooluse.go",
+      "internal/hooks/pretooluse_test.go",
+      "internal/hooks/secretguards_corpus_test.go",
+      "internal/hooks/secretredact.go",
+      "internal/hooks/secretredact_test.go",
+      "internal/hooks/secretscan.go",
+      "internal/hooks/secretscan_test.go",
+      "internal/hooks/shellfileaccess.go",
+      "internal/hooks/shellfileaccess_test.go",
+      "internal/testdata/secret-guards/cases.json",
+      "openspec/specs/agent-shield-security/spec.md",
+      "scripts/hooks/lib/secret-guards.corpus.test.js",
+      "scripts/hooks/lib/secret-redact.js",
+      "scripts/hooks/lib/secret-redact.test.js",
+      "scripts/hooks/lib/secret-scan.js",
+      "scripts/hooks/lib/secret-scan.test.js",
+      "scripts/hooks/lib/shell-file-access.js",
+      "scripts/hooks/lib/shell-file-access.test.js",
+      "scripts/hooks/post-tool-use.js",
+      "scripts/hooks/post-tool-use.test.js",
+      "scripts/hooks/pre-commit-hook.js",
+      "scripts/hooks/pre-commit-hook.test.js",
+      "scripts/hooks/pre-tool-use.js",
+      "scripts/hooks/pre-tool-use.test.js"
+    ],
+    "work_units": 3,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Fichero de configuración (respuesta del usuario): por extensión .yml, .yaml, .ini, .properties, .toml, .conf y .cfg, y por nombre appsettings*.json, local.settings.json, config.json, config.<entorno>.json y settings.json. El modo vale para la censura de salida y el pre-commit; el escáner que pide confirmación de lectura no cambia.",
+      "En un fichero de configuración solo se censura el valor bajo un nombre sensible. Un nombre de contraseña (password, passwd, passphrase, contraseña, un pass con prefijo) acepta un valor de 4 caracteres o más sin blancos que no sea referencia ni placeholder; un token, una clave y secret siguen pidiendo forma de secreto, porque la medición dio un falso positivo con el permiso id-token de un workflow y secret nombra también un objeto (existingSecret). La regla del valor opaco bajo cualquier clave sigue siendo solo del modo de fichero sensible.",
+      "Las traducciones no son ficheros de configuración: lo que hay bajo un directorio locale, locales, i18n, l10n, lang, langs, translation o translations, y un bundle de Java con sufijo de idioma. Medido sobre los ficheros de configuración de /usr/share, /etc y node_modules, las traducciones daban 127 de las 144 detecciones nuevas; las 17 restantes son contraseñas de ejemplo y un token real, y en los ficheros versionados de 15 repositorios del usuario no hay ninguna.",
+      "Bajo un directorio .ssh (respuesta del usuario) todo fichero es una clave privada salvo config, known_hosts, known_hosts.old, authorized_keys, authorized_keys2, environment, rc, allowed_signers, revoked_keys y los *.pub. Un comodín o una expansión en el nombre se deniega salvo *.pub, lo que sustituye a la comparación del comodín con los nombres de OpenSSH; y el propio directorio se deniega cuando lo lee un lector o una herramienta de lectura, porque la regla no valdría si se pudiera leer entero. mkdir, rmdir y cd se suman a los comandos que nombran sin leer.",
+      "Un directorio no es una clave por su nombre: el clasificador recibe si la ruta es un directorio (acaba en barra o existe como tal) y deja de aplicar la regla de id_* y *.key; bajo .ssh un directorio sí cuenta. Un nombre id_* que no existe se sigue denegando.",
+      "Tras la revisión de confianza: la exención de confirmación de una lectura solo cuenta el modo del fichero (sensible o de configuración) cuando lo nombra una de las claves de las que PostToolUse toma el modo (file_path, filePath, path, notebook_path); un fichero nombrado de otra forma, como el glob o el include de una búsqueda, se comprueba en modo normal, que es como se censurará su salida. Corrige también el mismo desajuste que ya existía con el modo de fichero sensible.",
+      "Tras la revisión de confianza: en un fichero de configuración o sensible, el valor sin comillas de un nombre sensible llega hasta el primer blanco, de modo que almohadilla, punto y coma y coma son parte de él y un comentario solo empieza tras un blanco; un valor con una comilla dentro se descarta, porque la medición dio un falso positivo con texto dentro de una cadena. Un valor cifrado por sops (ENC[) cuenta como referencia. Una contraseña de un fichero de configuración cuenta aunque contenga password o secret, como en un .env: medido, añade una sola detección, que es una contraseña de ejemplo.",
+      "Tras la revisión de confianza: si la orden cambia de directorio (un cd, pushd o popd que es un comando, --chdir, env -C o sudo -D), la exención de directorio deja de consultar el disco del espacio de trabajo y solo vale la barra final, porque el operando se resuelve en otro directorio. La palabra cd como argumento de otro comando no la desactiva.",
+      "Tras la segunda revisión de confianza (aprobada, con una sugerencia): el cambio de directorio se toma de los comandos que visita el recorrido de la línea de comandos, no de una expresión sobre el texto, así que un cd detrás de if, de una negación, de time o de command, en un shell anidado o en una sustitución también desactiva la exención de directorio, y la palabra cd como argumento de otro comando no. Queda como límite, que el validador anotó sin bloquear: un cd dentro del cuerpo de una función o de una rama de case no se reconoce, y con un directorio del espacio de trabajo que se llame como una clave la exención sigue valiendo."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches internal/hooks/secretguards_corpus_test.go and 17 more (matches **/*secret*)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/pre-tool-use.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "Las reglas nuevas solo añaden bloqueos o los acotan con un dato comprobado: bajo .ssh se deniega todo salvo una lista cerrada de nombres, y un nombre id_* solo deja de denegarse si la ruta acaba en barra o el disco dice que es un directorio; si no se puede consultar el disco, se deniega como antes"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "El cambio no añade dependencias: el clasificador, la censura y el reconocedor de shell siguen siendo módulos propios en Node y en Go, con el corpus compartido ampliado para la paridad"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Ninguna regla nueva convierte un fallo del guard en un permiso: las denegaciones por nombre no se degradan en bypass, y el modo de fichero de configuración solo añade censuras y bloqueos del commit"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-12"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-15"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-13"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-14"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 476,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_turn": 477
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-17T10:42:08.819Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T10:51:36.265Z",
+      "detail": {
+        "tree": "sha256:0ee569493df4bb8f7a64992b74127844b907673a33c7f303b1891045a73049ce",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T10:51:36.265Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:0ee569493df4bb8f7a64992b74127844b907673a33c7f303b1891045a73049ce",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-17T10:51:58.625Z",
+      "detail": {
+        "run": "run-10",
+        "tree": "sha256:ad3cd899adf7bb54476086349aea26d47f1018c40ed157447841ad6b1e817408",
+        "plan": "El cambio no toca ningún dato persistente ni su formato: en pre-tool-use.js solo cambia cómo se clasifica una ruta (un directorio no es una clave) y con qué opciones se censura un fichero; su writeFile, que ya existía, queda igual. Compatibilidad: los tests de pre-tool-use.js fijan que las decisiones anteriores no cambian. Vuelta atrás: revertir el commit; no hay nada que migrar."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-17T11:11:09.095Z",
+      "detail": {
+        "lineage_id": "sha256:d05fbb93c59dcb4c2a3f9184383f9c2941080f76406f95ffe494c05ce0cc1612",
+        "candidate_id": "sha256:a37b608b12391d105565e7b116a0017d9788a7cfdba905552a5f7453a9f162fb",
+        "candidate_tree": "04daaa406adb2706e91dd426e71fe19474fac19c",
+        "findings_digest": "sha256:2b5ef3cbdd87231904ad8a4d7311426c658909da4d9c005f17fdf9a3e70ce3ca",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-17T11:10:09.115Z",
+          "result_digest": "sha256:bad11cb2dc34bb4a13bbaa6ca7a4212092cdd35ab45c9ecb5c74f332c2366d4d"
+        }
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-17T11:27:58.260Z",
+      "detail": {
+        "lineage_id": "sha256:d05fbb93c59dcb4c2a3f9184383f9c2941080f76406f95ffe494c05ce0cc1612",
+        "candidate_id": "sha256:a37b608b12391d105565e7b116a0017d9788a7cfdba905552a5f7453a9f162fb",
+        "candidate_tree": "e3c91e246f53924c689231aee763a179dc1cf9e8",
+        "findings_digest": "sha256:2b5ef3cbdd87231904ad8a4d7311426c658909da4d9c005f17fdf9a3e70ce3ca",
+        "correction": "advisory",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-correction",
+          "recorded_at": "2026-11-17T11:27:43.852Z",
+          "result_digest": "sha256:8c3e275848cc6476138459cc52404ee729293fa7bc8c5d711c4a0cdc37510cca"
+        }
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T11:31:25.433Z",
+      "detail": {
+        "tree": "sha256:0723eec4d101aa3f2907dc91601f037bc5f7c079c4a4db4d968635c106bc6a2b",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T11:31:25.433Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:0723eec4d101aa3f2907dc91601f037bc5f7c079c4a4db4d968635c106bc6a2b",
+        "fitness": [
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-17T11:31:46.341Z",
+      "detail": {
+        "run": "run-16",
+        "tree": "sha256:92309d9ed35ccb4aa7d24a0c549b74bdc88100b51b39950ef8354b32b9a666bf",
+        "plan": "El cambio no toca ningún dato persistente ni su formato: en pre-tool-use.js solo cambia cómo se clasifica una ruta (un directorio no es una clave) y con qué opciones se censura un fichero; su writeFile, que ya existía, queda igual. Compatibilidad: los tests de pre-tool-use.js fijan que las decisiones anteriores no cambian. Vuelta atrás: revertir el commit; no hay nada que migrar."
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-17T11:46:04.832Z",
+      "detail": {
+        "lineage_id": "sha256:f3ff9831edbaca74862565872302dc0c390ac54b6208522da1a67427c015e3f6",
+        "candidate_id": "sha256:e50552e5bef60694052723771c425cdf589089d0f220d5de5682a98fb0b050c1",
+        "candidate_tree": "635cb5c18a0c5e63597c0ba16573189c6ebba076",
+        "findings_digest": "sha256:61e1e4c2d4f01135f8477dab6488a4b77b1edf22379618b018b56031003b8270",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-17T11:45:39.102Z",
+          "result_digest": "sha256:e8a69dfa339e4409c0f46c623a37a3252ab505911316196bcf7e006eb1929ad9"
+        }
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-17T11:51:09.150Z",
+      "detail": {
+        "lineage_id": "sha256:f3ff9831edbaca74862565872302dc0c390ac54b6208522da1a67427c015e3f6",
+        "candidate_id": "sha256:e50552e5bef60694052723771c425cdf589089d0f220d5de5682a98fb0b050c1",
+        "candidate_tree": "fe020dda91f916d603120b91404dbfcf984a9b03",
+        "findings_digest": "sha256:61e1e4c2d4f01135f8477dab6488a4b77b1edf22379618b018b56031003b8270",
+        "correction": "advisory",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-correction",
+          "recorded_at": "2026-11-17T11:50:50.239Z",
+          "result_digest": "sha256:e4df80406c134551ac5f6c5fdb1c20651ea31c37cf25548d63db67719cb71f63"
+        }
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-17T11:52:54.034Z",
+      "detail": {
+        "tree": "sha256:2faea3baadf69a3b6f1a0748ef08adf5a29b242ec46942b07b5a1eae00372c86",
+        "runs": [
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-17T11:52:54.034Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:2faea3baadf69a3b6f1a0748ef08adf5a29b242ec46942b07b5a1eae00372c86",
+        "fitness": [
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21"
+        ]
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-17T11:53:09.453Z",
+      "detail": {
+        "run": "run-22",
+        "tree": "sha256:062d30c1de48590bb122006b74189a3ddb345f3cdf99647fecb7390e20332a3e",
+        "plan": "El cambio no toca ningún dato persistente ni su formato: en pre-tool-use.js solo cambia cómo se clasifica una ruta (un directorio no es una clave) y con qué opciones se censura un fichero; su writeFile, que ya existía, queda igual. Compatibilidad: los tests de pre-tool-use.js fijan que las decisiones anteriores no cambian. Vuelta atrás: revertir el commit; no hay nada que migrar."
+      }
+    },
+    {
+      "id": "ev-15",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-17T11:53:24.477Z"
+    }
+  ],
+  "base": "e779a804423d1b9cf50e746d87efc581c8f95b0a",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/lib/secret-guards.corpus.test.js scripts/hooks/lib/shell-file-access.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:b0acddaa33af56d2179ab068372b3b657402a875034d45afdfde22e2f85fb8a7",
+      "tree": "sha256:3799eff1300a93ef3ff5fc684b56b61d6690a00acd7c11706698738f62743591",
+      "recorded_at": "2026-11-17T10:35:58.460Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/lib/secret-guards.corpus.test.js scripts/hooks/lib/shell-file-access.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:52a93827511c94b0fd84aa33e4fc2010b7c257d25efc4809914f53b291c42be1",
+      "tree": "sha256:4caf991b57945579210852acfccdef1bcbdcd4f3894836489367408109c0e9c2",
+      "recorded_at": "2026-11-17T10:42:08.819Z",
+      "tests": 268,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "e779a804423d1b9cf50e746d87efc581c8f95b0a",
+      "mount": "sha256:c5da5aa05c6343cceb3b53807532f0e2dccaf3611b596ce2213af84e9726ae2d",
+      "command": "node --test scripts/hooks/lib/secret-guards.corpus.test.js scripts/hooks/lib/shell-file-access.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:9296ede724504c2570b6a9ce7926e8458e558311d91751a4824ac1dfea2a9132",
+      "tree": "sha256:4caf991b57945579210852acfccdef1bcbdcd4f3894836489367408109c0e9c2",
+      "recorded_at": "2026-11-17T10:42:08.819Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "e779a804423d1b9cf50e746d87efc581c8f95b0a",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/hooks/lib/secret-guards.corpus.test.js scripts/hooks/lib/shell-file-access.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:03152a5bcac724810be2a32d859c798ec5cf5b3d5b6d3a2a9a0ce703417dbc0c",
+      "tree": "sha256:4caf991b57945579210852acfccdef1bcbdcd4f3894836489367408109c0e9c2",
+      "recorded_at": "2026-11-17T10:42:08.819Z",
+      "tests": 197
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3c892edd631a3d93ed686dbb96fb37baefc8373459b9b0c98608b66dbc43ba51",
+      "tree": "sha256:0ee569493df4bb8f7a64992b74127844b907673a33c7f303b1891045a73049ce",
+      "recorded_at": "2026-11-17T10:51:36.265Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f501c344b6e3b1407bf700e75325f0eee5aebb4c978b0807ee9f26e87465ff40",
+      "tree": "sha256:0ee569493df4bb8f7a64992b74127844b907673a33c7f303b1891045a73049ce",
+      "recorded_at": "2026-11-17T10:51:36.265Z",
+      "tests": 103
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:0ee569493df4bb8f7a64992b74127844b907673a33c7f303b1891045a73049ce",
+      "recorded_at": "2026-11-17T10:51:36.265Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:198b3f1998d50e1bc02c96d69f7c7081a9624b5f5c63fc850cfcc5079044f97e",
+      "tree": "sha256:0ee569493df4bb8f7a64992b74127844b907673a33c7f303b1891045a73049ce",
+      "recorded_at": "2026-11-17T10:51:36.265Z",
+      "tests": 26
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5d93e42f96447f8b7d6fc71542c13734d64eb2a29e6ffc7fdaa193ab5771ff69",
+      "tree": "sha256:0ee569493df4bb8f7a64992b74127844b907673a33c7f303b1891045a73049ce",
+      "recorded_at": "2026-11-17T10:51:36.265Z",
+      "tests": 103
+    },
+    {
+      "id": "run-10",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b5e67b1a0fcc17260fb0cb7200e796d66739d973289da5569a3329810e19a735",
+      "tree": "sha256:ad3cd899adf7bb54476086349aea26d47f1018c40ed157447841ad6b1e817408",
+      "recorded_at": "2026-11-17T10:51:58.625Z",
+      "tests": 89
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7d008376eb5d08781bdfd636109fa51db6991e048ae0690ceff7773fa683c36d",
+      "tree": "sha256:0723eec4d101aa3f2907dc91601f037bc5f7c079c4a4db4d968635c106bc6a2b",
+      "recorded_at": "2026-11-17T11:31:25.433Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8d4a96fe3819ba4fa3dd354e1573541669e2261c94e7a3a9abb427ca2786a094",
+      "tree": "sha256:0723eec4d101aa3f2907dc91601f037bc5f7c079c4a4db4d968635c106bc6a2b",
+      "recorded_at": "2026-11-17T11:31:25.433Z",
+      "tests": 103
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:0723eec4d101aa3f2907dc91601f037bc5f7c079c4a4db4d968635c106bc6a2b",
+      "recorded_at": "2026-11-17T11:31:25.433Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f62b5e6e7a0a82106a5b7c869ab9fb98e8b68afa4ccf488c698c6c7a48ba6b7b",
+      "tree": "sha256:0723eec4d101aa3f2907dc91601f037bc5f7c079c4a4db4d968635c106bc6a2b",
+      "recorded_at": "2026-11-17T11:31:25.433Z",
+      "tests": 26
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f41379b4ddbe7e948d8ccefbb8d65fbfe32e9151f9b55b74320befb37338a9b5",
+      "tree": "sha256:0723eec4d101aa3f2907dc91601f037bc5f7c079c4a4db4d968635c106bc6a2b",
+      "recorded_at": "2026-11-17T11:31:25.433Z",
+      "tests": 103
+    },
+    {
+      "id": "run-16",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:98956d99b2ca23b1f1a25cfe0ad8958aab3cb7315f2f00f639ac3ba535d3a9ea",
+      "tree": "sha256:92309d9ed35ccb4aa7d24a0c549b74bdc88100b51b39950ef8354b32b9a666bf",
+      "recorded_at": "2026-11-17T11:31:46.341Z",
+      "tests": 89
+    },
+    {
+      "id": "run-17",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6f13cb7cc89a988b39a5e8adf91a041bbb4e371e52ad85b755da83116ea44451",
+      "tree": "sha256:2faea3baadf69a3b6f1a0748ef08adf5a29b242ec46942b07b5a1eae00372c86",
+      "recorded_at": "2026-11-17T11:52:54.034Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f58c04cb0dd8886ed5ee11da9337b5f3c6b5305cb10e8cc5e3af2d50e813cc9f",
+      "tree": "sha256:2faea3baadf69a3b6f1a0748ef08adf5a29b242ec46942b07b5a1eae00372c86",
+      "recorded_at": "2026-11-17T11:52:54.034Z",
+      "tests": 103
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:2faea3baadf69a3b6f1a0748ef08adf5a29b242ec46942b07b5a1eae00372c86",
+      "recorded_at": "2026-11-17T11:52:54.034Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f496319a8bdecac3181288c2b26a04b4b7ee33ae0eaf7579ef48ab61aa5c530f",
+      "tree": "sha256:2faea3baadf69a3b6f1a0748ef08adf5a29b242ec46942b07b5a1eae00372c86",
+      "recorded_at": "2026-11-17T11:52:54.034Z",
+      "tests": 26
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5bd056f999d2d736cb43ae8a4e38629c0ee83fe1ac960c9bb5b5bdd900e49864",
+      "tree": "sha256:2faea3baadf69a3b6f1a0748ef08adf5a29b242ec46942b07b5a1eae00372c86",
+      "recorded_at": "2026-11-17T11:52:54.034Z",
+      "tests": 103
+    },
+    {
+      "id": "run-22",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c2f519b3a9eba767b091816438354083c0ea3fc76b662fc9c3a38a22da2cc78b",
+      "tree": "sha256:062d30c1de48590bb122006b74189a3ddb345f3cdf99647fecb7390e20332a3e",
+      "recorded_at": "2026-11-17T11:53:09.453Z",
+      "tests": 89
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:d05fbb93c59dcb4c2a3f9184383f9c2941080f76406f95ffe494c05ce0cc1612",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "aa676c3db04008b90f1f95a3b103ad74e8705799",
+          "candidate_tree": "04daaa406adb2706e91dd426e71fe19474fac19c",
+          "paths": [
+            "docs/harness-go-js-parity.md",
+            "docs/harness-runtime.md",
+            "docs/roadmaps/harness-evolution.md",
+            "handbook/proteccion/guardrails.md",
+            "internal/hooks/posttooluse.go",
+            "internal/hooks/posttooluse_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/secretguards_corpus_test.go",
+            "internal/hooks/secretredact.go",
+            "internal/hooks/secretredact_test.go",
+            "internal/hooks/secretscan.go",
+            "internal/hooks/shellfileaccess.go",
+            "internal/hooks/shellfileaccess_test.go",
+            "internal/testdata/secret-guards/cases.json",
+            "openspec/specs/agent-shield-security/spec.md",
+            "scripts/hooks/lib/secret-guards.corpus.test.js",
+            "scripts/hooks/lib/secret-redact.js",
+            "scripts/hooks/lib/secret-scan.js",
+            "scripts/hooks/lib/shell-file-access.js",
+            "scripts/hooks/lib/shell-file-access.test.js",
+            "scripts/hooks/post-tool-use.js",
+            "scripts/hooks/post-tool-use.test.js",
+            "scripts/hooks/pre-commit-hook.js",
+            "scripts/hooks/pre-commit-hook.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:414b97781733948500741c83d20addffac0865d8ac33efbdf7b852581877a85e",
+          "paths_digest": "sha256:963b0a9ea69e402603c552fa02ef0c8421d67b89caf72ab36d9ef1fb3c2b4790",
+          "authored_lines": 829,
+          "original_changed_lines": 1012
+        },
+        "candidate_id": "sha256:a37b608b12391d105565e7b116a0017d9788a7cfdba905552a5f7453a9f162fb",
+        "paths": [
+          "docs/harness-go-js-parity.md",
+          "docs/harness-runtime.md",
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/proteccion/guardrails.md",
+          "internal/hooks/posttooluse.go",
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretguards_corpus_test.go",
+          "internal/hooks/secretredact.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/secret-guards/cases.json",
+          "openspec/specs/agent-shield-security/spec.md",
+          "scripts/hooks/lib/secret-guards.corpus.test.js",
+          "scripts/hooks/lib/secret-redact.js",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/post-tool-use.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-commit-hook.js",
+          "scripts/hooks/pre-commit-hook.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "04daaa406adb2706e91dd426e71fe19474fac19c",
+        "original_changed_lines": 1012,
+        "authored_lines": 829
+      },
+      "current_candidate_id": "sha256:a37b608b12391d105565e7b116a0017d9788a7cfdba905552a5f7453a9f162fb",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "aa676c3db04008b90f1f95a3b103ad74e8705799",
+        "candidate_tree": "04daaa406adb2706e91dd426e71fe19474fac19c",
+        "paths": [
+          "docs/harness-go-js-parity.md",
+          "docs/harness-runtime.md",
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/proteccion/guardrails.md",
+          "internal/hooks/posttooluse.go",
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretguards_corpus_test.go",
+          "internal/hooks/secretredact.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/secret-guards/cases.json",
+          "openspec/specs/agent-shield-security/spec.md",
+          "scripts/hooks/lib/secret-guards.corpus.test.js",
+          "scripts/hooks/lib/secret-redact.js",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/post-tool-use.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-commit-hook.js",
+          "scripts/hooks/pre-commit-hook.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:414b97781733948500741c83d20addffac0865d8ac33efbdf7b852581877a85e",
+        "paths_digest": "sha256:963b0a9ea69e402603c552fa02ef0c8421d67b89caf72ab36d9ef1fb3c2b4790",
+        "authored_lines": 829,
+        "original_changed_lines": 1012
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "secret-guard-file-kinds:lens-start:1:0",
+          "result_digest": "sha256:1dd12816d7f953bdc0a5f92bf129baa07e0a199ccab12094a99197f30e2c1665",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "The read exemption now checks coverage in config mode, but PostToolUse can still redact in normal mode. pre-tool-use.js:374-377 (Go pretooluse.go:822-825) calls redactionOptionsFor([filePath]) for every existing file that extractPaths finds in any tool_input string (pre-tool-use.js:384-411). The continue at :589-590 then skips both the name ask and the content scan. post-tool-use.js:15,21-35,44 (Go posttooluse.go:24,30-48,78) takes the mode only from file_path/filePath/path/notebook_path. Trigger: OSPEC_OUTPUT_REDACTION=1 and Grep {pattern:'password', glob:'config/database.yml', output_mode:'content'} (OpenCode grep: include) over a file holding password: 'hunterhunter' in double quotes. Config-mode coverage drops the ask. The output is redacted in normal mode, where isStrictSecret rejects a letters-only value, so the password reaches the model. On main, readCoveredByRedaction used only sensitiveFile, and the same call asked.",
+                "acceptance_criteria": "In Node and Go, set OSPEC_OUTPUT_REDACTION=1 and make a Grep call that names an existing configuration file only through glob (and the OpenCode grep include), with output_mode content, over a file containing password: 'hunterhunter'. Either PreToolUse answers ask, or the PostToolUse output shows [REDACTED:assigned-secret] in place of the value. A test fixes this pair in both runtimes. A Read with file_path on the same file still passes without a prompt, with the value redacted.",
+                "location": "scripts/hooks/pre-tool-use.js:376"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "Config mode misses an unquoted password that contains #, ;, a comma or a quote. SENSITIVE_FILE_ASSIGN (secret-redact.js:78, secretredact.go:39) ends the value at those characters and treats #... as a comment even with no blank before it. In config/database.yml, password: Xk9#mP2;qL captures only Xk9, which is under the 4 characters isConfigPassword needs (secret-redact.js:129-131), so nothing is redacted. password: Sup3r#Secret99 leaves #Secret99 visible. password: abcd,efgh and db.password=P4ss;word! match no rule (CONNECTION_PAIR at :191-198 needs isStrictSecret). The pre-commit uses the same path (pre-commit-hook.js:61,148 -> detectSecret at secret-redact.js:325-327) and lets these lines in. spec.md:200 and :118 and guardrails.md:75 and :82 promise to catch any non-placeholder password of 4 or more characters without blanks, quoted or not. YAML (where a comment needs a blank before #) and .properties keep these characters inside the value.",
+                "acceptance_criteria": "Through the shared corpus in Node and Go, in configuration-file mode, password: Xk9#mP2;qL, password: Sup3r#Secret99, password: abcd,efgh and db.password=P4ss;word! come out with no fragment of the value left. detectSecret with configFile flags each of these lines, so the pre-commit blocks it. password: hunter2 # local is still redacted and keeps its comment. Alternatively, the spec and the handbook section 'Qué no cubren' state this limit explicitly.",
+                "location": "scripts/hooks/lib/secret-redact.js:78"
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "The directory exemption resolves the operand against the workspace, not the directory where the reader runs. namesDeniedFile passes isDirectory(file) to the classifier (shell-file-access.js:437-440, Go shellfileaccess.go:782-788). directoryExistsIn stats path.resolve(workspace, file) (:459-467, Go :821-828; pre-tool-use.js:553-565, Go pretooluse.go:1271-1282). Suppose the workspace has a directory id_ed25519/ (mkdir is allowed). Then cd ~/.ssh && cat id_ed25519, (cd ~/.ssh && cat id_ed25519) and env -C ~/.ssh cat id_ed25519 read the key file without a deny. The id_* rule is skipped for a directory (secret-scan.js:270-271), and namesSshKey needs a slash or a regular file (shell-file-access.js:416-422). Main denied the bare id_* name. guardrails.md:61 and :63 say id_deploy stays blocked by any path that reads it, (cd ~ && cat ...) included. The trigger needs a deliberate decoy directory. The model still sees the PEM body redacted, but output piped elsewhere is not redacted.",
+                "acceptance_criteria": "In Node and Go, with a workspace directory named id_ed25519, cd ~/.ssh && cat id_ed25519, (cd ~/.ssh && cat id_ed25519) and env -C ~/.ssh cat id_ed25519 are denied. rg TODO id_service, rg TODO id_service/ and diff -r id_service src, which do not change directory, still pass. Alternatively, the spec limit and the handbook state that a same-named workspace directory lifts the name denial after a directory change.",
+                "location": "scripts/hooks/lib/shell-file-access.js:438"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "secret-guard-file-kinds:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-521a27bcdcc88d2e",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The read exemption now checks coverage in config mode, but PostToolUse can still redact in normal mode. pre-tool-use.js:374-377 (Go pretooluse.go:822-825) calls redactionOptionsFor([filePath]) for every existing file that extractPaths finds in any tool_input string (pre-tool-use.js:384-411). The continue at :589-590 then skips both the name ask and the content scan. post-tool-use.js:15,21-35,44 (Go posttooluse.go:24,30-48,78) takes the mode only from file_path/filePath/path/notebook_path. Trigger: OSPEC_OUTPUT_REDACTION=1 and Grep {pattern:'password', glob:'config/database.yml', output_mode:'content'} (OpenCode grep: include) over a file holding password: 'hunterhunter' in double quotes. Config-mode coverage drops the ask. The output is redacted in normal mode, where isStrictSecret rejects a letters-only value, so the password reaches the model. On main, readCoveredByRedaction used only sensitiveFile, and the same call asked.",
+          "acceptance_criteria": "In Node and Go, set OSPEC_OUTPUT_REDACTION=1 and make a Grep call that names an existing configuration file only through glob (and the OpenCode grep include), with output_mode content, over a file containing password: 'hunterhunter'. Either PreToolUse answers ask, or the PostToolUse output shows [REDACTED:assigned-secret] in place of the value. A test fixes this pair in both runtimes. A Read with file_path on the same file still passes without a prompt, with the value redacted.",
+          "location": "scripts/hooks/pre-tool-use.js:376",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-ecfc4b97d957aca7",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "Config mode misses an unquoted password that contains #, ;, a comma or a quote. SENSITIVE_FILE_ASSIGN (secret-redact.js:78, secretredact.go:39) ends the value at those characters and treats #... as a comment even with no blank before it. In config/database.yml, password: Xk9#mP2;qL captures only Xk9, which is under the 4 characters isConfigPassword needs (secret-redact.js:129-131), so nothing is redacted. password: Sup3r#Secret99 leaves #Secret99 visible. password: abcd,efgh and db.password=P4ss;word! match no rule (CONNECTION_PAIR at :191-198 needs isStrictSecret). The pre-commit uses the same path (pre-commit-hook.js:61,148 -> detectSecret at secret-redact.js:325-327) and lets these lines in. spec.md:200 and :118 and guardrails.md:75 and :82 promise to catch any non-placeholder password of 4 or more characters without blanks, quoted or not. YAML (where a comment needs a blank before #) and .properties keep these characters inside the value.",
+          "acceptance_criteria": "Through the shared corpus in Node and Go, in configuration-file mode, password: Xk9#mP2;qL, password: Sup3r#Secret99, password: abcd,efgh and db.password=P4ss;word! come out with no fragment of the value left. detectSecret with configFile flags each of these lines, so the pre-commit blocks it. password: hunter2 # local is still redacted and keeps its comment. Alternatively, the spec and the handbook section 'Qué no cubren' state this limit explicitly.",
+          "location": "scripts/hooks/lib/secret-redact.js:78",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-baa7c036dff65cab",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "The directory exemption resolves the operand against the workspace, not the directory where the reader runs. namesDeniedFile passes isDirectory(file) to the classifier (shell-file-access.js:437-440, Go shellfileaccess.go:782-788). directoryExistsIn stats path.resolve(workspace, file) (:459-467, Go :821-828; pre-tool-use.js:553-565, Go pretooluse.go:1271-1282). Suppose the workspace has a directory id_ed25519/ (mkdir is allowed). Then cd ~/.ssh && cat id_ed25519, (cd ~/.ssh && cat id_ed25519) and env -C ~/.ssh cat id_ed25519 read the key file without a deny. The id_* rule is skipped for a directory (secret-scan.js:270-271), and namesSshKey needs a slash or a regular file (shell-file-access.js:416-422). Main denied the bare id_* name. guardrails.md:61 and :63 say id_deploy stays blocked by any path that reads it, (cd ~ && cat ...) included. The trigger needs a deliberate decoy directory. The model still sees the PEM body redacted, but output piped elsewhere is not redacted.",
+          "acceptance_criteria": "In Node and Go, with a workspace directory named id_ed25519, cd ~/.ssh && cat id_ed25519, (cd ~/.ssh && cat id_ed25519) and env -C ~/.ssh cat id_ed25519 are denied. rg TODO id_service, rg TODO id_service/ and diff -r id_service src, which do not change directory, still pass. Alternatively, the spec limit and the handbook state that a same-named workspace directory lifts the name denial after a directory change.",
+          "location": "scripts/hooks/lib/shell-file-access.js:438",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:2b5ef3cbdd87231904ad8a4d7311426c658909da4d9c005f17fdf9a3e70ce3ca",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:f3ff9831edbaca74862565872302dc0c390ac54b6208522da1a67427c015e3f6",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:d05fbb93c59dcb4c2a3f9184383f9c2941080f76406f95ffe494c05ce0cc1612",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "aa676c3db04008b90f1f95a3b103ad74e8705799",
+          "candidate_tree": "635cb5c18a0c5e63597c0ba16573189c6ebba076",
+          "paths": [
+            "docs/harness-go-js-parity.md",
+            "docs/harness-runtime.md",
+            "docs/roadmaps/harness-evolution.md",
+            "handbook/proteccion/guardrails.md",
+            "internal/hooks/posttooluse.go",
+            "internal/hooks/posttooluse_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/secretguards_corpus_test.go",
+            "internal/hooks/secretredact.go",
+            "internal/hooks/secretredact_test.go",
+            "internal/hooks/secretscan.go",
+            "internal/hooks/shellfileaccess.go",
+            "internal/hooks/shellfileaccess_test.go",
+            "internal/testdata/secret-guards/cases.json",
+            "openspec/specs/agent-shield-security/spec.md",
+            "scripts/hooks/lib/secret-guards.corpus.test.js",
+            "scripts/hooks/lib/secret-redact.js",
+            "scripts/hooks/lib/secret-scan.js",
+            "scripts/hooks/lib/shell-file-access.js",
+            "scripts/hooks/lib/shell-file-access.test.js",
+            "scripts/hooks/post-tool-use.js",
+            "scripts/hooks/post-tool-use.test.js",
+            "scripts/hooks/pre-commit-hook.js",
+            "scripts/hooks/pre-commit-hook.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:113e5e2254a8ae071c0af92f71700edc242c499bd996153418c42811a4ee5263",
+          "paths_digest": "sha256:963b0a9ea69e402603c552fa02ef0c8421d67b89caf72ab36d9ef1fb3c2b4790",
+          "authored_lines": 913,
+          "original_changed_lines": 1103
+        },
+        "candidate_id": "sha256:e50552e5bef60694052723771c425cdf589089d0f220d5de5682a98fb0b050c1",
+        "paths": [
+          "docs/harness-go-js-parity.md",
+          "docs/harness-runtime.md",
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/proteccion/guardrails.md",
+          "internal/hooks/posttooluse.go",
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretguards_corpus_test.go",
+          "internal/hooks/secretredact.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/secret-guards/cases.json",
+          "openspec/specs/agent-shield-security/spec.md",
+          "scripts/hooks/lib/secret-guards.corpus.test.js",
+          "scripts/hooks/lib/secret-redact.js",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/post-tool-use.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-commit-hook.js",
+          "scripts/hooks/pre-commit-hook.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "635cb5c18a0c5e63597c0ba16573189c6ebba076",
+        "original_changed_lines": 1103,
+        "authored_lines": 913
+      },
+      "current_candidate_id": "sha256:e50552e5bef60694052723771c425cdf589089d0f220d5de5682a98fb0b050c1",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "aa676c3db04008b90f1f95a3b103ad74e8705799",
+        "candidate_tree": "635cb5c18a0c5e63597c0ba16573189c6ebba076",
+        "paths": [
+          "docs/harness-go-js-parity.md",
+          "docs/harness-runtime.md",
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/proteccion/guardrails.md",
+          "internal/hooks/posttooluse.go",
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretguards_corpus_test.go",
+          "internal/hooks/secretredact.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/secret-guards/cases.json",
+          "openspec/specs/agent-shield-security/spec.md",
+          "scripts/hooks/lib/secret-guards.corpus.test.js",
+          "scripts/hooks/lib/secret-redact.js",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/post-tool-use.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-commit-hook.js",
+          "scripts/hooks/pre-commit-hook.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:113e5e2254a8ae071c0af92f71700edc242c499bd996153418c42811a4ee5263",
+        "paths_digest": "sha256:963b0a9ea69e402603c552fa02ef0c8421d67b89caf72ab36d9ef1fb3c2b4790",
+        "authored_lines": 913,
+        "original_changed_lines": 1103
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "secret-guard-file-kinds:lens-start:2:0",
+          "result_digest": "sha256:74d2b47ad32307065b9c8b499c5a37c15c697f1bf43f68216c25347723f76fc8",
+          "result": {
+            "findings": [
+              {
+                "severity": "SUGGESTION",
+                "summary": "spec.md:38 says the directory exemption ends after a cd, pushd or popd that is a command, or after env -C. CHANGES_DIRECTORY (shell-file-access.js:439; Go shellChdirRe, shellfileaccess.go:200) only sees cd after ^, one of ;&|(){, a quote, a backtick, a newline, or then/do/else. walkCommands also runs cd behind if, elif, while, until, !, time and command (shell-file-access.js:34,190). Suppose a workspace directory id_ed25519 exists. Then `if cd ~/.ssh; then cat id_ed25519; fi`, `! cd ~/.ssh; cat id_ed25519`, `time cd ~/.ssh; cat id_ed25519`, `command cd ~/.ssh && cat id_ed25519` and `env -C/home/u/.ssh cat id_ed25519` keep directory=true. The id_* rule is skipped (secret-scan.js:270-271) and namesSshKey needs a slash or a regular file (:416-422), so cat prints the key. Main denied these. The trigger needs a deliberate decoy directory. Direction: take the directory change from the commands walkCommands visits.",
+                "acceptance_criteria": "In Node and Go, with a workspace directory named id_ed25519, namesDeniedFile with the disk checks (and so PreToolUse) denies `if cd ~/.ssh; then cat id_ed25519; fi`, `! cd ~/.ssh; cat id_ed25519`, `time cd ~/.ssh; cat id_ed25519`, `command cd ~/.ssh && cat id_ed25519` and `env -C/home/u/.ssh cat id_ed25519`, with a test in each runtime. `rg cd id_service`, `rg TODO id_service/` and `diff -r id_service src` still pass. Alternatively, spec.md:38 and the handbook state which directory-change forms are recognized.",
+                "location": "scripts/hooks/lib/shell-file-access.js:439"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "secret-guard-file-kinds:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-cb01e47b7e0dd4ea",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "spec.md:38 says the directory exemption ends after a cd, pushd or popd that is a command, or after env -C. CHANGES_DIRECTORY (shell-file-access.js:439; Go shellChdirRe, shellfileaccess.go:200) only sees cd after ^, one of ;&|(){, a quote, a backtick, a newline, or then/do/else. walkCommands also runs cd behind if, elif, while, until, !, time and command (shell-file-access.js:34,190). Suppose a workspace directory id_ed25519 exists. Then `if cd ~/.ssh; then cat id_ed25519; fi`, `! cd ~/.ssh; cat id_ed25519`, `time cd ~/.ssh; cat id_ed25519`, `command cd ~/.ssh && cat id_ed25519` and `env -C/home/u/.ssh cat id_ed25519` keep directory=true. The id_* rule is skipped (secret-scan.js:270-271) and namesSshKey needs a slash or a regular file (:416-422), so cat prints the key. Main denied these. The trigger needs a deliberate decoy directory. Direction: take the directory change from the commands walkCommands visits.",
+          "acceptance_criteria": "In Node and Go, with a workspace directory named id_ed25519, namesDeniedFile with the disk checks (and so PreToolUse) denies `if cd ~/.ssh; then cat id_ed25519; fi`, `! cd ~/.ssh; cat id_ed25519`, `time cd ~/.ssh; cat id_ed25519`, `command cd ~/.ssh && cat id_ed25519` and `env -C/home/u/.ssh cat id_ed25519`, with a test in each runtime. `rg cd id_service`, `rg TODO id_service/` and `diff -r id_service src` still pass. Alternatively, spec.md:38 and the handbook state which directory-change forms are recognized.",
+          "location": "scripts/hooks/lib/shell-file-access.js:439",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:61e1e4c2d4f01135f8477dab6488a4b77b1edf22379618b018b56031003b8270",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "advisory_corrections": [
+    {
+      "lineage_id": "sha256:d05fbb93c59dcb4c2a3f9184383f9c2941080f76406f95ffe494c05ce0cc1612",
+      "status": "passed",
+      "finding_ids": [
+        "F-521a27bcdcc88d2e",
+        "F-baa7c036dff65cab",
+        "F-ecfc4b97d957aca7"
+      ],
+      "paths": [
+        "internal/hooks/posttooluse_test.go",
+        "internal/hooks/pretooluse.go",
+        "internal/hooks/pretooluse_test.go",
+        "internal/hooks/secretredact.go",
+        "internal/hooks/shellfileaccess.go",
+        "internal/hooks/shellfileaccess_test.go",
+        "internal/testdata/secret-guards/cases.json",
+        "openspec/specs/agent-shield-security/spec.md",
+        "scripts/hooks/lib/secret-redact.js",
+        "scripts/hooks/lib/secret-scan.js",
+        "scripts/hooks/lib/shell-file-access.js",
+        "scripts/hooks/lib/shell-file-access.test.js",
+        "scripts/hooks/post-tool-use.js",
+        "scripts/hooks/post-tool-use.test.js",
+        "scripts/hooks/pre-tool-use.js",
+        "scripts/hooks/pre-tool-use.test.js"
+      ],
+      "changed_lines": 147,
+      "candidate_tree": "e3c91e246f53924c689231aee763a179dc1cf9e8",
+      "diff_hash": "sha256:19f98db52870103eab74531549dbfecf99907f3966b5a16ed81bd9db278c4ba5",
+      "recorded_at": "2026-11-17T11:15:26.169Z",
+      "validation": {
+        "recorded_at": "2026-11-17T11:27:58.260Z",
+        "outcomes": [
+          {
+            "id": "F-521a27bcdcc88d2e",
+            "status": "resolved"
+          },
+          {
+            "id": "F-baa7c036dff65cab",
+            "status": "resolved"
+          },
+          {
+            "id": "F-ecfc4b97d957aca7",
+            "status": "resolved"
+          }
+        ],
+        "regression": {
+          "detected": false,
+          "evidence": [
+            "Static trace only, no tests executed. F-521: the file's own mode now counts only when file_path, filePath, path or notebook_path names it (pre-tool-use.js:592, pretooluse.go:1325-1332). PostToolUse takes its mode from the same keys.",
+            "F-521: a glob or include gets normal mode, so password: 'hunterhunter' is not covered. findGenericCredentials matches and the hook asks (pre-tool-use.test.js:296, pretooluse_test.go:1578). A Read with file_path is still allowed without a prompt (:293, :1571).",
+            "F-ecfc: CONFIG_FILE_ASSIGN (secret-redact.js:82) and configFileAssignRe (secretredact.go:45) are the same regex and run first in config mode. The value goes up to the first blank, and a comment is kept only after a blank (spec.md:200).",
+            "F-ecfc: corpus cases.json:72-74 expect assigned-secret in config mode, and the corpus test checks detectSecret with configFile. post-tool-use.test.js:62-71 and posttooluse_test.go:121-127 check that hunter#hunter;x,y # local becomes the marker plus # local.",
+            "F-baa7: CHANGES_DIRECTORY (shell-file-access.js:438) and shellChdirRe (shellfileaccess.go:200) are the same regex. After cd, pushd, popd, --chdir, env -C or sudo -D, the directory exemption is dropped (spec.md:38).",
+            "F-baa7: both runtimes test that the three commands are denied when a workspace directory id_ed25519 exists (shell-file-access.test.js:64-67, shellfileaccess_test.go:78-85). They also test that rg TODO id_service, rg TODO id_service/ and diff -r id_service src pass (pre-tool-use.test.js:256, pretooluse_test.go:1494).",
+            "Parity: the regexes, the path-key lists, the named and normal fallback of readCoveredByRedaction, and the ENC[ reference part are the same in Node and Go. No passed slice is named, and the changes stay inside the permitted paths.",
+            "The literal Sup3r#Secret99 now passes whole because of the spec rule at spec.md:197: a value containing 'secret' counts as a placeholder. It is listed as a follow-up and not counted as a regression."
+          ]
+        },
+        "follow_ups": [
+          {
+            "owner": "trust",
+            "summary": "The criterion's literal password: Sup3r#Secret99 now comes out whole, and detectSecret configFile no longer flags it. isPlaceholder treats any value containing 'secret' as an example (spec.md:197, secret-scan.js:110). Before the delimiter fix, the Sup3r prefix was caught. A successor could decide whether config-mode passwords should skip the descriptive-word check."
+          },
+          {
+            "owner": "trust",
+            "summary": "When a file is both sensitive by name and a config file (for example .env.yml), sensitive mode applies (configFile && !sensitiveFile). SENSITIVE_FILE_ASSIGN still ends an unquoted value at #, ; or , in that case, so password: Xk9#mP2;qL captures only Xk9."
+          },
+          {
+            "owner": "evolution",
+            "summary": "The OpenCode grep include variant of F-521 has no test of its own. The glob test covers the same code path, but adding an include case to pre-tool-use.test.js and pretooluse_test.go would pin it down."
+          },
+          {
+            "owner": "runtime",
+            "summary": "CHANGES_DIRECTORY matches a bare word cd anywhere in the command (for example rg cd id_service). With a workspace directory id_service, such a command loses the directory exemption and is denied. This over-denies; it does not leak."
+          }
+        ]
+      }
+    },
+    {
+      "lineage_id": "sha256:f3ff9831edbaca74862565872302dc0c390ac54b6208522da1a67427c015e3f6",
+      "status": "passed",
+      "finding_ids": [
+        "F-cb01e47b7e0dd4ea"
+      ],
+      "paths": [
+        "internal/hooks/shellfileaccess.go",
+        "internal/hooks/shellfileaccess_test.go",
+        "openspec/specs/agent-shield-security/spec.md",
+        "scripts/hooks/lib/shell-file-access.js",
+        "scripts/hooks/lib/shell-file-access.test.js"
+      ],
+      "changed_lines": 70,
+      "candidate_tree": "fe020dda91f916d603120b91404dbfcf984a9b03",
+      "diff_hash": "sha256:5d7d6848b8d0b02b4ce8d204dd11bbdea7f57c55a36c5379d4d633cec339b940",
+      "recorded_at": "2026-11-17T11:47:26.581Z",
+      "validation": {
+        "recorded_at": "2026-11-17T11:51:09.150Z",
+        "outcomes": [
+          {
+            "id": "F-cb01e47b7e0dd4ea",
+            "status": "resolved"
+          }
+        ],
+        "regression": {
+          "detected": false,
+          "evidence": [
+            "Read-only trace, no tests run. changesDirectory (shell-file-access.js:439-451) and shellChangesDirectory (shellfileaccess.go:781-805) now take cd, pushd and popd from the command names the walker visits, which skips the wrappers if, !, time and command (js:34, go:176). The same chdir regex (js:434, go:200) catches env -C/home/u/.ssh. All five trigger commands get moved=true, so id_ed25519 is classified with directory=false and denied.",
+            "Tests that assert the criteria: shell-file-access.test.js:64-67 and shellfileaccess_test.go:78-85 create a workspace directory id_ed25519 and check that namesDeniedFile with the disk checks denies all five trigger commands. js:58-60 and go:72-76 check that rg TODO id_service, diff -r id_service src and rg cd id_service still pass. No execution results were supplied and I did not run these tests.",
+            "The tests exercise the fix: for the five triggers, the only path to a deny is moved=true. namesSshKey sees no slash and id_ed25519 is a directory, cd is in NAME_ONLY, and the walker skips the env -C value. rg cd id_service, rg TODO id_service/ and diff -r id_service src contain no cd, pushd or popd command name and no chdir option, so moved=false and the directory exemption still applies.",
+            "Node and Go still match: same wrapper sets, tokenizer separators and ungroup, MAX_NESTING 2, and the same short-circuit recursion into sh -c bodies and substitutions. CHANGES_DIRECTORY and shellChdirRe have no remaining references. spec.md:38 now lists the recognized forms: cd, pushd or popd as a command (also behind a wrapper or keyword, in a nested shell or a substitution), plus --chdir, env -C and sudo -D."
+          ]
+        },
+        "follow_ups": [
+          {
+            "owner": "trust",
+            "summary": "Outside the frozen criteria: a cd that the walker sees as a word of another command still keeps the directory exemption when a decoy directory id_ed25519 exists. Two examples: a one-line function body, `f() { cd ~/.ssh; }; f; cat id_ed25519`, and a case arm, `case $x in *) cd ~/.ssh;; esac; cat id_ed25519`. The replaced raw-text regex probably matched `{ cd` and `) cd`. Node and Go behave the same here."
+          }
+        ]
+      }
+    }
+  ],
+  "changelog_line": "Los guards de secretos distinguen el fichero de configuración, la clave bajo `.ssh` y el directorio: en un fichero de configuración la censura y el pre-commit ven `password: valor` sin comillas y las contraseñas solo de letras; bajo `.ssh` todo fichero es una clave salvo una lista de nombres públicos; y un directorio deja de denegarse por llamarse `id_*` (secret-guard-file-kinds, E1.95)",
+  "closed_at": "2026-11-17T11:53:24.477Z"
+}
