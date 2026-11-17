@@ -79,6 +79,7 @@ test("claude: the marketplace builder forwards withExtras to runConfigure", () =
   const box = sandbox();
   fs.mkdirSync(path.join(box.source, ".claude-plugin"));
   fs.writeFileSync(path.join(box.source, ".claude-plugin", "plugin.json"), JSON.stringify({ description: "d" }));
+  fs.writeFileSync(path.join(box.source, "LICENSE"), "MIT License\n");
   const seen = [];
   const runConfigure = (options) => {
     seen.push(options.withExtras);

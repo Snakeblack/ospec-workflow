@@ -146,6 +146,7 @@ test("claude: the marketplace builder forwards withSdd to runConfigure, and its 
   const { buildClaudeMarketplace, parseArgs } = require("./claude-marketplace.js");
   const box = sandbox();
   write(path.join(box.source, ".claude-plugin", "plugin.json"), JSON.stringify({ description: "d" }));
+  write(path.join(box.source, "LICENSE"), "MIT License\n");
   const seen = [];
   const runConfigure = (options) => {
     seen.push(options.withSdd);

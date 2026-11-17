@@ -96,11 +96,24 @@ function validateAttributionSentinels(pluginDir) {
   return errors;
 }
 
+// The legal files the published plugin carries: the marketplace entry points to
+// its LICENSE, and NOTICE keeps the notices of the third-party work it derives
+// from while there is one. Only this package gets them: install-target.js copies
+// the root of the OpenCode and Copilot packages over the root of the user's
+// repository, where a LICENSE would replace the project's own.
+const REQUIRED_LEGAL_FILES = ["LICENSE"];
+const OPTIONAL_LEGAL_FILES = ["NOTICE"];
+
 function buildClaudeMarketplace(options, deps = {}) {
   const outDir = path.resolve(options.out);
   const pluginDir = path.join(outDir, "plugins", options.pluginName);
 
   assertSafeOutDir(outDir, options.source);
+  for (const name of REQUIRED_LEGAL_FILES) {
+    if (!fs.existsSync(path.join(options.source, name))) {
+      throw new Error(`refusing to build the marketplace: the source has no ${name}, which the marketplace entry points to`);
+    }
+  }
   fs.rmSync(outDir, { recursive: true, force: true });
 
   const runConfigureImpl = deps.runConfigure || runConfigure;
@@ -114,6 +127,12 @@ function buildClaudeMarketplace(options, deps = {}) {
     withSdd: Boolean(options.withSdd),
     userModels: options.userModels,
   });
+
+  fs.mkdirSync(pluginDir, { recursive: true });
+  for (const name of [...REQUIRED_LEGAL_FILES, ...OPTIONAL_LEGAL_FILES]) {
+    const source = path.join(options.source, name);
+    if (fs.existsSync(source)) fs.copyFileSync(source, path.join(pluginDir, name));
+  }
 
   const sourceManifest = JSON.parse(
     fs.readFileSync(path.join(options.source, ".claude-plugin", "plugin.json"), "utf8"),
