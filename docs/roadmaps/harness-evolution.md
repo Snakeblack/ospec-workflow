@@ -214,7 +214,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.91** | `refactor-contract-warning` (#520: un `refactor` que declara un documento de contrato en su plan avisa de B9 al registrarlo, antes de editar; fuera del orden ▶) | feature |
 | `done` | **E1.92** | `secret-guard-alignment` (el escáner de secretos del commit y la censura de salida comparten la clasificación de nombres y la forma de secreto; el pre-commit bloquea, línea a línea, lo que cualquiera de los dos ve, da la línea y respeta el marcador `ospec:allow-secret`; un fichero denegado por nombre se deniega por cualquier vía de shell que lo lea (más lectores, envoltorios, shells anidados, sustituciones, código de un intérprete), y una clave SSH, como argumento de cualquier comando; la censura gana las cadenas de conexión; en v2.180.1) | bugfix |
 | `done` | **E1.93** | `reviewers-premium-tier` (los cinco revisores que `models.yaml` dejaba en `default` pasan a `premium`, como `review-change`: en Claude se generan con `opus` y en los demás hosts con el modelo que el usuario asignó a `premium`, o el de la sesión; el validador sigue aceptando cualquier tier conocido; decisión del usuario del 2026-11-17; en v2.181.0) | feature |
-| `pending` | **E1.95** | `secret-guard-file-kinds` (lo que E1.92 deja documentado como límite: un modo de fichero de configuración para `password: valor` sin comillas y contraseñas solo de letras, las claves bajo `.ssh` con otro nombre y el directorio `id_*` que se deniega como si fuera una clave; detrás de E1.93) | bugfix |
+| `done` | **E1.95** | `secret-guard-file-kinds` (cierra los límites que E1.92 dejó escritos: en un fichero de configuración la censura y el pre-commit ven `password: valor` sin comillas y las contraseñas solo de letras, sin tocar las traducciones; bajo un directorio `.ssh` todo fichero es una clave salvo una lista de nombres públicos, y leer el directorio entero también se deniega; un directorio no es una clave por llamarse `id_*`) | bugfix |
 | `pending` | **E1.94** | `execution-profile-by-risk` (el CLI calcula por encargo el tier y el effort de cada agente que lanza ospec, sean revisores, el worker o las fases de SDD, a partir del nivel de E1.79, las señales y el tamaño del diff; `models.yaml` queda como suelo, el perfil solo sube y el modelo puede subirlo con una razón, nunca bajarlo; sustituye a `review-tier-by-risk`; detrás de E1.79) | feature |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
@@ -1569,6 +1569,14 @@ Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparat
   - un directorio cuyo nombre empieza por `id_` deja de denegarse como operando de un lector (`rg TODO id_service/`) y como ruta de una herramienta de lectura;
   - tres retoques que dejó el último validador de E1.92: el caso `( cd sub && npm test )` en el corpus, decir en la spec que la confirmación por contenido de una clave con otro nombre solo vale para los lectores, y quitar la entrada `{` de la lista de envoltorios, que ya no casa nunca.
 - **Hecho cuando:** el corpus compartido fija los tres casos en Node y Go, y el handbook retira esos límites.
+- **Decisiones del usuario (2026-11-17), «todas las recomendadas»:**
+  - Ficheros de configuración: por extensión `.yml`, `.yaml`, `.ini`, `.properties`, `.toml`, `.conf` y `.cfg`; por nombre `appsettings*.json`, `local.settings.json`, `config.json`, `config.<entorno>.json` y `settings.json`. El resto de los JSON queda fuera.
+  - Bajo `.ssh` se deniega todo salvo `config`, `known_hosts`, `known_hosts.old`, `authorized_keys`, `authorized_keys2`, `environment`, `rc`, `allowed_signers`, `revoked_keys` y los `*.pub`.
+- **Lo que salió de medir** (ficheros de configuración versionados de 15 repositorios del usuario, y los de `node_modules`, `/usr/share` y `/etc`, sin imprimir valores):
+  - Con cualquier valor de 4 caracteres o más, `id-token: write` de un workflow daba un falso positivo. Por eso solo los nombres de contraseña aceptan un valor solo de letras; un token, una clave y `secret` siguen pidiendo forma de secreto (`existingSecret: redis-auth` nombra un objeto).
+  - Las traducciones (`locale/de-DE.ini`) daban 127 de las 144 detecciones nuevas. Quedan fuera lo que hay bajo `locale(s)/`, `i18n/`, `l10n/`, `lang(s)/` o `translation(s)/` y los bundles `messages_es.properties`. Las 17 que quedan son contraseñas de ejemplo y un token real; en los repositorios del usuario no hay ninguna.
+- **Lo que entra además:** leer el directorio `.ssh` entero con un lector o una herramienta de lectura (`grep -r … ~/.ssh`) se deniega, porque la regla nueva no valdría si el directorio se pudiera leer de una vez; un comodín o una expansión bajo `.ssh` se deniega salvo `*.pub`, lo que sustituye a la comparación con los nombres de OpenSSH; `mkdir`, `rmdir` y `cd` se suman a los comandos que nombran sin leer.
+- **Límites que quedan escritos en el handbook:** el modo de fichero de configuración necesita que la llamada nombre el fichero (una búsqueda sobre un directorio se censura como código) y no añade una confirmación de lectura en los hosts que no reescriben la salida; un comando que no es lector y copia `.ssh` entero (`rsync`) no se ve.
 
 ### E1.93 — `reviewers-premium-tier`
 
@@ -2221,6 +2229,12 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-17: `secret-guard-file-kinds` (IDD). E1.95 hecho: los guards de secretos distinguen el fichero de configuración, la clave bajo `.ssh` y el directorio.
+  - En un fichero de configuración (`.yml`, `.yaml`, `.ini`, `.properties`, `.toml`, `.conf`, `.cfg` y los JSON de configuración por nombre) la censura y el pre-commit ven `password: valor` sin comillas, una contraseña solo de letras y un `api_key: …` en minúsculas. El resto del fichero se lee entero, y las traducciones quedan fuera.
+  - Bajo un directorio `.ssh` todo fichero cuenta como clave privada salvo `config`, `known_hosts`, `authorized_keys`, los `*.pub` y pocos más; leer el directorio entero también se deniega.
+  - Un directorio no es una clave por su nombre: `rg TODO id_service/` pasa, y un fichero `id_deploy` se sigue denegando.
+  - El corpus compartido gana la sección `files` y el campo `config`, y fija los tres casos en Node y Go.
+  - El orden ▶ sigue con E1.77 `change-request-log`.
 - 2026-11-17: `reviewers-premium-tier` (IDD), publicado en v2.181.0. E1.93 hecho: los seis revisores corren en el tier `premium`.
   - `review-trust`, `review-correction`, `review-runtime`, `review-evolution` y `review-efficiency` pasan de `default` a `premium` en `models.yaml`. En Claude se generan con `opus`; en los demás hosts, con el modelo que el usuario asignó a `premium`, o el de la sesión.
   - El validador no gana un suelo: cualquier tier conocido sigue siendo válido para un revisor. El test de contrato de tiers comprueba ahora también el modelo generado de los seis revisores en cada target.

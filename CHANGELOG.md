@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Los guards de secretos distinguen el fichero de configuración, la clave bajo `.ssh` y el directorio: en un fichero de configuración la censura y el pre-commit ven `password: valor` sin comillas y las contraseñas solo de letras; bajo `.ssh` todo fichero es una clave salvo una lista de nombres públicos; y un directorio deja de denegarse por llamarse `id_*` (secret-guard-file-kinds, E1.95)
+
 ## [2.181.0] - 2026-11-17
 
 ### Added
