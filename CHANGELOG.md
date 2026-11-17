@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.182.0] - 2026-11-17
+
+### Added
+- **`change.md` guarda las palabras literales del usuario** (change-request-log, E1.77).
+  - **El problema**: `change.md` recogía intención, plan, decisiones y evidencia, pero la petición literal (`--request`) y las respuestas a los gates solo estaban en `state.yaml`. Revisores y verificadores acababan leyendo resúmenes.
+  - **El log**: la sección nueva `Request and answers`, entre `Intent and acceptance` y `Plan`, la escribe solo el CLI entre `<!-- ospec:log:start -->` y `<!-- ospec:log:end -->`. Lleva la petición como `Request (<fecha>)` y cada respuesta del usuario que guarda `state.yaml`, la de cada gate y la de cada retracción con `--answer`, como `Answer N — <gate>, <fuente>, <fecha>`, con el texto literal citado línea a línea.
+  - **Fechas y orden**: `state.yaml` guarda `intent.requested_at` y `resolved_at` en cada respuesta. Las respuestas se numeran por su hora; una guardada antes de este cambio dice `no date` y va delante, así que una respuesta nueva toma siempre el número siguiente y ninguna se renumera.
+  - **Marcadores**: los cuatro bloques que escribe el CLI (plan, decisiones, log y evidencia) buscan su marcador como línea entera. Una respuesta que contiene un marcador o un título `## ` queda citada dentro del log y no toma el sitio de ningún bloque.
+  - **Encargos**: los de `review-trust` y `review-correction` llevan `request_log`, con la ruta de `change.md`, la sección y el número de entradas, cuando el log tiene alguna. Queda fuera del digest del encargo.
+  - **Lo que no cambia**: un cambio sin `living-doc` no crea `change.md` por el log (decisión del usuario); su petición y sus respuestas siguen solo en `state.yaml`. `--request` sigue siendo opcional; la regla 2 de la skill de IDD lo pide con las palabras del usuario.
+  - **Compatibilidad**: los campos nuevos son opcionales dentro de `idd-state/v1`, así que un estado anterior se lee igual. Un `change.md` de un cambio abierto antes recibe la sección delante de `Plan` en la siguiente escritura del estado. Si se vuelve a una versión anterior a mitad de un cambio, su `close` rechaza el documento de cinco secciones: basta con borrar la sección, que se deriva entera de `state.yaml`.
+  - **Contexto**: la regla 2 de la skill suma 31 bytes por target; los techos suben con la razón en su historial.
+
+**Verificación directa**: `node scripts/check.js` (5026 tests pasando, 0 fallos y 5 omitidos), 455 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados. El cambio no tocó una frontera de seguridad, así que no pidió revisión de confianza.
+
 ## [2.181.1] - 2026-11-17
 
 ### Fixed
