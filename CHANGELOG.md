@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Cifras públicas coherentes con su fuente (gates, targets, revisores), un test que falla si se desfasan, un quickstart en inglés, una sola licencia declarada en todas las skills, el aviso de gentle-ai en NOTICE y el plugin del marketplace con LICENSE y NOTICE, que su manifiesto ya cita (E1.78, R12) (docs-figures-drift)
+
 ## [2.182.0] - 2026-11-17
 
 ### Added
