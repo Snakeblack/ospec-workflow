@@ -1114,14 +1114,16 @@ an HTTP method plus a path. A comment line, including `//`, `#`, `--`, `/* */`
 and `<!-- -->`, MUST NOT count. A line the diff adds to product code outside
 `impact.exclude`, build scripts included, MUST also derive `security-boundary`
 when it holds a security sink for the language of its file
-(`scripts/lib/idd-sinks.js`, adapted from gentle-ai's catalog): disabled TLS
+(`scripts/lib/idd-sinks.js`, rules by weakness and language): disabled TLS
 verification (CWE-295), unsafe deserialization (CWE-502), runtime evaluation
 of code (CWE-94), a shell command composed from pieces (CWE-78, Node's `exec`
 and `execSync` included), SQL built by concatenation or interpolation instead
 of bound parameters (CWE-89), a weak hash of a credential (CWE-327), a wildcard
-CORS origin with credentials (CWE-942), a world-writable mode (CWE-732), an
-unverified JWT (CWE-347), a disabled CSRF protection (CWE-352) or XML external
-entities (CWE-611). Its reason MUST name the file and the sink, and a planned
+CORS origin with credentials (CWE-942), a world-writable mode (CWE-732, any
+mode others may write for `chmod`, which the umask does not filter), an
+unverified JWT (CWE-347), a disabled CSRF protection (CWE-352), XML external
+entities (CWE-611) or a disabled SSH host key check (CWE-322). A line with
+sinks of several weaknesses reports the first in that order. Its reason MUST name the file and the sink, and a planned
 or matching path or `--security` MUST name the signal before a sink does. A
 line that is only a comment in the language of its file, a test (the lines of
 a Rust inline test included), documentation, a manifest and what the file
