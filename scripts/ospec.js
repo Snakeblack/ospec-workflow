@@ -1582,7 +1582,14 @@ function readTeam(root, mode = null) {
 // integration branch when declared.
 function deliveryBlock(team) {
   const { value, ...branching } = team.branching;
-  return { branching: value, ...branching, changelog: team.changelog, release: team.release, ...(team.integration ? { integration: team.integration } : {}) };
+  return {
+    branching: value,
+    ...branching,
+    changelog: team.changelog,
+    release: team.release,
+    ...(team.integration ? { integration: team.integration } : {}),
+    ...(team.language ? { language: team.language } : {}),
+  };
 }
 
 // The team and delivery blocks of ospec next: team only for an IDD profile,
@@ -1798,6 +1805,7 @@ function describeNext(result) {
   for (const suggestion of result.suggestions || []) lines.push(`suggestion ${suggestion.id}: ${suggestion.reason}; ${suggestion.how}`);
   if (result.team) lines.push(`team: ${result.team.size}; delivery ${result.team.delivery_strategy}; mentorship ${result.team.mentorship}`);
   if (result.delivery) lines.push(...describeDelivery({ ...result.delivery, value: result.delivery.branching }, result.delivery));
+  else if (result.language) lines.push(`language: ${result.language}`);
   return lines.join("\n");
 }
 
@@ -1825,6 +1833,7 @@ function describeStep(next) {
   }
   for (const warning of next.warnings || []) lines.push(`warning: ${warning}`);
   for (const suggestion of next.suggestions || []) lines.push(`suggestion ${suggestion.id}: ${suggestion.reason}; ${suggestion.how}`);
+  if (next.language) lines.push(`language: ${next.language}`);
   return lines;
 }
 
@@ -1833,11 +1842,12 @@ function describeOption(label, { value, source, reasons, how }) {
   return [`${label}: ${value} (${source}): ${reasons.join("; ")}`, `${label} rules: ${how}`];
 }
 
-function describeDelivery(branching, { changelog, release, integration }) {
+function describeDelivery(branching, { changelog, release, integration, language }) {
   const lines = describeOption("branching", branching);
   if (changelog) lines.push(...describeOption("changelog", changelog));
   if (release) lines.push(...describeOption("release", release));
   if (integration) lines.push(...describeOption("integration", integration));
+  if (language) lines.push(...describeOption("language", language));
   return lines;
 }
 
@@ -2081,6 +2091,8 @@ function describeFoundation(result) {
 
 function describeTeam(result) {
   const branching = describeDelivery(result.branching, result);
+  // SDD reads no delivery, so only an IDD project is told what is missing.
+  if (result.mode === "idd" && !result.language) branching.push("language: not declared (delivery.language in idd/config.yaml)");
   if (!result.profile) return [`mode: ${result.mode}`, "team: no profile declared; defaults unchanged", ...branching].join("\n");
   const { profile, defaults } = result;
   return [

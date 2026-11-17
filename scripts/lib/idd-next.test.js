@@ -510,7 +510,7 @@ test("[REQ-idd-023] next gives the branching where it decides something and sugg
   const start = nextForChange(unplanned, { delivery });
   assert.strictEqual(start.next_step.action, "declare-plan");
   assert.deepStrictEqual(start.delivery, delivery);
-  assert.deepStrictEqual(start.suggestions.map((suggestion) => suggestion.id), ["branching-undeclared"]);
+  assert.deepStrictEqual(start.suggestions.map((suggestion) => suggestion.id), ["branching-undeclared", "language-undeclared"]);
   assert.match(start.suggestions[0].how, /^propose delivery.branching: serial to the user with its reasons, and write it to idd\/config.yaml only after approval$/);
   // While the change is built the branching decides nothing.
   const building = nextForChange(recordPlan(unplanned, { paths: ["src/a.js"] }).state, { delivery });
@@ -519,11 +519,36 @@ test("[REQ-idd-023] next gives the branching where it decides something and sugg
   // At close it is back; declared, or decided by the profile, it suggests nothing.
   let done = planned({ change: "tidy", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
   done = recordEvidence(done, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "t" }).state;
-  const closing = nextForChange(done, { delivery: { ...delivery, source: "idd/config.yaml" } });
+  const language = { value: "es", source: "idd/config.yaml", reasons: ["why"], how: "the rules" };
+  const closing = nextForChange(done, { delivery: { ...delivery, source: "idd/config.yaml", language } });
   assert.deepStrictEqual(closing.next_step, { action: "close", command: "ospec close --change tidy" });
   assert.strictEqual(closing.delivery.source, "idd/config.yaml");
   assert.ok(!("suggestions" in closing));
-  assert.ok(!("suggestions" in nextForChange(unplanned, { delivery: { ...delivery, source: "team profile" } })));
+  assert.ok(!("suggestions" in nextForChange(unplanned, { delivery: { ...delivery, source: "team profile", language } })));
+});
+
+test("[REQ-idd-029] next gives the declared language on every step of a live change and suggests it while undeclared", () => {
+  const branching = { branching: "serial", source: "idd/config.yaml", reasons: ["why"], how: "the rules" };
+  const language = { value: "pt-BR", source: "idd/config.yaml", reasons: ["why"], how: "the rules" };
+  const intent = { change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS };
+  const unplanned = recordSignal(recordIntent(null, intent).state, { id: "bug-fix", reason: "bug", source: "declaration" }).state;
+  const building = recordPlan(unplanned, { paths: ["src/a.js"] }).state;
+  let done = planned({ change: "tidy", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  done = recordEvidence(done, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "t" }).state;
+  // Declared: the tag on every step, and its rules where the delivery is returned.
+  const steps = [unplanned, building, done].map((state) => nextForChange(state, { delivery: { ...branching, language } }));
+  assert.deepStrictEqual(steps.map((step) => [step.next_step.action, step.language]), [["declare-plan", "pt-BR"], ["satisfy-obligation", "pt-BR"], ["close", "pt-BR"]]);
+  assert.deepStrictEqual(steps.map((step) => step.delivery?.language), [language, undefined, language]);
+  assert.ok(steps.every((step) => !("suggestions" in step)));
+  // Undeclared: no tag anywhere, and the suggestion on the delivery steps only.
+  const bare = [unplanned, building, done].map((state) => nextForChange(state, { delivery: branching }));
+  assert.ok(bare.every((step) => !("language" in step)));
+  assert.deepStrictEqual(bare.map((step) => (step.suggestions || []).map((suggestion) => suggestion.id)), [["language-undeclared"], [], ["language-undeclared"]]);
+  const [suggestion] = bare[0].suggestions;
+  assert.strictEqual(suggestion.reason, "delivery.language is not declared");
+  assert.strictEqual(suggestion.how, "propose the language of the commit history, or the user's, as a tag (es, pt-BR)");
+  // Without a delivery context (SDD, or a configuration that does not parse) nothing is said.
+  assert.ok(!("language" in nextForChange(building, {})) && !("suggestions" in nextForChange(building, {})));
 });
 
 test("[REQ-idd-025] next suggests the changelog and the release until idd/config.yaml declares them, even with a profile", () => {
@@ -533,11 +558,11 @@ test("[REQ-idd-025] next suggests the changelog and the release until idd/config
   done = recordEvidence(done, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "t" }).state;
   const profiled = nextForChange(done, { delivery: { ...branching, changelog: option("CHANGELOG.md", "team profile"), release: option("batched", "team profile") } });
   assert.deepStrictEqual(profiled.next_step, { action: "close", command: "ospec close --change tidy" });
-  assert.deepStrictEqual(profiled.suggestions.map((suggestion) => suggestion.id), ["changelog-undeclared", "release-undeclared"]);
+  assert.deepStrictEqual(profiled.suggestions.map((suggestion) => suggestion.id), ["changelog-undeclared", "release-undeclared", "language-undeclared"]);
   assert.strictEqual(profiled.suggestions[0].reason, "delivery.changelog is not declared; CHANGELOG.md is recommended");
   assert.match(profiled.suggestions[0].how, /^propose delivery.changelog: CHANGELOG.md to the user .* only after approval; until then ospec close writes no changelog entry$/);
   assert.match(profiled.suggestions[1].how, /until then ospec close proposes no release$/);
-  const declared = nextForChange(done, { delivery: { ...branching, changelog: option("none", "idd/config.yaml"), release: option("per-change", "idd/config.yaml") } });
+  const declared = nextForChange(done, { delivery: { ...branching, changelog: option("none", "idd/config.yaml"), release: option("per-change", "idd/config.yaml"), language: option("es", "idd/config.yaml") } });
   assert.strictEqual(declared.delivery.release.value, "per-change");
   assert.ok(!("suggestions" in declared));
 });

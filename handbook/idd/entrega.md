@@ -53,6 +53,7 @@ Un ejemplo real está en [Un cambio de principio a fin](/handbook/empezar/primer
 | `release` | `per-change`, `batched`, `none` | `per-change`: propone una versión por cambio. `batched`: las versiones se cortan cuando tú decides, agrupando cambios. `none`: sin versiones. |
 | `integration_branch` | Un nombre de rama | La rama de desarrollo donde se integra cada cambio, si no es la principal (por ejemplo `dev`). |
 | `production_branch` | Un nombre de rama | La rama de producción, si no es la rama por defecto del repositorio. Necesita `integration_branch`. |
+| `language` | Una etiqueta de idioma: `es`, `en`, `fr`, `pt-BR` | El idioma en que se escribe el proyecto. Sin declarar, `ospec next` lo sugiere (`language-undeclared`). Ver [El idioma del proyecto](#el-idioma-del-proyecto). |
 
 Mientras falte una clave importante, `ospec next` lo sugiere sin bloquear (por ejemplo, `branching-undeclared` con la razón para usar `serial`). El agente te propone el valor y solo lo escribe con tu aprobación. `ospec team` muestra los valores efectivos y de dónde salen.
 
@@ -83,6 +84,23 @@ flowchart LR
 - `main` solo recibe merges de `dev` o de una `release/x.y`, y cada uno es una versión con su tag.
 - `release/x.y` es opcional: sale de `dev`, solo recibe arreglos, puede llevar versiones `x.y.z-rc.N`, se fusiona en `main` y de vuelta en `dev`, y después se borra.
 - La versión se propone al pasar a producción, no en cada merge a `dev`. Por eso `release: per-change` se rechaza con una rama de integración.
+
+### El idioma del proyecto
+
+```yaml
+delivery:
+  language: es
+```
+
+Con `language` declarado, el agente escribe en ese idioma los mensajes de commit, los títulos y cuerpos de las PR, las entradas del CHANGELOG, la documentación y los comentarios de código. Da igual en qué idioma le hables: un equipo francés declara `fr` y un proyecto abierto en inglés declara `en`.
+
+- **Qué conserva su idioma.** Una respuesta en un hilo usa el idioma del hilo. El texto que se añade a un fichero o a un árbol de documentación ya escrito en otro idioma sigue en ese: un fichero nunca mezcla dos.
+- **Cómo se escriben la documentación y los comentarios.** Concisos y funcionales: lo que hace falta para usar o cambiar el código. No nombran la herramienta que los escribió ni los motivos que se dieron en la conversación.
+- **El valor.** Una etiqueta de idioma, con escritura y región opcionales (`zh-Hant-TW`, `es-419`). Se acepta en mayúsculas o minúsculas y se guarda en su forma canónica. Un nombre como `Spanish` termina con `config-invalid`.
+- **Dónde lo ve el agente.** `ospec next` devuelve la etiqueta en cada paso de un cambio abierto, y las reglas completas al declarar el plan y al cerrar. `ospec team` las muestra siempre.
+- **Sin declarar.** Nada lo decide por ti. El agente te propone el idioma de los asuntos de los últimos commits, o el tuyo si el proyecto no tiene historial, y lo escribe solo con tu aprobación. Mientras tanto escribe en ese idioma.
+
+Es una guía para el agente, no una comprobación: ospec no lee el texto que se escribe.
 
 ---
 

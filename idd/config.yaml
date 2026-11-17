@@ -10,11 +10,14 @@ team:
 # How changes reach main (REQ-idd-023): one pull request in flight, since every
 # PR touches the version files; AGENTS.md holds the delivery order. ospec close
 # writes each change's entry under [Unreleased] of CHANGELOG.md and proposes
-# its release, cut right after the merge (REQ-idd-025).
+# its release, cut right after the merge (REQ-idd-025). Commits, pull requests,
+# the changelog, the handbook and the roadmap are written in Spanish; skills,
+# code comments and the English documentation keep their own language.
 delivery:
   branching: serial
   changelog: CHANGELOG.md
   release: per-change
+  language: es
 
 # The checks `ospec check` runs, in order (REQ-idd-014).
 checks:

@@ -377,7 +377,7 @@ test("[REQ-idd-023] next suggests the branching when the work starts, and an exp
   const start = ospec(root, "next", "--change", "fix-it", "--json").json;
   assert.strictEqual(start.next_step.action, "declare-plan");
   assert.deepStrictEqual([start.delivery.branching, start.delivery.source], ["serial", "recommended"]);
-  assert.deepStrictEqual(start.suggestions.map((suggestion) => suggestion.id), ["branching-undeclared", "changelog-undeclared", "release-undeclared"]);
+  assert.deepStrictEqual(start.suggestions.map((suggestion) => suggestion.id), ["branching-undeclared", "changelog-undeclared", "release-undeclared", "language-undeclared"]);
   const text = ospec(root, "next", "--change", "fix-it").stdout;
   assert.match(text, /suggestion branching-undeclared: delivery.branching is not declared; serial is recommended/);
   assert.match(text, /\nbranching rules: before a new branch, merge the open pull request/);
@@ -390,11 +390,44 @@ test("[REQ-idd-023] next suggests the branching when the work starts, and an exp
   fs.writeFileSync(config, "team:\n  size: solo\ndelivery:\n  branching: parallel\nchecks:\n  test: node -e 0\n");
   const declared = ospec(root, "next", "--change", "fix-it", "--json").json;
   assert.deepStrictEqual([declared.delivery.branching, declared.delivery.source], ["parallel", "idd/config.yaml"]);
-  assert.deepStrictEqual(declared.suggestions.map((suggestion) => suggestion.id), ["changelog-undeclared", "release-undeclared"]);
+  assert.deepStrictEqual(declared.suggestions.map((suggestion) => suggestion.id), ["changelog-undeclared", "release-undeclared", "language-undeclared"]);
+  assert.match(ospec(root, "team").stdout, /\nlanguage: not declared \(delivery.language in idd\/config.yaml\)\n/);
   assert.strictEqual(ospec(root, "team", "--json").json.branching.value, "parallel");
   assert.ok(!("integration" in declared.delivery) && !("integration" in ospec(root, "team", "--json").json), "only a declared integration branch adds its rules");
   ospec(root, "signals", "--change", "fix-it", "--path", "src/a.js");
   assert.ok(!("delivery" in ospec(root, "next", "--change", "fix-it", "--json").json), "building, the branching decides nothing");
+});
+
+test("[REQ-idd-029] a declared delivery.language reaches team, every next and the step a write returns", (t) => {
+  const root = tempRoot(t);
+  const config = path.join(root, "idd", "config.yaml");
+  fs.mkdirSync(path.join(root, "idd"));
+  fs.mkdirSync(path.join(root, "src"));
+  fs.writeFileSync(path.join(root, "src", "a.js"), "");
+  fs.writeFileSync(config, "checks:\n  test: node -e 0\ndelivery:\n  branching: serial\n  changelog: none\n  release: none\n  language: PT-br\n");
+  const team = ospec(root, "team", "--json").json.language;
+  assert.deepStrictEqual([team.value, team.source], ["pt-BR", "idd/config.yaml"]);
+  assert.match(ospec(root, "team").stdout, /\nlanguage: pt-BR \(idd\/config.yaml\): .*\nlanguage rules: write commit messages, pull request titles and bodies, changelog entries, documentation and code comments in pt-BR; /);
+  // The write that opens the change already says it, in its one-line step.
+  const opened = ospec(root, "record", "intent", "--change", "fix-it", "--kind", "bug", "--summary", "s", "--acceptance", "a", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  assert.match(opened.stdout, /\nlanguage: pt-BR$/m);
+  const start = ospec(root, "next", "--change", "fix-it", "--json").json;
+  assert.deepStrictEqual([start.next_step.action, start.language, start.delivery.language.value, "suggestions" in start], ["declare-plan", "pt-BR", "pt-BR", false]);
+  // Where the delivery is printed its rules replace the bare tag; while building only the tag is.
+  assert.doesNotMatch(ospec(root, "next", "--change", "fix-it").stdout, /^language: pt-BR$/m);
+  ospec(root, "signals", "--change", "fix-it", "--path", "src/a.js");
+  const building = ospec(root, "next", "--change", "fix-it");
+  assert.match(building.stdout, /^language: pt-BR$/m);
+  assert.doesNotMatch(building.stdout, /language rules:/);
+  // A value that is no tag is a configuration error, and SDD never reads it.
+  fs.writeFileSync(config, "checks:\n  test: node -e 0\ndelivery:\n  language: Portuguese\n");
+  const refused = ospec(root, "team", "--json");
+  assert.deepStrictEqual([refused.code, refused.json.error.code], [1, "config-invalid"]);
+  assert.match(refused.json.error.message, /delivery.language must be a language tag such as es, en or pt-BR, got Portuguese/);
+  fs.writeFileSync(config, "mode: sdd\ndelivery:\n  language: es\n");
+  const sdd = ospec(root, "team");
+  assert.ok(!("language" in ospec(root, "team", "--json").json));
+  assert.doesNotMatch(sdd.stdout, /language/);
 });
 
 test("[REQ-idd-011] next and record intent suggest foundation while the project has no code yet (E4.10)", (t) => {

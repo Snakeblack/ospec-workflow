@@ -135,8 +135,8 @@ function parseChecks(lines) {
   return list;
 }
 
-const DELIVERY_KEYS = Object.freeze(["branching", "changelog", "release", "integration_branch", "production_branch"]);
-const NO_DELIVERY = Object.freeze({ branching: null, changelog: null, release: null, integration_branch: null, production_branch: null });
+const DELIVERY_KEYS = Object.freeze(["branching", "changelog", "release", "integration_branch", "production_branch", "language"]);
+const NO_DELIVERY = Object.freeze({ branching: null, changelog: null, release: null, integration_branch: null, production_branch: null, language: null });
 
 function describeGot(value) {
   return typeof value === "string" ? value : "nothing";
@@ -158,15 +158,35 @@ function validChangelog(value) {
   return !/^[\\/]|^[A-Za-z]:|\\/.test(value) && !value.split("/").some((part) => part === "" || part === "." || part === "..");
 }
 
+// A language tag: a language, then an optional script and an optional region
+// (es, pt-BR, zh-Hant-TW). Any case is read and the canonical one is kept
+// (REQ-idd-029).
+const LANGUAGE_TAG = /^([a-z]{2,3})(?:-([a-z]{4}))?(?:-([a-z]{2}|[0-9]{3}))?$/i;
+
+function languageTag(value) {
+  const match = typeof value === "string" ? LANGUAGE_TAG.exec(value) : null;
+  if (!match) return null;
+  const [, language, script, region] = match;
+  const parts = [language.toLowerCase()];
+  if (script) parts.push(script[0].toUpperCase() + script.slice(1).toLowerCase());
+  if (region) parts.push(region.toUpperCase());
+  return parts.join("-");
+}
+
 // How changes reach the default branch, or the integration branch that sits
-// apart from production, what they leave in the changelog and when a version
-// is cut (REQ-idd-023): explicit choices that win over the team profile.
+// apart from production, what they leave in the changelog, when a version is
+// cut and the language the project is written in (REQ-idd-023, REQ-idd-029): explicit
+// choices that win over the team profile.
 function parseDelivery(lines) {
   const section = parseSection("delivery", lines);
   for (const key of Object.keys(section)) {
     if (!DELIVERY_KEYS.includes(key)) throw new IddConfigError(`unknown delivery key: ${key}`);
   }
   const { branching = null, changelog = null, release = null, integration_branch = null, production_branch = null } = section;
+  const language = "language" in section ? languageTag(section.language) : null;
+  if ("language" in section && language === null) {
+    throw new IddConfigError(`delivery.language must be a language tag such as es, en or pt-BR, got ${describeGot(section.language)}`);
+  }
   for (const [key, value] of [["integration_branch", integration_branch], ["production_branch", production_branch]]) {
     if (value !== null && !validBranch(value)) throw new IddConfigError(`delivery.${key} must be a branch name git accepts, got ${describeGot(value)}`);
   }
@@ -190,7 +210,7 @@ function parseDelivery(lines) {
   if (release !== null && !RELEASE_VALUES.includes(release)) {
     throw new IddConfigError(`delivery.release must be ${RELEASE_VALUES.join(", ")}, got ${describeGot(release)}`);
   }
-  return { branching, changelog, release, integration_branch, production_branch };
+  return { branching, changelog, release, integration_branch, production_branch, language };
 }
 
 function parseBoolean(key, value) {
