@@ -4,7 +4,7 @@ description: "Create pull requests with branch, validation, and publication chec
 license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
-  version: "2.1"
+  version: "2.2"
 ---
 
 ## When to Use
@@ -26,7 +26,7 @@ Use this skill when:
    `Generated with`, a 🤖 footer, or any mention of Claude, Claude Code, Anthropic,
    GPT, OpenAI, Codex, Copilot, Gemini, or any other model/vendor. See
    `rules/no-model-attribution.instructions.md`.
-6. **Feature branch MUST be created before any project file is edited** — run `git checkout -b <tipo>/<descripción> main` as Step 0 before writing any code.
+6. **Feature branch MUST be created before any project file is edited** — run `git checkout -b <type>/<description> main` as Step 0 before writing any code.
 7. **NEVER edit files or commit directly on the default branch (`main`)** — all changes require a feature branch and PR.
 
 ---
@@ -34,7 +34,7 @@ Use this skill when:
 ## Workflow
 
 ```
-0. Crear una rama de feature: git checkout -b <tipo>/<descripción> main
+0. Create a feature branch: git checkout -b <type>/<description> main
 1. If an issue is linked, verify it has the `status:approved` label; otherwise continue without issue linkage
 2. Create branch: type/description (see Branch Naming below)
 3. Implement changes with conventional commits
@@ -57,7 +57,8 @@ and its rules in `how`. Without a declaration the recommendation is `serial`.
 - **Default-branch protection**: NEVER edit files or commit directly on `main`; all work goes through feature branches and PRs.
 - **Sync coordination**: pull the default branch before branching. Rebase only a branch that was never pushed; once pushed, integrate the default branch with `git merge`, since the hooks deny force-pushing.
 - **Parallel work**: each developer works on a dedicated branch; integrate only via PR review, never direct push.
-- **Commit conventions**: use Conventional Commits with Spanish imperative verbs; keep commits atomic and buildable.
+- **Commit conventions**: use Conventional Commits with the subject in the project's language, imperative; keep commits atomic and buildable.
+- **Language**: write commit subjects and bodies and the PR title and body in the `language` that `ospec team` prints; when it prints none, in the language of the recent commit subjects (`git log -20 --format=%s`), and with no history in the user's. The commit type, the scope and the labels stay in English.
 
 ---
 
@@ -161,13 +162,13 @@ Commit messages MUST match this regex:
 ^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9\._-]+\))?!?: .+
 ```
 
-**Format:** `type(scope): descripción` or `type: descripción`
+**Format:** `type(scope): description` or `type: description`
 
 - `type` — required, one of: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, `test`
 - `(scope)` — optional, lowercase with `a-z0-9._-`
 - `!` — optional, indicates breaking change
-- `description` — required, starts after `: ` and MUST be Spanish imperative
-- Commit body, when needed, MUST be Spanish prose
+- `description` — required, starts after `: ` and MUST be an imperative sentence in the project's language
+- Commit body, when needed, MUST be prose in the project's language
 
 Type-to-label mapping:
 
@@ -186,19 +187,19 @@ Type-to-label mapping:
 | `revert` | `type:bug` |
 | `feat!` / `fix!` | `type:breaking-change` |
 
-Examples:
+Examples, for a project whose language is English:
 ```
-feat(scripts): añade soporte de Codex a setup.sh
-fix(skills): corrige el formato de topic en sdd-apply
-docs(readme): actualiza la guía de configuración multi-modelo
-refactor(skills): extrae la lógica compartida de persistencia
-chore(ci): añade shellcheck a la validación de PR
-perf(scripts): reduce el tiempo de ejecución de setup.sh
-style(skills): corrige el formato markdown
-test(scripts): añade pruebas de integración para setup.sh
-ci(workflows): añade validación de nombres de rama
-revert: deshaz el cambio roto de setup
-feat!: rediseña el sistema de carga de skills
+feat(scripts): add Codex support to setup.sh
+fix(skills): correct the topic format in sdd-apply
+docs(readme): update the multi-model setup guide
+refactor(skills): extract the shared persistence logic
+chore(ci): add shellcheck to PR validation
+perf(scripts): cut the run time of setup.sh
+style(skills): fix the markdown formatting
+test(scripts): add integration tests for setup.sh
+ci(workflows): validate branch names
+revert: undo the broken setup change
+feat!: redesign how skills are loaded
 ```
 
 ---
@@ -214,7 +215,7 @@ shellcheck scripts/*.sh
 
 # Push and create PR
 git push -u origin feat/my-feature
-gh pr create --title "feat(scope): añade descripción" --body "Closes #N"
+gh pr create --title "feat(scope): <description>" --body "Closes #N"
 
 # Add type label to PR
 gh pr edit <pr-number> --add-label "type:feature"

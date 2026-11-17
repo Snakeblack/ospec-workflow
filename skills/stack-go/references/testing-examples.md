@@ -1,89 +1,212 @@
 # Go Testing Examples
 
-## Table-Driven Test
+One example per kind of test of [testing.md](testing.md). Names are
+placeholders: keep the shape and change the code.
+
+## Table of cases
 
 ```go
-func TestProcessInput(t *testing.T) {
-    tests := []struct {
-        name    string
-        input   string
-        want    string
-        wantErr bool
-    }{
-        {name: "valid input", input: "hello", want: "HELLO"},
-        {name: "empty input", input: "", wantErr: true},
-    }
-
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            got, err := ProcessInput(tt.input)
-            if (err != nil) != tt.wantErr {
-                t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
-            }
-            if got != tt.want {
-                t.Fatalf("got %q, want %q", got, tt.want)
-            }
-        })
-    }
+func TestParseDuration(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want time.Duration
+		err  error
+	}{
+		{name: "minutes and seconds", in: "2m30s", want: 150 * time.Second},
+		{name: "zero", in: "0s", want: 0},
+		{name: "empty", in: "", err: ErrEmpty},
+		{name: "negative", in: "-5s", err: ErrNegative},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ParseDuration(tc.in)
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("ParseDuration(%q) error = %v, want %v", tc.in, err, tc.err)
+			}
+			if got != tc.want {
+				t.Errorf("ParseDuration(%q) = %v, want %v", tc.in, got, tc.want)
+			}
+		})
+	}
 }
 ```
 
-## Bubbletea State Transition
+## Files
 
 ```go
-func TestModelUpdateEnter(t *testing.T) {
-    m := NewModel()
-    next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-    got := next.(Model)
-    if got.Screen != ScreenMainMenu {
-        t.Fatalf("screen = %v, want %v", got.Screen, ScreenMainMenu)
-    }
+func TestSaveWritesTheReport(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "report.json")
+
+	if err := Save(path, Report{Total: 3}); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"total": 3`) {
+		t.Errorf("report = %s, want the total", data)
+	}
 }
 ```
 
-## Teatest Flow
+## A helper
 
 ```go
-func TestInteractiveFlow(t *testing.T) {
-    tm := teatest.NewTestModel(t, NewModel())
-    tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
-    tm.WaitFinished(t, teatest.WithDuration(time.Second))
-    final := tm.FinalModel(t).(Model)
-    if final.Screen != ExpectedScreen {
-        t.Fatalf("screen = %v, want %v", final.Screen, ExpectedScreen)
-    }
+func newStore(t *testing.T) *Store {
+	t.Helper()
+	store, err := Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	return store
 }
 ```
 
-## Golden File Pattern
+## Injected time
 
 ```go
-var update = flag.Bool("update", false, "update golden files")
+func TestTokenExpires(t *testing.T) {
+	now := time.Date(2030, 1, 1, 12, 0, 0, 0, time.UTC)
+	issuer := Issuer{Now: func() time.Time { return now }}
 
-func assertGolden(t *testing.T, path string, got string) {
-    t.Helper()
-    if *update {
-        if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
-            t.Fatal(err)
-        }
-    }
-    want, err := os.ReadFile(path)
-    if err != nil {
-        t.Fatal(err)
-    }
-    if got != string(want) {
-        t.Fatalf("golden mismatch for %s", path)
-    }
+	token := issuer.Issue(time.Hour)
+	now = now.Add(61 * time.Minute)
+
+	if issuer.Valid(token) {
+		t.Error("token still valid after its lifetime")
+	}
+}
+```
+
+## HTTP handler and client
+
+```go
+func TestHealthHandler(t *testing.T) {
+	rec := httptest.NewRecorder()
+	HealthHandler(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+
+func TestClientReportsServerErrors(t *testing.T) {
+	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "down", http.StatusServiceUnavailable)
+	}))
+	defer remote.Close()
+
+	_, err := NewClient(remote.URL).Fetch(context.Background())
+	if !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("error = %v, want ErrUnavailable", err)
+	}
+}
+```
+
+## Fuzz
+
+```go
+func FuzzParseDuration(f *testing.F) {
+	for _, seed := range []string{"2m30s", "0s", "", "-5s"} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, in string) {
+		got, err := ParseDuration(in)
+		if err == nil && got < 0 {
+			t.Errorf("ParseDuration(%q) = %v without an error", in, got)
+		}
+	})
+}
+```
+
+## Golden file
+
+```go
+var update = flag.Bool("update", false, "rewrite the golden files")
+
+func TestRenderSummary(t *testing.T) {
+	got := RenderSummary(sampleReport())
+	golden := filepath.Join("testdata", "summary.golden")
+
+	if *update {
+		if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(golden)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != string(want) {
+		t.Errorf("summary differs from %s\n%s", golden, got)
+	}
+}
+```
+
+## Integration test
+
+```go
+func TestMigrateAgainstPostgres(t *testing.T) {
+	if testing.Short() {
+		t.Skip("needs a database")
+	}
+	// ...
+}
+```
+
+## Bubble Tea: one transition
+
+```go
+func TestEnterOpensTheSelectedItem(t *testing.T) {
+	model := NewMenu([]string{"install", "update"})
+
+	next, cmd := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	next, cmd = next.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	menu := next.(Menu)
+	if menu.Opened != "update" {
+		t.Errorf("opened %q, want update", menu.Opened)
+	}
+	if cmd == nil {
+		t.Fatal("enter returned no command")
+	}
+	if _, ok := cmd().(startedMsg); !ok {
+		t.Errorf("command returned %T, want startedMsg", cmd())
+	}
+}
+```
+
+## Bubble Tea: a whole interaction
+
+```go
+func TestQuitFromTheMenu(t *testing.T) {
+	tm := teatest.NewTestModel(t, NewMenu([]string{"install", "update"}), teatest.WithInitialTermSize(80, 24))
+
+	teatest.WaitFor(t, tm.Output(), func(out []byte) bool {
+		return bytes.Contains(out, []byte("install"))
+	})
+	tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	tm.WaitFinished(t, teatest.WithFinalTimeout(2*time.Second))
+
+	if menu := tm.FinalModel(t).(Menu); !menu.Quitting {
+		t.Error("the program finished without quitting")
+	}
 }
 ```
 
 ## Commands
 
 ```bash
-go test ./...
-go test -v ./internal/tui/...
-go test -run TestNavigation ./internal/tui
+go test ./...                                  # the whole module
+go test -race ./...                            # with the race detector
+go test -short ./...                           # without slow or external tests
+go test -run 'TestParseDuration/negative' ./internal/clock
+go test -fuzz FuzzParseDuration -fuzztime 30s ./internal/clock
 go test -cover ./...
-go test ./internal/components -update
-go test -short ./...
+go test -run TestRenderSummary -update ./internal/report
 ```

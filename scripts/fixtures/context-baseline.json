@@ -2,14 +2,14 @@
   "schema": "ospec-context-baseline/v1",
   "targets": {
     "claude": {
-      "always_on_bytes": 3503,
+      "always_on_bytes": 3474,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
+      "skill_listing_bytes": 4769,
       "idd_protocol_bytes": 10982,
-      "default_flow_bytes": 14485,
-      "memory_flow_bytes": 17433,
+      "default_flow_bytes": 14456,
+      "memory_flow_bytes": 17404,
       "agent_read_bytes": {
         "review-change": 4757,
         "review-correction": 5373,
@@ -20,14 +20,14 @@
       }
     },
     "vscode": {
-      "always_on_bytes": 3747,
+      "always_on_bytes": 3718,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
+      "skill_listing_bytes": 4769,
       "idd_protocol_bytes": 10978,
-      "default_flow_bytes": 14725,
-      "memory_flow_bytes": 17673,
+      "default_flow_bytes": 14696,
+      "memory_flow_bytes": 17644,
       "agent_read_bytes": {
         "review-change": 4754,
         "review-correction": 5370,
@@ -38,14 +38,14 @@
       }
     },
     "github-copilot": {
-      "always_on_bytes": 3747,
+      "always_on_bytes": 3718,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
+      "skill_listing_bytes": 4769,
       "idd_protocol_bytes": 10978,
-      "default_flow_bytes": 14725,
-      "memory_flow_bytes": 17673,
+      "default_flow_bytes": 14696,
+      "memory_flow_bytes": 17644,
       "agent_read_bytes": {
         "review-change": 4740,
         "review-correction": 5356,
@@ -56,14 +56,14 @@
       }
     },
     "opencode": {
-      "always_on_bytes": 3425,
+      "always_on_bytes": 3396,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
+      "skill_listing_bytes": 4769,
       "idd_protocol_bytes": 10978,
-      "default_flow_bytes": 14403,
-      "memory_flow_bytes": 17351,
+      "default_flow_bytes": 14374,
+      "memory_flow_bytes": 17322,
       "agent_read_bytes": {
         "review-change": 4752,
         "review-correction": 5368,
@@ -74,14 +74,14 @@
       }
     },
     "codex": {
-      "always_on_bytes": 3428,
+      "always_on_bytes": 3399,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
+      "skill_listing_bytes": 4769,
       "idd_protocol_bytes": 10978,
-      "default_flow_bytes": 14406,
-      "memory_flow_bytes": 17354,
+      "default_flow_bytes": 14377,
+      "memory_flow_bytes": 17325,
       "agent_read_bytes": {
         "review-change": 4797,
         "review-correction": 5413,
@@ -92,14 +92,14 @@
       }
     },
     "cursor": {
-      "always_on_bytes": 3755,
+      "always_on_bytes": 3726,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
+      "skill_listing_bytes": 4769,
       "idd_protocol_bytes": 10978,
-      "default_flow_bytes": 14733,
-      "memory_flow_bytes": 17681,
+      "default_flow_bytes": 14704,
+      "memory_flow_bytes": 17652,
       "agent_read_bytes": {
         "review-change": 4706,
         "review-correction": 5322,
@@ -110,14 +110,14 @@
       }
     },
     "antigravity": {
-      "always_on_bytes": 3757,
+      "always_on_bytes": 3728,
       "orchestrator_bytes": 0,
       "skills_installed": 34,
       "skills_listed": 28,
-      "skill_listing_bytes": 4772,
+      "skill_listing_bytes": 4769,
       "idd_protocol_bytes": 10978,
-      "default_flow_bytes": 14735,
-      "memory_flow_bytes": 17683,
+      "default_flow_bytes": 14706,
+      "memory_flow_bytes": 17654,
       "agent_read_bytes": {
         "review-change": 4761,
         "review-correction": 5377,
