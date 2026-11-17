@@ -7,8 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.184.0] - 2026-11-18
+
 ### Added
-- **Catálogo propio de sinks de seguridad** (own-sink-catalog, E1.100): `scripts/lib/idd-sinks.js` ordena sus reglas por debilidad y por lenguaje y deja de adaptar el catálogo de gentle-ai. Conserva cada sink que se detectaba, con su etiqueta, y detecta las formas que se escapaban de las mismas debilidades (`curl -kL`, `InsecureSkipVerify` asignado, `spawn` con `shell: true`, `exec()` de Python, `chmod` con cualquier modo que deje escribir a otros…) y la comprobación de host SSH desactivada (CWE-322). (own-sink-catalog)
+- **Catálogo propio de sinks de seguridad** (own-sink-catalog, E1.100).
+  - **Catálogo propio**: `scripts/lib/idd-sinks.js` ordena sus reglas por debilidad y por lenguaje y deja de adaptar el catálogo de gentle-ai, cuyo aviso sale del fichero. Quedan 6 de las 53 expresiones del original, todas el nombre de una API escrito de la única forma natural; ninguna línea de 30 caracteres o más coincide.
+  - **Nada se pierde**: cada sink que se detectaba se sigue detectando con la misma etiqueta, que forma parte de la clave con la que se guarda la respuesta que retira la señal. Contra el catálogo anterior, 289 líneas y 2023 variantes de espaciado no pierden ni cambian ninguna. La etiqueta solo cambia cuando el SQL compuesto llega a algo que lo ejecuta como comando de shell o como código (`exec` o `system` de PHP y Ruby, `%x[...]` de Ruby, `exec` de Python, `Runtime.exec`): ahora nombra ese comando o ese código. Un método `exec` de base de datos (PDO, SQLite3, pg) conserva la de SQL compuesto.
+  - **Formas nuevas de las mismas debilidades**: `InsecureSkipVerify` asignado, `curl -kL` y `-sSk`, `wget --no-check-certificate`, `CURLOPT_SSL_VERIFYHOST`, `checkServerTrusted` con `throws`, `dill` y `jsonpickle`, `exec()` de Python, `os.popen` y `os.system` con variable, `spawn` con `shell: true` y un comando que no es constante, `Runtime.exec` compuesto, `md5.Sum([]byte(password))`, `cors({ origin: '*', credentials: true })`, `csrf(c -> c.disable())` y `DisableAntiforgery()`, entre otras.
+  - **Modos de fichero**: `chmod` cuenta con cualquier modo que deje escribir a otros, porque la umask no lo filtra. Un fichero que se crea con `mkdir`, `open` o `WriteFile` pasa por la umask, así que ahí solo cuenta 0777 (y 0666 en las llamadas que ya se detectaban). Un número dentro de una ruta o la máscara de `mode & 0o777` no son modos.
+  - **Comprobación de host SSH desactivada (CWE-322)**: `ssh.InsecureIgnoreHostKey()`, `AutoAddPolicy` de paramiko y `StrictHostKeyChecking=no` derivan la señal con su propia etiqueta, la última del catálogo para no quitarle la suya a una línea que otra debilidad ya nombraba.
+  - **Falsos positivos**: en el código de producto de 16 repositorios locales (unas 700 000 líneas), los únicos hits nuevos son cinco `exec(compile(...))` de Python, que sí evalúan código. `new vm.Script` solo compila y no cuenta.
+  - **Roadmap**: E1.102 `sink-catalog-xss-crypto` (salida HTML sin escapar y cifrado débil) va justo detrás; E1.103 `product-ext-mts-cts` queda fuera del orden.
+
+**Verificación directa**: `node scripts/check.js` (5046 tests pasando, 0 fallos y 5 omitidos), 457 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados. Revisión de confianza (Opus) con un hallazgo CRITICAL (la regla `%x` de Ruby perdía líneas con `|`) y dos avisos (los métodos `exec` de base de datos cambiaban de etiqueta; `curl -kL` no se detectaba), corregidos los tres y validados sin regresión.
 
 ## [2.183.0] - 2026-11-17
 
