@@ -1,7 +1,7 @@
 ---
 name: stack-postgres
 description: "PostgreSQL relational database — SQL migrations, indexing strategy, parameterized queries, connection pooling"
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

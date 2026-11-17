@@ -1,7 +1,7 @@
 ---
 name: gh-release-notes
 description: "Trigger: release notes, changelog entries, tag release. Generate homogeneous Spanish release notes based on project format."
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

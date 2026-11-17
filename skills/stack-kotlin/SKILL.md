@@ -1,9 +1,9 @@
 ---
 name: stack-kotlin
 description: "Kotlin language guidelines — idioms, coroutines and flows, Ktor servers, Exposed ORM, and testing with Kotest and MockK"
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "affaan-mustafa, manuel-retamozo-garcia"
   version: "1.0"
 capabilities: [kotlin]
 ---

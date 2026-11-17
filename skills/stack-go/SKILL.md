@@ -1,9 +1,9 @@
 ---
 name: stack-go
 description: "Go (Golang) programming language — idiomatic structures, concurrency, error handling, and testing (table-driven, golden files, Bubbletea)"
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "affaan-mustafa, gentleman-programming, manuel-retamozo-garcia"
   version: "1.0"
 capabilities: [go]
 ---

@@ -455,3 +455,5 @@ superficie de ejecución y confianza.
 Este proyecto se publica bajo la licencia MIT con la restricción [Commons Clause](https://commonsclause.com/). El texto completo está en [LICENSE](LICENSE).
 
 Uso, modificación y redistribución libres, también para empresas. No está permitido venderlo ni ofrecer servicios de pago cuyo valor proviene sustancialmente del software (alojamiento, consultoría o soporte) sin permiso ([hello@mretamozo.com](mailto:hello@mretamozo.com)). Las versiones publicadas antes de este cambio se distribuyeron bajo MIT sin Commons Clause.
+
+Todas las skills declaran esa misma licencia. Algunas conservan texto de tres obras publicadas con licencia MIT (gentle-ai, ECC y Caveman): [NOTICE](NOTICE) guarda el aviso de copyright de cada una y las skills que conservan su texto, y viaja con el plugin del marketplace de Claude junto a `LICENSE`.

@@ -1,6 +1,7 @@
 ---
 name: hexagonal-architecture
 description: "Ports & Adapters design and refactoring with clear domain boundaries and testable use cases. Trigger: hexagonal architecture, ports and adapters, clean architecture, domain boundaries."
+license: MIT AND Commons-Clause
 metadata:
   origin: ECC
 ---

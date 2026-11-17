@@ -1,9 +1,9 @@
 ---
 name: stack-angular
 description: "Angular frontend framework — standalone components, signals, reactive forms, routing, RxJS"
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "affaan-mustafa, manuel-retamozo-garcia"
   version: "1.0"
 capabilities: [angular]
 ---

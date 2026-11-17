@@ -44,7 +44,7 @@ flowchart TD
 | Respondes cuando el cambio se aparta de un ADR o va a borrar datos. | Para y te pregunta. | Abre el gate correspondiente. |
 | Haces commit, PR y versión cuando quieras. | Escribe el código y los tests y ejecuta los comandos. | Deriva las obligaciones, observa la evidencia y cierra. |
 
-El agente solo se detiene en seis *gates*: intención ambigua, hechos abiertos, ADR enmendado o contradicho, operación irreversible, límite de revisiones de confianza y checks cambiados. Solo una respuesta explícita tuya los resuelve.
+El agente solo se detiene en nueve *gates*: abandonar un cambio, intención ambigua, un bug que pasa a feature, hechos abiertos, ADR enmendado o contradicho, operación irreversible, límite de revisiones de confianza, checks cambiados y base del cambio movida. Solo una respuesta explícita tuya los resuelve.
 
 ---
 
@@ -122,4 +122,4 @@ Diseños anteriores, ya archivados. No describen el estado actual.
 | `.ospec/` | Datos locales del harness: la cuenta de turnos, las trazas de sesión y las cachés. | Ambos |
 | `openspec/` | Configuración, specs y cambios del modo SDD. IDD no lo lee ni lo escribe. | SDD |
 
-El CLI `ospec` tiene estos comandos: `status`, `next`, `record`, `signals`, `check`, `run`, `review`, `close`, `doctor`, `team`, `snapshot` y `foundation`. Normalmente los ejecuta el agente, no tú.
+El CLI `ospec` tiene estos comandos: `status`, `next`, `record`, `signals`, `check`, `run`, `review`, `close`, `abandon`, `doctor`, `router`, `team`, `snapshot` y `foundation`. Normalmente los ejecuta el agente, no tú.

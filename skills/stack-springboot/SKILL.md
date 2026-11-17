@@ -1,9 +1,9 @@
 ---
 name: stack-springboot
 description: "Spring Boot architecture patterns — REST API design, layered services, JPA, caching, Spring Security, TDD with MockMvc and Testcontainers, and pre-release verification"
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "affaan-mustafa, manuel-retamozo-garcia"
   version: "1.0"
 capabilities: [springboot]
 ---

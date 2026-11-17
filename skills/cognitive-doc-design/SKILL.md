@@ -1,9 +1,9 @@
 ---
 name: cognitive-doc-design
 description: "Design docs that reduce cognitive load. Trigger: writing guides, READMEs, RFCs, onboarding, architecture, or review-facing docs."
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "gentleman-programming, manuel-retamozo-garcia"
   version: "1.0"
 ---
 

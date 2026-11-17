@@ -1,7 +1,7 @@
 ---
 name: cncf-landscape
 description: "Trigger: CNCF, landscape, platform, observability, containers, orchestration. Compare a few sourced candidates and never adopt or install them."
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

@@ -1,9 +1,9 @@
 ---
 name: stack-dotnet
 description: "ASP.NET Core + C# backend — minimal APIs, dependency injection, EF Core, nullable reference types"
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "affaan-mustafa, manuel-retamozo-garcia"
   version: "1.0"
 capabilities: [dotnet]
 ---

@@ -1,7 +1,7 @@
 ---
 name: stack-sqlserver
 description: "Microsoft SQL Server database — indexing, RCSI, set-based operations, SARGable queries, transaction scopes"
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

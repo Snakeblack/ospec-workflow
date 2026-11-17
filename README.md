@@ -458,4 +458,6 @@ This project is licensed under the MIT License with the [Commons Clause](https:/
 
 Free use, modification and redistribution, including by companies. Selling it or offering paid services whose value comes substantially from the software (hosting, consulting or support) is not allowed without permission ([hello@mretamozo.com](mailto:hello@mretamozo.com)). Versions published before this change were released under plain MIT.
 
+Every skill declares that same license. Some keep text from three works published under the MIT License (gentle-ai, ECC and Caveman): [NOTICE](NOTICE) keeps the copyright notice of each and the skills that keep its text, and ships with the Claude marketplace plugin next to `LICENSE`.
+
 Uso, modificación y redistribución libres, también para empresas. No está permitido venderlo ni ofrecer servicios de pago cuyo valor proviene sustancialmente del software (alojamiento, consultoría o soporte) sin permiso ([hello@mretamozo.com](mailto:hello@mretamozo.com)). Las versiones publicadas antes de este cambio se distribuyeron bajo MIT sin Commons Clause.

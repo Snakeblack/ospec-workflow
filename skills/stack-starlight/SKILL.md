@@ -1,7 +1,7 @@
 ---
 name: stack-starlight
 description: "Astro Starlight documentation framework — setup, sidebar navigation, frontmatter, built-in components, asides, theming, i18n, search"
-license: Apache-2.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"
