@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.184.0, 2026-11-18.
+> **Versión de referencia:** v2.185.0, 2026-11-19.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -220,7 +220,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.97** | `archive-scan-friction` (el pre-commit bloquea el `state.yaml` de un cambio IDD archivado cuando un hallazgo de review cita un ejemplo con forma de secreto; el fichero es del CLI y no admite `ospec:allow-secret`, así que hoy el commit del archivo pide saltar el escáner entero; fuera del orden ▶, antes del próximo cambio que revise los guards) | bugfix |
 | `done` | **E1.98** | `own-skills` (versiones propias de chained-pr, cognitive-doc-design, comment-writer, judgment-day, skill-creator con su guía de estilo, work-unit-commits y las referencias de testing de stack-go, escritas desde lo que ospec es hoy; la guía y la sección 3 de la spec de skills piden lo que el tooling exige; `delivery.language` declara el idioma del proyecto y ninguna skill fija el español; las reglas de comportamiento de `rules/` con texto propio; en v2.183.0) | skills |
 | `done` | **E1.100** | `own-sink-catalog` (catálogo propio de sinks de seguridad en `scripts/lib/idd-sinks.js`, ordenado por debilidad y por lenguaje y sin el aviso de gentle-ai; conserva cada sink que se detectaba, con su etiqueta, y añade las formas que se escapaban de las mismas debilidades y la comprobación de host SSH desactivada (CWE-322); en v2.184.0) | feature |
-| `done` | **E1.102** | `sink-catalog-xss-crypto` (dos debilidades nuevas al final del catálogo de sinks: salida HTML sin escapar (CWE-79), que no cuenta cuando la línea muestra el valor constante, escapado o saneado, y cifrado débil (CWE-327: DES, 3DES, RC2, RC4, Blowfish y el modo ECB); las reglas de JS miran también los `.vue`, `.svelte`, `.astro` y `.html`, y las plantillas de servidor pasan a ser código de producto) | feature |
+| `done` | **E1.102** | `sink-catalog-xss-crypto` (dos debilidades nuevas al final del catálogo de sinks: salida HTML sin escapar (CWE-79), que no cuenta cuando la línea muestra el valor constante, escapado o saneado, y cifrado débil (CWE-327: DES, 3DES, RC2, RC4, Blowfish y el modo ECB); las reglas de JS miran también los `.vue`, `.svelte`, `.astro` y `.html`, y las plantillas de servidor pasan a ser código de producto; en v2.185.0) | feature |
 | `pending` | **E1.101** | `own-sdd-apply` (versión propia de la skill de fase `sdd-apply`, la última con texto de gentle-ai; con ella la sección de gentle-ai sale de `NOTICE`; detrás de E1.100) | skills |
 | `pending` | **E1.99** | `own-stack-skills` (lo mismo para las skills que conservan texto de ECC y de Caveman: las `stack-*`, accessibility, api-design, design-system, hexagonal-architecture y caveman-compress; con E1.101 hecho, `NOTICE` desaparece; fuera del orden ▶) | skills |
 | `pending` | **E1.103** | `product-ext-mts-cts` (`PRODUCT_EXT` de `scripts/lib/idd-signals.js` no reconoce `.mts` ni `.cts`, así que un módulo TypeScript con esas extensiones no cuenta como código de producto para ninguna señal; fuera del orden ▶) | bugfix |
@@ -2356,8 +2356,8 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
-- 2026-11-18: `sink-next-line-adjacent` (IDD), seguimiento de E1.102. El diff guarda el número de cada línea añadida, y el valor partido de un sink sigue en la línea de abajo del fichero, cambie o no, en vez de en la siguiente línea añadida, que podía ser de otro hunk.
-- 2026-11-18: `sink-catalog-xss-crypto` (IDD). E1.102 hecho: salida HTML sin escapar y cifrado débil en el catálogo de sinks.
+- 2026-11-18: `sink-next-line-adjacent` (IDD), publicado en v2.185.0. Seguimiento de E1.102. El diff guarda el número de cada línea añadida, y el valor partido de un sink sigue en la línea de abajo del fichero, cambie o no, en vez de en la siguiente línea añadida, que podía ser de otro hunk.
+- 2026-11-18: `sink-catalog-xss-crypto` (IDD), publicado en v2.185.0. E1.102 hecho: salida HTML sin escapar y cifrado débil en el catálogo de sinks.
   - `scripts/lib/idd-sinks.js` detecta CWE-79 en JS, en las plantillas de Vue, Svelte, Astro, HTML, Razor, ERB, EJS, Handlebars, Jinja y Twig, y en Python, Go, C#, Ruby, PHP y Rust. No cuenta cuando la propia línea muestra el valor constante, escapado o saneado.
   - El cifrado débil (DES, 3DES, RC2, RC4, Blowfish y el modo ECB) cuenta en la llamada que elige el algoritmo, en los nueve lenguajes del catálogo.
   - Las reglas de JS miran también los scripts de los `.vue`, `.svelte`, `.astro` y `.html`, y las plantillas de servidor pasan a ser código de producto.
