@@ -263,12 +263,24 @@ function securityHits(diff, patterns) {
     const lines = addedLines[file] || [];
     for (const [index, line] of lines.entries()) {
       if (regions && regions.tests.has(line) && !regions.product.has(line)) continue;
-      // The next added line, where a value split by the formatter goes on.
-      const label = sinkOf(file, line, lines[index + 1]);
+      const label = sinkOf(file, line, lineBelow(diff, file, index));
       if (label) hits.push({ file, reason: `${file} adds ${label}`, key: `${file} adds ${label}: ${line.trim()}` });
     }
   }
   return hits;
+}
+
+// The line below an added line in its file, changed or not, where a value
+// split by the formatter goes on. Without the file it reads the added line
+// right below, if any; without line numbers (an untracked file adds all of
+// its lines), the next added line.
+function lineBelow(diff, file, index) {
+  const lines = diff.addedLines[file];
+  const numbers = diff.addedLineNumbers?.[file];
+  if (!numbers) return lines[index + 1];
+  const fileLines = diff.sources?.[file]?.lines;
+  if (fileLines?.[numbers[index] - 1] === lines[index]) return fileLines[numbers[index]];
+  return numbers[index + 1] === numbers[index] + 1 ? lines[index + 1] : undefined;
 }
 
 // The content hits of a signal the user's answer may retract (#416, E1.58,

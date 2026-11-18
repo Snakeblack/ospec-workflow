@@ -834,6 +834,11 @@ test("[E1.102] server templates are product code, so HTML they write without esc
   assert.strictEqual(security("src/table.js", ["row.innerHTML = `<td>${esc(user.name)}</td>`;", "list.innerHTML = '';"]), undefined, "a value the line shows safe");
   assert.strictEqual(security("src/table.js", ["list.innerHTML = '<ul>'", '  + items + "</ul>";']), "security boundary: src/table.js adds unescaped HTML output (CWE-79)", "a value the next added line goes on with");
   assert.strictEqual(security("src/table.js", ["list.innerHTML = ''", "render(list);"]), undefined);
+  // Without the file, only an added line right below goes on with the value.
+  const split = (numbers) => deriveSignals({ intent, diff: { paths: ["src/table.js"], addedLines: { "src/table.js": ["list.innerHTML = ''", "  - 2;"] }, addedLineNumbers: { "src/table.js": numbers } }, patterns: resolvePatterns({}) })
+    .signals.find((s) => s.id === "security-boundary")?.reason;
+  assert.strictEqual(split([2, 3]), "security boundary: src/table.js adds unescaped HTML output (CWE-79)");
+  assert.strictEqual(split([2, 5]), undefined, "the next added line sits in another hunk");
   const template = signals("Views/Post/Show.cshtml", ["<h1>@Model.Title</h1>", "<div>@Html.Raw(Model.Body)</div>"]);
   assert.strictEqual(template.find((s) => s.id === "security-boundary")?.reason, "security boundary: Views/Post/Show.cshtml adds unescaped HTML output (CWE-79)");
   assert.ok(template.some((s) => s.id === "untested-product"), "a template changed without a test, as a .vue would be");

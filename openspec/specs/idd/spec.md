@@ -1135,7 +1135,8 @@ a library sanitizer or an escape function around the whole value, a value
 whose every `<` is replaced, or one built only from those, a list mapped and
 joined included. A value made safe on another line counts, and so does one the
 line does not finish (a bracket, a quote or a template tag left open, an
-operator at its end, or a next added line that opens with one). Angular's `[innerHTML]`,
+operator at its end, or the line below it in the file, changed or not, that
+opens with one; an added line of another hunk never goes on with it). Angular's `[innerHTML]`,
 which sanitizes by itself, MUST NOT count. A weak cipher is DES, 3DES, RC2,
 RC4, Blowfish or the ECB mode of any cipher, picked by the call that chooses
 the algorithm, to encrypt or to decrypt; a word that only names one MUST NOT
