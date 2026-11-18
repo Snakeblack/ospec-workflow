@@ -140,6 +140,57 @@ test("the diff holds modified, deleted and untracked paths with their added and 
   assert.deepStrictEqual(diff.addedLines["db/seed.sql"], ["++ counter"]);
 });
 
+test("each added line of a tracked file carries its number in the new file", (t) => {
+  const root = gitRepo(t);
+  write(root, "src/a.js", "one\ntwo\nthree\nfour\nfive");
+  commitAll(root, "base");
+  write(root, "src/a.js", "one\nTWO\nfour\nFIVE");
+  write(root, "src/new.js", "x\n");
+
+  const diff = readGitDiff(root);
+  assert.deepStrictEqual(diff.addedLines["src/a.js"], ["TWO", "FIVE"]);
+  assert.deepStrictEqual(diff.addedLineNumbers["src/a.js"], [2, 4], "removed lines and the no-newline marker take no number");
+  assert.deepStrictEqual(diff.addedLines["src/new.js"], ["x"]);
+  assert.strictEqual(diff.addedLineNumbers["src/new.js"], undefined, "an untracked file adds all its lines");
+});
+
+// A value split by the formatter goes on in the line below it in the file,
+// changed or not, never in the next added line of another hunk.
+test("a sink's value goes on with the line below it in the file, not with the next added line of another hunk", (t) => {
+  const { securityHits } = require("./idd-signals.js");
+  const root = gitRepo(t);
+  write(root, "src/render.js", [
+    "function render(list, menu, total) {",
+    "  list.innerHTML = '<ul></ul>';",
+    "  log(total);",
+    "  const sum = total",
+    "    - 1;",
+    "  menu.innerHTML = '<ol>'",
+    '    + items + "</ol>";',
+    "}",
+    "",
+  ].join("\n"));
+  commitAll(root, "base");
+  write(root, "src/render.js", [
+    "function render(list, menu, total) {",
+    "  list.innerHTML = ''",
+    "  log(total);",
+    "  const sum = total",
+    "    - 2;",
+    "  menu.innerHTML = '<ul>'",
+    '    + items + "</ol>";',
+    "  nav.innerHTML = '<p>'",
+    '    + label + "</p>";',
+    "}",
+    "",
+  ].join("\n"));
+
+  assert.deepStrictEqual(securityHits(readGitDiff(root), []).map((hit) => hit.key), [
+    "src/render.js adds unescaped HTML output (CWE-79): menu.innerHTML = '<ul>'",
+    "src/render.js adds unescaped HTML output (CWE-79): nav.innerHTML = '<p>'",
+  ]);
+});
+
 test("the diff reads each changed product file with the product modules it imports by relative path", (t) => {
   const root = gitRepo(t);
   write(root, "src/store.js", "module.exports = { save };\n");

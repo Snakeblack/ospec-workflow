@@ -1,0 +1,1033 @@
+{
+  "schema": "idd-state/v1",
+  "change": "sink-catalog-xss-crypto",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "requested_at": "2026-11-18T00:02:16.852Z",
+    "kind": "feature",
+    "summary": "Dos debilidades nuevas en el catálogo de sinks de scripts/lib/idd-sinks.js: salida HTML sin escapar (CWE-79) y cifrado débil (CWE-327), con un corpus de falsos positivos propio (E1.102)",
+    "acceptance": "El corpus de idd-sinks.test.js encuentra la salida HTML sin escapar (CWE-79) y el cifrado débil (CWE-327) en los lenguajes y plantillas acordados, con dos etiquetas propias al final del catálogo; sus formas seguras no derivan la señal; cada caso anterior conserva su etiqueta; el barrido de los repositorios locales de E1.100 no da falsos positivos nuevos; la spec de IDD y el handbook nombran las dos debilidades; node scripts/check.js pasa"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Qué formas de CWE-79 cuentan siempre y cuáles solo con un valor compuesto o variable? Recomendada: (a) las API hechas para saltarse el escape del framework (dangerouslySetInnerHTML, v-html, {@html}, set:html, bypassSecurityTrust*, unsafeHTML, mark_safe, Markup, template.HTML, Html.Raw, HtmlString, MarkupString, html_safe, raw, |safe, {!! !!}, th:utext) cuentan salvo que su argumento sea un único literal constante; las del DOM (innerHTML/outerHTML asignado, insertAdjacentHTML, document.write) solo con un valor compuesto o variable, así que innerHTML = '' no cuenta; [innerHTML] de Angular no cuenta porque Angular lo sanea, ni .html() de jQuery por ser un nombre de método demasiado común. (b) todas cuentan siempre salvo el vaciado con ''. (c) todas solo con valor compuesto o variable"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿En qué ficheros miran las reglas nuevas? Recomendada: (a) las de los nueve lenguajes del catálogo en sus extensiones; .vue, .svelte, .astro y .html reciben las formas de plantilla y además todas las reglas de JS, porque su <script> y el frontmatter de Astro son JS/TS que hoy ninguna regla mira; las plantillas de servidor (.cshtml, .razor, .erb, .ejs, .hbs, .handlebars, .jinja, .jinja2, .j2, .twig) pasan a ser código de producto con sus formas (Html.Raw, <%==, <%-, {{{ }}}, |safe, |raw), así que también derivan untested-product como ya hace un .vue. (b) igual pero sin plantillas de servidor, con lo que Html.Raw de Razor no se ve. (c) solo .vue, .svelte y .astro, sin reglas de JS en ellos"
+      },
+      {
+        "category": "persistence",
+        "question": "¿Qué cuenta como cifrado débil y cuándo? Recomendada: (a) DES, 3DES, RC2, RC4, Blowfish y el modo ECB de cualquier cifrado (también Cipher.getInstance(\"AES\") de Java, que usa ECB por defecto), al cifrar y al descifrar, siempre que una línea de producto llame a la API que elige el algoritmo; los tests ya no cuentan y una palabra suelta como ECB (el Banco Central Europeo) tampoco. (b) solo DES, RC4 y ECB, como dice el roadmap. (c) como (a) pero solo al cifrar, no al descifrar datos heredados"
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 1126
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/idd-sinks.js",
+          "line": 9
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1667
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿Qué funciones neutralizan el valor en la misma línea? Recomendada: (a) una llamada de saneado de librería que envuelve el valor entero (DOMPurify.sanitize, sanitizeHtml, bleach.clean, nh3.clean, Sanitize.fragment, HtmlSanitizer.Sanitize, bluemonday) o una plantilla compuesta en la que cada interpolación pasa por una función de escape (esc, escape, escapeHtml, htmlEscape); una variable saneada en otra línea sí cuenta y la respuesta del usuario la retira; JSON.stringify no neutraliza, porque no escapa < y un </script> en los datos cierra la etiqueta, salvo que la misma línea escape <. (b) ninguna: cuenta siempre y la revisión de confianza decide. (c) solo los saneadores de librería, no las funciones de escape propias"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-signals.test.js",
+      "scripts/lib/idd-sinks.js",
+      "scripts/lib/idd-sinks.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Las dos debilidades nuevas van al final del catálogo, detrás de CWE-322, con sus propias etiquetas: «unescaped HTML output (CWE-79)» y «weak cipher (CWE-327)»; así no le quitan la etiqueta a una línea que otra debilidad ya nombraba y las respuestas guardadas siguen casando",
+      "CWE-79: las API hechas para saltarse el escape del framework cuentan salvo que su argumento sea un único literal constante; las del DOM (innerHTML u outerHTML asignado, insertAdjacentHTML, document.write) solo con un valor compuesto o variable; [innerHTML] de Angular no cuenta porque Angular lo sanea, ni .html() de jQuery",
+      "Un saneador de librería que envuelve el valor entero (DOMPurify.sanitize, sanitizeHtml, bleach.clean, nh3.clean, Sanitize.fragment, HtmlSanitizer.Sanitize, bluemonday) o una plantilla compuesta con cada interpolación pasada por una función de escape neutralizan la línea; JSON.stringify no, salvo que la misma línea escape <",
+      ".vue, .svelte, .astro y .html reciben las formas de plantilla y todas las reglas de JS, y sus comentarios de marcado (<!-- -->) o de JS no cuentan; las plantillas de servidor (.cshtml, .razor, .erb, .ejs, .hbs, .handlebars, .jinja, .jinja2, .j2, .twig) pasan a ser código de producto en PRODUCT_EXT con sus formas de CWE-79",
+      "Cifrado débil: DES, 3DES, RC2, RC4, Blowfish y el modo ECB de cualquier cifrado, también Cipher.getInstance(\"AES\") sin modo, al cifrar y al descifrar, solo en la llamada que elige el algoritmo; una palabra suelta como ECB no cuenta",
+      "El análisis de valores (CWE-79) admite como seguros, además de lo acordado, los números (aritmética sin +, Math.*, length, toFixed), los ternarios y las listas items.map((x) => <html>).join(sep) cuyas ramas o cuerpo son seguros, porque no pueden llevar marcado; una función propia como pct(x), definida en otra línea, sigue contando",
+      "Un include de EJS y el {{{body}}} de un layout de Handlebars no cuentan: son las plantillas ya renderizadas de la propia app; un valor anidado tan hondo que desborda la pila cuenta como sink en lugar de tumbar ospec check",
+      "Un valor CWE-79 que la línea no termina (paréntesis, comilla o etiqueta de plantilla sin cerrar, operador al final, valor vacío) cuenta: cada línea se juzga sola y el resto del valor está abajo; % solo es aritmética con un número a la izquierda, un comentario final no es una división y replace solo escapa < con g o replaceAll",
+      "El escape de < con replace solo vale como última llamada de una cadena que forma todo el valor, y en Python, Ruby y Jinja * solo es aritmética entre números: texto por número repite el texto",
+      "Un .html puede ser una plantilla de servidor que renderiza sus comentarios, así que en él no se salta ninguna línea; Handlebars no tiene operadores y {{{ }}} solo es seguro con un literal; set:html entre comillas invertidas es una plantilla literal; una asignación sin punto y coma cuya línea añadida siguiente abre con un operador cuenta; los operandos se leen en una pasada para no colgar ospec check"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "declared a security boundary",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "las dos debilidades nuevas son reglas del CLI (idd-sinks.js) y qué ficheros cuentan como producto sigue en idd-signals.js, con su corpus en los tests; ninguna skill describe los sinks en prosa"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "security-boundary por contenido sigue derivando trust-review solo cuando el diff añade un sink a código de producto; las plantillas de servidor pasan a ser producto como ya lo son .vue y .html, así la ceremonia sube solo con evidencia del diff y las formas saneadas o constantes no la suben"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "no cambia cómo sale de pending trust-review: revisión aprobada o retirada con la respuesta del usuario atada a los hits; las etiquetas de hoy se conservan y las nuevas van al final"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "no toca dónde viven en disco SDD e IDD; solo cambia el catálogo y las extensiones que lee la derivación de señales de IDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "el catálogo sigue siendo puro y determinista: el mismo diff da los mismos hits y etiquetas al reanudar, y las claves de las retiradas guardadas no cambian para los sinks de hoy"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Las reglas de CWE-79 y de cifrado débil viven en scripts/lib/idd-sinks.js con su corpus en scripts/lib/idd-sinks.test.js, y las plantillas de servidor en PRODUCT_EXT de scripts/lib/idd-signals.js con su test en idd-signals.test.js; ninguna skill describe los sinks: la spec y el handbook nombran el catálogo del CLI",
+      "recorded_at": "2026-11-18T00:26:28.847Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 542,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_at": "2026-11-18T00:04:11.373Z",
+      "resolved_turn": 543
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-18T00:21:47.103Z",
+      "detail": {
+        "tree": "sha256:649f797cb7c8f44a4507feb7bbd3b5fc864644304b2c7785bd62983441455303",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-18T00:21:47.103Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms"
+        ],
+        "records": [],
+        "tree": "sha256:649f797cb7c8f44a4507feb7bbd3b5fc864644304b2c7785bd62983441455303",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-18T00:51:46.824Z",
+      "detail": {
+        "lineage_id": "sha256:d807fab0e723fd767cdb3f6a2a184a9eafbf64ecc6a650bce5c6154b011eb2c8",
+        "candidate_id": "sha256:126a9bd299dff83d9d7c526f72f892fc231430c1fb30c32d6e7189390a905a9b",
+        "candidate_tree": "db172f11a673aa61c70905e6c7571c9fd7431c8c",
+        "findings_digest": "sha256:c76f55f207c92c49ad0044a14353c1c9fbaee7d12eee43c4858be580ecf5b10a",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-correction",
+          "recorded_at": "2026-11-18T00:51:25.872Z",
+          "result_digest": "sha256:b1630b9299b9208f5258e241ac8c82eb58cf9ba720fa758afc6525ab454017b7"
+        }
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-18T00:56:11.576Z",
+      "detail": {
+        "tree": "sha256:073f5f1905b927a25e69907c22602261a3220a4ca8ef62192bdc93ea0c3dc8ea",
+        "runs": [
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-18T00:56:11.576Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms"
+        ],
+        "records": [],
+        "tree": "sha256:073f5f1905b927a25e69907c22602261a3220a4ca8ef62192bdc93ea0c3dc8ea",
+        "fitness": [
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-18T21:29:25.275Z",
+      "detail": {
+        "lineage_id": "sha256:25a6d64094245610d15fd56d22cb36ad008e662e7dcb94c8677af29def7bcea6",
+        "candidate_id": "sha256:afebeb4e7e4595353f61bb17d9ea2ef8c03c9a5ea5e557bb46b976963cb17e02",
+        "candidate_tree": "578a347e6ee20167d269803e6e9ffd6e88e7903d",
+        "findings_digest": "sha256:5e12dffd93d4b8f17b27bd0d06a26589a070cc50debc9fc507bead27b246aa9b",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-18T21:28:44.696Z",
+          "result_digest": "sha256:850932073ff6e4aed2a45a11eb558e41cc0457120d5a4d9c7b3bcd47381a93b7"
+        }
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-18T21:36:37.042Z",
+      "detail": {
+        "lineage_id": "sha256:25a6d64094245610d15fd56d22cb36ad008e662e7dcb94c8677af29def7bcea6",
+        "candidate_id": "sha256:afebeb4e7e4595353f61bb17d9ea2ef8c03c9a5ea5e557bb46b976963cb17e02",
+        "candidate_tree": "b045cdbebb074e6cd06b68fecb5e6b80ecae4344",
+        "findings_digest": "sha256:5e12dffd93d4b8f17b27bd0d06a26589a070cc50debc9fc507bead27b246aa9b",
+        "correction": "advisory",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-correction",
+          "recorded_at": "2026-11-18T21:36:11.401Z",
+          "result_digest": "sha256:05b3ae75f966aa1363b647a82bdca0da6c9c6805f42dfd150e44170e2f9e394f"
+        }
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-18T22:58:22.249Z",
+      "detail": {
+        "tree": "sha256:638dc11afa1cdd12b4548b5832d461e1424794392b65121e01707d13a7fe9090",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-18T22:58:22.249Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms"
+        ],
+        "records": [],
+        "tree": "sha256:638dc11afa1cdd12b4548b5832d461e1424794392b65121e01707d13a7fe9090",
+        "fitness": [
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-18T22:58:28.179Z"
+    }
+  ],
+  "base": "b6d5a882f05b2a140bc953aea7a59d0cd86c15c3",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2f9aa7f8fb105cea9ac003bb062b84d4c71421aa46bbf4d99512d1c5966c828e",
+      "tree": "sha256:649f797cb7c8f44a4507feb7bbd3b5fc864644304b2c7785bd62983441455303",
+      "recorded_at": "2026-11-18T00:21:47.103Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0d26343829ef2a646a36b0ebf43142ca360ccb0409c4caa4d03342586e4030f9",
+      "tree": "sha256:649f797cb7c8f44a4507feb7bbd3b5fc864644304b2c7785bd62983441455303",
+      "recorded_at": "2026-11-18T00:21:47.103Z",
+      "tests": 62
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5f8a2bbefb59664ef519061e55d7846bf515d206cfe0292f6b382eb4aabcdd9b",
+      "tree": "sha256:649f797cb7c8f44a4507feb7bbd3b5fc864644304b2c7785bd62983441455303",
+      "recorded_at": "2026-11-18T00:21:47.103Z",
+      "tests": 20
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:88319882f4e63095b4e98fa29b7a2ef82a082ab158ebae4c7888b4188eb63a91",
+      "tree": "sha256:649f797cb7c8f44a4507feb7bbd3b5fc864644304b2c7785bd62983441455303",
+      "recorded_at": "2026-11-18T00:21:47.103Z",
+      "tests": 100
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b7cb50dfa9d2b4b8cfd00686dddd145e2f4e8b97e0a86948e5f139770f00c486",
+      "tree": "sha256:649f797cb7c8f44a4507feb7bbd3b5fc864644304b2c7785bd62983441455303",
+      "recorded_at": "2026-11-18T00:21:47.103Z",
+      "tests": 58
+    },
+    {
+      "id": "run-6",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:961e532939303aa039ece5cf1f1ae0d6e59606f9728c4d52fdcb5a0529cac03e",
+      "tree": "sha256:073f5f1905b927a25e69907c22602261a3220a4ca8ef62192bdc93ea0c3dc8ea",
+      "recorded_at": "2026-11-18T00:56:11.576Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cb6f9ade683cc0292e3eb78967dc329651501a9a6113296754ee67ea15fdd9e8",
+      "tree": "sha256:073f5f1905b927a25e69907c22602261a3220a4ca8ef62192bdc93ea0c3dc8ea",
+      "recorded_at": "2026-11-18T00:56:11.576Z",
+      "tests": 62
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4e6e893c36b9945cf6737c0b797531623cb95aae9664976f64b7c80a5e73cabf",
+      "tree": "sha256:073f5f1905b927a25e69907c22602261a3220a4ca8ef62192bdc93ea0c3dc8ea",
+      "recorded_at": "2026-11-18T00:56:11.576Z",
+      "tests": 20
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:68f1d2a8dcd13f924b9e8c33ad75ea99f6c3c24abbd8cdf1ae8e41a69341b15f",
+      "tree": "sha256:073f5f1905b927a25e69907c22602261a3220a4ca8ef62192bdc93ea0c3dc8ea",
+      "recorded_at": "2026-11-18T00:56:11.576Z",
+      "tests": 100
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:09a312ac4e774e0731eba916603ba84592df5cdc5d5e1cafb470687aefd6e976",
+      "tree": "sha256:073f5f1905b927a25e69907c22602261a3220a4ca8ef62192bdc93ea0c3dc8ea",
+      "recorded_at": "2026-11-18T00:56:11.576Z",
+      "tests": 58
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d50e2747238b29dd76beecf9e17c24bfc95561c6d2fa2deebc0c485feeff1443",
+      "tree": "sha256:638dc11afa1cdd12b4548b5832d461e1424794392b65121e01707d13a7fe9090",
+      "recorded_at": "2026-11-18T22:58:22.249Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a9320f98adcc79207fae9591fe2f42da0c9794e7de8c75cdb272f0fc84b7e89d",
+      "tree": "sha256:638dc11afa1cdd12b4548b5832d461e1424794392b65121e01707d13a7fe9090",
+      "recorded_at": "2026-11-18T22:58:22.249Z",
+      "tests": 62
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:61c7f67ea7dfaffd1adaa68f30e290649f17aef7aee5a0131012158e08b9bb4e",
+      "tree": "sha256:638dc11afa1cdd12b4548b5832d461e1424794392b65121e01707d13a7fe9090",
+      "recorded_at": "2026-11-18T22:58:22.249Z",
+      "tests": 20
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b798075fa1bac952cb294d5b43cbdeca778d626538ecef92f23cf349a297d2f9",
+      "tree": "sha256:638dc11afa1cdd12b4548b5832d461e1424794392b65121e01707d13a7fe9090",
+      "recorded_at": "2026-11-18T22:58:22.249Z",
+      "tests": 100
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8d13732857c7884e644c807229ac765ec2a2f9fd0b658fc6b88fb2ab809a804a",
+      "tree": "sha256:638dc11afa1cdd12b4548b5832d461e1424794392b65121e01707d13a7fe9090",
+      "recorded_at": "2026-11-18T22:58:22.249Z",
+      "tests": 58
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:d807fab0e723fd767cdb3f6a2a184a9eafbf64ecc6a650bce5c6154b011eb2c8",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 6,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "3a50d0e343f4f1d48e7a35312344a952edc52150",
+          "candidate_tree": "bc0eb10beea467a6110de342443332c90b04bf49",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "handbook/idd/flujo-idd.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/lib/idd-signals.js",
+            "scripts/lib/idd-signals.test.js",
+            "scripts/lib/idd-sinks.js",
+            "scripts/lib/idd-sinks.test.js"
+          ],
+          "diff_hash": "sha256:70c941890d08135e2d25a9400345fc57ab637fd6e9e1e8dc32b89ccbcbd45361",
+          "paths_digest": "sha256:67d70893fd0e2ec172290a5e468c32fadcf2e1d8bdd1e909875eb30c734b1abb",
+          "authored_lines": 641,
+          "original_changed_lines": 653
+        },
+        "candidate_id": "sha256:861ce309f42fb2b110cdfd619890d82aea8eab26b1a07a83e3b806be1480ddd8",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/idd/flujo-idd.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-sinks.js",
+          "scripts/lib/idd-sinks.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "bc0eb10beea467a6110de342443332c90b04bf49",
+        "original_changed_lines": 653,
+        "authored_lines": 641
+      },
+      "current_candidate_id": "sha256:126a9bd299dff83d9d7c526f72f892fc231430c1fb30c32d6e7189390a905a9b",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "3a50d0e343f4f1d48e7a35312344a952edc52150",
+        "candidate_tree": "db172f11a673aa61c70905e6c7571c9fd7431c8c",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/idd/flujo-idd.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-sinks.js",
+          "scripts/lib/idd-sinks.test.js"
+        ],
+        "diff_hash": "sha256:b8de7786b6a93803a1ef73a165aec15a56032ca43b55e4e0972a020b9a09d945",
+        "paths_digest": "sha256:67d70893fd0e2ec172290a5e468c32fadcf2e1d8bdd1e909875eb30c734b1abb",
+        "authored_lines": 641,
+        "original_changed_lines": 653
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "sink-catalog-xss-crypto:lens-start:1:0",
+          "result_digest": "sha256:95108fc34560c3c6ceca7bee60650af149103b77da3b451c6aa0f7f0f7c20929",
+          "result": {
+            "findings": [
+              {
+                "severity": "CRITICAL",
+                "summary": "scripts/lib/idd-sinks.js:213 judges an empty value safe. The VALUE readers (239-252) pass it whatever part of a value is left when the line ends, and each added line is judged on its own (idd-signals.js:263-265). So a CWE-79 sink whose value continues on the next line is judged safe. Examples: `el.innerHTML = '<div class=\"row\">' +` (a literal plus an empty operand); Prettier's `el.innerHTML =` with the concatenation on the line below; Black's `return mark_safe(` with `f\"<b>{name}</b>\"` below; `document.write(` or `insertAdjacentHTML('beforeend',` at the end of a line. None of them derives security-boundary. The most common XSS shape, laid out the way the usual formatters lay it out, therefore skips the trust review. This contradicts \"a value made safe on another line counts\" (spec.md:1136).",
+                "acceptance_criteria": "Each of these added lines, on its own, derives `unescaped HTML output (CWE-79)`: `el.innerHTML = '<div>' +`, `el.innerHTML =`, `return mark_safe(`, `document.write(` and `panel.insertAdjacentHTML('beforeend',`. These still derive nothing: `list.innerHTML = '';`, `el.innerHTML = ''` with no semicolon, and ``list.innerHTML = items.map((x) => `<li>${esc(x)}</li>`).join();``. The corpus in scripts/lib/idd-sinks.test.js holds both groups.",
+                "location": "scripts/lib/idd-sinks.js:213"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "isNumeric (scripts/lib/idd-sinks.js:183-191) calls any value with a top-level `%`, `/`, `*` or `-` a number unless one of its operands starts with a string literal. The `<` check (215-216) also accepts a string pattern or a regex without the g flag, which in JS replaces only the first `<`. These values are judged safe and skip the trust review: Django's `return mark_safe(_(\"Hi <b>%s</b>\") % user.name)` and `mark_safe(TEMPLATE % (url, label))`; `el.innerHTML = html // from the API` with no semicolon, and `el.innerHTML = html /* trusted */;` (the comment slashes count as division); `{{{../body}}}` and `{{{post-body}}}` in a .hbs (a path slash and a hyphenated name); `el.innerHTML = name.replace('<', '&lt;')` and `.replace(/</, '&lt;')`. The decision (change.md:35) treats numbers as safe because they cannot carry markup; these values can.",
+                "acceptance_criteria": "Each line above derives `unescaped HTML output (CWE-79)`. These stay safe: `${(value / max) * 100}`, `${Math.round(size / 5)}`, `count - 1`, `items.length`, `.replace(/</g, '&lt;')` and `.replaceAll('<', '&lt;')`. The corpus holds both groups.",
+                "location": "scripts/lib/idd-sinks.js:190"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "The dangerouslySetInnerHTML rule (scripts/lib/idd-sinks.js:481) only matches an object literal with `__html:` on the same line. These forms match no rule, so React's own sink skips the trust review: `<div dangerouslySetInnerHTML={markup} />`; `dangerouslySetInnerHTML={createMarkup()}` (the form in React's docs); the shorthand `dangerouslySetInnerHTML={{ __html }}`; and Prettier's split `dangerouslySetInnerHTML={{` followed by `__html: post.body,`. The innerHTML rule at 482 is case-sensitive and does not match `InnerHTML`. Spec 1128-1133 lists dangerouslySetInnerHTML as counting unless the line shows its value safe, and the recorded answer (roadmap 1674) counts these APIs unless their value is a single constant literal.",
+                "acceptance_criteria": "In a .jsx or .tsx file, each of these derives `unescaped HTML output (CWE-79)`: `dangerouslySetInnerHTML={markup}`, `dangerouslySetInnerHTML={createMarkup()}`, `dangerouslySetInnerHTML={{ __html }}`, and a line holding only `dangerouslySetInnerHTML={{`. `dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(x) }}` and `dangerouslySetInnerHTML={{ __html: '.a { color: red }' }}` still derive nothing.",
+                "location": "scripts/lib/idd-sinks.js:481"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "The Handlebars rule (scripts/lib/idd-sinks.js:503) exempts `{{{body}}}` in every .hbs or .handlebars file, but the decision (change.md:36; roadmap 1680) exempts only the body of a layout. In a view, `{{#each comments}}<div>{{{body}}}</div>{{/each}}`, or a `post.hbs` rendered with `{ body: marked(post.content) }`, writes user HTML without escaping and is judged safe, so it skips the trust review. holds(line) gets no file name, so it cannot tell a layout from a view.",
+                "acceptance_criteria": "`{{{body}}}` added to `views/layouts/main.hbs` derives nothing, and the same line added to `views/post.hbs` derives `unescaped HTML output (CWE-79)`. The corpus holds both.",
+                "location": "scripts/lib/idd-sinks.js:503"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "sink-catalog-xss-crypto:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-a4017d7ff5705681",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "scripts/lib/idd-sinks.js:213 judges an empty value safe. The VALUE readers (239-252) pass it whatever part of a value is left when the line ends, and each added line is judged on its own (idd-signals.js:263-265). So a CWE-79 sink whose value continues on the next line is judged safe. Examples: `el.innerHTML = '<div class=\"row\">' +` (a literal plus an empty operand); Prettier's `el.innerHTML =` with the concatenation on the line below; Black's `return mark_safe(` with `f\"<b>{name}</b>\"` below; `document.write(` or `insertAdjacentHTML('beforeend',` at the end of a line. None of them derives security-boundary. The most common XSS shape, laid out the way the usual formatters lay it out, therefore skips the trust review. This contradicts \"a value made safe on another line counts\" (spec.md:1136).",
+          "acceptance_criteria": "Each of these added lines, on its own, derives `unescaped HTML output (CWE-79)`: `el.innerHTML = '<div>' +`, `el.innerHTML =`, `return mark_safe(`, `document.write(` and `panel.insertAdjacentHTML('beforeend',`. These still derive nothing: `list.innerHTML = '';`, `el.innerHTML = ''` with no semicolon, and ``list.innerHTML = items.map((x) => `<li>${esc(x)}</li>`).join();``. The corpus in scripts/lib/idd-sinks.test.js holds both groups.",
+          "location": "scripts/lib/idd-sinks.js:213",
+          "blocking": true,
+          "resolution": "resolved"
+        },
+        {
+          "id": "F-5b414d3b6ce42419",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "isNumeric (scripts/lib/idd-sinks.js:183-191) calls any value with a top-level `%`, `/`, `*` or `-` a number unless one of its operands starts with a string literal. The `<` check (215-216) also accepts a string pattern or a regex without the g flag, which in JS replaces only the first `<`. These values are judged safe and skip the trust review: Django's `return mark_safe(_(\"Hi <b>%s</b>\") % user.name)` and `mark_safe(TEMPLATE % (url, label))`; `el.innerHTML = html // from the API` with no semicolon, and `el.innerHTML = html /* trusted */;` (the comment slashes count as division); `{{{../body}}}` and `{{{post-body}}}` in a .hbs (a path slash and a hyphenated name); `el.innerHTML = name.replace('<', '&lt;')` and `.replace(/</, '&lt;')`. The decision (change.md:35) treats numbers as safe because they cannot carry markup; these values can.",
+          "acceptance_criteria": "Each line above derives `unescaped HTML output (CWE-79)`. These stay safe: `${(value / max) * 100}`, `${Math.round(size / 5)}`, `count - 1`, `items.length`, `.replace(/</g, '&lt;')` and `.replaceAll('<', '&lt;')`. The corpus holds both groups.",
+          "location": "scripts/lib/idd-sinks.js:190",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-62e66bbbe0174675",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The dangerouslySetInnerHTML rule (scripts/lib/idd-sinks.js:481) only matches an object literal with `__html:` on the same line. These forms match no rule, so React's own sink skips the trust review: `<div dangerouslySetInnerHTML={markup} />`; `dangerouslySetInnerHTML={createMarkup()}` (the form in React's docs); the shorthand `dangerouslySetInnerHTML={{ __html }}`; and Prettier's split `dangerouslySetInnerHTML={{` followed by `__html: post.body,`. The innerHTML rule at 482 is case-sensitive and does not match `InnerHTML`. Spec 1128-1133 lists dangerouslySetInnerHTML as counting unless the line shows its value safe, and the recorded answer (roadmap 1674) counts these APIs unless their value is a single constant literal.",
+          "acceptance_criteria": "In a .jsx or .tsx file, each of these derives `unescaped HTML output (CWE-79)`: `dangerouslySetInnerHTML={markup}`, `dangerouslySetInnerHTML={createMarkup()}`, `dangerouslySetInnerHTML={{ __html }}`, and a line holding only `dangerouslySetInnerHTML={{`. `dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(x) }}` and `dangerouslySetInnerHTML={{ __html: '.a { color: red }' }}` still derive nothing.",
+          "location": "scripts/lib/idd-sinks.js:481",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-8c982a43103e43a4",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The Handlebars rule (scripts/lib/idd-sinks.js:503) exempts `{{{body}}}` in every .hbs or .handlebars file, but the decision (change.md:36; roadmap 1680) exempts only the body of a layout. In a view, `{{#each comments}}<div>{{{body}}}</div>{{/each}}`, or a `post.hbs` rendered with `{ body: marked(post.content) }`, writes user HTML without escaping and is judged safe, so it skips the trust review. holds(line) gets no file name, so it cannot tell a layout from a view.",
+          "acceptance_criteria": "`{{{body}}}` added to `views/layouts/main.hbs` derives nothing, and the same line added to `views/post.hbs` derives `unescaped HTML output (CWE-79)`. The corpus holds both.",
+          "location": "scripts/lib/idd-sinks.js:503",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:c76f55f207c92c49ad0044a14353c1c9fbaee7d12eee43c4858be580ecf5b10a",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 196,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [
+        {
+          "attempt": 1,
+          "request_id": "sink-catalog-xss-crypto:correction-start:1:3",
+          "finding_ids": [
+            "F-a4017d7ff5705681"
+          ],
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/lib/idd-sinks.js",
+            "scripts/lib/idd-sinks.test.js"
+          ],
+          "base_candidate_id": "sha256:861ce309f42fb2b110cdfd619890d82aea8eab26b1a07a83e3b806be1480ddd8",
+          "forecast_lines": 196,
+          "record_request_id": "sink-catalog-xss-crypto:correction-record:1:4",
+          "actual_changed_lines": 196,
+          "corrected_candidate_id": "sha256:126a9bd299dff83d9d7c526f72f892fc231430c1fb30c32d6e7189390a905a9b",
+          "status": "passed"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "sink-catalog-xss-crypto:validation:1:5",
+          "request_digest": "sha256:2c450b9bed429a18db3f3b763a38b4df119c899458c0fe828ca6c72955543bd9",
+          "outcomes": [
+            {
+              "id": "F-a4017d7ff5705681",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "Static trace; I ran no tests. The coordinator reports that node --test scripts/lib/idd-sinks.test.js scripts/lib/idd-signals.test.js passes on the corrected tree (77 tests, 0 failures) and that node scripts/check.js exits 0.",
+              "isSafeValue returns false for an empty value (idd-sinks.js:266), and closedValue returns null when the line ends first (296-299). So el.innerHTML = '<div>' + leaves an empty operand and counts, and el.innerHTML =, return mark_safe(, document.write( and insertAdjacentHTML('beforeend', all count as CWE-79.",
+              "Negatives traced. list.innerHTML = '' reads as '' with or without a semicolon and is safe. The .join() separator becomes ',' in mappedList (255-256), and esc(x) is a whole neutralizer call, so that line is safe. Both groups are in the corpus (idd-sinks.test.js:346-351, 378, 390, 392), asserted with strictEqual (559-562).",
+              "The WARNING edits (withoutComments, isMinus/OPERAND, the % rule, the inline-__html react reader, the layouts/ Handlebars check) only shorten a value or return null. Every HTML_SAFE line (377-433) still traces to null: ternaries, (value / max) * 100, Math.round, count - 1, .replace(/</g), replaceAll, layouts/main.hbs {{{body}}}, inline DOMPurify and the CSS literal.",
+              "readValue still runs inside the RangeError guard (352-361), so the depth test (564-567) stays XSS. CWE-79 rules stay after CWE-322 (551-585), so earlier labels are unchanged. No non-HTML corpus line holds a CWE-79 API. Spec 1136-1138 and roadmap 1681 describe the corrected behavior consistently with the code."
+            ]
+          },
+          "follow_up_count": 2,
+          "result": "passed"
+        }
+      ],
+      "follow_ups": [
+        {
+          "owner": "trust",
+          "summary": "The '<'-replacement shortcut in isSafeValue (idd-sinks.js:270-271) is not anchored to the start of the value. It also runs before the top-level +/ternary split. So el.innerHTML = '<b>' + name + s.replace(/</g, '&lt;'); and c ? name : s.replace(/</g, '') are judged safe while name stays unescaped. It appears to predate this correction: the original WARNING placed the same check at 215-216.",
+          "blocking": false
+        },
+        {
+          "owner": "trust",
+          "summary": "isNumeric treats * between simple operands as a number. In Python and Ruby, str * int repeats the string, so mark_safe(name * 2) or raw(name * 2) is judged safe. This follows the recorded decision on arithmetic without +, not this correction.",
+          "blocking": false
+        }
+      ],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "all-frozen-findings-resolved"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:25a6d64094245610d15fd56d22cb36ad008e662e7dcb94c8677af29def7bcea6",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:d807fab0e723fd767cdb3f6a2a184a9eafbf64ecc6a650bce5c6154b011eb2c8",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "3a50d0e343f4f1d48e7a35312344a952edc52150",
+          "candidate_tree": "578a347e6ee20167d269803e6e9ffd6e88e7903d",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "handbook/idd/flujo-idd.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/lib/idd-signals.js",
+            "scripts/lib/idd-signals.test.js",
+            "scripts/lib/idd-sinks.js",
+            "scripts/lib/idd-sinks.test.js"
+          ],
+          "diff_hash": "sha256:8254cb700f002492739259b6fc8c00c3bd12c786b7384e5e25d1321627e0d6d9",
+          "paths_digest": "sha256:67d70893fd0e2ec172290a5e468c32fadcf2e1d8bdd1e909875eb30c734b1abb",
+          "authored_lines": 786,
+          "original_changed_lines": 799
+        },
+        "candidate_id": "sha256:afebeb4e7e4595353f61bb17d9ea2ef8c03c9a5ea5e557bb46b976963cb17e02",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/idd/flujo-idd.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-sinks.js",
+          "scripts/lib/idd-sinks.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "578a347e6ee20167d269803e6e9ffd6e88e7903d",
+        "original_changed_lines": 799,
+        "authored_lines": 786
+      },
+      "current_candidate_id": "sha256:afebeb4e7e4595353f61bb17d9ea2ef8c03c9a5ea5e557bb46b976963cb17e02",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "3a50d0e343f4f1d48e7a35312344a952edc52150",
+        "candidate_tree": "578a347e6ee20167d269803e6e9ffd6e88e7903d",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/idd/flujo-idd.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/lib/idd-signals.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-sinks.js",
+          "scripts/lib/idd-sinks.test.js"
+        ],
+        "diff_hash": "sha256:8254cb700f002492739259b6fc8c00c3bd12c786b7384e5e25d1321627e0d6d9",
+        "paths_digest": "sha256:67d70893fd0e2ec172290a5e468c32fadcf2e1d8bdd1e909875eb30c734b1abb",
+        "authored_lines": 786,
+        "original_changed_lines": 799
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "sink-catalog-xss-crypto:lens-start:2:0",
+          "result_digest": "sha256:9f8cb44392079a02b31136ab461ef8f1de1dbe54b008a888ceee4831b6a33212",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/lib/idd-sinks.js:698-699 skips any .html/.htm line that is one whole <!-- ... --> block or starts with // or '* ' (web style, :653, :662). Yet these files also get server-template rules: Jinja/Django |safe (:579, :582) and Thymeleaf th:utext (:578). A server engine renders what such a comment holds, as :659-660 and roadmap line 1682 state. So sinkOf (:704) returns null for three lines: <!-- {{ comment.text|safe }} --> in templates/post.html, // {{ data|safe }} inside a script block, and a Thymeleaf <!--/*/ <div th:utext=\"${x}\"></div> /*/--> block. A value holding --> (or a newline in the script case) breaks out of the comment, and security-boundary is never derived. Correction direction: in .html/.htm, do not skip a comment line that holds a server-template form ({{ }} with |safe, th:utext), or give those files the server-template comment rules.",
+                "acceptance_criteria": "In a .html or .htm file, each of these derives 'unescaped HTML output (CWE-79)': <!-- {{ comment.text|safe }} -->, // {{ data|safe }} and <!--/*/ <div th:utext=\"${x}\"></div> /*/-->. <!-- <div v-html=\"post.body\"></div> --> in a .vue file and <!-- note --> in a .html file still find nothing. Corpus cases cover each of these.",
+                "location": "scripts/lib/idd-sinks.js:698"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "OPERAND (scripts/lib/idd-sinks.js:183) puts \\[.*\\] and \\(.*\\) inside a * loop, so an operand that fails to match backtracks exponentially in its bracket groups (V8 has no backtrack limit by default). isNumeric tests every operand split at a top-level * / % or minus (:209-212), reached from isSafeValue (:302) for any CWE-79 value. Trigger: a .js line 'x.innerHTML = a()()...()! / 2;' with about 32 '()' pairs. VALUE.assigned (:328) yields 'a()...()! / 2', no earlier branch returns, and OPERAND.test('a()...()!') explores about 2^31 paths. The catch at :373-375 handles only RangeError, so ospec check hangs instead of counting the line. Static trace, not executed. Direction: make the operand test linear (match brackets with valueEnd/topLevel instead of .* inside a repetition) or bound it, and count the line when the bound is hit.",
+                "acceptance_criteria": "sinkOf on a .js line 'x.innerHTML = a' followed by 40 '()' pairs and '! / 2;' returns in bounded time, checked by a test with a time limit such as under 1 s, and reports 'unescaped HTML output (CWE-79)'. The same holds with 40 '[0]' groups. Existing number cases such as 'badge.innerHTML = count * 2;' and 'bar.innerHTML = `...${(value / max) * 100}%...`' stay safe.",
+                "location": "scripts/lib/idd-sinks.js:183"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "scripts/lib/idd-sinks.js:577 includes the backtick in the quote group of set:html and returns '' (a constant) for every quoted form. Astro's compiler parses a backtick attribute value as a template-literal attribute and evaluates its ${} expressions. That is stated as a condition, since it cannot be checked from this repository. Under it, <Fragment set:html=`<p>${post.body}</p>` /> in a .astro file writes post.body unescaped while sinkOf returns null. The corpus only covers the double-quoted constant (idd-sinks.test.js:420). Double and single quotes are real constants in Astro. Direction: read a backtick value with interpolations() like any template literal, keeping the constant shortcut for \" and '.",
+                "acceptance_criteria": "<Fragment set:html=`<p>${post.body}</p>` /> in a .astro file derives 'unescaped HTML output (CWE-79)'. set:html=`<hr>` with no interpolation and set:html=\"<hr>\" do not. If Astro is shown not to interpolate backtick attributes, a corpus case with that source documents the behaviour instead.",
+                "location": "scripts/lib/idd-sinks.js:577"
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "The {{{ }}} rule (scripts/lib/idd-sinks.js:597) feeds the tag expression to isSafeValue, whose number test applies JS arithmetic (:204-217, isMinus :193-196). Handlebars has no operators: '-' is a valid identifier character and '/' is its deprecated but still supported path separator. So {{{post/body}}} (operands post and body) and {{{item-1}}} (a minus before a digit) are judged numbers. The triple-stash writes post.body, or the item-1 property, unescaped and derives no signal. {{{post-body}}} and {{{../body}}} already count. Direction: do not apply the number test, or any operator split, to Handlebars expressions.",
+                "acceptance_criteria": "In a .hbs file, <div>{{{post/body}}}</div> and <div>{{{item-1}}}</div> derive 'unescaped HTML output (CWE-79)'. {{{body}}} in a file under layouts/ stays safe.",
+                "location": "scripts/lib/idd-sinks.js:597"
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "VALUE.assigned (scripts/lib/idd-sinks.js:328) takes the value to the end of the line, and isSafeValue judges it alone. In leading-operator layout, list.innerHTML = '<ul>' is a constant, so it is judged safe. The added line after it, '  + items.map((i) => `<li>${i.name}</li>`).join(\"\") + \"</ul>\";', has no sink pattern, so nothing is derived. The spec (openspec/specs/idd/spec.md:1136-1138) names only a trailing operator as unfinished. Each line is judged alone (idd-signals.js:263-266). Option one is to look at the next added line of the same file when it starts with + || ?? && . ? or :. Option two is to treat a JS value without ';' as unfinished, but that would flag semicolon-less safe lines such as list.innerHTML = ''.",
+                "acceptance_criteria": "In the same .js file, an added list.innerHTML = '<ul>' followed by the added line '  + items + \"</ul>\";' derives security-boundary with the CWE-79 label. list.innerHTML = '' followed by an unrelated statement does not. Otherwise, the spec names leading-operator continuations as a limit the user accepted.",
+                "location": "scripts/lib/idd-sinks.js:328"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "sink-catalog-xss-crypto:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-f3f31ab41c8d9cd4",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/lib/idd-sinks.js:698-699 skips any .html/.htm line that is one whole <!-- ... --> block or starts with // or '* ' (web style, :653, :662). Yet these files also get server-template rules: Jinja/Django |safe (:579, :582) and Thymeleaf th:utext (:578). A server engine renders what such a comment holds, as :659-660 and roadmap line 1682 state. So sinkOf (:704) returns null for three lines: <!-- {{ comment.text|safe }} --> in templates/post.html, // {{ data|safe }} inside a script block, and a Thymeleaf <!--/*/ <div th:utext=\"${x}\"></div> /*/--> block. A value holding --> (or a newline in the script case) breaks out of the comment, and security-boundary is never derived. Correction direction: in .html/.htm, do not skip a comment line that holds a server-template form ({{ }} with |safe, th:utext), or give those files the server-template comment rules.",
+          "acceptance_criteria": "In a .html or .htm file, each of these derives 'unescaped HTML output (CWE-79)': <!-- {{ comment.text|safe }} -->, // {{ data|safe }} and <!--/*/ <div th:utext=\"${x}\"></div> /*/-->. <!-- <div v-html=\"post.body\"></div> --> in a .vue file and <!-- note --> in a .html file still find nothing. Corpus cases cover each of these.",
+          "location": "scripts/lib/idd-sinks.js:698",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-15e4e9b55e16c1f4",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "OPERAND (scripts/lib/idd-sinks.js:183) puts \\[.*\\] and \\(.*\\) inside a * loop, so an operand that fails to match backtracks exponentially in its bracket groups (V8 has no backtrack limit by default). isNumeric tests every operand split at a top-level * / % or minus (:209-212), reached from isSafeValue (:302) for any CWE-79 value. Trigger: a .js line 'x.innerHTML = a()()...()! / 2;' with about 32 '()' pairs. VALUE.assigned (:328) yields 'a()...()! / 2', no earlier branch returns, and OPERAND.test('a()...()!') explores about 2^31 paths. The catch at :373-375 handles only RangeError, so ospec check hangs instead of counting the line. Static trace, not executed. Direction: make the operand test linear (match brackets with valueEnd/topLevel instead of .* inside a repetition) or bound it, and count the line when the bound is hit.",
+          "acceptance_criteria": "sinkOf on a .js line 'x.innerHTML = a' followed by 40 '()' pairs and '! / 2;' returns in bounded time, checked by a test with a time limit such as under 1 s, and reports 'unescaped HTML output (CWE-79)'. The same holds with 40 '[0]' groups. Existing number cases such as 'badge.innerHTML = count * 2;' and 'bar.innerHTML = `...${(value / max) * 100}%...`' stay safe.",
+          "location": "scripts/lib/idd-sinks.js:183",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-e000ad56c0c635f2",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/lib/idd-sinks.js:577 includes the backtick in the quote group of set:html and returns '' (a constant) for every quoted form. Astro's compiler parses a backtick attribute value as a template-literal attribute and evaluates its ${} expressions. That is stated as a condition, since it cannot be checked from this repository. Under it, <Fragment set:html=`<p>${post.body}</p>` /> in a .astro file writes post.body unescaped while sinkOf returns null. The corpus only covers the double-quoted constant (idd-sinks.test.js:420). Double and single quotes are real constants in Astro. Direction: read a backtick value with interpolations() like any template literal, keeping the constant shortcut for \" and '.",
+          "acceptance_criteria": "<Fragment set:html=`<p>${post.body}</p>` /> in a .astro file derives 'unescaped HTML output (CWE-79)'. set:html=`<hr>` with no interpolation and set:html=\"<hr>\" do not. If Astro is shown not to interpolate backtick attributes, a corpus case with that source documents the behaviour instead.",
+          "location": "scripts/lib/idd-sinks.js:577",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-712d55cbf44da7e4",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "The {{{ }}} rule (scripts/lib/idd-sinks.js:597) feeds the tag expression to isSafeValue, whose number test applies JS arithmetic (:204-217, isMinus :193-196). Handlebars has no operators: '-' is a valid identifier character and '/' is its deprecated but still supported path separator. So {{{post/body}}} (operands post and body) and {{{item-1}}} (a minus before a digit) are judged numbers. The triple-stash writes post.body, or the item-1 property, unescaped and derives no signal. {{{post-body}}} and {{{../body}}} already count. Direction: do not apply the number test, or any operator split, to Handlebars expressions.",
+          "acceptance_criteria": "In a .hbs file, <div>{{{post/body}}}</div> and <div>{{{item-1}}}</div> derive 'unescaped HTML output (CWE-79)'. {{{body}}} in a file under layouts/ stays safe.",
+          "location": "scripts/lib/idd-sinks.js:597",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-c47225b18577be0c",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "VALUE.assigned (scripts/lib/idd-sinks.js:328) takes the value to the end of the line, and isSafeValue judges it alone. In leading-operator layout, list.innerHTML = '<ul>' is a constant, so it is judged safe. The added line after it, '  + items.map((i) => `<li>${i.name}</li>`).join(\"\") + \"</ul>\";', has no sink pattern, so nothing is derived. The spec (openspec/specs/idd/spec.md:1136-1138) names only a trailing operator as unfinished. Each line is judged alone (idd-signals.js:263-266). Option one is to look at the next added line of the same file when it starts with + || ?? && . ? or :. Option two is to treat a JS value without ';' as unfinished, but that would flag semicolon-less safe lines such as list.innerHTML = ''.",
+          "acceptance_criteria": "In the same .js file, an added list.innerHTML = '<ul>' followed by the added line '  + items + \"</ul>\";' derives security-boundary with the CWE-79 label. list.innerHTML = '' followed by an unrelated statement does not. Otherwise, the spec names leading-operator continuations as a limit the user accepted.",
+          "location": "scripts/lib/idd-sinks.js:328",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:5e12dffd93d4b8f17b27bd0d06a26589a070cc50debc9fc507bead27b246aa9b",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "advisory_corrections": [
+    {
+      "lineage_id": "sha256:25a6d64094245610d15fd56d22cb36ad008e662e7dcb94c8677af29def7bcea6",
+      "status": "passed",
+      "finding_ids": [
+        "F-15e4e9b55e16c1f4",
+        "F-712d55cbf44da7e4",
+        "F-c47225b18577be0c",
+        "F-e000ad56c0c635f2",
+        "F-f3f31ab41c8d9cd4"
+      ],
+      "paths": [
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/specs/idd/spec.md",
+        "scripts/lib/idd-signals.js",
+        "scripts/lib/idd-signals.test.js",
+        "scripts/lib/idd-sinks.js",
+        "scripts/lib/idd-sinks.test.js"
+      ],
+      "changed_lines": 120,
+      "candidate_tree": "b045cdbebb074e6cd06b68fecb5e6b80ecae4344",
+      "diff_hash": "sha256:256e0ead378f7c5f19f9697d1c3fa0e94fb21a7647d3e97ce5d261e9bbcdbf11",
+      "recorded_at": "2026-11-18T21:33:39.037Z",
+      "validation": {
+        "recorded_at": "2026-11-18T21:36:37.042Z",
+        "outcomes": [
+          {
+            "id": "F-15e4e9b55e16c1f4",
+            "status": "resolved"
+          },
+          {
+            "id": "F-712d55cbf44da7e4",
+            "status": "resolved"
+          },
+          {
+            "id": "F-c47225b18577be0c",
+            "status": "resolved"
+          },
+          {
+            "id": "F-e000ad56c0c635f2",
+            "status": "resolved"
+          },
+          {
+            "id": "F-f3f31ab41c8d9cd4",
+            "status": "resolved"
+          }
+        ],
+        "regression": {
+          "detected": false,
+          "evidence": [
+            "F-15e4: the OPERAND regex is now isOperand (idd-sinks.js:184-202). It reads the head, then skips each bracket with valueEnd, so it does not backtrack. In 'a'+40x'()'+'! / 2', the operand stops at '!', so isNumeric is false and the line gets XSS. The test at idd-sinks.test.js:584-591 covers '()' and '[0]' with a limit under 1000 ms. 'count * 2' (:410) and '(value / max) * 100' (:396) still pass as numbers.",
+            "F-712d: VALUE.handlebars (idd-sinks.js:370-374) treats a value as safe only when it is a constant literal (interpolations()?.length === 0), or {{{body}}} under layouts/. post/body and item-1 are not literals, so they return null and count as a sink. The corpus covers them at test.js:380-381, and layouts at :446.",
+            "F-c472: VALUE.assigned (idd-sinks.js:348-352) returns null when the value runs to the end of the line and the next line opens with + - ? : . || &&. securityHits passes lines[index+1] (idd-signals.js:266-267). The tests are idd-sinks.test.js:593-598 and idd-signals.test.js:835-836. The second one derives a security boundary with CWE-79, and '' followed by render(list); derives none. The spec at :1137-1138 names this case.",
+            "F-e000: set:html (idd-sinks.js:604-609) reads a backtick value up to stringEnd as a template literal. Its ${post.body} is not safe, so it counts (test.js:383). set:html=`<hr>` has no interpolation (:426), and \"<hr>\" becomes '' (:425). Both stay null.",
+            "F-f3f3: .html and .htm are no longer in COMMENT_STYLE (idd-sinks.js:685-687), so isCommentOnly no longer skips their lines. The three forms map to XSS through the |safe rule (:611) and the th:utext rule (:610). <!-- note --> matches no rule. Vue keeps its web style. Tests: test.js:600-605. isCommentOnly is used only inside idd-sinks.js (idd-signals.js:17 imports only sinkOf).",
+            "These checks are a static trace and I ran nothing. The caller reported (and I did not verify) that node --test on idd-sinks.test.js and idd-signals.test.js passes 80 of 80 and that node scripts/check.js exits 0. I found no evidence that the correction breaks a slice that had passed."
+          ]
+        },
+        "follow_ups": [
+          {
+            "owner": "runtime",
+            "summary": "VALUE.assigned looks at lines[index+1], the next added line of the file, which may sit in another hunk. A safe assignment with no semicolon at the end of one hunk, followed by a hunk that opens with '.', '-' or ':', would count as a sink. Consider adding hunk adjacency to the diff model so the continuation check sees only adjacent lines."
+          },
+          {
+            "owner": "evolution",
+            "summary": "The 'Sin pérdidas' figure in harness-evolution.md:1683 (8 new CWE-79 lines against main across 17 repos) may predate this correction. The correction now counts every comment line of .html/.htm files and continuations after a leading operator. Consider measuring again or dating the figure."
+          }
+        ]
+      }
+    }
+  ],
+  "closed_at": "2026-11-18T22:58:28.179Z"
+}

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.185.0] - 2026-11-19
+
+### Added
+- **Salida HTML sin escapar y cifrado débil en el catálogo de sinks** (sink-catalog-xss-crypto, E1.102).
+  - **Dos debilidades nuevas**: `unescaped HTML output (CWE-79)` y `weak cipher (CWE-327)` van al final del catálogo, detrás de CWE-322, así que ninguna línea que ya se detectaba cambia de etiqueta y las retiradas ya respondidas siguen casando.
+  - **CWE-79**: cuentan las API hechas para saltarse el escape del framework (`dangerouslySetInnerHTML`, `v-html`, `{@html}`, `set:html`, `bypassSecurityTrust*`, `mark_safe`, `template.HTML`, `Html.Raw`, `html_safe`, `|safe`, `{!! !!}`, `{{{ }}}`…) y las escrituras del DOM (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`), salvo cuando la propia línea muestra que el valor es seguro: una constante, un número, o un saneador de librería o una función de escape alrededor del valor entero. Un valor saneado en otra línea cuenta, y también uno que la línea no termina. `[innerHTML]` de Angular, que sanea por sí solo, no cuenta.
+  - **Cifrado débil**: DES, 3DES, RC2, RC4, Blowfish y el modo ECB de cualquier cifrado (también `Cipher.getInstance("AES")` sin modo), al cifrar y al descifrar, en la llamada que elige el algoritmo. Una palabra suelta como ECB no cuenta.
+  - **Plantillas**: las reglas de JS miran también los `.vue`, `.svelte`, `.astro` y `.html`, y las plantillas de servidor (Razor, ERB, EJS, Handlebars, Jinja y Twig) pasan a ser código de producto, así que también derivan `untested-product`.
+  - **Falsos positivos**: en el código de producto de 17 repositorios locales (767 732 líneas) ningún sink se pierde ni cambia de etiqueta, y no aparece cifrado débil. Las 8 líneas nuevas son de CWE-79: tres escriben un valor sin escapar y cinco son seguras por código de otra línea, que se retiran con la respuesta del usuario.
+  - **Roadmap**: entra E1.104 `ui-file-server-templates`, fuera del orden.
+
+### Fixed
+- **La línea con la que sigue un valor partido** (sink-next-line-adjacent): el diff guarda el número de cada línea añadida, y el valor CWE-79 que un formateador parte sigue en la línea de abajo del fichero, cambie o no. Antes se leía la siguiente línea añadida, que podía venir de otro hunk: una asignación segura al final de uno contaba si el siguiente abría con un operador, y un sink modificado cuya continuación quedaba sin cambiar no contaba.
+
+**Verificación directa**: `node scripts/check.js` (5057 tests pasando, 0 fallos y 5 omitidos), 457 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados. Revisión de confianza (Opus) en dos rondas: la primera con un hallazgo CRITICAL (un valor que seguía en la línea siguiente se juzgaba seguro) y tres avisos, la segunda con tres avisos y dos sugerencias no bloqueantes; todos corregidos y validados sin regresión.
+
 ## [2.184.0] - 2026-11-18
 
 ### Added

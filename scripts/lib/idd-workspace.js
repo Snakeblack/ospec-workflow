@@ -237,15 +237,18 @@ function headerPath(line, prefix) {
   return target === "/dev/null" ? null : normalizePath(target.startsWith(prefix) ? target.slice(prefix.length) : target);
 }
 
-// The added lines of each file by its new path and the removed ones by its old
-// path (B9). Headers come before the first hunk of a file, so a `+++` or `---`
-// inside a hunk is an added `++` or a removed `--` line.
+// The added lines of each file by its new path, with the number each one has
+// in the new file, and the removed ones by its old path (B9). Headers come
+// before the first hunk of a file, so a `+++` or `---` inside a hunk is an
+// added `++` or a removed `--` line.
 function changedLinesByFile(patch) {
   const added = {};
+  const addedNumbers = {};
   const removed = {};
   let oldPath = null;
   let newPath = null;
   let inHunk = false;
+  let newLine = 0;
   for (const line of patch.split("\n")) {
     if (line.startsWith("diff --git ")) {
       oldPath = null;
@@ -255,16 +258,23 @@ function changedLinesByFile(patch) {
       oldPath = headerPath(line, "a/");
     } else if (!inHunk && line.startsWith("+++ ")) {
       newPath = headerPath(line, "b/");
-      if (newPath && !added[newPath]) added[newPath] = [];
+      if (newPath && !added[newPath]) {
+        added[newPath] = [];
+        addedNumbers[newPath] = [];
+      }
     } else if (line.startsWith("@@")) {
       inHunk = true;
+      newLine = Number(/^@@ -\d+(?:,\d+)? \+(\d+)/.exec(line)?.[1] ?? 0);
     } else if (inHunk && newPath && line.startsWith("+")) {
       added[newPath].push(line.slice(1).replace(/\r$/, ""));
+      addedNumbers[newPath].push(newLine++);
     } else if (inHunk && oldPath && line.startsWith("-")) {
       (removed[oldPath] ||= []).push(line.slice(1).replace(/\r$/, ""));
+    } else if (inHunk && line.startsWith(" ")) {
+      newLine++;
     }
   }
-  return { added, removed };
+  return { added, addedNumbers, removed };
 }
 
 // git's own test for a binary file: a NUL byte in its first 8000 bytes. A
@@ -434,8 +444,10 @@ function untrackedMoves(root, untracked, deleted) {
 
 /**
  * Paths changed between `base` and the working tree (staged, unstaged and
- * untracked), relative to `root`, with the lines each one adds and the
- * sources of the product files among them. A rename counts by both its paths
+ * untracked), relative to `root`, with the lines each one adds, the number
+ * of each in the tracked file it changes (`addedLineNumbers`; an untracked
+ * file adds all its lines and has none) and the sources of the product files
+ * among them. A rename counts by both its paths
  * and brings only the lines it changes; one that keeps the content, staged,
  * committed or moved without git add, brings no lines and no sources.
  */
@@ -460,11 +472,12 @@ function readGitDiff(root, { base = "HEAD" } = {}) {
   // over -diff, binary and textconv attributes.
   const patch = git(root, ["diff", "--relative", "--find-renames", "--no-color", "--no-ext-diff", "--no-textconv", "--text", "--src-prefix=a/", "--dst-prefix=b/", "--unified=0", base, "--"]);
 
-  const { added: addedLines, removed: removedLines } = changedLinesByFile(patch);
+  const { added: addedLines, addedNumbers: addedLineNumbers, removed: removedLines } = changedLinesByFile(patch);
   // A binary file read as text has no lines, as an untracked one has none.
   for (const file of new Set([...Object.keys(addedLines), ...Object.keys(removedLines)])) {
     if (isBinaryFile(root, file) || [addedLines[file], removedLines[file]].some((lines) => lines?.some((line) => line.includes("\0")))) {
       delete addedLines[file];
+      delete addedLineNumbers[file];
       delete removedLines[file];
     }
   }
@@ -478,12 +491,12 @@ function readGitDiff(root, { base = "HEAD" } = {}) {
     }
   }
   const paths = [...new Set([...tracked, ...untracked])].filter((file) => !isIddState(file)).sort();
-  for (const lines of [addedLines, removedLines]) {
+  for (const lines of [addedLines, addedLineNumbers, removedLines]) {
     for (const file of Object.keys(lines)) {
       if (!paths.includes(file)) delete lines[file];
     }
   }
-  return { paths, addedLines, removedLines, sources: readSources(root, paths.filter((file) => !pureRenames.has(file))) };
+  return { paths, addedLines, addedLineNumbers, removedLines, sources: readSources(root, paths.filter((file) => !pureRenames.has(file))) };
 }
 
 // What to do when there is no project to work in (E4.8): IDD needs a git work

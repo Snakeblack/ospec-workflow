@@ -58,9 +58,10 @@ const DESTRUCTIVE_STATEMENTS = Object.freeze([
 ]);
 
 const COMMENT_LINE = /^\s*(--|#|\/\/)/;
-// Source code of the common languages, scripts included (E1.53).
+// Source code of the common languages, scripts (E1.53) and server templates
+// (E1.102) included.
 const PRODUCT_EXT =
-  /\.(js|jsx|mjs|cjs|ts|tsx|py|go|java|kt|kts|cs|rb|php|rs|html|htm|css|vue|svelte|astro|c|h|cc|cpp|cxx|hh|hpp|hxx|m|mm|swift|scala|groovy|dart|lua|ex|exs|erl|hrl|clj|cljs|hs|ml|fs|fsx|vb|pl|pm|r|zig|sh|bash|zsh|ps1|psm1|bat|cmd)$/i;
+  /\.(js|jsx|mjs|cjs|ts|tsx|py|go|java|kt|kts|cs|rb|php|rs|html|htm|css|vue|svelte|astro|cshtml|razor|erb|ejs|hbs|handlebars|jinja|jinja2|j2|twig|c|h|cc|cpp|cxx|hh|hpp|hxx|m|mm|swift|scala|groovy|dart|lua|ex|exs|erl|hrl|clj|cljs|hs|ml|fs|fsx|vb|pl|pm|r|zig|sh|bash|zsh|ps1|psm1|bat|cmd)$/i;
 // Code that only counts in a test (#488): a SQL test (pgTAP, pg_prove, dbt) is
 // a test, while a migration or a schema file stays outside product code.
 const TEST_CODE_EXT = /\.sql$/i;
@@ -259,13 +260,27 @@ function securityHits(diff, patterns) {
   for (const file of sortedPaths(Object.keys(addedLines)).filter(counts)) {
     const sources = /\.rs$/i.test(file) ? diff.sources?.[file]?.lines : null;
     const regions = sources ? rustTestRegions(sources) : null;
-    for (const line of addedLines[file] || []) {
+    const lines = addedLines[file] || [];
+    for (const [index, line] of lines.entries()) {
       if (regions && regions.tests.has(line) && !regions.product.has(line)) continue;
-      const label = sinkOf(file, line);
+      const label = sinkOf(file, line, lineBelow(diff, file, index));
       if (label) hits.push({ file, reason: `${file} adds ${label}`, key: `${file} adds ${label}: ${line.trim()}` });
     }
   }
   return hits;
+}
+
+// The line below an added line in its file, changed or not, where a value
+// split by the formatter goes on. Without the file it reads the added line
+// right below, if any; without line numbers (an untracked file adds all of
+// its lines), the next added line.
+function lineBelow(diff, file, index) {
+  const lines = diff.addedLines[file];
+  const numbers = diff.addedLineNumbers?.[file];
+  if (!numbers) return lines[index + 1];
+  const fileLines = diff.sources?.[file]?.lines;
+  if (fileLines?.[numbers[index] - 1] === lines[index]) return fileLines[numbers[index]];
+  return numbers[index + 1] === numbers[index] + 1 ? lines[index + 1] : undefined;
 }
 
 // The content hits of a signal the user's answer may retract (#416, E1.58,

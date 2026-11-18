@@ -3,6 +3,8 @@
 // E1.50 content-security-signal: the corpus of security sinks by stack. Each
 // sink is found in the languages where its API exists; a safe form, a comment
 // or another language finds nothing (openspec/specs/idd/spec.md, REQ-idd-012).
+// E1.102 adds HTML written without escaping and weak ciphers, with the
+// legitimate uses of each API as safe neighbors.
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -281,6 +283,244 @@ const ADDED_SAFE = [
   ["Api/Xml.cs", "settings.XmlResolver = null;"],
 ];
 
+const XSS = "unescaped HTML output (CWE-79)";
+const CIPHER = "weak cipher (CWE-327)";
+
+// [file, added line]: HTML written without escaping, from a value that is
+// neither a constant nor escaped or sanitized on the same line.
+const HTML_SINKS = [
+  // The DOM, in JS and in the scripts of web files.
+  ["src/ui.js", "list.innerHTML = items.map(render).join('');"],
+  ["src/ui.js", "list.innerHTML = items.map((item) => `<li>${item.name}</li>`).join('');"],
+  ["src/ui.js", "list.innerHTML = items.map((item) => { return `<li>${esc(item)}</li>`; }).join('');"],
+  ["src/ui.js", "row.innerHTML = `<td>${user.name}</td>`;"],
+  ["src/ui.js", "box.innerHTML += '<li>' + label + '</li>';"],
+  ["src/ui.ts", "node.outerHTML = html;"],
+  ["src/ui.js", "panel.insertAdjacentHTML('beforeend', markup);"],
+  ["src/ui.js", "document.write('<p>' + message + '</p>');"],
+  ["src/ui.js", "cell.innerHTML = `${esc(name)} <small>${note}</small>`;"],
+  ["src/ui.js", "out.innerHTML = value || '';"],
+  ["src/App.vue", "  el.innerHTML = message;"],
+  ["public/index.html", "      contador.innerHTML = '<strong>' + pendientes + '</strong>';"],
+  // Framework APIs made to skip the escape.
+  ["src/Post.jsx", "<div dangerouslySetInnerHTML={{ __html: post.body }} />"],
+  ["src/Post.tsx", "<article dangerouslySetInnerHTML={{ __html: marked(text) }} />"],
+  ["src/post.js", "h('div', { dangerouslySetInnerHTML: { __html: html } });"],
+  ["src/Card.jsx", "<div innerHTML={props.html} />"],
+  ["src/view.ts", "return html`<div>${unsafeHTML(content)}</div>`;"],
+  ["src/app/markdown.pipe.ts", "return this.sanitizer.bypassSecurityTrustHtml(rendered);"],
+  ["src/app/frame.ts", "this.url = this.sanitizer.bypassSecurityTrustResourceUrl(link);"],
+  ["src/components/Post.vue", '<div v-html="post.body"></div>'],
+  ["src/components/Post.vue", '<div :innerHTML="html"></div>'],
+  ["src/routes/Post.svelte", "{@html post.body}"],
+  ["src/layouts/Base.astro", '<script type="application/ld+json" set:html={JSON.stringify(data)} />'],
+  ["src/pages/post.astro", "<Fragment set:html={content} />"],
+  ["templates/post.html", "{{ post.body|safe }}"],
+  ["templates/post.html", "<div>{{ comment.text | linebreaks | safe }}</div>"],
+  ["src/main/resources/templates/post.html", '<div th:utext="${post.body}"></div>'],
+  ["app/views.py", "return mark_safe(f'<b>{name}</b>')"],
+  ["app/views.py", "html = Markup('<b>' + name + '</b>')"],
+  ["app/views.py", "return SafeString(body)"],
+  ["templates/post.jinja", "{{ body | safe }}"],
+  ["templates/post.j2", "<p>{{ note|safe }}</p>"],
+  ["srv/view.go", "data.Body = template.HTML(post.Body)"],
+  ["srv/view.go", 'data.Body = template.HTML(fmt.Sprintf("<b>%s</b>", name))'],
+  ["Api/Helpers.cs", "return new HtmlString(markup);"],
+  ["Views/Post/Show.cshtml", "<div>@Html.Raw(Model.Body)</div>"],
+  ["Pages/Post.razor", "<div>@((MarkupString)Body)</div>"],
+  ["Pages/Post.razor", "var content = new MarkupString(html);"],
+  ["app/helpers/posts_helper.rb", "body.html_safe"],
+  ["app/helpers/posts_helper.rb", '"<b>#{name}</b>".html_safe'],
+  ["app/helpers/posts_helper.rb", "raw(post.body)"],
+  ["app/views/posts/show.html.erb", "<%== post.body %>"],
+  ["app/views/posts/show.html.erb", "<%= raw post.body %>"],
+  ["app/views/posts/show.html.erb", "<%= post.body.html_safe %>"],
+  ["resources/views/post.blade.php", "<div>{!! $post->body !!}</div>"],
+  ["templates/post.html.twig", "{{ post.body|raw }}"],
+  ["views/post.ejs", "<div><%- post.body %></div>"],
+  ["views/post.hbs", "<div>{{{post.body}}}</div>"],
+  ["src/page.rs", "html! { div { (PreEscaped(body)) } }"],
+  ["src/page.rs", 'div { dangerous_inner_html: "{html}" }'],
+  // A value that goes on below, as formatters lay it out, is one the line
+  // cannot show safe.
+  ["src/ui.js", "el.innerHTML = '<div>' +"],
+  ["src/ui.js", "el.innerHTML ="],
+  ["src/ui.js", "el.innerHTML = `"],
+  ["src/ui.js", "document.write("],
+  ["src/ui.js", "panel.insertAdjacentHTML('beforeend',"],
+  ["app/views.py", "return mark_safe("],
+  ["src/Post.jsx", "dangerouslySetInnerHTML={{"],
+  ["src/pages/post.astro", "<Fragment set:html={"],
+  ["templates/post.html", "  | safe }}"],
+  ["app/views/posts/show.html.erb", "<%== post.body"],
+  ["resources/views/post.blade.php", "{!! $post->body"],
+  ["views/post.hbs", "{{{post.body"],
+  // Text formatting, comments, paths and partial escaping are no number.
+  ["app/views.py", 'return mark_safe(_("Hi <b>%s</b>") % user.name)'],
+  ["app/views.py", "return mark_safe(TEMPLATE % (url, label))"],
+  ["src/ui.js", "el.innerHTML = html // from the API"],
+  ["src/ui.js", "el.innerHTML = html /* trusted */;"],
+  ["views/post.hbs", "{{{../body}}}"],
+  ["views/post.hbs", "{{{post-body}}}"],
+  ["src/ui.js", "el.innerHTML = name.replace('<', '&lt;');"],
+  ["src/ui.js", "el.innerHTML = name.replace(/</, '&lt;');"],
+  // An escape that covers only part of the value, and text repeated in Python
+  // or Ruby.
+  ["src/ui.js", "el.innerHTML = '<b>' + name + s.replace(/</g, '&lt;');"],
+  ["src/ui.js", "el.innerHTML = c ? name : s.replace(/</g, '');"],
+  ["app/views.py", "return mark_safe(name * 2)"],
+  ["app/helpers/posts_helper.rb", "raw(name * 2)"],
+  // React's own sink, whatever builds its value.
+  ["src/Post.jsx", "<div dangerouslySetInnerHTML={markup} />"],
+  ["src/Post.jsx", "<div dangerouslySetInnerHTML={createMarkup()} />"],
+  ["src/Post.jsx", "<div dangerouslySetInnerHTML={{ __html }} />"],
+  // The body of a view, not of a layout, and Handlebars names and paths, which
+  // hold no arithmetic.
+  ["views/post.hbs", "{{#each comments}}<div>{{{body}}}</div>{{/each}}"],
+  ["views/post.hbs", "<div>{{{post/body}}}</div>"],
+  ["views/post.hbs", "<div>{{{item-1}}}</div>"],
+  // Astro reads an attribute between backticks as a template literal.
+  ["src/pages/post.astro", "<Fragment set:html=`<p>${post.body}</p>` />"],
+];
+
+// [file, added line]: the same APIs with a constant, an escaped or a sanitized
+// value, and the forms that escape by themselves.
+const HTML_SAFE = [
+  ["src/ui.js", "list.innerHTML = '';"],
+  ["src/ui.js", 'panel.innerHTML = "<p>Loading…</p>";'],
+  ["src/ui.js", "panel.innerHTML = `<span class=\"spinner\"></span>`;"],
+  ["src/ui.js", "row.innerHTML = `<td>${esc(user.name)}</td><td>${escapeHtml(user.mail)}</td>`;"],
+  ["src/ui.js", "box.innerHTML = '<li>' + escape(label) + '</li>';"],
+  ["src/ui.js", "box.innerHTML = DOMPurify.sanitize(html);"],
+  ["src/ui.js", "box.innerHTML = sanitizeHtml(input, { allowedTags: ['b'] });"],
+  ["src/ui.js", "bar.innerHTML = `<span style=\"width:${(value / max) * 100}%\">${esc(label)}</span>`;"],
+  ["src/ui.js", "dial.innerHTML = `<b style=\"font-size:${Math.round(size / 5)}px\">${esc(label)}</b>${sub ? `<i>${esc(sub)}</i>` : ''}`;"],
+  ["src/ui.js", "row.innerHTML = `<td class=\"${over ? 'bad' : 'ok'}\">${esc(note)}</td>`;"],
+  ["src/ui.js", "list.innerHTML = items.map((item) => `<li>${esc(item.name)}</li>`).join('');"],
+  ["src/ui.js", "tip.innerHTML = `<b>${esc(title)}</b>` + rows.map((r) => `<div>${r.value == null ? '–' : esc(format(r.value))}</div>`).join('');"],
+  ["src/ui.js", "list.innerHTML = ''"],
+  ["src/ui.js", "list.innerHTML = '' // reset"],
+  ["src/ui.js", "list.innerHTML = items.map((x) => `<li>${esc(x)}</li>`).join();"],
+  ["src/ui.js", "badge.innerHTML = count - 1;"],
+  ["src/ui.js", "badge.innerHTML = items.length;"],
+  ["src/ui.js", "badge.innerHTML = `${(done / total) * 100}%`;"],
+  ["src/ui.js", "el.innerHTML = name.replace(/</g, '&lt;');"],
+  ["src/ui.js", "el.innerHTML = name.replaceAll('<', '&lt;');"],
+  ["src/ui.js", "el.innerHTML = (prefix + name).trim().replace(/</g, '&lt;');"],
+  ["src/ui.js", "badge.innerHTML = count * 2;"],
+  ["app/views.py", "return mark_safe(2 * 3)"],
+  ["app/views/posts/show.html.erb", "<%== '<br>' -%>"],
+  ["src/ui.js", "if (el.innerHTML === '') render();"],
+  ["src/ui.js", "const markup = el.outerHTML;"],
+  ["src/ui.js", "el.textContent = message;"],
+  ["src/ui.js", "$(el).html(content);"],
+  ["src/Post.jsx", "<div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.body) }} />"],
+  ["src/Post.jsx", "<style dangerouslySetInnerHTML={{ __html: '.a { color: red }' }} />"],
+  ["src/app/icon.ts", "return this.sanitizer.bypassSecurityTrustHtml('<svg viewBox=\"0 0 24 24\"></svg>');"],
+  ["src/app/chat.html", '<div [innerHTML]="msg.content | markdown"></div>'],
+  ["src/components/Post.vue", '<div v-html="\'<br>\'"></div>'],
+  ["src/components/Post.vue", "<!-- <div v-html=\"post.body\"></div> -->"],
+  ["src/components/Post.vue", "// el.innerHTML = message"],
+  ["src/layouts/Base.astro", '<script type="application/ld+json" set:html={JSON.stringify(data).replace(/</g, "\\\\u003c")} />'],
+  ["src/pages/post.astro", '<Fragment set:html="<hr>" />'],
+  ["src/pages/post.astro", "<Fragment set:html=`<hr>` />"],
+  ["templates/post.html", "{{ post.body }}"],
+  ["templates/post.html", "{{ '<br>'|safe }}"],
+  ["templates/post.jinja", "{# {{ body|safe }} #}"],
+  ["app/views.py", "return mark_safe('<br>')"],
+  ["app/views.py", "return mark_safe(escape(name))"],
+  ["app/views.py", "return Markup(bleach.clean(body))"],
+  ["app/views.py", "return format_html('<b>{}</b>', name)"],
+  ["srv/view.go", 'data.Sep = template.HTML("<hr>")'],
+  ["srv/view.go", "data.Body = template.HTML(policy.Sanitize(post.Body))"],
+  ["Views/Post/Show.cshtml", "<div>@Html.Raw(sanitizer.Sanitize(Model.Body))</div>"],
+  ["Views/Post/Show.cshtml", "@* @Html.Raw(Model.Body) *@"],
+  ["Views/Post/Show.cshtml", "<div>@Model.Body</div>"],
+  ["app/helpers/posts_helper.rb", '"<br>".html_safe'],
+  ["app/helpers/posts_helper.rb", "Sanitize.fragment(body).html_safe"],
+  ["app/views/posts/show.html.erb", "<%= post.body %>"],
+  ["app/views/posts/show.html.erb", "<%# raw post.body %>"],
+  ["resources/views/post.blade.php", "<div>{{ $post->body }}</div>"],
+  ["views/post.ejs", "<%- include('partials/header') %>"],
+  ["views/post.ejs", "<%= post.body %>"],
+  ["views/layouts/main.hbs", "{{{body}}}"],
+  ["views/post.hbs", "{{!-- {{{post.body}}} --}}"],
+  ["views/post.hbs", "{{post.body}}"],
+];
+
+// [file, added line]: a weak cipher or ECB, chosen by the call that picks the
+// algorithm, when encrypting or decrypting.
+const CIPHER_SINKS = [
+  ["srv/crypt.go", "block, err := des.NewCipher(key)"],
+  ["srv/crypt.go", "block, err := des.NewTripleDESCipher(key)"],
+  ["srv/crypt.go", "c, err := rc4.NewCipher(key)"],
+  ["srv/crypt.go", "c, err := blowfish.NewCipher(key)"],
+  ["srv/crypt.go", "mode := ecb.NewECBEncrypter(block)"],
+  ["src/crypt.js", "const cipher = crypto.createCipheriv('des-ede3-cbc', key, iv);"],
+  ["src/crypt.js", "const d = createDecipheriv('aes-128-ecb', key, null);"],
+  ["src/crypt.ts", 'const c = crypto.createCipheriv("rc4", key, "");'],
+  ["src/crypt.js", "const c = createCipheriv('bf-cbc', key, iv);"],
+  ["src/crypt.js", "const out = CryptoJS.TripleDES.encrypt(text, key);"],
+  ["src/crypt.js", "const out = CryptoJS.AES.encrypt(text, key, { mode: CryptoJS.mode.ECB });"],
+  ["src/crypt.js", "const c = forge.cipher.createCipher('3DES-CBC', key);"],
+  ["app/crypt.py", "cipher = DES.new(key, DES.MODE_CBC, iv)"],
+  ["app/crypt.py", "cipher = DES3.new(key, DES3.MODE_CBC, iv)"],
+  ["app/crypt.py", "cipher = ARC4.new(key)"],
+  ["app/crypt.py", "cipher = Blowfish.new(key, Blowfish.MODE_CBC, iv)"],
+  ["app/crypt.py", "cipher = AES.new(key, AES.MODE_ECB)"],
+  ["app/crypt.py", "cipher = Cipher(algorithms.TripleDES(key), modes.CBC(iv))"],
+  ["app/crypt.py", "cipher = Cipher(algorithms.AES(key), modes.ECB())"],
+  ["app/crypt.py", "k = pyDes.triple_des(key)"],
+  ["src/main/java/Crypt.java", 'Cipher c = Cipher.getInstance("DES/CBC/PKCS5Padding");'],
+  ["src/main/java/Crypt.java", 'Cipher c = Cipher.getInstance("DESede");'],
+  ["src/main/java/Crypt.java", 'Cipher c = Cipher.getInstance("RC4");'],
+  ["src/main/java/Crypt.java", 'Cipher c = Cipher.getInstance("AES/ECB/PKCS5Padding");'],
+  ["src/main/java/Crypt.java", 'Cipher c = Cipher.getInstance("AES");'],
+  ["src/main/java/Crypt.java", 'SecretKeyFactory f = SecretKeyFactory.getInstance("PBEWithMD5AndDES");'],
+  ["src/main/kotlin/Crypt.kt", 'val kg = KeyGenerator.getInstance("Blowfish")'],
+  ["Api/Crypt.cs", "using var des = DES.Create();"],
+  ["Api/Crypt.cs", "var tdes = TripleDES.Create();"],
+  ["Api/Crypt.cs", "var rc2 = new RC2CryptoServiceProvider();"],
+  ["Api/Crypt.cs", "aes.Mode = CipherMode.ECB;"],
+  ["Api/Crypt.cs", "var bytes = aes.EncryptEcb(data, PaddingMode.PKCS7);"],
+  ["app/crypt.rb", "cipher = OpenSSL::Cipher.new('des-ede3-cbc')"],
+  ["app/crypt.rb", "cipher = OpenSSL::Cipher.new('aes-256-ecb')"],
+  ["app/crypt.rb", "cipher = OpenSSL::Cipher::AES.new(128, :ECB)"],
+  ["web/crypt.php", "$out = openssl_encrypt($data, 'des-ede3-cbc', $key, 0, $iv);"],
+  ["web/crypt.php", "$out = openssl_decrypt($data, 'AES-128-ECB', $key);"],
+  ["web/crypt.php", "$out = mcrypt_encrypt(MCRYPT_RIJNDAEL_128, $key, $data, MCRYPT_MODE_ECB);"],
+  ["web/crypt.php", "$c = new TripleDES();"],
+  ["src/crypt.rs", "let cipher = TdesEde3::new_from_slice(&key)?;"],
+  ["src/crypt.rs", "let mut rc4 = Rc4::new(key.into());"],
+  ["src/crypt.rs", "let enc = ecb::Encryptor::<Aes128>::new(&key.into());"],
+  ["src/crypt.rs", "let c = Crypter::new(Cipher::des_ede3_cbc(), Mode::Encrypt, &key, Some(&iv))?;"],
+  ["scripts/backup.sh", "openssl enc -des3 -in db.sql -out db.enc"],
+  ["scripts/backup.sh", "openssl enc -aes-128-ecb -in db.sql -out db.enc -K $KEY"],
+  ["scripts/backup.sh", "openssl des3 -d -in db.enc -out db.sql"],
+];
+
+// [file, added line]: strong ciphers and modes, and words that only name one.
+const CIPHER_SAFE = [
+  ["srv/crypt.go", "block, err := aes.NewCipher(key)"],
+  ["srv/crypt.go", "gcm, err := cipher.NewGCM(block)"],
+  ["srv/rates.go", 'const ecbRatesURL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"'],
+  ["src/crypt.js", "const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);"],
+  ["src/rates.js", "const rates = await fetchEcbRates(); // ECB reference rates"],
+  ["src/des.js", "const DES = { title: 'Descripción' };"],
+  ["app/crypt.py", "cipher = AES.new(key, AES.MODE_GCM)"],
+  ["app/crypt.py", "cipher = Cipher(algorithms.AES(key), modes.GCM(iv))"],
+  ["src/main/java/Crypt.java", 'Cipher c = Cipher.getInstance("AES/GCM/NoPadding");'],
+  ["src/main/java/Crypt.java", 'Cipher c = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");'],
+  ["src/main/java/Crypt.java", 'SecretKeyFactory f = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_256");'],
+  ["Api/Crypt.cs", "using var aes = Aes.Create();"],
+  ["Api/Crypt.cs", "aes.Mode = CipherMode.CBC;"],
+  ["app/crypt.rb", "cipher = OpenSSL::Cipher.new('aes-256-gcm')"],
+  ["web/crypt.php", "$out = openssl_encrypt($data, 'aes-256-gcm', $key, 0, $iv, $tag);"],
+  ["src/crypt.rs", "let cipher = Aes256Gcm::new(&key);"],
+  ["scripts/backup.sh", "openssl enc -aes-256-cbc -pbkdf2 -in db.sql -out db.enc"],
+  ["scripts/backup.sh", "# openssl enc -des3 -in db.sql -out db.enc"],
+];
+
 test("the corpus finds each sink in the languages where its API exists", () => {
   for (const [file, line, label] of SINKS) assert.strictEqual(sinkOf(file, line), label, `${file}: ${line}`);
 });
@@ -305,7 +545,90 @@ test("a database method named exec keeps the composed SQL label it had", () => {
 test("a line with sinks of two weaknesses reports the first of the catalog, and a new weakness never comes first", () => {
   assert.strictEqual(sinkOf("app/run.py", "os.system('cmd ' + arg); data = pickle.loads(blob)"), "unsafe deserialization (CWE-502)");
   assert.strictEqual(sinkOf("scripts/deploy.sh", "ssh -o StrictHostKeyChecking=no host 'chmod 777 /srv'"), "world-writable mode (CWE-732)");
-  assert.strictEqual(WEAKNESSES.at(-1).label, "disabled host key verification (CWE-322)");
+  assert.strictEqual(sinkOf("src/ui.js", "el.innerHTML = eval(code);"), "code evaluation (CWE-94)");
+  assert.strictEqual(sinkOf("app/crypt.py", "key = hashlib.md5(password).digest(); c = DES.new(key)"), "weak credential hash (CWE-327)");
+  // The labels are part of the keys of the answers already given: the ones of
+  // E1.50 and E1.100 keep their place, and each new weakness goes after them.
+  assert.deepStrictEqual(
+    WEAKNESSES.map(({ label }) => label),
+    [
+      "disabled TLS verification (CWE-295)",
+      "unsafe deserialization (CWE-502)",
+      "unsafe YAML load (CWE-502)",
+      "code evaluation (CWE-94)",
+      "composed shell command (CWE-78)",
+      "composed SQL (CWE-89)",
+      "weak credential hash (CWE-327)",
+      "credentialed wildcard CORS (CWE-942)",
+      "world-writable mode (CWE-732)",
+      "unverified JWT (CWE-347)",
+      "disabled CSRF protection (CWE-352)",
+      "XML external entities (CWE-611)",
+      "disabled host key verification (CWE-322)",
+      XSS,
+      CIPHER,
+    ],
+  );
+});
+
+test("HTML written without escaping is found in code and templates, unless its value is constant, escaped or sanitized", () => {
+  for (const [file, line] of HTML_SINKS) assert.strictEqual(sinkOf(file, line), XSS, `${file}: ${line}`);
+  for (const [file, line] of HTML_SAFE) assert.strictEqual(sinkOf(file, line), null, `${file}: ${line}`);
+});
+
+test("a value nested too deep to read counts as a sink instead of failing", () => {
+  const depth = 20000;
+  assert.strictEqual(sinkOf("src/ui.js", `x.innerHTML = ${"`${".repeat(depth)}1${"}`".repeat(depth)};`), XSS);
+});
+
+test("an operand with many brackets is read in one pass, whether it matches or not", () => {
+  for (const group of ["()", "[0]"]) {
+    const started = Date.now();
+    assert.strictEqual(sinkOf("src/ui.js", `x.innerHTML = a${group.repeat(40)}! / 2;`), XSS, group);
+    assert.strictEqual(sinkOf("src/ui.js", `x.innerHTML = a${group.repeat(40)} / 2;`), null, group);
+    assert.ok(Date.now() - started < 1000, `${group}: ${Date.now() - started} ms`);
+  }
+});
+
+test("a value the next added line goes on with, after a leading operator, is unfinished", () => {
+  assert.strictEqual(sinkOf("src/ui.js", "list.innerHTML = '<ul>'", '  + items + "</ul>";'), XSS);
+  assert.strictEqual(sinkOf("src/ui.js", "list.innerHTML = '<ul>'", "  ? a : b;"), XSS);
+  assert.strictEqual(sinkOf("src/ui.js", "list.innerHTML = '<ul>';", "+value;"), null, "a semicolon ends it");
+  assert.strictEqual(sinkOf("src/ui.js", "list.innerHTML = ''", "render(list);"), null, "an unrelated statement");
+});
+
+test("an HTML file may be a server template, so its comments still count", () => {
+  assert.strictEqual(sinkOf("templates/post.html", "<!-- {{ comment.text|safe }} -->"), XSS);
+  assert.strictEqual(sinkOf("templates/post.html", "// {{ data|safe }}"), XSS);
+  assert.strictEqual(sinkOf("templates/post.htm", '<!--/*/ <div th:utext="${x}"></div> /*/-->'), XSS);
+  assert.strictEqual(sinkOf("templates/post.html", "<!-- note -->"), null);
+  assert.strictEqual(sinkOf("src/components/Post.vue", '<!-- <div v-html="post.body"></div> -->'), null, "Vue drops its comments");
+});
+
+test("a weak cipher or the ECB mode is found in the call that picks it, never in a word that only names it", () => {
+  for (const [file, line] of CIPHER_SINKS) assert.strictEqual(sinkOf(file, line), CIPHER, `${file}: ${line}`);
+  for (const [file, line] of CIPHER_SAFE) assert.strictEqual(sinkOf(file, line), null, `${file}: ${line}`);
+});
+
+test("web files get every rule of JS, since their scripts are JS or TS", () => {
+  assert.strictEqual(sinkOf("src/App.vue", "  const total = eval(formula);"), "code evaluation (CWE-94)");
+  assert.strictEqual(sinkOf("src/routes/+page.svelte", "  execSync(`git log ${branch}`);"), "composed shell command (CWE-78)");
+  assert.strictEqual(sinkOf("src/pages/index.astro", "const rows = await db.query(`SELECT * FROM t WHERE id = ${id}`);"), "composed SQL (CWE-89)");
+  assert.strictEqual(sinkOf("public/index.html", "<script>eval(location.hash.slice(1))</script>"), "code evaluation (CWE-94)");
+  assert.strictEqual(sinkOf("templates/post.erb", "eval(code)"), null, "a server template gets only its own forms");
+});
+
+test("each template language skips only the comments of its own syntax", () => {
+  assert.strictEqual(isCommentOnly("src/App.vue", "<!-- eval(x) -->"), true);
+  assert.strictEqual(isCommentOnly("src/App.vue", "/* eval(x) */"), true);
+  assert.strictEqual(isCommentOnly("src/App.vue", "<!-- note --> <div v-html=\"x\"></div>"), false);
+  assert.strictEqual(isCommentOnly("Views/A.cshtml", "@* note *@"), true);
+  assert.strictEqual(isCommentOnly("app/views/a.html.erb", "<%# note %>"), true);
+  assert.strictEqual(isCommentOnly("views/a.hbs", "{{!-- note --}}"), true);
+  assert.strictEqual(isCommentOnly("templates/a.twig", "{# note #}"), true);
+  // A server template renders what an HTML comment holds.
+  assert.strictEqual(isCommentOnly("app/views/a.html.erb", "<!-- <%== x %> -->"), false);
+  assert.strictEqual(sinkOf("app/views/a.html.erb", "<!-- <%== x %> -->"), XSS);
 });
 
 test("each rule names known languages and each language maps to its extensions only", () => {
@@ -332,7 +655,7 @@ test("only the comment markers of the file's language skip a line, and code afte
   assert.strictEqual(isCommentOnly("src/a.js", "/* note */ eval(code);"), false);
   assert.strictEqual(sinkOf("src/a.js", "/* note */ eval(code);"), "code evaluation (CWE-94)");
   assert.strictEqual(isCommentOnly("src/a.c", "*cmd = 0;"), false, "a dereference");
-  assert.strictEqual(isCommentOnly("src/a.vue", "// eval(x)"), false, "a language without rules is never skipped");
+  assert.strictEqual(isCommentOnly("src/a.zig", "// eval(x)"), false, "a language without rules is never skipped");
 });
 
 test("a SafeLoader protects only its own yaml.load call", () => {

@@ -1122,14 +1122,33 @@ of bound parameters (CWE-89), a weak hash of a credential (CWE-327), a wildcard
 CORS origin with credentials (CWE-942), a world-writable mode (CWE-732, any
 mode others may write for `chmod`, which the umask does not filter), an
 unverified JWT (CWE-347), a disabled CSRF protection (CWE-352), XML external
-entities (CWE-611) or a disabled SSH host key check (CWE-322). A line with
-sinks of several weaknesses reports the first in that order. Its reason MUST name the file and the sink, and a planned
+entities (CWE-611), a disabled SSH host key check (CWE-322), HTML written
+without escaping (CWE-79) or a weak cipher (CWE-327). A line with
+sinks of several weaknesses reports the first in that order. HTML written
+without escaping is an API made to skip the escape of its framework or
+template (`dangerouslySetInnerHTML`, `v-html`, `{@html}`, `set:html`,
+`bypassSecurityTrust*`, `mark_safe`, `template.HTML`, `Html.Raw`,
+`html_safe`, `|safe`, `{!! !!}`, `<%==`, `<%-`, `{{{ }}}`, among others) or a
+DOM write (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`),
+and it MUST NOT count when the line shows its value safe: a constant, a number,
+a library sanitizer or an escape function around the whole value, a value
+whose every `<` is replaced, or one built only from those, a list mapped and
+joined included. A value made safe on another line counts, and so does one the
+line does not finish (a bracket, a quote or a template tag left open, an
+operator at its end, or the line below it in the file, changed or not, that
+opens with one; an added line of another hunk never goes on with it). Angular's `[innerHTML]`,
+which sanitizes by itself, MUST NOT count. A weak cipher is DES, 3DES, RC2,
+RC4, Blowfish or the ECB mode of any cipher, picked by the call that chooses
+the algorithm, to encrypt or to decrypt; a word that only names one MUST NOT
+count. The rules of JS also apply to the scripts of Vue, Svelte, Astro and
+HTML files. Its reason MUST name the file and the sink, and a planned
 or matching path or `--security` MUST name the signal before a sink does. A
 line that is only a comment in the language of its file, a test (the lines of
 a Rust inline test included), documentation, a manifest and what the file
 already held MUST NOT derive it; a comment marker counts only in the languages
 that use it, and the rest of a line is matched whole, so `//` inside a URL
-cuts nothing. `--security` on `signals` or `record intent` MUST record
+cuts nothing. A server template renders what its HTML comments hold, so no
+line of an HTML file, which may be one, is skipped as a comment. `--security` on `signals` or `record intent` MUST record
 `security-boundary` with `source: declaration` and the reason "declared a
 security boundary", without widening the plan. For an intent of kind `feature` or `bug`, a
 diff that changes product code and adds no code to a test MUST derive
@@ -1151,7 +1170,8 @@ test asserts, so a trivial test is the trust review's to find. Product code is
 a source file by its extension, scripts included: besides JS/TS, Python, Go,
 JVM, .NET, Ruby, PHP, Rust and web files, C and C++, Objective-C, Swift, Scala,
 Groovy, Dart, Lua, Elixir, Erlang, Clojure, Haskell, OCaml, F#, Visual Basic,
-Perl, R, Zig, shell, PowerShell and batch files (E1.53). Documentation, manifests
+Perl, R, Zig, shell, PowerShell and batch files (E1.53), and the server
+templates of Razor, ERB, EJS, Handlebars, Jinja and Twig (E1.102). Documentation, manifests
 and tests are not. Documentation is Markdown, MDX, reStructuredText and
 AsciiDoc anywhere and everything under the top-level `docs/`; under a nested
 `docs/`, a source file is product code (E1.53).
@@ -1272,6 +1292,18 @@ irreversible operation no entry lists opens its own (REQ-idd-008). While
 - THEN each file MUST count as product code and `untested-product` MUST derive
 - AND `src/PageTests.java`, `spec/support/helpers.js` and
   `engines/billing/spec/support/factories.rb` MUST count as tests
+
+#### Scenario: HTML written without escaping counts unless the line shows it safe
+
+- GIVEN a feature change whose diff adds
+  ``row.innerHTML = `<td>${user.name}</td>`;`` to `src/table.js`
+- WHEN its signals are derived
+- THEN `security-boundary` MUST be recorded with the reason
+  "security boundary: src/table.js adds unescaped HTML output (CWE-79)"
+- AND the same line with `${esc(user.name)}`, or `list.innerHTML = '';`, MUST
+  NOT derive it
+- AND `<div>@Html.Raw(Model.Body)</div>` added to `Views/Post/Show.cshtml`
+  MUST derive it, the template counting as product code
 
 #### Scenario: Reference fixtures derive from their declaration
 

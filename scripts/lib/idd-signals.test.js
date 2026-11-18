@@ -820,6 +820,30 @@ test("[E1.53] classifyPath knows more code extensions, and code under a nested d
   for (const file of ["docs/conf.py", "docs/guide.md", "src/docs/guide.md", "README.md"]) assert.strictEqual(classifyPath(file), "docs", file);
 });
 
+// E1.102: a server template renders the app's HTML, as a .vue or an .html does.
+test("[E1.102] server templates are product code, so HTML they write without escaping derives the security boundary", () => {
+  const templates = ["Views/Home/Index.cshtml", "Pages/Post.razor", "app/views/posts/show.html.erb", "views/post.ejs", "views/post.hbs", "views/post.handlebars", "templates/post.jinja", "templates/post.jinja2", "templates/post.j2", "templates/post.html.twig"];
+  for (const file of templates) assert.strictEqual(classifyPath(file), "product", file);
+  assert.strictEqual(classifyPath("spec/views/posts/show.html.erb"), "test", "under the root's spec/");
+
+  const intent = { kind: "feature", summary: "s", acceptance: "a" };
+  const signals = (file, lines) => deriveSignals({ intent, diff: { paths: [file], addedLines: { [file]: lines } }, patterns: resolvePatterns({}) }).signals;
+  const security = (file, lines) => signals(file, lines).find((s) => s.id === "security-boundary")?.reason;
+
+  assert.strictEqual(security("src/table.js", ["row.innerHTML = `<td>${user.name}</td>`;"]), "security boundary: src/table.js adds unescaped HTML output (CWE-79)");
+  assert.strictEqual(security("src/table.js", ["row.innerHTML = `<td>${esc(user.name)}</td>`;", "list.innerHTML = '';"]), undefined, "a value the line shows safe");
+  assert.strictEqual(security("src/table.js", ["list.innerHTML = '<ul>'", '  + items + "</ul>";']), "security boundary: src/table.js adds unescaped HTML output (CWE-79)", "a value the next added line goes on with");
+  assert.strictEqual(security("src/table.js", ["list.innerHTML = ''", "render(list);"]), undefined);
+  // Without the file, only an added line right below goes on with the value.
+  const split = (numbers) => deriveSignals({ intent, diff: { paths: ["src/table.js"], addedLines: { "src/table.js": ["list.innerHTML = ''", "  - 2;"] }, addedLineNumbers: { "src/table.js": numbers } }, patterns: resolvePatterns({}) })
+    .signals.find((s) => s.id === "security-boundary")?.reason;
+  assert.strictEqual(split([2, 3]), "security boundary: src/table.js adds unescaped HTML output (CWE-79)");
+  assert.strictEqual(split([2, 5]), undefined, "the next added line sits in another hunk");
+  const template = signals("Views/Post/Show.cshtml", ["<h1>@Model.Title</h1>", "<div>@Html.Raw(Model.Body)</div>"]);
+  assert.strictEqual(template.find((s) => s.id === "security-boundary")?.reason, "security boundary: Views/Post/Show.cshtml adds unescaped HTML output (CWE-79)");
+  assert.ok(template.some((s) => s.id === "untested-product"), "a template changed without a test, as a .vue would be");
+});
+
 test("[E1.53] a comment-only line, or a file without a code extension under a test directory, is not a test the diff adds", () => {
   const diff = {
     paths: ["src/b.test.js", "test/a.test.js", "test/fixtures/page.json", "test/helper.js", "tests/golden.txt"],

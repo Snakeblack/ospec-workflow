@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.184.0, 2026-11-18.
+> **Versión de referencia:** v2.185.0, 2026-11-19.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -220,10 +220,11 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.97** | `archive-scan-friction` (el pre-commit bloquea el `state.yaml` de un cambio IDD archivado cuando un hallazgo de review cita un ejemplo con forma de secreto; el fichero es del CLI y no admite `ospec:allow-secret`, así que hoy el commit del archivo pide saltar el escáner entero; fuera del orden ▶, antes del próximo cambio que revise los guards) | bugfix |
 | `done` | **E1.98** | `own-skills` (versiones propias de chained-pr, cognitive-doc-design, comment-writer, judgment-day, skill-creator con su guía de estilo, work-unit-commits y las referencias de testing de stack-go, escritas desde lo que ospec es hoy; la guía y la sección 3 de la spec de skills piden lo que el tooling exige; `delivery.language` declara el idioma del proyecto y ninguna skill fija el español; las reglas de comportamiento de `rules/` con texto propio; en v2.183.0) | skills |
 | `done` | **E1.100** | `own-sink-catalog` (catálogo propio de sinks de seguridad en `scripts/lib/idd-sinks.js`, ordenado por debilidad y por lenguaje y sin el aviso de gentle-ai; conserva cada sink que se detectaba, con su etiqueta, y añade las formas que se escapaban de las mismas debilidades y la comprobación de host SSH desactivada (CWE-322); en v2.184.0) | feature |
-| `pending` | **E1.102** | `sink-catalog-xss-crypto` (dos debilidades nuevas para el catálogo de sinks: salida HTML sin escapar (CWE-79) y cifrado débil (CWE-327: DES, RC4, modo ECB), con un corpus de falsos positivos propio porque CWE-79 tiene muchos usos legítimos; justo detrás de E1.100) | feature |
+| `done` | **E1.102** | `sink-catalog-xss-crypto` (dos debilidades nuevas al final del catálogo de sinks: salida HTML sin escapar (CWE-79), que no cuenta cuando la línea muestra el valor constante, escapado o saneado, y cifrado débil (CWE-327: DES, 3DES, RC2, RC4, Blowfish y el modo ECB); las reglas de JS miran también los `.vue`, `.svelte`, `.astro` y `.html`, y las plantillas de servidor pasan a ser código de producto; en v2.185.0) | feature |
 | `pending` | **E1.101** | `own-sdd-apply` (versión propia de la skill de fase `sdd-apply`, la última con texto de gentle-ai; con ella la sección de gentle-ai sale de `NOTICE`; detrás de E1.100) | skills |
 | `pending` | **E1.99** | `own-stack-skills` (lo mismo para las skills que conservan texto de ECC y de Caveman: las `stack-*`, accessibility, api-design, design-system, hexagonal-architecture y caveman-compress; con E1.101 hecho, `NOTICE` desaparece; fuera del orden ▶) | skills |
 | `pending` | **E1.103** | `product-ext-mts-cts` (`PRODUCT_EXT` de `scripts/lib/idd-signals.js` no reconoce `.mts` ni `.cts`, así que un módulo TypeScript con esas extensiones no cuenta como código de producto para ninguna señal; fuera del orden ▶) | bugfix |
+| `pending` | **E1.104** | `ui-file-server-templates` (`UI_FILE` de `scripts/lib/idd-facts.js` no reconoce las plantillas de servidor, así que un proyecto cuya interfaz solo vive en `.cshtml`, `.erb` o `.jinja` deja fuera de los hechos abiertos las categorías de estado en la URL y de accesibilidad; fuera del orden ▶) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -302,6 +303,8 @@ E1.98 `own-skills` y E1.99 `own-stack-skills` entraron el 2026-11-17 durante E1.
 E1.100 `own-sink-catalog` y E1.101 `own-sdd-apply` entraron el 2026-11-17 al abrir E1.98. El usuario aprobó repartir el trabajo en varios cambios: E1.98 se quedó con las skills de utilidad, y detrás van, en este orden, el catálogo de sinks de `scripts/lib/idd-sinks.js`, que es código de la señal de seguridad, y `sdd-apply`, que es una skill de fase de SDD con tests de contrato. Los dos van por delante de E1.79.
 
 E1.102 `sink-catalog-xss-crypto` y E1.103 `product-ext-mts-cts` entraron el 2026-11-18 al abrir E1.100. El usuario eligió ampliar el catálogo solo dentro de sus debilidades y dejar CWE-79 y el cifrado débil para una fila propia, justo detrás. E1.103 es un defecto que salió al revisar las extensiones del catálogo y queda fuera del orden ▶ hasta que el usuario lo coloque.
+
+E1.104 `ui-file-server-templates` entró el 2026-11-18 durante E1.102, al convertir las plantillas de servidor en código de producto. Es un defecto que ya existía y queda fuera del orden ▶ hasta que el usuario lo coloque.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -1667,6 +1670,18 @@ Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparat
 - **Garantía que protege:** la señal de seguridad por contenido (E1.50) sin una revisión de confianza por cada componente que pinta HTML de confianza.
 - **Hechos abiertos:** qué formas de CWE-79 cuentan solo con un valor compuesto o variable; si el cifrado débil cuenta siempre o solo con datos que no sean de prueba.
 - **Hecho cuando:** el corpus encuentra las dos debilidades, sus formas seguras no derivan la señal y el barrido de repositorios de E1.100 no da falsos positivos nuevos.
+- **Respuestas del usuario (2026-11-18, gate `open-facts`, las recomendadas):**
+  - Las API hechas para saltarse el escape del framework cuentan salvo con un único literal constante; las del DOM, solo con un valor compuesto o variable. `[innerHTML]` de Angular no cuenta porque Angular lo sanea, ni `.html()` de jQuery.
+  - Neutraliza la línea un saneador de librería que envuelve el valor entero o una plantilla en la que cada interpolación pasa por una función de escape. Un valor saneado en otra línea cuenta, y `JSON.stringify` no neutraliza salvo que la misma línea escape `<`.
+  - `.vue`, `.svelte`, `.astro` y `.html` reciben las formas de plantilla y todas las reglas de JS. Las plantillas de servidor (`.cshtml`, `.razor`, `.erb`, `.ejs`, `.hbs`, `.handlebars`, `.jinja`, `.jinja2`, `.j2`, `.twig`) pasan a ser código de producto.
+  - El cifrado débil es DES, 3DES, RC2, RC4, Blowfish y el modo ECB de cualquier cifrado, al cifrar y al descifrar, en la llamada que elige el algoritmo.
+- **Lo que salió en el cambio:**
+  - **Etiquetas.** `unescaped HTML output (CWE-79)` y `weak cipher (CWE-327)` van al final del catálogo, detrás de CWE-322. Las de antes no cambian de sitio, y un test fija el orden completo.
+  - **Valores seguros.** Además de lo acordado, no cuentan los números (aritmética sin `+` entre operandos simples, `Math.*`, `length`, `toFixed`), los ternarios y las listas `items.map((x) => <html>).join('')` cuyas ramas o cuerpo son seguros. Tampoco un `include` de EJS ni el `{{{body}}}` de un fichero bajo `layouts/` de Handlebars. Un valor anidado tan hondo que desborda la pila cuenta como sink en lugar de tumbar `ospec check`.
+  - **Lo que la revisión de confianza corrigió.** Un valor que sigue en la línea de abajo, como lo dejan los formateadores (`el.innerHTML =`, `return mark_safe(`, un `+` al final, una etiqueta sin cerrar), cuenta. `%` solo es aritmética con un número a su izquierda, porque en Python y Ruby formatea texto. Un comentario al final de la línea no es una división. `replace` solo escapa con una expresión con `g`, o con `replaceAll`, y solo cuando es la última llamada de una cadena que forma todo el valor. En Python, Ruby y Jinja, `*` solo es aritmética entre números, porque texto por número repite el texto. `dangerouslySetInnerHTML` cuenta con cualquier valor salvo un `__html:` en línea que sea seguro. Una asignación sin punto y coma cuya línea de abajo en el fichero, cambie o no, abre con un operador sigue en ella y cuenta; una línea añadida de otro hunk no la continúa (`sink-next-line-adjacent`). En Handlebars, que no tiene operadores, `{{{ }}}` solo es seguro con un literal constante, y en Astro un `set:html` entre comillas invertidas es una plantilla literal. Los operandos se leen en una sola pasada, sin el retroceso exponencial de una expresión regular.
+  - **Comentarios.** Cada plantilla salta solo los comentarios de su sintaxis (`<!-- -->` y los de JS en Vue, Svelte y Astro, `@* *@`, `<%# %>`, `{{!-- --}}`, `{# #}`). Una plantilla de servidor renderiza lo que lleva un comentario HTML, así que ahí ese comentario no se salta, y un `.html` puede ser una plantilla de Jinja, Django o Thymeleaf: en él no se salta ninguna línea.
+  - **Sin pérdidas.** Contra el catálogo de `main`, ninguna línea de código de producto de los 17 repositorios locales (unas 770 000) pierde ni cambia su etiqueta, y ninguna da cifrado débil. Las 8 líneas nuevas son de CWE-79: tres escriben un valor sin escapar, y cinco son seguras por código de otra línea (una función que escapa `<`, DOMPurify en la línea anterior, un icono constante, CSS propio, una función numérica), que según la respuesta del usuario cuentan y se retiran con su respuesta.
+  - **Fuera.** `{% autoescape off %}` de Django y Jinja y `Environment(autoescape=False)` no se detectan, como tampoco `.html()` de jQuery.
 
 ### E1.103 — `product-ext-mts-cts`
 
@@ -1674,6 +1689,13 @@ Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparat
 - **Problema:** `PRODUCT_EXT` (`scripts/lib/idd-signals.js`) no reconoce `.mts` ni `.cts`. Un módulo TypeScript con esas extensiones no cuenta como código de producto: no deriva `untested-product`, `persistent-data` ni `security-boundary` por contenido.
 - **Alcance:** las dos extensiones en `PRODUCT_EXT`, en los nombres de test de JS/TS y en las reglas de JS del catálogo de sinks.
 - **Hecho cuando:** un `.mts` o un `.cts` cambiado cuenta como código de producto, y un `*.test.mts` como test.
+
+### E1.104 — `ui-file-server-templates`
+
+- **Origen:** E1.102, al convertir las plantillas de servidor en código de producto.
+- **Problema:** `UI_FILE` (`scripts/lib/idd-facts.js`) solo reconoce `.html`, las hojas de estilo, `.jsx`, `.tsx`, `.vue`, `.svelte` y `.astro`. Un proyecto con código cuya interfaz solo vive en plantillas de servidor deja fuera de la plantilla de hechos abiertos de una feature las categorías de estado en la URL y de accesibilidad.
+- **Alcance:** las extensiones de plantilla que E1.102 añadió a `PRODUCT_EXT`, también en `UI_FILE`, con su test.
+- **Hecho cuando:** un proyecto cuyo único fichero de interfaz es un `.cshtml`, un `.erb` o un `.jinja` cubre las siete categorías.
 
 ### E1.99 — `own-stack-skills`
 
@@ -2334,6 +2356,13 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-18: `sink-next-line-adjacent` (IDD), publicado en v2.185.0. Seguimiento de E1.102. El diff guarda el número de cada línea añadida, y el valor partido de un sink sigue en la línea de abajo del fichero, cambie o no, en vez de en la siguiente línea añadida, que podía ser de otro hunk.
+- 2026-11-18: `sink-catalog-xss-crypto` (IDD), publicado en v2.185.0. E1.102 hecho: salida HTML sin escapar y cifrado débil en el catálogo de sinks.
+  - `scripts/lib/idd-sinks.js` detecta CWE-79 en JS, en las plantillas de Vue, Svelte, Astro, HTML, Razor, ERB, EJS, Handlebars, Jinja y Twig, y en Python, Go, C#, Ruby, PHP y Rust. No cuenta cuando la propia línea muestra el valor constante, escapado o saneado.
+  - El cifrado débil (DES, 3DES, RC2, RC4, Blowfish y el modo ECB) cuenta en la llamada que elige el algoritmo, en los nueve lenguajes del catálogo.
+  - Las reglas de JS miran también los scripts de los `.vue`, `.svelte`, `.astro` y `.html`, y las plantillas de servidor pasan a ser código de producto.
+  - En unas 770 000 líneas de 17 repositorios locales no se pierde ningún sink; las 8 líneas nuevas son de CWE-79.
+  - Entra E1.104 `ui-file-server-templates`, fuera del orden ▶. El orden ▶ sigue con E1.101 `own-sdd-apply`.
 - 2026-11-18: `own-sink-catalog` (IDD), publicado en v2.184.0. E1.100 hecho: catálogo propio de sinks de seguridad.
   - `scripts/lib/idd-sinks.js` ordena sus reglas por debilidad y por lenguaje y ya no adapta el catálogo de gentle-ai ni lleva su aviso.
   - Conserva cada sink que se detectaba, con su etiqueta, y detecta las formas que se escapaban de las mismas debilidades y la comprobación de host SSH desactivada (CWE-322).
