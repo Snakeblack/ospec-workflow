@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Dos debilidades nuevas en el catálogo de sinks de scripts/lib/idd-sinks.js: salida HTML sin escapar (CWE-79) y cifrado débil (CWE-327), con un corpus de falsos positivos propio (E1.102) (sink-catalog-xss-crypto)
 
+### Fixed
+- La línea siguiente con la que el catálogo de sinks lee un valor CWE-79 partido es la de abajo en el fichero, no la siguiente línea añadida, que puede venir de otro hunk (sink-next-line-adjacent)
+
 ## [2.184.0] - 2026-11-18
 
 ### Added
