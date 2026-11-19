@@ -2389,7 +2389,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
-- 2026-11-20: `own-sdd-apply` (IDD), publicado en v2.185.3. E1.101 hecho: `sdd-apply` con texto propio, y `NOTICE` medido contra todo el historial de gentle-ai, con E1.105 y E1.106 para el resto.
+- 2026-11-20: `own-sdd-apply` (IDD), publicado en v2.185.3. E1.101 hecho: `sdd-apply` con texto propio, y `NOTICE` medido contra todo el historial de gentle-ai, con E1.105 y E1.106 para el resto. Con el seguimiento `overlap-windows-eof`: en Windows, la tubería rota llega como `EOF`.
 - 2026-11-19: `stop-count-before-trace` (IDD), publicado en v2.185.1. Seguimiento de `retract-answer-offer`. El Stop vuelve a contar el fin de turno antes de cargar la traza, como desde v2.168.9, para que el plazo del lanzador no lo deje sin contar, y lo descuenta cuando pide al agente que siga.
 - 2026-11-19: `retract-answer-offer` (IDD), publicado en v2.185.1. Arreglo pedido por delante de E1.101.
   - Cuando la obligación que sigue viene de `persistent-data`, `public-contract` o `security-boundary` y `record retract` aceptaría la respuesta del usuario, `ospec next` y el `next` de cada comando que escribe la ofrecen junto a la obligación: `next_step.retract` con lo que el usuario confirma, los hits que cubre y el comando. El texto la imprime con una línea `answer covers:` por hit.

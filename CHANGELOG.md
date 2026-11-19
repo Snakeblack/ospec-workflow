@@ -16,7 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Medida**: `node scripts/third-party-overlap.js --source <clon> <ficheros>` cuenta las líneas de 30 caracteres o más idénticas a cualquier versión del historial git de la obra. Es una herramienta de desarrollo: necesita el clon y no corre en CI.
   - **Compatibilidad**: SDD aplica las tareas igual que antes, y el formato de la evidencia de Strict TDD no cambia.
 
-**Verificación directa**: `node scripts/check.js` (5080 tests pasando, 0 fallos y 5 omitidos), 457 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados. El cambio no tocaba Go ni derivó revisión de confianza.
+### Fixed
+- **`scripts/third-party-overlap.js` no cae en Windows cuando git sale antes de leer su entrada**: Windows informa de esa tubería rota con `EOF` en lugar de `EPIPE`, y ahora las dos dejan decidir al código de salida de git (overlap-windows-eof).
+
+**Verificación directa**: `node scripts/check.js` (5081 tests pasando, 0 fallos y 5 omitidos), 457 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados. El CI de la PR destapó en Windows el `EOF` de la tubería rota (overlap-windows-eof). El cambio no tocaba Go ni derivó revisión de confianza.
 
 ## [2.185.2] - 2026-11-19
 
