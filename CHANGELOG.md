@@ -7,8 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.185.3] - 2026-11-20
+
 ### Changed
-- **Versión propia de la skill `sdd-apply` y `NOTICE` medido contra todo el historial de gentle-ai** (E1.101) (own-sdd-apply)
+- **Versión propia de la skill `sdd-apply` y `NOTICE` medido contra todo el historial de gentle-ai** (own-sdd-apply, E1.101).
+  - **`sdd-apply`**: `SKILL.md` y su módulo `strict-tdd.md` tienen texto propio. Conservan el contrato de la fase (rutas standard y lite, remediación, presupuesto de revisión, modos de TDD, marcas de las tareas y trailers `Ospec-Change` y `Ospec-Task`) y citan las funciones del runtime que deciden en lugar de repetir sus comprobaciones. El módulo de Strict TDD escribe el vocabulario de cada columna de la tabla TDD Cycle Evidence que lee sdd-verify y los campos del bloque `json:strict-tdd-evidence`. En un refactor que conserva el comportamiento, los tests que ya lo fijan cuentan como tests de aprobación.
+  - **`NOTICE`**: medido contra todo el historial de gentle-ai, y no solo contra su versión actual, que ya había retirado SDD, catorce skills y `agents/sdd-orchestrator.agent.md` conservan texto suyo. `NOTICE` los lista, esas skills nombran a gentleman-programming en `metadata.author` y `scripts/docs-figures.test.js` comprueba ahora las dos listas en los dos sentidos. `sdd-apply` sale de la lista.
+  - **Medida**: `node scripts/third-party-overlap.js --source <clon> <ficheros>` cuenta las líneas de 30 caracteres o más idénticas a cualquier versión del historial git de la obra. Es una herramienta de desarrollo: necesita el clon y no corre en CI.
+  - **Compatibilidad**: SDD aplica las tareas igual que antes, y el formato de la evidencia de Strict TDD no cambia.
+
+**Verificación directa**: `node scripts/check.js` (5080 tests pasando, 0 fallos y 5 omitidos), 457 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados. El cambio no tocaba Go ni derivó revisión de confianza.
 
 ## [2.185.2] - 2026-11-19
 
