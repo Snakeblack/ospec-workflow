@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Versión propia de la skill `sdd-apply` y `NOTICE` medido contra todo el historial de gentle-ai** (E1.101) (own-sdd-apply)
+
 ## [2.185.2] - 2026-11-19
 
 ### Fixed

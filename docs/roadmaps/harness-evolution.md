@@ -221,10 +221,12 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.98** | `own-skills` (versiones propias de chained-pr, cognitive-doc-design, comment-writer, judgment-day, skill-creator con su guía de estilo, work-unit-commits y las referencias de testing de stack-go, escritas desde lo que ospec es hoy; la guía y la sección 3 de la spec de skills piden lo que el tooling exige; `delivery.language` declara el idioma del proyecto y ninguna skill fija el español; las reglas de comportamiento de `rules/` con texto propio; en v2.183.0) | skills |
 | `done` | **E1.100** | `own-sink-catalog` (catálogo propio de sinks de seguridad en `scripts/lib/idd-sinks.js`, ordenado por debilidad y por lenguaje y sin el aviso de gentle-ai; conserva cada sink que se detectaba, con su etiqueta, y añade las formas que se escapaban de las mismas debilidades y la comprobación de host SSH desactivada (CWE-322); en v2.184.0) | feature |
 | `done` | **E1.102** | `sink-catalog-xss-crypto` (dos debilidades nuevas al final del catálogo de sinks: salida HTML sin escapar (CWE-79), que no cuenta cuando la línea muestra el valor constante, escapado o saneado, y cifrado débil (CWE-327: DES, 3DES, RC2, RC4, Blowfish y el modo ECB); las reglas de JS miran también los `.vue`, `.svelte`, `.astro` y `.html`, y las plantillas de servidor pasan a ser código de producto; en v2.185.0) | feature |
-| `pending` | **E1.101** | `own-sdd-apply` (versión propia de la skill de fase `sdd-apply`, la última con texto de gentle-ai; con ella la sección de gentle-ai sale de `NOTICE`; detrás de E1.100) | skills |
-| `pending` | **E1.99** | `own-stack-skills` (lo mismo para las skills que conservan texto de ECC y de Caveman: las `stack-*`, accessibility, api-design, design-system, hexagonal-architecture y caveman-compress; con E1.101 hecho, `NOTICE` desaparece; fuera del orden ▶) | skills |
+| `done` | **E1.101** | `own-sdd-apply` (versión propia de la skill de fase `sdd-apply` y de su módulo de Strict TDD, escrita desde el contrato de la fase y las funciones del runtime que deciden; medido contra todo el historial de gentle-ai con `scripts/third-party-overlap.js`, `NOTICE` y `metadata.author` nombran a gentle-ai en las 14 skills y el agente que aún conservan su texto) | skills |
+| `pending` | **E1.99** | `own-stack-skills` (lo mismo para las skills que conservan texto de ECC y de Caveman: las `stack-*`, accessibility, api-design, design-system, hexagonal-architecture y caveman-compress; con E1.105 y E1.106 hechos, `NOTICE` desaparece; fuera del orden ▶) | skills |
 | `pending` | **E1.103** | `product-ext-mts-cts` (`PRODUCT_EXT` de `scripts/lib/idd-signals.js` no reconoce `.mts` ni `.cts`, así que un módulo TypeScript con esas extensiones no cuenta como código de producto para ninguna señal; fuera del orden ▶) | bugfix |
 | `pending` | **E1.104** | `ui-file-server-templates` (`UI_FILE` de `scripts/lib/idd-facts.js` no reconoce las plantillas de servidor, así que un proyecto cuya interfaz solo vive en `.cshtml`, `.erb` o `.jinja` deja fuera de los hechos abiertos las categorías de estado en la URL y de accesibilidad; fuera del orden ▶) | bugfix |
+| `pending` | **E1.105** | `own-sdd-phase-skills` (versiones propias de las skills de fase de SDD que conservan texto de gentle-ai medido contra su historial: sdd-explore, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-verify con sus módulos, sdd-archive, sdd-clarify, sdd-init, sdd-onboard, las referencias de `_shared` y `agents/sdd-orchestrator.agent.md`; fuera del orden ▶) | skills |
+| `pending` | **E1.106** | `own-utility-skills` (lo mismo para issue-creation, branch-pr y skill-registry; con E1.105 hecho, la sección de gentle-ai sale de `NOTICE`; fuera del orden ▶) | skills |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -305,6 +307,8 @@ E1.100 `own-sink-catalog` y E1.101 `own-sdd-apply` entraron el 2026-11-17 al abr
 E1.102 `sink-catalog-xss-crypto` y E1.103 `product-ext-mts-cts` entraron el 2026-11-18 al abrir E1.100. El usuario eligió ampliar el catálogo solo dentro de sus debilidades y dejar CWE-79 y el cifrado débil para una fila propia, justo detrás. E1.103 es un defecto que salió al revisar las extensiones del catálogo y queda fuera del orden ▶ hasta que el usuario lo coloque.
 
 E1.104 `ui-file-server-templates` entró el 2026-11-18 durante E1.102, al convertir las plantillas de servidor en código de producto. Es un defecto que ya existía y queda fuera del orden ▶ hasta que el usuario lo coloque.
+
+E1.105 `own-sdd-phase-skills` y E1.106 `own-utility-skills` entraron el 2026-11-20 al abrir E1.101. E1.78 había medido el texto de gentle-ai contra su árbol actual, que ya había retirado SDD; contra todo su historial, otras catorce skills y el agente orquestador de SDD conservan su texto. El usuario eligió que E1.101 se quedara con `sdd-apply`, corrigiera `NOTICE` y los autores, y dejara el resto en filas nuevas. Las dos quedan fuera del orden ▶ hasta que el usuario las coloque.
 
 El 2026-11-19, al entregar E1.102, el usuario pidió por delante de E1.101 dos arreglos que salieron de esa entrega, cada uno en su PR. El primero, `retract-answer-offer`: cuando `persistent-data` salía del contenido que el fichero ya tenía, `ospec next` y el hook de Stop solo empujaban a un test de migración, y la retirada con la respuesta del usuario solo aparecía en la negativa de `record retract`. El segundo es el defecto de `decisionBullets` de `scripts/lib/idd-close.js`, que pega al bullet anterior de Decisions el encabezado que le sigue.
 
@@ -1663,6 +1667,16 @@ Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparat
 - **Alcance:** una versión propia que conserve el contrato de la fase: los tests de `scripts/recommendation-ambiguity-contract.test.js`, `scripts/compact-lite-contract.test.js` y `scripts/eje-b-contract.test.js` siguen pasando. SDD sigue siendo compatible; la dirección es foundation e IDD.
 - **Garantía que protege:** que SDD aplique las tareas igual que hoy.
 - **Hecho cuando:** `sdd-apply` no conserva partes sustanciales de gentle-ai, `NOTICE` pierde la sección de gentle-ai y `metadata.author` de la skill nombra solo al autor del repositorio. Entonces el usuario decide si el README sigue diciendo que ospec se basa en gentle-ai.
+- **Lo que cambió al abrirlo (2026-11-20):** E1.78 midió contra el árbol actual de gentle-ai, que ya había retirado SDD (commit `e219644b2`). Contra todas las versiones de su historial, `sdd-apply/SKILL.md` conservaba el 39 % de sus líneas largas y su módulo `strict-tdd.md` el 81 %, y otras catorce skills y `agents/sdd-orchestrator.agent.md` también conservaban texto suyo: issue-creation el 95 %, sdd-onboard y sdd-explore el 90 %, `strict-tdd-verify.md` el 71 %, sdd-spec, sdd-tasks, sdd-propose y skill-registry entre el 61 % y el 67 %, y branch-pr, sdd-design e `init-details.md` de sdd-init entre el 52 % y el 58 %. `NOTICE` solo listaba `sdd-apply`, así que el «Hecho cuando» de arriba ya no se podía cumplir solo con esta skill.
+- **Respuestas del usuario (2026-11-20, gate `open-facts`, las recomendadas):**
+  - E1.101 reescribe solo `sdd-apply`, y en el mismo cambio corrige la lista de gentle-ai de `NOTICE` y el `metadata.author` de las skills que conservan su texto. La sección de gentle-ai se queda; el resto va a E1.105 y E1.106.
+  - `strict-tdd.md` entra, con su formato de evidencia tal cual.
+  - La herramienta de medida contra todo el historial entra en el repositorio como script de desarrollo, y E1.99 anota que ECC y Caveman pueden tener el mismo fallo.
+- **Lo que salió en el cambio:**
+  - **`sdd-apply`.** `SKILL.md` y `strict-tdd.md` tienen texto propio: de sus 384 líneas largas solo coinciden con gentle-ai el campo `disable-model-invocation: true` y el separador de una tabla. La skill cita las funciones del runtime que deciden (`prepareRemediation`, `captureCandidateSnapshot`, `recordRemediationAttempt`, `resolveRemainingTasks`, `classifyRemediation` y `reduce`, `runRecoverySuccessorRecheck`) en lugar de repetir sus comprobaciones. El módulo de Strict TDD escribe el vocabulario de cada columna de la tabla TDD Cycle Evidence que lee sdd-verify, y los campos del bloque `json:strict-tdd-evidence`. En un refactor que conserva el comportamiento, los tests que ya lo fijan cuentan como tests de aprobación, como ya pedía `strict-tdd-verify.md`.
+  - **Medida.** `scripts/third-party-overlap.js` cuenta las líneas de 30 caracteres o más idénticas a cualquier versión alcanzable desde cualquier ref de un clon, filtrando por extensión (`md`, `mdx` y `txt` por defecto). No corre en CI porque necesita el clon. Contra el código de gentle-ai (Go, JS, shell, YAML), el código de ospec solo coincide en modismos, el 0,9 % de sus líneas largas.
+  - **`NOTICE`.** Nombra a gentle-ai en cada skill o fichero que conserva 10 líneas largas idénticas o más: `_shared`, branch-pr, issue-creation, sdd-archive, sdd-clarify, sdd-design, sdd-explore, sdd-init, sdd-onboard, sdd-propose, sdd-spec, sdd-tasks, sdd-verify, skill-registry y `agents/sdd-orchestrator.agent.md`. Esas skills nombran a sus autores en `metadata.author`, y `scripts/docs-figures.test.js` comprueba ahora también que cada skill que `NOTICE` lista los nombra.
+  - **Pendiente.** La decisión sobre la frase del README pasa a cuando la sección de gentle-ai salga de `NOTICE`, con E1.105 y E1.106.
 
 ### E1.102 — `sink-catalog-xss-crypto`
 
@@ -1699,12 +1713,29 @@ Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparat
 - **Alcance:** las extensiones de plantilla que E1.102 añadió a `PRODUCT_EXT`, también en `UI_FILE`, con su test.
 - **Hecho cuando:** un proyecto cuyo único fichero de interfaz es un `.cshtml`, un `.erb` o un `.jinja` cubre las siete categorías.
 
+### E1.105 — `own-sdd-phase-skills`
+
+- **Origen:** E1.101, al medir contra todo el historial de gentle-ai.
+- **Problema:** conservan texto de gentle-ai sdd-onboard y sdd-explore (90 %), `sdd-verify/strict-tdd-verify.md` (71 %), sdd-spec (67 %), sdd-tasks (65 %), sdd-propose (64 %), sdd-design (56 %), `sdd-init/references/init-details.md` (52 %), `sdd-verify/references/report-format.md` (36 %), sdd-archive (13 %) y sdd-clarify (12,5 %), las referencias de `_shared` (`openspec-convention.md`, `sdd-phase-common.md`, `persistence-contract.md`, `skill-resolver.md`) y `agents/sdd-orchestrator.agent.md` (16 %). Son unas 830 líneas largas.
+- **Alcance:** versiones propias, como en E1.101: el contrato de cada fase se conserva y la skill cita las funciones del runtime que deciden. `strict-tdd-verify.md` sigue leyendo el vocabulario de evidencia que fija `sdd-apply/strict-tdd.md`.
+- **Garantía que protege:** que SDD se comporte igual que hoy, con los tests de contrato de cada fase en verde.
+- **Hecho abierto:** el reparto en cambios, porque son diez skills, las referencias compartidas y el agente.
+- **Hecho cuando:** `scripts/third-party-overlap.js` contra el clon de gentle-ai no da más que literales sin contenido en esos ficheros, y `NOTICE` y `metadata.author` dejan de nombrar a gentle-ai en ellos.
+
+### E1.106 — `own-utility-skills`
+
+- **Origen:** E1.101, con la misma medida.
+- **Problema:** issue-creation (95 %), skill-registry (61 %) y branch-pr (58 %) conservan texto de gentle-ai de antes de que este los reescribiera. E1.98 solo quitó el español fijo de branch-pr.
+- **Alcance:** versiones propias de las tres, desde lo que ospec necesita hoy, con los nombres de siempre.
+- **Hecho cuando:** las tres pasan la medida, y con E1.105 hecho la sección de gentle-ai sale de `NOTICE`. Entonces el usuario decide si el README sigue diciendo que ospec se basa en gentle-ai.
+
 ### E1.99 — `own-stack-skills`
 
 - **Origen:** E1.78, con la misma decisión del usuario que E1.98.
 - **Problema:** stack-angular (99 %), stack-react, stack-springboot, api-design y design-system (95-96 %), stack-python, hexagonal-architecture, stack-kotlin y stack-vite (93-94 %), accessibility (90 %), stack-dotnet (81 %), stack-go (67 %) y stack-java (30 %) conservan el texto de ECC, y caveman-compress el de Caveman (46 %). Las de ECC suman unas 3200 de las cerca de 3600 líneas largas copiadas.
 - **Alcance:** versiones propias, como en E1.98. Con E1.99 y E1.101 hechas, `NOTICE` desaparece; `buildClaudeMarketplace` ya construye sin él.
 - **Hecho abierto:** el orden y el reparto en cambios, porque son 14 skills.
+- **Medida:** E1.78 comparó con la versión actual de ECC y de Caveman, el mismo método que dejó fuera de `NOTICE` catorce skills con texto de gentle-ai (E1.101). Antes de repartir el trabajo, hay que repetir la medida contra su historial con `scripts/third-party-overlap.js`, que necesita un clon de cada obra.
 - **Hecho cuando:** ninguna skill conserva partes sustanciales de ECC ni de Caveman, y el repositorio no necesita `NOTICE`.
 
 ### E1.93 — `reviewers-premium-tier`
