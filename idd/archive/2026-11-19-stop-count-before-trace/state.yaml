@@ -1,0 +1,1018 @@
+{
+  "schema": "idd-state/v1",
+  "change": "stop-count-before-trace",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "las recomendadas",
+    "requested_at": "2026-11-19T01:39:46.713Z",
+    "kind": "bug",
+    "summary": "El Stop vuelve a contar el fin de turno antes de cargar la traza y lo descuenta cuando pide al agente que siga",
+    "acceptance": "Un Stop que el plazo del lanzador corta mientras carga la traza ya ha contado el turno; uno que responde decision block deja el contador como estaba, en Node y en Go; node scripts/check.js pasa"
+  },
+  "facts": {
+    "basis": "Lo fijan dos decisiones ya tomadas: el arreglo de v2.168.9 (copilot-stop-deadline) cuenta antes de la traza para que el plazo de Copilot no deje el turno sin contar, y retract-answer-offer exige que un Stop que bloquea no cuente; contar primero y descontar al bloquear cumple las dos"
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "internal/hooks/export_test.go",
+      "internal/hooks/iddnudge_test.go",
+      "internal/hooks/stop.go",
+      "internal/hooks/stop_test.go",
+      "openspec/specs/hooks/spec.md",
+      "scripts/hooks/stop.js",
+      "scripts/hooks/stop.test.js",
+      "scripts/lib/turn-fence.js",
+      "scripts/lib/turn-fence.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "**Contar primero y descontar al bloquear:** el Stop (Node y Go) cuenta el fin de turno antes de cargar la traza, como desde v2.168.9, y, si responde decision block para que el agente siga, lo descuenta. Un Stop que el plazo corta antes de responder conserva el conteo, porque su host deja terminar el turno.",
+      "Prior decision (memory): Pendiente (j) resuelto: stop.js cuenta antes de cargar la traza y el test de Copilot no reintenta -> idd/archive/2026-11-02-copilot-stop-deadline/change.md: current",
+      "**Sin descuento no hay bloqueo:** si el Stop no puede descontar el turno que contó, responde continue: true, conserva el conteo y lo dice en el systemMessage; nunca pide seguir con el contador un turno por delante.",
+      "**Con el conteo fallido no hay bloqueo:** un conteo que da error puede haber llegado al disco (un fallo después del rename), así que el Stop que lo sufre deja terminar el turno, como pide REQ-hooks-030, en lugar de pedir seguir."
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/stop.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/stop.js imports scripts/lib/atomic-write.js, which uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "El conteo de turnos solo informa la valla y falla abierto: un descuento que no se puede escribir deja un systemMessage y la respuesta del Stop; ningún guard de seguridad cambia"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas en Node ni en Go"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "none",
+      "reason": "No cambia ningún guard"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-14"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-13"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-12"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "base-moved",
+      "status": "resolved",
+      "reason": "Los tres commits de retract-answer-offer, el cambio que este completa, ya están en la rama: la regresión que arregla está en ellos y no en 771ef47a",
+      "from": "771ef47a0cc74993859cf373353e3187277694e9",
+      "to": "7ffb3d614d15bec3aeaa3f5c1ce30b1f1070e0f9",
+      "commits": 3,
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "docs/README.md",
+        "docs/en/README.md",
+        "docs/roadmaps/harness-evolution.md",
+        "handbook/idd/flujo-idd.md",
+        "internal/hooks/iddnudge.go",
+        "internal/hooks/iddnudge_test.go",
+        "internal/hooks/stop.go",
+        "internal/iddsession/catalog.json",
+        "internal/iddsession/iddsession.go",
+        "internal/iddsession/iddsession_test.go",
+        "internal/testdata/idd-nudge/README.md",
+        "internal/testdata/idd-nudge/case.json",
+        "internal/testdata/idd-session/steps/expected/session/latest.md",
+        "internal/testdata/idd-session/steps/expected/session/s-contract/session-summary.md",
+        "internal/testdata/idd-session/steps/expected/session/s-migration/session-summary.md",
+        "internal/testdata/idd-session/steps/expected/session/s-review/session-summary.md",
+        "openspec/specs/hooks/spec.md",
+        "openspec/specs/idd/spec.md",
+        "scripts/hooks/lib/idd-nudge.js",
+        "scripts/hooks/lib/idd-nudge.parity.test.js",
+        "scripts/hooks/lib/idd-nudge.test.js",
+        "scripts/hooks/lib/idd-session.js",
+        "scripts/hooks/stop.js",
+        "scripts/hooks/stop.test.js",
+        "scripts/lib/idd-catalog.js",
+        "scripts/lib/idd-contract.js",
+        "scripts/lib/idd-contract.test.js",
+        "scripts/lib/idd-next.js",
+        "scripts/lib/idd-next.test.js",
+        "scripts/lib/idd-record.js",
+        "scripts/lib/idd-record.test.js",
+        "scripts/lib/idd-store.js",
+        "scripts/lib/idd-store.test.js",
+        "scripts/lib/turn-fence.js",
+        "scripts/lib/turn-fence.test.js",
+        "scripts/ospec.close.test.js",
+        "scripts/ospec.js",
+        "scripts/ospec.lifecycle.test.js",
+        "skills/idd/references/approvals.md"
+      ],
+      "archived": [
+        "2026-11-19-retract-answer-offer"
+      ],
+      "opened_turn": 574,
+      "answer": "ok, lo que veas mejor para que ospec-workflow quede perfecto",
+      "source": "user",
+      "resolved_at": "2026-11-19T01:51:30.334Z",
+      "resolved_turn": 575
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-19T01:51:33.575Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-4",
+        "counterproof": [
+          "run-5",
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-19T01:53:26.694Z",
+      "detail": {
+        "tree": "sha256:a5f7786884f49dc37c2ebd06f755e032088cf02ad774bb41203e909e6eeb5e37",
+        "runs": [
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-19T01:53:26.694Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed none"
+        ],
+        "records": [],
+        "tree": "sha256:a5f7786884f49dc37c2ebd06f755e032088cf02ad774bb41203e909e6eeb5e37",
+        "fitness": [
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-19T01:53:54.401Z",
+      "detail": {
+        "run": "run-12",
+        "tree": "sha256:fc4ab03657cb8fdb79e48ea658c27f6612e8d97874899ad027e932e5012449f1",
+        "plan": "El formato de .ospec/turns no cambia: un número decimal y un salto de línea, que un contador escrito antes conserva y el CLI lee igual. El Stop que bloquea deja el contador como estaba antes de él: lo descuenta, nunca por debajo de 0, y deja como está uno que no se puede leer. Node y Go dan los mismos contadores en el caso compartido. Vuelta atrás: la versión anterior vuelve a contar el Stop que bloquea; ningún contador se reescribe."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-19T01:57:09.693Z",
+      "detail": {
+        "lineage_id": "sha256:65f5a69557571b77f462b0f3dd4e5f55b22975536196c29e5f2df322b29e6bf7",
+        "candidate_id": "sha256:dc502bb5e43883ff4a39ff4ca67bf7f242a8382066b14e62c0e3f82f1275536b",
+        "candidate_tree": "7ba1fb5dfb2db6b940e34fe90cdafc1e51893f09",
+        "findings_digest": "sha256:1561827eb56ed8e482b938cfcf676d6af3162cb7dbb6fb7d755ee4937db9c868",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-19T01:56:49.869Z",
+          "result_digest": "sha256:fea7577d21ed60bf3b2eb20c7aa43301652972efb6a8848d8c179496106e407a"
+        }
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-19T02:00:22.292Z",
+      "detail": {
+        "tree": "sha256:92df61d90cad7875a5ea05551f369a2a3e1c40f1d6476b69e0106a9507ec3148",
+        "runs": [
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-19T02:00:22.292Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed none"
+        ],
+        "records": [],
+        "tree": "sha256:92df61d90cad7875a5ea05551f369a2a3e1c40f1d6476b69e0106a9507ec3148",
+        "fitness": [
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-19T02:00:34.628Z",
+      "detail": {
+        "run": "run-18",
+        "tree": "sha256:d4f5d874d74d8e206892ef39656d32d414e71ca5f97be11e5fa1267b538cbfe1",
+        "plan": "El formato de .ospec/turns no cambia: un número decimal y un salto de línea, que un contador escrito antes conserva y el CLI lee igual. El Stop que bloquea deja el contador como estaba antes de él: lo descuenta, nunca por debajo de 0, y deja como está uno que no se puede leer; si no puede descontarlo, no bloquea y el turno queda contado. Node y Go dan los mismos contadores en el caso compartido. Vuelta atrás: la versión anterior vuelve a contar el Stop que bloquea; ningún contador se reescribe."
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-19T02:05:36.573Z",
+      "detail": {
+        "lineage_id": "sha256:8e01b20059b7fea9ab1dae94f433d9df011d646eb16db4bbafe86c0053b96456",
+        "candidate_id": "sha256:b1f768676ae8f72a6569fac9d9a2170d3aed59c429a9c01b4e60cacd4b4e154d",
+        "candidate_tree": "6be0ba8ef529900e17bce59ad5099f9996a735c3",
+        "findings_digest": "sha256:919cde9ed6e5fb3a2834e4a1afacaee59562cdbb4c4fd153e749607741a146f0",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-19T02:05:03.404Z",
+          "result_digest": "sha256:00a2c066520e99f68048751b395d155789bb21d6891cc7e1e58fc360b5014782"
+        }
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-19T02:08:26.286Z",
+      "detail": {
+        "tree": "sha256:22aa48cf53ef5deab01d6311e69ccd69dc47c72b9d194f1dafa242881f6af1b3",
+        "runs": [
+          "run-19"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-19T02:08:26.286Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed none"
+        ],
+        "records": [],
+        "tree": "sha256:22aa48cf53ef5deab01d6311e69ccd69dc47c72b9d194f1dafa242881f6af1b3",
+        "fitness": [
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23"
+        ]
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-19T02:08:40.288Z",
+      "detail": {
+        "run": "run-24",
+        "tree": "sha256:0ece64dc5d7d7d99274d84ac1ffd43fa572d2c3137fa1a3d18eb587fad4a3d26",
+        "plan": "El formato de .ospec/turns no cambia: un número decimal y un salto de línea, que un contador escrito antes conserva y el CLI lee igual. El Stop que bloquea deja el contador como estaba antes de él: lo descuenta, nunca por debajo de 0, y deja como está uno que no se puede leer; si el conteo o el descuento fallan, no bloquea y el turno queda contado. Node y Go dan los mismos contadores en el caso compartido. Vuelta atrás: la versión anterior vuelve a contar el Stop que bloquea; ningún contador se reescribe."
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-19T02:11:01.184Z",
+      "detail": {
+        "lineage_id": "sha256:8e01b20059b7fea9ab1dae94f433d9df011d646eb16db4bbafe86c0053b96456",
+        "candidate_id": "sha256:b1f768676ae8f72a6569fac9d9a2170d3aed59c429a9c01b4e60cacd4b4e154d",
+        "candidate_tree": "ee47416edd8380bceb4c7596105212f58c22f320",
+        "findings_digest": "sha256:919cde9ed6e5fb3a2834e4a1afacaee59562cdbb4c4fd153e749607741a146f0",
+        "correction": "advisory",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-correction",
+          "recorded_at": "2026-11-19T02:10:39.426Z",
+          "result_digest": "sha256:442736c55cb3414277c6fe07ed2a8991198419a288f97c990288d933f8d679fd"
+        }
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-19T02:11:09.545Z"
+    }
+  ],
+  "base": "7ffb3d614d15bec3aeaa3f5c1ce30b1f1070e0f9",
+  "base_moves": [
+    {
+      "from": "771ef47a0cc74993859cf373353e3187277694e9",
+      "to": "7ffb3d614d15bec3aeaa3f5c1ce30b1f1070e0f9",
+      "reason": "Los tres commits de retract-answer-offer, el cambio que este completa, ya están en la rama: la regresión que arregla está en ellos y no en 771ef47a",
+      "moved_at": "2026-11-19T01:51:30.334Z"
+    }
+  ],
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern \"stopped by the deadline\" scripts/hooks/stop.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:6aa001cec2ce71ea4dec95e145cdd1d1a1e557d56b3a6be8c1cc114a094d3162",
+      "tree": "sha256:c301b4bd391e04c190d41a7c638c469275160db7b0948b0b956ab630435168e1",
+      "recorded_at": "2026-11-19T01:40:15.639Z",
+      "tests": 1
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern \"stopped by the deadline\" scripts/hooks/stop.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f97143009c5cdd2ad7ec23fd922383b604e19a7cbc35e24e782e339f04012706",
+      "tree": "sha256:ec8f0d83ea7b3254d6df827be111419688880746ff2657001c4166c2964ce518",
+      "recorded_at": "2026-11-19T01:41:23.496Z",
+      "tests": 1,
+      "counterproof": [
+        "run-3"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "771ef47a0cc74993859cf373353e3187277694e9",
+      "mount": "sha256:47c28e288532a1f7a3051dcf7c14ddbdfc598381bfcb22827d2e2dd14a8e50b9",
+      "command": "node --test --test-name-pattern \"stopped by the deadline\" scripts/hooks/stop.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:62f055d438b4c5174edeb4b84bde12db3994929c4b07fb126fabdfb6363789f5",
+      "tree": "sha256:ec8f0d83ea7b3254d6df827be111419688880746ff2657001c4166c2964ce518",
+      "recorded_at": "2026-11-19T01:41:23.496Z",
+      "tests": 1
+    },
+    {
+      "id": "run-4",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern \"stopped by the deadline\" scripts/hooks/stop.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7a42b1ff3a89defb543160e01b64ff2def97b5de68311b90afa586eb227ce0a4",
+      "tree": "sha256:fc4ab03657cb8fdb79e48ea658c27f6612e8d97874899ad027e932e5012449f1",
+      "recorded_at": "2026-11-19T01:51:33.575Z",
+      "tests": 1,
+      "counterproof": [
+        "run-5",
+        "run-6"
+      ]
+    },
+    {
+      "id": "run-5",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "7ffb3d614d15bec3aeaa3f5c1ce30b1f1070e0f9",
+      "mount": "sha256:fe4c0c8a38fd51d9af3532f8f473e9968d830a1ce2bdeac54a6a6a0c41ef46fb",
+      "command": "node --test --test-name-pattern \"stopped by the deadline\" scripts/hooks/stop.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:8d89c02e7cae7f45db7cc41e680f814f17540801af18eafcf9c2c0d382b22ee8",
+      "tree": "sha256:fc4ab03657cb8fdb79e48ea658c27f6612e8d97874899ad027e932e5012449f1",
+      "recorded_at": "2026-11-19T01:51:33.575Z",
+      "tests": 1
+    },
+    {
+      "id": "run-6",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "7ffb3d614d15bec3aeaa3f5c1ce30b1f1070e0f9",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern \"stopped by the deadline\" scripts/hooks/stop.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b63e5166c3eb767681c61baa720a5b6827b1138943cacb7763c3f2814cab6afb",
+      "tree": "sha256:fc4ab03657cb8fdb79e48ea658c27f6612e8d97874899ad027e932e5012449f1",
+      "recorded_at": "2026-11-19T01:51:33.575Z",
+      "tests": 1
+    },
+    {
+      "id": "run-7",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cc5dbbc7a62d17bf7cdde88d1df3639edc38903a1aba95cf0a95c38ea4ba81a6",
+      "tree": "sha256:a5f7786884f49dc37c2ebd06f755e032088cf02ad774bb41203e909e6eeb5e37",
+      "recorded_at": "2026-11-19T01:53:26.694Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2add6b072c135885eb2fa9bc0ba6da71b386067a686d916e735ddf5deca94a27",
+      "tree": "sha256:a5f7786884f49dc37c2ebd06f755e032088cf02ad774bb41203e909e6eeb5e37",
+      "recorded_at": "2026-11-19T01:53:26.694Z",
+      "tests": 103
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:a5f7786884f49dc37c2ebd06f755e032088cf02ad774bb41203e909e6eeb5e37",
+      "recorded_at": "2026-11-19T01:53:26.694Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5864cdc608d1fdcf2a81c33f87dae9e94e6b82b4cb177374a2ca068059620ac4",
+      "tree": "sha256:a5f7786884f49dc37c2ebd06f755e032088cf02ad774bb41203e909e6eeb5e37",
+      "recorded_at": "2026-11-19T01:53:26.694Z",
+      "tests": 26
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:942f2a6311bf76a0f83bd04356f77b046506d51374486f55a834f4ffe2bddac5",
+      "tree": "sha256:a5f7786884f49dc37c2ebd06f755e032088cf02ad774bb41203e909e6eeb5e37",
+      "recorded_at": "2026-11-19T01:53:26.694Z",
+      "tests": 103
+    },
+    {
+      "id": "run-12",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/turn-fence.test.js scripts/hooks/lib/idd-nudge.parity.test.js && go test ./internal/hooks/ -run 'TestIddNudgeShared|TestStop'",
+      "exit_code": 0,
+      "output_sha256": "sha256:8949a2e7962bac36c09508b1bdd25a6b032fdc8d93657cc2c200ac5233b1188c",
+      "tree": "sha256:fc4ab03657cb8fdb79e48ea658c27f6612e8d97874899ad027e932e5012449f1",
+      "recorded_at": "2026-11-19T01:53:54.401Z",
+      "tests": 20
+    },
+    {
+      "id": "run-13",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bb2541de4a834f5e649f05061fd6245aed5d279b687bcc32d7b275b4049f15fa",
+      "tree": "sha256:92df61d90cad7875a5ea05551f369a2a3e1c40f1d6476b69e0106a9507ec3148",
+      "recorded_at": "2026-11-19T02:00:22.292Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:40853291b7a49ef7ba8a4fcafb7b3d919e14712e56d2f869c6c247b19b8c6e8a",
+      "tree": "sha256:92df61d90cad7875a5ea05551f369a2a3e1c40f1d6476b69e0106a9507ec3148",
+      "recorded_at": "2026-11-19T02:00:22.292Z",
+      "tests": 103
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:92df61d90cad7875a5ea05551f369a2a3e1c40f1d6476b69e0106a9507ec3148",
+      "recorded_at": "2026-11-19T02:00:22.292Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a72e783fcf6eaecb3a7d5d2e30796ebe215af601ff9b48d387ac6f2bb6ee0cab",
+      "tree": "sha256:92df61d90cad7875a5ea05551f369a2a3e1c40f1d6476b69e0106a9507ec3148",
+      "recorded_at": "2026-11-19T02:00:22.292Z",
+      "tests": 26
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ee04d8f82fabaa1d6d6bf305cef7eca170d8d03db78c831e5056ac4c8a7ce7c1",
+      "tree": "sha256:92df61d90cad7875a5ea05551f369a2a3e1c40f1d6476b69e0106a9507ec3148",
+      "recorded_at": "2026-11-19T02:00:22.292Z",
+      "tests": 103
+    },
+    {
+      "id": "run-18",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/turn-fence.test.js scripts/hooks/lib/idd-nudge.parity.test.js && go test ./internal/hooks/ -run 'TestIddNudge|TestStop'",
+      "exit_code": 0,
+      "output_sha256": "sha256:46fe78f796eaf6a1f5a9ce6581ff365f3668c753b8ee77001069dacf8ff6afe5",
+      "tree": "sha256:d4f5d874d74d8e206892ef39656d32d414e71ca5f97be11e5fa1267b538cbfe1",
+      "recorded_at": "2026-11-19T02:00:34.628Z",
+      "tests": 20
+    },
+    {
+      "id": "run-19",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:aedcb00a3705a249c0028be41dead64c68ac3693765737e3a4a42090014a5dee",
+      "tree": "sha256:22aa48cf53ef5deab01d6311e69ccd69dc47c72b9d194f1dafa242881f6af1b3",
+      "recorded_at": "2026-11-19T02:08:26.286Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e0c2dc650f57f807aced7f10e0a51a20710a09315f1e776ede1f0c9afe258994",
+      "tree": "sha256:22aa48cf53ef5deab01d6311e69ccd69dc47c72b9d194f1dafa242881f6af1b3",
+      "recorded_at": "2026-11-19T02:08:26.286Z",
+      "tests": 103
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:22aa48cf53ef5deab01d6311e69ccd69dc47c72b9d194f1dafa242881f6af1b3",
+      "recorded_at": "2026-11-19T02:08:26.286Z"
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3ff3efd6275095f2130c8f20c6d0e1f4242cb29b6acc97c1536c63a840e2f437",
+      "tree": "sha256:22aa48cf53ef5deab01d6311e69ccd69dc47c72b9d194f1dafa242881f6af1b3",
+      "recorded_at": "2026-11-19T02:08:26.286Z",
+      "tests": 26
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6ee847acbbaf8ed1242b9eed67422cd73ebbf52c1bb1090c25725a76e630bc5c",
+      "tree": "sha256:22aa48cf53ef5deab01d6311e69ccd69dc47c72b9d194f1dafa242881f6af1b3",
+      "recorded_at": "2026-11-19T02:08:26.286Z",
+      "tests": 103
+    },
+    {
+      "id": "run-24",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/turn-fence.test.js scripts/hooks/lib/idd-nudge.parity.test.js && go test ./internal/hooks/ -run 'TestIddNudge|TestStop'",
+      "exit_code": 0,
+      "output_sha256": "sha256:6a6c0c68e2904f43f3b744701b805df72bf3026ee413c12d35e53bf439bc3855",
+      "tree": "sha256:0ece64dc5d7d7d99274d84ac1ffd43fa572d2c3137fa1a3d18eb587fad4a3d26",
+      "recorded_at": "2026-11-19T02:08:40.288Z",
+      "tests": 20
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:65f5a69557571b77f462b0f3dd4e5f55b22975536196c29e5f2df322b29e6bf7",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "1a9aeb12fac5718ff45eda86abd42abb45366819",
+          "candidate_tree": "7ba1fb5dfb2db6b940e34fe90cdafc1e51893f09",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "internal/hooks/stop.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/stop.js",
+            "scripts/hooks/stop.test.js",
+            "scripts/lib/turn-fence.js",
+            "scripts/lib/turn-fence.test.js"
+          ],
+          "diff_hash": "sha256:4cda13af33ba49421dd9c62cb715caaebbda79bf4b4e30f24c07a2622dccdf37",
+          "paths_digest": "sha256:fb7190c1d8a7ff34105407cb80b1a9ebb07baf4e690eaa444d2bbc874a1444b6",
+          "authored_lines": 104,
+          "original_changed_lines": 130
+        },
+        "candidate_id": "sha256:dc502bb5e43883ff4a39ff4ca67bf7f242a8382066b14e62c0e3f82f1275536b",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "internal/hooks/stop.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "7ba1fb5dfb2db6b940e34fe90cdafc1e51893f09",
+        "original_changed_lines": 130,
+        "authored_lines": 104
+      },
+      "current_candidate_id": "sha256:dc502bb5e43883ff4a39ff4ca67bf7f242a8382066b14e62c0e3f82f1275536b",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "1a9aeb12fac5718ff45eda86abd42abb45366819",
+        "candidate_tree": "7ba1fb5dfb2db6b940e34fe90cdafc1e51893f09",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "internal/hooks/stop.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js"
+        ],
+        "diff_hash": "sha256:4cda13af33ba49421dd9c62cb715caaebbda79bf4b4e30f24c07a2622dccdf37",
+        "paths_digest": "sha256:fb7190c1d8a7ff34105407cb80b1a9ebb07baf4e690eaa444d2bbc874a1444b6",
+        "authored_lines": 104,
+        "original_changed_lines": 130
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "stop-count-before-trace:lens-start:1:0",
+          "result_digest": "sha256:58d4ea5ab701c0016c5c5f7aee88059434b42c6a4e3527bb4c8ccf5adb286319",
+          "result": {
+            "findings": [
+              {
+                "severity": "SUGGESTION",
+                "summary": "scripts/hooks/stop.js:331 and internal/hooks/stop.go:72-77: the Stop counts the turn end first. When it then cannot take that count back, it still answers decision: block. Triggers include a Windows rename refused beyond the 1.27 s of retries (atomic-write.js:16-18, 90-99), ENOSPC or EIO. The only trace is a systemMessage. The agent continues with .ospec/turns one turn higher than any turn that really ended. In that continuation, a `record retract --answer --source user` of a signal recorded at the earlier turn passes the fence as verified `user` (turn-fence.js:193) and withdraws a security-boundary obligation with no user turn, which is the case stop.test.js:389-404 guards against. At HEAD a blocking Stop never wrote the count, so this fail-open path is new in this diff.",
+                "acceptance_criteria": "In both Node and Go, when the Stop decides to ask the agent to continue but taking back the counted turn end fails, the answer and .ospec/turns agree. Either the Stop answers continue: true and keeps the count, or it answers decision: block with the count restored. It never answers decision: block while .ospec/turns is one above its value before the Stop. The systemMessage still names the failure. A test that makes the take-back fail asserts this pairing.",
+                "location": "scripts/hooks/stop.js:331"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "stop-count-before-trace:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-db100d58e28557a0",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "scripts/hooks/stop.js:331 and internal/hooks/stop.go:72-77: the Stop counts the turn end first. When it then cannot take that count back, it still answers decision: block. Triggers include a Windows rename refused beyond the 1.27 s of retries (atomic-write.js:16-18, 90-99), ENOSPC or EIO. The only trace is a systemMessage. The agent continues with .ospec/turns one turn higher than any turn that really ended. In that continuation, a `record retract --answer --source user` of a signal recorded at the earlier turn passes the fence as verified `user` (turn-fence.js:193) and withdraws a security-boundary obligation with no user turn, which is the case stop.test.js:389-404 guards against. At HEAD a blocking Stop never wrote the count, so this fail-open path is new in this diff.",
+          "acceptance_criteria": "In both Node and Go, when the Stop decides to ask the agent to continue but taking back the counted turn end fails, the answer and .ospec/turns agree. Either the Stop answers continue: true and keeps the count, or it answers decision: block with the count restored. It never answers decision: block while .ospec/turns is one above its value before the Stop. The systemMessage still names the failure. A test that makes the take-back fail asserts this pairing.",
+          "location": "scripts/hooks/stop.js:331",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:1561827eb56ed8e482b938cfcf676d6af3162cb7dbb6fb7d755ee4937db9c868",
+      "correction_budget": {
+        "limit_lines": 65,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:8e01b20059b7fea9ab1dae94f433d9df011d646eb16db4bbafe86c0053b96456",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:65f5a69557571b77f462b0f3dd4e5f55b22975536196c29e5f2df322b29e6bf7",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "1a9aeb12fac5718ff45eda86abd42abb45366819",
+          "candidate_tree": "6be0ba8ef529900e17bce59ad5099f9996a735c3",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "internal/hooks/export_test.go",
+            "internal/hooks/iddnudge_test.go",
+            "internal/hooks/stop.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/stop.js",
+            "scripts/hooks/stop.test.js",
+            "scripts/lib/turn-fence.js",
+            "scripts/lib/turn-fence.test.js"
+          ],
+          "diff_hash": "sha256:bb43a42de53aae394fc692917c59c0778e3a61f38be17286d5bd51adb1406d6b",
+          "paths_digest": "sha256:0c8f582ab4ee882d5383f1ab9aa1360d84029c4cd404ec45ad7e09e6dcabf105",
+          "authored_lines": 166,
+          "original_changed_lines": 192
+        },
+        "candidate_id": "sha256:b1f768676ae8f72a6569fac9d9a2170d3aed59c429a9c01b4e60cacd4b4e154d",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "internal/hooks/export_test.go",
+          "internal/hooks/iddnudge_test.go",
+          "internal/hooks/stop.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "6be0ba8ef529900e17bce59ad5099f9996a735c3",
+        "original_changed_lines": 192,
+        "authored_lines": 166
+      },
+      "current_candidate_id": "sha256:b1f768676ae8f72a6569fac9d9a2170d3aed59c429a9c01b4e60cacd4b4e154d",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "1a9aeb12fac5718ff45eda86abd42abb45366819",
+        "candidate_tree": "6be0ba8ef529900e17bce59ad5099f9996a735c3",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "internal/hooks/export_test.go",
+          "internal/hooks/iddnudge_test.go",
+          "internal/hooks/stop.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js"
+        ],
+        "diff_hash": "sha256:bb43a42de53aae394fc692917c59c0778e3a61f38be17286d5bd51adb1406d6b",
+        "paths_digest": "sha256:0c8f582ab4ee882d5383f1ab9aa1360d84029c4cd404ec45ad7e09e6dcabf105",
+        "authored_lines": 166,
+        "original_changed_lines": 192
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "stop-count-before-trace:lens-start:2:0",
+          "result_digest": "sha256:d9383f3a459e0348ae7283dd9eb475a3f8111b9198b24efb52f377e7cd1c4d66",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/hooks/stop.js:331 and internal/hooks/stop.go:72 take back the turn end only when the count reported no error. Both atomic writers can still report an error after the new count has landed: scripts/lib/atomic-write.js:128-137 and internal/store/store.go:589-595 rename it over .ospec/turns, then throw if the directory sync fails. Suppose that error is transient (the nudge record's later sync of .ospec succeeds) and an IDD nudge is pending. The Stop then answers decision block with .ospec/turns one ahead. A --source user gate answer or record retract --answer that the agent records in that continuation passes the fence as user, not user-unverified, and can withdraw security-boundary. This breaks the change's decision 'never ask to continue with the count one turn ahead' and REQ-hooks-030 (spec.md:1921: a count that cannot be written gives continue: true). stop.test.js:447 pins a block on a count failure.",
+                "acceptance_criteria": "In both the Node hook and the native binary, a Stop with an IDD nudge pending whose count reports an error never answers decision block while .ospec/turns holds more than its value before the Stop. It either answers continue: true with the 'Stop hook could not count the turn end:' systemMessage, or restores the pre-Stop count before blocking. One test per runtime injects an error after the count's rename (for example in its directory sync) with a nudge pending and checks both the answer and the count. node scripts/check.js passes.",
+                "location": "scripts/hooks/stop.js:331"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "stop-count-before-trace:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-b674fdf24b0998be",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/hooks/stop.js:331 and internal/hooks/stop.go:72 take back the turn end only when the count reported no error. Both atomic writers can still report an error after the new count has landed: scripts/lib/atomic-write.js:128-137 and internal/store/store.go:589-595 rename it over .ospec/turns, then throw if the directory sync fails. Suppose that error is transient (the nudge record's later sync of .ospec succeeds) and an IDD nudge is pending. The Stop then answers decision block with .ospec/turns one ahead. A --source user gate answer or record retract --answer that the agent records in that continuation passes the fence as user, not user-unverified, and can withdraw security-boundary. This breaks the change's decision 'never ask to continue with the count one turn ahead' and REQ-hooks-030 (spec.md:1921: a count that cannot be written gives continue: true). stop.test.js:447 pins a block on a count failure.",
+          "acceptance_criteria": "In both the Node hook and the native binary, a Stop with an IDD nudge pending whose count reports an error never answers decision block while .ospec/turns holds more than its value before the Stop. It either answers continue: true with the 'Stop hook could not count the turn end:' systemMessage, or restores the pre-Stop count before blocking. One test per runtime injects an error after the count's rename (for example in its directory sync) with a nudge pending and checks both the answer and the count. node scripts/check.js passes.",
+          "location": "scripts/hooks/stop.js:331",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:919cde9ed6e5fb3a2834e4a1afacaee59562cdbb4c4fd153e749607741a146f0",
+      "correction_budget": {
+        "limit_lines": 96,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "advisory_corrections": [
+    {
+      "lineage_id": "sha256:8e01b20059b7fea9ab1dae94f433d9df011d646eb16db4bbafe86c0053b96456",
+      "status": "passed",
+      "finding_ids": [
+        "F-b674fdf24b0998be"
+      ],
+      "paths": [
+        "internal/hooks/export_test.go",
+        "internal/hooks/iddnudge_test.go",
+        "internal/hooks/stop.go",
+        "openspec/specs/hooks/spec.md",
+        "scripts/hooks/stop.js",
+        "scripts/hooks/stop.test.js"
+      ],
+      "changed_lines": 93,
+      "candidate_tree": "ee47416edd8380bceb4c7596105212f58c22f320",
+      "diff_hash": "sha256:d75800772ae5686adc6dcf62e79b59815f8eaa594373396328474f74d8595331",
+      "recorded_at": "2026-11-19T02:08:40.456Z",
+      "validation": {
+        "recorded_at": "2026-11-19T02:11:01.184Z",
+        "outcomes": [
+          {
+            "id": "F-b674fdf24b0998be",
+            "status": "resolved"
+          }
+        ],
+        "regression": {
+          "detected": false,
+          "evidence": [
+            "Node: stop.js:331-336 skips uncountTurn when the count reported an error and keeps only the nudge warning, so stopOutput answers continue: true with 'Stop hook could not count the turn end:'. The check is failure === null, so any count error drops the block, including one thrown after the rename.",
+            "Go: stop.go:75-76 clears reason when counted != nil, so stopAnswer answers continue: true with the count failure from stop.go:63. A failed uncount still clears reason (stop.go:78-80). Neither runtime can block while .ospec/turns is one ahead.",
+            "Node test stop.test.js:414-434 preloads a patched node:fs/promises rename. It renames turns for real, then throws EIO. atomic-write.js:93,127-134 calls fs.rename on that same module object and rethrows. The test pins exactly {continue:true, systemMessage:'Stop hook could not count the turn end: sync refused'} and turns '1\\n'.",
+            "Go test iddnudge_test.go:185-203 wraps the real countTurnEnd (export_test.go:30), then returns 'sync refused'. It checks continue true, no decision, the exact systemMessage, and turns '1\\n'. With the same setup, the control tests (stop.test.js:438-458, iddnudge_test.go:207-220) reach uncount, which shows a nudge was pending.",
+            "The normal path is unchanged: when the count succeeds, the Stop still uncounts and blocks (stop.js:335, stop.go:77-81). stop.test.js:400-401 still pins decision block with turns '1\\n'. The old block on a count failure at stop.test.js:447 is gone; the line now belongs to the refused-uncount test, which expects continue: true. spec.md:1921,1926 now state the rule.",
+            "Not executed: I ran neither node scripts/check.js nor go test, and the request supplied no run results. The verdict rests on reading the code and the test assertions."
+          ]
+        },
+        "follow_ups": [
+          {
+            "owner": "runtime",
+            "summary": "stopNudge (scripts/hooks/lib/idd-nudge.js:242-245, and its Go port) marks the pending changes as asked before the Stop decides. When a count or uncount failure then drops the block, those changes stay marked as asked for that fingerprint, so a later Stop on the same tree never asks to continue. A successor could decide whether a dropped nudge should stay unrecorded."
+          }
+        ]
+      }
+    }
+  ],
+  "assumptions": [
+    "Entre el conteo y el descuento de un Stop que bloquea pasan como mucho unos segundos; si otra sesión del mismo espacio de trabajo abre un gate o registra una señal en esa ventana, su turno puede quedar uno por encima. Se acepta como la carrera sin lock que ya tiene el conteo"
+  ],
+  "completes": "retract-answer-offer",
+  "closed_at": "2026-11-19T02:11:09.545Z"
+}
