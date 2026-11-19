@@ -3,15 +3,19 @@ Copyright (c) 2026 Manuel Michael Retamozo García
 Licensed under the MIT License with the Commons Clause condition; see LICENSE.
 
 This product includes text from the third-party works below, each used under
-the MIT License. The skills listed under each work keep substantial portions
-of its text. ospec-workflow changed them, and its own changes are licensed
-under LICENSE. Each work's copyright notice and the MIT License permission
-notice, which applies to the three of them, follow.
+the MIT License. The skills and files listed under each work keep text from it,
+measured against every version in that work's history. ospec-workflow changed
+them, and its own changes are licensed under LICENSE. Each work's copyright
+notice and the MIT License permission notice, which applies to the three of
+them, follow.
 
 1. gentle-ai
    https://github.com/Gentleman-Programming/gentle-ai
    Copyright (c) 2025 Gentleman Programming
-   Skills: sdd-apply.
+   Skills: _shared, branch-pr, issue-creation, sdd-archive, sdd-clarify,
+   sdd-design, sdd-explore, sdd-init, sdd-onboard, sdd-propose, sdd-spec,
+   sdd-tasks, sdd-verify and skill-registry.
+   Files: agents/sdd-orchestrator.agent.md.
 
 2. ECC (Everything Claude Code)
    https://github.com/affaan-m/ECC

@@ -5,7 +5,7 @@ disable-model-invocation: true
 user-invocable: false
 license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "gentleman-programming, manuel-retamozo-garcia"
   version: "2.0"
   delegate_only: true
 runtime_capabilities:

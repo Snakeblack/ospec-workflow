@@ -147,14 +147,27 @@ test("every skill declares the repository license", () => {
 
 // A skill that keeps third-party text names its authors or its origin, and
 // NOTICE keeps that work's copyright notice: both lists move together.
+function namesThirdParty(front) {
+  const authors = (field(front, /^ {2}author:(.*)$/m) || "").split(",").map((name) => name.trim()).filter(Boolean);
+  return authors.some((name) => name !== OWN_AUTHOR) || field(front, /^ {2}origin:(.*)$/m) !== null;
+}
+
 test("every skill that names a third-party author or origin is listed in NOTICE", () => {
   const notice = fs.readFileSync(path.join(ROOT, "NOTICE"), "utf8");
   const missing = skillFrontmatters()
-    .filter(({ front }) => {
-      const authors = (field(front, /^ {2}author:(.*)$/m) || "").split(",").map((name) => name.trim()).filter(Boolean);
-      return authors.some((name) => name !== OWN_AUTHOR) || field(front, /^ {2}origin:(.*)$/m) !== null;
-    })
+    .filter(({ front }) => namesThirdParty(front))
     .map(({ name }) => name)
     .filter((name) => !new RegExp(`(^|[\\s,(])${name}([\\s,.(]|$)`, "m").test(notice));
   assert.deepEqual(missing, []);
+});
+
+test("every skill NOTICE lists under a work still names that work's authors or origin", () => {
+  const notice = fs.readFileSync(path.join(ROOT, "NOTICE"), "utf8");
+  const listed = [...notice.matchAll(/^ {3}Skills:([^.]*)\./gm)].flatMap((entry) =>
+    entry[1].split(/,|\sand\s/).map((name) => name.trim()).filter(Boolean),
+  );
+  assert.ok(listed.length > 0, "NOTICE lists no skill under any work");
+  const fronts = new Map(skillFrontmatters().map(({ name, front }) => [name, front]));
+  const stale = listed.filter((name) => !fronts.has(name) || !namesThirdParty(fronts.get(name)));
+  assert.deepEqual(stale, []);
 });

@@ -3,7 +3,7 @@ name: skill-registry
 description: "Create or update the project skill registry. Trigger: update skills, skill registry, actualizar skills, or after skill changes."
 license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "gentleman-programming, manuel-retamozo-garcia"
   version: "1.0"
 ---
 
