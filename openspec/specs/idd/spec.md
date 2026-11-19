@@ -3034,9 +3034,14 @@ There MUST be one record per top-level bullet of the `Decisions` section of
 one per declared impact that departs from its reference, `amends`,
 `supersedes` or `contradicts` (`kind: impact`, topic
 `knowledge/impact/<change>/<kind>-<id>`) and one per new ADR an impact attaches
-with `--record` (`kind: adr`, topic `knowledge/adr/<NNNN>`). An impact `none`
-or `conforms` MUST NOT be a record: the archived `state.yaml` keeps it. Each
-record MUST
+with `--record` (`kind: adr`, topic `knowledge/adr/<NNNN>`). A bullet MUST
+end where Markdown ends a list item: its indented lines and the non-blank
+lines right below it go on with it, while a heading, a thematic break or a
+code fence end it, and so does a line without indentation after a blank line.
+The lines of a fenced code block MUST NOT be a record nor part of one, and the
+bullets under a subheading of `Decisions` MUST count as its own. An impact
+`none` or `conforms` MUST NOT be a record: the archived `state.yaml` keeps it.
+Each record MUST
 carry its `title` (the bold label of the bullet, else its first sentence, at
 most 80 characters), its `summary`, its provenance (`source`, the repository
 path it comes from, `change` and the close `date`) and its stable `topic`, so
@@ -3069,6 +3074,18 @@ or not an agent keeps its records (ADR 0006).
 - AND `ospec close` without `--json` MUST print
   `- knowledge/dc/<change>/1 | Hourly rotation` and
   `ospec close --change <change> --json`
+
+#### Scenario: A decision ends where its list item ends
+
+- GIVEN a `Decisions` section whose bullet `- Pages round up.` is followed by
+  `### Follow-ups`, the line `Measure the last page.` and the bullet
+  `- Empty lists have zero pages.`
+- WHEN the change closes
+- THEN `records` MUST hold two `dc` records whose summaries are
+  `Pages round up.` and `Empty lists have zero pages.`
+- AND a paragraph without indentation after a blank line, a thematic break or
+  a code fence MUST NOT join the bullet above it, and a bullet inside a code
+  fence MUST NOT be a record
 
 #### Scenario: Only impacts that say something are records
 
