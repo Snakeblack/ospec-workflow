@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.185.1] - 2026-11-19
+
 ### Fixed
-- ospec next y los hooks ofrecen retirar con la respuesta del usuario la señal por contenido que esa respuesta admite, en vez de empujar solo a su obligación (retract-answer-offer)
+- **La retirada con la respuesta del usuario, ofrecida donde se necesita** (retract-answer-offer, con su seguimiento stop-count-before-trace).
+  - **`ospec next` la ofrece**: cuando la obligación que sigue viene de `persistent-data`, `public-contract` o `security-boundary` y `record retract` aceptaría la respuesta del usuario, `next` y el `next` de cada comando que escribe la ofrecen junto a la obligación, que sigue siendo el paso. `next_step.retract` trae lo que el usuario confirma, los hits que cubre la respuesta y el comando. El texto imprime cada hit en una línea `answer covers:`. Si la respuesta no aplica (una ruta deriva la señal, un documento de contrato) o git no puede leer el diff, no se ofrece nada. Antes, la retirada solo aparecía en la negativa de `record retract`, y `next` empujaba a un test de migración o a una revisión que no probaban nada.
+  - **Los hooks la nombran**: la línea del paso de los hooks de sesión (Node y Go) remite a `ospec next` cuando la obligación viene de una de esas señales, y la razón del Stop ya no dice que el paso no necesite respuesta del usuario.
+  - **Pasa por la valla de turnos**: cada señal guarda el turno en que se registró (`recorded_turn`), y una retirada `--source user` sin un fin de turno desde entonces queda `user-unverified`, con la fuente declarada y la razón. `record retract` y `close` avisan, nombrando la señal y la obligación que retiró. Una señal registrada antes conserva la fuente con que se responde su retirada.
+  - **El Stop y el conteo de turnos**: el Stop cuenta el fin de turno antes de cargar la traza, como desde v2.168.9, y lo descuenta cuando pide al agente que siga, porque ese turno no ha terminado. Si el conteo o el descuento fallan, no bloquea: deja terminar el turno y lo dice en el `systemMessage`.
+  - **Compatibilidad**: idd-state/v1 solo gana campos opcionales; un estado anterior se lee igual, y la versión anterior del CLI y los hooks en Go leen uno nuevo. El formato de `.ospec/turns` no cambia.
+
+**Verificación directa**: `node scripts/check.js` (5071 tests pasando, 0 fallos y 5 omitidos), 457 de ellos en la fase serie, con los tests de Python OK, los siete targets generados y validados y la puerta de Go (`gofmt`, `go vet`, `go test`) en verde. Revisión de confianza (Opus): tres rondas en retract-answer-offer (una sugerencia que llevó la valla de turnos a las retiradas, un aviso sobre el conteo del Stop al pedir seguir y una ronda sin hallazgos) y dos en su seguimiento (una sugerencia y un aviso sobre los fallos del conteo, corregidos y validados sin regresión).
 
 ## [2.185.0] - 2026-11-19
 
