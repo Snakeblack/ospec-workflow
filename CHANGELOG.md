@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.185.2] - 2026-11-19
+
 ### Fixed
-- Los records de ospec close cortan un bullet de Decisions donde Markdown lo termina, sin pegarle el encabezado ni el párrafo que le sigue (decision-bullet-ends)
+- **Cada decisión de los records de `ospec close` termina donde Markdown termina su elemento de lista** (decision-bullet-ends).
+  - **Qué pasaba**: el record de un bullet de Decisions se quedaba con cualquier línea no vacía que viniera después. Un encabezado `###` de subsección, el párrafo sin sangría tras una línea en blanco, una línea `---` o una valla de código acababan dentro del `summary` del bullet anterior, y así entraban en la memoria.
+  - **Ahora**: un bullet sigue con sus líneas sangradas y con las que van justo debajo. Un encabezado, una línea `---` o una valla lo terminan siempre, y también una línea sin sangría tras una línea en blanco. Lo que va dentro de una valla es código y nunca es una decisión.
+  - **Compatibilidad**: los bullets de una subsección de Decisions siguen siendo records, así que cada decisión conserva su topic `knowledge/dc/<change>/<n>`. Solo cambia el `summary` de los records afectados. REQ-idd-024 recoge la regla con un escenario.
+
+**Verificación directa**: `node scripts/check.js` (5072 tests pasando, 0 fallos y 5 omitidos), 457 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados. El cambio no tocaba Go ni derivó revisión de confianza.
 
 ## [2.185.1] - 2026-11-19
 
