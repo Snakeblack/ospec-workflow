@@ -3,7 +3,7 @@ name: issue-creation
 description: "Create GitHub issues with issue-first checks. Trigger: creating GitHub issues, bug reports, or feature requests."
 license: MIT AND Commons-Clause
 metadata:
-  author: manuel-retamozo-garcia
+  author: "gentleman-programming, manuel-retamozo-garcia"
   version: "1.0"
 ---
 

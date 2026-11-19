@@ -1,0 +1,340 @@
+{
+  "schema": "idd-state/v1",
+  "change": "own-sdd-apply",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua (siguiente del roadmap: E1.101 own-sdd-apply)",
+    "requested_at": "2026-11-19T22:52:18.492Z",
+    "kind": "refactor",
+    "summary": "Versión propia de la skill de fase sdd-apply, la última que NOTICE atribuye a gentle-ai",
+    "acceptance": "skills/sdd-apply no conserva líneas de 30 o más caracteres idénticas a ninguna versión del historial git de gentle-ai, salvo los literales que fijan los tests; los tests de contrato de sdd-apply y de la evidencia de Strict TDD siguen pasando; NOTICE y metadata.author nombran a gentle-ai exactamente donde queda su texto; node scripts/check.js pasa"
+  },
+  "facts": {
+    "open": [
+      "Medido contra todo el historial git de gentle-ai (su árbol actual ya retiró SDD, por eso E1.78 no lo vio), además de sdd-apply conservan texto suyo: issue-creation 95 %, sdd-onboard 90 %, sdd-explore 90 %, sdd-verify/strict-tdd-verify.md 71 %, sdd-spec 67 %, sdd-tasks 65 %, sdd-propose 64 %, skill-registry 61 %, branch-pr 58 %, sdd-design 56 %, sdd-init/references/init-details.md 52 % y, por debajo del 40 %, report-format de sdd-verify, sdd-init, openspec-convention, sdd-orchestrator.agent y otras. NOTICE solo lista sdd-apply y sus metadata.author solo nombran al autor del repositorio. ¿E1.101 se queda en sdd-apply y corrige en este cambio la lista de NOTICE y los autores (la sección de gentle-ai se queda), con filas nuevas del roadmap para el resto, o crece a todas esas skills?",
+      "skills/sdd-apply/strict-tdd.md, módulo de sdd-apply, conserva el 81 % de sus líneas largas contra el historial. ¿Entra en E1.101? Su formato de evidencia (tabla TDD Cycle Evidence y bloque json:strict-tdd-evidence) lo leen strict-tdd-evidence-remediation.js y strict-tdd-verify.md, así que se conservaría tal cual.",
+      "¿Se añade al repositorio la herramienta de medida (un script de desarrollo que compara las líneas de 30 o más caracteres contra todas las versiones del historial git de la fuente; no corre en CI porque necesita el clon) para E1.99 y las filas que salgan, o se queda solo descrita en el roadmap?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "NOTICE",
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/legal/license.md",
+      "scripts/docs-figures.test.js",
+      "scripts/third-party-overlap.js",
+      "scripts/third-party-overlap.test.js",
+      "skills/_shared/SKILL.md",
+      "skills/branch-pr/SKILL.md",
+      "skills/issue-creation/SKILL.md",
+      "skills/sdd-apply/SKILL.md",
+      "skills/sdd-apply/strict-tdd.md",
+      "skills/sdd-archive/SKILL.md",
+      "skills/sdd-clarify/SKILL.md",
+      "skills/sdd-design/SKILL.md",
+      "skills/sdd-explore/SKILL.md",
+      "skills/sdd-init/SKILL.md",
+      "skills/sdd-onboard/SKILL.md",
+      "skills/sdd-propose/SKILL.md",
+      "skills/sdd-spec/SKILL.md",
+      "skills/sdd-tasks/SKILL.md",
+      "skills/sdd-verify/SKILL.md",
+      "skills/skill-registry/SKILL.md"
+    ],
+    "work_units": 3,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "NOTICE nombra a gentle-ai en cada skill o fichero que conserva 10 o más líneas largas idénticas a cualquier versión de su historial: el criterio es absoluto porque el porcentaje depende de lo largo que sea el fichero, y nombrar de más no cuesta nada; entran _shared y agents/sdd-orchestrator.agent.md",
+      "La medida compara con todos los blobs alcanzables desde cualquier ref del clon, filtrados por extensión (md, mdx y txt por defecto), y lee las versiones en streaming para que la memoria dependa solo de las líneas buscadas; vive en scripts/third-party-overlap.js con su test y no corre en CI porque necesita el clon",
+      "sdd-apply cita las funciones del runtime que deciden (verify-lineage, verify-lineage-candidate-store, apply-resume, strict-tdd-evidence-remediation, verify-lineage-recheck) en lugar de repetir sus comprobaciones en prosa",
+      "strict-tdd.md conserva el vocabulario de la evidencia (columnas de la tabla TDD Cycle Evidence, sus marcadores y el bloque json:strict-tdd-evidence) porque lo leen strict-tdd-verify.md y strict-tdd-evidence-remediation.js, y ahora lo escribe de forma explícita",
+      "En un refactor que conserva el comportamiento, los tests existentes que ya fijan ese comportamiento cuentan como tests de aprobación y solo se escriben los que falten, como ya exige strict-tdd-verify.md (sin test nuevo obligatorio)",
+      "docs-figures.test.js comprueba también el sentido inverso: cada skill que NOTICE lista bajo una obra nombra a sus autores o su origen, para que reescribir una skill obligue a sacarla de NOTICE",
+      "third-party-overlap.js ignora el EPIPE de la entrada de git y decide por su código de salida: un git que muere antes de leer los ids rompe la tubería, y sin esa guarda el proceso caía con un error de stream sin manejar en lugar de informar del fallo"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 595
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component skills: ADR 0003, 0006 and quality scenario offline-operation",
+      "source": "declaration",
+      "recorded_turn": 595
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration",
+      "recorded_turn": 596
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "sdd-apply reescrita sigue llamando a las funciones del runtime que deciden (prepareRemediation, resolveRemainingTasks, recordRemediationAttempt, runRecoverySuccessorRecheck) sin reescribir sus reglas en prosa; la medida de texto de terceros pasa a ser un script con test"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "la skill reanuda desde state.yaml y apply-progress.md en disco, nunca desde la memoria entre sesiones"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "la skill no usa red y el script de medida lee un clon local con git"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 595,
+      "answer": "las recomendadas: (1) E1.101 reescribe solo sdd-apply y en este cambio corrige la lista de gentle-ai de NOTICE y el metadata.author de las skills que conservan su texto, la sección de gentle-ai se queda y el resto va a filas nuevas del roadmap; (2) strict-tdd.md entra, con su formato de evidencia tal cual; (3) la herramienta de medida contra todo el historial git se añade al repositorio como script de desarrollo y se anota para E1.99 que ECC y Caveman pueden tener el mismo fallo",
+      "source": "user",
+      "resolved_at": "2026-11-19T22:59:49.258Z",
+      "resolved_turn": 596
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-19T23:02:07.051Z",
+      "detail": {
+        "tree": "sha256:1e68b529d7f3862f8d291a7ecd27533bbf9e5db230185980ec334361d0a2b5e4",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-19T23:02:07.051Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:1e68b529d7f3862f8d291a7ecd27533bbf9e5db230185980ec334361d0a2b5e4",
+        "fitness": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-19T23:15:32.824Z",
+      "detail": {
+        "tree": "sha256:770affa5e1d55b86305a9b48b483612c2735ce7eea351bc3585158555f3b4cbb",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-19T23:15:32.824Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:770affa5e1d55b86305a9b48b483612c2735ce7eea351bc3585158555f3b4cbb",
+        "fitness": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-19T23:16:36.561Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:901694d41bf601977ba621ba62831e395f1862c7aa33c171706a5a702c8bd65e",
+        "fitness": [
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-19T23:18:51.284Z",
+      "detail": {
+        "tree": "sha256:0c5da3e05b570bf7bd72b8596b4b1639273400fd7019e8b0bef593821dd94f40",
+        "runs": [
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-19T23:18:51.284Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:0c5da3e05b570bf7bd72b8596b4b1639273400fd7019e8b0bef593821dd94f40",
+        "fitness": [
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-19T23:19:16.362Z"
+    }
+  ],
+  "base": "ff6a0a7dead81b6f2a7c7aad3806ff9b87f42f08",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:51ec60b410aaba1ba051f5791de153fca59708fd0f61646bc80d7d25da32af41",
+      "tree": "sha256:1e68b529d7f3862f8d291a7ecd27533bbf9e5db230185980ec334361d0a2b5e4",
+      "recorded_at": "2026-11-19T23:02:07.051Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:616409de992e9f149092b1b25cdb81944972c970f117f0a32d598fcb867e072a",
+      "tree": "sha256:1e68b529d7f3862f8d291a7ecd27533bbf9e5db230185980ec334361d0a2b5e4",
+      "recorded_at": "2026-11-19T23:02:07.051Z",
+      "tests": 2
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fb23db6ade1ca561db9b49f7b74f8955c3e86c30bea1d16fe29d627e3bdbc80f",
+      "tree": "sha256:770affa5e1d55b86305a9b48b483612c2735ce7eea351bc3585158555f3b4cbb",
+      "recorded_at": "2026-11-19T23:15:32.824Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:43557b6c480eee99dbc206f22f79b54884f77df6ee4b8c1a5e43bc07b84e6a8d",
+      "tree": "sha256:770affa5e1d55b86305a9b48b483612c2735ce7eea351bc3585158555f3b4cbb",
+      "recorded_at": "2026-11-19T23:15:32.824Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:a64efb3f04017e4bbbb98b3df3b192ffaf5906e13e7c0eeeb51c81f6b46a46bc",
+      "tree": "sha256:901694d41bf601977ba621ba62831e395f1862c7aa33c171706a5a702c8bd65e",
+      "recorded_at": "2026-11-19T23:16:36.561Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6ec3e52ab498a2d68c3e733d10baeb9f498f1a731d00fb74d259fbb30494e2ee",
+      "tree": "sha256:901694d41bf601977ba621ba62831e395f1862c7aa33c171706a5a702c8bd65e",
+      "recorded_at": "2026-11-19T23:16:36.561Z",
+      "tests": 2
+    },
+    {
+      "id": "run-7",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:523b8a294919f20652c3d67ef3aeadea2ba8d533757ce6d8bd1205c62b2527bd",
+      "tree": "sha256:0c5da3e05b570bf7bd72b8596b4b1639273400fd7019e8b0bef593821dd94f40",
+      "recorded_at": "2026-11-19T23:18:51.284Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:014b5e78124f62f1c672354aa83d1e3d2d0d72a0c6ca3ade3c514a5557a175b0",
+      "tree": "sha256:0c5da3e05b570bf7bd72b8596b4b1639273400fd7019e8b0bef593821dd94f40",
+      "recorded_at": "2026-11-19T23:18:51.284Z",
+      "tests": 2
+    }
+  ],
+  "changelog_line": "**Versión propia de la skill `sdd-apply` y `NOTICE` medido contra todo el historial de gentle-ai** (E1.101)",
+  "closed_at": "2026-11-19T23:19:16.362Z"
+}

@@ -1,333 +1,326 @@
-# Strict TDD Module — Apply Phase
+# Strict TDD for sdd-apply
 
-> **This module is loaded ONLY when Strict TDD Mode is enabled (`testing.tdd_mode: strict`).**
-> If you are reading this, the orchestrator already verified this condition. Follow every instruction.
+Read this module only when `testing.tdd_mode` is `strict`; the parent skill
+already checked that. It replaces the per-task cycle of the parent skill and
+nothing else: the contract, scope, workload, remediation, persistence and mark
+guards of `skills/sdd-apply/SKILL.md` still hold. Without a usable test runner
+the mode stays Strict and execution is recorded as `STATIC_VALIDATED` or
+`DEFERRED` (see the evidence table); it never counts as a run that passed and
+never turns into Standard.
 
-This module specializes the test cycle only. The parent skill's contract, workload, scope, remediation, persistence, and status guards still apply. If the runner is absent or unavailable, keep Strict mode and use the existing `STATIC_VALIDATED` / `DEFERRED` evidence semantics below; never report an executed pass or silently switch to Standard.
+## The test leads
 
-## TDD Philosophy
+The test states what the code must do before the code exists, so it shapes
+the interface, the contract and the behavior; the code follows from it. Three
+limits keep the cycle honest:
 
-TDD is not testing. TDD is **software design driven by tests**. You write a test that describes what the code SHOULD do, then write the minimum code to make it real. The tests design the API, the contracts, the behavior. Code is a side effect of tests.
+1. No production code without a failing test that asks for it.
+2. No more test than it takes to fail.
+3. No more code than it takes to pass.
 
-### The Three Laws
+## Which tasks run the cycle
 
-1. **Do NOT write production code** until you have a failing test
-2. **Do NOT write more test** than is necessary to fail
-3. **Do NOT write more code** than is necessary to pass the test
+| Task | What it records |
+|---|---|
+| Changes behavior | The full cycle. Never `N/A`. |
+| Has no behavior to test (documentation, configuration without logic, a chore) | `N/A` in RED, GREEN and TRIANGULATE, with the reason in Notes / Rationale. |
+| Refactors without changing behavior | The safety net before the edit and the same tests after it (step 5), with RED and GREEN `N/A`; approval tests cover what the existing tests do not pin (see below). |
 
-## TDD Implementation Cycle
+## The cycle, task by task
 
-For EVERY task that changes behavior, follow this cycle strictly. Two kinds of task skip RED, GREEN and TRIANGULATE and record them as `N/A` with the reason in the evidence table: a task with no behavior to test (documentation, configuration without logic, a chore), and a behavior-preserving refactor, which runs the SAFETY NET before the change and the same tests after it (step 5) instead of inventing a failing test. A task that changes behavior is never `N/A`.
+0. **Safety net**, when the task edits existing files. Run the tests that
+   cover those files and record the count (`✅ 14/14`). A test that already
+   fails stops the task: report it as a pre-existing failure and leave it as
+   it is. The count proves later that nothing that worked was broken.
+1. **Understand.** Read the task, the spec scenarios and design decisions it
+   touches (or `proposal-lite.md` on the lite route), check the parent
+   skill's guards, read the code and tests around it, and choose the layer.
+2. **RED.** Write the test for the expected behavior first. It must fail
+   because that behavior is missing. In a compiled or typed language (Go, C#,
+   TypeScript) a new signature may get an empty stub that returns a zero value,
+   so the test compiles and fails on its assertion. When the function already
+   exists, the test targets the behavior it does not have yet. GREEN does not
+   start until this test exists.
+3. **GREEN.** Write the least code that makes the test pass; returning a
+   hard-coded value is allowed at this point. Run the test. When it fails, fix
+   the code, not the test. The next step waits for a run that passes.
+4. **TRIANGULATE**, only when the spec defines materially different scenarios
+   or one example cannot pin the contract down. Add a case with other inputs
+   and another expected output, so a hard-coded answer stops passing. A pass
+   whose code never ran is no pass: a component that was never rendered, a
+   loop over an empty list. GREEN means the production code ran and returned
+   what the test expects. Skip this step when one test already pins the whole
+   contract, and for structural tasks.
+5. **REFACTOR**, only when it makes the assigned behavior clearer or removes a
+   coupling shown to exist. Weigh it with
+   `skills/_shared/engineering-judgment.md`: keep compatible boundaries and
+   skip extractions that buy nothing. Run the tests once, after the whole
+   refactor batch. If they stay green the batch is done; if one fails, undo
+   the last refactor step and try a smaller one.
+6. Mark `[x]` only after a local run passed, and `[~]` while execution is
+   deferred.
+7. Note every deviation or problem the task revealed.
 
-```
-FOR EACH TASK:
-├── 0. SAFETY NET (only if modifying existing files)
-│   ├── Run existing tests for files being modified
-│   ├── Capture baseline: "{N} tests passing"
-│   ├── If any FAIL → STOP and report as "pre-existing failure" (do NOT fix them)
-│   └── This baseline proves you did not break what already worked
-│
-├── 1. UNDERSTAND
-│   ├── Read the task description
-│   ├── Read relevant spec scenarios and design decisions in standard mode, or proposal-lite.md in lite mode
-│   ├── Apply the parent skill's common contract and scope guards before writing
-│   ├── Read existing code and test patterns (match the style)
-│   └── Determine test layer (see "Choosing Test Layer" below)
-│
-├── 2. RED — Write a failing test FIRST
-│   ├── Write test(s) that describe the expected behavior from the spec
-│   ├── Prefer pure functions where possible (no side effects = easy to test)
-│   ├── The test MUST reference the new behavior (or a new production signature, which can be stubbed with a minimal empty implementation/declaration in compiled/typed languages like Go, C#, or TypeScript so that tests compile but fail their assertions). This guarantees failure or compilation/assertion error.
-│   ├── If the production code/function already exists:
-│   │   └── Write a test for the NEW behavior that is NOT yet implemented
-│   └── GATE: Do NOT proceed to GREEN until the test is written
-│
-├── 3. GREEN — Write the MINIMUM code to pass
-│   ├── Implement ONLY what the failing test needs
-│   ├── Fake It is VALID here (hardcoded return values are OK)
-│   ├── EXECUTE tests → must PASS
-│   │   ├── ✅ Passed → proceed to TRIANGULATE or REFACTOR
-│   │   └── ❌ Failed → fix the implementation, NOT the test
-│   └── GATE: Do NOT proceed until GREEN is confirmed by execution
-│
-├── 4. TRIANGULATE (Conditional)
-│   ├── Triangulate ONLY when:
-│   │   ├── The specification defines materially different scenarios, or
-│   │   └── One test example cannot establish the behavioral contract
-│   ├── When required: add a second test case with DIFFERENT inputs/expected outputs to force real logic
-│   ├── WATCH OUT for GREEN that passes trivially:
-│   │   ├── If your test passes because the component/element isn't rendered → NOT a real GREEN
-│   │   ├── If your test passes because a loop iterates 0 times → NOT a real GREEN
-│   │   └── A real GREEN means: production code RAN and produced the expected output
-│   └── Skip triangulation when a single test establishes the complete contract or for structural tasks
-│
-├── 5. REFACTOR — Improve without changing behavior
-│   ├── Refactor only when it improves the assigned behavior's clarity or removes demonstrated coupling
-│   ├── Apply engineering-judgment.md proportionality criteria; keep compatible boundaries and skip unnecessary extractions
-│   ├── EXECUTE tests ONCE after the completed refactor batch → must STILL PASS
-│   │   ├── ✅ Still passing → refactoring is safe, continue
-│   │   └── ❌ Failed → REVERT that refactoring step, try smaller
-│   └── GATE: The refactor batch is complete only when that final targeted run is green
-│
-├── 6. Mark [x] only after local execution passes; use [~] while execution is deferred
-└── 7. Note any deviations or issues discovered
-```
+## Choosing the layer
 
-## Choosing Test Layer
+The layer follows what the task does and what the project has installed:
 
-Based on the testing capabilities in `openspec/config.yaml` or the detected project files, choose the appropriate test layer for each task:
+| The task builds | Layer | When the tools are missing |
+|---|---|---|
+| Logic, a calculation or a data transformation | Unit | — |
+| What one component renders, its interaction or its state | Integration | Unit with test doubles |
+| A flow across components, an API call, a provider or context | Integration | Unit with test doubles |
+| A critical business flow, a whole user journey, navigation between pages | E2E | Integration, else unit |
+| Anything else | Unit | — |
 
-```
-Determine test layer by WHAT the task does:
-├── Pure logic, utility function, calculation, data transformation
-│   └── Unit test (always available if test runner exists)
-│
-├── Component rendering, user interaction, state changes
-│   ├── IF integration tools available → Integration test
-│   └── IF NOT → Unit test with mocks (degrade gracefully)
-│
-├── Multi-component flow, API interaction, context/provider behavior
-│   ├── IF integration tools available → Integration test
-│   └── IF NOT → Unit test with mocks
-│
-├── Critical business flow, full user journey, cross-page navigation
-│   ├── IF E2E tools available → E2E test
-│   ├── IF NOT but integration available → Integration test
-│   └── IF neither → Unit test (degrade gracefully)
-│
-└── Default: Unit test (always the fallback)
-```
+Use the smallest layer that observes the contract and its failure paths. A
+unit test with doubles proves nothing about real integration or end-to-end
+behavior: when the layer the task needs is missing, run the narrower checks
+that still help and report the evidence that is missing so verify can ask for
+it. Production boundaries are not redesigned to suit a test tool.
 
-**Key rule**: Use the smallest available layer that observes the contract and its failure paths. A mocked unit test cannot establish real integration or E2E behavior: when the needed layer is unavailable, run useful narrower checks and report the missing evidence for later verification. Do not redesign production boundaries solely to fit a test tool.
+## Running the tests
 
-## Test Execution
+The command is `rules.apply.test_command` from `openspec/config.yaml` when the
+project sets it, else `test_runner.command` from the cached testing
+capabilities, else whatever the project files show (`package.json`,
+`pyproject.toml`, `go.mod`).
 
-Detect the test runner from the cached testing capabilities:
+During the cycle run only the test file of the task, adapted to the runner:
+`npx vitest run src/billing/invoice.test.ts`, `pytest tests/test_invoice.py`,
+`go test ./billing -run TestInvoiceTotal`, `dotnet test --filter InvoiceTests`.
+Short runs keep the cycle fast; the full suite belongs to sdd-verify.
 
-```
-Read test command from:
-├── Cached capabilities → test_runner.command (fastest — already detected)
-├── openspec/config.yaml → rules.apply.test_command (override)
-└── Fallback: detect from package.json/pyproject.toml/go.mod
+## Pure functions where they fit
 
-When executing tests during TDD:
-├── Run ONLY the relevant test file, not the entire suite
-│   ├── JS/TS: {runner} {test-file-path} (e.g., pnpm vitest run src/utils/tax.test.ts)
-│   ├── Python: pytest {test-file-path}
-│   ├── Go: go test ./{package} -run {TestName}
-│   └── Adapt to the runner's CLI
-├── This keeps the cycle FAST
-└── Full suite runs happen in sdd-verify, not here
-```
+Code written in GREEN or TRIANGULATE is easier to test when its result
+depends only on its arguments:
 
-## Pure Function Preference
-
-When writing production code in GREEN/TRIANGULATE steps, prefer pure functions:
-
-```
-✅ PREFER (pure — easy to test):
-function calculateDiscount(price: number, quantity: number): number {
-  return quantity >= 5 ? price * quantity * 0.1 : 0
+```ts
+// The result depends only on the input, so a test needs no setup.
+export function shippingCost(weightKg: number, zone: "EU" | "WORLD"): number {
+  const perKg = zone === "EU" ? 1.5 : 4;
+  return weightKg <= 2 ? 0 : (weightKg - 2) * perKg;
 }
 
-❌ AVOID (impure — hard to test):
-function calculateDiscount(item: Item) {
-  globalState.lastDiscount = item.price * 0.1  // side effect
-  updateDOM()                                   // side effect
-  return globalState.lastDiscount
+// Reads a global and writes the cart: a test has to build both first.
+export function applyShipping(cart: Cart): void {
+  cart.total += (cart.weightKg - 2) * rates[session.zone];
 }
 ```
 
-**Why**: Pure functions are deterministic (same input → same output), have no side effects, and are trivially testable. TDD naturally pushes you toward pure functions — embrace it.
+The first one gives the same output for the same input and touches nothing
+else. Do not force the shape where it does not fit, as in a UI component that
+owns its state.
 
-## Approval Testing (for refactoring existing code)
+## Approval tests for refactors
 
-When a task involves REFACTORING existing code (not writing new code):
+A refactor first fixes the behavior it must keep:
 
-```
-BEFORE touching production code:
-├── 1. Identify existing behavior to preserve
-├── 2. Write "approval tests" that capture current behavior:
-│   ├── Call the function with known inputs
-│   ├── Assert the CURRENT outputs (even if ugly or wrong)
-│   └── These tests document what the code does NOW
-├── 3. Run approval tests → must PASS (they describe current reality)
-├── 4. NOW refactor the production code
-├── 5. Run approval tests again → must STILL PASS
-│   ├── ✅ Passing → refactoring preserved behavior
-│   └── ❌ Failing → refactoring broke something, revert
-└── 6. If the spec says behavior should CHANGE:
-    ├── Update the approval test to reflect NEW expected behavior
-    ├── Run → test FAILS (RED — new behavior not implemented yet)
-    └── Implement new behavior → GREEN
-```
+1. Find the behavior the refactored code has today.
+2. Existing tests that already pin it act as approval tests. For what they do
+   not cover, write tests that call the code with known inputs and assert the
+   outputs it gives today, wrong or awkward as they may be.
+3. Run them: they pass, because they describe the present.
+4. Refactor.
+5. Run them again. Still green means the behavior survived; a failure means
+   the refactor changed it, so undo it.
+6. When the spec asks for different behavior, change the approval test to the
+   new expected output first (it fails: RED), then implement it (GREEN).
 
-## Return Summary Extension
+## TDD Cycle Evidence
 
-When Strict TDD Mode is active, your return summary MUST include this section:
+With Strict TDD, `apply-progress.md` and the result of the phase carry this
+section, one row per task of the batch:
 
 ```markdown
 ### TDD Cycle Evidence
 | Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR | Notes / Rationale |
-|------|-----------|-------|------------|-----|-------|-------------|----------|-------------------|
-| 1.1 | `path/test.ext` | Unit | ✅ 5/5 | ✅ Written | ✅ Passed | ✅ 3 cases | ✅ Clean | |
-| 1.2 | `path/test.ext` | Integration | N/A (new) | ✅ Written | ✅ Passed | ➖ Single | ✅ Clean | |
-| 1.3 | `path/test.ext` | Unit | DEFERRED | ✅ Written | STATIC_VALIDATED | ➖ Deferred | ➖ None needed | Execution restricted; static verification performed; task remains [~]. |
+|---|---|---|---|---|---|---|---|---|
+| 3.1 | `src/billing/invoice.test.ts` | Unit | ✅ 14/14 | ✅ Written | ✅ Passed | ✅ 4 cases | ✅ Clean | |
+| 3.2 | `tests/api/test_refunds.py` | Integration | N/A (new) | ✅ Written | ✅ Passed | ➖ Single | ➖ None needed | |
+| 3.3 | `internal/tax/rate_test.go` | Unit | DEFERRED | ✅ Written | STATIC_VALIDATED | ➖ Deferred | ➖ None needed | No Go toolchain here; read against the spec, task stays [~]. |
+| 3.4 | — | — | N/A | N/A | N/A | N/A | ➖ None needed | Documentation only, no behavior. |
 
 ### Test Summary
-- **Total tests written**: {N}
-- **Total tests passing**: {N}
-- **Layers used**: Unit ({N}), Integration ({N}), E2E ({N})
-- **Approval tests** (refactoring): {N} or "None — no refactoring tasks"
-- **Pure functions created**: {N}
+- Tests written: {N}
+- Tests passing: {N}
+- Layers: unit {N}, integration {N}, E2E {N}
+- Approval tests: {N, or "None: no refactoring task"}
+- Pure functions added: {N}
 ```
 
-**Column definitions**:
-- **Safety Net**: Pre-existing tests run before modifying files. "N/A (new)" for new files.
-- **RED**: Test written first, referencing code that doesn't exist yet. Always "✅ Written".
-- **GREEN**: Tests executed and passing after minimal implementation. Must show execution result.
-- **TRIANGULATE**: Additional test cases added to force real logic. "➖ Single" if spec has only one scenario.
-- **REFACTOR**: Code improved with tests still passing. "➖ None needed" if code was already clean.
+sdd-verify reads these values, so each column keeps its vocabulary:
 
-## Assertion Quality Rules (MANDATORY)
+| Column | Values |
+|---|---|
+| Safety Net | `✅ N/N` or `✅ N tests passing` when the existing tests ran before the edit; `N/A (new)` when the files are new; `DEFERRED` when no run was possible; `N/A` for a task with nothing to test. |
+| RED | `✅ Written`: the test existed before the code. `N/A` only for a task without behavior or a refactor that keeps it. |
+| GREEN | `✅ Passed` after a run; `STATIC_VALIDATED` or `DEFERRED` when nothing could run; `N/A` as in RED. |
+| TRIANGULATE | `✅ N cases`; `➖ Single` when the spec has one scenario; `Triangulation skipped: <reason>`; `➖ Deferred`; `N/A`. |
+| REFACTOR | `✅ Clean` after a green run; `➖ None needed`. |
+| Notes / Rationale | Required with `STATIC_VALIDATED`, `DEFERRED` or `N/A`. |
 
-**Every assertion must verify REAL behavior.** A test that passes without exercising production logic is worse than no test — it gives false confidence.
+## Assertions that prove behavior
 
-### Banned Assertion Patterns (NEVER write these)
+An assertion has to exercise production logic. A test that passes without it
+is worse than no test, because it reports safety that does not exist.
 
-```
-# TRIVIAL ASSERTIONS — test proves nothing
-expect(true).toBe(true)              # ❌ Tautology
-expect(false).toBe(false)            # ❌ Tautology
-expect(1).toBe(1)                    # ❌ Tautology — no production code involved
-assert True                          # ❌ Always passes
-assert 1 == 1                        # ❌ Always passes
+### Rejected assertions
 
-# EMPTY COLLECTION ASSERTIONS without setup context
-expect(result).toEqual([])           # ❌ ONLY valid if you set up conditions for empty
-expect(result).toHaveLength(0)       # ❌ Same — why is it empty? Did production code run?
-assert len(result) == 0              # ❌ Same — prove the emptiness comes from real logic
-assert result == []                  # ❌ Same
+```text
+# Compares constants: no production code takes part.
+assert.equal(2, 2)
+self.assertTrue(True)
+expect(null).toBeNull()
 
-# TYPE-ONLY ASSERTIONS — proves existence, not behavior
-expect(result).toBeDefined()         # ❌ Alone is useless — WHAT is the value?
-expect(result).not.toBeNull()        # ❌ Alone is useless — assert the actual value
-expect(typeof result).toBe('object') # ❌ Alone is useless — what does the object contain?
-assert result is not None            # ❌ Alone — assert what result actually IS
+# An empty result with nothing in the setup that explains it.
+expect(orders).toEqual([])
+assert not rows
 
-# GHOST LOOP — assertion inside a loop that iterates 0 times
-const items = screen.queryAllByTestId("item");  // returns []
-for (const item of items) {
-  expect(item).toHaveTextContent("value");       # ❌ NEVER EXECUTES — loop body is dead code
+# Existence or type alone: the value is never checked.
+expect(invoice).toBeDefined()
+assert user is not None
+expect(typeof config).toBe("object")
+
+# A loop over a list that may be empty: zero rows, zero assertions.
+for (const row of screen.queryAllByRole("row")) {
+  expect(row).toHaveTextContent("paid")
 }
-# FIX: assert the collection is non-empty FIRST, or set up data so it IS non-empty:
-expect(items).toHaveLength(3);                   # ✅ Proves items exist
-for (const item of items) { ... }                # ✅ Now the loop actually runs
+# Assert the count first, with data that guarantees it:
+expect(screen.queryAllByRole("row")).toHaveLength(3)
 
-# INCOMPLETE TDD CYCLE — GREEN without TRIANGULATE
-# If your GREEN test passes because the setup doesn't exercise the code path,
-# you are NOT done. You MUST triangulate with a setup that DOES exercise it.
-# Example: testing "search doesn't update until Enter" but the component
-# that receives the search is never rendered → the test proves nothing.
-# FIX: add a test where the component IS rendered and verify the behavior.
+# A pass whose setup never reaches the code under test, for example a filter
+# checked while the list it filters is never rendered. Add the case that
+# reaches it before calling the cycle done.
 ```
 
-### What Makes a REAL Assertion
+### Assertions that count
 
-Every test assertion must satisfy ALL of these:
-1. **Calls production code** — the test invokes a function, method, or component from the implementation
-2. **Asserts a specific output** — compares against a concrete expected value derived from the spec
-3. **Would FAIL if the production code were wrong** — if you change the implementation logic, THIS test breaks
+Each one meets all three conditions:
 
-```
-# ✅ REAL assertions — production code determines the result
-expect(calculateDiscount(100, 10)).toBe(10)       # Real input → real output
-expect(screen.getByText('Welcome, John')).toBeInTheDocument()  # Rendered from data
-assert result[0].status == "FAIL"                  # Specific finding from check execution
-assert response.status_code == 403                 # Real HTTP response from the endpoint
-expect(result).toHaveLength(3)                     # AND you set up exactly 3 items
-```
+1. It calls production code: a function, a method, a component.
+2. It compares with a concrete value taken from the spec.
+3. It breaks when the implementation is wrong.
 
-### Empty Collection Rule
-
-`expect(result).toEqual([])` or `assert len(result) == 0` is ONLY valid when:
-1. You set up a specific precondition that SHOULD produce an empty result (e.g., no matching records)
-2. The production code actually ran and filtered/processed data to arrive at empty
-3. A companion test with different setup produces a NON-EMPTY result (triangulation)
-
-If you cannot explain WHY the result is empty based on setup → the assertion is trivial.
-
-### Smoke Test Rule
-
-A test that only renders a component without asserting any output is NOT a valid test:
-
-```
-# ❌ SMOKE TEST ONLY — proves nothing about behavior
-render(<MyComponent data={mockData} />);
-expect(screen.getByTestId("wrapper")).toBeInTheDocument();  # Just proves it rendered
-
-# ✅ BEHAVIORAL TEST — proves what the component DOES with the data
-render(<MyComponent data={mockData} />);
-expect(screen.getByText("Expected Title")).toBeInTheDocument();  # Verifies output from data
-expect(screen.getByRole("button")).toHaveTextContent("Submit");  # Verifies real content
+```text
+expect(shippingCost(12, "EU")).toBe(15)
+assert response.status_code == 409
+expect(screen.getByRole("status")).toHaveTextContent("3 items")
+assert report.findings[0].rule == "max-length"
 ```
 
-"Renders without crash" is a smoke test. It is NOT a unit test, NOT an integration test, and it does NOT count toward TDD coverage. If you need a smoke test, it must be accompanied by real behavioral assertions.
+### Empty results
 
-### Mock Hygiene Rules
+Asserting an empty result counts only when the setup creates the condition
+that should produce it, the production code ran to reach it, and another test
+with different data gets a non-empty result.
 
-Mock counts are a diagnostic signal, not proof of a defect or a reason to stop. Check whether setup obscures the behavior or mocks the very boundary the test claims to verify. Prefer an existing pure helper for isolated transformations, or an integration test when wiring is the risk. Extract new logic only when its cohesion and ownership justify it under `skills/_shared/engineering-judgment.md`; never require an extraction merely to satisfy a mock ratio.
+### Smoke tests
 
-Keep mocks at explicit external boundaries and assert observable outcomes. If an extracted helper is tested alone, do not claim that this also verifies its caller's wiring.
+Rendering a component and asserting only that it is there tests no behavior
+and does not count toward the cycle:
 
-### Implementation Detail Coupling Rule
+```tsx
+// Proves only that something rendered.
+render(<OrderSummary order={order} />);
+expect(screen.getByTestId("summary")).toBeInTheDocument();
 
-Tests must assert **behavior visible to the user**, not internal implementation details:
-
-```
-# ❌ COUPLED TO IMPLEMENTATION — breaks on any style refactor
-expect(element.className).toContain("text-xs");
-expect(element.className).toContain("-mt-2.5");
-expect(element.className).toContain("border-border-error-primary");
-expect(element.style.color).toBe("red");
-
-# ❌ COUPLED TO INTERNALS — breaks when implementation changes
-expect(mockService.mock.calls.length).toBe(3);  # Why 3? Brittle.
-expect(component.state.isLoading).toBe(true);    # Internal state, not behavior.
-
-# ✅ BEHAVIORAL — survives refactors, tests what users see
-expect(screen.getByText("Error: Payment failed")).toBeInTheDocument();
-expect(screen.getByRole("alert")).toHaveTextContent("Risk:");
-expect(screen.getByRole("button")).toBeDisabled();
+// Proves what the component shows from its data.
+render(<OrderSummary order={order} />);
+expect(screen.getByRole("heading")).toHaveTextContent("Order #1042");
+expect(screen.getByText("Total: 48.00 €")).toBeInTheDocument();
 ```
 
-**CSS class assertions are NEVER valid test assertions.** If you need to verify visual styling:
-1. Test the **semantic outcome** (e.g., element has `role="alert"`, text is visible, button is disabled)
-2. OR use a visual regression tool / E2E screenshot comparison
-3. NEVER assert specific Tailwind/CSS class names — they are implementation details
+A smoke test is acceptable only next to assertions like the second pair.
 
-## Rules (Strict TDD specific)
+### Test doubles
 
-- NEVER write production code before writing its test — this is the ONE rule that cannot be broken
-- NEVER skip the GREEN execution gate — you MUST run tests and confirm they pass (unless execution tools are unavailable/restricted, in which case you must perform rigorous static validation and mark the task status as `STATIC_VALIDATED` or `DEFERRED`)
-- NEVER skip triangulation when the spec defines multiple scenarios — hardcoded Fake It must be forced out
-- NEVER write trivial assertions (see Banned Assertion Patterns above) — they are WORSE than no test
-- ALWAYS verify that every assertion CALLS production code and asserts a SPECIFIC expected value
-- ALWAYS run the Safety Net before modifying existing files — protect what already works
-- ALWAYS report the TDD Cycle Evidence table — the verify phase will check it
-- If the test runner is absent, execution fails for infrastructure reasons, or command execution is unavailable, do not fake execution evidence. Perform rigorous static verification where possible, record `STATIC_VALIDATED` or `DEFERRED` in the evidence table, and leave implementation status `[~]` until local execution succeeds. Report the missing execution for a later environment-capable phase; these markers do not change verify policy or establish a passing cycle.
-- Prefer pure functions — but don't force it where it doesn't fit (e.g., React components with state)
-- For refactoring tasks, ALWAYS write approval tests before touching code
-- Run ONLY the relevant test file during the cycle, not the full suite
+The number of doubles is a hint, not a defect and not a reason to stop. Ask
+whether the setup hides the behavior, or replaces the very boundary the test
+claims to check. An existing pure helper suits an isolated transformation, and
+an integration test suits a risk that lives in the wiring. Extract new logic
+only when its cohesion and ownership justify it under
+`skills/_shared/engineering-judgment.md`, never to bring down a count of
+doubles. Keep doubles at explicit external boundaries and assert observable
+results. A helper tested on its own says nothing about how its caller wires
+it.
 
-### Authoritative evidence record
+### Implementation details
 
-Persist exactly one fenced `json:strict-tdd-evidence` schema-v1 block in
-`apply-progress.md`. It is the machine source of truth for task/test references,
-cycle markers, provenance, and the functional snapshot; the Markdown table is
-derived. Never synthesize absent provenance or tests. An evidence-format-gap
-repair is evidence-only, preserves candidate/genesis identity, is bounded by
-the configured cap (hard maximum 40 lines), and may dispatch at most one focal
-verify recheck; otherwise preserve CRITICAL and use ordinary routing.
-The structured record and each remediation event MUST be validated with a real
-rootDir and current candidate, finding, provenance, and evidence digests.
+Assert what the user or the caller sees, not how the code produces it:
+
+```text
+# Breaks on any styling or internal change.
+expect(badge).toHaveClass("bg-red-500")
+expect(badge.style.fontWeight).toBe("700")
+expect(fetchRates).toHaveBeenCalledTimes(2)
+expect(form.state.submitting).toBe(true)
+
+# Survives refactoring.
+expect(screen.getByRole("alert")).toHaveTextContent("Card declined")
+expect(screen.getByRole("button", { name: "Pay" })).toBeDisabled()
+```
+
+A CSS class name is never a valid assertion. Test the semantic result (a
+role, visible text, a disabled control), or use visual regression or an E2E
+screenshot when the look itself is the requirement.
+
+## Rules (Strict TDD)
+
+- No production code before the test that asks for it.
+- GREEN needs a run that passes. Only when nothing can run does the task get `STATIC_VALIDATED` or `DEFERRED`, after a careful static check.
+- Triangulate whenever the spec defines several scenarios, until a hard-coded answer no longer passes.
+- None of the rejected assertions above.
+- Every assertion calls production code and checks a specific expected value.
+- The safety net runs before any existing file is edited.
+- The TDD Cycle Evidence table is always reported: verify checks it.
+- A missing runner, an infrastructure failure or no command execution never yields invented evidence. Check statically as far as possible, record `STATIC_VALIDATED` or `DEFERRED`, keep the task `[~]` until a local run passes and report the missing run for a later phase that can execute. These markers neither change verify's policy nor make the cycle a pass.
+- Pure functions where they fit, not forced where they do not.
+- A refactor fixes its behavior with approval tests before the code changes.
+- During the cycle, only the relevant test file runs, never the full suite.
+
+### The evidence record
+
+`apply-progress.md` holds exactly one fenced `json:strict-tdd-evidence` block
+with schema v1. It is the record programs read; the Markdown table is derived
+from it:
+
+```json
+{
+  "schema_version": 1,
+  "change": "{change-name}",
+  "functional_snapshot": {
+    "projection": "strict-tdd-functional-v1",
+    "base_tree": "{base tree}",
+    "genesis_paths": ["{production file the change created or edited}"],
+    "files": [{ "path": "{production file}", "digest": "sha256:{hex}" }]
+  },
+  "cycles": [
+    {
+      "task": "3.1",
+      "test_file": "src/billing/invoice.test.ts",
+      "layer": "unit",
+      "safety_net": "✅ Passed",
+      "red": "✅ Written",
+      "green": "✅ Passed",
+      "triangulate": "✅ Written",
+      "refactor": "✅ Passed",
+      "provenance": { "test_file": "src/billing/invoice.test.ts", "test_digest": "sha256:{hex}", "source": "working-tree" }
+    }
+  ]
+}
+```
+
+The rows under `## Final Derived Markdown Table` are what `renderEvidenceTable`
+of `{{ospec-runtime}}/scripts/lib/strict-tdd-evidence-remediation.js` derives
+from the block, and its validation rejects cycle markers outside the set it
+knows. Provenance and tests are recorded only when they exist: never made up.
+
+When block and table disagree while the work is right, the repair is the
+evidence-only path of the parent skill: it keeps the identity of the
+candidate and of its genesis paths, stays within the configured cap (40 lines
+at most) and gets at most one focal recheck. Anything else keeps the CRITICAL
+finding and goes through ordinary remediation. The record and every
+remediation event are validated with a real `rootDir` and the current digests
+of the candidate, the finding, the provenance and the evidence file.

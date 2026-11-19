@@ -1,0 +1,151 @@
+{
+  "schema": "idd-state/v1",
+  "change": "overlap-windows-eof",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "si (entrega de own-sdd-apply: commits, PR, merge con CI verde y release v2.185.3)",
+    "requested_at": "2026-11-19T23:34:35.103Z",
+    "kind": "bug",
+    "summary": "third-party-overlap.js trata como tubería rota el EOF con que Windows informa de escribir en un proceso que ya salió",
+    "acceptance": "Un git que muere antes de leer su entrada rechaza con 'git cat-file failed' también cuando la escritura falla con código EOF (Windows); otro error de stdin sigue rechazando con su propio error; el shard Validate (windows-latest 2/4) de la PR #538 pasa"
+  },
+  "facts": {
+    "basis": "El CI de Windows muestra 'Error: write EOF' en la escritura a un git que ya salió: es el mismo caso que EPIPE en Linux, y el código de salida de git ya decide el resultado"
+  },
+  "plan": {
+    "paths": [
+      "scripts/third-party-overlap.js",
+      "scripts/third-party-overlap.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 598
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration",
+      "recorded_turn": 598
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-19T23:34:54.136Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-19T23:36:44.393Z",
+      "detail": {
+        "tree": "sha256:15cf85e8fc3bf850e2a157f3b9cdb134d8c6cb109d53cdc35197fa8c7eb3018d",
+        "runs": [
+          "run-5"
+        ]
+      }
+    }
+  ],
+  "base": "82d2be1a41c6c1d6e907c593b104c13f7461b5a8",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"Windows' EOF\" scripts/third-party-overlap.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:cd136c358859386b8e6e9ce5c28147413ba0a9d38ae9f05df557c77a709927e6",
+      "tree": "sha256:7c5101fc73e11b7becd21764f5be230bb84312abb845dfe984f2c580242bbe63",
+      "recorded_at": "2026-11-19T23:34:45.431Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"Windows' EOF\" scripts/third-party-overlap.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5113315e5512f988d9f65cb0a34f8eada74abe66a63e32bc28bffdd9efd7429a",
+      "tree": "sha256:1f5ea80ede8281eb10921a929214ed6f99e11b049622447410c0608a5eea2bb6",
+      "recorded_at": "2026-11-19T23:34:54.136Z",
+      "tests": 1,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "82d2be1a41c6c1d6e907c593b104c13f7461b5a8",
+      "mount": "sha256:ca78fbe688d6ff0bef327dd8f951f13c9c712352240b48652b702ba9aacfd080",
+      "command": "node --test --test-name-pattern=\"Windows' EOF\" scripts/third-party-overlap.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d536e1c7e17c847f7bc8027b77d17847df7f5ca3a4c60d2b92af472c4bba6c1d",
+      "tree": "sha256:1f5ea80ede8281eb10921a929214ed6f99e11b049622447410c0608a5eea2bb6",
+      "recorded_at": "2026-11-19T23:34:54.136Z",
+      "tests": 1
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "82d2be1a41c6c1d6e907c593b104c13f7461b5a8",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"Windows' EOF\" scripts/third-party-overlap.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c22e05885da9cdb1e5d9a4168ed3b4bcc5899a98f245913bd3e06f2c9aa66f78",
+      "tree": "sha256:1f5ea80ede8281eb10921a929214ed6f99e11b049622447410c0608a5eea2bb6",
+      "recorded_at": "2026-11-19T23:34:54.136Z",
+      "tests": 1
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3af869f1b81eba2b172a2dc4a43dbd78ace6ffccc8e9faa8878acfa85b4725f5",
+      "tree": "sha256:15cf85e8fc3bf850e2a157f3b9cdb134d8c6cb109d53cdc35197fa8c7eb3018d",
+      "recorded_at": "2026-11-19T23:36:44.393Z"
+    }
+  ],
+  "changelog_line": "**`scripts/third-party-overlap.js` no cae en Windows cuando git sale antes de leer su entrada**: Windows informa de esa tubería rota con `EOF` en lugar de `EPIPE`, y ahora las dos dejan decidir al código de salida de git",
+  "closed_at": "2026-11-19T23:36:44.461Z"
+}
