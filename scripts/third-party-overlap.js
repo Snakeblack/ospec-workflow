@@ -44,11 +44,13 @@ function targetFiles(entries, extensions) {
   return files;
 }
 
-// A git that exits before reading its input breaks the pipe; its exit code,
-// reported on close, is what decides.
+// A git that exits before reading its input breaks the pipe (EPIPE, or EOF on
+// Windows); its exit code, reported on close, is what decides.
+const BROKEN_PIPE = new Set(["EPIPE", "EOF"]);
+
 function feed(child, input, reject) {
   child.stdin.on("error", (error) => {
-    if (error.code !== "EPIPE") reject(error);
+    if (!BROKEN_PIPE.has(error.code)) reject(error);
   });
   child.stdin.end(input);
 }
@@ -192,4 +194,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { longLines, measure, parseArgs, main, findInBlobs };
+module.exports = { longLines, measure, parseArgs, main, findInBlobs, feed };

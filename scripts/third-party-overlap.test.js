@@ -11,7 +11,9 @@ const path = require("node:path");
 const test = require("node:test");
 const { execFileSync } = require("node:child_process");
 
-const { longLines, measure, main, findInBlobs } = require("./third-party-overlap.js");
+const { EventEmitter } = require("node:events");
+
+const { longLines, measure, main, findInBlobs, feed } = require("./third-party-overlap.js");
 
 const REWRITTEN = "This sentence lived in the first version and was later removed.";
 const CURRENT = "This sentence is still in the current tree of the source work.";
@@ -120,4 +122,23 @@ test("a git that exits before reading its input rejects instead of crashing", as
   const { target } = setup(t);
   const ids = Array.from({ length: 20000 }, (_, index) => index.toString(16).padStart(40, "0"));
   await assert.rejects(findInBlobs(path.join(target, "missing"), ids, new Set(), 30), /git cat-file failed/);
+});
+
+function failingStdin(code) {
+  const stdin = new EventEmitter();
+  stdin.end = () => stdin.emit("error", Object.assign(new Error(`write ${code}`), { code }));
+  return stdin;
+}
+
+// Linux reports a write to a process that already exited as EPIPE, Windows as
+// EOF: both leave the outcome to git's exit code.
+test("a broken pipe, as EPIPE or as Windows' EOF, is left to git's exit code", () => {
+  for (const code of ["EPIPE", "EOF"]) {
+    let rejected = null;
+    feed({ stdin: failingStdin(code) }, "ids\n", (error) => (rejected = error));
+    assert.equal(rejected, null, code);
+  }
+  let rejected = null;
+  feed({ stdin: failingStdin("EACCES") }, "ids\n", (error) => (rejected = error));
+  assert.equal(rejected && rejected.code, "EACCES");
 });
