@@ -55,6 +55,7 @@ type catalogFile struct {
 	ObligationStatuses []string `json:"obligation_statuses"`
 	GateStatuses       []string `json:"gate_statuses"`
 	ImpactSignals      []string `json:"impact_signals"`
+	AnswerRetractable  []string `json:"answer_retractable_signals"`
 }
 
 var (
@@ -78,6 +79,10 @@ var (
 	// impactSignals is IMPACT_SIGNALS of idd-impact.js: a feature with one of
 	// them owes a question (E1.75).
 	impactSignals map[string]bool
+	// answerRetractable is ANSWER_RETRACTABLE_SIGNALS of idd-contract.js, and
+	// signalObligation the obligation each signal derives.
+	answerRetractable map[string]bool
+	signalObligation  = map[string]string{}
 )
 
 func setOf(ids []string) map[string]bool {
@@ -98,6 +103,7 @@ func init() {
 	gateOrder = catalog.Gates
 	for _, signal := range catalog.Signals {
 		signalIDs[signal.ID] = true
+		signalObligation[signal.ID] = signal.Obligation
 	}
 	for _, obligation := range catalog.Obligations {
 		evidenceKinds[obligation.ID] = obligation.Evidence
@@ -109,6 +115,7 @@ func init() {
 	obligationStatuses = setOf(catalog.ObligationStatuses)
 	gateStatuses = setOf(catalog.GateStatuses)
 	impactSignals = setOf(catalog.ImpactSignals)
+	answerRetractable = setOf(catalog.AnswerRetractable)
 }
 
 type idStatus struct {
@@ -447,6 +454,27 @@ func StepAction(s *State, hasChecks bool) string {
 	return "close"
 }
 
+// answerSignalOf is answerSignalOf of idd-next.js: the active signal the
+// user's answer may retract that derives obligation, or "".
+func (s *State) answerSignalOf(obligation string) string {
+	for _, signal := range s.Signals {
+		if answerRetractable[signal.ID] && signalObligation[signal.ID] == obligation {
+			return signal.ID
+		}
+	}
+	return ""
+}
+
+// answerWayOut is answerWayOut of idd-session.js: only the diff says whether
+// the user's answer applies, and ospec next reads it.
+func (s *State) answerWayOut(obligation string) string {
+	signal := s.answerSignalOf(obligation)
+	if signal == "" {
+		return ""
+	}
+	return " If `" + signal + "` may be a false positive, `ospec next --change " + s.Change + "` says whether the user's answer can retract it instead."
+}
+
 // DescribeStep is describeStep of idd-session.js: the next step of an open
 // change, as one line of the session files.
 func DescribeStep(s *State, hasChecks bool) string {
@@ -460,7 +488,7 @@ func DescribeStep(s *State, hasChecks bool) string {
 		return "Configure the project checks before `checks-pass`: `ospec next --change " + change + "` proposes the command, which needs the user's approval."
 	case "satisfy-obligation":
 		first := s.PendingObligations()[0]
-		return "Satisfy `" + first + "` with " + evidenceKinds[first] + " evidence: " + strings.ReplaceAll(how[first], changePlaceholder, change) + "."
+		return "Satisfy `" + first + "` with " + evidenceKinds[first] + " evidence: " + strings.ReplaceAll(how[first], changePlaceholder, change) + "." + s.answerWayOut(first)
 	case "close":
 		return "Close it: `ospec close --change " + change + "`."
 	default:

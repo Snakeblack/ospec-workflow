@@ -644,7 +644,8 @@ function recordRetract(state, { id, reason, confirmedBy = null, answerable = fal
   if (!signal) {
     const last = (state.retracted || []).findLast((entry) => entry.id === id);
     if (!last) refuse("signal-not-recorded", `change ${state.change} has no signal ${id}`);
-    if (last.retract_reason === reason && last.answer === answer && last.answer_source === source) return unchanged(state);
+    // The turn fence keeps the declared source of an answer it recorded user-unverified (E1.49).
+    if (last.retract_reason === reason && last.answer === answer && (last.declared_source ?? last.answer_source) === source) return unchanged(state);
     refuse("retract-conflict", `signal ${id} was retracted with a different reason`);
   }
   if (answered) {
@@ -901,6 +902,7 @@ function recordCompletes(state, { of, clear = false, target } = {}) {
 }
 
 module.exports = {
+  ANSWER_CONFIRMS,
   IRREVERSIBLE_PREFIX,
   IddRecordError,
   recordAssumption,

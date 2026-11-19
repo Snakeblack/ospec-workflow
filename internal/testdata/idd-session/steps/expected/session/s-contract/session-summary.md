@@ -14,4 +14,4 @@ feature: Change the API.
 - None
 
 ## Next recommended action
-Satisfy `contract-spec-and-test` with contract-spec-and-test evidence: in one diff, touch a contract document and its test (contracts.documents and contracts.tests of idd/config.yaml), then ospec check --change s-contract.
+Satisfy `contract-spec-and-test` with contract-spec-and-test evidence: in one diff, touch a contract document and its test (contracts.documents and contracts.tests of idd/config.yaml), then ospec check --change s-contract. If `public-contract` may be a false positive, `ospec next --change s-contract` says whether the user's answer can retract it instead.

@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { execFileSync } = require("node:child_process");
+const { execFileSync, spawnSync } = require("node:child_process");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
@@ -304,6 +304,32 @@ test("a trace module that cannot load still counts the turn end and says why", a
   }
 });
 
+// A Stop the launcher's deadline stops while the trace loads gives its host no
+// answer, so the turn ends: the count is written before the trace loads.
+test("a Stop stopped by the deadline while the trace loads has already counted the turn end", async (t) => {
+  const workspace = await createWorkspace(t);
+  const preload = path.join(workspace, "slow-module.js");
+  await fs.writeFile(preload, [
+    '"use strict";',
+    'const Module = require("node:module");',
+    'const path = require("node:path");',
+    "const load = Module._load;",
+    "Module._load = function (request, ...rest) {",
+    '  if (path.basename(request) === "pre-compact.js") Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 60000);',
+    "  return load.call(this, request, ...rest);",
+    "};",
+    "",
+  ].join("\n"));
+  const result = spawnSync(process.execPath, ["--require", preload, path.join(__dirname, "stop.js")], {
+    input: JSON.stringify({ cwd: workspace }),
+    encoding: "utf8",
+    timeout: 3000,
+    killSignal: "SIGKILL",
+  });
+  assert.equal(result.signal, "SIGKILL", "the deadline stopped the hook");
+  assert.equal(await fs.readFile(path.join(workspace, ".ospec", "turns"), "utf8"), "1\n");
+});
+
 // The CLI reads the count at the root of the project, so a session whose cwd
 // is a subdirectory counts there: the first directory up holding .git, a
 // directory or a worktree's file.
@@ -357,6 +383,80 @@ test("Stop asks once to continue an open IDD change the session moved", async (t
   assert.equal(runStopProcess({ cwd: root, session_id: "s1" }), '{"continue":true}\n', "never twice for the same tree");
 });
 
+// A Stop that asks to continue ends no turn, so an answer recorded in that
+// continuation is still fenced: the turn fence sees no turn end since the
+// signal was recorded (E1.49).
+test("a Stop that asks to continue counts no turn end, so a retraction in its continuation stays user-unverified", async (t) => {
+  const { root, ospec } = iddProject(t);
+  execFileSync(process.execPath, [path.join(__dirname, "session-start.js")], { input: JSON.stringify({ cwd: root, session_id: "s1" }), encoding: "utf8" });
+  assert.equal(runStopProcess({ cwd: root, session_id: "s1" }), '{"continue":true}\n');
+  assert.equal(await fs.readFile(path.join(root, ".ospec", "turns"), "utf8"), "1\n");
+  await fs.mkdir(path.join(root, "src"));
+  await fs.writeFile(path.join(root, "src", "a.js"), "module.exports = (formula) => eval(formula);\n");
+  ospec("check", "--change", "fix-a");
+  const state = () => JSON.parse(require("node:fs").readFileSync(path.join(root, "idd", "fix-a", "state.yaml"), "utf8"));
+  assert.equal(state().signals.find((signal) => signal.id === "security-boundary").recorded_turn, 1);
+
+  assert.equal(JSON.parse(runStopProcess({ cwd: root, session_id: "s1" })).decision, "block");
+  assert.equal(await fs.readFile(path.join(root, ".ospec", "turns"), "utf8"), "1\n", "the agent goes on: no turn ended");
+  const retracted = JSON.parse(ospec("record", "retract", "--change", "fix-a", "--signal", "security-boundary", "--reason", "a constant", "--answer", "It is a constant.", "--source", "user", "--json"));
+  assert.match(retracted.warnings[0], /^retract security-boundary recorded user-unverified: no turn ended between the signal's record and the answer;/);
+  assert.equal(state().retracted.at(-1).answer_source, "user-unverified");
+
+  // The Stop of the continuation lets the turn end, and counts it.
+  assert.equal(runStopProcess({ cwd: root, session_id: "s1", stop_hook_active: true }), '{"continue":true}\n');
+  assert.equal(await fs.readFile(path.join(root, ".ospec", "turns"), "utf8"), "2\n");
+});
+
+// A count that fails after its rename has landed, so a Stop whose count
+// failed lets the turn end: it never asks to continue with the count one turn
+// ahead.
+test("a Stop whose count failed lets the turn end instead of asking to continue", async (t) => {
+  const { root } = iddProject(t);
+  execFileSync(process.execPath, [path.join(__dirname, "session-start.js")], { input: JSON.stringify({ cwd: root, session_id: "s1" }), encoding: "utf8" });
+  await fs.writeFile(path.join(root, "a.js"), "module.exports = 1;\n");
+  const preload = path.join(root, "landed-rename.js");
+  await fs.writeFile(preload, [
+    '"use strict";',
+    'const fsp = require("node:fs/promises");',
+    'const path = require("node:path");',
+    "const rename = fsp.rename;",
+    "fsp.rename = async function (from, to) {",
+    "  const result = await rename.call(this, from, to);",
+    '  if (path.basename(String(to)) === "turns") throw Object.assign(new Error("sync refused"), { code: "EIO" });',
+    "  return result;",
+    "};",
+    "",
+  ].join("\n"));
+  const stdout = execFileSync(process.execPath, ["--require", preload, path.join(__dirname, "stop.js")], { input: JSON.stringify({ cwd: root, session_id: "s1" }), encoding: "utf8" });
+  assert.deepEqual(JSON.parse(stdout), { continue: true, systemMessage: "Stop hook could not count the turn end: sync refused" });
+  assert.equal(await fs.readFile(path.join(root, ".ospec", "turns"), "utf8"), "1\n", "the turn end landed and stays counted");
+});
+
+// A Stop that cannot take back the turn end it counted lets the turn end: it
+// never asks to continue with the count one turn ahead.
+test("a Stop that cannot take back its turn end lets the turn end instead of asking to continue", async (t) => {
+  const { root } = iddProject(t);
+  execFileSync(process.execPath, [path.join(__dirname, "session-start.js")], { input: JSON.stringify({ cwd: root, session_id: "s1" }), encoding: "utf8" });
+  await fs.writeFile(path.join(root, "a.js"), "module.exports = 1;\n");
+  const preload = path.join(root, "refused-rename.js");
+  await fs.writeFile(preload, [
+    '"use strict";',
+    'const fsp = require("node:fs/promises");',
+    'const path = require("node:path");',
+    "const rename = fsp.rename;",
+    "let turns = 0;",
+    "fsp.rename = async function (from, to) {",
+    '  if (path.basename(String(to)) === "turns" && ++turns === 2) throw Object.assign(new Error("rename refused"), { code: "EIO" });',
+    "  return rename.call(this, from, to);",
+    "};",
+    "",
+  ].join("\n"));
+  const stdout = execFileSync(process.execPath, ["--require", preload, path.join(__dirname, "stop.js")], { input: JSON.stringify({ cwd: root, session_id: "s1" }), encoding: "utf8" });
+  assert.deepEqual(JSON.parse(stdout), { continue: true, systemMessage: "Stop hook could not take back the turn end: rename refused" });
+  assert.equal(await fs.readFile(path.join(root, ".ospec", "turns"), "utf8"), "1\n", "the turn end stays counted");
+});
+
 test("Stop asks nothing while a gate of an open IDD change waits for the user", async (t) => {
   const { root, ospec } = iddProject(t);
   ospec("record", "gate", "--change", "fix-a", "--gate", "irreversible-operation", "--open", "--reason", "drop the table");
@@ -369,6 +469,6 @@ test("the Stop answer carries the request, the failures and the warnings", () =>
   const { stopOutput } = require("./stop.js");
   assert.deepEqual(stopOutput(), { continue: true });
   assert.deepEqual(stopOutput({ nudge: { reason: "go on" } }), { decision: "block", reason: "go on" });
-  assert.deepEqual(stopOutput({ failure: "count failed", nudge: { reason: "go on" } }), { decision: "block", reason: "go on", systemMessage: "count failed" });
+  assert.deepEqual(stopOutput({ nudge: { reason: "go on", warning: "slow tree" } }), { decision: "block", reason: "go on", systemMessage: "slow tree" });
   assert.deepEqual(stopOutput({ failure: "count failed", nudge: { warning: "no tree" } }), { continue: true, systemMessage: "count failed\nno tree" });
 });

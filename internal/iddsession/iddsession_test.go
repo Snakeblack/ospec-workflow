@@ -2,6 +2,9 @@ package iddsession
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -57,6 +60,82 @@ func TestDescribeStepAsksOpenGatesFirst(t *testing.T) {
 			t.Errorf("%s: DescribeStep = %q, want %q", tc.name, got, tc.want)
 		}
 	}
+}
+
+// The obligation of a signal the user's answer may retract names that way out,
+// as describeStep of idd-session.js does: only ospec next reads the diff.
+func TestDescribeStepNamesTheAnswerWayOut(t *testing.T) {
+	plan := json.RawMessage(`{"paths":["src/a.js"],"work_units":1,"decision":false,"operations":[]}`)
+	signal := func(id string) []*struct {
+		ID     string `json:"id"`
+		Reason string `json:"reason"`
+		Source string `json:"source"`
+	} {
+		return []*struct {
+			ID     string `json:"id"`
+			Reason string `json:"reason"`
+			Source string `json:"source"`
+		}{{ID: id, Reason: "r", Source: "diff"}}
+	}
+	migration := State{Change: "c", Plan: plan, Signals: signal("persistent-data"), Obligations: []*idStatus{{ID: "migration-compat-and-test", Status: "pending"}}}
+	want := "Satisfy `migration-compat-and-test` with migration-test evidence: ospec run --change c --obligation migration-compat-and-test --command \"<migration test>\" --plan \"<compatibility or rollback>\". If `persistent-data` may be a false positive, `ospec next --change c` says whether the user's answer can retract it instead."
+	if got := DescribeStep(&migration, true); got != want {
+		t.Errorf("DescribeStep = %q, want %q", got, want)
+	}
+	checks := State{Change: "c", Plan: plan, Signals: signal("persistent-data"), Obligations: []*idStatus{{ID: "checks-pass", Status: "pending"}}}
+	if got := DescribeStep(&checks, true); got != "Satisfy `checks-pass` with check-run evidence: ospec check --change c; a run that reports tests 0 is not evidence." {
+		t.Errorf("an obligation no such signal derives names no way out: %q", got)
+	}
+}
+
+// A state the turn fence of retractions wrote (recorded_turn on its signals,
+// the fence of the answer on its retractions) is read as before, and so is one
+// written before it.
+func TestOpenChangesReadsTheRetractionFence(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join("..", "testdata", "idd-session", "steps", "workspace", "idd", "s-migration", "state.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state map[string]any
+	if err := json.Unmarshal(src, &state); err != nil {
+		t.Fatal(err)
+	}
+	for _, signal := range state["signals"].([]any) {
+		signal.(map[string]any)["recorded_turn"] = 3
+	}
+	state["retracted"] = []any{map[string]any{
+		"id": "security-boundary", "reason": "security boundary: src/a.js adds code evaluation (CWE-94)", "source": "diff",
+		"retract_reason": "constant", "confirmed_by": "security boundary: src/a.js adds code evaluation (CWE-94)",
+		"hits": []string{"src/a.js adds code evaluation (CWE-94): eval(F)"}, "answer": "F is a constant.",
+		"answer_source": "user-unverified", "declared_source": "user", "unverified_reason": "no turn ended between the signal's record and the answer",
+		"recorded_turn": 3, "resolved_turn": 3,
+	}}
+	for name, raw := range map[string][]byte{"before": src, "fenced": mustJSON(t, state)} {
+		workspace := t.TempDir()
+		dir := filepath.Join(workspace, "idd", "s-migration")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "state.yaml"), raw, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		changes := OpenChanges(workspace)
+		if len(changes) != 1 || changes[0].Change != "s-migration" {
+			t.Fatalf("%s: OpenChanges = %d changes, want s-migration", name, len(changes))
+		}
+		if got := DescribeStep(changes[0], true); !strings.Contains(got, "If `persistent-data` may be a false positive") {
+			t.Errorf("%s: DescribeStep = %q", name, got)
+		}
+	}
+}
+
+func mustJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
 }
 
 // The same plans as validatePlan of scripts/lib/idd-contract.js: the texts of

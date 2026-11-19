@@ -12,7 +12,7 @@ const path = require("node:path");
 const { writeFileAtomic } = require("../lib/atomic-write.js");
 const { mkdirOspec } = require("../lib/ospec-gitignore.js");
 const { resolveWorkspaceCwd } = require("../lib/pathsafe.js");
-const { countTurnEnd, turnsRoot } = require("../lib/turn-fence.js");
+const { countTurnEnd, turnsRoot, uncountTurnEnd } = require("../lib/turn-fence.js");
 
 let traceModules = null;
 
@@ -289,14 +289,26 @@ async function readJsonInput(stream = process.stdin) {
   return input ? JSON.parse(input) : {};
 }
 
-// E1.49: every turn end is counted in .ospec/turns of the project, before the
-// trace, so a trace that cannot be written still counts it.
+// E1.49: every turn end is counted in .ospec/turns of the project before the
+// trace loads, so a trace that cannot load or a deadline that stops the hook
+// still counts it.
 async function countTurn(input, fallbackCwd = process.cwd()) {
   try {
     await countTurnEnd(turnsRoot(resolveWorkspaceCwd(input?.cwd, fallbackCwd)));
     return null;
   } catch (error) {
     return `Stop hook could not count the turn end: ${error.message}`;
+  }
+}
+
+// A Stop that asks the agent to continue (E1.51) ended no turn, so it takes
+// back the one it counted.
+async function uncountTurn(input, fallbackCwd = process.cwd()) {
+  try {
+    await uncountTurnEnd(turnsRoot(resolveWorkspaceCwd(input?.cwd, fallbackCwd)));
+    return null;
+  } catch (error) {
+    return `Stop hook could not take back the turn end: ${error.message}`;
   }
 }
 
@@ -316,6 +328,13 @@ async function main() {
     const input = await readJsonInput();
     failure = await countTurn(input);
     nudge = (await runStop({ input })).nudge ?? null;
+    if (nudge?.reason) {
+      // A count that failed may have landed (an error after its rename), and
+      // a turn end it cannot take back stays counted: the Stop then lets the
+      // turn end rather than ask to continue with the count one turn ahead.
+      if (failure === null) failure = await uncountTurn(input);
+      if (failure) nudge = nudge.warning ? { warning: nudge.warning } : null;
+    }
   } catch (error) {
     failure = `Stop hook could not write the session trace: ${error.message}`;
   }

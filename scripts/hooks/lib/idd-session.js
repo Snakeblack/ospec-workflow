@@ -12,7 +12,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const { ARCHIVE_ROOT, CHANGE_ID_PATTERN, CHANGE_ROOT, GATES, STATE_FILE, validateState } = require("../../lib/idd-contract.js");
-const { nextForChange } = require("../../lib/idd-next.js");
+const { answerSignalOf, nextForChange } = require("../../lib/idd-next.js");
 
 const CONFIG_FILE = path.posix.join(CHANGE_ROOT, "config.yaml");
 const ARCHIVE_DIR = path.posix.basename(ARCHIVE_ROOT);
@@ -107,12 +107,19 @@ function describeStep(state, { hasChecks }) {
     case "configure-checks":
       return `Configure the project checks before \`checks-pass\`: \`ospec next --change ${change}\` proposes the command, which needs the user's approval.`;
     case "satisfy-obligation":
-      return `Satisfy \`${step.obligation}\` with ${step.evidence} evidence: ${step.how}.`;
+      return `Satisfy \`${step.obligation}\` with ${step.evidence} evidence: ${step.how}.${answerWayOut(state, step.obligation)}`;
     case "close":
       return `Close it: \`ospec close --change ${change}\`.`;
     default:
       return `Run \`ospec next --change ${change}\`.`;
   }
+}
+
+// A signal the user's answer may retract derives the obligation: only the diff
+// says whether the answer applies, and ospec next reads it.
+function answerWayOut(state, obligation) {
+  const signal = answerSignalOf(state, obligation);
+  return signal ? ` If \`${signal}\` may be a false positive, \`ospec next --change ${state.change}\` says whether the user's answer can retract it instead.` : "";
 }
 
 function renderList(values) {

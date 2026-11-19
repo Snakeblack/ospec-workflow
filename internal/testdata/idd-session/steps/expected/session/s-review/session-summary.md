@@ -14,4 +14,4 @@ feature: Touch auth.
 - None
 
 ## Next recommended action
-Satisfy `trust-review` with frozen-review evidence: ospec review start --change s-review, dispatch review-trust on the returned paths, then ospec review record --change s-review --result '<findings json>'.
+Satisfy `trust-review` with frozen-review evidence: ospec review start --change s-review, dispatch review-trust on the returned paths, then ospec review record --change s-review --result '<findings json>'. If `security-boundary` may be a false positive, `ospec next --change s-review` says whether the user's answer can retract it instead.

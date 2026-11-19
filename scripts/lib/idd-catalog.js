@@ -9,7 +9,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { GATES, GATE_STATUSES, INTENT_KINDS, OBLIGATIONS, OBLIGATION_STATUSES, SIGNALS, SIGNAL_SOURCES } = require("./idd-contract.js");
+const { ANSWER_RETRACTABLE_SIGNALS, GATES, GATE_STATUSES, INTENT_KINDS, OBLIGATIONS, OBLIGATION_STATUSES, SIGNALS, SIGNAL_SOURCES } = require("./idd-contract.js");
 const { IMPACT_SIGNALS } = require("./idd-impact.js");
 const { CHECKS_REQUIRED, HOW, WORK_ORDER } = require("./idd-next.js");
 
@@ -35,6 +35,9 @@ function iddCatalog() {
     // The signals a feature owes a question for (E1.75), which decide the
     // ask-open-facts step of the session hooks (E1.51).
     impact_signals: [...IMPACT_SIGNALS],
+    // The signals the user's answer may retract (#416, E1.58, E1.50): the
+    // step line of the obligation one derives names that way out.
+    answer_retractable_signals: [...ANSWER_RETRACTABLE_SIGNALS],
   };
 }
 

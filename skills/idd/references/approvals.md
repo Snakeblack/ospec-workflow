@@ -49,6 +49,12 @@ verified once that turn ended. Without a count at the answer (no hook in this
 workspace), every `user` answer is kept as `user-unverified`. The count says
 that a turn ended, not who answered.
 
+The user's answer that retracts a signal (`record retract --answer`, which
+`next` offers beside the obligation the signal derives) is fenced the same
+way, from the turn the signal was recorded in: end your turn asking the user
+about the hits the retraction covers, and record their answer after they
+reply. `record retract` and `close` warn about one kept `user-unverified`.
+
 For the same reason, a project check is approved at `checks-changed`, never
 before it is written: write the proposed command to `idd/config.yaml` and run
 `ospec check`, which runs nothing and opens the gate; then end your turn

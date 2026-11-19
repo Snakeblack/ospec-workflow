@@ -2,7 +2,7 @@
 
 // E1.51 open-change-nudge: SessionStart tells the model which IDD changes are
 // open, and Stop asks it once to continue a change the session moved that
-// still has a step needing no answer from the user. internal/iddsession
+// still has a step no gate or approval waits on. internal/iddsession
 // (nudge.go) is the Go port; the shared cases of
 // internal/testdata/idd-nudge/ keep both identical.
 //
@@ -183,7 +183,7 @@ function renderContext(entries) {
 
 function renderReason(entries) {
   return [
-    "ospec: these open IDD changes have a next step that needs no answer from the user:",
+    "ospec: these open IDD changes have a next step to take:",
     renderSteps(entries),
     "Continue with them; a change is done only after `ospec close`. If you stopped to wait for the user's answer, say so and end your turn again. If a change was superseded or discarded, ask the user whether to abandon it with `ospec abandon --change <id> --reason \"<why>\"`.",
   ].join("\n");

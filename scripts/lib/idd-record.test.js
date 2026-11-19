@@ -738,6 +738,11 @@ test("the user's answer retracts content-only persistent data, and the state kee
   assert.strictEqual(retracted.obligations.find((o) => o.id === "migration-compat-and-test").status, "withdrawn");
   assert.strictEqual(recordRetract(retracted, { ...answer, answerable: true }).changed, false);
   assertCode(() => recordRetract(retracted, { ...answer, answerable: true, answer: "Other words." }), "retract-conflict");
+  // The turn fence keeps the declared source of an answer it recorded user-unverified.
+  const fenced = structuredClone(retracted);
+  Object.assign(fenced.retracted[0], { answer_source: "user-unverified", declared_source: "user", unverified_reason: "no turn ended", recorded_turn: 3, resolved_turn: 3 });
+  assert.strictEqual(recordRetract(fenced, { ...answer, answerable: true }).changed, false);
+  assertCode(() => recordRetract(fenced, { ...answer, answerable: true, source: "user-unverified" }), "retract-conflict");
 
   for (const broken of [
     { answer: "" },

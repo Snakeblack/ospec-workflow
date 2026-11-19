@@ -54,7 +54,8 @@ func (h *stopHandler) Run(stdin []byte) ([]byte, int) {
 
 	// E1.49: every turn end is counted in the project before the trace, so a
 	// trace that cannot be written still counts it.
-	counted := countTurnEnd(turnsRoot(resolveCwd(input.Cwd)))
+	workspace := turnsRoot(resolveCwd(input.Cwd))
+	counted := countTurn(workspace)
 	var raw map[string]any
 	_ = json.Unmarshal(stdin, &raw)
 	failure := ""
@@ -65,6 +66,19 @@ func (h *stopHandler) Run(stdin []byte) ([]byte, int) {
 	if err != nil {
 		failure = fmt.Sprintf("Stop hook could not write the session trace: %s", err.Error())
 		reason, warning = "", ""
+	}
+	// A Stop that asks the agent to continue (E1.51) ended no turn, so it
+	// takes back the one it counted. A count that failed may have landed (an
+	// error after its rename), and a turn end it cannot take back stays
+	// counted: the Stop then lets the turn end rather than ask to continue
+	// with the count one turn ahead.
+	if reason != "" && counted != nil {
+		reason = ""
+	} else if reason != "" {
+		if err := uncountTurn(workspace); err != nil {
+			failure = fmt.Sprintf("Stop hook could not take back the turn end: %s", err.Error())
+			reason = ""
+		}
 	}
 	return stopAnswer(failure, reason, warning), 0
 }
@@ -136,6 +150,29 @@ func countTurnEnd(workspace string) error {
 		}
 	}
 	return store.WriteFileAtomic(turnsPath, strconv.FormatUint(turn+1, 10)+"\n")
+}
+
+// countTurn and uncountTurn are countTurnEnd and uncountTurnEnd, replaced in
+// tests to make them fail.
+var (
+	countTurn   = countTurnEnd
+	uncountTurn = uncountTurnEnd
+)
+
+// uncountTurnEnd takes back the turn end a Stop counted when it asks the agent
+// to continue (uncountTurnEnd of scripts/lib/turn-fence.js); a count of 0 or
+// none is left as it is.
+func uncountTurnEnd(workspace string) error {
+	turnsPath := filepath.Join(workspace, filepath.FromSlash(store.TurnsRelPath))
+	data, err := os.ReadFile(turnsPath)
+	if err != nil {
+		return nil
+	}
+	turn, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64)
+	if err != nil || turn == 0 || turn > maxTurn {
+		return nil
+	}
+	return store.WriteFileAtomic(turnsPath, strconv.FormatUint(turn-1, 10)+"\n")
 }
 
 func runStop(input stopInput, raw map[string]any) (reason, warning string, err error) {

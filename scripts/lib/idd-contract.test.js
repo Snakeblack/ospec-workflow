@@ -558,6 +558,41 @@ test("[E1.49] a gate carries the turns of its opening and answer, and an answer 
   }
 });
 
+test("a signal carries the turn of its record, and its retraction by an answer before a turn end is user-unverified", () => {
+  const reason = "persistent data: src/a.js uses writeFile";
+  const signal = (fields) => validState({ signals: [{ id: "always", reason: "every change", source: "declaration", ...fields }] });
+  assert.deepStrictEqual(contract.validateState(signal({ recorded_turn: 0 })), { ok: true, errors: [] });
+  for (const turn of [-1, "3", null, 1.5]) assert.match(contract.validateState(signal({ recorded_turn: turn })).errors.join("; "), /recorded_turn must be a turn count/);
+
+  const base = { id: "persistent-data", reason, source: "diff", retract_reason: "no stored data", confirmed_by: reason, hits: ["src/a.js uses writeFile: w()"], answer: "No stored data.", answer_source: "user" };
+  const retraction = (fields) => validState({ retracted: [{ ...base, ...fields }] });
+  const valid = [
+    {},
+    { recorded_turn: 3, resolved_turn: 4 },
+    { recorded_turn: 5, resolved_turn: 2 },
+    { recorded_turn: 3 },
+    { answer_source: "user-unverified", declared_source: "user", unverified_reason: "no turn ended", recorded_turn: 3, resolved_turn: 3 },
+    { answer_source: "user-unverified", declared_source: "user", unverified_reason: "no count", recorded_turn: 0, resolved_turn: null },
+  ];
+  for (const fields of valid) assert.deepStrictEqual(contract.validateState(retraction(fields)), { ok: true, errors: [] }, JSON.stringify(fields));
+  const invalid = [
+    [{ recorded_turn: -1 }, /recorded_turn must be a turn count/],
+    [{ recorded_turn: 3, resolved_turn: "4" }, /resolved_turn must be a turn count or null/],
+    [{ resolved_turn: 4 }, /turn of an answer without/],
+    [{ recorded_turn: 3, resolved_turn: 3 }, /answered user without a turn end/],
+    [{ recorded_turn: 3, resolved_turn: null }, /answered user without a turn end/],
+    [{ declared_source: "user", unverified_reason: "no turn ended" }, /declared user must be recorded user-unverified/],
+    [{ answer_source: "user-unverified", declared_source: "user" }, /declared user must be recorded user-unverified/],
+  ];
+  for (const [fields, error] of invalid) {
+    const { ok, errors } = contract.validateState(retraction(fields));
+    assert.strictEqual(ok, false, JSON.stringify(fields));
+    assert.match(errors.join("; "), error);
+  }
+  const plain = validState({ retracted: [{ id: "public-contract", reason: "r", source: "declaration", retract_reason: "not touched", recorded_turn: 3 }] });
+  assert.match(contract.validateState(plain).errors.join("; "), /keeps the turn fence only for the user's answer/);
+});
+
 test("a gate may carry a reason, which must be text", () => {
   const state = validState({ gates: [{ id: "irreversible-operation", status: "open", reason: "drops customers.fax_number" }] });
   assert.deepStrictEqual(contract.validateState(state), { ok: true, errors: [] });

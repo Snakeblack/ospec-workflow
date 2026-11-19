@@ -340,7 +340,7 @@ Hooks offload repetitive lifecycle-cycle tasks from the prompt and enforce secur
 | `PostToolUse` | Redacts secrets from tool output before the model sees it. |
 | `PreCompact` | Persists a recoverable summary before compacting context. |
 | `SubagentStop` | Records telemetry (tokens and duration) per agent and, for the `sdd-*` agents of the active SDD change, persists their result in its `state.yaml`. It warns when skill resolution degrades and never blocks the turn. |
-| `Stop` | Counts the end of the turn in `.ospec/turns`, which fences the answers to the IDD gates (E1.49), and records minimal session continuity. When the session moved an open IDD change whose next step needs no answer from the user and no gate is open, it asks the agent once to continue it (E1.51). |
+| `Stop` | Counts the end of the turn in `.ospec/turns`, which fences the answers to the IDD gates and retractions (E1.49), unless it asks the agent to continue, and records minimal session continuity. When the session moved an open IDD change whose next step is to declare the plan, satisfy an obligation or close, and no gate is open, it asks the agent once to continue it (E1.51). |
 
 ### Bypass Environment Variables (Harness Gates)
 

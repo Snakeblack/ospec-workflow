@@ -77,6 +77,7 @@ test("the hooks answer the shared steps and write the shared record", (t) => {
       encoding: "utf8",
     });
     assert.deepEqual(JSON.parse(stdout), step.expect, `step ${index}: ${step.hook} ${JSON.stringify(step.input)}`);
+    if (step.turns !== undefined) assert.equal(fs.readFileSync(path.join(root, ".ospec", "turns"), "utf8"), `${step.turns}\n`, `step ${index}: turns`);
   }
   assert.equal(fs.readFileSync(path.join(root, ".ospec", "idd-nudge.json"), "utf8"), CASE.record);
 });

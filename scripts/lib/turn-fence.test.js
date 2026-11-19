@@ -11,7 +11,7 @@ const path = require("node:path");
 
 const { execFileSync } = require("node:child_process");
 
-const { TURNS_FILE, countTurnEnd, fenceGates, readTurn, unverifiedGateWarnings, workspaceTurn } = require("./turn-fence.js");
+const { TURNS_FILE, countTurnEnd, fenceGates, fenceSignals, readTurn, uncountTurnEnd, unverifiedGateWarnings, unverifiedRetractWarnings, workspaceTurn } = require("./turn-fence.js");
 
 function workspace(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "turn-fence-"));
@@ -55,6 +55,22 @@ function gitRepo(root, ...init) {
   git("-c", "user.email=t@example.invalid", "-c", "user.name=t", "commit", "-q", "--allow-empty", "--no-verify", "-m", "base");
   return git;
 }
+
+test("a Stop that asks to continue takes back the turn end it counted, and never goes below 0", async (t) => {
+  const root = workspace(t);
+  await uncountTurnEnd(root);
+  assert.strictEqual(readTurn(root), null, "no count: nothing to take back");
+  await countTurnEnd(root);
+  await countTurnEnd(root);
+  await uncountTurnEnd(root);
+  assert.strictEqual(fs.readFileSync(path.join(root, ...TURNS_FILE.split("/")), "utf8"), "1\n");
+  await uncountTurnEnd(root);
+  await uncountTurnEnd(root);
+  assert.strictEqual(readTurn(root), 0);
+  writeTurns(root, "seven");
+  await uncountTurnEnd(root);
+  assert.strictEqual(fs.readFileSync(path.join(root, ...TURNS_FILE.split("/")), "utf8"), "seven", "an unreadable count is left to the next Stop");
+});
 
 test("a linked worktree counts its own turn ends plus the main repository's", (t) => {
   const main = workspace(t);
@@ -224,4 +240,79 @@ test("close names every gate answered user-unverified, with the reason of a fenc
     "gate open-facts was answered user-unverified: no turn ended between the gate's opening and the answer",
     "gate irreversible-operation was answered user-unverified: the answer was relayed",
   ]);
+});
+
+// The user's answer that retracts a signal, which next offers on every step,
+// is fenced as a gate answer is.
+const PERSISTENT = Object.freeze({ id: "persistent-data", reason: "persistent data: src/a.js uses writeFile", source: "diff" });
+
+function retracted(answer, answer_source) {
+  return { id: "persistent-data", reason: PERSISTENT.reason, source: "diff", retract_reason: "no stored data", confirmed_by: PERSISTENT.reason, hits: ["src/a.js uses writeFile: w()"], answer, answer_source };
+}
+
+test("a signal the command recorded takes the turn, one it left as it was keeps its own", () => {
+  const before = { signals: [{ id: "always", reason: "r", source: "declaration", recorded_turn: 2 }] };
+  const after = { signals: [{ id: "always", reason: "r", source: "declaration", recorded_turn: 2 }, { ...PERSISTENT }] };
+  assert.deepStrictEqual(fenceSignals(before, after, 5), []);
+  assert.deepStrictEqual(after.signals.map((signal) => signal.recorded_turn), [2, 5]);
+  const first = { signals: [{ ...PERSISTENT }] };
+  fenceSignals(null, first, null);
+  assert.strictEqual(first.signals[0].recorded_turn, 0, "no count yet, so no turn has ended");
+});
+
+test("an answer that retracts a signal without a turn end after its record is user-unverified", () => {
+  const cases = [
+    { turn: 3, reason: "no turn ended between the signal's record and the answer", remedy: /^ask the user about the hits a retraction covers by ending your turn/ },
+    { turn: null, reason: /^no turn count in \.ospec\/turns: no end-of-turn hook ran/, remedy: /^install or repair the host's ospec hooks/ },
+  ];
+  for (const { turn, reason, remedy } of cases) {
+    const before = { signals: [{ ...PERSISTENT, recorded_turn: 3 }] };
+    const after = { signals: [], retracted: [retracted("No stored data.", "user")] };
+    const [warning] = fenceSignals(before, after, turn);
+    assert.strictEqual(warning.retract, "persistent-data");
+    assert.strictEqual(warning.obligation, "migration-compat-and-test");
+    assert.match(warning.reason, reason instanceof RegExp ? reason : new RegExp(`^${reason}$`));
+    assert.match(warning.remedy, remedy);
+    assert.deepStrictEqual(after.retracted[0], { ...retracted("No stored data.", "user-unverified"), recorded_turn: 3, resolved_turn: turn, declared_source: "user", unverified_reason: warning.reason });
+  }
+});
+
+test("an answer after a turn end, a relayed one, a plain retraction and a signal recorded before the fence keep their source", () => {
+  const later = { signals: [], retracted: [retracted("No stored data.", "user")] };
+  assert.deepStrictEqual(fenceSignals({ signals: [{ ...PERSISTENT, recorded_turn: 3 }] }, later, 4), []);
+  assert.deepStrictEqual(later.retracted[0], { ...retracted("No stored data.", "user"), recorded_turn: 3, resolved_turn: 4 });
+
+  const relayed = { signals: [], retracted: [retracted("forwarded", "user-unverified")] };
+  assert.deepStrictEqual(fenceSignals({ signals: [{ ...PERSISTENT, recorded_turn: 3 }] }, relayed, 3), []);
+  assert.strictEqual(relayed.retracted[0].declared_source, undefined);
+
+  const plain = { signals: [], retracted: [{ id: "persistent-data", reason: PERSISTENT.reason, source: "declaration", retract_reason: "not touched" }] };
+  assert.deepStrictEqual(fenceSignals({ signals: [{ ...PERSISTENT, source: "declaration", recorded_turn: 3 }] }, plain, 3), []);
+  assert.deepStrictEqual(Object.keys(plain.retracted[0]), ["id", "reason", "source", "retract_reason"]);
+
+  const legacy = { signals: [], retracted: [retracted("No stored data.", "user")] };
+  assert.deepStrictEqual(fenceSignals({ signals: [{ ...PERSISTENT }] }, legacy, 0), []);
+  assert.deepStrictEqual(legacy.retracted[0], retracted("No stored data.", "user"));
+
+  // An earlier retraction is not fenced again.
+  const earlier = retracted("No stored data.", "user");
+  const kept = { signals: [{ ...PERSISTENT, recorded_turn: 7 }], retracted: [structuredClone(earlier)] };
+  assert.deepStrictEqual(fenceSignals({ signals: [], retracted: [earlier] }, kept, 7), []);
+  assert.deepStrictEqual(kept.retracted[0], earlier);
+});
+
+test("close names every retraction answered user-unverified, with the obligation it withdrew", () => {
+  const closed = {
+    retracted: [
+      { ...retracted("No stored data.", "user-unverified"), declared_source: "user", unverified_reason: "no turn ended between the signal's record and the answer" },
+      { ...retracted("forwarded", "user-unverified"), id: "security-boundary" },
+      retracted("Fine.", "user"),
+      { id: "public-contract", reason: "r", source: "declaration", retract_reason: "not touched" },
+    ],
+  };
+  assert.deepStrictEqual(unverifiedRetractWarnings(closed), [
+    "the retraction of persistent-data withdrew migration-compat-and-test on an answer user-unverified: no turn ended between the signal's record and the answer",
+    "the retraction of security-boundary withdrew trust-review on an answer user-unverified: the answer was relayed",
+  ]);
+  assert.deepStrictEqual(unverifiedRetractWarnings({}), []);
 });

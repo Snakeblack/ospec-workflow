@@ -45,7 +45,8 @@
       },
       "expect": {
         "continue": true
-      }
+      },
+      "turns": "1"
     },
     {
       "write": {
@@ -59,8 +60,9 @@
       },
       "expect": {
         "decision": "block",
-        "reason": "ospec: these open IDD changes have a next step that needs no answer from the user:\n- `fix-a`: Satisfy `repro-test` with repro-run-pair evidence: ospec run --change fix-a --obligation repro-test --command \"<test>\": once failing before the fix, again passing after it, with the test in a test file of the diff; it must also fail against the base product.\n- `s-close`: Close it: `ospec close --change s-close`.\nContinue with them; a change is done only after `ospec close`. If you stopped to wait for the user's answer, say so and end your turn again. If a change was superseded or discarded, ask the user whether to abandon it with `ospec abandon --change <id> --reason \"<why>\"`."
-      }
+        "reason": "ospec: these open IDD changes have a next step to take:\n- `fix-a`: Satisfy `repro-test` with repro-run-pair evidence: ospec run --change fix-a --obligation repro-test --command \"<test>\": once failing before the fix, again passing after it, with the test in a test file of the diff; it must also fail against the base product.\n- `s-close`: Close it: `ospec close --change s-close`.\nContinue with them; a change is done only after `ospec close`. If you stopped to wait for the user's answer, say so and end your turn again. If a change was superseded or discarded, ask the user whether to abandon it with `ospec abandon --change <id> --reason \"<why>\"`."
+      },
+      "turns": "1"
     },
     {
       "hook": "stop",
@@ -69,7 +71,8 @@
       },
       "expect": {
         "continue": true
-      }
+      },
+      "turns": "2"
     },
     {
       "write": {
@@ -84,7 +87,8 @@
       },
       "expect": {
         "continue": true
-      }
+      },
+      "turns": "3"
     },
     {
       "hook": "stop",
@@ -93,7 +97,8 @@
       },
       "expect": {
         "continue": true
-      }
+      },
+      "turns": "4"
     },
     {
       "write": {
@@ -107,8 +112,9 @@
       },
       "expect": {
         "decision": "block",
-        "reason": "ospec: these open IDD changes have a next step that needs no answer from the user:\n- `fix-a`: Satisfy `repro-test` with repro-run-pair evidence: ospec run --change fix-a --obligation repro-test --command \"<test>\": once failing before the fix, again passing after it, with the test in a test file of the diff; it must also fail against the base product.\n- `s-close`: Close it: `ospec close --change s-close`.\nContinue with them; a change is done only after `ospec close`. If you stopped to wait for the user's answer, say so and end your turn again. If a change was superseded or discarded, ask the user whether to abandon it with `ospec abandon --change <id> --reason \"<why>\"`."
-      }
+        "reason": "ospec: these open IDD changes have a next step to take:\n- `fix-a`: Satisfy `repro-test` with repro-run-pair evidence: ospec run --change fix-a --obligation repro-test --command \"<test>\": once failing before the fix, again passing after it, with the test in a test file of the diff; it must also fail against the base product.\n- `s-close`: Close it: `ospec close --change s-close`.\nContinue with them; a change is done only after `ospec close`. If you stopped to wait for the user's answer, say so and end your turn again. If a change was superseded or discarded, ask the user whether to abandon it with `ospec abandon --change <id> --reason \"<why>\"`."
+      },
+      "turns": "4"
     }
   ],
   "record": "{\n  \"sessions\": [\n    {\n      \"id\": \"s1\",\n      \"base\": \"sha256:2e275704c4fc11e8be6f4a1a2ad29b5e1b600ca73523f6e47707af010849495a\"\n    },\n    {\n      \"id\": \"s2\",\n      \"base\": \"sha256:14b71071f1cac9ffce312f80ebb847fceaca49c3b5ef486a02f4c114ff9fd6fa\"\n    }\n  ],\n  \"asked\": [\n    {\n      \"change\": \"fix-a\",\n      \"fingerprint\": \"sha256:8b4eea2f43c7b47e88bea5e8506b07aa9f18492b0b964b25f039aacea1a0eb5c\"\n    },\n    {\n      \"change\": \"s-close\",\n      \"fingerprint\": \"sha256:8b4eea2f43c7b47e88bea5e8506b07aa9f18492b0b964b25f039aacea1a0eb5c\"\n    },\n    {\n      \"change\": \"fix-a\",\n      \"fingerprint\": \"sha256:0098c6e0eab285dbb8228aef2f56c7fabe00efca8aed5b9548038ee107d33093\"\n    },\n    {\n      \"change\": \"s-close\",\n      \"fingerprint\": \"sha256:0098c6e0eab285dbb8228aef2f56c7fabe00efca8aed5b9548038ee107d33093\"\n    }\n  ]\n}\n"
