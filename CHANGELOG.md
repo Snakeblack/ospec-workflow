@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Los records de ospec close cortan un bullet de Decisions donde Markdown lo termina, sin pegarle el encabezado ni el párrafo que le sigue (decision-bullet-ends)
+
 ## [2.185.1] - 2026-11-19
 
 ### Fixed

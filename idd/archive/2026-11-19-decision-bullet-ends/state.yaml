@@ -1,0 +1,339 @@
+{
+  "schema": "idd-state/v1",
+  "change": "decision-bullet-ends",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "requested_at": "2026-11-19T09:22:12.075Z",
+    "kind": "bug",
+    "summary": "Los records de ospec close cortan un bullet de Decisions donde Markdown lo termina, sin pegarle el encabezado ni el párrafo que le sigue",
+    "acceptance": "Con un bullet de Decisions seguido de un encabezado ### (con o sin línea en blanco entre medias), ospec close --json devuelve el summary del bullet sin el encabezado ni el texto de la subsección; las líneas sangradas siguen uniéndose al bullet"
+  },
+  "facts": {
+    "open": [
+      "Además de un encabezado, ¿qué otras líneas cierran un bullet? Hoy se pegan al bullet anterior también un párrafo sin sangría tras una línea en blanco (en greenfield-head-to-head, «Corrección del usuario a la respuesta 7…» acaba dentro del bullet de bench-margins-7), una línea --- y una valla de código. Recomendado: seguir a Markdown: un bullet sigue con las líneas sangradas y con las no vacías justo debajo (continuación perezosa); un encabezado, una línea --- o una valla lo cierran siempre, y una línea en blanco seguida de una línea sin sangría que no es un bullet también lo cierra.",
+      "¿Siguen siendo records los bullets de una subsección ### dentro de Decisions (### Follow-ups, ### Fuera de alcance, ### Result)? Hoy cuentan. Recomendado: sí, siguen contando; REQ-idd-024 cuenta los bullets de primer nivel de toda la sección, y quitarlos renumeraría los topics knowledge/dc/<change>/<n> ya guardados en memoria."
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-close.js",
+      "scripts/lib/idd-close.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Un bullet de Decisions termina donde Markdown termina un elemento de lista: sigue con las líneas sangradas y con las no vacías justo debajo (continuación perezosa); un encabezado, una línea --- o una valla de código lo terminan siempre, y una línea en blanco seguida de una línea sin sangría que no es un bullet también lo termina (respuesta 1 del usuario)",
+      "Los bullets de una subsección ### dentro de Decisions siguen siendo records: REQ-idd-024 cuenta los bullets de primer nivel de toda la sección y los topics ya guardados conservan su número (respuesta 2 del usuario)",
+      "Prior decision (memory): close: el registro del último bullet absorbe el párrafo siguiente -> idd/archive/2026-10-25-delivery-branching/change.md: current",
+      "Las líneas de una valla de código son código: ni abren un record ni se suman a uno, aunque empiecen por un guion"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 587
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration",
+      "recorded_turn": 587
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration",
+      "recorded_turn": 587
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 588
+    }
+  ],
+  "retracted": [
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/idd-close.js imports scripts/lib/archive-transaction.js, which uses writeFile",
+      "source": "diff",
+      "retract_reason": "El cambio solo altera cómo decisionBullets lee el change.md archivado para los records que close devuelve por salida; nada de lo que se escribe en disco cambia",
+      "confirmed_by": "persistent data: scripts/lib/idd-close.js imports scripts/lib/archive-transaction.js, which uses writeFile",
+      "hits": [
+        "scripts/lib/idd-close.js imports scripts/lib/archive-transaction.js, which uses writeFile: await fsx.writeFile(stagedState, bytes);",
+        "scripts/lib/idd-close.js imports scripts/lib/archive-transaction.js, which uses writeFile: await fsx.writeFile(p, JSON.stringify(journal, null, 2), \"utf8\");",
+        "scripts/lib/idd-close.js imports scripts/lib/archive-transaction.js, which uses writeFile: await fsx.writeFile(p, JSON.stringify(receipt, null, 2), \"utf8\");",
+        "scripts/lib/idd-close.js imports scripts/lib/idd-store.js, which uses writeFile: await fs.writeFile(file, livingDocTemplate(state), { encoding: \"utf8\", flag: \"wx\" });",
+        "scripts/lib/idd-close.js imports scripts/lib/idd-store.js, which uses writeFile: if (rendered !== text) await writeFile(file, rendered);",
+        "scripts/lib/idd-close.js imports scripts/lib/idd-store.js, which uses writeFile: await writeFile(file, serializeState(result.state));"
+      ],
+      "answer": "si",
+      "answer_source": "user",
+      "resolved_at": "2026-11-19T22:24:50.000Z",
+      "recorded_turn": 588,
+      "resolved_turn": 589
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La regla de dónde termina un bullet de Decisions sigue en el CLI (decisionBullets de idd-close.js) con su test; ninguna skill la describe en prosa"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia la derivación de señales ni obligaciones; solo el texto de los records de close"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "Los records no intervienen en si close se niega; la evidencia y los gates siguen igual"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "Solo lee el change.md archivado del árbol idd/; no toca el estado de SDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "No cambia el siguiente paso ni las obligaciones que devuelve el CLI al retomar; los records siguen derivándose del archivo de forma determinista"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "La regla de fin de bullet vive en decisionBullets (scripts/lib/idd-close.js) con su test en scripts/lib/idd-close.test.js; ninguna skill la describe en prosa",
+      "recorded_at": "2026-11-19T22:22:54.915Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "withdrawn",
+      "evidence": [],
+      "withdrawn_reason": "El cambio solo altera cómo decisionBullets lee el change.md archivado para los records que close devuelve por salida; nada de lo que se escribe en disco cambia"
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 587,
+      "answer": "lo recomendado",
+      "source": "user",
+      "resolved_at": "2026-11-19T22:19:15.134Z",
+      "resolved_turn": 588
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-19T22:20:25.869Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-19T22:22:44.910Z",
+      "detail": {
+        "tree": "sha256:8c1729fd5573bf29bef66afef7f00f944d5a6eaea52003ce5ab3205c29f56b37",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-19T22:22:44.910Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume none"
+        ],
+        "records": [],
+        "tree": "sha256:8c1729fd5573bf29bef66afef7f00f944d5a6eaea52003ce5ab3205c29f56b37",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-19T22:24:57.488Z"
+    }
+  ],
+  "base": "70062ab25945c720f2f6bff4bcf283b356f37ce1",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"ends a decision\" scripts/lib/idd-close.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:8c8939f16500d553255785bf5065a74219e3aecbfc7c76605f146df47ff56061",
+      "tree": "sha256:7c5c0b08af3a3d3457faf37af5059fc9ed672c4bbaf5c8f86e85a56824db6ca7",
+      "recorded_at": "2026-11-19T22:19:40.022Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"ends a decision\" scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:24681109e019f06b546c9a1151f27fced758dd501a81dd53f0d1c9341ba04534",
+      "tree": "sha256:d7d37803208e353ae4d5da694b10361e636a4fa73ba33ab2ec5630b3e7b28ff8",
+      "recorded_at": "2026-11-19T22:20:25.869Z",
+      "tests": 1,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "70062ab25945c720f2f6bff4bcf283b356f37ce1",
+      "mount": "sha256:d55df6e487fce468127072ec2b208cbefb83339c261456b488ac60c98dafd69c",
+      "command": "node --test --test-name-pattern=\"ends a decision\" scripts/lib/idd-close.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d3baf9f89dd4e67ff6915543252c8516eec9b7660e0a23b1914f9d640f3552dd",
+      "tree": "sha256:d7d37803208e353ae4d5da694b10361e636a4fa73ba33ab2ec5630b3e7b28ff8",
+      "recorded_at": "2026-11-19T22:20:25.869Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "70062ab25945c720f2f6bff4bcf283b356f37ce1",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"ends a decision\" scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f5d9f987f2f36db3360eefd2ed7eaebd20554d80d1bafdd63a8bb3b31ee690d9",
+      "tree": "sha256:d7d37803208e353ae4d5da694b10361e636a4fa73ba33ab2ec5630b3e7b28ff8",
+      "recorded_at": "2026-11-19T22:20:25.869Z",
+      "tests": 1
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:afd7f206e9c300c6206266ee020492af4bd106a643627fe67dcad3b80c3058e5",
+      "tree": "sha256:8c1729fd5573bf29bef66afef7f00f944d5a6eaea52003ce5ab3205c29f56b37",
+      "recorded_at": "2026-11-19T22:22:44.910Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0b5191fc4c9697b0afc4a6c1d413d23e187a6780cfaf317474246436e4e9a02a",
+      "tree": "sha256:8c1729fd5573bf29bef66afef7f00f944d5a6eaea52003ce5ab3205c29f56b37",
+      "recorded_at": "2026-11-19T22:22:44.910Z",
+      "tests": 62
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cd101b527b3425df66a3948d29f4c49473c797656db249b6ba67260b52d32d08",
+      "tree": "sha256:8c1729fd5573bf29bef66afef7f00f944d5a6eaea52003ce5ab3205c29f56b37",
+      "recorded_at": "2026-11-19T22:22:44.910Z",
+      "tests": 21
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e14f980e8f5c058e3d315003aa3f78fe4e5d2118cef9794f966c03d8187c680e",
+      "tree": "sha256:8c1729fd5573bf29bef66afef7f00f944d5a6eaea52003ce5ab3205c29f56b37",
+      "recorded_at": "2026-11-19T22:22:44.910Z",
+      "tests": 101
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ed8b2d1630884533f0c7b56f31f8da0b349b007fb8127054fd3aad85bba8e9fa",
+      "tree": "sha256:8c1729fd5573bf29bef66afef7f00f944d5a6eaea52003ce5ab3205c29f56b37",
+      "recorded_at": "2026-11-19T22:22:44.910Z",
+      "tests": 60
+    }
+  ],
+  "closed_at": "2026-11-19T22:24:57.488Z"
+}
