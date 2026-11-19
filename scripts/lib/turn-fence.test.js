@@ -11,7 +11,7 @@ const path = require("node:path");
 
 const { execFileSync } = require("node:child_process");
 
-const { TURNS_FILE, countTurnEnd, fenceGates, fenceSignals, readTurn, unverifiedGateWarnings, unverifiedRetractWarnings, workspaceTurn } = require("./turn-fence.js");
+const { TURNS_FILE, countTurnEnd, fenceGates, fenceSignals, readTurn, uncountTurnEnd, unverifiedGateWarnings, unverifiedRetractWarnings, workspaceTurn } = require("./turn-fence.js");
 
 function workspace(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "turn-fence-"));
@@ -55,6 +55,22 @@ function gitRepo(root, ...init) {
   git("-c", "user.email=t@example.invalid", "-c", "user.name=t", "commit", "-q", "--allow-empty", "--no-verify", "-m", "base");
   return git;
 }
+
+test("a Stop that asks to continue takes back the turn end it counted, and never goes below 0", async (t) => {
+  const root = workspace(t);
+  await uncountTurnEnd(root);
+  assert.strictEqual(readTurn(root), null, "no count: nothing to take back");
+  await countTurnEnd(root);
+  await countTurnEnd(root);
+  await uncountTurnEnd(root);
+  assert.strictEqual(fs.readFileSync(path.join(root, ...TURNS_FILE.split("/")), "utf8"), "1\n");
+  await uncountTurnEnd(root);
+  await uncountTurnEnd(root);
+  assert.strictEqual(readTurn(root), 0);
+  writeTurns(root, "seven");
+  await uncountTurnEnd(root);
+  assert.strictEqual(fs.readFileSync(path.join(root, ...TURNS_FILE.split("/")), "utf8"), "seven", "an unreadable count is left to the next Stop");
+});
 
 test("a linked worktree counts its own turn ends plus the main repository's", (t) => {
   const main = workspace(t);

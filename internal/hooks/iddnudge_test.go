@@ -6,6 +6,7 @@ package hooks_test
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -175,6 +176,46 @@ func TestIddNudgeOpenGateAsksNothing(t *testing.T) {
 	writeNudgeFiles(t, root, map[string]string{"app.js": "module.exports = 2;\n"})
 	if got := dispatchNudge(t, "stop", map[string]any{"cwd": root, "session_id": "s1"}); got["continue"] != true || got["decision"] != nil {
 		t.Fatalf("an open gate is a legitimate stop, got %v", got)
+	}
+}
+
+// A count that fails after its rename has landed, so a Stop whose count
+// failed lets the turn end: it never asks to continue with the count one turn
+// ahead.
+func TestIddNudgeLetsTheTurnEndWhenTheCountFailed(t *testing.T) {
+	c := readNudgeCase(t)
+	root := nudgeProject(t, c)
+	defer hooks.SetCountTurnForTest(func(workspace string) error {
+		if err := hooks.CountTurnEndForTest(workspace); err != nil {
+			return err
+		}
+		return errors.New("sync refused")
+	})()
+	dispatchNudge(t, "session-start", map[string]any{"cwd": root, "session_id": "s1"})
+	writeNudgeFiles(t, root, map[string]string{"app.js": "module.exports = 2;\n"})
+	got := dispatchNudge(t, "stop", map[string]any{"cwd": root, "session_id": "s1"})
+	if got["continue"] != true || got["decision"] != nil || got["systemMessage"] != "Stop hook could not count the turn end: sync refused" {
+		t.Fatalf("a count that failed lets the turn end, got %v", got)
+	}
+	if turns, err := os.ReadFile(filepath.Join(root, ".ospec", "turns")); err != nil || string(turns) != "1\n" {
+		t.Fatalf("turns %q (%v), want the landed turn end kept", turns, err)
+	}
+}
+
+// A Stop that cannot take back the turn end it counted lets the turn end: it
+// never asks to continue with the count one turn ahead.
+func TestIddNudgeKeepsTheTurnWhenItCannotTakeItBack(t *testing.T) {
+	c := readNudgeCase(t)
+	root := nudgeProject(t, c)
+	defer hooks.SetUncountTurnForTest(func(string) error { return errors.New("rename refused") })()
+	dispatchNudge(t, "session-start", map[string]any{"cwd": root, "session_id": "s1"})
+	writeNudgeFiles(t, root, map[string]string{"app.js": "module.exports = 2;\n"})
+	got := dispatchNudge(t, "stop", map[string]any{"cwd": root, "session_id": "s1"})
+	if got["continue"] != true || got["decision"] != nil || got["systemMessage"] != "Stop hook could not take back the turn end: rename refused" {
+		t.Fatalf("a turn end it cannot take back lets the turn end, got %v", got)
+	}
+	if turns, err := os.ReadFile(filepath.Join(root, ".ospec", "turns")); err != nil || string(turns) != "1\n" {
+		t.Fatalf("turns %q (%v), want the turn end counted", turns, err)
 	}
 }
 

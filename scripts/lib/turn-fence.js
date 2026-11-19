@@ -92,6 +92,16 @@ async function countTurnEnd(workspace) {
   return turn;
 }
 
+/**
+ * Takes back the turn end a Stop counted when it asks the agent to continue:
+ * that turn did not end. A count of 0 or none is left as it is.
+ */
+async function uncountTurnEnd(workspace) {
+  const turn = readTurn(workspace);
+  if (!turn) return;
+  await writeFileAtomic(turnsPath(workspace), `${turn - 1}\n`);
+}
+
 // A gate entry without its turns: an entry the command left as it was keeps
 // this key.
 function gateKey(gate) {
@@ -216,6 +226,7 @@ module.exports = {
   readTurn,
   turnsRoot,
   unverifiedGateWarnings,
+  uncountTurnEnd,
   unverifiedRetractWarnings,
   workspaceTurn,
 };

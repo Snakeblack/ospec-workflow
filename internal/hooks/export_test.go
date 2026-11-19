@@ -18,6 +18,25 @@ var SetGitRunnerForTest = func(fn func(ctx context.Context, args []string) (stri
 var ResolveDispatchStatusForTest = resolveDispatchStatus
 var PersistResultEnvelopeForTest = persistResultEnvelope
 
+// SetCountTurnForTest replaces how a Stop counts its turn end, and returns a
+// restore function.
+func SetCountTurnForTest(fn func(workspace string) error) (restore func()) {
+	old := countTurn
+	countTurn = fn
+	return func() { countTurn = old }
+}
+
+// CountTurnEndForTest is the real count, for a replacement that fails after it.
+var CountTurnEndForTest = countTurnEnd
+
+// SetUncountTurnForTest replaces how a Stop that asks to continue takes back
+// its turn end, and returns a restore function.
+func SetUncountTurnForTest(fn func(workspace string) error) (restore func()) {
+	old := uncountTurn
+	uncountTurn = fn
+	return func() { uncountTurn = old }
+}
+
 // NudgeFingerprint exposes the open-change nudge fingerprint (E1.51) to the
 // shared cases of internal/testdata/idd-nudge/.
 var NudgeFingerprint = nudgeFingerprint
