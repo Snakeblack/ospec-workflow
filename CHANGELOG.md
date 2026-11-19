@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- ospec next y los hooks ofrecen retirar con la respuesta del usuario la señal por contenido que esa respuesta admite, en vez de empujar solo a su obligación (retract-answer-offer)
+
 ## [2.185.0] - 2026-11-19
 
 ### Added

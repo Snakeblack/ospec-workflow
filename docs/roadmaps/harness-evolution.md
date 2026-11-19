@@ -306,6 +306,8 @@ E1.102 `sink-catalog-xss-crypto` y E1.103 `product-ext-mts-cts` entraron el 2026
 
 E1.104 `ui-file-server-templates` entró el 2026-11-18 durante E1.102, al convertir las plantillas de servidor en código de producto. Es un defecto que ya existía y queda fuera del orden ▶ hasta que el usuario lo coloque.
 
+El 2026-11-19, al entregar E1.102, el usuario pidió por delante de E1.101 dos arreglos que salieron de esa entrega, cada uno en su PR. El primero, `retract-answer-offer`: cuando `persistent-data` salía del contenido que el fichero ya tenía, `ospec next` y el hook de Stop solo empujaban a un test de migración, y la retirada con la respuesta del usuario solo aparecía en la negativa de `record retract`. El segundo es el defecto de `decisionBullets` de `scripts/lib/idd-close.js`, que pega al bullet anterior de Decisions el encabezado que le sigue.
+
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
 **Regla multi-target de los ítems de la auditoría del 2026-10-25** (principio 6). Los 7 targets invocan el CLI de la misma forma (`node "<ruta>/scripts/ospec.js"`), así que la garantía vive en el CLI y vale en todos sin adaptación.
@@ -2356,6 +2358,12 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-19: `retract-answer-offer` (IDD), publicado en v2.185.1. Arreglo pedido por delante de E1.101.
+  - Cuando la obligación que sigue viene de `persistent-data`, `public-contract` o `security-boundary` y `record retract` aceptaría la respuesta del usuario, `ospec next` y el `next` de cada comando que escribe la ofrecen junto a la obligación: `next_step.retract` con lo que el usuario confirma, los hits que cubre y el comando. El texto la imprime con una línea `answer covers:` por hit.
+  - La línea del paso de los hooks (Node y Go) nombra esa salida y remite a `ospec next`, que es quien lee el diff. La razón del Stop ya no dice que el paso no necesite respuesta del usuario.
+  - Sin un diff legible, `next` omite la oferta y no falla.
+  - La respuesta que retira una señal pasa por la valla de turnos de E1.49, que hasta ahora solo cubría los gates: cada señal guarda el turno en que se registró, y una retirada `--source user` sin un fin de turno desde entonces queda `user-unverified`; `record retract` y `close` avisan. Lo pidió la revisión de confianza, porque `next` ofrece ahora la retirada en cada paso.
+  - Un Stop que pide al agente que siga ya no cuenta un fin de turno: el agente continúa sin que el usuario haya respondido, así que una respuesta registrada en esa continuación sigue vallada.
 - 2026-11-18: `sink-next-line-adjacent` (IDD), publicado en v2.185.0. Seguimiento de E1.102. El diff guarda el número de cada línea añadida, y el valor partido de un sink sigue en la línea de abajo del fichero, cambie o no, en vez de en la siguiente línea añadida, que podía ser de otro hunk.
 - 2026-11-18: `sink-catalog-xss-crypto` (IDD), publicado en v2.185.0. E1.102 hecho: salida HTML sin escapar y cifrado débil en el catálogo de sinks.
   - `scripts/lib/idd-sinks.js` detecta CWE-79 en JS, en las plantillas de Vue, Svelte, Astro, HTML, Razor, ERB, EJS, Handlebars, Jinja y Twig, y en Python, Go, C#, Ruby, PHP y Rust. No cuenta cuando la propia línea muestra el valor constante, escapado o saneado.
