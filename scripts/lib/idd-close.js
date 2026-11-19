@@ -272,17 +272,36 @@ const TITLE_LENGTH = 80;
  * The top-level bullets of the Decisions section, each with its continuation
  * lines joined. A marker of the CLI ends the bullet before it.
  */
+// A decision ends where Markdown ends a list item: its indented lines and the
+// lines right below it go on with it, while a heading, a thematic break or a
+// fence end it, and so does an unindented line after a blank one. A fenced
+// line is code, never a decision.
+const BLOCK_START = /^ {0,3}(?:#{1,6}(?:[ \t]|$)|(?:-[ \t]*){3,}$|(?:\*[ \t]*){3,}$|(?:_[ \t]*){3,}$)/;
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+
 function decisionBullets(text) {
   const decisions = typeof text === "string" ? sectionsOf(text).find((section) => section.heading === "Decisions") : null;
   const bullets = [];
   let open = false;
+  let blank = false;
+  let fence = null;
   for (const line of decisions?.body || []) {
-    if (CLI_MARKER.test(line.trim())) open = false;
+    if (fence) {
+      if (line.trim().startsWith(fence)) fence = null;
+      continue;
+    }
+    const afterBlank = blank;
+    blank = line.trim() === "";
+    const opening = FENCE.exec(line);
+    if (opening) fence = opening[1];
+    if (opening || CLI_MARKER.test(line.trim()) || BLOCK_START.test(line)) open = false;
     else if (/^[-*] /.test(line)) {
       bullets.push(line.slice(2));
       open = true;
     }
-    else if (open && line.trim() !== "") bullets[bullets.length - 1] += ` ${line.trim()}`;
+    else if (blank) continue;
+    else if (open && (!afterBlank || /^\s/.test(line))) bullets[bullets.length - 1] += ` ${line.trim()}`;
+    else open = false;
   }
   return bullets.map((bullet) => bullet.replace(/\s+/g, " ").trim()).filter(Boolean);
 }

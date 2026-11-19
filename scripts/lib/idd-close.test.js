@@ -291,6 +291,39 @@ test("a decision the CLI wrote is one record, and its end marker ends it", () =>
   assert.deepStrictEqual(records.map((record) => record.summary), ["Round up."]);
 });
 
+// A bullet ends where Markdown ends a list item; the bullets of a subsection
+// still count, and a fenced line is code.
+test("a heading, a rule, a fence or an unindented paragraph ends a decision", () => {
+  const livingDoc = decisionsDoc([
+    "- Pages round up.",
+    "### Follow-ups",
+    "Measure the last page.",
+    "- Empty lists have zero pages.",
+    "  Not one.",
+    "lazily continued.",
+    "",
+    "Answers of the user:",
+    "* Totals stay exact.",
+    "---",
+    "- Cursors stay opaque.",
+    "```",
+    "- not a decision but code",
+    "```",
+    "- Limits cap at 100.",
+    "",
+    "  An indented paragraph keeps it open.",
+  ]);
+  const records = knowledgeRecords({ state: { change: "add-paging", closed_at: AT }, livingDoc, destination: DESTINATION });
+  assert.deepStrictEqual(records.map((record) => record.summary), [
+    "Pages round up.",
+    "Empty lists have zero pages. Not one. lazily continued.",
+    "Totals stay exact.",
+    "Cursors stay opaque.",
+    "Limits cap at 100. An indented paragraph keeps it open.",
+  ]);
+  assert.deepStrictEqual(records.map((record) => record.topic), [1, 2, 3, 4, 5].map((n) => `knowledge/dc/add-paging/${n}`));
+});
+
 test("each decision of change.md is a record with its provenance and stable topic", () => {
   const livingDoc = decisionsDoc([
     "- **Pages round up:** a partial page counts as a page.",
