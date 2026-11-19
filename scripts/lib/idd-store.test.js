@@ -15,7 +15,7 @@ const path = require("node:path");
 
 const { DECISIONS_MARKERS, EVIDENCE_MARKERS, LIVING_DOC_SECTIONS, LOG_MARKERS, PLAN_MARKERS } = require("./idd-contract.js");
 const { livingDocStatus } = require("./idd-close.js");
-const { recordGate, recordIntent, recordPlan, recordSignal } = require("./idd-record.js");
+const { recordGate, recordIntent, recordPlan, recordRetract, recordSignal } = require("./idd-record.js");
 const { listChanges, mutateChange, readChange, renderLivingDoc, serializeState, statePath } = require("./idd-store.js");
 
 const BUG = { change: "fix-pagination", kind: "bug", summary: "Fix the last page.", acceptance: "Two full pages.", noOpenFacts: true, basis: "The request fixes every behavior." };
@@ -190,6 +190,34 @@ test("two processes recording on one change at once lose no write", async (t) =>
   const { assumptions } = await readChange(root, "fix-pagination");
   const expected = ["first", "second"].flatMap((name) => Array.from({ length: 15 }, (_, index) => `${name}-${index}`));
   assert.deepStrictEqual([...assumptions].sort(), expected.sort());
+});
+
+// The turn fence of retractions adds recorded_turn to signals and the fence of
+// the answer to retractions: a state written before keeps working.
+test("[REQ-idd-008] a state written before the retraction fence keeps working, and every write stamps what it records", async (t) => {
+  const root = tempRoot(t);
+  const reason = "persistent data: src/a.js uses writeFile";
+  const answer = { id: "persistent-data", reason: "no stored data", confirmedBy: reason, answerable: true, hits: ["src/a.js uses writeFile: w()"], answer: "No stored data.", source: "user" };
+  // As the previous version wrote it: no turn on its signals.
+  const previous = recordSignal(addBugFix(openBug(null).state).state, { id: "persistent-data", reason, source: "diff" }).state;
+  fs.mkdirSync(path.dirname(statePath(root, "fix-pagination")), { recursive: true });
+  fs.writeFileSync(statePath(root, "fix-pagination"), serializeState(previous));
+  fs.mkdirSync(path.join(root, ".ospec"));
+  fs.writeFileSync(path.join(root, ".ospec", "turns"), "4\n");
+
+  assert.deepStrictEqual((await readChange(root, "fix-pagination")).signals.map((signal) => signal.recorded_turn), [undefined, undefined, undefined]);
+  const { state, unverified } = await mutateChange(root, "fix-pagination", (current) => recordRetract(current, answer));
+  assert.strictEqual(unverified, undefined, "a signal recorded before the fence keeps the source of its answer");
+  assert.deepStrictEqual(state.retracted.at(-1).answer_source, "user");
+  assert.ok(!["recorded_turn", "resolved_turn", "declared_source"].some((key) => key in state.retracted.at(-1)));
+
+  // A signal recorded now takes the turn, and its retraction in the same turn is fenced.
+  const again = await mutateChange(root, "fix-pagination", (current) => recordSignal(current, { id: "security-boundary", reason: "security boundary: src/a.js adds code evaluation (CWE-94)", source: "diff" }));
+  assert.strictEqual(again.state.signals.find((signal) => signal.id === "security-boundary").recorded_turn, 4);
+  const sink = { ...answer, id: "security-boundary", confirmedBy: "security boundary: src/a.js adds code evaluation (CWE-94)", hits: ["src/a.js adds code evaluation (CWE-94): eval(F)"], answer: "F is a constant." };
+  const fenced = await mutateChange(root, "fix-pagination", (current) => recordRetract(current, sink));
+  assert.deepStrictEqual(fenced.unverified.map(({ retract, obligation }) => [retract, obligation]), [["security-boundary", "trust-review"]]);
+  assert.deepStrictEqual((await readChange(root, "fix-pagination")).retracted.at(-1).answer_source, "user-unverified");
 });
 
 test("listChanges returns open and closed changes in id order, skipping the archive", async (t) => {

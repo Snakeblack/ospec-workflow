@@ -5,9 +5,10 @@
 // same inputs yield the same output, whatever order the state's signals were
 // recorded in.
 
-const { CHANGE_ROOT, DECISIONS_ROOT, GATES, IMPACTS, INTENT_KINDS, LIVING_DOC_FILE, OBLIGATIONS, RUN_EVIDENCE, owedQuestion } = require("./idd-contract.js");
+const { ANSWER_RETRACTABLE_SIGNALS, CHANGE_ROOT, DECISIONS_ROOT, GATES, IMPACTS, INTENT_KINDS, LIVING_DOC_FILE, OBLIGATIONS, RUN_EVIDENCE, SIGNALS, owedQuestion } = require("./idd-contract.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
 const { COVERAGE_RULES, featureCommand, projectCategories } = require("./idd-facts.js");
+const { ANSWER_CONFIRMS } = require("./idd-record.js");
 const { classifyPath } = require("./idd-signals.js");
 
 // Order in which pending obligations are worked: evidence produced while
@@ -124,6 +125,29 @@ function obligationCommand(state, obligation, pending) {
   const check = `ospec check --change ${state.change}`;
   const command = OBLIGATION_COMMAND[obligation] ? OBLIGATION_COMMAND[obligation](state) : check;
   return command === check && closesWithCheck(state, pending) ? `${check} --close` : command;
+}
+
+// The active signal the user's answer may retract (#416, E1.58, E1.50) that
+// derives `obligation`, or null. Only the diff says whether the answer
+// applies: ospec next reads it, the session hooks name the way out.
+function answerSignalOf(state, obligation) {
+  const signal = state.signals.find(({ id }) => ANSWER_RETRACTABLE_SIGNALS.includes(id) && SIGNALS.find((entry) => entry.id === id).obligation === obligation);
+  return signal ? signal.id : null;
+}
+
+// The retraction the user's answer makes instead of the obligation, for the
+// hits it covers: the agent asks, and never answers for the user.
+function retractStep(change, { signal, hits }) {
+  return {
+    signal,
+    confirms: ANSWER_CONFIRMS[signal],
+    hits: [...hits],
+    command: `ospec record retract --change ${change} --signal ${signal} --reason "<why>" ${USER_ANSWER}`,
+  };
+}
+
+function retractOffer({ signal, confirms, command }) {
+  return `or, if the user confirms ${confirms}, retract ${signal} with their words: ${command}`;
 }
 
 function gateCommand(state, gate) {
@@ -279,7 +303,7 @@ function languageSuggestion() {
   };
 }
 
-function nextForChange(state, { checks, candidateCommand, contractPatterns, knowledge, team, delivery, projectFiles } = {}) {
+function nextForChange(state, { checks, candidateCommand, contractPatterns, knowledge, team, delivery, projectFiles, retract } = {}) {
   const pending = state.obligations
     .filter((obligation) => obligation.status === "pending")
     .sort(byWorkOrder)
@@ -307,6 +331,12 @@ function nextForChange(state, { checks, candidateCommand, contractPatterns, know
     nextStep = { action: "satisfy-obligation", obligation: pending[0].id, evidence: pending[0].evidence };
     if (HOW[pending[0].id]) nextStep.how = HOW[pending[0].id](state.change, { contractPatterns });
     nextStep.command = obligationCommand(state, pending[0].id, pending);
+    // The retraction the diff lets the user's answer make (`retract`, read by
+    // the caller as record retract reads it): the obligation stays the step.
+    if (retract?.hits?.length > 0 && retract.signal === answerSignalOf(state, pending[0].id)) {
+      nextStep.retract = retractStep(state.change, retract);
+      nextStep.how = `${nextStep.how}; ${retractOffer(nextStep.retract)}`;
+    }
     if (checks?.length === 0 && CHECKS_REQUIRED.includes(pending[0].id)) {
       // The written checks run once the user approves them at checks-changed,
       // which this check opens (E1.49).
@@ -413,9 +443,11 @@ module.exports = {
   GATE_QUESTIONS,
   HOW,
   WORK_ORDER,
+  answerSignalOf,
   foundationSuggestion,
   nextForChange,
   planDeclared,
   nextForProject,
+  retractOffer,
   statusOf,
 };

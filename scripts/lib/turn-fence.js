@@ -3,7 +3,9 @@
 // The turn fence of the IDD gates (E1.49): the end-of-turn hook of each host
 // counts the turns that ended in the workspace, a gate keeps the count of its
 // opening, and an answer declared `--source user` before another turn ended is
-// recorded `user-unverified`. The count is shared by every session of the
+// recorded `user-unverified`. A signal keeps the count of its record, and the
+// user's answer that retracts it is fenced the same way, since next offers
+// that retraction on every step. The count is shared by every session of the
 // workspace, and the main agent has the same disk access as the hook: it says
 // that some turn ended, not that the user answered.
 
@@ -11,6 +13,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { writeFileAtomic } = require("./atomic-write.js");
+const { SIGNALS } = require("./idd-contract.js");
 const { mkdirOspec } = require("./ospec-gitignore.js");
 
 // A repository path, like the review receipts: the IDD workspace keeps it out
@@ -147,6 +150,57 @@ function fenceGates(before, after, turn) {
   return unverified;
 }
 
+function unverifiedRetractReason(turn) {
+  if (turn === null) return unverifiedReason(null);
+  return "no turn ended between the signal's record and the answer";
+}
+
+function unverifiedRetractRemedy(turn) {
+  if (turn === null) return unverifiedRemedy(null);
+  return "ask the user about the hits a retraction covers by ending your turn, and record their answer after they reply";
+}
+
+/**
+ * Stamps, in `after`, the turn of each signal the command recorded, 0 before
+ * any turn end was counted, and fences each answer it recorded to retract a
+ * signal: declared `user` without a turn end after the signal's record, it is
+ * recorded `user-unverified`, keeping the declared source and the reason. A
+ * signal recorded before the fence has no turn and its retraction keeps the
+ * source it is answered with. Returns the retractions it recorded so, with
+ * the reason and its remedy.
+ */
+function fenceSignals(before, after, turn) {
+  const previous = new Map((before?.signals || []).map((signal) => [signal.id, signal]));
+  for (const signal of after.signals) {
+    if (!previous.has(signal.id)) signal.recorded_turn = turn ?? 0;
+  }
+  const unverified = [];
+  for (const entry of (after.retracted || []).slice((before?.retracted || []).length)) {
+    const signal = previous.get(entry.id);
+    if (entry.answer === undefined || !signal || !Object.hasOwn(signal, "recorded_turn")) continue;
+    entry.recorded_turn = signal.recorded_turn;
+    entry.resolved_turn = turn;
+    if (entry.answer_source === "user" && (turn === null || turn === signal.recorded_turn)) {
+      entry.declared_source = entry.answer_source;
+      entry.answer_source = "user-unverified";
+      entry.unverified_reason = unverifiedRetractReason(turn);
+      unverified.push({ retract: entry.id, obligation: obligationOf(entry.id), reason: entry.unverified_reason, remedy: unverifiedRetractRemedy(turn) });
+    }
+  }
+  return unverified;
+}
+
+function obligationOf(signalId) {
+  return SIGNALS.find((signal) => signal.id === signalId).obligation;
+}
+
+/** What close says of each retraction answered `user-unverified`, relayed or fenced. */
+function unverifiedRetractWarnings(state) {
+  return (state.retracted || [])
+    .filter((entry) => entry.answer_source === "user-unverified")
+    .map((entry) => `the retraction of ${entry.id} withdrew ${obligationOf(entry.id)} on an answer user-unverified: ${entry.unverified_reason ?? "the answer was relayed"}`);
+}
+
 /** What close says of each gate answered `user-unverified`, relayed or fenced. */
 function unverifiedGateWarnings(state) {
   return state.gates
@@ -158,8 +212,10 @@ module.exports = {
   TURNS_FILE,
   countTurnEnd,
   fenceGates,
+  fenceSignals,
   readTurn,
   turnsRoot,
   unverifiedGateWarnings,
+  unverifiedRetractWarnings,
   workspaceTurn,
 };

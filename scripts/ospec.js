@@ -60,7 +60,7 @@ const { TIMED_OUT_EXIT, captureCommand, dropRunOutputs, keepRunOutput, runComman
 const { CATEGORY_IDS, UI_CATEGORY_IDS, countTests, featureCoverageHow, projectCategories, resolveFeatureCoverage } = require("./lib/idd-facts.js");
 const { fitnessPlan } = require("./lib/idd-fitness.js");
 const { memoryQuery, resolveReferences, touchedComponents } = require("./lib/idd-knowledge.js");
-const { CHECKS_REQUIRED, FOUNDATION_STEPS, nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
+const { CHECKS_REQUIRED, FOUNDATION_STEPS, answerSignalOf, nextForChange, nextForProject, retractOffer, statusOf } = require("./lib/idd-next.js");
 const { refusalHow } = require("./lib/idd-refusals.js");
 const {
   IddRecordError,
@@ -94,7 +94,7 @@ const {
 } = require("./lib/idd-review.js");
 const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
 const { readReceipt } = require("./lib/review-receipt.js");
-const { unverifiedGateWarnings } = require("./lib/turn-fence.js");
+const { unverifiedGateWarnings, unverifiedRetractWarnings } = require("./lib/turn-fence.js");
 const { DEFAULT_ROADMAP, SnapshotError, buildSnapshot } = require("./lib/progress-snapshot.js");
 const { DEFAULT_PROGRESS, buildSnapshotV2 } = require("./lib/progress-snapshot-v2.js");
 const { buildSnapshotV3 } = require("./lib/progress-snapshot-v3.js");
@@ -1256,7 +1256,7 @@ async function close(root, values) {
     if (await fsp.stat(changeDir(root, state.change)).then(() => true, () => false)) writeEvidenceSection(root, state);
     const archive = await archiveChange(root, state);
     dropRunOutputs(root, state.change);
-    const warnings = [...skippedCheckWarnings(state), ...counterproofWarnings(state), ...unverifiedGateWarnings(state)];
+    const warnings = [...skippedCheckWarnings(state), ...counterproofWarnings(state), ...unverifiedGateWarnings(state), ...unverifiedRetractWarnings(state)];
     return {
       change: state.change,
       status: state.status,
@@ -1627,10 +1627,25 @@ function changeNext(root, state) {
   // The project's files feed the foundation suggestion, read only on the
   // steps that offer it (E4.10).
   const projectFiles = FOUNDATION_STEPS.includes(bare.next_step.action) ? readProjectFiles(root) : undefined;
-  const context = { knowledge: changeKnowledge(root, state), projectFiles, ...nextTeamContext(root) };
+  const context = { knowledge: changeKnowledge(root, state), projectFiles, ...nextTeamContext(root), ...answerRetract(root, state, bare.next_step) };
   // Intent gates and change selection do not depend on configuration.
   if (bare.next_step.action !== "satisfy-obligation" || !CHECKS_REQUIRED.includes(bare.next_step.obligation)) return nextForChange(state, context);
   return nextForChange(state, { ...context, ...readProjectContext(root) });
+}
+
+// The retraction the user's answer may make in place of the obligation next
+// (REQ-idd-011): the one record retract would take, read from the diff as it
+// reads it. A diff git cannot read offers none; record retract says why.
+function answerRetract(root, state, step) {
+  const signal = step.action === "satisfy-obligation" ? answerSignalOf(state, step.obligation) : null;
+  if (!signal) return {};
+  try {
+    const { answerable, hits } = diffConfirmation(root, state, signal);
+    return answerable ? { retract: { signal, hits } } : {};
+  } catch (error) {
+    if (!(error instanceof IddWorkspaceError)) throw error;
+    return {};
+  }
 }
 
 // The next of a command that writes (E4.15) leaves out the intent, which the
@@ -1745,8 +1760,8 @@ async function run(command, positionals, values) {
     // The signals the plan of record intent derived, as signals reports them.
     const plan = recorded.derivation ? { plan: derivationView(recorded) } : {};
     // The answers the turn fence recorded user-unverified (E1.49).
-    const warnings = (recorded.unverified || []).map(({ gate, reason, remedy }) =>
-      `gate ${gate} recorded user-unverified: ${reason}; this answer stays user-unverified and close lists it; ${remedy}`);
+    const warnings = (recorded.unverified || []).map(({ gate, retract, reason, remedy }) =>
+      `${gate ? `gate ${gate}` : `retract ${retract}`} recorded user-unverified: ${reason}; this answer stays user-unverified and close lists it; ${remedy}`);
     return { record: type, change: state.change, changed, ...(query ? { memory_query: query } : {}), ...plan, ...(warnings.length ? { warnings } : {}), next: nextAfterWrite(root, state) };
   }
   throw new UsageError(`unknown command: ${command ?? "(none)"}`);
@@ -1784,6 +1799,7 @@ function describeNext(result) {
   }
   // The literal command of the step (E1.45).
   for (const command of step.commands || (step.command ? [step.command] : [])) lines.push(`run: ${command}`);
+  for (const hit of step.retract?.hits || []) lines.push(`answer covers: ${hit}`);
   if (step.feature) {
     lines.push(`feature: ${step.feature.command}`, `  ${step.feature.how}`);
     if (step.feature.omitted) lines.push(`  left out: ${step.feature.omitted.join(", ")} (${step.feature.reason})`);
@@ -1821,6 +1837,8 @@ function describeStep(next) {
     lines.push(`next (${step.obligation})${command}`);
     // A run records its own evidence; the other obligations need work first.
     if (step.how && !Object.hasOwn(RUN_OBLIGATIONS, step.obligation)) lines.push(`  ${step.how}`);
+    else if (step.retract) lines.push(`  ${retractOffer(step.retract)}`);
+    for (const hit of step.retract?.hits || []) lines.push(`  answer covers: ${hit}`);
   } else if (step.action === "resolve-gate") lines.push(`next (gate ${step.gate})${command}`);
   else if (step.action === "declare-plan" || step.action === "configure-checks") lines.push(`next (${step.action}): ${step.how}`);
   else if (step.action === "ask-open-facts") lines.push(`next (${step.action})${command}`, `  ${step.how}`);

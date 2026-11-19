@@ -289,8 +289,8 @@ async function readJsonInput(stream = process.stdin) {
   return input ? JSON.parse(input) : {};
 }
 
-// E1.49: every turn end is counted in .ospec/turns of the project, before the
-// trace, so a trace that cannot be written still counts it.
+// E1.49: every turn end is counted in .ospec/turns of the project, also when
+// the trace cannot be written.
 async function countTurn(input, fallbackCwd = process.cwd()) {
   try {
     await countTurnEnd(turnsRoot(resolveWorkspaceCwd(input?.cwd, fallbackCwd)));
@@ -310,14 +310,26 @@ function stopOutput({ failure = null, nudge = null } = {}) {
 }
 
 async function main() {
+  let input;
+  try {
+    input = await readJsonInput();
+  } catch (error) {
+    process.stdout.write(`${JSON.stringify(stopOutput({ failure: `Stop hook could not write the session trace: ${error.message}` }))}\n`);
+    return;
+  }
   let failure = null;
   let nudge = null;
   try {
-    const input = await readJsonInput();
-    failure = await countTurn(input);
     nudge = (await runStop({ input })).nudge ?? null;
   } catch (error) {
     failure = `Stop hook could not write the session trace: ${error.message}`;
+  }
+  // E1.49: a Stop that asks the agent to continue (E1.51) ends no turn, so
+  // only one that lets the turn end is counted, a trace that cannot be
+  // written included.
+  if (!nudge?.reason) {
+    const counted = await countTurn(input);
+    failure = failure ?? counted;
   }
   process.stdout.write(`${JSON.stringify(stopOutput({ failure, nudge }))}\n`);
 }

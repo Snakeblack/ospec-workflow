@@ -14,4 +14,4 @@ feature: Add a column.
 - None
 
 ## Next recommended action
-Satisfy `migration-compat-and-test` with migration-test evidence: ospec run --change s-migration --obligation migration-compat-and-test --command "<migration test>" --plan "<compatibility or rollback>".
+Satisfy `migration-compat-and-test` with migration-test evidence: ospec run --change s-migration --obligation migration-compat-and-test --command "<migration test>" --plan "<compatibility or rollback>". If `persistent-data` may be a false positive, `ospec next --change s-migration` says whether the user's answer can retract it instead.

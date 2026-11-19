@@ -1,7 +1,7 @@
 // E1.51 open-change-nudge: the Go port of scripts/hooks/lib/idd-nudge.js.
 // SessionStart tells the model which IDD changes are open, and Stop asks it
-// once to continue a change the session moved that still has a step needing
-// no answer from the user. The shared cases of internal/testdata/idd-nudge/
+// once to continue a change the session moved that still has a step no gate
+// or approval waits on. The shared cases of internal/testdata/idd-nudge/
 // keep both implementations identical.
 package hooks
 
@@ -289,7 +289,7 @@ func renderNudgeContext(entries []iddsession.Entry) string {
 
 func renderNudgeReason(entries []iddsession.Entry) string {
 	return strings.Join([]string{
-		"ospec: these open IDD changes have a next step that needs no answer from the user:",
+		"ospec: these open IDD changes have a next step to take:",
 		renderNudgeSteps(entries),
 		"Continue with them; a change is done only after `ospec close`. If you stopped to wait for the user's answer, say so and end your turn again. If a change was superseded or discarded, ask the user whether to abandon it with `ospec abandon --change <id> --reason \"<why>\"`.",
 	}, "\n")

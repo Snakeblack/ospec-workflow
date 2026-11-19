@@ -11,7 +11,9 @@ fingerprint are the same on every machine.
 - `fingerprint`: after writing `write`, the fingerprint of the open changes
   `ids` MUST be `expected`.
 - `steps`: in a fresh copy, each step either writes files or runs a hook with
-  `input` (plus `cwd`) and MUST answer `expect`, compared as parsed JSON.
+  `input` (plus `cwd`) and MUST answer `expect`, compared as parsed JSON; with
+  `turns`, `.ospec/turns` MUST then hold that count: a Stop that asks to
+  continue counts no turn end.
 - `record`: `.ospec/idd-nudge.json` after the last step, byte for byte.
 
 The `state.yaml` files are valid `idd-state/v1` copied from

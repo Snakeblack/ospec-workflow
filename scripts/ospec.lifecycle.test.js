@@ -78,6 +78,53 @@ test("[E1.49] an answer declared user before a turn ends after the gate opened i
   assert.match(closed.stdout, /^warning: gate irreversible-operation was answered user-unverified: no turn ended between the gate's opening and the answer$/m);
 });
 
+// The user's answer that retracts a signal, which next offers beside its
+// obligation, is fenced as a gate answer is: the signal keeps the turn of its
+// record.
+test("[REQ-idd-008] an answer that retracts a security sink before a turn ends is user-unverified, and close names it", (t) => {
+  const { root } = project(t);
+  writeTurns(root, 3);
+  ospec(root, "record", "intent", "--change", "formula-total", "--kind", "refactor", "--summary", "Inline the formula.", "--acceptance", "The total is unchanged.", "--no-open-facts", "--basis", "The request fixes every behavior.", "--path", "src/report.js");
+  writeFile(root, "src/report.js", "const FORMULA = '1 + 2';\nmodule.exports = () => eval(FORMULA);\n");
+  assert.ok(ospec(root, "check", "--change", "formula-total", "--json").json.added.signals.includes("security-boundary"));
+  assert.strictEqual(stateOf(root, "formula-total").signals.find((signal) => signal.id === "security-boundary").recorded_turn, 3);
+
+  const retract = ["record", "retract", "--change", "formula-total", "--signal", "security-boundary", "--reason", "the formula is a constant", "--answer", "FORMULA is a constant.", "--source", "user"];
+  const fenced = ospec(root, ...retract, "--json");
+  assert.strictEqual(fenced.code, 0, fenced.stderr);
+  assert.deepStrictEqual(fenced.json.warnings, [
+    "retract security-boundary recorded user-unverified: no turn ended between the signal's record and the answer; this answer stays user-unverified and close lists it; ask the user about the hits a retraction covers by ending your turn, and record their answer after they reply",
+  ]);
+  const entry = stateOf(root, "formula-total").retracted.at(-1);
+  assert.deepStrictEqual(
+    [entry.answer_source, entry.declared_source, entry.recorded_turn, entry.resolved_turn, entry.unverified_reason],
+    ["user-unverified", "user", 3, 3, "no turn ended between the signal's record and the answer"],
+  );
+  assert.strictEqual(stateOf(root, "formula-total").obligations.find((o) => o.id === "trust-review").status, "withdrawn", "the answer still retracts");
+  writeTurns(root, 4);
+  assert.match(ospec(root, ...retract).stdout, /^no change: retract already recorded on formula-total$/m);
+
+  // A new sink brings the signal back at the turn of its record; an answer
+  // after a turn end keeps user, with no warning.
+  writeFile(root, "src/report.js", "const FORMULA = '1 + 2';\nmodule.exports = () => eval(FORMULA);\nmodule.exports.twice = () => eval(FORMULA + ' * 2');\n");
+  assert.ok(ospec(root, "check", "--change", "formula-total", "--json").json.added.signals.includes("security-boundary"));
+  assert.strictEqual(stateOf(root, "formula-total").signals.find((signal) => signal.id === "security-boundary").recorded_turn, 4);
+  writeTurns(root, 5);
+  const verified = ospec(root, "record", "retract", "--change", "formula-total", "--signal", "security-boundary", "--reason", "both formulas are constants", "--answer", "Both are constants.", "--source", "user", "--json");
+  assert.strictEqual(verified.code, 0, verified.stderr);
+  assert.strictEqual(verified.json.warnings, undefined);
+  const second = stateOf(root, "formula-total").retracted.at(-1);
+  assert.deepStrictEqual([second.answer_source, second.declared_source, second.recorded_turn, second.resolved_turn], ["user", undefined, 4, 5]);
+
+  writeFile(root, "src/pages.txt", "2");
+  const ready = ospec(root, "check", "--change", "formula-total", "--json").json;
+  assert.strictEqual(ready.verdict, "ready", JSON.stringify(ready.missing));
+  const closed = ospec(root, "close", "--change", "formula-total");
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  const warnings = closed.stdout.split("\n").filter((line) => line.includes("retraction of"));
+  assert.deepStrictEqual(warnings, ["warning: the retraction of security-boundary withdrew trust-review on an answer user-unverified: no turn ended between the signal's record and the answer"]);
+});
+
 // E1.66 first-gate-turn-fence: the first gate of a repository opens before
 // any turn end wrote .ospec/turns.
 test("[E1.66] the first gate of a repository without .ospec/turns keeps user once a turn ended, with no warning", (t) => {

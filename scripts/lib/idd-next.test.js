@@ -9,7 +9,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { foundationSuggestion, nextForChange, nextForProject, statusOf } = require("./idd-next.js");
+const { answerSignalOf, foundationSuggestion, nextForChange, nextForProject, statusOf } = require("./idd-next.js");
 const { recordEvidence, recordGate, recordImpact, recordIntent, recordPlan, recordReferences, recordSignal } = require("./idd-record.js");
 
 const FIXTURES_DIR = path.join(__dirname, "..", "fixtures", "idd");
@@ -369,6 +369,39 @@ test("next says how to declare an impact on the declared references", () => {
     command: 'ospec record impact --change evented --adr 0002 --impact <none|conforms|amends|supersedes|contradicts> --reason "<why>"',
   });
   assert.strictEqual(result.suggestions, undefined);
+});
+
+test("[REQ-idd-011] the obligation stays the step and the retraction the diff allows is its alternative", () => {
+  let state = planned({ change: "rename-report", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  state = recordSignal(state, { id: "persistent-data", reason: "persistent data: src/a.js uses writeFile", source: "diff" }).state;
+  const hits = ["src/a.js uses writeFile: fs.writeFileSync(p, d);"];
+  const bare = nextForChange(state).next_step;
+  assert.strictEqual(answerSignalOf(state, "migration-compat-and-test"), "persistent-data");
+  assert.strictEqual(answerSignalOf(state, "checks-pass"), null);
+  assert.strictEqual(bare.retract, undefined, "only the caller reads the diff");
+
+  const step = nextForChange(state, { retract: { signal: "persistent-data", hits } }).next_step;
+  const command = 'ospec record retract --change rename-report --signal persistent-data --reason "<why>" --answer "<the user\'s words>" --source user';
+  assert.deepStrictEqual(step, {
+    ...bare,
+    how: `${bare.how}; or, if the user confirms there is no persistent data, retract persistent-data with their words: ${command}`,
+    retract: { signal: "persistent-data", confirms: "there is no persistent data", hits, command },
+  });
+  assert.deepStrictEqual(nextForChange(state, { retract: { signal: "persistent-data", hits: [] } }).next_step, bare, "an answer with nothing to cover is not offered");
+  assert.deepStrictEqual(nextForChange(state, { retract: { signal: "security-boundary", hits } }).next_step, bare, "another signal's answer is not this step's");
+
+  // Each signal names what the user confirms; a step the checks replace offers nothing.
+  let review = planned({ change: "formula", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  review = recordSignal(review, { id: "security-boundary", reason: "security boundary: src/a.js adds code evaluation (CWE-94)", source: "diff" }).state;
+  const sink = nextForChange(review, { retract: { signal: "security-boundary", hits: ["src/a.js adds code evaluation (CWE-94): eval(F)"] } }).next_step;
+  assert.strictEqual(sink.obligation, "trust-review");
+  assert.strictEqual(sink.retract.confirms, "no added sink takes untrusted input");
+  let contract = planned({ change: "docs-api", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  contract = recordSignal(contract, { id: "public-contract", reason: "public contract: README.md adds API: GET /a", source: "diff" }).state;
+  const retract = { signal: "public-contract", hits: ["README.md adds API: GET /a"] };
+  assert.strictEqual(nextForChange(contract, { retract }).next_step.retract.confirms, "the diff changes no contract: no route, request, response or published API");
+  assert.strictEqual(nextForChange(contract, { retract, checks: [] }).next_step.action, "configure-checks");
+  assert.strictEqual(nextForChange(contract, { retract, checks: [] }).next_step.retract, undefined);
 });
 
 test("the contract step names where the project's contract documents and tests live (#400)", () => {

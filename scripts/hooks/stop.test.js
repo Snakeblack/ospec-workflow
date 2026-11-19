@@ -357,6 +357,31 @@ test("Stop asks once to continue an open IDD change the session moved", async (t
   assert.equal(runStopProcess({ cwd: root, session_id: "s1" }), '{"continue":true}\n', "never twice for the same tree");
 });
 
+// A Stop that asks to continue ends no turn, so an answer recorded in that
+// continuation is still fenced: the turn fence sees no turn end since the
+// signal was recorded (E1.49).
+test("a Stop that asks to continue counts no turn end, so a retraction in its continuation stays user-unverified", async (t) => {
+  const { root, ospec } = iddProject(t);
+  execFileSync(process.execPath, [path.join(__dirname, "session-start.js")], { input: JSON.stringify({ cwd: root, session_id: "s1" }), encoding: "utf8" });
+  assert.equal(runStopProcess({ cwd: root, session_id: "s1" }), '{"continue":true}\n');
+  assert.equal(await fs.readFile(path.join(root, ".ospec", "turns"), "utf8"), "1\n");
+  await fs.mkdir(path.join(root, "src"));
+  await fs.writeFile(path.join(root, "src", "a.js"), "module.exports = (formula) => eval(formula);\n");
+  ospec("check", "--change", "fix-a");
+  const state = () => JSON.parse(require("node:fs").readFileSync(path.join(root, "idd", "fix-a", "state.yaml"), "utf8"));
+  assert.equal(state().signals.find((signal) => signal.id === "security-boundary").recorded_turn, 1);
+
+  assert.equal(JSON.parse(runStopProcess({ cwd: root, session_id: "s1" })).decision, "block");
+  assert.equal(await fs.readFile(path.join(root, ".ospec", "turns"), "utf8"), "1\n", "the agent goes on: no turn ended");
+  const retracted = JSON.parse(ospec("record", "retract", "--change", "fix-a", "--signal", "security-boundary", "--reason", "a constant", "--answer", "It is a constant.", "--source", "user", "--json"));
+  assert.match(retracted.warnings[0], /^retract security-boundary recorded user-unverified: no turn ended between the signal's record and the answer;/);
+  assert.equal(state().retracted.at(-1).answer_source, "user-unverified");
+
+  // The Stop of the continuation lets the turn end, and counts it.
+  assert.equal(runStopProcess({ cwd: root, session_id: "s1", stop_hook_active: true }), '{"continue":true}\n');
+  assert.equal(await fs.readFile(path.join(root, ".ospec", "turns"), "utf8"), "2\n");
+});
+
 test("Stop asks nothing while a gate of an open IDD change waits for the user", async (t) => {
   const { root, ospec } = iddProject(t);
   ospec("record", "gate", "--change", "fix-a", "--gate", "irreversible-operation", "--open", "--reason", "drop the table");

@@ -150,6 +150,27 @@ const ANSWER_RETRACTABLE_SIGNALS = Object.freeze(["persistent-data", "public-con
 const SIGNAL_BY_ID = new Map(SIGNALS.map((signal) => [signal.id, signal]));
 const OBLIGATION_BY_ID = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation]));
 
+// The turn fence of a retraction the user's answer made: the turn the signal
+// was recorded in and the one of the answer, and the source an answer was
+// declared with when no turn ended in between, as for a gate (E1.49).
+function validateRetractFence(entry, answered, isCount, fail) {
+  if (entry === null || typeof entry !== "object") return;
+  const fenced = ["recorded_turn", "resolved_turn", "declared_source", "unverified_reason"].some((key) => key in entry);
+  if (!fenced) return;
+  const isText = (value) => typeof value === "string" && value.trim() !== "";
+  if (!answered) fail(`retracted signal ${entry.id} keeps the turn fence only for the user's answer`);
+  if (entry.recorded_turn !== undefined && !isCount(entry.recorded_turn)) fail(`retracted signal ${entry.id} recorded_turn must be a turn count`);
+  if (entry.resolved_turn !== undefined && !(entry.resolved_turn === null || isCount(entry.resolved_turn))) fail(`retracted signal ${entry.id} resolved_turn must be a turn count or null`);
+  if (entry.resolved_turn !== undefined && entry.recorded_turn === undefined) fail(`retracted signal ${entry.id} has the turn of an answer without the turn it was recorded in`);
+  if ((entry.declared_source !== undefined || entry.unverified_reason !== undefined)
+    && (entry.declared_source !== "user" || entry.answer_source !== "user-unverified" || !isText(entry.unverified_reason))) {
+    fail(`retracted signal ${entry.id} declared user must be recorded user-unverified with the reason`);
+  }
+  if (entry.answer_source === "user" && entry.resolved_turn !== undefined && !(entry.resolved_turn !== null && entry.resolved_turn !== entry.recorded_turn)) {
+    fail(`retracted signal ${entry.id} is answered user without a turn end after it was recorded`);
+  }
+}
+
 /**
  * The user's words the CLI keeps (E1.77): the request and every answer, to a
  * gate or to a retraction, oldest first. An answer recorded before resolved_at
@@ -280,10 +301,14 @@ function validateState(state) {
   validateImpacts(state.impacts, fail);
   validateAttestations(state, fail);
 
+  // The turn count the turn fence keeps: a whole number, or null for an
+  // answer recorded without one.
+  const isCount = (value) => Number.isSafeInteger(value) && value >= 0;
   for (const signal of state.signals) {
     if (!SIGNAL_BY_ID.has(signal.id)) fail(`unknown signal: ${signal.id}`);
     if (typeof signal.reason !== "string" || signal.reason === "") fail(`signal ${signal.id} needs a reason`);
     if (!SIGNAL_SOURCES.includes(signal.source)) fail(`signal ${signal.id} source must be declaration or diff`);
+    if (signal.recorded_turn !== undefined && !isCount(signal.recorded_turn)) fail(`signal ${signal.id} recorded_turn must be a turn count`);
   }
   for (const entry of state.retracted || []) {
     const answered = entry !== null && typeof entry === "object" && ["answer", "answer_source", "confirmed_by", "hits"].some((key) => key in entry);
@@ -301,6 +326,7 @@ function validateState(state) {
     if (entry?.resolved_at !== undefined && (!answered || !isTime(entry.resolved_at))) {
       fail(`retracted signal ${entry.id}: resolved_at is the time of the user's answer, as an ISO 8601 UTC timestamp`);
     }
+    validateRetractFence(entry, answered, isCount, fail);
   }
 
   const runs = state.runs || [];

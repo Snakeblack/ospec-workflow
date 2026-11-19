@@ -22,6 +22,7 @@ type nudgeStep struct {
 	Input  map[string]any    `json:"input"`
 	Expect any               `json:"expect"`
 	Write  map[string]string `json:"write"`
+	Turns  *string           `json:"turns"`
 }
 
 type nudgeCase struct {
@@ -136,6 +137,11 @@ func TestIddNudgeSharedSteps(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, step.Expect) {
 			t.Fatalf("step %d: %s %v answered %s, want %v", index, step.Hook, step.Input, out, step.Expect)
+		}
+		if step.Turns != nil {
+			if turns, err := os.ReadFile(filepath.Join(root, ".ospec", "turns")); err != nil || string(turns) != *step.Turns+"\n" {
+				t.Fatalf("step %d: turns %q (%v), want %q", index, turns, err, *step.Turns+"\n")
+			}
 		}
 	}
 	record, err := os.ReadFile(filepath.Join(root, ".ospec", "idd-nudge.json"))

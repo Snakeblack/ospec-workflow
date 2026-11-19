@@ -50,7 +50,7 @@ test("Stop asks once to continue a change the session moved, never twice for the
   assert.ok(await start(root, entries, { source: "resume" }), "a resume gets the context again");
   fs.writeFileSync(path.join(root, "a.txt"), "edit\n");
   const asked = await stop(root, entries);
-  assert.match(asked.reason, /^ospec: these open IDD changes have a next step that needs no answer from the user:\n- `fix-a`: Next step of `fix-a`\.\n/);
+  assert.match(asked.reason, /^ospec: these open IDD changes have a next step to take:\n- `fix-a`: Next step of `fix-a`\.\n/);
   assert.match(asked.reason, /end your turn again/);
   assert.match(asked.reason, /ospec abandon --change <id>/);
   assert.equal(await stop(root, entries), null, "the same tree asks nothing");

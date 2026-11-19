@@ -134,5 +134,10 @@
     "public-contract",
     "persistent-data",
     "security-boundary"
+  ],
+  "answer_retractable_signals": [
+    "persistent-data",
+    "public-contract",
+    "security-boundary"
   ]
 }

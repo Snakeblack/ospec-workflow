@@ -52,19 +52,21 @@ func (h *stopHandler) Run(stdin []byte) ([]byte, int) {
 		return continueWithError(fmt.Sprintf("Stop hook could not write the session trace: %s", err.Error())), 0
 	}
 
-	// E1.49: every turn end is counted in the project before the trace, so a
-	// trace that cannot be written still counts it.
-	counted := countTurnEnd(turnsRoot(resolveCwd(input.Cwd)))
 	var raw map[string]any
 	_ = json.Unmarshal(stdin, &raw)
 	failure := ""
-	if counted != nil {
-		failure = fmt.Sprintf("Stop hook could not count the turn end: %s", counted.Error())
-	}
 	reason, warning, err := runStop(input, raw)
 	if err != nil {
 		failure = fmt.Sprintf("Stop hook could not write the session trace: %s", err.Error())
 		reason, warning = "", ""
+	}
+	// E1.49: a Stop that asks the agent to continue (E1.51) ends no turn, so
+	// only one that lets the turn end is counted, a trace that cannot be
+	// written included.
+	if reason == "" {
+		if counted := countTurnEnd(turnsRoot(resolveCwd(input.Cwd))); counted != nil && failure == "" {
+			failure = fmt.Sprintf("Stop hook could not count the turn end: %s", counted.Error())
+		}
 	}
 	return stopAnswer(failure, reason, warning), 0
 }

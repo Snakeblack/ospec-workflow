@@ -26,6 +26,12 @@ const {
   doctor,
 } = require("./lib/test-support/ospec-cli.js");
 
+// The turn ends the Stop hook counts in .ospec/turns (E1.49): an answer
+// recorded after one keeps the source user.
+function writeTurns(root, turn) {
+  writeFile(root, ".ospec/turns", `${turn}\n`);
+}
+
 // E1.4 (c) ospec close (REQ-idd-009, REQ-idd-017).
 
 test("a documentation change closes without review and is archived by date", (t) => {
@@ -425,7 +431,9 @@ test("record retract takes the user's answer for persistent data the diff conten
   ospec(root, "signals", "--change", "rename-report", "--path", "src/report.js");
   writeFile(root, "src/report.js", 'const fs = require("node:fs");\nconst TITLE = "Sales";\nfs.writeFileSync("out/report.txt", TITLE);\n');
   const reason = "persistent data: src/report.js uses writeFile";
+  writeTurns(root, 1);
   assert.strictEqual(ospec(root, "check", "--change", "rename-report", "--json").json.added.signals.includes("persistent-data"), true);
+  writeTurns(root, 2);
 
   const retract = ["record", "retract", "--change", "rename-report", "--signal", "persistent-data", "--reason", "the report is regenerated on every run"];
   const plain = ospec(root, ...retract, "--json");
@@ -450,6 +458,8 @@ test("record retract takes the user's answer for persistent data the diff conten
       answer: "No stored data.",
       answer_source: "user",
       resolved_at: state.retracted[0].resolved_at,
+      recorded_turn: 1,
+      resolved_turn: 2,
     },
   ]);
   assert.match(state.retracted[0].resolved_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, "the time of the user's answer (E1.77)");
@@ -472,6 +482,55 @@ test("record retract takes the user's answer for persistent data the diff conten
   assert.match(byPath.json.error.message, /db\/migrations|src\/report\.js/);
 });
 
+// The way out a false positive of content has: next offers the retraction with
+// the user's answer exactly when record retract would take it, beside the
+// obligation, with the hits the answer covers.
+test("[REQ-idd-011] next offers the user's answer for persistent data the content alone derives, and only then", (t) => {
+  const { root, git } = project(t);
+  writeFile(root, "src/report.js", 'const fs = require("node:fs");\nconst TITLE = "Report";\nfs.writeFileSync("out/report.txt", TITLE);\n');
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "report");
+  ospec(root, "record", "intent", "--change", "rename-report", "--kind", "refactor", "--summary", "Name the title constant.", "--acceptance", "The report is unchanged.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  ospec(root, "signals", "--change", "rename-report", "--path", "src/report.js");
+  writeFile(root, "src/report.js", 'const fs = require("node:fs");\nconst REPORT_TITLE = "Report";\nfs.writeFileSync("out/report.txt", REPORT_TITLE);\n');
+  const command = 'ospec record retract --change rename-report --signal persistent-data --reason "<why>" --answer "<the user\'s words>" --source user';
+  // The hits record retract would keep: the added write and the file's own.
+  const hits = ["adds", "uses"].map((verb) => `src/report.js ${verb} writeFile: fs.writeFileSync("out/report.txt", REPORT_TITLE);`);
+  const offer = `or, if the user confirms there is no persistent data, retract persistent-data with their words: ${command}`;
+  const retract = { signal: "persistent-data", confirms: "there is no persistent data", hits, command };
+
+  const checked = ospec(root, "check", "--change", "rename-report", "--json");
+  assert.ok(checked.json.added.signals.includes("persistent-data"));
+  const step = ospec(root, "next", "--change", "rename-report", "--json").json.next_step;
+  assert.strictEqual(step.obligation, "migration-compat-and-test");
+  assert.strictEqual(step.command, 'ospec run --change rename-report --obligation migration-compat-and-test --command "<migration test>" --plan "<compatibility or rollback>"', "the obligation stays the step");
+  assert.deepStrictEqual(step.retract, retract);
+  assert.ok(step.how.endsWith(`; ${offer}`), step.how);
+  assert.deepStrictEqual(checked.json.next.next_step, step, "every command that writes returns the same step");
+  const text = ospec(root, "next", "--change", "rename-report").stdout;
+  assert.ok(text.includes(offer) && hits.every((hit) => text.includes(`\nanswer covers: ${hit}`)), text);
+  const written = ospec(root, "check", "--change", "rename-report").stdout;
+  assert.ok(written.includes(`\n  ${offer}`) && hits.every((hit) => written.includes(`\n  answer covers: ${hit}`)), written);
+
+  // A base git cannot read leaves the offer out; next still answers.
+  const file = path.join(root, "idd", "rename-report", "state.yaml");
+  const stored = fs.readFileSync(file, "utf8");
+  fs.writeFileSync(file, `${JSON.stringify({ ...JSON.parse(stored), base: "0".repeat(40) }, null, 2)}\n`);
+  const unread = ospec(root, "next", "--change", "rename-report", "--json");
+  assert.strictEqual(unread.code, 0, unread.stderr);
+  assert.strictEqual(unread.json.next_step.obligation, "migration-compat-and-test");
+  assert.strictEqual(unread.json.next_step.retract, undefined);
+  fs.writeFileSync(file, stored);
+
+  // A migration path derives it too, so no answer retracts it and none is offered.
+  writeFile(root, "db/migrations/001_report.sql", "ALTER TABLE reports ADD COLUMN title TEXT;\n");
+  const byPath = ospec(root, "check", "--change", "rename-report", "--json").json.next.next_step;
+  assert.strictEqual(byPath.obligation, "migration-compat-and-test");
+  assert.strictEqual(byPath.retract, undefined);
+  assert.doesNotMatch(byPath.how, /record retract/);
+  assert.doesNotMatch(ospec(root, "next", "--change", "rename-report").stdout, /record retract|answer covers/);
+});
+
 // E1.50: security-boundary that only a sink in the added lines derives is
 // retracted with the user's answer, tied to the sinks it saw; a security path
 // keeps any answer out.
@@ -484,6 +543,10 @@ test("[E1.50] record retract takes the user's answer for a security sink the dif
   const checked = ospec(root, "check", "--change", "formula-total", "--json");
   assert.ok(checked.json.added.signals.includes("security-boundary"));
   assert.strictEqual(stateOf(root, "formula-total").signals.find((signal) => signal.id === "security-boundary").reason, reason);
+  const offered = checked.json.next.next_step;
+  assert.strictEqual(offered.obligation, "trust-review");
+  assert.deepStrictEqual(offered.retract.hits, ["src/report.js adds code evaluation (CWE-94): module.exports = () => eval(FORMULA);"]);
+  assert.strictEqual(offered.retract.confirms, "no added sink takes untrusted input");
 
   const retract = ["record", "retract", "--change", "formula-total", "--signal", "security-boundary", "--reason", "the formula is a constant"];
   const plain = ospec(root, ...retract, "--json");
@@ -503,6 +566,7 @@ test("[E1.50] record retract takes the user's answer for a security sink the dif
   ospec(root, "check", "--change", "formula-total", "--json");
   state = stateOf(root, "formula-total");
   assert.strictEqual(state.obligations.find((o) => o.id === "trust-review").status, "pending");
+  assert.strictEqual(ospec(root, "next", "--change", "formula-total", "--json").json.next_step.retract, undefined, "a security path takes no answer, so none is offered");
   const byPath = ospec(root, ...retract, "--answer", "None.", "--source", "user", "--json");
   assert.strictEqual(byPath.json.error.code, "retract-answer-refused");
 });
@@ -514,7 +578,7 @@ test("[E1.50] --security declares the security boundary without widening the pla
   const declared = ospec(root, "signals", "--change", "share-links", "--security", "--json");
   assert.strictEqual(declared.code, 0, declared.stderr);
   const state = stateOf(root, "share-links");
-  assert.deepStrictEqual(state.signals.find((signal) => signal.id === "security-boundary"), { id: "security-boundary", reason: "declared a security boundary", source: "declaration" });
+  assert.deepStrictEqual(state.signals.find((signal) => signal.id === "security-boundary"), { id: "security-boundary", reason: "declared a security boundary", source: "declaration", recorded_turn: 0 });
   assert.strictEqual(state.obligations.find((o) => o.id === "trust-review").status, "pending");
   assert.deepStrictEqual(state.plan, plan, "the plan stays as it was");
   // The diff does not confirm a declared boundary, so a plain retraction withdraws it.
@@ -531,7 +595,13 @@ test("record retract takes the user's answer for a public contract a doc's conte
   const policy = "# Security\n\nReport it through `POST /api/contact/` (the contact form).\n";
   writeFile(root, "SECURITY.md", policy);
   const reason = "public contract: SECURITY.md adds API";
+  writeTurns(root, 1);
   assert.ok(ospec(root, "check", "--change", "security-policy", "--json").json.added.signals.includes("public-contract"));
+  writeTurns(root, 2);
+  const offered = ospec(root, "next", "--change", "security-policy", "--json").json.next_step;
+  assert.strictEqual(offered.obligation, "contract-spec-and-test");
+  assert.deepStrictEqual(offered.retract.hits, ["SECURITY.md adds API: Report it through `POST /api/contact/` (the contact form)."]);
+  assert.match(offered.how, /; or, if the user confirms the diff changes no contract: .*, retract public-contract with their words: ospec record retract --change security-policy /);
 
   const retract = ["record", "retract", "--change", "security-policy", "--signal", "public-contract", "--reason", "the policy cites the contact form we already have"];
   const plain = ospec(root, ...retract, "--json");
@@ -553,6 +623,8 @@ test("record retract takes the user's answer for a public contract a doc's conte
       answer: "It is the existing form.",
       answer_source: "user",
       resolved_at: state.retracted[0].resolved_at,
+      recorded_turn: 1,
+      resolved_turn: 2,
     },
   ]);
   const checked = ospec(root, "check", "--change", "security-policy", "--json");
@@ -582,6 +654,7 @@ test("record retract refuses the user's answer for a contract line in a contract
   assert.strictEqual(plain.json.error.code, "signal-confirmed-by-diff");
   assert.doesNotMatch(plain.json.error.how, /--answer/);
   assert.strictEqual(stateOf(root, "fix-readme").obligations.find((o) => o.id === "contract-spec-and-test").status, "pending");
+  assert.strictEqual(ospec(root, "next", "--change", "fix-readme", "--json").json.next_step.retract, undefined, "nor is it offered");
 });
 
 // #496: public-contract that an impact path outside a contract document

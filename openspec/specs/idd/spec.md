@@ -78,7 +78,8 @@ artifacts there.
 `request` with `requested_at`, the time it was first recorded, E1.77), `facts` (the open-facts declaration of REQ-idd-018: either `open`,
 the list of open questions, `basis`, why none is open, or `coverage` for a
 feature), `assumptions` (text recorded with `ospec record assumption`), optionally `changelog_line` (the one line of text `ospec record changelog` declares, REQ-idd-025) and `completes` (the id of the closed change a follow-up completes, never its own, REQ-idd-025), `signals` (each with `id`, `reason` and `source`, `declaration` or
-`diff`), `obligations` (each with `id`, `signal`, `status` in `pending`,
+`diff`, and the turn count of its record, `recorded_turn`, which a signal
+recorded before the turn fence covered retractions lacks, REQ-idd-008), `obligations` (each with `id`, `signal`, `status` in `pending`,
 `satisfied`, `withdrawn`, the `evidence` ids that satisfy it and, when
 withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
 `resolved`, an optional `reason`, when resolved, `answer`, `source` and, since
@@ -102,7 +103,9 @@ and `operations`, plus `decisions`, the texts of `--decision`, once there is
 one), `retracted` (each declared signal retracted under
 REQ-idd-006, with its `id`, `reason`, `source` and `retract_reason`, plus
 `confirmed_by`, `hits`, `answer`, `answer_source` and, since E1.77,
-`resolved_at` when the user's answer retracted it), `impacts`
+`resolved_at` when the user's answer retracted it, and the turn fence of that
+answer, REQ-idd-008: `recorded_turn` and `resolved_turn` and, for an answer
+kept `user-unverified`, `declared_source` `user` and `unverified_reason`), `impacts`
 (each declared architecture reference of REQ-idd-020, with its `kind`, `adr` or
 `scenario`, its `id`, its `impact`, null until declared, the `reason` once
 declared, the `previous` impacts it was raised from, oldest first, each with
@@ -334,7 +337,8 @@ when a contract line lies in a contract document or a path that derives the
 signal is one, naming that document, and when the diff holds no line of a path
 that derives `public-contract` (a renamed or binary file), naming that path;
 the refusal of a plain retraction of a signal the answer may retract MUST say
-how to give the answer.
+how to give the answer, and `next` MUST offer it beside the obligation that
+signal derives (REQ-idd-011).
 
 #### Scenario: Overstated plan is corrected before the diff confirms it
 
@@ -513,21 +517,38 @@ answer declared `user` MUST be recorded `user-unverified`, with
 count and it differs from `opened_turn`. A count lower than
 `opened_turn` started again after `.ospec/turns` was lost, and a Stop has
 counted since, so it is a turn end too. A gate opened before E1.49 has no
-`opened_turn` and keeps the source it is answered with; `record retract` opens
-no gate and is not fenced. Resolving again with the same answer and declared
+`opened_turn` and keeps the source it is answered with. The user's answer
+that retracts a signal (REQ-idd-006), which `next` offers beside its
+obligation (REQ-idd-011), MUST be fenced the same way: a signal the write
+records MUST keep the count as `recorded_turn`, 0 without one, and one it
+leaves as it was keeps its own; a retraction the write records with an answer
+MUST keep the signal's `recorded_turn` and the count as `resolved_turn`, and an
+answer declared `user` MUST be recorded `user-unverified`, with
+`declared_source` `user` and an `unverified_reason`, unless the answer has a
+count and it differs from `recorded_turn`. A signal recorded before that has
+no `recorded_turn`, and its retraction keeps the source it is answered with.
+`record retract` opens no gate. Retracting again with the same reason, answer
+and declared source MUST change nothing. Resolving again with the same answer and declared
 source MUST change nothing; with another answer, or the same answer and another
 source, it MUST be refused with `gate-conflict`, whose message says which of
 the two differs. `record gate` and `record intent` MUST warn about each answer
 they recorded so, naming the gate, the reason, that the answer stays
 `user-unverified`, and the remedy for the next answers: without a count,
 installing or repairing the host's hooks; without a turn end in between,
-ending the turn with the next gate's questions. `close` MUST warn about every gate
-answered `user-unverified`, with the reason of a fenced one. Nothing of this
+ending the turn with the next gate's questions. `record retract` MUST warn the
+same way, naming the signal, with the remedy of asking the user about the hits
+the retraction covers by ending the turn. `close` MUST warn about every gate
+answered `user-unverified`, with the reason of a fenced one, and about every
+retraction answered `user-unverified`, naming the signal and the obligation it
+withdrew. Nothing of this
 blocks. `validateState` MUST refuse a turn that is not a whole number or null,
 a `resolved_turn` without an `opened_turn` or on an open gate, a
 `declared_source` or `unverified_reason` that is not `user` on a
 `user-unverified` answer with its reason, and a `user` answer without both
-counts or whose `resolved_turn` equals its `opened_turn`. The count is shared by
+counts or whose `resolved_turn` equals its `opened_turn`, and the same of a
+retraction with `recorded_turn` in the place of `opened_turn`, besides a
+`recorded_turn` that is not a whole number and a turn on a retraction made
+without the user's answer. The count is shared by
 the sessions of the workspace and the agent can write the same file: it says
 that a turn ended, not who answered. The IDD workspace MUST leave
 `.ospec/turns` out of every diff, snapshot and tree fingerprint it reads, as it
@@ -545,6 +566,21 @@ leaves the review receipts.
 - AND had the count been 4 at the answer, the gate MUST keep `source` `user`
   with `resolved_turn` 4 and no warning, and so had `.ospec/turns` been lost
   and counted again to 1
+
+#### Scenario: An answer that retracts a signal before a turn ends is user-unverified
+
+- GIVEN `.ospec/turns` holds 3 when `check` records `security-boundary` from
+  a sink of the diff
+- WHEN `record retract --signal security-boundary` takes the user's answer
+  with `--source user` while the count is still 3
+- THEN the retraction MUST hold `answer_source` `user-unverified`,
+  `declared_source` `user`, `recorded_turn` 3, `resolved_turn` 3 and its
+  reason, `trust-review` MUST still be withdrawn, and `record retract` MUST
+  warn about it
+- AND `close` MUST warn that the retraction of `security-boundary` withdrew
+  `trust-review` on an answer `user-unverified`
+- AND had the count been 4 at the answer, the retraction MUST keep
+  `answer_source` `user` with `resolved_turn` 4 and no warning
 
 #### Scenario: The first gate of a repository keeps user once a turn ended
 
@@ -742,8 +778,9 @@ reports them (E4.15): a refused intent or plan MUST write neither, and with
 `--ambiguous` a plan flag MUST be a usage error. A change id
 MUST be kebab-case before it reaches the filesystem. `next` MUST be a read-only
 function of the stored state and, when check evidence is next, the project's
-check configuration and command suggestion, and before anything is built, the
-project's files. It MUST return the change, its pending
+check configuration and command suggestion, before anything is built, the
+project's files, and when the next obligation is one a signal the user's
+answer may retract derives, the diff against the change's base. It MUST return the change, its pending
 obligations in work order, the pending decision, the next step and the
 knowledge references. The next step MUST be `resolve-gate` for the first open
 gate in the order `abandon`, `ambiguous-intent`, `kind-change`, `open-facts`, `adr-amend-or-contradict`,
@@ -793,6 +830,36 @@ project covers (REQ-idd-018), the rules of the categories and, when
 (E4.16); `choose-change` carries `commands`, one `ospec next` per open change;
 and `none` carries a null `command`. The text output of `next` MUST print
 each one on a `run:` line.
+
+When the next obligation is the one an active `persistent-data`
+(`migration-compat-and-test`), `public-contract` (`contract-spec-and-test`) or
+`security-boundary` (`trust-review`) derives, and `record retract` would take
+the user's answer for that signal on the current diff (REQ-idd-006), the step
+MUST keep the obligation's `command` and carry `retract`: `signal`,
+`confirms` (what the user confirms: `there is no persistent data`, `the diff
+changes no contract: no route, request, response or published API` or `no
+added sink takes untrusted input`), `hits` (every hit the answer covers, as
+`record retract` would record them) and `command`, the `record retract` of
+that signal with `--reason "<why>"` and the user's answer. Its `how` MUST end
+with `; or, if the user confirms <confirms>, retract <signal> with their
+words: <command>`. When the answer would be refused, or git cannot read the
+diff, `retract` MUST be left out without failing `next`. The text output of
+`next` MUST print each hit on an `answer covers: <hit>` line, and a command
+that writes MUST print, under its `next (...)` line, the offer of an
+obligation that is a run (`or, if the user confirms ...`) and each hit as
+`answer covers: <hit>`.
+
+#### Scenario: Next offers the user's answer only where record retract takes it
+
+- GIVEN a change whose diff renames a constant in a product file that already
+  writes to disk, so `persistent-data` is active from the content alone
+- WHEN `next` runs, and `check` returns its `next`
+- THEN the step MUST be `migration-compat-and-test` with the run as `command`
+- AND `retract` MUST carry `persistent-data`, `there is no persistent data`,
+  the hits `record retract` would record and its command with the user's
+  answer, which `how` and the text output repeat
+- AND once a migration path derives the signal too, or git cannot read the
+  change's base, `next` MUST carry no `retract`
 
 A command that writes a change MUST print in text a status line and then its
 next step on one line, `next (<obligation, gate or action>): <command>`,
