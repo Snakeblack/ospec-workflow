@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "policy_bundle_digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+  "compiler_version": "1.0.0",
+  "classifier_version": "1.0.0",
+  "runtime_version": "1.0.0",
+  "effective_rules": [
+    "rule-fail-closed",
+    "rule-require-evidence",
+    "rule-deterministic-graph-id"
+  ]
+}

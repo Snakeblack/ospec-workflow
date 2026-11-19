@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/foundation/knowledge-map/v1",
+  "title": "ospec-knowledge-map/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "profile", "slots", "quality_scenarios"],
+  "properties": {
+    "schema": { "const": "ospec-knowledge-map/v1" },
+    "profile": {
+      "enum": ["prototype", "internal-tool", "product", "regulated", "public-library", "embedded"]
+    },
+    "slots": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/slot" }
+    },
+    "quality_scenarios": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/qualityScenario" }
+    }
+  },
+  "$defs": {
+    "text": { "type": "string", "minLength": 1 },
+    "decisionId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "enum": ["user", "document", "repository"] },
+        "ref": { "$ref": "#/$defs/text" }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/decisionId" }
+    },
+    "slot": {
+      "oneOf": [
+        { "$ref": "#/$defs/unknownSlot" },
+        { "$ref": "#/$defs/confirmedSlot" },
+        { "$ref": "#/$defs/assumedSlot" },
+        { "$ref": "#/$defs/notApplicableSlot" },
+        { "$ref": "#/$defs/deferredSlot" }
+      ]
+    },
+    "slotId": { "type": "string", "pattern": "^[a-z][a-z0-9.-]{0,63}$" },
+    "dimension": {
+      "enum": ["business", "functional", "team", "quality", "architecture", "technology", "operation", "delivery"]
+    },
+    "unknownSlot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "dimension", "state", "decisions"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slotId" },
+        "dimension": { "$ref": "#/$defs/dimension" },
+        "state": { "const": "unknown" },
+        "decisions": { "$ref": "#/$defs/decisions" }
+      }
+    },
+    "confirmedSlot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "dimension", "state", "source", "decisions"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slotId" },
+        "dimension": { "$ref": "#/$defs/dimension" },
+        "state": { "const": "confirmed" },
+        "source": { "$ref": "#/$defs/provenance" },
+        "decisions": { "$ref": "#/$defs/decisions" }
+      }
+    },
+    "assumedSlot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "dimension", "state", "source", "review_trigger", "decisions"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slotId" },
+        "dimension": { "$ref": "#/$defs/dimension" },
+        "state": { "const": "assumed" },
+        "source": { "$ref": "#/$defs/provenance" },
+        "review_trigger": { "$ref": "#/$defs/text" },
+        "decisions": { "$ref": "#/$defs/decisions" }
+      }
+    },
+    "notApplicableSlot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "dimension", "state", "reason", "decisions"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slotId" },
+        "dimension": { "$ref": "#/$defs/dimension" },
+        "state": { "const": "n/a" },
+        "reason": { "$ref": "#/$defs/text" },
+        "decisions": { "$ref": "#/$defs/decisions" }
+      }
+    },
+    "deferredSlot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "dimension", "state", "owner", "decisions"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slotId" },
+        "dimension": { "$ref": "#/$defs/dimension" },
+        "state": { "const": "deferred" },
+        "owner": { "$ref": "#/$defs/text" },
+        "review_trigger": { "$ref": "#/$defs/text" },
+        "decisions": { "$ref": "#/$defs/decisions" }
+      }
+    },
+    "qualityScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "origin", "stimulus", "environment", "artifact", "response"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+        "origin": { "$ref": "#/$defs/text" },
+        "stimulus": { "$ref": "#/$defs/text" },
+        "environment": { "$ref": "#/$defs/text" },
+        "artifact": { "$ref": "#/$defs/text" },
+        "response": { "$ref": "#/$defs/text" },
+        "measure": { "$ref": "#/$defs/text" },
+        "measure_source": { "$ref": "#/$defs/text" }
+      },
+      "if": { "required": ["measure"] },
+      "then": { "required": ["measure_source"] }
+    }
+  }
+}

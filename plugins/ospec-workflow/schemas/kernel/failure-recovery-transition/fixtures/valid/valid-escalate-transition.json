@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "transition_id": "recov-trans-002",
+  "failure_code": "TOOL_EXECUTION_TIMEOUT",
+  "target_operation": "escalate",
+  "scope": {
+    "node_ids": ["node-apply-env"],
+    "allowed_paths": [],
+    "finding_ids": []
+  },
+  "expected_advancement": false
+}

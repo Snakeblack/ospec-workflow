@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "status": "success",
+  "executive_summary": "Phase success with non-string detailed_report.",
+  "detailed_report": 123,
+  "artifacts": [
+    "schemas/kernel/result-envelope/v1/envelope.schema.json"
+  ],
+  "next_recommended": "sdd-apply",
+  "risks": "None",
+  "skill_resolution": "injected"
+}

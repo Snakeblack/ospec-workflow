@@ -1,0 +1,4 @@
+#!/bin/sh
+# The ospec CLI as one word (E1.45): runs the scripts/ospec.js beside this
+# directory with the same arguments, from any working directory.
+exec node "$(dirname -- "$0")/../scripts/ospec.js" "$@"

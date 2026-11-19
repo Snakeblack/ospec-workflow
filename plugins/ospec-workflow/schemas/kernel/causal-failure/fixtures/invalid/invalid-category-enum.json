@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "failure_id": "fail-invalid-001",
+  "category": "unknown_error_type",
+  "code": "UNKNOWN_ERROR",
+  "priority": 1,
+  "blocking_fingerprint": "fp:unknown-1",
+  "details": {}
+}

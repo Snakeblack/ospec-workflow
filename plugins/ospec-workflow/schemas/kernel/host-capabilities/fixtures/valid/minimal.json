@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "host-capabilities/v1",
+  "capabilities": {
+    "ExecutionTransport": "enforced",
+    "QuestionTransport": "enforced",
+    "WorkerTransport": "partial",
+    "ToolExecutionTransport": "instructional",
+    "DeliveryGateTransport": "unavailable"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/transport-request/v1",
+  "schema_version": 1,
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "transport-request/v1"
+    },
+    "requestId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "deadlineMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "abort": {
+      "type": "object",
+      "properties": {
+        "aborted": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "input": {}
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "requestId"
+  ],
+  "additionalProperties": false
+}

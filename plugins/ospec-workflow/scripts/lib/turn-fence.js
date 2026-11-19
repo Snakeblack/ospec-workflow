@@ -1,0 +1,232 @@
+"use strict";
+
+// The turn fence of the IDD gates (E1.49): the end-of-turn hook of each host
+// counts the turns that ended in the workspace, a gate keeps the count of its
+// opening, and an answer declared `--source user` before another turn ended is
+// recorded `user-unverified`. A signal keeps the count of its record, and the
+// user's answer that retracts it is fenced the same way, since next offers
+// that retraction on every step. The count is shared by every session of the
+// workspace, and the main agent has the same disk access as the hook: it says
+// that some turn ended, not that the user answered.
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+const { writeFileAtomic } = require("./atomic-write.js");
+const { SIGNALS } = require("./idd-contract.js");
+const { mkdirOspec } = require("./ospec-gitignore.js");
+
+// A repository path, like the review receipts: the IDD workspace keeps it out
+// of every diff it reads and the PreToolUse guard keeps write tools off it.
+const TURNS_FILE = ".ospec/turns";
+const COUNT = /^\d+$/;
+
+function turnsPath(root) {
+  return path.join(root, ...TURNS_FILE.split("/"));
+}
+
+/** The turns that ended in `root`, or null when the count is missing or unreadable. */
+function readTurn(root) {
+  let text;
+  try {
+    text = fs.readFileSync(turnsPath(root), "utf8").trim();
+  } catch {
+    return null;
+  }
+  const turn = Number(text);
+  return COUNT.test(text) && Number.isSafeInteger(turn) ? turn : null;
+}
+
+/**
+ * The directory of the main repository of the linked worktree `root`, where
+ * the hook counts the turn ends of a session whose cwd stays in the project
+ * (E1.61): `.git` names the worktree's git directory, whose `commondir` names
+ * the repository's. Null when `root` is no linked worktree or its repository
+ * is bare, so no `.git` the hook would find sits in a directory.
+ */
+function mainRepositoryRoot(root) {
+  try {
+    const link = /^gitdir:\s*(.+?)\s*$/m.exec(fs.readFileSync(path.join(root, ".git"), "utf8"));
+    if (!link) return null;
+    const gitDir = path.resolve(root, link[1]);
+    const common = path.resolve(gitDir, fs.readFileSync(path.join(gitDir, "commondir"), "utf8").trim());
+    if (path.basename(common) !== ".git") return null;
+    const main = path.dirname(common);
+    return main === path.resolve(root) ? null : main;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The turns that ended for the IDD workspace `root`: its own count plus, in a
+ * linked worktree, the main repository's. Both only grow, so any turn end in
+ * either moves the sum. Null when neither has a count.
+ */
+function workspaceTurn(root) {
+  const own = readTurn(root);
+  const mainRoot = mainRepositoryRoot(root);
+  const main = mainRoot === null ? null : readTurn(mainRoot);
+  if (own === null || main === null) return own ?? main;
+  const turn = own + main;
+  return Number.isSafeInteger(turn) ? turn : null;
+}
+
+/**
+ * The directory whose count a turn end in `cwd` adds to: the first one up
+ * holding .git (a worktree's is a file), where the CLI reads it, else `cwd`.
+ */
+function turnsRoot(cwd) {
+  for (let dir = path.resolve(cwd); ; dir = path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, ".git"))) return dir;
+    if (path.dirname(dir) === dir) return path.resolve(cwd);
+  }
+}
+
+/** Counts one more turn end in `workspace`; an unreadable count starts again. */
+async function countTurnEnd(workspace) {
+  const file = turnsPath(workspace);
+  mkdirOspec(path.dirname(file));
+  const turn = (readTurn(workspace) ?? 0) + 1;
+  await writeFileAtomic(file, `${turn}\n`);
+  return turn;
+}
+
+/**
+ * Takes back the turn end a Stop counted when it asks the agent to continue:
+ * that turn did not end. A count of 0 or none is left as it is.
+ */
+async function uncountTurnEnd(workspace) {
+  const turn = readTurn(workspace);
+  if (!turn) return;
+  await writeFileAtomic(turnsPath(workspace), `${turn - 1}\n`);
+}
+
+// A gate entry without its turns: an entry the command left as it was keeps
+// this key.
+function gateKey(gate) {
+  const { opened_turn: _opened, resolved_turn: _resolved, ...rest } = gate;
+  return JSON.stringify(rest);
+}
+
+function unverifiedReason(turn) {
+  if (turn === null) return `no turn count in ${TURNS_FILE}: no end-of-turn hook ran in this workspace`;
+  return "no turn ended between the gate's opening and the answer";
+}
+
+// The answer stays user-unverified (resolving it again changes nothing), so
+// the remedy is for the next gates.
+function unverifiedRemedy(turn) {
+  if (turn === null) return "install or repair the host's ospec hooks so the next answers can be verified";
+  return "ask the next gate by ending your turn with its questions, and record its answer after the user replies";
+}
+
+/**
+ * Stamps, in `after`, the turn of each gate the command opened or changed
+ * while open, and of each one it resolved. An answer declared `user` without
+ * a turn end after the gate opened is recorded `user-unverified`, keeping the
+ * declared source and the reason. A gate opened before any turn end was
+ * counted opens at 0, since .ospec/turns appears with the first one (E1.66);
+ * one an earlier CLI opened so holds null and counts from 0 as well. A gate
+ * opened before E1.49 has no turn and keeps the source it is answered with.
+ * Returns the gates it recorded so, with the reason and its remedy.
+ */
+function fenceGates(before, after, turn) {
+  const previous = (before?.gates || []).map(gateKey);
+  const unverified = [];
+  for (const gate of after.gates) {
+    const index = previous.indexOf(gateKey(gate));
+    if (index !== -1) {
+      previous.splice(index, 1);
+      continue;
+    }
+    if (gate.status === "open") {
+      gate.opened_turn = turn ?? 0;
+      continue;
+    }
+    if (!Object.hasOwn(gate, "opened_turn")) continue;
+    gate.opened_turn ??= 0;
+    gate.resolved_turn = turn;
+    // Any other count is a turn end: one that started again (.ospec/turns
+    // lost) only counts up from 1 through Stop.
+    const fenced = turn === null || turn === gate.opened_turn;
+    if (gate.source === "user" && fenced) {
+      gate.declared_source = gate.source;
+      gate.source = "user-unverified";
+      gate.unverified_reason = unverifiedReason(turn);
+      unverified.push({ gate: gate.id, reason: gate.unverified_reason, remedy: unverifiedRemedy(turn) });
+    }
+  }
+  return unverified;
+}
+
+function unverifiedRetractReason(turn) {
+  if (turn === null) return unverifiedReason(null);
+  return "no turn ended between the signal's record and the answer";
+}
+
+function unverifiedRetractRemedy(turn) {
+  if (turn === null) return unverifiedRemedy(null);
+  return "ask the user about the hits a retraction covers by ending your turn, and record their answer after they reply";
+}
+
+/**
+ * Stamps, in `after`, the turn of each signal the command recorded, 0 before
+ * any turn end was counted, and fences each answer it recorded to retract a
+ * signal: declared `user` without a turn end after the signal's record, it is
+ * recorded `user-unverified`, keeping the declared source and the reason. A
+ * signal recorded before the fence has no turn and its retraction keeps the
+ * source it is answered with. Returns the retractions it recorded so, with
+ * the reason and its remedy.
+ */
+function fenceSignals(before, after, turn) {
+  const previous = new Map((before?.signals || []).map((signal) => [signal.id, signal]));
+  for (const signal of after.signals) {
+    if (!previous.has(signal.id)) signal.recorded_turn = turn ?? 0;
+  }
+  const unverified = [];
+  for (const entry of (after.retracted || []).slice((before?.retracted || []).length)) {
+    const signal = previous.get(entry.id);
+    if (entry.answer === undefined || !signal || !Object.hasOwn(signal, "recorded_turn")) continue;
+    entry.recorded_turn = signal.recorded_turn;
+    entry.resolved_turn = turn;
+    if (entry.answer_source === "user" && (turn === null || turn === signal.recorded_turn)) {
+      entry.declared_source = entry.answer_source;
+      entry.answer_source = "user-unverified";
+      entry.unverified_reason = unverifiedRetractReason(turn);
+      unverified.push({ retract: entry.id, obligation: obligationOf(entry.id), reason: entry.unverified_reason, remedy: unverifiedRetractRemedy(turn) });
+    }
+  }
+  return unverified;
+}
+
+function obligationOf(signalId) {
+  return SIGNALS.find((signal) => signal.id === signalId).obligation;
+}
+
+/** What close says of each retraction answered `user-unverified`, relayed or fenced. */
+function unverifiedRetractWarnings(state) {
+  return (state.retracted || [])
+    .filter((entry) => entry.answer_source === "user-unverified")
+    .map((entry) => `the retraction of ${entry.id} withdrew ${obligationOf(entry.id)} on an answer user-unverified: ${entry.unverified_reason ?? "the answer was relayed"}`);
+}
+
+/** What close says of each gate answered `user-unverified`, relayed or fenced. */
+function unverifiedGateWarnings(state) {
+  return state.gates
+    .filter((gate) => gate.status === "resolved" && gate.source === "user-unverified")
+    .map((gate) => `gate ${gate.id} was answered user-unverified: ${gate.unverified_reason ?? "the answer was relayed"}`);
+}
+
+module.exports = {
+  TURNS_FILE,
+  countTurnEnd,
+  fenceGates,
+  fenceSignals,
+  readTurn,
+  turnsRoot,
+  unverifiedGateWarnings,
+  uncountTurnEnd,
+  unverifiedRetractWarnings,
+  workspaceTurn,
+};

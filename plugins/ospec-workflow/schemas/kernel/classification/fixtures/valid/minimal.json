@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "risk": {
+    "auth_security": true
+  },
+  "uncertainty": {
+    "level": "low"
+  },
+  "execution": {
+    "loc": 12
+  },
+  "route": "critical",
+  "reasons": [
+    "hard_floor.auth_security"
+  ],
+  "fingerprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "failure_id": "fail-env-001",
+  "category": "environment_tooling",
+  "code": "TOOL_EXECUTION_TIMEOUT",
+  "priority": 1,
+  "blocking_fingerprint": "fp:timeout-bash-run-99",
+  "details": {
+    "tool": "bash_run",
+    "timeout_ms": 120000
+  }
+}
