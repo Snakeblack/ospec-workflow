@@ -21,8 +21,8 @@
 ## Verification Report
 
 **Change**: {change-name}
-**Version**: {spec version or N/A}
-**Mode**: {Strict TDD | Standard}
+**Spec version**: {version, or N/A}
+**TDD mode**: {Strict TDD | Standard}
 
 ### Completeness
 | Metric | Value |
@@ -32,22 +32,21 @@
 | Tasks incomplete | {N} |
 
 ### Build & Tests Execution
-**Build**: ✅ Passed / ❌ Failed
-```text
-{build command and relevant output}
-```
+| Run | Command | Result |
+|---|---|---|
+| Build | `{command}` | ✅ passes / ❌ fails |
+| Tests | `{command}` | ✅ {N} pass / ❌ {N} fail / ⚠️ {N} skipped |
+| Coverage | `{command}` | {N}% against {N}% → ✅ over / ⚠️ under / ➖ no tool |
 
-**Tests**: ✅ {N} passed / ❌ {N} failed / ⚠️ {N} skipped
+Output that matters from each run, with every failure in full:
 ```text
-{test command and failure details}
+{output}
 ```
 
 **Manual verification**: {performed / not performed}
 ```text
 {manual verification steps and results, if any}
 ```
-
-**Coverage**: {N}% / threshold: {N}% → ✅ Above / ⚠️ Below / ➖ Not available
 
 ### Spec Compliance Matrix
 | Requirement | Scenario | Evidence Level | Source | Result | Notes |
@@ -58,20 +57,20 @@
 
 **Compliance summary**: {N}/{total} scenarios satisfied at acceptable evidence levels
 
-### Correctness (Static Evidence)
-| Requirement | Status | Notes |
-|------------|--------|-------|
-| {Req name} | ✅ Implemented | {brief note} |
+### Correctness (Source Inspection)
+| Requirement | Implemented | Notes |
+|---|---|---|
+| {requirement} | ✅ yes / ⚠️ partly / ❌ no | {short note} |
 
 ### Coherence (Design)
-| Decision | Followed? | Notes |
-|----------|-----------|-------|
-| {Decision} | ✅ Yes | |
+| Design decision | Followed | Notes |
+|---|---|---|
+| {decision} | ✅ yes / ❌ no | |
 
 ### Issues Found
 **CRITICAL**: {list or None, tagged with origin `code-bug|tasks-gap|design-gap|spec-gap`}
 **WARNING**: {list or None, tagged with origin `code-bug|tasks-gap|design-gap|spec-gap`}
-**SUGGESTION**: {list or None}
+**SUGGESTION**: {list, no origin needed, or None}
 
 ### Traceability Matrix
 {Omit this section entirely when the change's specs carry no stable REQ ids (`{#REQ-domain-NNN}`).}
@@ -91,8 +90,8 @@ Sources: task `[REQ-...]` tags in `tasks.md`; commit trailers `Ospec-Change` / `
 | {sdd-design-001} | {statement} | {low\|high} | {confirmed / corrected / promoted / unresolved (WARNING raised) / unresolved (no escalation)} |
 
 ### Verdict
-{PASS / PASS WITH WARNINGS / FAIL}
+{PASS, PASS WITH WARNINGS or FAIL}
 {one-line reason}
 ~~~
 
-When Strict TDD is active, insert the TDD compliance, test layer distribution, changed-file coverage, and quality metrics sections from `strict-tdd-verify.md`.
+With Strict TDD the report also carries the five sections of `strict-tdd-verify.md`: TDD Compliance, Test Layer Distribution, Changed File Coverage, Assertion Quality and Quality Metrics.
