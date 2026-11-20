@@ -1,292 +1,219 @@
-# Strict TDD Module — Verify Phase
+# Strict TDD for sdd-verify
 
-> **This module is loaded ONLY when Strict TDD Mode is enabled.**
-> If you are reading this, the orchestrator already verified this condition. Follow every instruction.
+Read this module only when `testing.tdd_mode` is `strict`; the parent skill
+already checked that. It adds steps 5a to 5f to the verification and five
+sections to the report, and nothing else: evidence levels, the compliance
+matrix, the lineage router and the persistence rules of
+`skills/sdd-verify/SKILL.md` still hold. A missing runner or tool limits the
+evidence verify can gather; it never turns the mode into Standard.
 
-## TDD Verification Philosophy
+## What this mode adds
 
-When Strict TDD Mode is active, verification goes beyond "does the code work?" to "was the code built correctly?" — meaning: was TDD actually followed? The apply phase reports TDD evidence; your job is to validate that evidence against reality.
+Standard verification asks whether the code does what the specs say. Strict
+TDD also asks whether it was built test first. sdd-apply reports how each task
+went through the cycle, in the vocabulary of `skills/sdd-apply/strict-tdd.md`;
+this module checks that report against the repository and against real test
+runs, and never takes it on trust.
 
-## Step 5a: TDD Compliance Check (includes Assertion Quality Audit)
+## Step 5a: the TDD Cycle Evidence table
 
-Read the `apply-progress` artifact and verify that TDD was actually followed:
+Open `apply-progress.md` and find `### TDD Cycle Evidence`. Without it, apply
+did not follow the protocol: report CRITICAL, since this step has nothing
+left to read.
 
-```
-Read apply-progress artifact:
-├── Find the "TDD Cycle Evidence" table
-├── Verify: every coding task in the active task list (e.g. tasks.md or task.md) has a corresponding row in the table
-│   ├── (non-coding tasks like docs, configuration, or chores may be excluded or marked N/A)
-│   └── Flag: CRITICAL if any coding task is missing from the table
-├── FOR EACH task row:
-│   ├── If the task is a non-coding task (docs, configuration without logic, chores): verify that the GREEN/RED/TRIANGULATE/SAFETY NET columns are marked "N/A" or "➖" and skip coding/test validation for this task.
-│   ├── If the task is a behavior-preserving refactor with RED and GREEN marked "N/A": its SAFETY NET must show the existing tests passing before the change, and those tests must pass in Step 5b (else CRITICAL). No new test is required.
-│   ├── If any other coding task marks RED or GREEN "N/A" or "➖": CRITICAL — "N/A" never exempts a task that changes behavior.
-│   ├── Otherwise (for coding tasks):
-│   │   ├── RED column: must say "✅ Written" and the test file must exist in the codebase (else CRITICAL)
-│   │   ├── GREEN column:
-│   │   │   ├── Must contain "✅ Passed", "STATIC_VALIDATED", or "DEFERRED"
-│   │   │   ├── If it contains "✅ Passed": test file must pass execution in Step 5b (else CRITICAL)
-│   │   │   └── If it contains "STATIC_VALIDATED" or "DEFERRED":
-│   │   │       ├── If a test runner is available: run the test file (must pass, else CRITICAL)
-│   │   │       └── The "Notes / Rationale" column of the row must contain a non-empty explanation (else CRITICAL)
-│   │   ├── TRIANGULATE column:
-│   │   │   ├── If "✅ N cases" → verify N test cases exist in the test file
-│   │   │   ├── If "➖ Single" → verify spec truly has only one scenario for this task
-│   │   │   ├── If contains "Triangulation skipped" → verify that a non-empty skip reason is provided
-│   │   │   └── Flag: WARNING if spec has multiple scenarios but only 1 test case (and no valid skip reason is documented)
-│   │   └── SAFETY NET column:
-│   │       ├── If contains "✅" or a passing count (e.g. "✅ N/N", "✅ N tests passing") → existing tests were run before modification (good)
-│   │       ├── If "N/A" or "N/A (new)" → verify the file was actually NEW (not modified)
-│   │       └── Flag: WARNING if file was modified, pre-existing tests exist for it (check git history or workspace prior to changes), but safety net shows "N/A"
-│   └── REFACTOR column:
-│       ├── Not strictly verifiable (subjective quality)
-│       └── Skip verification, trust the report
-│
-├── If NO "TDD Cycle Evidence" table found:
-│   └── Flag: CRITICAL — apply phase did not report TDD evidence
-│       (Strict TDD was enabled but apply did not follow the protocol)
-│
-└── Summary: "{N}/{total} tasks have complete TDD evidence"
-```
+Set the table against the task list (`tasks.md`, or the task file of the
+route). Every task that writes or changes code needs a row, and a missing row
+is CRITICAL. Tasks without code (documentation, configuration without logic,
+chores) may be left out or carry `N/A`.
 
-## Step 5b: Run Test Execution (Cross-Reference)
+Classify each row, then apply its checks:
 
-Run all the test files identified in Step 5a using the test runner command. Record their PASS/FAIL results to cross-reference with the TDD Cycle Evidence table. If execution tools are unavailable, perform static verification of the test files and document the verification audit rationale in the verification report.
+| Row | Checks |
+|---|---|
+| Task without code | RED, GREEN, TRIANGULATE and Safety Net read `N/A` or `➖`. No test is checked. |
+| Refactor that keeps the behavior, with RED and GREEN `N/A` | Safety Net shows the existing tests passing before the edit, and the same tests pass in step 5b; otherwise CRITICAL. No new test is needed. |
+| Any other task with code, with RED or GREEN `N/A` or `➖` | CRITICAL: `N/A` never exempts a change of behavior. |
+| Any other task with code | The column checks below. |
 
-`STATIC_VALIDATED` and `DEFERRED` preserve honest evidence of a limitation; they do not count as runtime passes. Apply the parent skill's Evidence Levels and compliance rule matrix to the scenario verdict. A passing test now proves current behavior, not that RED was observed historically; do not fabricate or backfill execution history.
+Column checks for a task with code:
 
-## Step 5c: Test Layer Validation
+| Column | What verify checks |
+|---|---|
+| RED | It reads `✅ Written` and the test file exists in the repository; otherwise CRITICAL. |
+| GREEN | It reads `✅ Passed`, `STATIC_VALIDATED` or `DEFERRED`. With `✅ Passed` the test file passes in step 5b, else CRITICAL. With `STATIC_VALIDATED` or `DEFERRED`, run the test file when a runner exists (a failure is CRITICAL), and Notes / Rationale explains why nothing ran (left empty, CRITICAL). |
+| TRIANGULATE | `✅ N cases`: the test file holds N cases. `➖ Single`: the spec gives this task a single scenario. `Triangulation skipped: <reason>`: the reason is not empty. `➖ Deferred` (no run yet) exempts nothing. In every case, several spec scenarios with one test case and no valid reason to skip is a WARNING. |
+| Safety Net | `✅ N/N` or `✅ N tests passing`: the existing tests ran before the edit. `N/A (new)` or `N/A`: confirm the files are new, not edited; an edited file that already had tests (see git history or the tree before the change) is a WARNING. `DEFERRED` gives no finding of its own: no run was possible, and the GREEN check of the same row decides. |
+| REFACTOR | Not checked: how clean the code is cannot be proved from the table. |
 
-Classify ALL test files related to this change by their testing layer:
+End the step with `{N}/{total} tasks with complete TDD evidence`. Step 5f
+audits the assertions of the same test files.
 
-```
-Scan test files created/modified by this change:
-├── Classify each test file:
-│   ├── Unit test: tests a single function/class in isolation
-│   │   └── Indicators: no render(), no page., no HTTP/network/DB calls, mocked dependencies. In Go, test function accepts `t *testing.T` with mock interfaces. In Python, inherits from `unittest.TestCase` or uses `pytest` with mock fixtures. In C#, uses `[Fact]` or `[Test]` with `Moq`/`NSubstitute`. In Kotlin, uses `@Test` with `MockK` or mock interfaces.
-│   ├── Integration test: tests component interaction or user behavior
-│   │   └── Indicators: render(), screen., userEvent., testing-library imports. In Go, uses real DB or HTTP test servers (e.g. `httptest.NewServer`). In Python, django/flask test client or webtest. In C#, uses `WebApplicationFactory` or test database context. In Kotlin, uses Ktor `testApplication` or `@SpringBootTest`.
-│   ├── E2E test: tests full system through real browser/HTTP
-│   │   └── Indicators: page.goto(), playwright/cypress imports, browser context. In Go/Python/C#/Kotlin, starts full app servers and uses browser drivers (Selenium, Playwright).
-│   └── Unknown: cannot classify → report as-is
-│
-├── Report distribution:
-│   ├── Unit: {N} tests across {N} files
-│   ├── Integration: {N} tests across {N} files
-│   ├── E2E: {N} tests across {N} files
-│   └── Total: {N} tests
-│
-├── Cross-reference with capabilities:
-│   ├── If integration tests exist but tools not in capabilities → how?
-│   ├── If E2E tests exist but tools not in capabilities → how?
-│   └── Flag: WARNING if tests use tools not detected in capabilities
-│
-└── For each spec scenario: note which layer covers it
-    └── Flag: SUGGESTION if critical business logic only has unit tests
-        (only if integration/E2E tools are available)
-```
+## Step 5b: run the tests
 
-## Step 5d: Changed File Coverage
+Run every test file from step 5a with the project's test command and record
+pass or fail for each, to set against what the table claims. When nothing can
+execute, check the test files statically and write in the report why and how.
 
-When coverage tool is available, report coverage for CHANGED files specifically:
+`STATIC_VALIDATED` and `DEFERRED` record honestly that a run was impossible;
+they are not passes. The Evidence Levels and the compliance matrix of the
+parent skill decide each scenario. A test that passes today proves today's
+behavior, not that it failed before the code existed: never invent or fill in
+a run history.
 
-```
-IF coverage tool available (from cached capabilities):
-├── Run: {test_command} --coverage (or equivalent)
-├── Parse the coverage report
-├── Filter to ONLY files created or modified in this change
-│   (get file list from apply-progress "Files Changed" table)
-├── Report per-file:
-│   ├── File path
-│   ├── Line coverage %
-│   ├── Branch coverage % (if available)
-│   ├── Uncovered line ranges (specific lines, not just %)
-│   └── Flag per file:
-│       ├── ≥ 95% → ✅ Excellent
-│       ├── ≥ 80% → ⚠️ Acceptable
-│       └── < 80% → ⚠️ Low (list uncovered lines)
-├── Report aggregate:
-│   ├── Average coverage of changed files
-│   ├── Total uncovered lines in changed files
-│   └── Compare to threshold if configured
-└── Flag: WARNING if any changed file < 80% coverage
+## Step 5c: test layers
 
-IF coverage tool NOT available:
-└── Report: "Coverage analysis skipped — no coverage tool detected"
-    (NOT a failure — just not available)
-```
+Sort every test file the change created or edited into a layer:
 
-## Step 5e: Quality Metrics (if tools available)
+| Layer | What it exercises | Signs |
+|---|---|---|
+| Unit | One function or class on its own | No rendering, page, network, database or HTTP, and dependencies replaced. Go: a `t *testing.T` test with fake interfaces. Python: `unittest.TestCase`, or pytest with mock fixtures. C#: `[Fact]` or `[Test]` with Moq or NSubstitute. Kotlin: `@Test` with MockK or fake interfaces. |
+| Integration | Components working together, or what a user does with one | `render()`, `screen.`, `userEvent.`, Testing Library imports. Go: a real database or `httptest.NewServer`. Python: the Django or Flask test client, or WebTest. C#: `WebApplicationFactory` or a test database context. Kotlin: Ktor `testApplication` or `@SpringBootTest`. |
+| E2E | The whole system through a real browser or HTTP | `page.goto()`, Playwright or Cypress imports, a browser context. In Go, Python, C# or Kotlin, a full server driven with Selenium or Playwright. |
+| Unknown | None of the above | Report it as found. |
 
-Run quality checks ONLY on changed files, ONLY if tools are available:
+Report how many tests and files each layer has, and the total. Compare with
+the cached testing capabilities: a test that uses a tool they do not list is a
+WARNING, and the report says how it runs. Note which layer covers each spec
+scenario. When integration or E2E tools are installed and critical business
+logic has only unit tests, raise a SUGGESTION.
 
-```
-Read quality tools from cached capabilities:
+## Step 5d: coverage of the changed files
 
-IF linter available:
-├── Run linter on changed files only
-├── Report: errors and warnings
-└── Flag: WARNING for errors, SUGGESTION for warnings
+Only when the cached capabilities list a coverage tool. Run the test command
+with coverage and keep only the files the change created or edited (the Files
+Changed table of `apply-progress.md`). For each one report the line coverage,
+the branch coverage when the tool gives it, and the uncovered line ranges, not
+just a percentage. Rate each file by its line coverage:
 
-IF type checker available:
-├── Run type checker (usually whole-project, not per-file)
-├── Filter output to changed files
-├── Report: type errors in changed files
-└── Flag: WARNING for type errors
+| Line coverage | Rating |
+|---|---|
+| 95 % or more | ✅ Excellent |
+| From 80 % to under 95 % | ⚠️ Acceptable |
+| Under 80 % | ⚠️ Low, with its uncovered lines |
 
-IF neither available:
-└── Report: "Quality metrics skipped — no tools detected"
-```
+Add the average over the changed files, the total of uncovered lines and, when
+the project configures a threshold, how they compare with it. A changed file
+under 80 % is a WARNING.
 
-## Report Template Extension
+Without a coverage tool, the report says the analysis was skipped because no
+tool was found. That is not a failure.
 
-When Strict TDD Mode is active, your verification report MUST include these additional sections:
+## Step 5e: linter and type checker
 
-```markdown
+Only with the tools the cached capabilities list, and only for the changed
+files:
+
+| Tool | How it runs | Finding |
+|---|---|---|
+| Linter | On the changed files | Each error a WARNING, each warning a SUGGESTION |
+| Type checker | Usually on the whole project; keep its output for the changed files | Each type error a WARNING |
+
+With neither tool, the report says these metrics were skipped because no tool
+was found.
+
+## Step 5f: assertion quality (always)
+
+Read every test file the change created or edited and judge its assertions;
+no static analysis tool is needed. A test that passes without proving anything
+is worse than a missing test, because it reports safety that does not exist.
+
+| Pattern | Example | Severity |
+|---|---|---|
+| Tautology: only constants are compared | `expect(true).toBe(true)`, `assert True`, `expect(1).toBe(1)` | CRITICAL |
+| No production code runs: no call, render or request in the test | | CRITICAL |
+| No assertion: the test runs and checks nothing | | CRITICAL; it has to be rewritten |
+| Ghost loop: assertions inside a loop over `queryAll` or `filter` results that may be empty | | CRITICAL: an empty list runs zero assertions, so the test always passes |
+| Incomplete cycle: the setup keeps the code under test from running | A component that is never rendered because of its state | CRITICAL: the setup must reach that code path |
+| Empty result, with no test that gets a non-empty one | `expect(result).toEqual([])`, `assert len(result) == 0` | WARNING |
+| Existence or type only, with no value checked in the same test | `toBeDefined()`, `not.toBeNull()`, a `typeof` check | WARNING |
+| Smoke test: it renders and asserts only that something is there | `render()` plus `toBeInTheDocument()` | WARNING; it does not count toward the cycle |
+| Implementation details: CSS classes, internal state, calls to a double | `expect(el.className).toContain("text-xs")`, `expect(mock.calls.length).toBe(3)` | WARNING: assert behavior instead |
+| Too many doubles: a case with more than twice as many doubles or spies as assertions, or 7 or more | `vi.mock()`, a mock library, hand-written fakes in Go | WARNING `Mock-heavy test case ({N} mocks, {N} assertions)`; suggest moving the logic to a pure function or the test to a wider layer |
+
+For each violation record the file, the line, the assertion and why it proves
+nothing.
+
+Then judge triangulation by counting the distinct test cases of each
+behavior. A behavior with several spec scenarios and a single case is a
+WARNING (`Insufficient triangulation for {behavior}`), and so are cases that
+all expect the same kind of trivial value, such as an empty list each time
+(`Every case expects the same trivial value`). A behavior is well triangulated
+when its cases expect different values.
+
+End the step with `{N} trivial assertions found across {N} files`.
+
+## Report sections
+
+With Strict TDD the verification report carries these five sections as well:
+
+````markdown
 ### TDD Compliance
 | Check | Result | Details |
-|-------|--------|---------|
-| TDD Evidence reported | ✅ / ❌ | {Found in apply-progress / Missing} |
-| All tasks have tests | ✅ / ❌ | {N}/{total} tasks have test files |
-| RED confirmed (tests exist) | ✅ / ⚠️ | {N}/{total} test files verified |
-| GREEN confirmed (tests pass) | ✅ / ❌ | {N}/{total} tests pass on execution |
-| Triangulation adequate | ✅ / ⚠️ / ➖ | {N} tasks triangulated / {N} single-case |
-| Safety Net for modified files | ✅ / ⚠️ | {N}/{total} modified files had safety net |
+|---|---|---|
+| Evidence table in apply-progress | ✅ / ❌ | {found / missing} |
+| Each task with code has a test | ✅ / ❌ | {N}/{total} tasks |
+| RED: test files exist | ✅ / ⚠️ | {N}/{total} files found |
+| GREEN: tests pass when run | ✅ / ❌ | {N}/{total} passing |
+| Triangulation | ✅ / ⚠️ / ➖ | {N} triangulated, {N} single case |
+| Safety net on edited files | ✅ / ⚠️ | {N}/{total} edited files |
 
-**TDD Compliance**: {N}/{total} checks passed
-
----
+**TDD Compliance**: {N} of {total} checks pass
 
 ### Test Layer Distribution
-| Layer | Tests | Files | Tools |
-|-------|-------|-------|-------|
+| Layer | Test cases | Files | Tool |
+|---|---|---|---|
 | Unit | {N} | {N} | {tool} |
-| Integration | {N} | {N} | {tool or "not installed"} |
-| E2E | {N} | {N} | {tool or "not installed"} |
-| **Total** | **{N}** | **{N}** | |
-
----
+| Integration | {N} | {N} | {tool, or not installed} |
+| E2E | {N} | {N} | {tool, or not installed} |
+| **All layers** | **{N}** | **{N}** | |
 
 ### Changed File Coverage
-| File | Line % | Branch % | Uncovered Lines | Rating |
-|------|--------|----------|-----------------|--------|
-| `path/to/file.ext` | 95% | 90% | — | ✅ Excellent |
-| `path/to/other.ext` | 82% | 75% | L45-48, L62 | ⚠️ Acceptable |
-| `path/to/new.ext` | 100% | 100% | — | ✅ Excellent |
+| File | Lines | Branches | Not covered | Rating |
+|---|---|---|---|---|
+| `src/billing/invoice.ts` | 97% | 91% | — | ✅ Excellent |
+| `src/billing/refund.ts` | 84% | 70% | L31-36, L58 | ⚠️ Acceptable |
 
-**Average changed file coverage**: {N}%
-{or "Coverage analysis skipped — no coverage tool detected"}
-
----
+**Average changed file coverage**: {N}%, or the line saying coverage was skipped
 
 ### Assertion Quality
-| File | Line | Assertion | Issue | Severity |
-|------|------|-----------|-------|----------|
-| ... | ... | ... | ... | ... |
+| Test file | Line | Assertion | Why it proves nothing | Severity |
+|---|---|---|---|---|
+| `src/billing/invoice.test.ts` | 18 | `expect(true).toBe(true)` | Compares constants | CRITICAL |
+| `src/billing/invoice.test.ts` | 40 | `expect(lines).toEqual([])` | Empty, and no test gets a non-empty result | WARNING |
 
-**Assertion quality**: {N} CRITICAL, {N} WARNING
-{or "✅ All assertions verify real behavior"}
-
----
+**Assertion quality**: {N} CRITICAL and {N} WARNING
 
 ### Quality Metrics
-**Linter**: ✅ No errors / ⚠️ {N} warnings / ❌ {N} errors / ➖ Not available
-**Type Checker**: ✅ No errors / ❌ {N} errors / ➖ Not available
-```
+| Tool | Result |
+|---|---|
+| Linter | ✅ clean / ⚠️ {N} warnings / ❌ {N} errors / ➖ not installed |
+| Type checker | ✅ clean / ❌ {N} errors / ➖ not installed |
+````
 
-## Step 5f: Assertion Quality Audit (MANDATORY)
+When step 5f finds nothing, Assertion Quality leaves out its table and says
+`**Assertion quality**: ✅ every assertion checks real behavior`.
 
-> [!NOTE]
-> This audit is performed using semantic analysis and reasoning by the agent. You do not need automated static analysis tools; read the test files and search for these patterns using heuristic rules.
+## Rules
 
-Scan ALL test files created or modified by this change and check for trivial/meaningless assertions:
+- The TDD Cycle Evidence table of `apply-progress.md` is the first thing to
+  read; without it the finding is CRITICAL.
+- What the table claims is checked against real runs.
+- Step 5f runs on every verification in this mode.
+- A tautology is CRITICAL and has to be rewritten.
+- Coverage, the linter and the type checker inform: at most a WARNING, never
+  CRITICAL. The layer distribution is at most a SUGGESTION.
+- A tool that is not installed is reported as missing, never as a failure.
+- Report, never fix: the orchestrator decides what happens next.
 
-```
-FOR EACH test file related to the change:
-├── Read the file content
-├── Scan for BANNED assertion patterns:
-│   ├── Tautologies: expect(true).toBe(true), assert True, expect(1).toBe(1)
-│   ├── Orphan empty checks: expect(result).toEqual([]) or assert len(result) == 0
-│   │   └── UNLESS there are companion tests covering non-empty scenarios
-│   ├── Type-only assertions used alone: toBeDefined(), not.toBeNull(), typeof checks
-│   │   └── These are OK if COMBINED with value assertions in the same test
-│   ├── Test cases that never call production code (no production function call, no component render, no API request in the test body)
-│   ├── Test cases with zero assertions/checks (the test runs and passes but verifies nothing)
-│   │   └── Flag: CRITICAL — tests with zero assertions are invalid and must be rewritten
-│   ├── Ghost loops: assertions inside for/forEach over queryAll/filter results
-│   │   └── Check if the collection could be empty — if so, the assertions NEVER RUN
-│   │       └── Flag: CRITICAL — a loop over an empty array is a test that ALWAYS passes
-│   ├── Incomplete TDD cycle: test passes because preconditions prevent code from running
-│   │   └── e.g., testing behavior of a component that is never rendered due to state
-│   │       └── Flag: CRITICAL — test must set up conditions where the code path IS exercised
-│   ├── Smoke-test-only: render() + toBeInTheDocument() without behavioral assertions
-│   │   └── "Renders without crash" is NOT a valid test — it must assert WHAT was rendered
-│   │       └── Flag: WARNING — smoke tests do not count toward TDD coverage
-│   ├── Implementation detail coupling: assertions on CSS classes, internal state, mock call counts
-│   │   └── expect(el.className).toContain("text-xs") or expect(mock.calls.length).toBe(3)
-│   │       └── Flag: WARNING — tests must assert behavior, not implementation
-│   └── Mock/assertion ratio: count mocks/spies (e.g., vi.mock() in JS, mock library calls, or custom mock structs in Go) vs assertion/assertion-check calls per test case
-│       └── If mocks > 2× assertions OR mocks >= 7 → Flag: WARNING — "Mock-heavy test case ({N} mocks, {N} assertions)"
-│           └── Recommend: extract logic to pure function or move to higher test layer
-│
-├── For each violation found:
-│   ├── Record: file, line number, the assertion, why it's trivial
-│   └── Classify:
-│       ├── CRITICAL: tautology (expect(true).toBe(true)) — test proves NOTHING
-│       ├── CRITICAL: test case without production code call — test exercises nothing
-│       ├── CRITICAL: ghost loop — assertions inside loop over possibly-empty collection
-│       ├── WARNING: empty collection without companion non-empty tests
-│       ├── WARNING: type-only assertion without value assertion
-│       ├── WARNING: smoke-test-only — render + toBeInTheDocument without behavioral check
-│       ├── WARNING: CSS class / implementation detail assertion
-│       └── WARNING: mock-heavy test (mocks > 2× assertions or mocks >= 7) — wrong test layer
-│
-├── Check triangulation quality:
-│   ├── Count distinct test cases per behavior
-│   ├── If only 1 test case exists for a behavior with multiple spec scenarios:
-│   │   └── Flag: WARNING — "Insufficient triangulation for {behavior}"
-│   ├── If all test cases assert the SAME type of value (e.g., all check empty arrays):
-│   │   └── Flag: WARNING — "No variance in test expectations — all assert empty/trivial"
-│   └── A well-triangulated behavior has tests asserting DIFFERENT expected values
-│
-└── Summary: "{N} trivial assertions found across {N} files"
-```
+## Focal recheck of the evidence
 
-### Assertion Quality Report Table
-
-Include this table in the verification report when any issues are found:
-
-```markdown
-### Assertion Quality
-| File | Line | Assertion | Issue | Severity |
-|------|------|-----------|-------|----------|
-| `path/test.ts` | 15 | `expect(true).toBe(true)` | Tautology — proves nothing | CRITICAL |
-| `path/test.ts` | 23 | `expect(result).toEqual([])` | Empty without companion non-empty test | WARNING |
-| `path/test.ts` | 31 | `expect(result).toBeDefined()` | Type-only — no value asserted | WARNING |
-
-**Assertion quality**: {N} CRITICAL, {N} WARNING
-```
-
-If zero issues found, report: "**Assertion quality**: ✅ All assertions verify real behavior"
-
-## Rules (Strict TDD Verify specific)
-
-- ALWAYS check the TDD Cycle Evidence table from apply-progress — it's the primary artifact
-- ALWAYS cross-reference reported test files against actual execution — don't trust the report blindly
-- ALWAYS run the Assertion Quality Audit (Step 5f) — trivial tests are WORSE than missing tests
-- If apply-progress has no TDD evidence table, flag as CRITICAL — the protocol was not followed
-- If tautology assertions are found (expect(true).toBe(true)), flag as CRITICAL — these MUST be rewritten
-- Coverage and quality metrics are informational, NOT blocking — only flag as WARNING, never CRITICAL
-- Test layer distribution is informational — SUGGESTION level only
-- DO NOT fix issues — only report. The orchestrator decides.
-- If coverage/quality tools are not available, say so cleanly and move on — never flag missing tools as failures
-
-## Evidence remediation focal mode
-
-`run-focal-recheck` consumes the single persisted recheck budget. Revalidate the
-frozen candidate identity and sorted genesis paths, validate the authoritative
-`json:strict-tdd-evidence` section, and execute its referenced tests. Only an
-unchanged evidence-only repair can pass; failed, repeated, over-cap, or
-material checks fail closed and return to ordinary origin routing.
-The focal consumer must require the persisted typed action and root-aware
-candidate, finding, origin, evidence, and referenced-test digests.
+When the lineage asks for `run-focal-recheck`, this is the single recheck its
+persisted budget allows. Confirm that the frozen candidate and its sorted
+genesis paths have not changed, validate the authoritative
+`json:strict-tdd-evidence` block and run the tests it references. Only a
+repair that touched the evidence and nothing else passes; a failed, repeated,
+over-cap or material check fails closed and returns to the ordinary routing by
+origin. `reduce` of
+`{{ospec-runtime}}/scripts/lib/strict-tdd-evidence-remediation.js` decides,
+and it needs the persisted typed action, a real `rootDir` and the digests of
+the candidate, the finding, the origin, the evidence and the referenced tests.
