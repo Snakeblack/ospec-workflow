@@ -76,13 +76,13 @@ Una señal que aparece en el diff se añade en el momento, con su obligación pe
 
 ### Lo declarado no puede bajar la ceremonia
 
-- `ospec check` y `ospec close` rechazan un cambio `docs` que toca código de producto, o un `refactor` que borra una línea de un contrato (`kind-mismatch`), hasta que la intención se registra con el kind que corresponde.
+- `ospec check` y `ospec close` rechazan un cambio `docs` que toca código de producto, o un `refactor` que borra una línea de un contrato (`kind-mismatch`), hasta que la intención se registra con el kind que corresponde. Si las líneas borradas solo parecen un contrato y están en la documentación, fuera de los documentos de contrato, `ospec check` abre `contract-removal` y tu respuesta decide.
 - `boundary-tests` solo cuenta código que el diff añade a un test: ni un comentario ni un fixture.
 - La configuración tampoco baja la ceremonia sin que lo veas: un cambio en los checks o en `strict_tdd`, `impact` o `contracts` espera tu respuesta en el gate `checks-changed`.
 
 ---
 
-## Los nueve gates
+## Los diez gates
 
 El agente se detiene en estos gates y en ningún otro sitio. Cada gate abierto se pregunta antes del trabajo que decide.
 
@@ -96,6 +96,7 @@ El agente se detiene en estos gates y en ningún otro sitio. Cada gate abierto s
 | `irreversible-operation` | Va a ocurrir una operación destructiva o irreversible: borrar una tabla o datos, truncar, reescribir historia publicada. La respuesta aprueba solo las operaciones por las que se preguntó. |
 | `review-limit` | Se agotaron las revisiones de confianza del cambio; tu respuesta autoriza una más. |
 | `checks-changed` | Los checks o los ajustes de ceremonia de `idd/config.yaml` difieren de los de la base del cambio, también la primera vez que se declaran. |
+| `contract-removal` | Un `refactor` borra de la documentación líneas que parecen un contrato (una ruta HTTP o un selector) y que no están en un documento de contrato. Te enseña cada línea; si dices que no son un contrato, el cambio sigue como `refactor` para esas líneas, y si lo son, el agente sube el kind. |
 | `base-moved` | El agente pide adelantar la base del cambio con `ospec record base`. Te enseña los commits y las rutas que saldrían de su diff y los cambios archivados en ese tramo; la base solo se mueve con tu respuesta. |
 
 ### Cuando otro cambio entra detrás de la apertura

@@ -454,9 +454,9 @@ pass", without a recorded execution MUST NOT satisfy any obligation.
 - WHEN the model reports that the tests pass
 - THEN `checks-pass` MUST stay `pending`
 
-### Requirement: Only Nine Gates {#REQ-idd-008}
+### Requirement: Only Ten Gates {#REQ-idd-008}
 
-IDD MUST stop for the user only at nine gates: `abandon` before a change is
+IDD MUST stop for the user only at ten gates: `abandon` before a change is
 archived as abandoned (REQ-idd-028), `ambiguous-intent` when the
 intent is materially ambiguous, `kind-change` when a `bug` becomes a `feature`
 and so withdraws `repro-test` (REQ-idd-011), `open-facts` when behavior questions that
@@ -466,8 +466,10 @@ or contradicts an ADR, `irreversible-operation` before a destructive or
 irreversible operation, `review-limit` when the trust reviews of the
 change are used up (REQ-idd-016), `checks-changed` when the checks or the
 ceremony settings (`strict_tdd`, `impact`, `contracts`) of `idd/config.yaml`
-differ from the ones of the change's base (REQ-idd-014), and `base-moved`
-before the base of the change moves to a later commit (REQ-idd-014). No
+differ from the ones of the change's base (REQ-idd-014), `contract-removal`
+when a `refactor` removes documentation lines that read like a contract
+(REQ-idd-014), and `base-moved` before the base of the change moves to a
+later commit (REQ-idd-014). No
 other question MAY block progress. A gate MUST be
 resolved only by an explicit user answer, recorded with its source: `user`, or
 `user-unverified` for an answer relayed rather than given in the session. Any
@@ -481,8 +483,8 @@ records as resolved. While
 `amends`, `supersedes` or `contradicts` MUST open `adr-amend-or-contradict`
 with a reason naming the ADR or scenario (REQ-idd-020); the agent MAY also
 open it with `record gate --open` and a reason naming the ADR before it asks.
-Only `ospec check` MAY open `checks-changed`, and `record gate --open` MUST be
-refused with `gate-managed-by-check`. Only `ospec record base` MAY open
+Only `ospec check` MAY open `checks-changed` and `contract-removal`, and
+`record gate --open` MUST be refused with `gate-managed-by-check`. Only `ospec record base` MAY open
 `base-moved`, and `record gate --open` MUST be refused with
 `gate-managed-by-base`. Only `ospec abandon` MAY open `abandon`, and
 `record gate --open` MUST be refused with `gate-managed-by-abandon`. Each set of checks and settings MUST get
@@ -1090,7 +1092,7 @@ there MUST be no suggestion and no error.
 - GIVEN an open change
 - WHEN `record gate --gate bogus --open --json` runs
 - THEN it MUST exit with 1 and the code `unknown-gate`, with a `how` that
-  lists the nine gates
+  lists the ten gates
 
 #### Scenario: Next is deterministic for the reference fixtures
 
@@ -1725,13 +1727,26 @@ anything, `check` MUST contrast the declaration with the diff and refuse:
 
 - with `kind-mismatch` a `docs` change whose diff changes product code, and a
   `refactor` whose diff removes a non-blank line of a contract document
-  (`contracts.documents`, REQ-idd-015) or a documentation line that states a
-  contract as `public-contract` reads it (REQ-idd-012), unless the same text
-  comes back in one of them; its `how` MUST name the `record intent` that
-  raises the kind (REQ-idd-011);
+  (`contracts.documents`, REQ-idd-015), unless the same text comes back in a
+  contract document or in documentation; its `how` MUST name the
+  `record intent` that raises the kind (REQ-idd-011);
 - with `cite-outside-plan` a feature cite outside the documentation whose file
   is neither in the plan nor in the diff (REQ-idd-018); its `how` MUST name the
   `ospec signals --path` that declares it.
+
+A `refactor` whose diff removes documentation lines outside the contract
+documents that state a contract as `public-contract` reads it
+(REQ-idd-012), unless the same text comes back in a contract document or in
+documentation, MUST NOT run anything either: `check` MUST open
+`contract-removal` (REQ-idd-008) with a reason naming the first such line,
+and the entry MUST list in `hits` every such line as
+`<file> removes <label>: <line>`, which `next` asks about one by one. A
+resolved entry keeps the kind for the lines it lists: `check` MUST run once
+every such line is a hit of one resolved entry, and a line no resolved entry
+lists MUST open a new entry. An open entry nobody answered MUST follow the
+current lines and MUST be dropped when none is left to ask about. `close`
+MUST refuse such a line no resolved entry lists with `kind-mismatch`, whose
+`how` names the `ospec check` that opens `contract-removal`.
 
 When `idd/config.yaml` differs from the one at the change's base, whatever
 `--base` the check takes for its diff (the empty configuration at a null base,
@@ -1868,6 +1883,21 @@ one `ospec review` returns.
 - WHEN `ospec check` runs
 - THEN it MUST be refused with `kind-mismatch`, naming the file, and run nothing
 - AND after `record intent` raises the kind, `check` MUST run
+- AND for the `openapi.yaml` line, a contract document, `check` MUST NOT open
+  `contract-removal`
+
+#### Scenario: A refactor that removes an example asks the user
+
+- GIVEN a `refactor` whose diff removes from `docs/guide.md` the example line
+  "Test: POST /login returns 401"
+- WHEN `ospec check` runs
+- THEN it MUST open `contract-removal` with that line as its only hit and run
+  nothing, and `record gate --open` for it MUST be refused with
+  `gate-managed-by-check`
+- AND once the user's answer resolves it, `check` MUST run with the kind still
+  `refactor`
+- AND removing the line "Read GET /orders first" as well MUST open a new
+  entry naming it, which `close` waits for
 
 #### Scenario: A claimed passing run closes nothing
 

@@ -120,7 +120,7 @@ const EVIDENCE_KINDS = Object.freeze(OBLIGATIONS.map((obligation) => obligation.
 // before answering the categories of the feature it brings.
 // abandon (#409) asks first: the user may give up a change whatever else it
 // still asks.
-const GATES = Object.freeze(["abandon", "ambiguous-intent", "kind-change", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed", "base-moved"]);
+const GATES = Object.freeze(["abandon", "ambiguous-intent", "kind-change", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed", "contract-removal", "base-moved"]);
 // base-moved asks before the base of a change moves to a descendant commit
 // (REQ-idd-014): `ospec record base` opens it and its answer moves the base.
 const BASE_GATE = "base-moved";
@@ -416,6 +416,12 @@ function validateState(state) {
     if (gate.operations !== undefined) {
       if (gate.id !== "irreversible-operation") fail(`gate ${gate.id}: only irreversible-operation lists operations`);
       else if (!(isTextList(gate.operations) && gate.operations.length > 0)) fail("gate irreversible-operation must list the operations it asks about, each as text");
+    }
+    // contract-removal lists the documentation lines a refactor removes that
+    // its answer covers (B9), each as "<file> removes <label>: <line>".
+    if (gate.hits !== undefined && gate.id !== "contract-removal") fail(`gate ${gate.id}: only contract-removal lists hits`);
+    if (gate.id === "contract-removal" && !(isTextList(gate.hits) && gate.hits.length > 0)) {
+      fail("gate contract-removal must list the removed lines it asks about, each as text");
     }
     // checks-changed names the checks it approves (B7), a scoped one with its
     // paths (E1.67).

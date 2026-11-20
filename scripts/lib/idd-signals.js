@@ -223,11 +223,8 @@ function persistentHits(diff, patterns) {
   return hits;
 }
 
-// The hits a user's answer retracted (#416) stay out while the diff holds no
-// other: a new write, a changed one or a path it did not cover brings the
-// signal back.
-function userRetracted(retracted, id, hits) {
-  const answered = (retracted || []).filter((entry) => entry.id === id && entry.answer && Array.isArray(entry.hits));
+// Whether one answered entry saw every hit, each as many times as it occurs.
+function coveredByOne(answered, hits) {
   return answered.some((entry) => {
     const left = new Map();
     for (const key of entry.hits) left.set(key, (left.get(key) || 0) + 1);
@@ -237,6 +234,21 @@ function userRetracted(retracted, id, hits) {
       return remaining > 0;
     });
   });
+}
+
+// The hits a user's answer retracted (#416) stay out while the diff holds no
+// other: a new write, a changed one or a path it did not cover brings the
+// signal back.
+function userRetracted(retracted, id, hits) {
+  return coveredByOne((retracted || []).filter((entry) => entry.id === id && entry.answer && Array.isArray(entry.hits)), hits);
+}
+
+// The gate whose answer keeps a refactor that removes documentation lines
+// that only read like a contract (B9); ospec check opens it.
+const CONTRACT_REMOVAL_GATE = "contract-removal";
+
+function removalAnswers(gates) {
+  return (gates || []).filter((gate) => gate.id === CONTRACT_REMOVAL_GATE && gate.status === "resolved" && Array.isArray(gate.hits));
 }
 
 // Public contract by content: every added line of documentation that states a
@@ -382,10 +394,13 @@ function untestedProduct(intent, diff) {
   return `product code without a test: touches ${product[0]}${more}`;
 }
 
-// A removed line of a contract document, or of documentation that states a
-// contract as public-contract reads it, unless the same text comes back in
-// one of them (a moved line). The first one, as "<file>: <line>".
-function removedContractLine(diff, contractPatterns) {
+// The removed lines a refactor may not hold (B9), unless the same text comes
+// back in a contract document or in documentation (a moved line): the first
+// non-blank one of a contract document, `document`, which states the contract
+// itself, and every documentation line that states a contract as
+// public-contract reads it, `hits`, each as "<file> removes <label>: <line>",
+// so a user's answer covers only the lines it saw, as for added ones (E1.58).
+function removedContractHits(diff, contractPatterns) {
   const removed = diff.removedLines || {};
   const documents = new Set(classifyContractPaths(diff.paths, contractPatterns).documents);
   const watched = (file) => documents.has(file) || isDocumentation(file);
@@ -394,23 +409,37 @@ function removedContractLine(diff, contractPatterns) {
       .filter(([file]) => watched(file))
       .flatMap(([, lines]) => lines.map((line) => line.trim())),
   );
+  let document = null;
+  const hits = [];
   for (const file of sortedPaths(Object.keys(removed))) {
     if (!watched(file)) continue;
-    for (const line of removed[file]) {
-      const text = line.trim();
-      if (text === "" || kept.has(text)) continue;
-      if (documents.has(file) || firstContentHit([line], CONTRACT_PATTERNS)) return `${file}: ${JSON.stringify(text.slice(0, 80))}`;
+    const lines = removed[file].filter((line) => line.trim() !== "" && !kept.has(line.trim()));
+    if (documents.has(file)) {
+      if (!document && lines.length > 0) document = { file, line: lines[0].trim() };
+      continue;
+    }
+    for (const line of lines) {
+      const code = codePortion(line);
+      const hit = code.trim() && CONTRACT_PATTERNS.find((entry) => entry.pattern.test(code));
+      if (hit) hits.push({ file, line: line.trim(), reason: `${file} removes ${hit.label}`, key: `${file} removes ${hit.label}: ${line.trim()}` });
     }
   }
-  return null;
+  return { document, hits };
+}
+
+function removedLineReason({ file, line }) {
+  return `kind refactor, but the diff removes a line of a contract: ${file}: ${JSON.stringify(line.slice(0, 80))}`;
 }
 
 /**
  * Why the diff contradicts the declared kind (B9), with the kinds that may
  * replace it, or null: a docs change touches product code, a refactor removes
- * a line of a contract. The kind may only rise.
+ * a line of a contract. The kind may only rise. Documentation lines that only
+ * read like a contract stop counting once a resolved contract-removal entry
+ * of `gates` saw every one of them; until then the mismatch is `answerable`,
+ * with the `hits` the user's answer would cover.
  */
-function kindMismatch(intent, diff, contractPatterns) {
+function kindMismatch(intent, diff, contractPatterns, gates = []) {
   if (intent?.kind === "docs") {
     const product = (diff.paths || []).filter((file) => classifyPath(file) === "product");
     if (product.length === 0) return null;
@@ -418,8 +447,13 @@ function kindMismatch(intent, diff, contractPatterns) {
     return { reason: `kind docs, but the diff changes product code: ${product[0]}${more}`, kinds: ["refactor", "bug", "feature"] };
   }
   if (intent?.kind === "refactor") {
-    const line = removedContractLine(diff, contractPatterns);
-    return line ? { reason: `kind refactor, but the diff removes a line of a contract: ${line}`, kinds: ["bug", "feature"] } : null;
+    const { document, hits } = removedContractHits(diff, contractPatterns);
+    if (document) return { reason: removedLineReason(document), kinds: ["bug", "feature"] };
+    const answered = removalAnswers(gates);
+    if (hits.length === 0 || coveredByOne(answered, hits)) return null;
+    const seen = new Set(answered.flatMap((gate) => gate.hits));
+    const first = hits.find((hit) => !seen.has(hit.key)) ?? hits[0];
+    return { reason: removedLineReason(first), kinds: ["bug", "feature"], answerable: true, first, hits: hits.map((hit) => hit.key) };
   }
   return null;
 }
@@ -439,15 +473,22 @@ function citesOutsidePlan(state, diff) {
 /**
  * What `ospec check` and `ospec close` refuse before anything else (E1.44):
  * a kind the diff contradicts, then a cite outside the plan. Each refusal
- * carries the command that raises the ceremony.
+ * carries the command that raises the ceremony. A refactor that only removes
+ * documentation lines that read like a contract is returned as `removal`
+ * when `openRemoval` lets the caller open contract-removal for the user's
+ * answer, as ospec check does; otherwise it is refused, naming that check.
  */
-function requireDeclaredCeremony(state, { diff, contractPatterns }) {
-  const mismatch = kindMismatch(state.intent, diff, contractPatterns);
-  if (mismatch) {
+function requireDeclaredCeremony(state, { diff, contractPatterns, openRemoval = false }) {
+  const mismatch = kindMismatch(state.intent, diff, contractPatterns, state.gates);
+  const removal = mismatch?.answerable && openRemoval ? mismatch : null;
+  if (mismatch && !removal) {
     const error = new IddRecordError("kind-mismatch", mismatch.reason);
     error.how =
       `ospec record intent --change ${state.change} --kind <${mismatch.kinds.join("|")}> --summary "<what>" --acceptance "<observable result>" ` +
       'with its open facts (--open-fact "<question>", or --no-open-facts --basis "<why>"; a feature covers the seven categories): the kind may only rise';
+    if (mismatch.answerable) {
+      error.how += `. If the removed lines only read like a contract, ospec check --change ${state.change} opens contract-removal for the user's answer instead`;
+    }
     // Commits another change landed behind the opening of this one count in
     // its diff until the user moves its base past them (REQ-idd-014).
     if (typeof state.base === "string") {
@@ -462,6 +503,7 @@ function requireDeclaredCeremony(state, { diff, contractPatterns }) {
     error.how = `ospec signals --change ${state.change} ${[...new Set(outside.map((cite) => `--path ${cite.path}`))].join(" ")}, when the change works on it`;
     throw error;
   }
+  return { removal };
 }
 
 function impactReason(signal, { pattern, paths }, patterns) {
@@ -660,6 +702,7 @@ module.exports = {
   FLOOR_SIGNALS,
   IRREVERSIBLE_OPERATIONS,
   addedTests,
+  CONTRACT_REMOVAL_GATE,
   answerHits,
   applyDerivation,
   citesOutsidePlan,
@@ -672,6 +715,7 @@ module.exports = {
   isTestPath,
   kindMismatch,
   persistentHits,
+  removedContractHits,
   requireDeclaredCeremony,
   securityHits,
 };

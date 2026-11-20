@@ -14,7 +14,7 @@ const { SIGNALS } = require("./idd-contract.js");
 const { IMPACT_SIGNALS, resolvePatterns } = require("./idd-impact.js");
 const { recordGate, recordIntent, recordSignal } = require("./idd-record.js");
 const { resolveContractPatterns } = require("./idd-contracts.js");
-const { FLOOR_SIGNALS, IRREVERSIBLE_OPERATIONS, addedTests, applyDerivation, citesOutsidePlan, classifyPath, deriveSignals, kindMismatch } = require("./idd-signals.js");
+const { FLOOR_SIGNALS, IRREVERSIBLE_OPERATIONS, addedTests, applyDerivation, citesOutsidePlan, classifyPath, deriveSignals, kindMismatch, removedContractHits } = require("./idd-signals.js");
 
 const FIXTURES_DIR = path.join(__dirname, "..", "fixtures", "idd");
 
@@ -789,6 +789,30 @@ test("a refactor that removes a contract line contradicts its kind, a moved or b
   assert.strictEqual(kindMismatch(refactor, diff({ "specs/orders.md": ["Orders MUST list 50."] }, { "specs/pages.md": ["  Orders MUST list 50."] }), CONTRACTS), null, "a line moved to another contract");
   assert.notStrictEqual(kindMismatch(refactor, diff({ "specs/orders.md": ["Orders MUST list 50."] }, { "test/fixture.txt": ["Orders MUST list 50."] }), CONTRACTS), null, "a copy outside the contracts is no move");
   assert.strictEqual(kindMismatch(refactor, diff({ "src/api/orders.js": ["const size = 20;"] }), CONTRACTS), null, "code is not a contract document");
+});
+
+test("[B9] the user's answer covers the documentation lines a refactor removes that read like a contract, never a contract document", () => {
+  const refactor = { kind: "refactor" };
+  const readme = { "README.md": ["`GET /orders` lists the orders.", "Run the tests first.", "Call `POST /pages` to add one."] };
+  const diff = { paths: ["README.md"], removedLines: readme, addedLines: {} };
+  const keys = removedContractHits(diff, CONTRACTS).hits.map((hit) => hit.key);
+  assert.deepStrictEqual(keys, ["README.md removes API: `GET /orders` lists the orders.", "README.md removes API: Call `POST /pages` to add one."]);
+  assert.deepStrictEqual(kindMismatch(refactor, diff, CONTRACTS), {
+    reason: 'kind refactor, but the diff removes a line of a contract: README.md: "`GET /orders` lists the orders."',
+    kinds: ["bug", "feature"],
+    answerable: true,
+    first: { file: "README.md", line: "`GET /orders` lists the orders.", reason: "README.md removes API", key: keys[0] },
+    hits: keys,
+  });
+  const answered = (hits) => [{ id: "contract-removal", status: "resolved", answer: "Examples.", hits }];
+  assert.strictEqual(kindMismatch(refactor, diff, CONTRACTS, answered(keys)), null, "an answer that saw every line");
+  assert.match(kindMismatch(refactor, diff, CONTRACTS, answered([keys[0]])).reason, /POST \/pages/, "the first line the answer did not see");
+  assert.notStrictEqual(kindMismatch(refactor, diff, CONTRACTS, [{ id: "contract-removal", status: "open", hits: keys }]), null, "an entry nobody answered");
+  const withSpec = { paths: ["README.md", "specs/orders.md"], removedLines: { ...readme, "specs/orders.md": ["Orders MUST list 50 per page."] }, addedLines: {} };
+  assert.deepStrictEqual(kindMismatch(refactor, withSpec, CONTRACTS, answered(keys)), {
+    reason: 'kind refactor, but the diff removes a line of a contract: specs/orders.md: "Orders MUST list 50 per page."',
+    kinds: ["bug", "feature"],
+  }, "a contract document states the contract itself");
 });
 
 test("a feature cite outside the documentation names a file of the plan or the diff", () => {
