@@ -1,235 +1,164 @@
 ---
 name: sdd-onboard
-description: "Walk users through the SDD workflow on the real codebase. Trigger: orchestrator launches onboarding for the full SDD cycle."
+description: "Teach SDD by running one small, real change on the user's own codebase, from exploration to verification. Trigger: orchestrator launches onboarding."
 disable-model-invocation: true
 user-invocable: false
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
-  version: "1.0"
-  delegate_only: false
+  author: manuel-retamozo-garcia
+  version: "2.0"
+  delegate_only: true
 runtime_capabilities:
   execute: true
   mcp: false
   write: true
 ---
 
-> **ORCHESTRATOR NOTE**: This skill is designed to be executed INLINE by the
-> orchestrator. It is an interactive walkthrough — no sub-agent delegation
-> needed.
+> **ORCHESTRATOR GATE**: an orchestrator that loaded this skill hands it to the
+> `sdd-onboard` executor through its host's sub-agent mechanism and does not run
+> it in its own thread. Only that executor follows the steps below.
 
-## Purpose
+## Role
 
-You are a sub-agent responsible for ONBOARDING. You guide the user through a complete SDD cycle — from exploration to archive — using their actual codebase. This is a real change with real artifacts, not a toy example. The goal is to teach by doing.
+The onboarding phase. The executor picks a small improvement in the user's
+repository and carries it through the SDD phases, explaining each one as it
+goes. The change is real: its artifacts and its code are held to the same
+standard as any other change. The user learns the cycle by watching it work
+on code they know.
 
-## What You Receive
+The executor never talks to the user. It stops twice with a `question_gate`,
+and the orchestrator asks, then launches it again with the answer.
 
-From the orchestrator:
-- Artifact store mode (`openspec | none`)
-- Optional: a suggested improvement or area to focus on
+## Inputs
 
-## What to Do
+The first launch prompt names:
 
-### Phase 1: Welcome and Codebase Analysis
+- the artifact store, `openspec` or `none`;
+- optionally, an area or an improvement the user wants to focus on.
 
-Greet the user and explain what's about to happen:
+A relaunch also carries the user's answer to the last `question_gate` and,
+once the proposal exists, the change name.
 
-```
-"Welcome to SDD! I'll walk you through a complete cycle using your actual codebase.
-We'll find something small to improve, build all the artifacts, implement it,
-and archive it. Each step I'll explain what we're doing and why.
+## Artifact store
 
-Let me scan your codebase for opportunities..."
-```
+Reading and writing artifacts follow Sections B and C of
+`skills/_shared/sdd-phase-common.md`, and each step writes its artifact in the
+format of the phase skill it runs.
 
-Then scan the codebase for a real, small improvement opportunity:
+- `openspec`: paths as `skills/_shared/openspec-convention.md` sets them.
+  From the proposal on, `openspec/changes/{change-name}/state.yaml` and the
+  phase artifacts carry the state a relaunch resumes from; the conversation
+  never does.
+- `none`: the artifacts travel inline in the result, as each phase skill does
+  with that store, and only the code of the approved improvement changes.
 
-If the project has no application code, manifests, or actionable docs, STOP and recommend `foundation` first. Do not invent an onboarding change in an empty workspace.
+## Steps
 
-```
-Criteria for a good onboarding change:
-├── Small scope — completable in one session (30-60 min)
-├── Low risk — no breaking changes, no data migrations
-├── Real value — something genuinely useful, not a toy
-├── Spec-worthy — has at least 1 clear requirement and 2 scenarios
-└── Examples:
-    ├── Missing input validation on a form or API endpoint
-    ├── Inconsistent error messages in an auth flow
-    ├── A utility function that could be extracted and reused
-    ├── Missing loading/error state in an async component
-    └── A TODO or FIXME comment in the code with clear intent
-```
+### Step 1: Load the procedure
 
-Present 2-3 options to the user. Let them choose or suggest their own.
+Section A of `skills/_shared/sdd-phase-common.md`: this skill, the common
+protocol and the compact project rules of the launch prompt.
 
-### Phase 2: Explore (narrated)
+### Step 2: Find candidates (first launch)
 
-Narrate as you explore:
+A repository with no application code, no manifest and no documentation
+worth acting on has nothing to teach with: return `blocked` and recommend
+`foundation`. Never make up a change for an empty workspace.
 
-```
-"Step 1: Explore — Before we commit to any change, we investigate.
- Let me look at the relevant code..."
-```
+Otherwise read the code and look for two or three improvements that:
 
-Run `sdd-explore` behavior inline — investigate the chosen area, understand current state, identify what needs to change. Explain your findings to the user in plain language.
+- fit in one session, about half an hour to an hour;
+- break no public behavior and migrate no data;
+- are worth doing for their own sake, never an exercise;
+- give at least one requirement with two scenarios.
 
-Conclude with:
-```
-"Good — I understand what we're working with. Now let's start a real change."
-```
+Typical finds are an input that is not validated, error messages that
+disagree within one flow, logic repeated in several places, an asynchronous
+view with no loading or error state, or a `TODO` whose intent is clear. When
+the launch prompt names a focus, look there first.
 
-### Phase 3: Propose (narrated)
+Return `status: blocked` with `blocker_type: needs_user_decision` and a
+`question_gate` that offers the candidates, each with the files it touches,
+one of them recommended, and free input for an improvement of the user's
+own.
 
-```
-"Step 2: Propose — We write down WHAT we're building and WHY.
- This becomes the contract for everything that follows."
-```
+### Step 3: Explore and propose (after the choice)
 
-Create the change folder and write `proposal.md` following `sdd-propose` format. After creating it:
+An improvement the user proposed must pass the criteria of Step 2 before
+anything is written; one that does not comes back as a new `question_gate`
+saying why, with the candidates again.
 
-```
-"Here's the proposal I wrote. Notice the Capabilities section —
- this tells the next step exactly which spec files to create."
-```
+Explore the chosen area as `sdd-explore` does and explain in plain words what
+the code does today and what has to change. Then create the change and write
+its proposal as `sdd-propose` does.
 
-Show the user the proposal and let them review it. Ask if they want to adjust anything before continuing.
+Return `blocked` again, with a `question_gate` that asks the user to approve
+the proposal or say what to adjust. The result names the proposal and points
+at its Capabilities section, which tells the spec phase which files to write.
 
-### Phase 4: Specs (narrated)
+### Step 4: Build and verify (after the approval)
 
-```
-"Step 3: Specs — We define WHAT the system should do, in testable terms.
- No implementation details — just observable behavior."
-```
+Apply what the user asked to adjust, then run, in order and following each
+phase skill:
 
-Write the delta specs following `sdd-spec` format. After creating them:
+1. `sdd-spec`: the delta specs. Point out that every scenario in Given, When,
+   Then form is a test waiting to be written.
+2. `sdd-design`: `design.md`. Point out the decisions section, which records
+   why this way was chosen over the others.
+3. `sdd-tasks`: `tasks.md`. Point out that each task names the file and what
+   changes in it, so it is clear when it is done.
+4. `sdd-apply`: the code, task by task, with one line per finished task. With
+   Strict TDD active, each task goes through RED, GREEN, TRIANGULATE and
+   REFACTOR as `sdd-apply` sets them: the failing test first, then the least
+   code that passes it.
+5. `sdd-verify`: the verification report. Point out that each scenario gets
+   the evidence level that proves it and a result, ✅ or ❌, and that this is
+   where the specs pay off.
 
-```
-"See the Given/When/Then format? Each scenario is a potential test case.
- These scenarios will drive the verify phase later."
-```
+A failing test, a design that does not hold or code too tangled for one
+session stops the cycle: return `blocked` or `partial` with what happened,
+and never push past it.
 
-### Phase 5: Design (narrated)
+### Step 5: Hand over to archive
 
-```
-"Step 4: Design — We decide HOW to build it. Architecture decisions, file changes, rationale."
-```
+Archiving is not this executor's: the orchestrator runs `sdd-archive`, its
+archive guard and the archive runtime, as for any other change. Return
+`status: success` with `next_recommended: sdd-archive`, and never call the
+change archived.
 
-Write `design.md` following `sdd-design` format. Highlight the key decisions:
-
-```
-"Notice the Decisions section — we document WHY we chose this approach
- over alternatives. Future you (and teammates) will thank you."
-```
-
-### Phase 6: Tasks (narrated)
-
-```
-"Step 5: Tasks — We break the work into concrete, checkable steps."
-```
-
-Write `tasks.md` following `sdd-tasks` format. Explain the structure:
-
-```
-"Each task is specific enough that you know when it's done.
- 'Implement feature' is not a task. 'Create src/utils/validate.ts with validateEmail()' is."
-```
-
-### Phase 7: Apply (narrated)
-
-```
-"Step 6: Apply — Now we write actual code. The tasks guide us, the specs tell us what 'done' means."
-```
-
-Implement the tasks following `sdd-apply` behavior. Narrate each task as you complete it:
-
-```
-"Implementing task 1.1: [description]
- ✓ Done — [brief note on what was created/changed]"
-```
-
-If Strict TDD mode is active, apply the TDD cycle and explain it:
-
-```
-"Notice: RED → GREEN → TRIANGULATE → REFACTOR.
- We write the failing test FIRST, then write the minimum code to pass it."
-```
-
-### Phase 8: Verify (narrated)
-
-```
-"Step 7: Verify — We check that what we built matches what we specified."
-```
-
-Run `sdd-verify` behavior. Explain the compliance matrix:
-
-```
-"Each spec scenario gets a verdict: COMPLIANT, FAILING, or UNTESTED.
- This is the moment where specs pay off — they tell us exactly what to check."
-```
-
-### Phase 9: Archive (narrated)
-
-```
-"Step 8: Archive — We merge our delta specs into the main specs and close the change.
- The specs now describe the new behavior. The change becomes the audit trail."
-```
-
-Run `sdd-archive` behavior. Show the result:
-
-```
-"Done! The change is archived at openspec/changes/archive/YYYY-MM-DD-{name}/
- And openspec/specs/ now reflects the new behavior."
-```
-
-### Phase 10: Summary
-
-Close the session with a recap:
+The result closes with this recap:
 
 ```markdown
-## Onboarding Complete! 🎉
+## Onboarding: {change-name}
 
-Here's what we built together:
+**Artifacts**
+- proposal.md: why the change exists
+- specs/{capability}/spec.md: what the system must do
+- design.md: how it is built
+- tasks.md: the steps
 
-**Change**: {change-name}
-**Artifacts created**:
-- proposal.md — the WHY
-- specs/{capability}/spec.md — the WHAT
-- design.md — the HOW
-- tasks.md — the STEPS
+**Code**
+- {each file changed}
 
-**Code changed**:
-- {list of files}
+**The cycle**: explore → propose → spec → design → tasks → apply → verify → archive
 
-**The SDD cycle in one line**:
-explore → propose → spec → design → tasks → apply → verify → archive
+**Still to do**: archiving merges the delta specs into `openspec/specs/` and keeps
+the change folder as its record; the orchestrator runs it next.
 
-**When to use SDD**: Any change where you want to agree on WHAT before writing code.
-Small tweaks? Just code. Features, APIs, architecture decisions? SDD first.
+**When to use SDD**: when it pays to agree on the behavior before writing code,
+as with features, APIs and architecture choices. A small fix needs none.
 
-**Next steps**:
-- Try /sdd-new for your next real feature
-- Check openspec/specs/ — that's your growing source of truth
-- Questions? The orchestrator is always available
+**Next**: `/sdd-new` for the next real change.
 ```
 
 ## Rules
 
-- This is a REAL change — not a demo. The artifacts and code must be production-quality.
-- In `openspec` mode, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as canonical workflow state for continuation and recovery; never rely on conversation history.
-- Keep each phase narration SHORT — 1-3 sentences. Teach, don't lecture.
-- Always ask before continuing past Phase 3 (proposal) — let the user review and adjust.
-- If the user picks their own improvement, validate it fits the "small and safe" criteria before proceeding.
-- If anything blocks the cycle (tests fail, design is unclear, codebase is too complex), STOP and explain — don't push through.
-- Adapt the tone to the user — if they're experienced, skip basics; if they're new, explain more.
-- Follow all format rules from the individual skills (sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive).
-- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
-
-## Output Contract
-
-Return a structured result with these fields:
-- `status`: `success` | `blocked` | `partial`
-- `executive_summary`: one-sentence description of what was onboarded
-- `artifacts`: OpenSpec paths written for the onboarding change
-- `next_recommended`: `foundation` if blocked for empty project, otherwise `sdd-new`
-- `risks`: onboarding warnings or blockers discovered during the guided cycle
-- `skill_resolution`: `injected`, `fallback-registry`, `fallback-path`, or `none`
+- The change is real: its artifacts and code meet the standard of any other change
+- The executor never asks the user directly; the two pauses are `question_gate` returns
+- Nothing past the proposal runs until the user approves it
+- A candidate proposed by the user meets the criteria of Step 2 or is turned down with the reason
+- Each explanation is one to three sentences, in the language and the mentorship mode that Section F of `skills/_shared/sdd-phase-common.md` sets; it travels in the result for the orchestrator to relay
+- Each artifact follows the format of its phase skill: `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-apply` and `sdd-verify`
+- A blocker stops the cycle and is reported; it is never worked around
+- The executor never archives and never reports the change as archived
+- The envelope follows Section D of `skills/_shared/sdd-phase-common.md`: `status` is `success`, `blocked` or `partial`; `next_recommended` is `foundation` for an empty workspace, `sdd-onboard` after a pause and `sdd-archive` after verification

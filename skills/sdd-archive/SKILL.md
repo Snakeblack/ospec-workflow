@@ -1,11 +1,11 @@
 ---
 name: sdd-archive
-description: "Archive a completed SDD change by syncing delta specs. Trigger: orchestrator launches archive after implementation and verification."
+description: "Prepare the archive of a finished SDD change: merged specs, archive report and archive plan for the runtime. Trigger: orchestrator launches archive after verification."
 disable-model-invocation: true
 user-invocable: false
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
+  author: manuel-retamozo-garcia
   version: "2.0"
   delegate_only: true
 runtime_capabilities:
@@ -14,11 +14,9 @@ runtime_capabilities:
   write: true
 ---
 
-> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
-> the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Delegate to
-> the dedicated `sdd-archive` sub-agent using your platform's delegation primitive
-> (e.g., `task(...)`, sub-agent invocation, etc.). This skill is for EXECUTORS
-> only.
+> **ORCHESTRATOR GATE**: an orchestrator that loaded this skill hands it to the
+> `sdd-archive` executor through its host's sub-agent mechanism and does not run
+> it in its own thread. Only that executor follows the steps below.
 
 ## Purpose
 
@@ -34,21 +32,23 @@ From the orchestrator:
 - Change name
 - Artifact store mode (`openspec | none`)
 
-## Execution and Persistence Contract
+## Artifact store
 
-> Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
+Reading and writing artifacts follow Sections B and C of
+`skills/_shared/sdd-phase-common.md`.
 
 - **openspec**: Read and follow `skills/_shared/openspec-convention.md`. Prepare
   change-local content and emit `archive-plan.json`. Do NOT write live main specs,
   do NOT copy the change folder into `openspec/changes/archive/`, and do NOT delete
   the source directory.
 - In `openspec` mode, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as canonical workflow state for continuation and recovery; never rely on conversation history.
-- **none**: Return closure summary only. Do not perform archive file operations.
+- **none**: the result is a closing summary, and no archive file is read or written.
 
 ## What to Do
 
 ### Step 1: Load Skills
-Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
+Section A of `skills/_shared/sdd-phase-common.md`: this skill, the common
+protocol and the compact project rules of the launch prompt.
 
 ### Step 2: Prepare Spec Content (change-local — no live main-spec writes)
 
@@ -59,7 +59,7 @@ Enforce the close gate:
 - `PASS WITH WARNINGS` may proceed only when the warnings are explicitly documented as accepted risks or converted into follow-up work.
 - If warning acceptance is missing, STOP and return `blocked`.
 
-**IF mode is `none`:** Skip — no artifacts to sync.
+**IF mode is `none`:** nothing to prepare; go on to Step 3.
 
 **IF mode is `openspec`:** For each delta spec in `openspec/changes/{change-name}/specs/`:
 
@@ -88,14 +88,15 @@ FOR EACH SECTION in delta spec (semantic prep only):
 └── REMOVED Requirements → omit from prepared content
 ```
 
-**Merge carefully:**
-- Match requirements by name (e.g., "### Requirement: Session Expiration")
-- Preserve all OTHER requirements that aren't in the delta
-- Maintain proper Markdown formatting and heading hierarchy
+**When merging:**
+- A delta requirement replaces the main one with the same heading, such as
+  `### Requirement: Session Expiration`
+- Every requirement the delta does not name stays as it is
+- Heading levels and Markdown structure stay those of the main spec
 
 ### Step 3: Persist Archive Report
 
-**This step is MANDATORY — do NOT skip it.**
+**This step always runs.**
 
 Before persisting, compose the report content, including the Cost block below. Then
 follow **Section C** from `skills/_shared/sdd-phase-common.md`.
@@ -218,7 +219,7 @@ is rejected by the runtime.
 
 ### Step 5: Emit archive-plan.json (Plan-and-Report — executor scope)
 
-**IF mode is `none`:** Skip — no filesystem operations.
+**IF mode is `none`:** no plan file; the summary of Step 7 is the whole result.
 
 **IF mode is `openspec`:** Emit `openspec/changes/{change-name}/archive-plan.json`
 (schema v1) after semantic preparation. The plan MUST include:
@@ -253,7 +254,7 @@ presented as ready — never conceal partial semantic prep.
 - [ ] Source directory still exists (deletion is the runtime's responsibility after full match — see Step 5)
 - [ ] You did NOT write live `openspec/specs/**` or `docs/adr/**`
 
-**IF mode is `none`:** Skip verification — no persisted artifacts.
+**IF mode is `none`:** nothing was written, so there is nothing to check.
 
 ### Step 7: Return Summary
 
@@ -277,7 +278,7 @@ Return to the orchestrator:
 - proposal.md or proposal-lite.md ✅
 - specs/ (if present) ✅
 - design.md (if present) ✅
-- tasks.md ✅ ({N}/{N} tasks complete)
+- tasks.md ✅ ({done} of {total} tasks done)
 
 ### Live Specs Commit Pending (runtime-owned)
 Live `openspec/specs/**` writes are applied only by the archive transaction runtime
@@ -291,16 +292,16 @@ treats the runtime success receipt as the sole close authority.
 
 ## Rules
 
-- NEVER archive a change that has CRITICAL issues in its verification report
+- A verification report with any CRITICAL finding blocks the archive
 - NEVER archive when verification verdict is `FAIL`
 - Archive with `PASS WITH WARNINGS` only if accepted risks or follow-up tasks are explicitly recorded in the archive report
 - ALWAYS prepare delta specs and emit the plan BEFORE the orchestrator invokes the runtime
 - When preparing content from existing specs, PRESERVE requirements not mentioned in the delta
 - Use ISO date format (YYYY-MM-DD) for planned archive folder prefix in the plan/report
-- If the merge would be destructive (removing large sections), WARN the orchestrator and ask for confirmation
+- A merge that would drop large sections returns `blocked` with a `question_gate` that names them, and goes ahead only on the user's confirmation
 - NEVER claim the archive move is complete without a runtime success receipt
 - MUST NOT claim completion while the source directory still exists
-- The archive is an AUDIT TRAIL — never delete or modify archived changes
-- If `openspec/changes/archive/` doesn't exist, create it
-- Apply any `rules.archive` from `openspec/config.yaml`
-- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
+- Archived changes are the record of what happened: none is ever edited or deleted
+- `openspec/changes/archive/` is created when it is missing
+- The `rules.archive` of `openspec/config.yaml`, when present, apply
+- The envelope follows Section D of `skills/_shared/sdd-phase-common.md`
