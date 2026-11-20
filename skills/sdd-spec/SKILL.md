@@ -1,12 +1,12 @@
 ---
 name: sdd-spec
-description: "Write SDD delta specs with requirements and scenarios. Trigger: orchestrator launches spec work for a change."
+description: "Turn the proposal of an SDD change into testable requirements and scenarios: delta specs for existing capabilities, full specs for new ones. Trigger: orchestrator launches spec work for a change."
 disable-model-invocation: true
 user-invocable: false
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
-  version: "2.0"
+  author: manuel-retamozo-garcia
+  version: "3.0"
   delegate_only: true
 runtime_capabilities:
   execute: false
@@ -14,190 +14,200 @@ runtime_capabilities:
   write: true
 ---
 
-> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
-> the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Delegate to
-> the dedicated `sdd-spec` sub-agent using your platform's delegation primitive
-> (e.g., `task(...)`, sub-agent invocation, etc.). This skill is for EXECUTORS
-> only.
+> **ORCHESTRATOR GATE**: an orchestrator that loaded this skill hands it to the
+> `sdd-spec` executor through its host's sub-agent mechanism and does not run
+> it in its own thread. Only that executor follows the steps below.
 
-## Purpose
+## Role
 
-You are a sub-agent responsible for writing SPECIFICATIONS. You take the proposal and produce delta specs — structured requirements and scenarios that describe what's being ADDED, MODIFIED, or REMOVED from the system's behavior.
+The specification phase. The executor reads the proposal and writes, for each
+capability it names, the requirements and scenarios of the behavior the change
+adds, modifies or removes. A capability that already has a spec gets a delta;
+a new one gets a full spec. Both stay inside the change folder.
 
-## What You Receive
+## Inputs
 
-From the orchestrator:
-- Change name
-- Artifact store mode (`openspec | none`)
+The launch prompt names:
 
-## Execution and Persistence Contract
+- the change name;
+- the artifact store, `openspec` or `none`.
 
-> Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
+## Artifact store
 
-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`.
-- In `openspec` mode, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as canonical workflow state for continuation and recovery; never rely on conversation history.
-- **none**: Return result only. Never create or modify project files.
+Reading and writing artifacts follow Sections B and C of
+`skills/_shared/sdd-phase-common.md`.
 
-## What to Do
+- `openspec`: paths as `skills/_shared/openspec-convention.md` sets them.
+  `openspec/changes/{change-name}/state.yaml` and the phase artifacts carry
+  the state to resume from; the conversation never does.
+- `none`: the specs travel inline in the result of Step 6, and no `openspec/`
+  folder or project file is created.
 
-### Step 1: Load Skills
-Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
+## Steps
 
-### Step 2: Identify Affected Domains
+### Step 1: Load the procedure
 
-Read the proposal's **Capabilities section** — this is your primary contract:
+Section A of `skills/_shared/sdd-phase-common.md`: this skill, the common
+protocol and the compact project rules of the launch prompt.
 
-```
-FOR EACH entry under "New Capabilities":
-├── This becomes a NEW full spec: openspec/changes/{change-name}/specs/<capability-name>/spec.md
-├── Write a complete spec (not a delta) — no existing behavior to reference
-└── NEVER write directly to openspec/specs/ during sdd-spec; archive promotes it later
+### Step 2: Map capabilities to spec files
 
-FOR EACH entry under "Modified Capabilities":
-├── This becomes a DELTA spec: openspec/changes/{change-name}/specs/<capability-name>/spec.md
-└── Read existing openspec/specs/<capability-name>/spec.md first — your delta modifies it
-```
+The `## Capabilities` section of the proposal decides which files to write:
 
-If the proposal has no Capabilities section (older format), fall back to inferring from "Affected Areas". But always prefer the explicit Capabilities mapping when present.
+| Proposal list | File in the change folder | What it holds |
+|---|---|---|
+| New Capabilities | `specs/{capability-name}/spec.md` | A full spec: there is no current behavior to change |
+| Modified Capabilities | `specs/{capability-name}/spec.md` | A delta against `openspec/specs/{capability-name}/spec.md`, read first |
 
-### Step 3: Read Existing Specs
+This phase never writes under `openspec/specs/`: `sdd-archive` promotes the
+change-local specs there. An older proposal without `## Capabilities` falls
+back to its Affected Areas; when the section exists, it wins.
 
-**IF mode is `openspec`:** If `openspec/specs/{domain}/spec.md` exists, read it to understand CURRENT behavior before writing a modified-domain delta. New domains stay change-local and do not need a main-spec read.
+### Step 3: Read the current specs
 
-**IF mode is `none`:** Skip — no existing specs to read.
+With `openspec`, each modified capability's `openspec/specs/{domain}/spec.md`
+is read before its delta is written, to start from the behavior it has today.
+A new capability needs no read. With `none`, there is nothing to read.
 
-### Step 4: Write Delta Specs
+### Step 4: Write the specs
 
-**IF mode is `openspec`:** Create specs inside the change folder:
+With `openspec`, the specs go under the change folder:
 
 ```
 openspec/changes/{change-name}/
-├── proposal.md              ← (already exists)
+├── proposal.md          (written by sdd-propose)
 └── specs/
     └── {domain}/
-  └── spec.md          ← Change-local spec (delta for existing domains, full spec for new domains)
+        └── spec.md      (delta for an existing domain, full spec for a new one)
 ```
 
-For NEW capabilities, this change-local full spec is temporary by design. `sdd-archive` is the only phase allowed to promote it into `openspec/specs/{domain}/spec.md`.
+A full spec for a new capability lives there only until archive, which is the
+one phase allowed to promote it to `openspec/specs/{domain}/spec.md`.
 
-**IF mode is `none`:** Do NOT create any `openspec/` directories or files. Compose the spec content in memory and return it inline in Step 6.
+#### Modifying a requirement
 
-#### MODIFIED Requirements Workflow (CRITICAL — read before writing deltas)
+Archive replaces the whole requirement in the main spec with the block found
+under `## MODIFIED Requirements`, so a modified requirement is always the
+complete block:
 
-When writing a `## MODIFIED Requirements` section, follow this exact workflow:
+1. Find the requirement in `openspec/specs/{domain}/spec.md`.
+2. Copy all of it, from its `### Requirement:` heading through its last
+   scenario, under `## MODIFIED Requirements`.
+3. Change the copy to describe the new behavior, keeping its id.
+4. Under the requirement text, add `(Previously: {the old behavior, in one line})`.
 
-```
-1. Locate the requirement in openspec/specs/{domain}/spec.md
-2. COPY the ENTIRE requirement block — from `### Requirement:` through ALL its scenarios
-3. PASTE it under `## MODIFIED Requirements`
-4. EDIT the copy to reflect the new behavior
-5. Add "(Previously: {one-line summary of what changed})" under the requirement text
+A scenario left out of the copy disappears from the main spec at archive. New
+behavior that changes nothing existing goes under `## ADDED Requirements`
+instead.
 
-Why copy-full-then-edit?
-→ The archive step REPLACES the requirement in main specs with your MODIFIED block
-→ If your block is partial, the archive will lose scenarios you didn't copy
-→ Common pitfall: only writing the changed scenario and losing the rest
-→ If adding NEW behavior WITHOUT changing existing behavior, use ADDED instead
-```
+#### Requirement ids
 
-#### Delta Spec Format
+Every added requirement carries a stable id at the end of its heading,
+`{#REQ-{domain}-{NNN}}`: `NNN` counts up from the highest id of the domain's
+baseline spec (`001`, `002`, …). A modified requirement keeps its id, and ids
+are never reused after removal. The ids are the start of the chain from
+requirement to task, commit and test.
+
+#### Delta spec
 
 ```markdown
 # Delta for {Domain}
 
 ## ADDED Requirements
 
-### Requirement: {Requirement Name} {#REQ-{domain}-{NNN}}
+### Requirement: {name} {#REQ-{domain}-{NNN}}
 
-{Description using RFC 2119 keywords: MUST, SHALL, SHOULD, MAY}
+The system {MUST | SHALL | SHOULD | MAY} {behavior}.
 
-The system {MUST/SHALL/SHOULD} {do something specific}.
+#### Scenario: {the expected case}
 
-#### Scenario: {Happy path scenario}
-
-- GIVEN {precondition}
+- GIVEN {starting state}
 - WHEN {action}
-- THEN {expected outcome}
-- AND {additional outcome, if any}
+- THEN {result}
+- AND {another result, when there is one}
 
-#### Scenario: {Edge case scenario}
+#### Scenario: {a boundary or failure case}
 
-- GIVEN {precondition}
+- GIVEN {starting state}
 - WHEN {action}
-- THEN {expected outcome}
+- THEN {result}
 
 ## MODIFIED Requirements
 
-### Requirement: {Existing Requirement Name}
+### Requirement: {current name} {#REQ-{domain}-{NNN}}
 
-{Full updated requirement text — replaces the existing one entirely}
-(Previously: {what it was before, in one line})
+{the complete new text of the requirement}
+(Previously: {the old behavior, in one line})
 
-#### Scenario: {Unchanged scenario — keep if still valid}
+#### Scenario: {a scenario that still holds, copied as it is}
 
-- GIVEN {precondition}
+- GIVEN {starting state}
 - WHEN {action}
-- THEN {outcome}
+- THEN {result}
 
-#### Scenario: {Updated or new scenario}
+#### Scenario: {a changed or added scenario}
 
-- GIVEN {updated precondition}
-- WHEN {updated action}
-- THEN {updated outcome}
+- GIVEN {starting state}
+- WHEN {action}
+- THEN {result}
 
 ## REMOVED Requirements
 
-### Requirement: {Requirement Being Removed}
+### Requirement: {name of the requirement that goes away}
 
-(Reason: {why this requirement is being deprecated/removed})
+(Reason: {why the behavior goes away})
 ```
 
-#### For NEW Specs (No Existing Spec)
+#### Full spec
 
-If this is a completely new domain, create a FULL spec (not a delta):
+A new domain has no baseline, so its spec is complete rather than a delta:
 
 ```markdown
 # {Domain} Specification
 
 ## Purpose
 
-{High-level description of this spec's domain.}
+{what this domain covers}
 
 ## Requirements
 
-### Requirement: {Name}
+### Requirement: {name}
 
-The system {MUST/SHALL/SHOULD} {behavior}.
+The system {MUST | SHALL | SHOULD | MAY} {behavior}.
 
-#### Scenario: {Name}
+#### Scenario: {name}
 
-- GIVEN {precondition}
+- GIVEN {starting state}
 - WHEN {action}
-- THEN {outcome}
+- THEN {result}
 ```
 
-### Step 5: Persist Artifact
+### Step 5: Save the artifact
 
-**This step is MANDATORY — do NOT skip it.**
+This step always runs with `openspec`. Section C of
+`skills/_shared/sdd-phase-common.md` writes the artifact `spec` to
+`openspec/changes/{change-name}/specs/{domain}/spec.md`.
 
-Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
-- artifact: `spec`
-- path: `openspec/changes/{change-name}/specs/{domain}/spec.md`
+#### Step 5b: Declare the touched baseline domains
 
-#### Step 5b: Declare Touched Baseline Domains (stale-delta guard — declare-only)
+Each domain that got a delta goes into the `touched_baseline_domains:` list of
+the result. That is all this phase does about baselines: it has no tool that
+can hash a file, so it never computes a fingerprint and never edits the
+`baseline_fingerprints:` block of `state.yaml`.
 
-For each delta domain written, add the domain name to a `touched_baseline_domains:` list in your return envelope (Step 6). You MUST NOT compute or write any SHA-256 fingerprint yourself, and you MUST NOT touch `state.yaml`'s `baseline_fingerprints:` block — you have no execute tool capable of hashing files.
+Right after a `status: success` return, the orchestrator hashes the current
+`openspec/specs/{domain}/spec.md` of each declared domain, or records `null`
+when the domain has no baseline yet, and writes the values to
+`baseline_fingerprints:` in `state.yaml`. At merge time `sdd-archive` compares
+them to find out whether another change moved a baseline first
+(`skills/_shared/gate-change-collision.md`, Baseline fingerprint at archive).
 
-Immediately after you return `status: success`, the ORCHESTRATOR computes the SHA-256 of each declared domain's current baseline `openspec/specs/{domain}/spec.md` (or writes `null` if no baseline exists yet) and writes it into `state.yaml`'s `baseline_fingerprints:` block. `sdd-archive` compares these orchestrator-written fingerprints at merge time to detect that another change moved the baseline first (see `skills/_shared/gate-change-collision.md`, Baseline fingerprint at archive).
+### Step 6: Return the summary
 
-### Step 6: Return Summary
-
-Return to the orchestrator:
-
-Before returning, classify all unresolved specification work into the canonical
-ambiguity signals below. Every successful `sdd-spec` return MUST emit all four
-fields both beside the prose envelope and inside the strict
-`json:result-envelope` object:
+Before returning, every open question of the specification is sorted into the
+four ambiguity signals. Every successful `sdd-spec` return carries all four,
+next to the prose envelope and inside the strict `json:result-envelope`
+object:
 
 ```yaml
 residual_ambiguity: false
@@ -206,17 +216,19 @@ conflicting_requirements: []
 missing_acceptance_criteria: []
 ```
 
-The strict success fence follows this typed shape (replace summary, paths, next
-phase, risks, and touched domains with the actual result):
+`validateEnvelope(obj, { phase: "sdd-spec" })`, from
+`{{ospec-runtime}}/scripts/lib/result-envelope.js`, rejects a success that
+lacks any of them. The strict fence has this shape, with the real summary,
+paths, next phase, risks and domains:
 
 ```json:result-envelope
 {"status":"success","executive_summary":"Wrote testable delta specifications.","artifacts":["openspec/changes/example/specs/domain/spec.md"],"next_recommended":"sdd-design","risks":"None","skill_resolution":"injected","residual_ambiguity":false,"public_contract_questions":[],"conflicting_requirements":[],"missing_acceptance_criteria":[]}
 ```
 
-Use `residual_ambiguity: false` plus three empty arrays only when the spec is
-ready for design without clarification. Set the boolean to `true` or place each
-unresolved item in its matching string array when clarification is required.
-Never omit, null, or substitute prose for these fields on `status: success`.
+`false` with three empty arrays means the specs can go to design with nothing
+left to clarify. Otherwise the boolean is `true`, or each open item goes, as a
+string, into the array it belongs to. On `status: success` none of the four is
+left out, set to `null` or replaced with prose.
 
 ```markdown
 ## Specs Created
@@ -224,20 +236,20 @@ Never omit, null, or substitute prose for these fields on `status: success`.
 **Change**: {change-name}
 
 ### Specs Written
-| Domain | Type | Requirements | Scenarios |
-|--------|------|-------------|-----------|
-| {domain} | Delta/New | {N added, M modified, K removed} | {total scenarios} |
+| Domain | Kind | Requirements | Scenarios |
+|---|---|---|---|
+| {domain} | Delta / New | {added, modified, removed} | {count} |
 
 ### Coverage
-- Happy paths: {covered/missing}
-- Edge cases: {covered/missing}
-- Error states: {covered/missing}
+- Expected cases: {covered | missing}
+- Boundary cases: {covered | missing}
+- Failure cases: {covered | missing}
 
 ### Touched Baseline Domains
-`touched_baseline_domains: [{domain}, ...]` — declare-only; the orchestrator computes and writes `state.yaml.baseline_fingerprints` for each of these after this return.
+`touched_baseline_domains: [{domain}, ...]`: declared only; the orchestrator writes `state.yaml.baseline_fingerprints` for each one after this return.
 
 ### Next Step
-Ready for design (sdd-design). If design already exists, ready for tasks (sdd-tasks).
+Design (sdd-design) comes next, or tasks (sdd-tasks) when the design already exists.
 
 residual_ambiguity: {true|false}
 public_contract_questions: [{string}, ...]
@@ -247,31 +259,28 @@ missing_acceptance_criteria: [{string}, ...]
 
 ## Rules
 
-- ALWAYS use Given/When/Then format for scenarios
-- ALWAYS use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY) for requirement strength
-- Read the proposal's **Capabilities section** first — it tells you exactly which spec files to create
-- If existing specs exist, write DELTA specs (ADDED/MODIFIED/REMOVED sections)
-- If NO existing specs exist for the domain, write a FULL spec
-- Every requirement MUST have at least ONE scenario
-- **Stable REQ ids**: every ADDED requirement heading carries a stable id suffix `{#REQ-{domain}-{NNN}}` (`NNN` = 001, 002, … unique within the domain, continuing from the highest existing id in the baseline spec). MODIFIED requirements keep their existing id unchanged; ids are never reused after removal. These ids anchor the traceability chain REQ → task → commit → test.
-- Include both happy path AND edge case scenarios
-- Keep scenarios TESTABLE — someone should be able to write an automated test from each one
-- DO NOT include implementation details in specs — specs describe WHAT, not HOW
-- **MODIFIED requirements MUST be the FULL block** — copy entire requirement + all scenarios from main spec, then edit. Partial MODIFIED blocks lose content at archive time.
-- If adding new behavior without changing existing behavior → use ADDED, not MODIFIED
-- New capabilities ALWAYS stay under `openspec/changes/{change-name}/specs/{domain}/spec.md` until archive. `sdd-spec` never writes directly into `openspec/specs/`.
-- Apply any `rules.specs` from `openspec/config.yaml`
-- **Size budget**: Spec budget is elastic per domain. Target 650 words or less for each domain file; multi-domain changes may exceed 650 words in aggregate, but each domain still needs concise normative text. Prefer tables over narrative descriptions. Each scenario: 3-5 lines max.
-- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
-- For `status: success`, include all four ambiguity signals in the strict JSON
-  fence as typed JSON values as well as in the prose-adjacent envelope.
+- Scenarios are written as GIVEN, WHEN and THEN steps
+- Requirement strength uses the RFC 2119 keywords MUST, SHALL, SHOULD and MAY
+- The `## Capabilities` section of the proposal is read first: it names the spec files to write
+- A domain with a current spec gets a delta with ADDED, MODIFIED and REMOVED sections; a domain without one gets a full spec
+- Each requirement has at least one scenario, and the specs cover the expected cases and the boundary cases
+- Each added requirement heading ends with a stable `{#REQ-{domain}-{NNN}}` id; a modified one keeps its id, and ids are never reused after removal
+- A scenario is concrete enough for someone to write an automated test from it
+- Specs say what the system does, never how it is built
+- A modified requirement is the complete block from the main spec, edited; a partial block loses scenarios at archive
+- New behavior that leaves the existing one as it is goes under ADDED, not MODIFIED
+- New capabilities stay under `openspec/changes/{change-name}/specs/{domain}/spec.md` until archive; this phase never writes into `openspec/specs/`
+- The `rules.specs` of `openspec/config.yaml` apply
+- Each domain file aims at 650 words or fewer, with tables before prose and scenarios of three to five lines; a change with several domains may pass 650 words in total
+- The envelope follows Section D of `skills/_shared/sdd-phase-common.md`
+- On `status: success`, the four ambiguity signals appear as typed JSON values in the strict fence and also next to the prose envelope
 
-## RFC 2119 Keywords Quick Reference
+## RFC 2119 keywords
 
-| Keyword | Meaning |
-|---------|---------|
-| **MUST / SHALL** | Absolute requirement |
-| **MUST NOT / SHALL NOT** | Absolute prohibition |
-| **SHOULD** | Recommended, but exceptions may exist with justification |
-| **SHOULD NOT** | Not recommended, but may be acceptable with justification |
-| **MAY** | Optional |
+| Keyword | Strength |
+|---|---|
+| **MUST** / **SHALL** | Required, with no exception |
+| **MUST NOT** / **SHALL NOT** | Forbidden, with no exception |
+| **SHOULD** | Expected; departing from it needs a stated reason |
+| **SHOULD NOT** | Discouraged; doing it needs a stated reason |
+| **MAY** | Allowed, not expected |
