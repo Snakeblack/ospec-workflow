@@ -1,12 +1,12 @@
 ---
 name: sdd-tasks
-description: "Break an SDD change into implementation tasks. Trigger: orchestrator launches task planning for a change."
+description: "Plan an SDD change as ordered, verifiable implementation tasks, with the review workload forecast that decides how it will be delivered. Trigger: orchestrator launches task planning for a change."
 disable-model-invocation: true
 user-invocable: false
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
-  version: "2.0"
+  author: manuel-retamozo-garcia
+  version: "3.0"
   delegate_only: true
 runtime_capabilities:
   execute: false
@@ -14,82 +14,107 @@ runtime_capabilities:
   write: true
 ---
 
-> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
-> the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Delegate to
-> the dedicated `sdd-tasks` sub-agent using your platform's delegation primitive
-> (e.g., `task(...)`, sub-agent invocation, etc.). This skill is for EXECUTORS
-> only.
+> **ORCHESTRATOR GATE**: an orchestrator that loaded this skill hands it to the
+> `sdd-tasks` executor through its host's sub-agent mechanism and does not run
+> it in its own thread. Only that executor follows the steps below.
 
-## Purpose
+## Role
 
-You are a sub-agent responsible for creating the TASK BREAKDOWN. You take the accepted behavior contract for the change (`proposal.md` + specs/design in full mode, or `proposal-lite.md` in lite mode), then produce a `tasks.md` with concrete, actionable implementation steps organized by phase.
+The task planning phase. The executor takes the accepted behavior contract of
+the change, which is the proposal, specs and design on the full route and
+`proposal-lite.md` on the lite route, and writes `tasks.md`: the work in
+phases, in dependency order, each task small enough to finish and check, plus
+the forecast of how much a reviewer will have to read.
 
-## What You Receive
+## Inputs
 
-From the orchestrator:
-- Change name
-- Artifact store mode (`openspec | none`)
-- Delivery strategy (`ask-on-risk | auto-chain | single-pr | exception-ok`)
-- Planning mode (`full | lite`)
+The launch prompt names:
 
-## Execution and Persistence Contract
+- the change name;
+- the artifact store, `openspec` or `none`;
+- the delivery strategy: `ask-on-risk`, `auto-chain`, `single-pr` or
+  `exception-ok`;
+- the planning mode, `full` or `lite`.
 
-> Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
+## Artifact store
 
-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`.
-- In `openspec` mode, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as canonical workflow state for continuation and recovery; never rely on conversation history.
-- **none**: Return result only. Never create or modify project files.
+Reading and writing artifacts follow Sections B and C of
+`skills/_shared/sdd-phase-common.md`.
 
-## What to Do
+- `openspec`: paths as `skills/_shared/openspec-convention.md` sets them.
+  `openspec/changes/{change-name}/state.yaml` and the phase artifacts carry
+  the state to resume from; the conversation never does.
+- `none`: the tasks travel inline in the result of Step 5, and no `openspec/`
+  folder or project file is created.
 
-### Step 1: Load Skills
-Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
+## Steps
 
-### Step 2: Reconcile Specs and Design Before Writing Tasks
+### Step 1: Load the procedure
 
-If planning mode is `lite`:
-- Read `state.yaml.route.actual_route` first. It is authoritative; a supplied planning mode that conflicts with it is blocked rather than reconciled from prose.
-- Read `openspec/changes/{change-name}/proposal-lite.md` as the behavioral contract.
-- Confirm the change is still `trivial` or `small` and does not need dedicated spec/design artifacts.
-- Write `## Lite Change Contract` instead of `## Spec/Design Reconciliation`.
-- If the work no longer fits lite mode, STOP and return `blocked` with risk `escalate-to-standard-sdd`.
+Section A of `skills/_shared/sdd-phase-common.md`: this skill, the common
+protocol and the compact project rules of the launch prompt.
 
-If planning mode is `full`, follow the reconciliation rules below.
+### Step 2: Check the contract before planning
 
-Before writing tasks, build a mental matrix mapping every spec requirement/scenario to the design elements that implement it.
+#### Lite route
 
-Classify each scenario as:
-- `covered-by-design`: clear implementation path exists
-- `missing-design`: behavior is specified but no architectural allocation exists
-- `ambiguous`: contradiction or insufficient clarity between WHAT and HOW
+1. `state.yaml.route.actual_route` is read first and decides. A planning mode
+   in the prompt that disagrees with it blocks the run; prose never settles
+   the conflict.
+2. `openspec/changes/{change-name}/proposal-lite.md` is the behavior contract.
+3. The change must still be `trivial` or `small` and still need no spec or
+   design of its own. When it no longer fits, the phase returns `blocked`
+   with the risk `escalate-to-standard-sdd`.
+4. `tasks.md` carries `## Lite Change Contract` in place of
+   `## Spec/Design Reconciliation`.
 
-Reconciliation enforcement:
-1. If any MUST scenario is `missing-design`, STOP and return `status: blocked`.
-2. If SHOULD or MAY scenarios are `missing-design`, record a WARNING in the detailed summary and continue only if the core logic remains implementable.
-3. If a scenario is `ambiguous`, call out the ambiguity in the reconciliation section and only continue when the intended behavior can still be decomposed into verifiable work.
+#### Full route
 
-From the design document, identify:
-- All files that need to be created/modified/deleted
-- The dependency order (what must come first)
-- Testing requirements per component
+Every requirement and scenario of the specs is matched against the part of
+the design that builds it, and each scenario gets one status:
 
-Carry accepted quality scenarios and architectural constraints into the relevant implementation tasks and their completion checks: name the observable result and verification method. Preserve the design's tradeoffs and evidence limits; do not invent numerical targets or add separate tasks for every quality attribute. Reuse existing tests/checks when they prove the scenario.
+- `covered-by-design`: the design gives it a clear path;
+- `missing-design`: the specs ask for it and the design gives it no place;
+- `ambiguous`: the specs and the design contradict each other, or neither is
+  clear enough.
 
-### Step 3: Write tasks.md
+The statuses decide what happens next:
 
-**IF mode is `openspec`:** Create the task file:
+1. A MUST scenario in `missing-design` blocks the phase: it returns
+   `status: blocked` and writes no `tasks.md`.
+2. A SHOULD or MAY scenario in `missing-design` becomes a WARNING in the
+   detailed summary, and planning goes on only while the core behavior can
+   still be built.
+3. An `ambiguous` scenario is named in the reconciliation section, and
+   planning goes on only while the intended behavior can still be split into
+   work that can be checked.
+
+From the design come the files to create, modify or delete, the order they
+depend on and the tests each part needs. Accepted quality scenarios and
+architectural constraints go into the tasks they affect, as the observable
+result and the way to check it, keeping the tradeoffs and evidence limits of
+the design. No numeric target is invented and no task exists only to name a
+quality attribute; an existing test or check that proves a scenario is
+reused.
+
+### Step 3: Write `tasks.md`
+
+With `openspec`:
 
 ```
 openspec/changes/{change-name}/
-├── proposal-lite.md       ← lite only
-└── tasks.md               ← You create this
-
-Standard mode instead requires `proposal.md`, change-local `specs/`, `design.md`, and `tasks.md`.
+├── proposal-lite.md   (lite route)
+└── tasks.md           (written by this phase)
 ```
 
-**IF mode is `none`:** Do NOT create any `openspec/` directories or files. Compose the tasks content in memory and return it inline in Step 5.
+On the full route the folder also holds `proposal.md`, the change-local
+`specs/` and `design.md`. With `none`, nothing is created and the tasks are
+returned inline.
 
-#### Task File Format
+#### Format
+
+The route decides which of the first two sections appears: `## Lite Change
+Contract` on the lite route, `## Spec/Design Reconciliation` on the full one.
 
 ```markdown
 # Tasks: {Change Title}
@@ -97,33 +122,33 @@ Standard mode instead requires `proposal.md`, change-local `specs/`, `design.md`
 ## Lite Change Contract
 
 - Change class: {trivial | small}
-- Behavioral contract: {one-line summary from `proposal-lite.md`}
-- Acceptance checks: {brief list}
-- Traceability: `AC-N` → task id → verification command or inspection evidence
-- Escalation trigger: {what would force full SDD}
+- Behavioral contract: {one line from `proposal-lite.md`}
+- Acceptance checks: {the AC-N labels, briefly}
+- Traceability: `AC-N` → task id → the command or inspection that proves it
+- Escalation trigger: {what would move the change to full SDD}
 
 ## Spec/Design Reconciliation
 
 | Requirement / Scenario | Priority | Design Allocation | Status | Notes |
-|------------------------|----------|-------------------|--------|-------|
-| {REQ-01 / Scenario A} | MUST | `path/to/file.ext`, {interface or flow} | covered-by-design | {brief note} |
-| {REQ-02 / Scenario B} | SHOULD | (none) | missing-design | {warning or blocker} |
+|---|---|---|---|---|
+| {REQ id / scenario} | MUST | `{path}`, {interface or flow} | covered-by-design | {note} |
+| {REQ id / scenario} | SHOULD | (none) | missing-design | {warning or blocker} |
 
 ### Reconciliation Verdict
 - MUST coverage: {complete | blocked}
-- SHOULD/MAY gaps: {none | summary}
-- Ambiguities to track: {none | summary}
+- SHOULD/MAY gaps: {none | which}
+- Ambiguities to track: {none | which}
 
 ## Review Workload Forecast
 
 | Field | Value |
-|-------|-------|
-| Estimated changed lines | <rough estimate or range> |
-| 400-line budget risk | Low / Medium / High |
-| Chained PRs recommended | Yes / No |
-| Suggested split | <single PR or PR 1 → PR 2 → PR 3> |
-| Delivery strategy | <ask-on-risk / auto-chain / single-pr / exception-ok> |
-| Chain strategy | <stacked-to-main / feature-branch-chain / size-exception / pending> |
+|---|---|
+| Estimated changed lines | {a range} |
+| 400-line budget risk | Low, Medium or High |
+| Chained PRs recommended | Yes or No |
+| Suggested split | {one PR, or PR 1 → PR 2 → …} |
+| Delivery strategy | {the one received} |
+| Chain strategy | {stacked-to-main, feature-branch-chain, size-exception or pending} |
 
 Decision needed before apply: <Yes|No>
 Chained PRs recommended: <Yes|No>
@@ -132,82 +157,96 @@ Chain strategy: <stacked-to-main|feature-branch-chain|size-exception|pending>
 
 ### Suggested Work Units
 
-| Unit | Goal | Likely PR | Notes |
-|------|------|-----------|-------|
-| 1 | <standalone deliverable> | PR 1 | <base branch; tests/docs included> |
-| 2 | <standalone deliverable> | PR 2 | <immediate parent/base branch boundary; depends on PR 1 or independent> |
+| Unit | Delivers | PR | Notes |
+|---|---|---|---|
+| 1 | {something that works on its own} | PR 1 | {its base branch; tests and docs included} |
+| 2 | {something that works on its own} | PR 2 | {its base, the PR it depends on, or independent} |
 
 ### Checklist Status Legend
 
-- `[ ]` Not implemented yet
-- `[~]` Implemented but not yet verified locally
-- `[x]` Implemented and verified locally
+- `[ ]` not started
+- `[~]` built, local verification still pending
+- `[x]` built and verified locally
 
-## Phase 1: {Phase Name} (e.g., Infrastructure / Foundation)
+## Phase 1: {name, for example Foundation}
 
-- [ ] 1.1 {Concrete action — what file, what change} [REQ-{domain}-{NNN}]
-- [ ] 1.2 {Concrete action} [REQ-{domain}-{NNN}, REQ-{domain}-{MMM}]
-- [ ] 1.3 {Concrete action}
+- [ ] 1.1 {file and change} [REQ-{domain}-{NNN}]
+- [ ] 1.2 {file and change} [REQ-{domain}-{NNN}, REQ-{domain}-{MMM}]
 
-## Phase 2: {Phase Name} (e.g., Core Implementation)
+## Phase 2: {name, for example Core behavior}
 
-- [ ] 2.1 {Concrete action}
-- [ ] 2.2 {Concrete action}
-- [ ] 2.3 {Concrete action}
-- [ ] 2.4 {Concrete action}
+- [ ] 2.1 {file and change}
+- [ ] 2.2 {file and change}
 
-## Phase 3: {Phase Name} (e.g., Testing / Verification)
+## Phase 3: {name, for example Tests}
 
-- [ ] 3.1 {Write tests for ...}
-- [ ] 3.2 {Write tests for ...}
-- [ ] 3.3 {Verify integration between ...}
-
-## Phase 4: {Phase Name} (e.g., Cleanup / Documentation)
-
-- [ ] 4.1 {Update docs/comments}
-- [ ] 4.2 {Remove temporary code}
+- [ ] 3.1 {the test, and the scenario it proves}
 ```
 
-### Task Writing Rules
+Each task line is a checkbox followed by a dotted id (`1.2`, `1.2.3`):
+`resolveRemainingTasks`, from `{{ospec-runtime}}/scripts/lib/apply-resume.js`,
+reads that form to know what `sdd-apply` still has to do, and hands any
+checkbox line without an id back to the orchestrator instead of guessing it.
 
-Each task MUST be:
+#### What makes a good task
 
-| Criteria | Example ✅ | Anti-example ❌ |
-|----------|-----------|----------------|
-| **Specific** | "Create `internal/auth/middleware.go` with JWT validation" | "Add auth" |
-| **Actionable** | "Add `ValidateToken()` method to `AuthService`" | "Handle tokens" |
-| **Verifiable** | "Test: `POST /login` returns 401 without token" | "Make sure it works" |
-| **Small** | One file or one logical unit of work | "Implement the feature" |
+| A task is | Like this | Not like this |
+|---|---|---|
+| **Specific** | "Add `src/billing/invoice.ts` with the total calculation" | "Billing" |
+| **Actionable** | "Give `InvoiceService` a `void(id)` method" | "Deal with voiding" |
+| **Verifiable** | "Test: voiding a paid invoice returns 409" | "Check it works" |
+| **Small** | One file or one logical unit | "Build the feature" |
 
-Checklist semantics:
-- Use `[ ]` for untouched work.
-- Use `[~]` only when implementation exists but local verification is still pending.
-- Use `[x]` only after the task is completed and verified locally.
+The marks mean exactly this: `[ ]` for work not started, `[~]` only when the
+code exists and local verification is still pending, `[x]` only once the task
+is done and verified locally.
 
-### Review Workload Forecast Rules
+#### Phases
 
-Before finalizing tasks, estimate whether implementation is likely to exceed the **400 changed-line review budget** (`additions + deletions`). This is a planning guard, not an exact diff count.
+Phases follow dependencies: first what the rest stands on (types, interfaces,
+schema and configuration changes), then the core behavior, then the wiring
+that connects it (routes, screens, adapters), then the tests against the spec
+scenarios, and a clean-up phase for docs and dead code only when it is
+needed.
 
-Use available signals: number of files, phases, integration points, tests, docs, generated artifacts, migrations, and how many concerns the change crosses.
+#### Review workload forecast
 
-If the estimate is **High** or likely above 400 lines:
+Before the tasks are final, the phase estimates whether building them may
+exceed the review budget of **400 changed lines** (`additions + deletions`).
+It is a planning guard, not a diff count: it rests on the number of files,
+phases and integration points, the tests, docs, generated files and
+migrations, and how many concerns the change crosses.
 
-1. Mark `Chained PRs recommended` as `Yes`.
-2. Split tasks into **work units** that can become chained or stacked PRs.
-3. Each suggested PR must have a clear start, clear finish, verification, and autonomous scope.
-4. **Ask the user which chain strategy to use** (this is a team decision):
-   - **Stacked PRs to main** — each PR merges to main in order. Fast iteration, fix on the go. Best for speed-first teams and independent slices.
-   - **Feature Branch Chain** — the feature/tracker branch accumulates the final integration; PR #1 targets the tracker branch, later PRs target the immediate previous PR branch so each child diff stays focused. Only the tracker merges to main. Best for rollback control and coordinated releases.
-   - **size:exception** — keep it as a single PR with maintainer approval. Best for generated code, migrations, or vendor diffs.
-5. Cache the user's choice and set `Decision needed before apply` from delivery strategy:
-   - `ask-on-risk`: `Yes` — orchestrator asks before apply.
-   - `auto-chain`: `No` — orchestrator proceeds with the first slice using the chosen chain strategy.
-   - `single-pr`: `Yes` — orchestrator must require `size:exception` before apply.
-   - `exception-ok`: `No` — maintainer has accepted `size:exception`.
+When the risk is High, or the estimate likely passes 400 lines:
 
-Do not bury this in prose. Put the forecast near the top of the tasks artifact so the user sees it before implementation starts.
+1. `Chained PRs recommended` is `Yes`.
+2. The tasks are grouped into work units that can each become a PR of a chain.
+3. Every suggested PR has a clear start and end, its own verification and a
+   scope that stands alone.
+4. The chain shape is a team decision for the user. The forecast offers the
+   three shapes and what each one fits, and `Chain strategy` stays `pending`
+   until the user's choice is known:
+   - **Stacked PRs to main**: each PR merges into main in order; fast, with
+     fixes made along the way, for teams that favor speed and slices that
+     stand alone.
+   - **Feature Branch Chain**: a tracker branch gathers the slices; PR 1
+     targets the tracker and each later PR targets the branch of the PR
+     before it, so every diff shows one slice, and only the tracker merges
+     into main; for rollback control and coordinated releases.
+   - **size:exception**: one PR, approved by the maintainer; for generated
+     code, migrations or vendored diffs.
+5. `Decision needed before apply` follows the delivery strategy:
+   - `ask-on-risk`: `Yes`, the orchestrator asks before apply;
+   - `auto-chain`: `No`, the orchestrator starts the first slice with the
+     chosen shape;
+   - `single-pr`: `Yes`, the orchestrator requires `size:exception` before
+     apply;
+   - `exception-ok`: `No`, the maintainer already accepted `size:exception`.
 
-The forecast MUST include these exact plain-text lines so downstream guards can match them literally:
+The forecast goes near the top of `tasks.md`, where the user sees it before
+any code is written. Its table is for reading; the guards that come after
+this phase match these four plain-text lines literally, so they are always
+present, exactly as written:
 
 ```text
 Decision needed before apply: Yes|No
@@ -216,44 +255,18 @@ Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending
 400-line budget risk: Low|Medium|High
 ```
 
-You may keep the table for readability, but the plain-text lines are the guard contract.
+In a `feature-branch-chain`, the suggested work units name their base: PR 1
+on the tracker branch, PR 2 on the branch of PR 1, PR 3 on the branch of PR 2.
+A child PR whose diff shows an earlier slice has the wrong base and is
+re-targeted before review.
 
-For `feature-branch-chain`, suggested work units SHOULD name the intended base boundary: PR #1 base = feature/tracker branch; PR #2 base = PR #1 branch; PR #3 base = PR #2 branch. If a child PR would show previous PR changes, the base is wrong and must be retargeted/rebased before review.
+### Step 4: Save the artifact
 
-### Phase Organization Guidelines
+This step always runs with `openspec`. Section C of
+`skills/_shared/sdd-phase-common.md` writes the artifact `tasks` to
+`openspec/changes/{change-name}/tasks.md`.
 
-```
-Phase 1: Foundation / Infrastructure
-  └─ New types, interfaces, database changes, config
-  └─ Things other tasks depend on
-
-Phase 2: Core Implementation
-  └─ Main logic, business rules, core behavior
-  └─ The meat of the change
-
-Phase 3: Integration / Wiring
-  └─ Connect components, routes, UI wiring
-  └─ Make everything work together
-
-Phase 4: Testing
-  └─ Unit tests, integration tests, e2e tests
-  └─ Verify against spec scenarios
-
-Phase 5: Cleanup (if needed)
-  └─ Documentation, remove dead code, polish
-```
-
-### Step 4: Persist Artifact
-
-**This step is MANDATORY — do NOT skip it.**
-
-Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
-- artifact: `tasks`
-- path: `openspec/changes/{change-name}/tasks.md`
-
-### Step 5: Return Summary
-
-Return to the orchestrator:
+### Step 5: Return the summary
 
 ```markdown
 ## Tasks Created
@@ -263,47 +276,46 @@ Return to the orchestrator:
 
 ### Breakdown
 | Phase | Tasks | Focus |
-|-------|-------|-------|
-| Phase 1 | {N} | {Phase name} |
-| Phase 2 | {N} | {Phase name} |
-| Phase 3 | {N} | {Phase name} |
+|---|---|---|
+| Phase 1 | {N} | {name} |
+| Phase 2 | {N} | {name} |
 | Total | {N} | |
 
 ### Reconciliation
-- MUST scenarios blocked: {0 or list}
-- SHOULD/MAY gaps: {none or summary}
-- Ambiguous scenarios: {none or summary}
+- MUST scenarios blocked: {0, or which}
+- SHOULD/MAY gaps: {none, or which}
+- Ambiguous scenarios: {none, or which}
 
 ### Implementation Order
-{Brief description of the recommended order and why}
+{the order to follow, and why}
 
 ### Review Workload Forecast
-- Estimated changed lines: {estimate or range}
-- 400-line budget risk: {Low | Medium | High}
-- Chained PRs recommended: {Yes | No}
-- Delivery strategy: {ask-on-risk | auto-chain | single-pr | exception-ok}
-- Decision needed before apply: {Yes | No}
-- Suggested work-unit PR split: {brief list or "Not needed"}
+- Estimated changed lines: {a range}
+- 400-line budget risk: {Low, Medium or High}
+- Chained PRs recommended: {Yes or No}
+- Delivery strategy: {the one received}
+- Decision needed before apply: {Yes or No}
+- Suggested work-unit PR split: {the units, or "Not needed"}
 
 ### Next Step
-{Ready for implementation (sdd-apply) OR ask the user whether to use chained PRs before sdd-apply.}
+{Implementation (sdd-apply) can start, or the user decides on chained PRs first.}
 ```
 
 ## Rules
 
-- ALWAYS reference concrete file paths in tasks
-- Tasks MUST be ordered by dependency — Phase 1 tasks shouldn't depend on Phase 2
-- Testing tasks should reference specific scenarios from the specs, or `proposal-lite.md` acceptance checks in lite mode
-- Each task should be completable in ONE session (if a task feels too big, split it)
-- Use hierarchical numbering: 1.1, 1.2, 2.1, 2.2, etc.
-- **REQ coverage**: when the change has specs with stable REQ ids (`{#REQ-domain-NNN}` headings), each implementation task lists the REQ ids it covers as a trailing `[REQ-...]` tag, and every MUST requirement appears in at least one task. `sdd-verify` validates this mapping in the traceability matrix.
-- NEVER include vague tasks like "implement feature" or "add tests"
-- In full mode, ALWAYS emit `## Spec/Design Reconciliation` before the backlog. If any MUST scenario is `missing-design`, return `blocked` instead of writing `tasks.md`.
-- In lite mode, emit `## Lite Change Contract` instead of the reconciliation matrix and use `proposal-lite.md` as the contract.
-- In lite mode, preserve each proposal `AC-N` label in the relevant task and name its concrete verification evidence. Do not create a full reconciliation matrix just to mimic standard mode.
-- If lite planning reveals normal/high-risk scope or a need for dedicated specs/design, STOP and return `blocked` with `escalate-to-standard-sdd`.
-- Apply any `rules.tasks` from `openspec/config.yaml`
-- If the project uses TDD, integrate test-first tasks: RED task (write failing test) → GREEN task (make it pass) → REFACTOR task (clean up)
-- **Size budget**: Tasks budget is elastic. Target 530 words for straightforward single-PR plans; allow up to 900 words when chained flows, reconciliation details, or split work units require it. Each task: 1-2 lines max. Use checklist format, not paragraphs.
-- **Review workload guard**: ALWAYS include the Review Workload Forecast. If likely above 400 changed lines, recommend chained PRs and honor the received delivery strategy for whether a decision/exception is needed before apply.
-- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
+- Every task names the concrete files it touches
+- Tasks follow their dependencies: nothing in Phase 1 waits for Phase 2
+- Test tasks cite the spec scenario they prove, or the `proposal-lite.md` acceptance check on the lite route
+- A task fits in one session; a bigger one is split
+- Ids are hierarchical and dotted: 1.1, 1.2, 2.1
+- With specs that carry stable REQ ids (`{#REQ-domain-NNN}` headings), each implementation task ends with the `[REQ-...]` tags it covers, and every MUST requirement appears in at least one task; `sdd-verify` checks the mapping in its traceability matrix
+- A task never stays vague, like "build the feature" or "write tests"
+- On the full route, `## Spec/Design Reconciliation` comes before the backlog, and a MUST scenario in `missing-design` returns `blocked` instead of writing `tasks.md`
+- On the lite route, `## Lite Change Contract` replaces the reconciliation matrix and `proposal-lite.md` is the contract
+- On the lite route, each `AC-N` label of the proposal stays on the task it belongs to, with its concrete verification; no full matrix is built to look like the standard route
+- Lite planning that finds normal or high risk, or a need for specs or design, returns `blocked` with `escalate-to-standard-sdd`
+- The `rules.tasks` of `openspec/config.yaml` apply
+- With TDD, the tasks go test first: RED (a failing test), GREEN (the code that passes it), REFACTOR (the clean-up)
+- A plain single-PR plan aims at 530 words and may reach 900 when chains, reconciliation detail or work units need it; each task takes one or two lines, as a checklist, never as paragraphs
+- The Review Workload Forecast is always there; above 400 likely changed lines it recommends chained PRs, and the delivery strategy received decides whether a decision or an exception is needed before apply
+- The envelope follows Section D of `skills/_shared/sdd-phase-common.md`

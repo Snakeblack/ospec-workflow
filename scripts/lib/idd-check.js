@@ -245,6 +245,32 @@ function settleChecksChange(state, configChange) {
   return next;
 }
 
+const REMOVAL_GATE = "contract-removal";
+
+/**
+ * During a check: documentation lines a refactor removes that read like a
+ * contract need the user's answer before the kind can stay (B9). `removal` is
+ * what requireDeclaredCeremony returned: the open entry lists its hits and
+ * follows the diff while nobody answers it, and with no removal left to ask
+ * about it is dropped. A resolved entry keeps the lines it answered.
+ */
+function settleContractRemoval(state, removal) {
+  requireOpen(state);
+  const next = structuredClone(state);
+  const open = next.gates.find((gate) => gate.id === REMOVAL_GATE && gate.status === "open");
+  if (!removal) {
+    if (open) next.gates = next.gates.filter((gate) => gate !== open);
+    return next;
+  }
+  const { file, line } = removal.first;
+  const more = removal.hits.length > 1 ? ` and ${removal.hits.length - 1} more` : "";
+  const reason = `the refactor removes documentation lines that read like a contract: ${file}: ${JSON.stringify(line.slice(0, 80))}${more}`;
+  const entry = { id: REMOVAL_GATE, status: "open", reason, hits: [...removal.hits] };
+  if (open) Object.assign(open, entry);
+  else next.gates.push(entry);
+  return next;
+}
+
 function samePairKey(left, right) {
   return left.purpose === right.purpose && left.command === right.command && (left.unit ?? null) === (right.unit ?? null);
 }
@@ -641,6 +667,7 @@ module.exports = {
   settleChecks,
   settleChecksChange,
   settleContract,
+  settleContractRemoval,
   settleImpacts,
   settleMigration,
   settlePair,

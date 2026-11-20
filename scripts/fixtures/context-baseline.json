@@ -7,9 +7,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4769,
-      "idd_protocol_bytes": 10982,
-      "default_flow_bytes": 14456,
-      "memory_flow_bytes": 17404,
+      "idd_protocol_bytes": 11194,
+      "default_flow_bytes": 14668,
+      "memory_flow_bytes": 17616,
       "agent_read_bytes": {
         "review-change": 4757,
         "review-correction": 5373,
@@ -25,9 +25,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4769,
-      "idd_protocol_bytes": 10978,
-      "default_flow_bytes": 14696,
-      "memory_flow_bytes": 17644,
+      "idd_protocol_bytes": 11190,
+      "default_flow_bytes": 14908,
+      "memory_flow_bytes": 17856,
       "agent_read_bytes": {
         "review-change": 4754,
         "review-correction": 5370,
@@ -43,9 +43,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4769,
-      "idd_protocol_bytes": 10978,
-      "default_flow_bytes": 14696,
-      "memory_flow_bytes": 17644,
+      "idd_protocol_bytes": 11190,
+      "default_flow_bytes": 14908,
+      "memory_flow_bytes": 17856,
       "agent_read_bytes": {
         "review-change": 4740,
         "review-correction": 5356,
@@ -61,9 +61,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4769,
-      "idd_protocol_bytes": 10978,
-      "default_flow_bytes": 14374,
-      "memory_flow_bytes": 17322,
+      "idd_protocol_bytes": 11190,
+      "default_flow_bytes": 14586,
+      "memory_flow_bytes": 17534,
       "agent_read_bytes": {
         "review-change": 4752,
         "review-correction": 5368,
@@ -79,9 +79,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4769,
-      "idd_protocol_bytes": 10978,
-      "default_flow_bytes": 14377,
-      "memory_flow_bytes": 17325,
+      "idd_protocol_bytes": 11190,
+      "default_flow_bytes": 14589,
+      "memory_flow_bytes": 17537,
       "agent_read_bytes": {
         "review-change": 4797,
         "review-correction": 5413,
@@ -97,9 +97,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4769,
-      "idd_protocol_bytes": 10978,
-      "default_flow_bytes": 14704,
-      "memory_flow_bytes": 17652,
+      "idd_protocol_bytes": 11190,
+      "default_flow_bytes": 14916,
+      "memory_flow_bytes": 17864,
       "agent_read_bytes": {
         "review-change": 4706,
         "review-correction": 5322,
@@ -115,9 +115,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4769,
-      "idd_protocol_bytes": 10978,
-      "default_flow_bytes": 14706,
-      "memory_flow_bytes": 17654,
+      "idd_protocol_bytes": 11190,
+      "default_flow_bytes": 14918,
+      "memory_flow_bytes": 17866,
       "agent_read_bytes": {
         "review-change": 4761,
         "review-correction": 5377,
@@ -793,6 +793,111 @@
         ]
       },
       "reason": "la skill de IDD gana la frase del idioma del proyecto y de cómo se escriben documentación y comentarios (delivery.language, REQ-idd-029, pedido por el usuario en E1.98)"
+    },
+    {
+      "version": "2.185.3",
+      "metric": "idd_protocol_bytes",
+      "targets": {
+        "claude": [
+          10982,
+          11194
+        ],
+        "vscode": [
+          10978,
+          11190
+        ],
+        "github-copilot": [
+          10978,
+          11190
+        ],
+        "opencode": [
+          10978,
+          11190
+        ],
+        "codex": [
+          10978,
+          11190
+        ],
+        "cursor": [
+          10978,
+          11190
+        ],
+        "antigravity": [
+          10978,
+          11190
+        ]
+      },
+      "reason": "el protocolo de IDD nombra contract-removal, el gate nuevo con el que un refactor que quita de la documentación líneas que solo parecen un contrato conserva su kind con la respuesta del usuario"
+    },
+    {
+      "version": "2.185.3",
+      "metric": "default_flow_bytes",
+      "targets": {
+        "claude": [
+          14456,
+          14668
+        ],
+        "vscode": [
+          14696,
+          14908
+        ],
+        "github-copilot": [
+          14696,
+          14908
+        ],
+        "opencode": [
+          14374,
+          14586
+        ],
+        "codex": [
+          14377,
+          14589
+        ],
+        "cursor": [
+          14704,
+          14916
+        ],
+        "antigravity": [
+          14706,
+          14918
+        ]
+      },
+      "reason": "el protocolo de IDD nombra contract-removal, el gate nuevo con el que un refactor que quita de la documentación líneas que solo parecen un contrato conserva su kind con la respuesta del usuario"
+    },
+    {
+      "version": "2.185.3",
+      "metric": "memory_flow_bytes",
+      "targets": {
+        "claude": [
+          17404,
+          17616
+        ],
+        "vscode": [
+          17644,
+          17856
+        ],
+        "github-copilot": [
+          17644,
+          17856
+        ],
+        "opencode": [
+          17322,
+          17534
+        ],
+        "codex": [
+          17325,
+          17537
+        ],
+        "cursor": [
+          17652,
+          17864
+        ],
+        "antigravity": [
+          17654,
+          17866
+        ]
+      },
+      "reason": "el protocolo de IDD nombra contract-removal, el gate nuevo con el que un refactor que quita de la documentación líneas que solo parecen un contrato conserva su kind con la respuesta del usuario"
     }
   ]
 }

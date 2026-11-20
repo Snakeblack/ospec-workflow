@@ -36,6 +36,8 @@ const GATE_QUESTIONS = Object.freeze({
   "irreversible-operation": "This operation is destructive or irreversible. Approve it?",
   "review-limit": "The trust reviews of this change are used up. Authorize one more trust review?",
   "checks-changed": "The checks or the ceremony settings (strict_tdd, impact, contracts) in idd/config.yaml differ from the change's base. Approve them for this change?",
+  "contract-removal":
+    "This refactor removes documentation lines that read like a contract (an HTTP route or a selector). Do they state no contract, no route, request, response or published API, so the kind stays refactor? If they do, raise the kind with ospec record intent.",
   "base-moved":
     "The base of this change moves to a later commit, so the commits in between and the paths they change leave its diff. Do they all belong to other changes? If not, withdraw the question with ospec record base --cancel.",
 });
@@ -250,6 +252,8 @@ function pendingDecision(state, gate) {
     const facts = state.facts || {};
     decision.questions = facts.open || (facts.coverage || []).flatMap((entry) => (entry.question ? [entry.question] : []));
   }
+  // The removed lines the answer covers: each one is the user's to judge.
+  if (gate.id === "contract-removal") decision.questions = [...gate.hits];
   // The change that replaces the abandoned one, when the agent named one.
   if (gate.id === "abandon" && gate.superseded_by) decision.superseded_by = gate.superseded_by;
   // The move the user approves: nothing of it is the agent's to summarize.

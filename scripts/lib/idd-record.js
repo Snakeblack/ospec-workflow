@@ -369,17 +369,20 @@ function recordGate(state, { id, action, reason, answer, source, recordedAt } = 
   if (id === "checks-changed" && action === "open") {
     refuse("gate-managed-by-check", "checks-changed is opened by ospec check when the checks in idd/config.yaml differ from the change's base");
   }
+  if (id === "contract-removal" && action === "open") {
+    refuse("gate-managed-by-check", "contract-removal is opened by ospec check when a refactor removes documentation lines that read like a contract");
+  }
   if (id === BASE_GATE && action === "open") {
     refuse("gate-managed-by-base", "base-moved is opened by ospec record base, which reads the move from git");
   }
   if (id === ABANDON_GATE && action === "open") {
     refuse("gate-managed-by-abandon", "abandon is opened by ospec abandon, which takes the reason and the change that replaces this one");
   }
-  // review-limit, checks-changed, irreversible-operation and
-  // adr-amend-or-contradict repeat, one entry per authorized review
-  // (REQ-idd-016), approved set of checks, set of operations or impact raised
-  // after the answer (E1.69): the open entry is the one to answer, else the
-  // latest.
+  // review-limit, checks-changed, contract-removal, irreversible-operation
+  // and adr-amend-or-contradict repeat, one entry per authorized review
+  // (REQ-idd-016), approved set of checks or of removed lines, set of
+  // operations or impact raised after the answer (E1.69): the open entry is
+  // the one to answer, else the latest.
   let index = state.gates.findIndex((gate) => gate.id === id && gate.status === "open");
   if (index === -1) index = state.gates.findLastIndex((gate) => gate.id === id);
   const existing = index === -1 ? null : state.gates[index];
