@@ -1,0 +1,226 @@
+{
+  "schema": "idd-state/v1",
+  "change": "own-sdd-verify",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua (cambio 3 de E1.105: sdd-verify con strict-tdd-verify.md y report-format.md)",
+    "requested_at": "2026-11-20T15:35:51.557Z",
+    "kind": "refactor",
+    "summary": "Versiones propias de sdd-verify, strict-tdd-verify.md y report-format.md, tercer cambio de E1.105",
+    "acceptance": "skills/sdd-verify no conserva líneas de 30 o más caracteres idénticas a ninguna versión del historial git de gentle-ai, salvo literales sin contenido; strict-tdd-verify.md se reescribe entero y SKILL.md y report-format.md solo en los pasajes que coinciden; los tests de contrato de la fase siguen pasando; NOTICE y metadata.author dejan de nombrar a gentle-ai en sdd-verify; node scripts/check.js pasa"
+  },
+  "facts": {
+    "open": [
+      "sdd-apply/strict-tdd.md escribe dos valores que strict-tdd-verify.md no nombra: DEFERRED en la columna Safety Net y ➖ Deferred en TRIANGULATE. Hoy DEFERRED no da hallazgo por sí solo y ➖ Deferred cae en el WARNING general de varios escenarios con un solo caso. ¿La versión propia los nombra con ese mismo veredicto, los deja sin nombrar como ahora o les da un veredicto nuevo?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "NOTICE",
+      "docs/roadmaps/harness-evolution.md",
+      "skills/sdd-verify/SKILL.md",
+      "skills/sdd-verify/references/report-format.md",
+      "skills/sdd-verify/strict-tdd-verify.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "strict-tdd-verify.md nombra DEFERRED en Safety Net y ➖ Deferred en TRIANGULATE con el veredicto que reciben hoy: DEFERRED no da hallazgo por sí solo porque su fila pasa por la regla de GREEN, y ➖ Deferred sigue sujeto al WARNING de varios escenarios con un solo caso (respuesta del usuario al gate open-facts)",
+      "sdd-verify conserva lo que leen otras piezas y fijan los tests: los pasos 2a, 2b, 2c, 9a, 10a y 10b, la taxonomía INFO < WARNING < BLOCKER y su tabla, verify_outcome, los niveles de evidencia de REQ-skills-002, los encabezados Traceability Matrix y Assumption Reconciliation del informe, las secciones Strict TDD del informe y los umbrales de cobertura (95 y 80 %) y de dobles (más del doble que aserciones o 7 o más)",
+      "report-format.md remite a las cinco secciones Strict TDD del informe, Assertion Quality incluida, como ya exige strict-tdd-verify.md"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 609
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component skills: ADR 0003, 0006 and quality scenario offline-operation",
+      "source": "declaration",
+      "recorded_turn": 609
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 610
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "sdd-verify sigue citando las funciones del runtime que deciden (recoverCandidateSnapshot, getLineageNextAction, evaluateRecheck, startVerifyLineageFromWorkspace, parseQualityGates y las demás de quality-gates.js, runRecoverySuccessorRecheck, persistRecheckResultState) sin reescribir sus reglas en prosa"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "sdd-verify reanuda desde state.yaml y los artefactos de fase en disco, nunca desde la conversación ni la memoria entre sesiones"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "las skills no usan red; la medida lee un clon local con git"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 609,
+      "answer": "lo recomendado",
+      "source": "user",
+      "resolved_at": "2026-11-20T15:37:40.325Z",
+      "resolved_turn": 610
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-20T15:39:40.301Z",
+      "detail": {
+        "tree": "sha256:96b68ba1e8d12694f02ff1e211b8edd7bf911be749ace17b81c997ef816ea0b2",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-20T15:39:40.301Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:96b68ba1e8d12694f02ff1e211b8edd7bf911be749ace17b81c997ef816ea0b2",
+        "fitness": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-20T15:45:59.685Z",
+      "detail": {
+        "tree": "sha256:520036dcb8fdad3cb069e2a8b45d552b6eb4cf5068059e568185deea467ebc8a",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-20T15:45:59.685Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:520036dcb8fdad3cb069e2a8b45d552b6eb4cf5068059e568185deea467ebc8a",
+        "fitness": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-20T15:46:25.831Z"
+    }
+  ],
+  "base": "80175d1e3d856a6511d5c855417666ac0df6bb51",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c7974793af0243650daba36bc7f5dd85aee6201490266008b9a10960ff9dbb00",
+      "tree": "sha256:96b68ba1e8d12694f02ff1e211b8edd7bf911be749ace17b81c997ef816ea0b2",
+      "recorded_at": "2026-11-20T15:39:40.301Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:29b5c3cdf58ac79e9dd9810064d7c50b83611c6d60fa3c3290edfadcefed4f09",
+      "tree": "sha256:96b68ba1e8d12694f02ff1e211b8edd7bf911be749ace17b81c997ef816ea0b2",
+      "recorded_at": "2026-11-20T15:39:40.301Z",
+      "tests": 2
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4260458b19b36aac6c3dbe5e9ae1950c827c8f53d3f0066cbc13dcccf787e449",
+      "tree": "sha256:520036dcb8fdad3cb069e2a8b45d552b6eb4cf5068059e568185deea467ebc8a",
+      "recorded_at": "2026-11-20T15:45:59.685Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0591cb1016b801868031c711c0ce01e29c4051d296525d9bce0dda9c8cdf2702",
+      "tree": "sha256:520036dcb8fdad3cb069e2a8b45d552b6eb4cf5068059e568185deea467ebc8a",
+      "recorded_at": "2026-11-20T15:45:59.685Z",
+      "tests": 2
+    }
+  ],
+  "closed_at": "2026-11-20T15:46:25.831Z"
+}
