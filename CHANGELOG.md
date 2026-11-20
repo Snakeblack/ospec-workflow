@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Versiones propias de las skills de fase de SDD que conservan texto de gentle-ai (E1.105), primer cambio del reparto (own-sdd-phase-skills)
 
+### Fixed
+- Un refactor que quita de la documentación una línea que solo parece un contrato puede conservar su kind con la respuesta del usuario (kind-mismatch-content-answer)
+
 ## [2.185.3] - 2026-11-20
 
 ### Changed
