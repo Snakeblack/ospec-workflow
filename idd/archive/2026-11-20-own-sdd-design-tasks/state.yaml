@@ -1,0 +1,238 @@
+{
+  "schema": "idd-state/v1",
+  "change": "own-sdd-design-tasks",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua (cambio 2 de E1.105: sdd-design y sdd-tasks)",
+    "requested_at": "2026-11-20T00:53:38.724Z",
+    "kind": "refactor",
+    "summary": "Versiones propias de sdd-design y sdd-tasks, segundo cambio de E1.105",
+    "acceptance": "skills/sdd-design y skills/sdd-tasks no conservan líneas de 30 o más caracteres idénticas a ninguna versión del historial git de gentle-ai, salvo literales sin contenido y los campos del pronóstico de review que el usuario aceptó como literales de interfaz; los tests de contrato de las dos fases siguen pasando; NOTICE y metadata.author dejan de nombrar a gentle-ai en ellas; node scripts/check.js pasa"
+  },
+  "facts": {
+    "basis": "Las respuestas del usuario al gate open-facts de own-sdd-phase-skills (2026-11-20) fijan el reparto, que las dos skills se reescriben enteras por pasar del 50 %, que los campos del pronóstico de review se conservan como literales de interfaz y la entrega en la cadena; el contrato de cada fase lo fijan sus tests (mentor-adr, eje-b, compact-lite), el parser de tareas de apply-resume.js y los encabezados que leen sdd-apply, el orquestador y gate-change-collision"
+  },
+  "plan": {
+    "paths": [
+      "NOTICE",
+      "docs/roadmaps/harness-evolution.md",
+      "skills/sdd-design/SKILL.md",
+      "skills/sdd-tasks/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "sdd-tasks conserva el formato de línea de tarea que lee resolveRemainingTasks de apply-resume.js (casilla [ ], [~] o [x] seguida del id con puntos) y los encabezados que leen sdd-apply, el orquestador y gate-change-collision (Review Workload Forecast, Spec/Design Reconciliation, Lite Change Contract, missing-design, escalate-to-standard-sdd); sdd-design conserva Step 3b, decisions/dc-NNN.md, los cuatro criterios de decisión significativa y las secciones del registro de decisión que fijan sus tests"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 603
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 603
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component skills: ADR 0003, 0006 and quality scenario offline-operation",
+      "source": "declaration",
+      "recorded_turn": 603
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "sdd-tasks cita resolveRemainingTasks de apply-resume.js como la función que lee el formato de las tareas, y las dos skills dejan las decisiones al runtime y al orquestador (guarda de revisión, colisiones) sin reescribir sus reglas en prosa"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "las dos skills reanudan desde state.yaml y los artefactos de fase en disco, nunca desde la conversación ni la memoria entre sesiones"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "las skills no usan red; la medida lee un clon local con git"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "sdd-tasks cita resolveRemainingTasks de apply-resume.js como la función que lee el formato de las tareas (skills/sdd-tasks/SKILL.md:187); ninguna de las dos skills describe una regla de cálculo sin citar quién la decide",
+      "recorded_at": "2026-11-20T15:26:18.890Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "el diff solo toca texto de skills/sdd-design, skills/sdd-tasks, NOTICE y el roadmap: no añade llamadas de red (sin curl, wget, fetch ni URLs nuevas) ni lee la memoria entre sesiones",
+      "recorded_at": "2026-11-20T15:26:19.034Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "base-moved",
+      "status": "resolved",
+      "reason": "los commits 40ae3cfb y 005331b8 son del cambio kind-mismatch-content-answer, ya cerrado, que entró detrás de la apertura de este",
+      "from": "5b30ff0c43ff19ed7079b9d1e83e7231e19e63ed",
+      "to": "005331b8f585b77d843b6ed397a72f4d5604b1c3",
+      "commits": 2,
+      "paths": [
+        "CHANGELOG.md",
+        "README.es.md",
+        "README.md",
+        "docs/en/README.md",
+        "docs/en/quickstart.md",
+        "handbook/agentes/catalogo.md",
+        "handbook/idd/flujo-idd.md",
+        "handbook/proteccion/hooks.md",
+        "handbook/quickstart.md",
+        "internal/iddsession/catalog.json",
+        "openspec/specs/idd/spec.md",
+        "scripts/fixtures/context-baseline.json",
+        "scripts/lib/idd-check.js",
+        "scripts/lib/idd-contract.js",
+        "scripts/lib/idd-contract.test.js",
+        "scripts/lib/idd-next.js",
+        "scripts/lib/idd-record.js",
+        "scripts/lib/idd-refusals.js",
+        "scripts/lib/idd-signals.js",
+        "scripts/lib/idd-signals.test.js",
+        "scripts/ospec.impact.test.js",
+        "scripts/ospec.js",
+        "skills/idd/SKILL.md",
+        "skills/idd/references/approvals.md"
+      ],
+      "archived": [
+        "2026-11-20-kind-mismatch-content-answer"
+      ],
+      "opened_turn": 604,
+      "answer": "para no hacer mucho jaleo incluyelo a los prs y ya",
+      "source": "user",
+      "resolved_at": "2026-11-20T15:21:51.869Z",
+      "resolved_turn": 606
+    },
+    {
+      "id": "contract-removal",
+      "status": "resolved",
+      "reason": "the refactor removes documentation lines that read like a contract: skills/sdd-tasks/SKILL.md: \"| **Verifiable** | \\\"Test: `POST /login` returns 401 without token\\\" | \\\"Make sure \"",
+      "hits": [
+        "skills/sdd-tasks/SKILL.md removes API: | **Verifiable** | \"Test: `POST /login` returns 401 without token\" | \"Make sure it works\" |"
+      ],
+      "opened_turn": 606,
+      "answer": "si",
+      "source": "user",
+      "resolved_at": "2026-11-20T15:24:33.669Z",
+      "resolved_turn": 607
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-20T15:26:09.191Z",
+      "detail": {
+        "tree": "sha256:a3059a725323e1113f45e9a7f48925318787af03a61309e7f870fecb6a03f330",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-20T15:26:09.191Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:a3059a725323e1113f45e9a7f48925318787af03a61309e7f870fecb6a03f330",
+        "fitness": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-20T15:26:24.593Z"
+    }
+  ],
+  "base": "005331b8f585b77d843b6ed397a72f4d5604b1c3",
+  "base_moves": [
+    {
+      "from": "5b30ff0c43ff19ed7079b9d1e83e7231e19e63ed",
+      "to": "005331b8f585b77d843b6ed397a72f4d5604b1c3",
+      "reason": "los commits 40ae3cfb y 005331b8 son del cambio kind-mismatch-content-answer, ya cerrado, que entró detrás de la apertura de este",
+      "moved_at": "2026-11-20T15:21:51.869Z"
+    }
+  ],
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7ec43530450069094d05c9400505f696355d9ab0019abf8cb801e07c1d501e1a",
+      "tree": "sha256:a3059a725323e1113f45e9a7f48925318787af03a61309e7f870fecb6a03f330",
+      "recorded_at": "2026-11-20T15:26:09.191Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:85e062cdffc960cebaf7b1fd877342a9ab354ea5760509d81fa27141ebf76aec",
+      "tree": "sha256:a3059a725323e1113f45e9a7f48925318787af03a61309e7f870fecb6a03f330",
+      "recorded_at": "2026-11-20T15:26:09.191Z",
+      "tests": 2
+    }
+  ],
+  "closed_at": "2026-11-20T15:26:24.593Z"
+}
