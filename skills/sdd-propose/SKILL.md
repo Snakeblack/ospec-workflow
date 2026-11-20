@@ -1,12 +1,12 @@
 ---
 name: sdd-propose
-description: "Create an SDD change proposal with intent, scope, and approach. Trigger: orchestrator launches proposal work for a change."
+description: "Write the proposal of an SDD change: why it is needed, what it covers, which capabilities it touches and how it will be built. Trigger: orchestrator launches proposal work for a change."
 disable-model-invocation: true
 user-invocable: false
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
-  version: "2.0"
+  author: manuel-retamozo-garcia
+  version: "3.0"
   delegate_only: true
 runtime_capabilities:
   execute: false
@@ -14,136 +14,134 @@ runtime_capabilities:
   write: true
 ---
 
-> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
-> the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Delegate to
-> the dedicated `sdd-propose` sub-agent using your platform's delegation primitive
-> (e.g., `task(...)`, sub-agent invocation, etc.). This skill is for EXECUTORS
-> only.
+> **ORCHESTRATOR GATE**: an orchestrator that loaded this skill hands it to the
+> `sdd-propose` executor through its host's sub-agent mechanism and does not run
+> it in its own thread. Only that executor follows the steps below.
 
-## Purpose
+## Role
 
-You are a sub-agent responsible for creating PROPOSALS. You take the exploration analysis (or direct user input) and produce a structured `proposal.md` document inside the change folder.
+The proposal phase. The executor turns the exploration, or the user's own
+description, into the proposal of one change: `proposal.md` on the standard
+route, `proposal-lite.md` on the lite route.
 
-## What You Receive
+## Inputs
 
-From the orchestrator:
-- Change name (e.g., "add-dark-mode")
-- Exploration analysis (from sdd-explore) OR direct user description
-- Artifact store mode (`openspec | none`)
-- Proposal mode (`standard | lite`)
+The launch prompt names:
 
-## Execution and Persistence Contract
+- the change name, in kebab-case (`add-dark-mode`, for example);
+- the result of `sdd-explore`, or the user's description when there was no
+  exploration;
+- the artifact store, `openspec` or `none`;
+- the proposal mode, `standard` or `lite`.
 
-> Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
+## Artifact store
 
-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`.
-- In `openspec` mode, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as canonical workflow state for continuation and recovery; never rely on conversation history.
-- **none**: Return result only. Never create or modify project files.
-- Never force `openspec/` creation unless user requested file-based persistence.
+Reading and writing artifacts follow Sections B and C of
+`skills/_shared/sdd-phase-common.md`.
 
-## What to Do
+- `openspec`: paths as `skills/_shared/openspec-convention.md` sets them.
+  `openspec/changes/{change-name}/state.yaml` and the phase artifacts carry
+  the state to resume from; the conversation never does.
+- `none`: the proposal travels inline and no project file is created or
+  edited.
+- An `openspec/` folder is created only when the user asked for persistence
+  in files.
 
-### Step 1: Load Skills
-Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
+## Steps
 
-### Step 2: Create Change Directory
+### Step 1: Load the procedure
 
-**IF mode is `openspec`:** create the change folder structure:
+Section A of `skills/_shared/sdd-phase-common.md`: this skill, the common
+protocol and the compact project rules of the launch prompt.
 
-```
-openspec/changes/{change-name}/
-└── proposal.md | proposal-lite.md
-```
+### Step 2: Open the change folder
 
-**IF mode is `none`:** Do NOT create any `openspec/` directories. Skip this step.
+With `openspec`, the folder `openspec/changes/{change-name}/` holds the
+proposal. When it already holds the artifact of this mode, that artifact is
+read and updated instead of written again. With `none`, nothing is created.
 
-### Step 3: Read Existing Specs
+### Step 3: Read the current behavior
 
-**IF mode is `openspec`:** If `openspec/specs/` has relevant specs, read them to understand current behavior that this change might affect.
+With `openspec`, the specs under `openspec/specs/` that the change may touch
+are read before writing, so the proposal names existing capabilities by their
+real names. With `none`, there is nothing to read.
 
-**IF mode is `none`:** Skip — no existing specs to read.
+### Step 4: Write the proposal
 
-### Step 4: Write the Proposal Artifact
+The mode chooses the artifact: `standard` writes `proposal.md`, `lite` writes
+`proposal-lite.md`. Both keep the headings below, which later phases read.
 
-Choose the artifact by proposal mode:
-- `standard` → `proposal.md`
-- `lite` → `proposal-lite.md`
-
-#### Standard proposal (`proposal.md`)
+#### `proposal.md`
 
 ```markdown
 # Proposal: {Change Title}
 
 ## Intent
 
-{What problem are we solving? Why does this change need to happen?
-Be specific about the user need or technical debt being addressed.}
+{the problem the change solves and the need behind it, for whom}
 
 ## Scope
 
 ### In Scope
-- {Concrete deliverable 1}
-- {Concrete deliverable 2}
-- {Concrete deliverable 3}
+- {something the change delivers}
 
 ### Out of Scope
-- {What we're explicitly NOT doing}
-- {Future work that's related but deferred}
+- {something it leaves out, including related work for later}
 
 ## Capabilities
 
-> This section is the CONTRACT between proposal and specs phases.
-> The sdd-spec agent reads this to know exactly which spec files to create or update.
-> Research `openspec/specs/` before filling this in.
-
 ### New Capabilities
-<!-- Capabilities being introduced. Each becomes a new change-local full spec at
-     `openspec/changes/{change-name}/specs/<name>/spec.md` and is promoted into
-     `openspec/specs/<name>/spec.md` only during archive.
-     Use kebab-case names (e.g., user-auth, data-export, api-rate-limiting).
-     Leave empty if no new capabilities. -->
-- `<capability-name>`: <brief description of what this capability covers>
+- `{capability-name}`: {the behavior it covers}
 
 ### Modified Capabilities
-<!-- Existing capabilities whose REQUIREMENTS are changing (not just implementation).
-     Only list here if spec-level behavior changes. Each needs a delta spec.
-     Use existing spec names from openspec/specs/. Leave empty if none. -->
-- `<existing-capability-name>`: <what requirement is changing>
+- `{existing-capability-name}`: {the requirement that changes}
 
 ## Approach
 
-{High-level technical approach. How will we solve this?
-Reference the recommended approach from exploration if available.}
+{how the change will be built, following the recommendation of the
+exploration when there is one}
 
 ## Affected Areas
 
-| Area | Impact | Description |
-|------|--------|-------------|
-| `path/to/area` | New/Modified/Removed | {What changes} |
+| Path | Change | Reason |
+|------|--------|--------|
+| `{path}` | New / Modified / Removed | {why} |
 
 ## Risks
 
-| Risk | Likelihood | Mitigation |
-|------|------------|------------|
-| {Risk description} | Low/Med/High | {How we mitigate} |
+| Risk | Odds | How it is contained |
+|------|------|---------------------|
+| {risk} | Low / Med / High | {mitigation} |
 
 ## Rollback Plan
 
-{How to revert if something goes wrong. Be specific.}
+{the concrete steps that undo the change}
 
 ## Dependencies
 
-- {External dependency or prerequisite, if any}
+- {a prerequisite, or None}
 
 ## Success Criteria
 
-- [ ] {How do we know this change succeeded?}
-- [ ] {Measurable outcome}
+- [ ] {an observable result that shows the change worked}
 ```
 
-#### Lite proposal (`proposal-lite.md`)
+`## Capabilities` is what `sdd-spec` reads to know which spec files to write:
 
-Use this only for `trivial` or `small` changes that do not justify full specs and design artifacts.
+- each New Capability becomes a full spec at
+  `openspec/changes/{change-name}/specs/{capability-name}/spec.md`, which
+  only `sdd-archive` promotes to `openspec/specs/{capability-name}/spec.md`;
+  names are kebab-case (`user-auth`, `data-export`);
+- each Modified Capability is an existing spec from `openspec/specs/` whose
+  requirements change, not only its implementation, and becomes a delta spec
+  in the change folder;
+- a change with no behavior change at the spec level, such as a pure refactor
+  or a configuration change, writes `None` under both lists.
+
+#### `proposal-lite.md`
+
+The lite route is for `trivial` and `small` changes, which need neither specs
+nor a design.
 
 ```markdown
 # Proposal Lite: {Change Title}
@@ -154,72 +152,68 @@ Use this only for `trivial` or `small` changes that do not justify full specs an
 
 ## Intent
 
-{One short paragraph describing the problem and desired outcome.}
+{one short paragraph: the problem and the result wanted}
 
 ## Boundaries
 
-- In scope: {tight, concrete change}
-- Out of scope: {what would force escalation to full SDD}
+- In scope: {the change, kept narrow}
+- Out of scope: {what would move it to the standard route}
 
 ## Affected Areas
 
-| Area | Impact | Notes |
-|------|--------|-------|
-| `path/to/file` | Modify | {brief reason} |
+| Path | Change | Reason |
+|------|--------|--------|
+| `{path}` | Modify | {why} |
 
 ## Acceptance Checks
 
-- [ ] AC-1: {specific observable behavior or local verification check}
-- [ ] AC-2: {second bounded check if needed}
+- [ ] AC-1: {a behavior to observe or a local check to run}
+- [ ] AC-2: {another bounded check, when needed}
 
 ## Risks and Rollback
 
-- Risk: {Low/Medium/High} — {main concern}
-- Rollback: {single-step rollback or revert strategy}
+- Risk: {Low | Medium | High}, {the main concern}
+- Rollback: {how one step undoes it}
 ```
 
-### Step 5: Persist Artifact
+### Step 5: Save the artifact
 
-**This step is MANDATORY — do NOT skip it.**
+This step always runs with `openspec`. Section C of
+`skills/_shared/sdd-phase-common.md` writes the artifact `proposal` to
+`openspec/changes/{change-name}/proposal.md` or
+`openspec/changes/{change-name}/proposal-lite.md`.
 
-Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
-- artifact: `proposal`
-- path: `openspec/changes/{change-name}/proposal.md` or `openspec/changes/{change-name}/proposal-lite.md`
-
-### Step 6: Return Summary
-
-Return to the orchestrator:
+### Step 6: Return the summary
 
 ```markdown
 ## Proposal Created
 
 **Change**: {change-name}
-**Location**: `openspec/changes/{change-name}/proposal.md` or `openspec/changes/{change-name}/proposal-lite.md` (openspec) | inline (none)
+**Location**: `openspec/changes/{change-name}/{proposal.md | proposal-lite.md}` (openspec) | inline (none)
 
 ### Summary
-- **Intent**: {one-line summary}
-- **Scope**: {N deliverables in, M items deferred}
-- **Approach**: {one-line approach}
-- **Risk Level**: {Low/Medium/High}
+- **Intent**: {one line}
+- **Scope**: {N items in, M left out}
+- **Approach**: {one line}
+- **Risk Level**: {Low | Medium | High}
 
 ### Next Step
-Ready for specs (sdd-spec) or design (sdd-design).
+Specs (sdd-spec) or design (sdd-design) can start.
 ```
 
 ## Rules
 
-- In `openspec` mode, ALWAYS create the correct artifact for the requested mode: `proposal.md` for standard or `proposal-lite.md` for lite
-- If the change directory already exists with the target proposal artifact, READ it first and UPDATE it
-- Keep the proposal CONCISE - it's a thinking tool, not a novel
-- Every proposal MUST have a rollback plan
-- Every proposal MUST have success criteria
-- Use concrete file paths in "Affected Areas" when possible
-- Apply any `rules.proposal` from `openspec/config.yaml`
-- **ALWAYS fill in the Capabilities section** — this is the contract with sdd-spec. Research `openspec/specs/` first to use correct existing capability names.
-- New Capabilities → each will become `openspec/changes/{change-name}/specs/<name>/spec.md` until archive promotes them
-- Modified Capabilities → each will become a delta spec in the change folder
-- If nothing changes at the spec level (pure refactor, config change), explicitly write "None" under both sub-sections — don't leave them as template placeholders
-- `proposal-lite.md` is valid only for `trivial` or `small` changes. If the work needs full capabilities, spec deltas, or architecture decisions, escalate to standard mode.
-- Lite acceptance checks MUST use stable, unique `AC-N` labels. Later `tasks.md`, apply progress, and verification evidence reference the same labels; do not renumber a label after work begins.
-- **Size budget**: Standard proposals target 450 words or less. Lite proposals target 250 words or less. Use bullet points and tables over prose.
-- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
+- With `openspec`, the artifact matches the mode: `proposal.md` for `standard`, `proposal-lite.md` for `lite`
+- An existing proposal of the same mode is read and updated, never replaced blindly
+- A proposal is a short planning document: bullets and tables before prose
+- Every proposal has a rollback plan and success criteria
+- Affected Areas name concrete paths whenever they are known
+- The `rules.proposal` of `openspec/config.yaml` apply
+- `## Capabilities` is always filled, with the real names found under `openspec/specs/`, because it is the contract with `sdd-spec`
+- A New Capability stays at `openspec/changes/{change-name}/specs/{name}/spec.md` until archive promotes it
+- A Modified Capability becomes a delta spec in the change folder
+- No change at the spec level writes `None` under both capability lists, never the template placeholders
+- `proposal-lite.md` is only for `trivial` or `small` changes; work that needs capabilities, spec deltas or architecture decisions moves to the standard mode
+- Lite acceptance checks carry unique `AC-N` labels that never change once work starts, because tasks, apply progress and verification cite them
+- A standard proposal aims at 450 words or fewer and a lite one at 250 or fewer
+- The envelope follows Section D of `skills/_shared/sdd-phase-common.md`

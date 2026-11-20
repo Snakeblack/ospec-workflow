@@ -225,8 +225,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.99** | `own-stack-skills` (lo mismo para las skills que conservan texto de ECC y de Caveman: las `stack-*`, accessibility, api-design, design-system, hexagonal-architecture y caveman-compress; con E1.105 y E1.106 hechos, `NOTICE` desaparece; fuera del orden ▶) | skills |
 | `pending` | **E1.103** | `product-ext-mts-cts` (`PRODUCT_EXT` de `scripts/lib/idd-signals.js` no reconoce `.mts` ni `.cts`, así que un módulo TypeScript con esas extensiones no cuenta como código de producto para ninguna señal; fuera del orden ▶) | bugfix |
 | `pending` | **E1.104** | `ui-file-server-templates` (`UI_FILE` de `scripts/lib/idd-facts.js` no reconoce las plantillas de servidor, así que un proyecto cuya interfaz solo vive en `.cshtml`, `.erb` o `.jinja` deja fuera de los hechos abiertos las categorías de estado en la URL y de accesibilidad; fuera del orden ▶) | bugfix |
-| `pending` | **E1.105** | `own-sdd-phase-skills` (versiones propias de las skills de fase de SDD que conservan texto de gentle-ai medido contra su historial: sdd-explore, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-verify con sus módulos, sdd-archive, sdd-clarify, sdd-init, sdd-onboard, las referencias de `_shared` y `agents/sdd-orchestrator.agent.md`; fuera del orden ▶) | skills |
-| `pending` | **E1.106** | `own-utility-skills` (lo mismo para issue-creation, branch-pr y skill-registry; con E1.105 hecho, la sección de gentle-ai sale de `NOTICE`; fuera del orden ▶) | skills |
+| `pending` | **E1.105** | `own-sdd-phase-skills` (versiones propias de las skills de fase de SDD que conservan texto de gentle-ai medido contra su historial: sdd-explore, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-verify con sus módulos, sdd-archive, sdd-clarify, sdd-init, sdd-onboard, las referencias de `_shared` y `agents/sdd-orchestrator.agent.md`, en cinco cambios encadenados que se fusionan, con una sola release, al terminar el último; la parte de sdd-explore, sdd-propose y sdd-spec está hecha) | skills |
+| `pending` | **E1.106** | `own-utility-skills` (lo mismo para issue-creation, branch-pr y skill-registry; con E1.105 hecho, la sección de gentle-ai sale de `NOTICE`; detrás de E1.105) | skills |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -308,7 +308,7 @@ E1.102 `sink-catalog-xss-crypto` y E1.103 `product-ext-mts-cts` entraron el 2026
 
 E1.104 `ui-file-server-templates` entró el 2026-11-18 durante E1.102, al convertir las plantillas de servidor en código de producto. Es un defecto que ya existía y queda fuera del orden ▶ hasta que el usuario lo coloque.
 
-E1.105 `own-sdd-phase-skills` y E1.106 `own-utility-skills` entraron el 2026-11-20 al abrir E1.101. E1.78 había medido el texto de gentle-ai contra su árbol actual, que ya había retirado SDD; contra todo su historial, otras catorce skills y el agente orquestador de SDD conservan su texto. El usuario eligió que E1.101 se quedara con `sdd-apply`, corrigiera `NOTICE` y los autores, y dejara el resto en filas nuevas. Las dos quedan fuera del orden ▶ hasta que el usuario las coloque.
+E1.105 `own-sdd-phase-skills` y E1.106 `own-utility-skills` entraron el 2026-11-20 al abrir E1.101. E1.78 había medido el texto de gentle-ai contra su árbol actual, que ya había retirado SDD; contra todo su historial, otras catorce skills y el agente orquestador de SDD conservan su texto. El usuario eligió que E1.101 se quedara con `sdd-apply`, corrigiera `NOTICE` y los autores, y dejara el resto en filas nuevas. Ese mismo día, al entregar E1.101, el usuario las colocó por delante de E1.79, E1.105 primero. Al abrir E1.105 eligió repartirla en cinco cambios, uno por PR, en una cadena que solo se fusiona, con una sola release, cuando el quinto esté listo.
 
 El 2026-11-19, al entregar E1.102, el usuario pidió por delante de E1.101 dos arreglos que salieron de esa entrega, cada uno en su PR. El primero, `retract-answer-offer`: cuando `persistent-data` salía del contenido que el fichero ya tenía, `ospec next` y el hook de Stop solo empujaban a un test de migración, y la retirada con la respuesta del usuario solo aparecía en la negativa de `record retract`. El segundo es el defecto de `decisionBullets` de `scripts/lib/idd-close.js`, que pega al bullet anterior de Decisions el encabezado que le sigue.
 
@@ -449,7 +449,7 @@ A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.56 �
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
 C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ E1.63 ─ E1.64 ─ E1.65 ─ E1.66 ─ E1.67 ─ E1.68 ─ E1.69 ─ E1.57
-   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.100 ─ E1.102 ─ E1.101 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
+   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.100 ─ E1.102 ─ E1.101 ─ E1.105 ─ E1.106 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
    ─ 4c2 ─ E1.70 ─ 4d ─ (avisos del guard) ─ PR5…PR8 ─ E1.52 ─ E1.59 ─ E1.60 ─ E1.82 ─ E1.83 ─ E1.84 ─ E3.7
 D: E4.14 ─ E4.6 (corrida de validación) ─ E4.18 ─ E4.4 ─ E4.13 ─ E1.85 ─ E1.86 ─ E1.87 ─ E4.11
 E1.28 espera a que E1.30 cumpla su criterio de hecho: su plazo del 2026-10-29 quedó fallido el 2026-10-26.
@@ -1719,8 +1719,14 @@ Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparat
 - **Problema:** conservan texto de gentle-ai sdd-onboard y sdd-explore (90 %), `sdd-verify/strict-tdd-verify.md` (71 %), sdd-spec (67 %), sdd-tasks (65 %), sdd-propose (64 %), sdd-design (56 %), `sdd-init/references/init-details.md` (52 %), `sdd-verify/references/report-format.md` (36 %), sdd-archive (13 %) y sdd-clarify (12,5 %), las referencias de `_shared` (`openspec-convention.md`, `sdd-phase-common.md`, `persistence-contract.md`, `skill-resolver.md`) y `agents/sdd-orchestrator.agent.md` (16 %). Son unas 830 líneas largas.
 - **Alcance:** versiones propias, como en E1.101: el contrato de cada fase se conserva y la skill cita las funciones del runtime que deciden. `strict-tdd-verify.md` sigue leyendo el vocabulario de evidencia que fija `sdd-apply/strict-tdd.md`.
 - **Garantía que protege:** que SDD se comporte igual que hoy, con los tests de contrato de cada fase en verde.
-- **Hecho abierto:** el reparto en cambios, porque son diez skills, las referencias compartidas y el agente.
 - **Hecho cuando:** `scripts/third-party-overlap.js` contra el clon de gentle-ai no da más que literales sin contenido en esos ficheros, y `NOTICE` y `metadata.author` dejan de nombrar a gentle-ai en ellos.
+- **Respuestas del usuario (2026-11-20, gate `open-facts`, las recomendadas):**
+  - E1.105 va antes que E1.106.
+  - Cinco cambios: sdd-explore, sdd-propose y sdd-spec; sdd-design y sdd-tasks; sdd-verify con `strict-tdd-verify.md` y `report-format.md`; sdd-init, sdd-onboard, sdd-archive y sdd-clarify; y las referencias de `_shared`, el agente orquestador y las dos frases que gentle-ai conserva en `sdd-baseline` y `sdd-reconcile`. Cada cambio va en una PR de una cadena `feature-branch-chain`, y las cinco se fusionan, con una sola release, cuando el quinto esté listo.
+  - Un fichero con el 50 % o más de líneas largas de gentle-ai se reescribe entero; por debajo, solo los pasajes que coinciden.
+  - Los nombres de los campos del pronóstico de review de sdd-tasks (`Decision needed before apply`, `Chained PRs recommended`, `Chain strategy`, `400-line budget risk`) se conservan como literales de interfaz, porque los leen sdd-apply, el orquestador, la documentación y estados ya escritos.
+- **Lo que salió en los cambios:**
+  - **sdd-explore, sdd-propose y sdd-spec** (`own-sdd-phase-skills`). Texto propio en las tres: de sus 270 líneas largas solo coinciden con gentle-ai el campo `disable-model-invocation: true` de cada una y la ruta `openspec/changes/{change-name}/`. Las plantillas de `exploration.md`, `proposal.md`, `proposal-lite.md` y las specs conservan los encabezados que leen las demás fases y el archivado; cambian sus marcadores y las columnas de las tablas que nada lee. La plantilla delta de una requirement modificada muestra ahora su id, como ya pedía la regla de copiar el bloque entero. sdd-spec cita `validateEnvelope` como la función que rechaza un éxito sin las cuatro señales de ambigüedad.
 
 ### E1.106 — `own-utility-skills`
 

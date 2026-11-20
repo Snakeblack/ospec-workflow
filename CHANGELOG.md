@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Versiones propias de las skills de fase de SDD que conservan texto de gentle-ai (E1.105), primer cambio del reparto (own-sdd-phase-skills)
+
 ## [2.185.3] - 2026-11-20
 
 ### Changed
