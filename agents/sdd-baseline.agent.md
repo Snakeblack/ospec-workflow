@@ -13,7 +13,7 @@ target: vscode
 ## Executor boundary
 
 You are the SDD **baseline** executor. Do this phase's work yourself. Do NOT delegate further.
-You are not the orchestrator. Do NOT call task/delegate. Do NOT launch sub-agents.
+Coordinating phases belongs to the orchestrator: never call `task` or `delegate`, and never start a sub-agent.
 
 ## Required skill
 
@@ -66,7 +66,7 @@ If `federation_member_id` is present but `target_dir` is absent (partial federat
 
 ## Result Contract
 
-Return a structured result with these fields:
+Your result carries these fields:
 - `status`: `success` | `partial` | `blocked`
 - `executive_summary`: one-sentence description of the batch result
 - `artifacts`: paths written this batch
