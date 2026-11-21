@@ -43,6 +43,7 @@ const {
   settleBoundary,
   settleChecks,
   settleChecksChange,
+  settleContractRemoval,
   settleContract,
   settleImpacts,
   settleMigration,
@@ -795,7 +796,7 @@ function readCheckScope(root, values, current, context, { diff, baseChecks = rea
 // references the diff derives. It refuses what check refuses (E1.44).
 function readCheckInputs(root, values, current, context) {
   const diff = readGitDiff(root, { base: diffBase(values, current) });
-  requireDeclaredCeremony(current, { diff, contractPatterns: context.contractPatterns });
+  const { removal } = requireDeclaredCeremony(current, { diff, contractPatterns: context.contractPatterns, openRemoval: true });
   // The checks are contrasted with the change's base, whatever --base the
   // diff takes, so no --base runs checks the user has not approved.
   const configChange = readConfigChange(root, diffBase({}, current), context);
@@ -805,7 +806,7 @@ function readCheckInputs(root, values, current, context) {
   const preview = applyDerivation(current, deriveSignals({ intent: current.intent, strictTdd: context.strictTdd, diff, patterns: context.patterns, knowledge: { map, sources }, retracted: current.retracted })).state;
   const fitness = changeFitness(root, preview);
   warnings.push(...fitness.warnings);
-  return { diff, configChange, scope, knowledge: { map, sources }, fitness, warnings };
+  return { diff, configChange, scope, knowledge: { map, sources }, fitness, warnings, removal };
 }
 
 // What a check reads once its commands ran: the contract paths of the diff,
@@ -851,7 +852,7 @@ function settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, ch
     deriveSignals({ intent: stored.intent, strictTdd: context.strictTdd, diff: inputs.diff, patterns: context.patterns, knowledge: inputs.knowledge, retracted: stored.retracted }),
   );
   const reopened = reopenDerived(derived.state).state;
-  const gated = settleChecksChange(reopened, inputs.configChange);
+  const gated = settleContractRemoval(settleChecksChange(reopened, inputs.configChange), null);
   const runs = checks.map((result) => runRecord("checks", result.command, result, checkTreeBefore, recordedAt, { name: result.name }));
   const recorded = recordRuns(gated, runs);
   const fitnessRecorded = recordRuns(recorded.state, fitnessRuns.map((result) => runRecord("fitness", result.command, result, checkTreeBefore, recordedAt, { ref: result.ref })));
@@ -872,18 +873,23 @@ function settleCheck(stored, { context, inputs, outcome, checks, fitnessRuns, ch
 
 // Checks or ceremony settings the user has not approved run nothing (E1.49):
 // the check opens checks-changed with them and stops, so a command written to
-// idd/config.yaml runs only after the user's answer.
-async function awaitChecksApproval(root, values, context, inputs) {
+// idd/config.yaml runs only after the user's answer. A refactor that removes
+// documentation lines that read like a contract stops the same way at
+// contract-removal (B9), since check refuses a kind before it runs anything.
+async function awaitUserAnswers(root, values, context, inputs) {
   const { state, changed } = await mutateChange(
     root,
     values.change,
     existing((stored) => {
-      const gated = settleChecksChange(stored, inputs.configChange);
+      const gated = settleContractRemoval(settleChecksChange(stored, inputs.configChange), inputs.removal);
       return { state: gated, changed: changedFrom(stored, gated) };
     }),
   );
-  const verdict = checkVerdict(state, { checks: context.checks, candidateCommand: context.candidateCommand, unapproved: true, livingDoc: readLivingDoc(root, state) });
-  const warnings = [...inputs.warnings, "no check ran: checks-changed waits for the user's approval of the checks and settings of idd/config.yaml"];
+  const unapproved = !checksApproved(state, inputs.configChange);
+  const verdict = checkVerdict(state, { checks: context.checks, candidateCommand: context.candidateCommand, unapproved, livingDoc: readLivingDoc(root, state) });
+  const warnings = [...inputs.warnings];
+  if (unapproved) warnings.push("no check ran: checks-changed waits for the user's approval of the checks and settings of idd/config.yaml");
+  if (inputs.removal) warnings.push("no check ran: contract-removal waits for the user's answer on the documentation lines this refactor removes");
   return { change: state.change, changed, added: { signals: [], gates: [] }, checks: [], ...verdict, next: nextAfterWrite(root, state), warnings };
 }
 
@@ -900,7 +906,7 @@ async function check(root, values) {
 
   const context = readProjectContext(root);
   const inputs = readCheckInputs(root, values, current, context);
-  if (!checksApproved(current, inputs.configChange)) return awaitChecksApproval(root, values, context, inputs);
+  if (!checksApproved(current, inputs.configChange) || inputs.removal) return awaitUserAnswers(root, values, context, inputs);
   const treeBefore = readTreeFingerprint(root);
   const checkTreeBefore = readCheckTreeFingerprint(root, context.checks);
   const { run: scoped, skipped } = inputs.scope;

@@ -726,10 +726,53 @@ test("[E1.44 B9] a refactor that removes a line of a contract is refused until i
   assert.strictEqual(refused.json.error.code, "kind-mismatch");
   assert.match(refused.json.error.message, /api\/openapi\.yaml/);
   assert.match(refused.json.error.how, /--kind <bug\|feature>/);
+  assert.doesNotMatch(refused.json.error.how, /contract-removal/, "a contract document states the contract itself");
+  assert.ok(!stateOf(root, "tidy-api").gates.some((gate) => gate.id === "contract-removal"));
 
   const raised = ospec(root, ...intent("bug"));
   assert.strictEqual(raised.code, 0, raised.stdout);
   assert.strictEqual(ospec(root, "check", "--change", "tidy-api", "--json").code, 0);
+});
+
+test("[B9] a refactor that removes a documentation line that only reads like a contract keeps its kind with the user's answer", (t) => {
+  const { root, git } = project(t);
+  const guide = (rows) => `# Guide\n\n| Good | Bad |\n|---|---|\n${rows.join("\n")}\n`;
+  const login = '| "Test: `POST /login` returns 401" | "It works" |';
+  const orders = '| "Read `GET /orders` first" | "Read it" |';
+  writeFile(root, "docs/guide.md", guide([login, orders]));
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "guide");
+  ospec(root, "record", "intent", "--change", "tidy-guide", "--kind", "refactor", "--summary", "Rewrite the guide.", "--acceptance", "Same guidance.", "--no-open-facts", "--basis", "The behavior stays.", "--json");
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "docs/guide.md", guide(['| "Test: voiding a paid invoice returns 409" | "It works" |', orders]));
+
+  const asked = ospec(root, "check", "--change", "tidy-guide", "--json");
+  assert.strictEqual(asked.code, 0, asked.stdout);
+  assert.strictEqual(asked.json.decision?.gate, "contract-removal", JSON.stringify(asked.json));
+  assert.strictEqual(asked.json.checks, undefined, "check runs nothing before the answer");
+  assert.ok(asked.json.warnings.some((warning) => /no check ran: contract-removal/.test(warning)), JSON.stringify(asked.json.warnings));
+  assert.deepStrictEqual(stateOf(root, "tidy-guide").gates.find((gate) => gate.id === "contract-removal").hits, [`docs/guide.md removes API: ${login}`]);
+  assert.deepStrictEqual(ospec(root, "next", "--change", "tidy-guide", "--json").json.pending_decision?.questions, [`docs/guide.md removes API: ${login}`], "the user judges each line");
+  assert.strictEqual(ospec(root, "record", "gate", "--change", "tidy-guide", "--gate", "contract-removal", "--open", "--json").json.error?.code, "gate-managed-by-check");
+
+  const answered = ospec(root, "record", "gate", "--change", "tidy-guide", "--gate", "contract-removal", "--resolve", "--answer", "That line is an example, not a contract.", "--source", "user", "--json");
+  assert.strictEqual(answered.code, 0, answered.stdout);
+  const checked = ospec(root, "check", "--change", "tidy-guide", "--json");
+  assert.strictEqual(checked.code, 0, checked.stdout);
+  assert.strictEqual(checked.json.verdict, "ready", JSON.stringify(checked.json.missing));
+  assert.strictEqual(stateOf(root, "tidy-guide").intent.kind, "refactor");
+
+  writeFile(root, "docs/guide.md", guide(['| "Test: voiding a paid invoice returns 409" | "It works" |']));
+  const again = ospec(root, "check", "--change", "tidy-guide", "--json");
+  assert.strictEqual(again.json.decision?.gate, "contract-removal", "a line the answer did not see asks again");
+  assert.match(again.json.decision.reason, /GET \/orders/);
+  const closed = ospec(root, "close", "--change", "tidy-guide", "--json");
+  assert.notStrictEqual(closed.code, 0, "close waits for the answer");
+
+  writeFile(root, "docs/guide.md", guide(['| "Test: voiding a paid invoice returns 409" | "It works" |', orders]));
+  const restored = ospec(root, "check", "--change", "tidy-guide", "--json");
+  assert.strictEqual(restored.json.verdict, "ready", JSON.stringify(restored.json));
+  assert.deepStrictEqual(stateOf(root, "tidy-guide").gates.filter((gate) => gate.id === "contract-removal").map((gate) => gate.status), ["resolved"], "the entry nobody answered goes with its line");
 });
 
 test("[E1.44 B3] a test deleted or emptied before the first check does not stand for a new one", (t) => {

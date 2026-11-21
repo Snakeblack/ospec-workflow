@@ -1,12 +1,12 @@
 ---
 name: sdd-design
-description: "Create the SDD technical design and architecture approach. Trigger: orchestrator launches design for a change."
+description: "Decide how an SDD change will be built: approach, architecture decisions, data flow, file changes and test strategy. Trigger: orchestrator launches design for a change."
 disable-model-invocation: true
 user-invocable: false
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
-  version: "2.0"
+  author: manuel-retamozo-garcia
+  version: "3.0"
   delegate_only: true
 runtime_capabilities:
   execute: false
@@ -14,172 +14,188 @@ runtime_capabilities:
   write: true
 ---
 
-> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
-> the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Delegate to
-> the dedicated `sdd-design` sub-agent using your platform's delegation primitive
-> (e.g., `task(...)`, sub-agent invocation, etc.). This skill is for EXECUTORS
-> only.
+> **ORCHESTRATOR GATE**: an orchestrator that loaded this skill hands it to the
+> `sdd-design` executor through its host's sub-agent mechanism and does not run
+> it in its own thread. Only that executor follows the steps below.
 
-## Purpose
+## Role
 
-You are a sub-agent responsible for TECHNICAL DESIGN. You take the proposal and specs, then produce a `design.md` that captures HOW the change will be implemented — architecture decisions, data flow, file changes, and technical rationale.
+The design phase. The executor reads the proposal, and the specs when they
+exist, and writes `design.md`: how the change will be built, which decisions
+that takes and why, how data moves, which files change and how each behavior
+will be verified.
 
-## What You Receive
+## Inputs
 
-From the orchestrator:
-- Change name
-- Artifact store mode (`openspec | none`)
+The launch prompt names:
 
-## Execution and Persistence Contract
+- the change name;
+- the artifact store, `openspec` or `none`.
 
-> Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
+## Artifact store
 
-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`.
-- In `openspec` mode, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as canonical workflow state for continuation and recovery; never rely on conversation history.
-- **none**: Return result only. Never create or modify project files.
+Reading and writing artifacts follow Sections B and C of
+`skills/_shared/sdd-phase-common.md`.
 
-## What to Do
+- `openspec`: paths as `skills/_shared/openspec-convention.md` sets them.
+  `openspec/changes/{change-name}/state.yaml` and the phase artifacts carry
+  the state to resume from; the conversation never does.
+- `none`: the design travels inline in the result of Step 5, and no
+  `openspec/` folder or project file is created.
 
-### Step 1: Load Skills
-Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
-Read `skills/_shared/engineering-judgment.md` once and apply it to the design decisions below; it does not require additional skill discovery.
+## Steps
 
-### Step 2: Resolve Design Mode and Read Inputs
+### Step 1: Load the procedure
 
-Resolve the design mode before writing anything:
+Section A of `skills/_shared/sdd-phase-common.md`: this skill, the common
+protocol and the compact project rules of the launch prompt. Then
+`skills/_shared/engineering-judgment.md`, read once, for the decisions below;
+it asks for no further skill discovery.
 
-| Mode | When to use it | Required inputs |
-|------|----------------|-----------------|
-| `design-after-spec` | One or more change-local specs already exist | Proposal + `openspec/changes/{change-name}/specs/**/spec.md` + codebase |
-| `design-from-proposal` | Specs do not exist yet | Proposal + codebase |
+### Step 2: Choose the mode and read the inputs
 
-Rules for mode selection:
-- If any change-local spec exists, you MUST use `design-after-spec` and read those specs before touching the design.
-- In `design-after-spec`, every MUST scenario needs an explicit design allocation: component, interface, file, flow, or rollout step.
-- In `design-from-proposal`, call out provisional assumptions so `sdd-spec` or `sdd-tasks` can reconcile them later.
+The mode is chosen before anything is written:
 
-After resolving the mode, read the actual code that will be affected:
-- Entry points and module structure
-- Existing patterns and conventions
-- Dependencies and interfaces
-- Test infrastructure (if any)
+| Mode | When | Inputs |
+|---|---|---|
+| `design-after-spec` | At least one change-local spec exists | Proposal, `openspec/changes/{change-name}/specs/**/spec.md` and the code |
+| `design-from-proposal` | No spec exists yet | Proposal and the code |
 
-### Step 3: Write design.md
+- One change-local spec is enough to force `design-after-spec`, and those
+  specs are read before the design starts.
+- In `design-after-spec`, every MUST scenario gets a place in the design: a
+  component, an interface, a file, a flow or a rollout step.
+- In `design-from-proposal`, every provisional assumption is marked as one,
+  so `sdd-spec` or `sdd-tasks` can settle it later.
 
-**IF mode is `openspec`:** Create the design document:
+Then the code the change reaches is read: its entry points and modules, the
+patterns and conventions it follows, its dependencies and interfaces, and the
+tests that exist.
+
+### Step 3: Write `design.md`
+
+With `openspec`, the design sits next to the other artifacts:
 
 ```
 openspec/changes/{change-name}/
 ├── proposal.md
 ├── specs/
-└── design.md              ← You create this
+└── design.md        (written by this phase)
 ```
 
-**IF mode is `none`:** Do NOT create any `openspec/` directories or files. Compose the design content in memory and return it inline in Step 5.
+With `none`, nothing is created and the design is returned inline.
 
-#### Design Document Format
-
-Scale the sections to the change. Include only material decisions and affected contracts/flows; omit inapplicable template rows. Record boundaries, invariants, and quality evidence in the relevant sections, without creating a parallel checklist.
+The sections follow the size of the change: only the decisions that matter
+and the contracts and flows the change touches, with no template rows that do
+not apply. Boundaries, invariants and the evidence for quality claims go in
+the section they belong to, not in a separate checklist.
 
 ```markdown
 # Design: {Change Title}
 
 ## Technical Approach
 
-{Concise description of the overall technical strategy.
-How does this map to the proposal's approach? Reference specs.}
+{the overall strategy, how it follows the approach of the proposal, and the
+specs it serves}
 
 ## Architecture Decisions
 
-### Decision: {Decision Title}
+### Decision: {title}
 
-**Choice**: {What we chose}
-**Alternatives considered**: {What we rejected}
-**Rationale**: {Why this choice over alternatives}
-**Evidence and consequences**: {Requirement or code reference; cost and reversibility}
+**Choice**: {what is chosen}
+**Alternatives considered**: {what is set aside}
+**Rationale**: {why this one wins}
+**Evidence and consequences**: {the requirement or code behind it; what it costs and how hard it is to undo}
 
 ## Data Flow
 
-{Describe ownership, boundary crossings, and relevant failure paths for this change.
-Use ASCII diagrams when helpful.}
+{who owns each piece of data, where it crosses a boundary and how it fails;
+an ASCII sketch when it helps}
 
-    Component A ──→ Component B ──→ Component C
-         │                              │
-         └──────── Store ───────────────┘
+    Caller ──→ Service ──→ Store
+       └────── error path ──┘
 
 ## File Changes
 
-| File | Action | Description |
-|------|--------|-------------|
-| `path/to/new-file.ext` | Create | {What this file does} |
-| `path/to/existing.ext` | Modify | {What changes and why} |
-| `path/to/old-file.ext` | Delete | {Why it's being removed} |
+| File | Action | Purpose |
+|------|--------|---------|
+| `{new path}` | Create | {what the file is for} |
+| `{existing path}` | Modify | {what changes, and why} |
+| `{old path}` | Delete | {why it goes} |
 
 ## Interfaces / Contracts
 
-{Define affected interfaces, compatibility obligations, and invariants that must remain true.
-Use code blocks with the project's language.}
+{the interfaces the change touches, what must stay compatible and the
+invariants that keep holding, in code blocks of the project's language}
 
 ## Testing Strategy
 
-| Requirement / quality concern | Trigger and conditions | Expected response | Verification |
-|--------------------------------|------------------------|-------------------|--------------|
-| {Affected behavior or attribute} | {Realistic scenario} | {Observable result / agreed target} | {Test layer, measurement, or inspection; evidence gaps} |
+| Behavior or quality concern | Situation | Expected result | How it is verified |
+|---|---|---|---|
+| {behavior or attribute} | {a realistic case} | {what can be observed, or the agreed target} | {test layer, measurement or inspection, and any gap in the evidence} |
 
 ## Migration / Rollout
 
-{If this change requires data migration, feature flags, or phased rollout, describe the plan.
-If not applicable, state "No migration required."}
+{data migration, feature flags or a phased rollout, or "No migration
+required."}
 
 ## Open Questions
 
-- [ ] {Any unresolved technical question}
-- [ ] {Any decision that needs team input}
+- [ ] {a technical question still open}
+- [ ] {a decision the team has to take}
 ```
 
 ### Step 3b: Record Significant Change Decisions
 
-In `openspec` mode, after writing `design.md`, record each **significant** decision of the change in its own short file under `openspec/changes/{change-name}/decisions/dc-NNN.md` (`NNN` = 001, 002, … in design order). In `none` mode, include significant decisions inline; do not create decision files or directories.
+With `openspec`, once `design.md` is written, each significant decision of the
+change also gets a short file of its own,
+`openspec/changes/{change-name}/decisions/dc-NNN.md`, numbered `001`, `002`, …
+in the order the design takes them. With `none`, significant decisions stay
+inline and no decision file or folder is created.
 
-A decision is **significant** when it meets AT LEAST ONE of: affects a public contract, changes a data model, introduces a new dependency, or establishes a cross-cutting pattern. Everything else stays only in `design.md` — do NOT create a decision file for it.
+A decision is significant when it does at least one of these: it touches a
+public contract, it changes a data model, it adds a new dependency or it sets
+a cross-cutting pattern. Any other decision lives only in `design.md`.
 
-These are development decisions of the change (`kind: dc`), not architecture ADRs: they stay with the change and travel to its archive, and the archive never promotes them. Architecture ADRs live in `docs/architecture/decisions/` and come from the foundation.
+These are the change's development decisions (`kind: dc`), not architecture
+ADRs. They stay with the change and go with it to the archive, which
+never promotes them. Architecture ADRs live in `docs/architecture/decisions/`
+and come from the foundation.
 
-Decision format (short — keep each under ~40 lines):
+A decision file stays under about 40 lines:
 
 ```markdown
-# DC-NNN: {Decision Title}
+# DC-NNN: {title}
 
 - Status: proposed
 - Change: {change-name}
 - Date: {YYYY-MM-DD}
 
 ## Context
-{1-3 sentences: the forces that made this decision necessary.}
+{one to three sentences on what forced the decision}
 
 ## Decision
-{What was chosen, stated as a decision.}
+{what is chosen, said as a decision}
 
 ## Alternatives
-{Each rejected option with the 1-line reason it lost.}
+{each option set aside, with the reason it lost in one line}
 
 ## Consequences
-{What becomes easier, what becomes harder, reversibility.}
+{what gets easier, what gets harder, and whether it can be undone}
 ```
 
-Each decision file mirrors — never replaces — its `### Decision:` entry in `design.md`. If no decision is significant, create no `decisions/` directory and note "No significant decisions" in your summary. List created decision paths in `artifacts`.
+Each file repeats its `### Decision:` entry of `design.md`, which stays the
+source. With no significant decision there is no `decisions/` folder, and the
+summary says "No significant decisions". The paths of the decision files go
+into `artifacts`.
 
-### Step 4: Persist Artifact
+### Step 4: Save the artifact
 
-**This step is MANDATORY — do NOT skip it.**
+This step always runs with `openspec`. Section C of
+`skills/_shared/sdd-phase-common.md` writes the artifact `design` to
+`openspec/changes/{change-name}/design.md`.
 
-Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
-- artifact: `design`
-- path: `openspec/changes/{change-name}/design.md`
-
-### Step 5: Return Summary
-
-Return to the orchestrator:
+### Step 5: Return the summary
 
 ```markdown
 ## Design Created
@@ -188,27 +204,27 @@ Return to the orchestrator:
 **Location**: `openspec/changes/{change-name}/design.md` (openspec) | inline (none)
 
 ### Summary
-- **Approach**: {one-line technical approach}
-- **Key Decisions**: {N decisions documented}
-- **Files Affected**: {N new, M modified, K deleted}
-- **Testing Strategy**: {unit/integration/e2e coverage planned}
+- **Approach**: {one line}
+- **Key Decisions**: {how many are recorded}
+- **Files Affected**: {how many are created, modified and deleted}
+- **Testing Strategy**: {the unit, integration and end-to-end coverage planned}
 
 ### Open Questions
-{List any unresolved questions, or "None"}
+{the questions still open, or "None"}
 
 ### Next Step
-Ready for tasks (sdd-tasks).
+Tasks (sdd-tasks) can start.
 ```
 
 ## Rules
 
-- ALWAYS read the actual codebase before designing — never guess
-- ALWAYS read change-local specs when they exist; `design-after-spec` is mandatory in that case
-- Every decision MUST have a rationale (the "why")
-- Include concrete file paths, not abstract descriptions
-- Ground pattern selection and quality claims in `skills/_shared/engineering-judgment.md`; do not introduce structure merely because a skill or this template illustrates it
-- Keep ASCII diagrams simple — clarity over beauty
-- Apply any `rules.design` from `openspec/config.yaml`
-- If you have open questions that BLOCK the design, say so clearly — don't guess
-- **Size budget**: Design budget is elastic. Target 800 words for changes touching up to 3 modules, and allow up to 1200 words when the change crosses more than 3 modules or needs cross-cutting rollout detail. Architecture decisions as tables (option | tradeoff | decision). Code snippets only for non-obvious patterns.
-- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
+- The design starts from code that was read, never from assumptions about it
+- Existing change-local specs are always read, and they make `design-after-spec` the mode
+- Every decision states why it was taken
+- File changes name concrete paths
+- Patterns and quality claims rest on `skills/_shared/engineering-judgment.md`; a structure is not added only because a skill or this template shows it
+- ASCII sketches stay simple: they explain, they do not decorate
+- The `rules.design` of `openspec/config.yaml` apply
+- An open question that blocks the design is reported as blocking, never guessed
+- A design aims at 800 words when it touches up to three modules and may reach 1200 when it crosses more or needs cross-cutting rollout detail; decisions read best as option, tradeoff and choice, and code appears only for patterns that are not obvious
+- The envelope follows Section D of `skills/_shared/sdd-phase-common.md`

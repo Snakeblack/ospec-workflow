@@ -46,7 +46,7 @@ flowchart TD
 | Answer when the change departs from an ADR or is about to delete data. | Stops and asks you. | Opens the matching gate. |
 | Commit, open a PR and cut a version whenever you want. | Writes the code and the tests and runs the commands. | Derives the obligations, observes the evidence and closes. |
 
-The agent stops only at nine *gates*: abandoning a change, ambiguous intent, a bug that becomes a feature, open facts, an ADR amended or contradicted, an irreversible operation, the trust review limit, changed checks and a moved change base. Only an explicit answer from you resolves them.
+The agent stops only at ten *gates*: abandoning a change, ambiguous intent, a bug that becomes a feature, open facts, an ADR amended or contradicted, an irreversible operation, the trust review limit, changed checks, a refactor that removes documentation lines that read like a contract and a moved change base. Only an explicit answer from you resolves them.
 
 ---
 

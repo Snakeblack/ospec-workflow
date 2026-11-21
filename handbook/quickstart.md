@@ -44,7 +44,7 @@ flowchart TD
 | Respondes cuando el cambio se aparta de un ADR o va a borrar datos. | Para y te pregunta. | Abre el gate correspondiente. |
 | Haces commit, PR y versión cuando quieras. | Escribe el código y los tests y ejecuta los comandos. | Deriva las obligaciones, observa la evidencia y cierra. |
 
-El agente solo se detiene en nueve *gates*: abandonar un cambio, intención ambigua, un bug que pasa a feature, hechos abiertos, ADR enmendado o contradicho, operación irreversible, límite de revisiones de confianza, checks cambiados y base del cambio movida. Solo una respuesta explícita tuya los resuelve.
+El agente solo se detiene en diez *gates*: abandonar un cambio, intención ambigua, un bug que pasa a feature, hechos abiertos, ADR enmendado o contradicho, operación irreversible, límite de revisiones de confianza, checks cambiados, un refactor que borra de la documentación líneas que parecen un contrato y base del cambio movida. Solo una respuesta explícita tuya los resuelve.
 
 ---
 

@@ -160,6 +160,9 @@ questions and wait.
 - `checks-changed`: `ospec check` opens it, running nothing, when the checks
   or the ceremony settings (`strict_tdd`, `impact`, `contracts`) differ from
   the change's base. The user's approval of exactly those values answers it.
+- `contract-removal`: `ospec check` opens it, running nothing, when a
+  refactor removes documentation lines that only read like a contract. The
+  answer keeps the kind for those lines; otherwise raise the kind.
 
 Resolve each one with `ospec record gate --change <id> --gate <id> --resolve --answer "<their words>" --source user`,
 or `user-unverified` for a relayed answer. The CLI cannot verify who answered:
