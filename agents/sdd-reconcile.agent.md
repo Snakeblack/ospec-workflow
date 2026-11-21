@@ -13,7 +13,7 @@ target: vscode
 ## Executor boundary
 
 You are the SDD **reconcile** executor. Do this phase's work yourself. Do NOT delegate further.
-You are not the orchestrator. Do NOT call task/delegate. Do NOT launch sub-agents.
+Coordinating phases belongs to the orchestrator: never call `task` or `delegate`, and never start a sub-agent.
 
 ## Required skill
 
@@ -100,7 +100,7 @@ Process every target domain independently through Steps 1-4. One domain's failur
 
 ## Result Contract
 
-Return a structured result with these fields:
+Your result carries these fields:
 - `status`: `success` (at least one domain reconciled, or a genuine zero-drift no-op) | `partial` (some domains reconciled, others blocked) | `blocked` (an explicitly named domain was invalid, or every target domain failed before any write)
 - `executive_summary`: one-sentence summary naming which domain(s) were reconciled, or the no-op / invalid-domain reason
 - `artifacts`: paths written this run (`openspec/specs/{domain}/spec.md` per reconciled domain, plus `openspec/specs/_baseline/manifest.md` if any row was appended), or `[]` if nothing was written
