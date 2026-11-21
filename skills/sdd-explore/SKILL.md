@@ -1,12 +1,12 @@
 ---
 name: sdd-explore
-description: "Explore SDD ideas before committing to a change. Trigger: orchestrator launches exploration or requirement clarification."
+description: "Investigate an idea or a requirement in the codebase and compare ways to build it, before any change is proposed. Trigger: orchestrator launches exploration or requirement clarification."
 disable-model-invocation: true
 user-invocable: false
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
-  version: "2.0"
+  author: manuel-retamozo-garcia
+  version: "3.0"
   delegate_only: true
 runtime_capabilities:
   execute: false
@@ -14,124 +14,107 @@ runtime_capabilities:
   write: true
 ---
 
-> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
-> the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Delegate to
-> the dedicated `sdd-explore` sub-agent using your platform's delegation primitive
-> (e.g., `task(...)`, sub-agent invocation, etc.). This skill is for EXECUTORS
-> only.
+> **ORCHESTRATOR GATE**: an orchestrator that loaded this skill hands it to the
+> `sdd-explore` executor through its host's sub-agent mechanism and does not run
+> it in its own thread. Only that executor follows the steps below.
 
-## Purpose
+## Role
 
-You are a sub-agent responsible for EXPLORATION. You investigate the codebase, think through problems, compare approaches, and return a structured analysis. By default you only research and report back; only create `exploration.md` when this exploration is tied to a named change.
+The exploration phase. The executor studies one topic in the real code, weighs
+the ways to address it and reports what it found. It researches and reports;
+it writes a file only when the exploration belongs to a named change.
 
-## What You Receive
+## Inputs
 
-The orchestrator will give you:
-- A topic or feature to explore
-- Artifact store mode (`openspec | none`)
+The launch prompt names:
 
-## Execution and Persistence Contract
+- the topic: a feature, a bug, a refactor or a requirement to clarify;
+- the artifact store, `openspec` or `none`;
+- the change name, when the exploration belongs to one.
 
-> Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
+## Artifact store
 
-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`. Save artifact as `openspec/changes/{change-name}/exploration.md` when tied to a named change.
-- In named `openspec` explorations, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as canonical workflow state for continuation and recovery; never rely on conversation history.
-- **none**: Return result only.
+Reading and writing artifacts follow Sections B and C of
+`skills/_shared/sdd-phase-common.md`.
 
-### Retrieving Context
+- `openspec`: paths as `skills/_shared/openspec-convention.md` sets them. The
+  context is `openspec/config.yaml` and the specs under `openspec/specs/`.
+  With a change name, the result is saved as
+  `openspec/changes/{change-name}/exploration.md`, and that change's
+  `state.yaml` and phase artifacts carry the state to resume from; the
+  conversation never does.
+- `none`: the context is what the launch prompt carries, and the result
+  travels inline. No project file is created.
 
-> Follow **Section B** from `skills/_shared/sdd-phase-common.md` for retrieval.
+## Steps
 
-- **openspec**: Read `openspec/config.yaml` and `openspec/specs/`.
-- **none**: Use whatever context the orchestrator passed in the prompt.
+### Step 1: Load the procedure
 
-## What to Do
+Section A of `skills/_shared/sdd-phase-common.md`: this skill, the common
+protocol and the compact project rules of the launch prompt.
 
-### Step 1: Load Skills
-Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
+### Step 2: Frame the question
 
-### Step 2: Understand the Request
+Say what kind of work the topic is (new behavior, a defect, a restructuring)
+and which part of the system it lives in. A topic too vague to investigate
+stops here: the result names the clarification it needs.
 
-Parse what the user wants to explore:
-- Is this a new feature? A bug fix? A refactor?
-- What domain does it touch?
+### Step 3: Read the code
 
-### Step 3: Investigate the Codebase
+Start from the entry points and follow the calls the topic reaches. Find the
+modules that would change, the behavior they have today, the tests that cover
+them, the patterns the code already uses and what couples them to the rest.
+Every claim about the code comes from a file that was read, never from a
+guess.
 
-Read relevant code to understand:
-- Current architecture and patterns
-- Files and modules that would be affected
-- Existing behavior that relates to the request
-- Potential constraints or risks
+### Step 4: Weigh the options
 
-```
-INVESTIGATE:
-├── Read entry points and key files
-├── Search for related functionality
-├── Check existing tests (if any)
-├── Look for patterns already in use
-└── Identify dependencies and coupling
-```
+When there is more than one reasonable way, compare them on what each gains,
+what each costs and how much work it takes. One obvious way needs no
+comparison; say why it is the only one.
 
-### Step 4: Analyze Options
+### Step 5: Save the result
 
-If there are multiple approaches, compare them:
+With a change name and the `openspec` store, this step always runs. Section C
+of `skills/_shared/sdd-phase-common.md` writes the artifact `explore` to
+`openspec/changes/{change-name}/exploration.md`.
 
-| Approach | Pros | Cons | Complexity |
-|----------|------|------|------------|
-| Option A | ... | ... | Low/Med/High |
-| Option B | ... | ... | Low/Med/High |
+### Step 6: Return the analysis
 
-### Step 5: Persist Artifact
-
-**This step is MANDATORY when tied to a named change — do NOT skip it.**
-
-Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
-- artifact: `explore`
-- path: `openspec/changes/{change-name}/exploration.md` when tied to a named change
-
-### Step 6: Return Structured Analysis
-
-Return EXACTLY this format to the orchestrator (and write the same content to `exploration.md` if saving):
+The result, and `exploration.md` when it is saved, use these sections in this
+order:
 
 ```markdown
 ## Exploration: {topic}
 
 ### Current State
-{How the system works today relevant to this topic}
+{what the system does today in the area of the topic}
 
 ### Affected Areas
-- `path/to/file.ext` — {why it's affected}
-- `path/to/other.ext` — {why it's affected}
+- `{path}`: {the reason it would change}
 
 ### Approaches
-1. **{Approach name}** — {brief description}
-   - Pros: {list}
-   - Cons: {list}
-   - Effort: {Low/Medium/High}
-
-2. **{Approach name}** — {brief description}
-   - Pros: {list}
-   - Cons: {list}
-   - Effort: {Low/Medium/High}
+1. **{name}**: {what it does}
+   - Pros: {what it gains}
+   - Cons: {what it costs}
+   - Effort: {Low | Medium | High}
 
 ### Recommendation
-{Your recommended approach and why}
+{the approach to take, and the evidence behind the choice}
 
 ### Risks
-- {Risk 1}
-- {Risk 2}
+- {a risk the next phases must handle}
 
 ### Ready for Proposal
-{Yes/No — and what the orchestrator should tell the user}
+{Yes or No, and what the orchestrator should tell the user}
 ```
 
 ## Rules
 
-- The ONLY file you MAY create is `exploration.md` inside the change folder (if a change name is provided)
-- DO NOT modify any existing code or files
-- ALWAYS read real code, never guess about the codebase
-- Keep your analysis CONCISE - the orchestrator needs a summary, not a novel
-- If you can't find enough information, say so clearly
-- If the request is too vague to explore, say what clarification is needed
-- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
+- `exploration.md` in the folder of a named change is the only file this phase may create
+- Existing code and files stay untouched: exploration reads, it never edits
+- Every statement about the codebase comes from code that was read
+- The orchestrator needs a short analysis it can act on, not a long report
+- When the code does not answer the question, the result says so
+- A topic too vague to explore returns the clarification it needs
+- The envelope follows Section D of `skills/_shared/sdd-phase-common.md`
