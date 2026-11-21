@@ -12,8 +12,7 @@ them, follow.
 1. gentle-ai
    https://github.com/Gentleman-Programming/gentle-ai
    Copyright (c) 2025 Gentleman Programming
-   Skills: _shared, branch-pr, issue-creation, sdd-archive, sdd-clarify,
-   sdd-init, sdd-onboard and skill-registry.
+   Skills: _shared, branch-pr, issue-creation and skill-registry.
    Files: agents/sdd-orchestrator.agent.md.
 
 2. ECC (Everything Claude Code)

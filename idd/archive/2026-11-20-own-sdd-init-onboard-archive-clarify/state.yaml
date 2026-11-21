@@ -1,0 +1,295 @@
+{
+  "schema": "idd-state/v1",
+  "change": "own-sdd-init-onboard-archive-clarify",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua (cambio 4 de E1.105: sdd-init, sdd-onboard, sdd-archive y sdd-clarify)",
+    "requested_at": "2026-11-20T15:59:12.302Z",
+    "kind": "refactor",
+    "summary": "Versiones propias de sdd-init (con init-details.md), sdd-onboard, sdd-archive y sdd-clarify, cuarto cambio de E1.105",
+    "acceptance": "skills/sdd-init, skills/sdd-onboard, skills/sdd-archive y skills/sdd-clarify no conservan líneas de 30 o más caracteres idénticas a ninguna versión del historial git de gentle-ai, salvo literales sin contenido; init-details.md y sdd-onboard se reescriben enteros y sdd-init/SKILL.md, sdd-archive y sdd-clarify solo en los pasajes que coinciden; los tests de contrato de las fases siguen pasando; NOTICE y metadata.author dejan de nombrar a gentle-ai en las cuatro; node scripts/check.js pasa"
+  },
+  "facts": {
+    "open": [
+      "sdd-onboard se contradice sobre quién lo ejecuta: su nota de cabecera dice que el orquestador lo corre en su propio hilo, preguntando al usuario, sin subagente; pero su propósito dice que es un subagente, el orquestador lo lista entre sus agentes y en su tabla de lecturas y escrituras, y agents/sdd-onboard.agent.md lo define como ejecutor que no pregunta al usuario y devuelve question_gate. ¿La versión propia lo escribe como ejecutor que se detiene con question_gate en las dos pausas (elegir la mejora y revisar la propuesta) y vuelve a lanzarse con la respuesta, como ejecución del orquestador en su hilo (y se corrige el agente), o mantiene las dos lecturas como hoy?",
+      "La fase 9 de sdd-onboard ejecuta el archivado por su cuenta y anuncia el cambio archivado, pero sdd-archive solo emite archive-plan.json y el cambio queda archivado solo cuando el orquestador pasa su guarda de archivado y archive-transaction-run.js devuelve el recibo, algo que gate-archive-quality.md solo dispara tras una vuelta de sdd-archive. ¿El onboarding termina en verify y devuelve next_recommended: sdd-archive para que el orquestador archive como en cualquier cambio, emite él el plan como sdd-archive (y el orquestador debe completar el archivado tras sdd-onboard), o se deja como hoy?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "NOTICE",
+      "docs/roadmaps/harness-evolution.md",
+      "skills/sdd-archive/SKILL.md",
+      "skills/sdd-clarify/SKILL.md",
+      "skills/sdd-init/SKILL.md",
+      "skills/sdd-init/references/init-details.md",
+      "skills/sdd-onboard/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "sdd-onboard es un ejecutor del agente sdd-onboard: se detiene con question_gate en las dos pausas (elegir la mejora y revisar la propuesta) y vuelve a lanzarse con la respuesta; nunca pregunta al usuario directamente y su narración va en el resultado para que el orquestador la transmita (respuesta del usuario al gate open-facts)",
+      "El onboarding termina en verify y devuelve next_recommended: sdd-archive, para que el orquestador archive con su guarda y archive-transaction-run.js como en cualquier cambio; el resumen final nombra el archivado como paso siguiente y nunca lo da por hecho (respuesta del usuario al gate open-facts)",
+      "La explicación de verify en el onboarding usa lo que escribe sdd-verify hoy (niveles de evidencia y resultado ✅/❌) en vez de COMPLIANT, FAILING y UNTESTED",
+      "sdd-archive conserva lo que fijan sus tests: Plan-and-Report, archive-plan.json, la prohibición de borrar el origen, el bloque Cost con sus literales, el paso 4 de decisions.md con las guardas B4 y B5, y los encabezados de los pasos 4b y 5; sdd-init conserva los pasos 0a y 0b del puente federado; sdd-clarify conserva el puntero al Recommended Option Description Contract"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 612
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component skills: ADR 0003, 0006 and quality scenario offline-operation",
+      "source": "declaration",
+      "recorded_turn": 612
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 613
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "sdd-archive sigue citando archive-transaction-run.js y su recibo como única autoridad de cierre, y sdd-init la orden ospec team para los valores del perfil, sin reescribir sus reglas en prosa"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "las cuatro skills reanudan desde state.yaml y los artefactos de fase en disco, nunca desde la conversación ni la memoria entre sesiones"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "las skills no usan red; la medida lee un clon local con git"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "sdd-archive sigue citando archive-transaction-run.js y su recibo como autoridad de cierre; sdd-init sigue materializando los defaults de ospec team; sdd-onboard remite el archivado al orquestador en vez de describir el cierre",
+      "recorded_at": "2026-11-20T16:20:53.762Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "el diff de las cuatro skills no añade URL, fetch ni llamadas de red (grep sobre las líneas añadidas sin coincidencias); no toca el CLI ni los hooks",
+      "recorded_at": "2026-11-20T16:20:53.899Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 612,
+      "answer": "todo lo recomendado",
+      "source": "user",
+      "resolved_at": "2026-11-20T16:14:12.387Z",
+      "resolved_turn": 613
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-20T16:15:53.264Z",
+      "detail": {
+        "tree": "sha256:6187bc34e268747cfaab2894df207731ea2f16fbfb08d6c77b79850ac2ac664c",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-20T16:15:53.264Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:6187bc34e268747cfaab2894df207731ea2f16fbfb08d6c77b79850ac2ac664c",
+        "fitness": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-20T16:20:40.250Z",
+      "detail": {
+        "tree": "sha256:d541254eeb89750c9400d12d95179a0a4287aed01e39f0d67ee9a90b75a8d36f",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-20T16:20:40.250Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:d541254eeb89750c9400d12d95179a0a4287aed01e39f0d67ee9a90b75a8d36f",
+        "fitness": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-20T16:22:48.065Z",
+      "detail": {
+        "tree": "sha256:d541254eeb89750c9400d12d95179a0a4287aed01e39f0d67ee9a90b75a8d36f",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-20T16:22:48.065Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:d541254eeb89750c9400d12d95179a0a4287aed01e39f0d67ee9a90b75a8d36f",
+        "fitness": [
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-20T16:22:54.301Z"
+    }
+  ],
+  "base": "d441094e57427494bccc6338036f9e347e20e1ea",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:33c10d199a6fca908e2eb196b11e829326155dc632293f93ef94b40f9b885c6d",
+      "tree": "sha256:6187bc34e268747cfaab2894df207731ea2f16fbfb08d6c77b79850ac2ac664c",
+      "recorded_at": "2026-11-20T16:15:53.264Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:838013fbb6be1b2d052250c75af7c441eaad43f5af0c3859790f65a16d621d32",
+      "tree": "sha256:6187bc34e268747cfaab2894df207731ea2f16fbfb08d6c77b79850ac2ac664c",
+      "recorded_at": "2026-11-20T16:15:53.264Z",
+      "tests": 2
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:71932e1d479efffff101ee0d1c0717ae7c9b1b9546769caac603f6ee651f340a",
+      "tree": "sha256:d541254eeb89750c9400d12d95179a0a4287aed01e39f0d67ee9a90b75a8d36f",
+      "recorded_at": "2026-11-20T16:20:40.250Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:944c7ce7de4d573217ddf535bddc7d46337b25ef15cd5724fbbdfb64e49676b3",
+      "tree": "sha256:d541254eeb89750c9400d12d95179a0a4287aed01e39f0d67ee9a90b75a8d36f",
+      "recorded_at": "2026-11-20T16:20:40.250Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:97b8eceea5f52c17490b6581cf541006ca4852c21d4d9040f4ced70167f66bc9",
+      "tree": "sha256:d541254eeb89750c9400d12d95179a0a4287aed01e39f0d67ee9a90b75a8d36f",
+      "recorded_at": "2026-11-20T16:22:48.065Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f881a78c522d17ce355223233848e78731ddec4162cd82f496dfffad309b5ab1",
+      "tree": "sha256:d541254eeb89750c9400d12d95179a0a4287aed01e39f0d67ee9a90b75a8d36f",
+      "recorded_at": "2026-11-20T16:22:48.065Z",
+      "tests": 2
+    }
+  ],
+  "closed_at": "2026-11-20T16:22:54.301Z"
+}
