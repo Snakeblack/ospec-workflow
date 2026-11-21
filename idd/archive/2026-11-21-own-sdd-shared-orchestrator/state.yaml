@@ -1,0 +1,232 @@
+{
+  "schema": "idd-state/v1",
+  "change": "own-sdd-shared-orchestrator",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "cobtinua (cambio 5 de E1.105: referencias de _shared, agente sdd-orchestrator y frases de sdd-baseline y sdd-reconcile)",
+    "requested_at": "2026-11-21T09:26:37.723Z",
+    "kind": "refactor",
+    "summary": "Versiones propias de las referencias de skills/_shared (SKILL.md, openspec-convention.md, persistence-contract.md, sdd-phase-common.md, skill-resolver.md), de agents/sdd-orchestrator.agent.md y de las frases de agents/sdd-baseline y sdd-reconcile, quinto y último cambio de E1.105",
+    "acceptance": "skills/_shared, agents/sdd-orchestrator.agent.md, agents/sdd-baseline.agent.md y agents/sdd-reconcile.agent.md no conservan líneas de 30 o más caracteres idénticas a ninguna versión del historial git de gentle-ai, salvo literales sin contenido; _shared/SKILL.md se reescribe entero y el resto solo en los pasajes que coinciden; los tests de contrato siguen pasando; NOTICE deja de nombrar _shared y agents/sdd-orchestrator.agent.md y metadata.author de _shared deja de nombrar a gentleman-programming; node scripts/check.js pasa"
+  },
+  "facts": {
+    "open": [
+      "Las referencias compartidas se contradicen sobre quién escribe state.yaml: sdd-phase-common §C dice que una fase nunca escribe state.yaml y que el runtime proyecta phases.*, status, last_updated y blocking_questions desde el sobre (el reductor de phase-completion lo hace, también para blocked), pero persistence-contract (tabla State Persistence y plantillas de lanzamiento «Then update state.yaml with the new phase status and timestamp»), openspec-convention (fila «every phase executor | Updates | state.yaml» y regla de escritura) y la propia sdd-phase-common (apartado de blocked y Runtime continuation) piden a la fase actualizarlo; sdd-verify y sdd-apply sí escriben bloques concretos (verify_lineage, gates.quality-gates, resoluciones de assumptions). ¿La versión propia dice una sola regla en todas (el runtime proyecta phases.*, status, last_updated y blocking_questions; una fase escribe en state.yaml solo los bloques que su skill nombra), o mantiene las dos lecturas y solo cambia la redacción?",
+      "persistence-contract dice que el orquestador pregunta al usuario el modo de artifact store (openspec o none) la primera vez que se invoca /sdd-new, /sdd-ff o /sdd-continue, con openspec por defecto, y que una fase en duda usa none; el orquestador dice que usa siempre openspec y lo pasa a cada fase sin preguntar, mientras sdd-init, sdd-archive y varios agentes siguen describiendo el modo none. ¿La versión propia dice que el orquestador pasa siempre openspec sin preguntar y que none queda para una fase lanzada sin modo o a la que se pide solo salida inline (no escribe nada), o conserva la pregunta del modo en persistence-contract?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "NOTICE",
+      "agents/sdd-baseline.agent.md",
+      "agents/sdd-orchestrator.agent.md",
+      "agents/sdd-reconcile.agent.md",
+      "docs/roadmaps/harness-evolution.md",
+      "skills/_shared/SKILL.md",
+      "skills/_shared/openspec-convention.md",
+      "skills/_shared/persistence-contract.md",
+      "skills/_shared/sdd-phase-common.md",
+      "skills/_shared/skill-resolver.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Una sola regla sobre state.yaml en persistence-contract, openspec-convention y sdd-phase-common: el runtime proyecta phases.*, status, last_updated y blocking_questions desde el sobre de la fase, también en blocked; una fase escribe en state.yaml solo los bloques que su skill nombra, como verify_lineage, gates.quality-gates o las resoluciones de assumptions (respuesta del usuario al gate open-facts)",
+      "El orquestador pasa siempre artifact_store.mode: openspec sin preguntar; none queda para una fase lanzada sin modo o a la que se pide solo salida inline, y entonces no escribe ningún fichero del proyecto (respuesta del usuario al gate open-facts)",
+      "Lo que el código ya resuelve se corrige al reescribir: /sdd-explore guarda exploration.md cuando hay un cambio con nombre, el pronóstico de review lleva sus cuatro líneas literales con Chain strategy, la carga de skills de una fase sigue el orden de skill-resolver.md y el sobre en prosa es la forma que el orquestador lee cuando falta el bloque json:result-envelope"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 614
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component skills: ADR 0003, 0006 and quality scenario offline-operation",
+      "source": "declaration",
+      "recorded_turn": 614
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 615
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "las referencias compartidas y el orquestador siguen nombrando route-dispatch-run.js, validate-phase.js, phase-completion-run.js y el reductor como autoridad, sin reescribir sus reglas en prosa"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "las referencias y el orquestador reanudan desde state.yaml y los artefactos de fase en disco, nunca desde la conversación ni la memoria entre sesiones"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "las referencias no usan red; la medida lee un clon local con git"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 614,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_at": "2026-11-21T09:29:11.313Z",
+      "resolved_turn": 615
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-21T09:31:11.178Z",
+      "detail": {
+        "tree": "sha256:c9cc02c840ef7621048c5c6818c9d37d9bd19071725e068da105e7f3d0cb1025",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-21T09:31:11.178Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:c9cc02c840ef7621048c5c6818c9d37d9bd19071725e068da105e7f3d0cb1025",
+        "fitness": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-21T09:40:50.515Z",
+      "detail": {
+        "tree": "sha256:81165ca4316672e71b9471ef048b05bfab6a7109a7dcba5d48e791edc8886dd6",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-21T09:40:50.515Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:81165ca4316672e71b9471ef048b05bfab6a7109a7dcba5d48e791edc8886dd6",
+        "fitness": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-21T09:41:29.048Z"
+    }
+  ],
+  "base": "8e6a621ee7b48b20f6e21341e9df585814a0a81f",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:31286a5777a4a48b52b8a2f10b33f13b1caa4e7c5eff2c73d4e2372c78aa5770",
+      "tree": "sha256:c9cc02c840ef7621048c5c6818c9d37d9bd19071725e068da105e7f3d0cb1025",
+      "recorded_at": "2026-11-21T09:31:11.178Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:11fe5de8306d795d8db60fa97be92bfe3e88d0c5a9945e8b08077c3b5ebd19d8",
+      "tree": "sha256:c9cc02c840ef7621048c5c6818c9d37d9bd19071725e068da105e7f3d0cb1025",
+      "recorded_at": "2026-11-21T09:31:11.178Z",
+      "tests": 2
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b1997708045d90ca8cc3e75d0c6241a759c36ac531d2fc64e62efffcb8dd35ce",
+      "tree": "sha256:81165ca4316672e71b9471ef048b05bfab6a7109a7dcba5d48e791edc8886dd6",
+      "recorded_at": "2026-11-21T09:40:50.515Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:22cbb20e718758589bdc3bbf7a359ce4174f66d33f091fd2353ff80d3020f859",
+      "tree": "sha256:81165ca4316672e71b9471ef048b05bfab6a7109a7dcba5d48e791edc8886dd6",
+      "recorded_at": "2026-11-21T09:40:50.515Z",
+      "tests": 2
+    }
+  ],
+  "closed_at": "2026-11-21T09:41:29.048Z"
+}

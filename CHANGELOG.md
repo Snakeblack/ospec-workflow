@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Versiones propias de sdd-design y sdd-tasks, segundo cambio de E1.105 (own-sdd-design-tasks)
 - Versiones propias de sdd-verify, strict-tdd-verify.md y report-format.md, tercer cambio de E1.105 (own-sdd-verify)
 - Versiones propias de sdd-init (con init-details.md), sdd-onboard, sdd-archive y sdd-clarify, cuarto cambio de E1.105 (own-sdd-init-onboard-archive-clarify)
+- Versiones propias de las referencias de skills/_shared (SKILL.md, openspec-convention.md, persistence-contract.md, sdd-phase-common.md, skill-resolver.md), de agents/sdd-orchestrator.agent.md y de las frases de agents/sdd-baseline y sdd-reconcile, quinto y último cambio de E1.105 (own-sdd-shared-orchestrator)
 
 ### Fixed
 - Un refactor que quita de la documentación una línea que solo parece un contrato puede conservar su kind con la respuesta del usuario (kind-mismatch-content-answer)
