@@ -65,7 +65,7 @@ Cuenta el turno y deja la traza"]
 
 ### 6. `Stop` (Fin de Turno)
 - Se ejecuta al terminar cada turno del agente.
-- Suma uno a `.ospec/turns` en la raíz del proyecto, el primer directorio hacia arriba que tiene `.git`, aunque la sesión esté en un subdirectorio. Con esa cuenta el CLI comprueba que una respuesta a un gate llegó en un turno posterior a la pregunta ([Los nueve gates](/handbook/idd/flujo-idd.md#quién-responde)).
+- Suma uno a `.ospec/turns` en la raíz del proyecto, el primer directorio hacia arriba que tiene `.git`, aunque la sesión esté en un subdirectorio. Con esa cuenta el CLI comprueba que una respuesta a un gate llegó en un turno posterior a la pregunta ([Los diez gates](/handbook/idd/flujo-idd.md#quién-responde)).
 - Escribe la traza de la sesión en `.ospec/session/latest.md`, con el cambio abierto y el siguiente paso.
 - Pide al agente que siga cuando un cambio IDD abierto tiene un siguiente paso que no necesita tu respuesta (declarar el plan, satisfacer una obligación o cerrarlo), no hay ningún gate abierto y la huella cambió desde el inicio de la sesión. Lo pide una sola vez por huella, nunca en el turno que ya continúa una petición, y su texto le dice que, si paró para esperarte, termine el turno, y que, si el cambio está sustituido o descartado, te pregunte por `ospec abandon`. Las huellas viven en `.ospec/idd-nudge.json`. Cada host lo recibe en su forma: bloqueo en Claude Code, Codex, VS Code y Copilot CLI, `followup_message` en Cursor, `decision: "continue"` en Antigravity y un prompt del plugin en OpenCode.
 - `DISABLE_IDD_NUDGE=true` apaga la petición y los cambios abiertos del inicio de sesión.

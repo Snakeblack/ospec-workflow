@@ -1,17 +1,22 @@
-# Persistence Contract (shared across all SDD skills)
+# Persistence Contract
+
+Where every SDD phase reads and writes its work. All phase skills and the
+orchestrator follow it.
 
 ## Mode Resolution
 
-The orchestrator passes `artifact_store.mode` with one of: `openspec | none`.
+A phase receives `artifact_store.mode` in its launch prompt: `openspec` or
+`none`.
 
-The orchestrator asks the user which mode they want when `/sdd-new`, `/sdd-ff`, or `/sdd-continue` is invoked for the first time in a session. The choice is cached for the session.
-
-Default: use `openspec` for persisted SDD workflows. Use `none` only when the user explicitly wants inline-only output or project files must not be changed.
+The orchestrator always passes `openspec` to the phases of an SDD change and
+does not ask the user for a mode. `none` is for a phase launched without a mode,
+or one asked to return its work inline only: it then writes no project file.
 
 ## Mode Roles
 
-- **`openspec`**: Source of truth. Files in repo, git history, team-shareable, full audit trail.
-- **`none`**: Ephemeral. Lost when the conversation ends.
+- **`openspec`**: the files under `openspec/` are the record. They live in the
+  repository, travel with git and can be reviewed and shared.
+- **`none`**: nothing outlives the conversation.
 
 > **Prompt-layer mode vs. harness backend.** This `artifact_store.mode`
 > (`openspec | none`) is a *prompt-layer* decision: it tells a phase agent
@@ -77,26 +82,42 @@ Atlas load contract (realized in `{{ospec-runtime}}/scripts/lib/artifact-store.j
 
 ## Behavior Per Mode
 
-| Mode | Read from | Write to | Project files |
-|------|-----------|----------|---------------|
-| `openspec` | Filesystem | Filesystem | Yes |
-| `none` | Orchestrator prompt context | Nowhere | Never |
+| Mode | Reads | Writes | Touches project files |
+|---|---|---|---|
+| `openspec` | files on disk | files on disk | yes |
+| `none` | the launch prompt | nothing | no |
 
 ## State Persistence
 
-Each phase executor persists DAG state when it writes its own artifact, and the orchestrator may repair or advance that state when routing the next phase. This keeps recovery anchored in the filesystem even when chat context is compacted.
+`openspec/changes/{change-name}/state.yaml` is where a change resumes from,
+even after the conversation is compacted. Who writes it:
 
-| Mode | Persist State | Recover State |
-|------|--------------|---------------|
-| `openspec` | Read-merge-update `openspec/changes/{change-name}/state.yaml` on every phase transition | Read `openspec/changes/{change-name}/state.yaml` |
-| `none` | Not possible — warn user | Not possible |
+- **The runtime** projects each phase result into it: `phases.*`, the top-level
+  `status`, `last_updated` and `blocking_questions`, a blocked result included.
+  It reads the phase's `json:result-envelope` through `SubagentStop` where the
+  host has that hook, and through the orchestrator's `phase-completion-run.js`
+  on every host.
+- **The orchestrator** writes what it decides or runs: `route` and `owner`,
+  `approvals`, `assumptions`, `baseline_fingerprints`, the audit of the gates
+  it runs and `lifecycle_hooks`, and it sets `status: blocked` when one of its
+  own checks fails closed.
+- **A phase** writes only the blocks its own skill names, such as
+  `verify_lineage`, `gates.quality-gates` or the resolutions of `assumptions`.
+  It never writes `phases.*` or the top-level `status`.
+
+| Mode | Saving state | Recovering state |
+|---|---|---|
+| `openspec` | the writers above, each on its own blocks | read `openspec/changes/{change-name}/state.yaml` |
+| `none` | there is nowhere to save it; tell the user | not available |
 
 ## Common Rules
 
-- `openspec` → write files ONLY to paths defined in `openspec-convention.md`
-- `none` → do NOT create or modify any project files; return results inline only
-- NEVER force `openspec/` creation unless orchestrator explicitly passed `openspec`
-- If unsure which mode to use, default to `none`
+- In `openspec` mode, write only to the paths that `openspec-convention.md`
+  lists.
+- In `none` mode, create and change no project file; the result travels
+  inline.
+- Create `openspec/` only when the launch prompt passed `openspec`.
+- A phase launched without a mode works as `none`.
 
 ## Sub-Agent Context Rules
 
@@ -112,19 +133,21 @@ Why this split:
 - Sub-agents read for SDD: SDD artifacts are large; inlining them in the orchestrator prompt would consume the context window.
 - Sub-agents always write: they have the complete detail on what happened; nuance is lost by the time results flow back to the orchestrator.
 
-## Orchestrator Prompt Instructions for Sub-Agents
+## Launch Prompt Blocks
 
-Non-SDD:
+Blocks the orchestrator adds to a sub-agent's launch prompt.
+
+Any task outside SDD:
 ```text
 CONTEXT REPORTING (MANDATORY):
 If you make important discoveries, decisions, or fix bugs, include them in your final return envelope under `discoveries` or `risks` with affected paths and rationale.
 ```
 
-SDD (with dependencies):
+An SDD phase that depends on earlier artifacts:
 ```text
 Artifact store mode: {openspec|none}
 
-If mode is `openspec`, read the required artifacts from:
+In `openspec` mode, read what your phase needs from:
 - openspec/changes/{change-name}/proposal.md
 - openspec/changes/{change-name}/proposal-lite.md
 - openspec/changes/{change-name}/specs/**/spec.md
@@ -134,28 +157,35 @@ If mode is `openspec`, read the required artifacts from:
 - openspec/config.yaml
 
 PERSISTENCE (MANDATORY when mode is `openspec`):
-After completing your work, write the phase artifact to the expected OpenSpec path.
-Then update openspec/changes/{change-name}/state.yaml with the new phase status and timestamp.
-If you return without writing it, the next phase CANNOT find your artifact and the pipeline BREAKS.
+Save your phase artifact at its OpenSpec path before you return; the next
+phase reads it from there and cannot run without it. Do not write `phases.*`
+or the top-level `status` of state.yaml: the runtime projects them from your
+json:result-envelope.
 ```
 
-SDD (no dependencies):
+An SDD phase with no earlier artifact, such as explore:
 ```text
 Artifact store mode: {openspec|none}
 
 PERSISTENCE (MANDATORY when mode is `openspec`):
-After completing your work, write the phase artifact to the expected OpenSpec path.
-Then update openspec/changes/{change-name}/state.yaml with the new phase status and timestamp.
-If mode is `none`, return the artifact inline only.
+Save your phase artifact at its OpenSpec path before you return. Do not write
+`phases.*` or the top-level `status` of state.yaml: the runtime projects them
+from your json:result-envelope. In `none` mode, return the artifact inline.
 ```
 
 ## Skill Registry
 
-The orchestrator pre-resolves compact rules from the skill registry and injects them as `## Project Standards (auto-resolved)` in your launch prompt. With that block present, sub-agents do NOT read the registry or *other* skills' SKILL.md files — those project standards arrive pre-digested. This does not affect a phase agent's own phase SKILL.md, which is always required (see `sdd-phase-common.md` §A).
+When the orchestrator found compact rules for the task, it pastes them into
+the launch prompt under `## Project Standards (auto-resolved)`. A sub-agent that
+has them reads neither the registry nor the `SKILL.md` of those skills. Its own
+phase `SKILL.md` and `sdd-phase-common.md` are a different matter: it always
+reads them (`sdd-phase-common.md` §A).
 
-To generate/update: run the `skill-registry` skill, or run `sdd-init`.
+The registry is built by the `skill-registry` skill or by `sdd-init`.
 
-Sub-agent skill loading: check for a `## Project Standards (auto-resolved)` block in your prompt — if present, follow those rules. If not present, check for `SKILL: Load` instructions as a fallback. If neither exists, proceed without — this is not an error.
+Without that block, a sub-agent goes down the Resolution Order of
+`skill-resolver.md` and reports in `skill_resolution` the source it used;
+finding none is not an error.
 
 ## Detail Level
 

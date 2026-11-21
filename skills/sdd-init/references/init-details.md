@@ -1,76 +1,86 @@
-# SDD Init Details
+# sdd-init: details
 
-## Brownfield Detection Checklist
+## When a project is brownfield
 
-A project is **brownfield** when BOTH conditions hold; absence of either means the brownfield branch does NOT activate.
+The brownfield branch opens only when the repository has code and no specs.
+Either one missing keeps it closed.
 
-**Condition 1 — Existing application code detected** (at least one of):
-- Source files in recognized language extensions (`.js`, `.ts`, `.py`, `.rb`, `.go`, `.rs`, `.java`, `.cs`, `.php`, `.swift`, `.kt`) exist outside `openspec/`, `docs/`, and dotfiles/dot-directories.
-- A `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `pom.xml`, or `build.gradle` is present at the repo root.
-- A non-empty `src/`, `lib/`, `app/`, or `pkg/` directory exists.
+**It has code** when any of these holds:
 
-**Condition 2 — `openspec/specs/` is empty** (all of):
-- `openspec/specs/` does not contain any `{domain}/spec.md` file.
-- No archive-owned spec has been promoted yet.
+- a file with a source extension (`.js`, `.ts`, `.py`, `.rb`, `.go`, `.rs`,
+  `.java`, `.cs`, `.php`, `.swift`, `.kt`) lives outside `openspec/`, `docs/`
+  and every file or directory whose name starts with a dot;
+- the root holds a manifest: `package.json`, `pyproject.toml`, `go.mod`,
+  `Cargo.toml`, `pom.xml` or `build.gradle`;
+- `src/`, `lib/`, `app/` or `pkg/` exists and is not empty.
 
-**Exclusions — brownfield branch does NOT activate when**:
-- The repo has no detectable code or stack (foundation flow owns that case).
-- `openspec/config.yaml` already contains a `baseline` block (preserve it unchanged).
-- `baseline.status: done` (all domains already specced; skip advisory).
+**It has no specs** when both hold:
 
-## Testing Capability Checklist
+- no `openspec/specs/{domain}/spec.md` exists;
+- no archive has promoted a spec yet.
 
-- Test runner: `package.json` scripts/deps, `pyproject.toml`, `pytest.ini`, `go.mod`, `Cargo.toml`, `Makefile`.
-- Test layers: unit runner; integration libraries (`testing-library`, `httpx`, `httptest`, `WebApplicationFactory`); E2E tools (`playwright`, `cypress`, `selenium`, `chromedp`).
-- Coverage: `vitest --coverage`, `jest --coverage`, `c8`, `pytest-cov`, `go test -cover`, `coverlet`.
-- Quality: linter, type checker, formatter commands.
+**It stays closed** when:
 
-## Skill Registry Scan Rules
+- nothing in the repository reveals code or a stack: that case belongs to
+  `foundation`;
+- `openspec/config.yaml` already has a `baseline` block, which stays as it is;
+- `baseline.status` is `done`: every domain has its spec.
 
-- Scan user skills: `~/.claude/skills/`, `~/.config/opencode/skills/`, `~/.gemini/skills/`, `~/.cursor/skills/`, `~/.copilot/skills/`, and the parent directory of this skill file.
-- Scan project skills: `{project-root}/.claude/skills/`, `{project-root}/.gemini/skills/`, `{project-root}/.agent/skills/`, and `{project-root}/skills/`.
-- Skip `sdd-*`, `_shared`, and `skill-registry`; deduplicate by skill name, preferring project-level skills over user-level skills.
-- Read each selected `SKILL.md`; if it exceeds 200 lines, focus on frontmatter plus Critical Patterns / Rules sections.
-- Extract `name`, trigger text from `description`, full `SKILL.md` path, and compact rules.
-- Generate compact rules as 5-15 actionable lines per skill: constraints, key patterns, breaking changes, and gotchas only. Do not include purpose, motivation, installation steps, full examples, or fluff.
-- Scan project convention files: `agents.md`, `AGENTS.md`, project-level `CLAUDE.md`, `.cursorrules`, `GEMINI.md`, and `copilot-instructions.md`.
-- For index files such as `AGENTS.md`, extract referenced file paths and include both the index and referenced files in the registry.
+## What to detect for testing
 
-## Skill registry responsibility
+| Capability | Where to look |
+|---|---|
+| Test runner | the scripts and dependencies of `package.json`, `pyproject.toml`, `pytest.ini`, `go.mod`, `Cargo.toml`, `Makefile` |
+| Integration layer | libraries such as `testing-library`, `httpx`, `httptest`, `WebApplicationFactory` |
+| End-to-end layer | `playwright`, `cypress`, `selenium`, `chromedp` |
+| Coverage | `vitest --coverage`, `jest --coverage`, `c8`, `pytest-cov`, `go test -cover`, `coverlet` |
+| Quality | the commands of the linter, the type checker and the formatter |
 
-`sdd-init` creates the initial project skill registry when missing.
+## Building the skill registry
 
-Normal registry freshness is handled by the `SessionStart` hook. Do not make every SDD command pay full registry discovery cost unless:
+Directories to scan, in this order of precedence when two skills share a name
+(the project wins over the user):
 
-- registry is missing;
-- fingerprint is stale;
-- user explicitly requests reindex;
-- project stack/config changed.
+- project: `{project-root}/.claude/skills/`, `{project-root}/.gemini/skills/`,
+  `{project-root}/.agent/skills/` and `{project-root}/skills/`;
+- user: `~/.claude/skills/`, `~/.config/opencode/skills/`, `~/.gemini/skills/`,
+  `~/.cursor/skills/`, `~/.copilot/skills/` and the directory that holds this
+  skill.
 
-## LLM-First Skill Criteria
+The registry leaves out `sdd-*`, `_shared` and `skill-registry`. For each
+remaining skill it reads `SKILL.md`; past 200 lines, the frontmatter and the
+sections of rules and patterns are enough. Each entry keeps the `name`, the
+trigger taken from the `description`, the path of `SKILL.md` and between 5 and
+15 lines of compact rules: limits, patterns to follow, breaking changes and
+traps. Purpose, motivation, installation and long examples stay out.
 
-- Treat skills as runtime instruction contracts, not human documentation.
-- Required structure: frontmatter, Activation Contract, Hard Rules, Decision Gates, Execution Steps, Output Contract, References.
-- Keep `description` quoted, one physical line, trigger-first, and no longer than 250 characters.
-- Target 180-450 body tokens; move examples, schemas, edge cases, and background into local `references/` or `assets/`.
-- References must be local files and stable relative to the skill directory when possible.
-- Quality gates: hard rules are observable, decision gates cover real forks, output contract states exactly what to return, and references resolve locally.
+The registry also lists the project's convention files: `agents.md`,
+`AGENTS.md`, the project's `CLAUDE.md`, `.cursorrules`, `GEMINI.md` and
+`copilot-instructions.md`. When one of them is an index, as `AGENTS.md` often
+is, the files it points to enter the registry beside it.
 
-## OpenSpec Saves
+`sdd-init` writes the registry when it does not exist yet. Keeping it fresh is
+the job of the `SessionStart` hook, so an SDD command rebuilds it only when it
+is missing, its fingerprint is stale, the user asks for a reindex or the stack
+or the configuration of the project changed.
 
-```text
-openspec/config.yaml
-  context: detected project context summary
-  testing:
-    tdd_mode: standard|focused|strict
-    runner: detected test runner
-  rules: phase-specific defaults
+## How a skill is read
 
-.ospec/cache/skill-registry.cache.json
-  compact skill registry JSON cache
-```
+The registry treats skills as instructions an agent follows at run time, not
+as documentation for people. What makes one usable:
 
-## OpenSpec Skeleton
+- its parts: frontmatter, Activation Contract, Hard Rules, Decision Gates,
+  Execution Steps, Output Contract and References;
+- a `description` in quotes, on one line, that opens with its trigger and
+  stays within 250 characters;
+- a body of about 180 to 450 tokens, with examples, schemas, edge cases and
+  background moved to the skill's own `references/` or `assets/`;
+- references that are local files, stable relative to the skill directory;
+- rules that can be checked, decision gates for forks that really happen, an
+  output contract that says exactly what to return, and references that
+  resolve locally.
+
+## What init writes
 
 ```text
 openspec/
@@ -78,45 +88,45 @@ openspec/
 ├── specs/
 └── changes/
     └── archive/
+
+.ospec/cache/skill-registry.cache.json   compact registry as JSON
 ```
 
-`config.yaml` should include concise context, `strict_tdd`, testing capabilities, and phase rules for proposal/spec/design/tasks/apply/verify/archive. Keep `context:` under 10 lines.
+`openspec/config.yaml` carries:
 
-Projects may optionally set `rules.verify.strict_tdd_evidence_remediation_max_changed_lines`.
-Values must be positive integers no greater than 40; absent or invalid values
-disable the evidence fast path and preserve ordinary CRITICAL remediation.
+- `context:` a summary of the project in under ten lines;
+- `testing:` `tdd_mode` (`standard`, `focused` or `strict`), the detected
+  runner and the other testing capabilities;
+- `rules:` the defaults of each phase, from proposal to archive.
 
-## Testing Capabilities Format
+A project may also set
+`rules.verify.strict_tdd_evidence_remediation_max_changed_lines` to a positive
+integer no greater than 40. With no value, or a value outside that range, the
+evidence fast path stays off and a CRITICAL is remediated as usual.
+
+## Testing capabilities in the result
 
 ```markdown
 ## Testing Capabilities
 
-**Strict TDD Mode**: {enabled/disabled}
-**Detected**: {date}
+Strict TDD: {on | off}, detected {date}
 
-### Test Runner
-- Command: `{command}`
-- Framework: {name}
-
-### Test Layers
-| Layer | Available | Tool |
-|-------|-----------|------|
-| Unit | ✅ / ❌ | {tool or —} |
-| Integration | ✅ / ❌ | {tool or —} |
-| E2E | ✅ / ❌ | {tool or —} |
-
-### Coverage
-- Available: ✅ / ❌
-- Command: `{command or —}`
-
-### Quality Tools
-| Tool | Available | Command |
-|------|-----------|---------|
-| Linter | ✅ / ❌ | {command or —} |
-| Type checker | ✅ / ❌ | {command or —} |
-| Formatter | ✅ / ❌ | {command or —} |
+| Capability | Found | Tool or command |
+|---|---|---|
+| Test runner | ✅ / ❌ | `{command}` ({framework}) |
+| Unit tests | ✅ / ❌ | {tool, or —} |
+| Integration tests | ✅ / ❌ | {tool, or —} |
+| End-to-end tests | ✅ / ❌ | {tool, or —} |
+| Coverage | ✅ / ❌ | `{command}`, or — |
+| Linter | ✅ / ❌ | `{command}`, or — |
+| Type checker | ✅ / ❌ | `{command}`, or — |
+| Formatter | ✅ / ❌ | `{command}`, or — |
 ```
 
-## Output Templates
+## What the result reports
 
-For each mode, include project, stack, persistence, Strict TDD Mode, Testing Capabilities table, artifacts created/saved, limitations where relevant, and next steps. Empty projects must recommend `foundation`; `none` mode must recommend enabling `openspec` persistence for multi-phase SDD work.
+Whatever the store, the result names the project, its stack, the store, the
+Strict TDD mode, the testing capabilities above, what was written and where,
+any limitation found and the next steps. An empty project points to
+`foundation`; with the `none` store, the result advises switching to
+`openspec` before any SDD work that spans several phases.

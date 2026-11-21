@@ -145,8 +145,8 @@ test("an abandoned state holds when and why, and the answer in its resolved aban
   invalid({ gates: [{ id: "open-facts", status: "open", superseded_by: "new-fix" }] }, "superseded_by names another change, and only in the abandon gate");
 });
 
-test("the spec names exactly the nine gates", () => {
-  assert.deepStrictEqual(contract.GATES, ["abandon", "ambiguous-intent", "kind-change", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed", "base-moved"]);
+test("the spec names exactly the ten gates", () => {
+  assert.deepStrictEqual(contract.GATES, ["abandon", "ambiguous-intent", "kind-change", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit", "checks-changed", "contract-removal", "base-moved"]);
   const section = requirementSection(readSpec(), "REQ-idd-008");
   for (const gate of contract.GATES) {
     assert.ok(section.includes(`\`${gate}\``), `REQ-idd-008 must name ${gate}`);
@@ -678,6 +678,17 @@ test("checks-changed names the checks it approves (E1.44, B7)", () => {
     const result = contract.validateState(validState({ gates: [{ id: "checks-changed", status: "open", checks: bad }] }));
     assert.ok(result.errors.some((error) => error.includes("checks-changed must list the checks")), JSON.stringify(bad));
   }
+});
+
+test("[B9] contract-removal lists the removed lines it asks about", () => {
+  const hits = ["docs/guide.md removes API: Test: `POST /login` returns 401"];
+  assert.ok(contract.validateState(validState({ gates: [{ id: "contract-removal", status: "open", reason: "r", hits }] })).ok);
+  for (const bad of [undefined, [], [""], "docs/guide.md removes API: x", [1]]) {
+    const result = contract.validateState(validState({ gates: [{ id: "contract-removal", status: "open", reason: "r", hits: bad }] }));
+    assert.ok(result.errors.some((error) => error.includes("contract-removal must list the removed lines")), JSON.stringify(bad));
+  }
+  const elsewhere = contract.validateState(validState({ gates: [{ id: "open-facts", status: "open", hits }] }));
+  assert.ok(elsewhere.errors.some((error) => error.includes("only contract-removal lists hits")), JSON.stringify(elsewhere.errors));
 });
 
 test("[E1.53] checks-changed may name the ceremony settings it approves", () => {

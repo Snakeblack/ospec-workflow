@@ -5,7 +5,7 @@ disable-model-invocation: true
 user-invocable: false
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
+  author: manuel-retamozo-garcia
   version: "1.0"
   delegate_only: true
 runtime_capabilities:
@@ -14,11 +14,9 @@ runtime_capabilities:
   write: true
 ---
 
-> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
-> the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Delegate to
-> the dedicated `sdd-clarify` sub-agent using your platform's delegation primitive
-> (e.g., `task(...)`, sub-agent invocation, etc.). This skill is for EXECUTORS
-> only.
+> **ORCHESTRATOR GATE**: an orchestrator that loaded this skill hands it to the
+> `sdd-clarify` executor through its host's sub-agent mechanism and does not run
+> it in its own thread. Only that executor follows the steps below.
 
 ## Purpose
 
@@ -31,19 +29,21 @@ From the orchestrator:
 - Artifact store mode (`openspec | none`)
 - On relaunch: user answers to the questions from the previous `question_gate`
 
-## Execution and Persistence Contract
+## Artifact store
 
-> Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
+Reading and writing artifacts follow Sections B and C of
+`skills/_shared/sdd-phase-common.md`.
 
-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`.
+- **openspec**: paths as `skills/_shared/openspec-convention.md` sets them.
 - In `openspec` mode, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as canonical workflow state; never rely on conversation history.
-- **none**: Return result only. Never create or modify project files.
+- **none**: the answers travel in the result, and no project file is created or changed.
 
 ## What to Do
 
 ### Step A: Load Skills
 
-Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
+Section A of `skills/_shared/sdd-phase-common.md`: this skill, the common
+protocol and the compact project rules of the launch prompt.
 
 ### Step B: Read Inputs
 
@@ -184,5 +184,5 @@ risks: [ any follow-up required or deferred by user items ]
 - ALWAYS dedupe `Q: … → A: …` pairs before writing.
 - ALWAYS detect `stop|done|skip` (case-insensitive whole-word) before encoding answers.
 - ALWAYS include a coverage summary in the return envelope.
-- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
+- The envelope follows Section D of `skills/_shared/sdd-phase-common.md`.
 - Apply any `rules.specs` from `openspec/config.yaml`.

@@ -1,28 +1,30 @@
-# OpenSpec File Convention (shared across all SDD skills)
+# OpenSpec File Convention
+
+The layout every SDD phase reads and writes under `openspec/`.
 
 ## Directory Structure
 
 ```
 openspec/
-├── config.yaml              <- Project-specific SDD config
-├── specs/                   <- Source of truth (main specs)
+├── config.yaml          # project context, rules, routing and gates
+├── specs/               # the behavior the system has today
 │   └── {domain}/
 │       └── spec.md
-└── changes/                 <- Active changes
-    ├── archive/             <- Completed changes (YYYY-MM-DD-{change-name}/)
-    └── {change-name}/       <- Active change folder
-        ├── state.yaml       <- DAG state (survives compaction)
-        ├── exploration.md   <- (optional) from sdd-explore
-        ├── proposal.md      <- from sdd-propose
-        ├── proposal-lite.md <- optional from lite mode
-        ├── specs/           <- from sdd-spec; updated by sdd-clarify (## Clarifications)
+└── changes/             # one folder per change in flight
+    ├── archive/         # closed changes, as YYYY-MM-DD-{change-name}/
+    └── {change-name}/
+        ├── state.yaml          # where the change resumes from
+        ├── exploration.md      # sdd-explore, when it ran
+        ├── proposal.md         # sdd-propose
+        ├── proposal-lite.md    # sdd-propose on the lite route
+        ├── specs/              # sdd-spec; sdd-clarify adds ## Clarifications
         │   └── {domain}/
-        │       └── spec.md  <- Change-local spec (delta for existing domains, full spec for new domains)
-        ├── design.md        <- from sdd-design
-        ├── tasks.md         <- from sdd-tasks (updated by sdd-apply)
-        ├── apply-progress.md <- from sdd-apply
-        ├── archive-report.md <- from sdd-archive (written before archive move)
-        └── verify-report.md <- from sdd-verify
+        │       └── spec.md     # a delta for a known domain, a full spec for a new one
+        ├── design.md           # sdd-design
+        ├── tasks.md            # sdd-tasks; sdd-apply ticks it off
+        ├── apply-progress.md   # sdd-apply
+        ├── verify-report.md    # sdd-verify
+        └── archive-report.md   # sdd-archive, before the folder moves
 ```
 
 Foundation docs for empty projects live beside OpenSpec:
@@ -39,46 +41,47 @@ docs/
 
 ## Artifact File Paths
 
-| Skill | Creates / Reads | Path |
-|-------|----------------|------|
-| orchestrator | Creates/Updates/Repairs | `openspec/changes/{change-name}/state.yaml` |
-| sdd-init | Creates | `openspec/config.yaml`, `openspec/specs/`, `openspec/changes/`, `openspec/changes/archive/` |
-| foundation | Creates/Updates | `docs/product/**`, `docs/architecture/**`, `docs/references/**`, `docs/roadmap.md`, `docs/roadmap-gaps.md`, `openspec/config.yaml`, `idd/config.yaml` (approved) |
-| sdd-explore | Creates (optional) | `openspec/changes/{change-name}/exploration.md` |
-| sdd-propose | Creates | `openspec/changes/{change-name}/proposal.md` |
-| sdd-propose (lite mode) | Creates | `openspec/changes/{change-name}/proposal-lite.md` |
-| sdd-spec | Creates | `openspec/changes/{change-name}/specs/{domain}/spec.md` |
-| sdd-clarify | Updates | `openspec/changes/{change-name}/specs/{domain}/spec.md` (appends `## Clarifications` + normative edits) |
-| sdd-design | Creates | `openspec/changes/{change-name}/design.md` |
-| sdd-tasks | Creates | `openspec/changes/{change-name}/tasks.md` |
-| every phase executor | Updates | `openspec/changes/{change-name}/state.yaml` |
-| sdd-apply | Updates | `openspec/changes/{change-name}/tasks.md` (marks `[~]` or `[x]`) |
-| sdd-apply | Creates/Updates | `openspec/changes/{change-name}/apply-progress.md` |
-| sdd-verify | Creates | `openspec/changes/{change-name}/verify-report.md` |
-| sdd-archive | Creates | `openspec/changes/{change-name}/archive-report.md` |
-| sdd-archive | Moves | `openspec/changes/{change-name}/` → `openspec/changes/archive/YYYY-MM-DD-{change-name}/` |
-| sdd-archive | Updates | `openspec/specs/{domain}/spec.md` (merges deltas into main specs) |
-| sdd-baseline | Creates | `openspec/specs/_baseline/manifest.md` (append-first batch-progress log) |
-| sdd-baseline | Creates | `openspec/specs/_baseline/index.md` (append-first lazy domain index) |
-| sdd-baseline | Creates | `openspec/specs/{domain}/spec.md` for empty domains only (NEVER overwrites existing files) |
+| Writer | What it does | Path |
+|---|---|---|
+| runtime | projects `phases.*`, `status`, `last_updated` and `blocking_questions` from each phase result | `openspec/changes/{change-name}/state.yaml` |
+| orchestrator | writes `route`, `owner`, approvals, assumptions, fingerprints, gate audits and hook audits; repairs the state | `openspec/changes/{change-name}/state.yaml` |
+| a phase | writes only the blocks its skill names, such as `verify_lineage` or `gates.quality-gates` | `openspec/changes/{change-name}/state.yaml` |
+| sdd-init | creates the project's OpenSpec layout | `openspec/config.yaml`, `openspec/specs/`, `openspec/changes/`, `openspec/changes/archive/` |
+| foundation | creates or updates the foundation docs | `docs/product/**`, `docs/architecture/**`, `docs/references/**`, `docs/roadmap.md`, `docs/roadmap-gaps.md`, `openspec/config.yaml`, `idd/config.yaml` (approved) |
+| sdd-explore | writes the exploration when the change has a name | `openspec/changes/{change-name}/exploration.md` |
+| sdd-propose | writes the proposal | `openspec/changes/{change-name}/proposal.md` |
+| sdd-propose (lite) | writes the lite proposal | `openspec/changes/{change-name}/proposal-lite.md` |
+| sdd-spec | writes one spec per domain | `openspec/changes/{change-name}/specs/{domain}/spec.md` |
+| sdd-clarify | appends `## Clarifications` and edits the requirements they settle | `openspec/changes/{change-name}/specs/{domain}/spec.md` |
+| sdd-design | writes the design | `openspec/changes/{change-name}/design.md` |
+| sdd-tasks | writes the task list | `openspec/changes/{change-name}/tasks.md` |
+| sdd-apply | marks tasks `[~]` or `[x]` | `openspec/changes/{change-name}/tasks.md` |
+| sdd-apply | writes and merges its progress | `openspec/changes/{change-name}/apply-progress.md` |
+| sdd-verify | writes the verification report | `openspec/changes/{change-name}/verify-report.md` |
+| sdd-archive | writes the archive report | `openspec/changes/{change-name}/archive-report.md` |
+| archive transaction | moves the change folder, following the plan sdd-archive emitted | `openspec/changes/{change-name}/` → `openspec/changes/archive/YYYY-MM-DD-{change-name}/` |
+| archive transaction | writes the merged specs that sdd-archive prepared inside the change | `openspec/specs/{domain}/spec.md` |
+| sdd-baseline | appends one line per finished batch | `openspec/specs/_baseline/manifest.md` |
+| sdd-baseline | appends one line per indexed domain | `openspec/specs/_baseline/index.md` |
+| sdd-baseline | writes the spec of a domain that has none, never over an existing file | `openspec/specs/{domain}/spec.md` |
 
 **Spec ownership rule**: `sdd-baseline` seeds empty domains — it writes `openspec/specs/{domain}/spec.md` only when that file does not yet exist. `sdd-archive` owns evolving specs — it merges delta specs into `openspec/specs/{domain}/spec.md` for domains that already have baseline or prior specs. `sdd-baseline` MUST NEVER write where `openspec/specs/{domain}/spec.md` already exists, regardless of whether the file was created by baseline or by archive.
 
 ## Reading Artifacts
 
-```
-Proposal:   openspec/changes/{change-name}/proposal.md
-Proposal Lite: openspec/changes/{change-name}/proposal-lite.md
-Specs:      openspec/changes/{change-name}/specs/  (all domain subdirectories)
-Design:     openspec/changes/{change-name}/design.md
-Tasks:      openspec/changes/{change-name}/tasks.md
-Apply:      openspec/changes/{change-name}/apply-progress.md
-Verify:     openspec/changes/{change-name}/verify-report.md
-State:      openspec/changes/{change-name}/state.yaml
-Config:     openspec/config.yaml
-Main specs: openspec/specs/{domain}/spec.md
-Foundation: docs/product/brief.md, docs/architecture/technical-baseline.md, docs/roadmap.md
-```
+| Artifact | Read it from |
+|---|---|
+| Proposal | `openspec/changes/{change-name}/proposal.md` |
+| Lite proposal | `openspec/changes/{change-name}/proposal-lite.md` |
+| Change specs | every domain folder under `openspec/changes/{change-name}/specs/` |
+| Design | `openspec/changes/{change-name}/design.md` |
+| Tasks | `openspec/changes/{change-name}/tasks.md` |
+| Apply progress | `openspec/changes/{change-name}/apply-progress.md` |
+| Verify report | `openspec/changes/{change-name}/verify-report.md` |
+| State | `openspec/changes/{change-name}/state.yaml` |
+| Project config | `openspec/config.yaml` |
+| Main specs | `openspec/specs/{domain}/spec.md` |
+| Foundation | `docs/product/brief.md`, `docs/architecture/technical-baseline.md`, `docs/roadmap.md` |
 
 ## Route Artifact Preconditions
 
@@ -105,12 +108,17 @@ preconditions.
 
 ## Writing Rules
 
-- Always create the change directory before writing artifacts
-- If a file already exists, READ it first and UPDATE it (don't overwrite blindly)
-- If the change directory already exists with artifacts, the change is being CONTINUED
-- Use `openspec/config.yaml` `rules` section for project-specific constraints per phase
+- Create the change folder before the first artifact goes into it.
+- When the file is already there, read it and update it; never write over it
+  unread.
+- A change folder that already holds artifacts means the change continues; pick
+  up from what is on disk.
+- The `rules` of `openspec/config.yaml` add the project's constraints for each
+  phase.
 - New capabilities stay change-local in `openspec/changes/{change-name}/specs/{domain}/spec.md` until `sdd-archive` promotes them into `openspec/specs/{domain}/spec.md`
-- Every phase that writes an artifact must also read-merge-update `state.yaml` with phase status, top-level status, and a fresh UTC timestamp
+- A phase does not write `phases.*`, the top-level `status` or `last_updated`
+  in `state.yaml`: the runtime projects them from the phase's
+  `json:result-envelope`. A phase writes there only the blocks its skill names.
 - `proposal-lite.md` is valid only for lite-mode changes. If the work escalates to standard SDD, preserve `proposal-lite.md` as audit context and create `proposal.md` for the full workflow.
 
 ## Config File Reference
@@ -130,26 +138,26 @@ rules:
     - Ask at most four questions per round, each with a recommended answer
     - Do not generate application code before scaffold/project setup is approved
   proposal:
-    - Include rollback plan for risky changes
+    - Say how to roll back a change that carries risk
   specs:
-    - Use Given/When/Then for scenarios
-    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+    - Write every scenario as Given, When, Then
+    - Mark each obligation with an RFC 2119 keyword
   design:
-    - Include sequence diagrams for complex flows
-    - Document architecture decisions with rationale
+    - Draw a sequence diagram for a flow across several components
+    - Give the reason behind each architecture decision
   tasks:
-    - Group by phase, use hierarchical numbering
-    - Keep tasks completable in one session
+    - Number tasks by phase (1.1, 1.2, 2.1)
+    - Size each task to fit in one session
   apply:
-    - Follow existing code patterns
-    tdd: false           # Set to true to enable RED-GREEN-REFACTOR
+    - Match the patterns the code already uses
+    tdd: false           # true turns on red, green, refactor
     test_command: ""
   verify:
     test_command: ""
     build_command: ""
     coverage_threshold: 0
   archive:
-    - Warn before merging destructive deltas
+    - Ask before merging a delta that removes requirements
 ```
 
 ### `capabilities:` Block
@@ -201,12 +209,10 @@ The session-start hook (`runSessionStart`) surfaces configuration parameters to 
 
 ## Archive Structure
 
-When archiving, the change folder moves to:
-```
-openspec/changes/archive/YYYY-MM-DD-{change-name}/
-```
-
-Use today's date in ISO format. The archive is an AUDIT TRAIL — never delete or modify archived changes.
+An archived change lives at
+`openspec/changes/archive/YYYY-MM-DD-{change-name}/`, dated with the day it
+was archived in ISO format. The archive is the change's audit trail: nothing in
+it is ever edited or deleted.
 
 ## Route and Gate Audit Fields in `state.yaml`
 

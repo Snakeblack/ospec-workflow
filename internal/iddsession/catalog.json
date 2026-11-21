@@ -105,6 +105,7 @@
     "irreversible-operation",
     "review-limit",
     "checks-changed",
+    "contract-removal",
     "base-moved"
   ],
   "checks_required": [

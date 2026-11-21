@@ -1,0 +1,180 @@
+{
+  "schema": "idd-state/v1",
+  "change": "own-sdd-phase-skills",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua (siguiente del roadmap: E1.105 own-sdd-phase-skills)",
+    "requested_at": "2026-11-20T00:13:26.838Z",
+    "kind": "refactor",
+    "summary": "Versiones propias de las skills de fase de SDD que conservan texto de gentle-ai (E1.105), primer cambio del reparto",
+    "acceptance": "Los ficheros de este cambio no conservan líneas de 30 o más caracteres idénticas a ninguna versión del historial git de gentle-ai, salvo literales sin contenido o de interfaz que el usuario acepte; los tests de contrato de cada fase siguen pasando; NOTICE y metadata.author dejan de nombrar a gentle-ai en esas skills; el roadmap coloca E1.105 y E1.106 por delante de E1.79; node scripts/check.js pasa"
+  },
+  "facts": {
+    "open": [
+      "Orden: ¿E1.105 va antes que E1.106?",
+      "Reparto de E1.105 en cambios (una PR y una release por cambio): cinco cambios del tamaño de E1.101, tres cambios más grandes, o uno por skill",
+      "En los ficheros con menos del 50 % de texto de gentle-ai (sdd-verify/SKILL.md, sdd-archive, sdd-clarify, sdd-init/SKILL.md, report-format.md, las referencias de _shared y el agente orquestador), ¿reescritura entera o solo los pasajes que coinciden?",
+      "Los nombres de los campos del pronóstico de review de sdd-tasks (Decision needed before apply, Chained PRs recommended, Chain strategy, 400-line budget risk) vienen de gentle-ai y los leen otras fases, docs y fixtures: ¿se conservan como literales de interfaz o se renombran?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "NOTICE",
+      "docs/roadmaps/harness-evolution.md",
+      "skills/sdd-explore/SKILL.md",
+      "skills/sdd-propose/SKILL.md",
+      "skills/sdd-spec/SKILL.md"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "E1.105 se reparte en cinco cambios (explore, propose y spec; design y tasks; verify con sus módulos; init, onboard, archive y clarify; _shared, el orquestador y las frases de sdd-baseline y sdd-reconcile), entregados como una cadena feature-branch-chain de cinco PR sobre una rama de seguimiento; las fusiones y una sola release van al final, por decisión del usuario",
+      "Un fichero con el 50 % o más de líneas largas de gentle-ai se reescribe entero; por debajo, solo los pasajes que coinciden y lo que haga falta alrededor para que se lean bien",
+      "Los nombres de los campos del pronóstico de review de sdd-tasks (Decision needed before apply, Chained PRs recommended, Chain strategy, 400-line budget risk) se conservan como literales de interfaz: los leen sdd-apply, el orquestador, la documentación y estados ya escritos",
+      "Las plantillas de artefacto (exploration.md, proposal.md, proposal-lite.md y las specs delta y completas) conservan los encabezados que leen las demás fases y el archivado (Capabilities, AC-N, ADDED, MODIFIED y REMOVED Requirements, Requirement y Scenario, Previously); cambian sus marcadores y la prosa que las rodea",
+      "La plantilla delta de sdd-spec muestra el id en el encabezado de una requirement modificada, como ya pedía la regla de copiar el bloque entero con su id; la de una requirement eliminada y la spec completa de un dominio nuevo siguen sin id, como antes, para no cambiar lo que producen"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 600
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration",
+      "recorded_turn": 601
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component skills: ADR 0003, 0006 and quality scenario offline-operation",
+      "source": "declaration",
+      "recorded_turn": 601
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "sdd-spec cita validateEnvelope de result-envelope.js como la función que rechaza un éxito sin las cuatro señales de ambigüedad, y las tres skills dejan las decisiones al runtime y al orquestador (huellas de baseline, archivado) sin reescribir sus reglas en prosa"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "las tres skills reanudan desde state.yaml y los artefactos de fase en disco, nunca desde la conversación ni la memoria entre sesiones"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "las skills no usan red; la medida lee un clon local con git"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 600,
+      "answer": "todas las recomendadas, pero quiero que este punto del roadmap tenga prs encadenadas las recomendadas, pero los merges de las pr encadenadas y release se haga cuando termine todo (recomendadas: (1) E1.105 va antes que E1.106; (2) cinco cambios: explore+propose+spec, design+tasks, verify con strict-tdd-verify y report-format, init+onboard+archive+clarify, _shared+orquestador+frases de sdd-baseline y sdd-reconcile; (3) por debajo del 50 % solo los pasajes que coinciden, por encima reescritura entera; (4) los campos del pronóstico de review de sdd-tasks se conservan como literales de interfaz)",
+      "source": "user",
+      "resolved_at": "2026-11-20T00:18:34.607Z",
+      "resolved_turn": 601
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-20T00:27:20.964Z",
+      "detail": {
+        "tree": "sha256:f83fa9151872bcf49bb0be90ab0ddab42204df396ac4947f6c8eb222974b2d2c",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-20T00:27:20.964Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:f83fa9151872bcf49bb0be90ab0ddab42204df396ac4947f6c8eb222974b2d2c",
+        "fitness": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-20T00:27:46.415Z"
+    }
+  ],
+  "base": "ec88516e7a7899e4e009873f9f22a35b4dd01bd7",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b92a4c84da0000f7a59c558a35d0597007f8b19d2b9d805f8c558e7b70f16241",
+      "tree": "sha256:f83fa9151872bcf49bb0be90ab0ddab42204df396ac4947f6c8eb222974b2d2c",
+      "recorded_at": "2026-11-20T00:27:20.964Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:45792ab8825ee737112e85077bb62d65b997c617aaf3785941d709da07382353",
+      "tree": "sha256:f83fa9151872bcf49bb0be90ab0ddab42204df396ac4947f6c8eb222974b2d2c",
+      "recorded_at": "2026-11-20T00:27:20.964Z",
+      "tests": 2
+    }
+  ],
+  "closed_at": "2026-11-20T00:27:46.415Z"
+}

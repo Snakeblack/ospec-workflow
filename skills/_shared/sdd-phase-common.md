@@ -1,8 +1,12 @@
 # SDD Phase — Common Protocol
 
-Boilerplate identical across all SDD phase skills. Sub-agents MUST load this alongside their phase-specific SKILL.md.
+The rules every SDD phase shares. A phase agent reads this file together with
+its own phase `SKILL.md`.
 
-Executor boundary: every SDD phase agent is an EXECUTOR, not an orchestrator. Do the phase work yourself. Do NOT launch sub-agents, do NOT call `delegate`/`task`, and do NOT bounce work back unless the phase skill explicitly says to stop and report a blocker.
+Executor boundary: a phase agent does its phase's work itself. It never starts
+sub-agents or calls `delegate` or `task`, and it hands work back only where its
+phase skill says to stop and report a blocker; coordinating phases is the
+orchestrator's job.
 
 ## A. Skill Loading
 
@@ -45,7 +49,7 @@ Phases not listed (`sdd-propose`, `sdd-init`, `sdd-baseline`, `sdd-explore`) MAY
 ### Operative Memory Ownership Boundary
 
 | Store | Path | Owner | Contains |
-|-------|------|-------|----------|
+|---|---|---|---|
 | Behavior specs | `openspec/specs/{domain}/spec.md` | SDD workflow | Normative requirements and scenarios |
 | Foundation docs | `docs/architecture/`, `docs/product/` | Human / foundation phase | Product and architecture baseline |
 | Operative memory | `openspec/memory/*.md` | SDD phases (prepend) | Rationale, conventions, known issues |
@@ -82,7 +86,7 @@ Every phase that produces an artifact MUST persist it when mode is `openspec`. S
 
 Write the phase artifact to the path defined by the phase skill and `openspec-convention.md`. If the file already exists, read it first and update it instead of blindly overwriting.
 
-Do not write `phases.*` in `openspec/changes/{change-name}/state.yaml`: the runtime projects your phase into it from your result envelope, through `SubagentStop` where the host has it and through the orchestrator's `{{ospec-runtime}}/scripts/phase-completion-run.js` on every host, so recovery can resume from the filesystem without relying on chat history.
+Do not write `phases.*`, the top-level `status`, `last_updated` or `blocking_questions` in `openspec/changes/{change-name}/state.yaml`: the runtime projects your phase into it from your result envelope, through `SubagentStop` where the host has it and through the orchestrator's `{{ospec-runtime}}/scripts/phase-completion-run.js` on every host, so recovery can resume from the filesystem without relying on chat history.
 
 State shape the runtime keeps (verify also records `verdict` from `verify_outcome`):
 
@@ -119,7 +123,7 @@ phases:
 
 ### Phase Summary Block and State Projection Authority
 
-Phase skills MUST NOT directly mutate or write to `state.yaml`. Direct ad-hoc edits by agents corrupt YAML formatting, risk losing uncommitted approvals, and fabricate invalid gate passes. Instead, all change state progression is runtime-owned: the lifecycle kernel (`PhaseCompletionReducer`) mechanically projects state updates from the validated `result-envelope/v1` payload under advisory locking (`withFileLock`) and atomic writes (`writeFileAtomic`).
+Phase skills MUST NOT write the progression of the change in `state.yaml`; a phase writes there only the blocks its own skill names, such as `verify_lineage`, `gates.quality-gates` or the resolutions of `assumptions`. Ad-hoc edits by agents corrupt YAML formatting, risk losing uncommitted approvals, and fabricate invalid gate passes. Instead, change state progression is runtime-owned: the lifecycle kernel (`PhaseCompletionReducer`) mechanically projects state updates from the validated `result-envelope/v1` payload under advisory locking (`withFileLock`) and atomic writes (`writeFileAtomic`).
 
 On phase completion (`done` or `partial`), every phase skill MUST include compact summary metadata in its return envelope:
 - `executive_summary`: ≤ 160 characters, factual, stating WHAT the phase produced or decided (no process narration)
@@ -181,12 +185,12 @@ The canonical schema for validating this fence is `schemas/kernel/result-envelop
 
 Fields:
 - `schema_version`: MUST be integer `1`
-- `status`: `success`, `partial`, or `blocked`
+- `status`: one of `success`, `partial` or `blocked`
 - `executive_summary`: 1-3 sentence summary of what was done (≤ 160 chars for state cache)
-- `detailed_report`: (optional) full phase output, or omit if already inline
+- `detailed_report`: optional; the whole phase output when it is not already inline
 - `artifacts`: list of artifact paths written, or `inline` for `none`
-- `next_recommended`: the next SDD phase to run, or "none"
-- `risks`: risks discovered, or "None"
+- `next_recommended`: the SDD phase that should run next, or `"none"`
+- `risks`: what could go wrong that the phase found, or `"None"`
 - `skill_resolution`: how skills were loaded — `injected`, `fallback-registry`, `fallback-path`, or `none`
 - `key_decisions`: OPTIONAL. Array of up to 3 non-empty strings.
 - `assumptions`: OPTIONAL. A list of entries conforming to the Assumption Entry Schema below. Omit when none.
@@ -221,16 +225,19 @@ assumptions:
     basis: "Matches existing cache-key convention in scripts/lib/cache.js."
 ```
 
-Example envelope:
+Prose form. When the `json:result-envelope` block is missing or does not parse,
+the orchestrator falls back to these bold-labelled lines; `adaptLegacyEnvelope`
+turns them into a v1 envelope. A phase emits the JSON block; this form is what
+the fallback reads:
 
 ```markdown
 **Status**: success
-**Summary**: Proposal created for `{change-name}`. Defined scope, approach, and rollback plan.
-**Artifacts**: `openspec/changes/{change-name}/proposal.md` | inline (none)
-**Next**: sdd-spec or sdd-design
+**Summary**: Design written for `{change-name}`: token rotation and its rollback.
+**Artifacts**: `openspec/changes/{change-name}/design.md` | inline (none)
+**Next**: sdd-tasks
 **Risks**: None
-**Skill Resolution**: injected — 3 skills (react-19, typescript, tailwind-4)
-(other values: `fallback-registry`, `fallback-path`, or `none — no source found`)
+**Skill Resolution**: injected (2 skills: typescript, testing)
+(or `fallback-registry`, `fallback-path`, or `none` when no source was found)
 ```
 
 ### Blocking Question Envelope
@@ -276,7 +283,7 @@ Use this shape when the question benefits from options, multi-select, or recomme
 
 If the phase skill has a legacy `next_question` field, it may return `next_question` as plain text. Prefer `question_gate` when structured options are useful.
 
-On `blocked`, update `openspec/changes/{change-name}/state.yaml` with `status: blocked` and record the question or blocker in `blocking_questions`.
+On `blocked`, the runtime sets `status: blocked` in `openspec/changes/{change-name}/state.yaml` and records in `blocking_questions` the questions of `question_gate` (without them, its `reason` or the `executive_summary`); the phase writes neither.
 
 #### Recommended Option Description Contract
 
@@ -305,19 +312,32 @@ Do NOT record an incomplete entry: if any Assumption Entry Schema field cannot b
 
 ## E. Review Workload Guard
 
-SDD must protect reviewer cognitive load, not only generate tasks.
+A change is only done when someone can review it, so planning also sizes the
+pull requests.
 
-- The default PR review budget is **400 changed lines** (`additions + deletions`).
-- The orchestrator MUST cache a delivery strategy at session start: `ask-on-risk` (default), `auto-chain`, `single-pr`, or `exception-ok`.
-- The orchestrator MUST pass `delivery_strategy` to `sdd-tasks` and the resolved decision to `sdd-apply`.
-- `sdd-tasks` MUST forecast whether the planned work may exceed that budget.
-- The forecast MUST include exact plain-text guard lines: `Decision needed before apply: Yes|No`, `Chained PRs recommended: Yes|No`, and `400-line budget risk: Low|Medium|High`.
-- If the forecast is high, `sdd-tasks` MUST recommend chained or stacked PRs using deliverable work units.
-- `sdd-apply` MUST NOT start oversized work unless the delivery strategy resolves to chained/stacked PR slices or explicitly accepted `size:exception`.
-- Each chained PR slice must have a clear start, clear finish, autonomous scope, verification, and reasonable rollback.
-- In a Feature Branch Chain, PR #1 targets the feature/tracker branch and later child PRs target the immediate previous PR branch; if GitHub shows previous slices in a child diff, retarget/rebase until the diff is clean.
+- A pull request should stay within **400 changed lines**, counting additions
+  plus deletions.
+- The orchestrator settles one delivery strategy per session (`ask-on-risk`, the
+  default, `auto-chain`, `single-pr` or `exception-ok`), hands it to `sdd-tasks`
+  and passes what it resolved to `sdd-apply`.
+- `sdd-tasks` forecasts whether the planned work fits that budget and writes
+  these four lines exactly, since the orchestrator and `sdd-apply` read them:
+  `Decision needed before apply: Yes|No`, `Chained PRs recommended: Yes|No`,
+  `Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending`
+  and `400-line budget risk: Low|Medium|High`.
+- A high risk makes `sdd-tasks` propose chained or stacked pull requests, cut
+  into units that can each be delivered.
+- `sdd-apply` starts work over the budget only when the strategy resolved to a
+  chain of slices or to an accepted `size:exception`.
+- Every slice starts and ends clearly, stands on its own, is verified and can be
+  rolled back.
+- In a feature-branch chain the first pull request targets the feature (tracker)
+  branch and each later one targets the branch of the one before; when a child's
+  diff still shows earlier slices, retarget or rebase it until only its own work
+  is left.
 
-This guard exists to reduce reviewer burnout and keep implementation delivery safe. Do not treat it as optional process noise.
+The guard keeps every review within what one person can check carefully. It is
+part of delivery, not optional ceremony.
 
 ## F. Communication Language
 
@@ -341,7 +361,7 @@ Boundary (same as Reply Language): mentorship prose lives ONLY in `executive_sum
 
 Every phase that writes artifacts must preserve resumability:
 
-- update `openspec/changes/{change-name}/state.yaml`;
+- return the `json:result-envelope` the runtime projects into `openspec/changes/{change-name}/state.yaml`, and write there only the blocks the phase skill names;
 - append, do not overwrite, historical progress where applicable;
 - include `skill_resolution`;
 - include any `approval_updates`;
