@@ -1,11 +1,11 @@
 ---
 name: sdd-verify
-description: "Trigger: SDD verification phase, verify change. Execute tests and prove implementation matches specs, design, and tasks."
+description: "Verify an SDD change: run its tests and prove the implementation meets its specs, design and tasks. Trigger: orchestrator launches verification for a change."
 disable-model-invocation: true
 user-invocable: false
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
+  author: manuel-retamozo-garcia
   version: "3.0"
   delegate_only: true
 runtime_capabilities:
@@ -14,15 +14,13 @@ runtime_capabilities:
   write: true
 ---
 
-> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
-> the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Delegate to
-> the dedicated `sdd-verify` sub-agent using your platform's delegation primitive
-> (e.g., `task(...)`, sub-agent invocation, etc.). This skill is for EXECUTORS
-> only.
+> **ORCHESTRATOR GATE**: an orchestrator that loaded this skill hands it to the
+> `sdd-verify` executor through its host's sub-agent mechanism and does not run
+> it in its own thread. Only that executor follows the steps below.
 
 ## Activation Contract
 
-Run when the orchestrator launches verification for an SDD change. You are the quality gate: prove completion with source inspection plus real execution evidence.
+The orchestrator launches this phase to verify an SDD change. It is the quality gate: it proves the change complete by reading the source and by real runs.
 
 ## Hard Rules
 
@@ -30,11 +28,11 @@ Run when the orchestrator launches verification for an SDD change. You are the q
 - In `openspec` mode, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as canonical workflow state for continuation and recovery; never rely on conversation history.
 - Execute relevant tests when they exist; when runtime testing is immature, record the highest credible evidence level instead of collapsing everything into `UNTESTED`.
 - A spec scenario is compliant only when its evidence level meets the requirement strength defined in the spec.
-- Compare specs first, design second, task completion third.
+- Check the change against the specs first, then the design, then task completion.
 - In lite mode, compare every stable `AC-N` in `proposal-lite.md` directly to its task, implementation, and executed or inspection evidence.
-- Do not fix issues; report them for the orchestrator/user.
+- Report problems and never fix them: the orchestrator and the user decide.
 - Persist `verify-report` according to mode: openspec file or inline-only for `none`.
-- If Strict TDD is active, load `strict-tdd-verify.md` from this skill directory; if inactive, never load it.
+- Load `strict-tdd-verify.md`, in this skill's directory, only when Strict TDD is active.
 - Return the Section D envelope from `../_shared/sdd-phase-common.md` with the mandatory canonical `verify_outcome` field set to `"PASS"`, `"PASS WITH WARNINGS"`, or `"FAIL"` matching the final verification outcome [REQ-skills-018].
 
 ## Evidence Levels
@@ -56,22 +54,24 @@ Compliance rule matrix:
 
 ## Decision Gates
 
+| Situation | Action |
+|---|---|
 | Config `testing.tdd_mode: strict` (resolved via `resolveTddMode`) | Strict TDD verify; load module. Runner/tool availability limits evidence, not the selected policy. |
 | Config `testing.tdd_mode: focused` or `standard` | Standard/focused verify; skip strict TDD evidence audits. |
-| Task incomplete | CRITICAL for core task, WARNING for cleanup task. |
-| Test command exits non-zero | CRITICAL. |
+| A task is not done | CRITICAL for a core task, WARNING for a cleanup task. |
+| The test command fails (non-zero exit) | CRITICAL. |
 | MUST scenario lacks `runtime-test` or accepted `static-proof` | CRITICAL. |
 | SHOULD scenario proved only by `inspection-proof` or `manual-proof` | WARNING. |
 | MAY scenario proved only by `inspection-proof` or `manual-proof` | WARNING unless team accepted the limitation. |
-| Design deviation exists | WARNING unless it breaks a spec. |
+| The code departs from the design | WARNING, unless the departure breaks a spec. |
 | Unresolved `reversibility: low` assumption entry after the Step 2a checklist | WARNING finding referencing that assumption's `id`. |
 | Unresolved `reversibility: high` assumption entry after the Step 2a checklist | No escalation — MUST NOT raise a finding. |
 | `verify_lineage.status: recheck-pending` during re-verification | Targeted recheck pipeline; evaluate ONLY frozen finding IDs + causal regressions. Late observations are non-blocking. |
 
 ## Execution Steps
 
-1. Load relevant skills via shared SDD Section A.
-2. Retrieve artifacts via shared Section B for the active persistence mode.
+1. Load the skills that apply, as Section A of `../_shared/sdd-phase-common.md` says.
+2. Read the artifacts of the active persistence mode, as its Section B says.
 
 ### Step 2a: Bounded Verify Lineage Router
 
@@ -129,8 +129,8 @@ d. Any entry with `reversibility: low` that remains `unresolved` after this pass
 2. If `BLOCKER` or `CRITICAL` findings are produced, call `startVerifyLineageFromWorkspace({ changeRoot, rootDir, mode, repository_id, findings }, meta)` (`{{ospec-runtime}}/scripts/lib/verify-lineage.js`). It captures the live workspace through an isolated Git index, persists and rereads a byte/mode/diff-bound Candidate snapshot, then validates the live execution workspace before any lineage is returned. Only then may the caller write the returned `verify_lineage` to `state.yaml`. The state includes `status: remediation-pending`, `remediation_attempts: 0`, `max_remediation_attempts: 2`, `genesis_candidate_id: sha256:...`, `contract_digest: sha256:...`, the Candidate recovery reference, and `candidate_snapshot`. A persistence failure blocks verification before any mutable lineage state becomes observable.
 3. `WARNING` and `SUGGESTION` findings remain advisory and MUST NOT open an active remediation lineage.
 
-3. Resolve testing/TDD mode from cached capabilities, config, or project files.
-4. Count completed and incomplete tasks.
+3. Take the testing and TDD mode from the cached capabilities, the config or the project files.
+4. Count the tasks that are done and those that are not.
 5. In standard mode, map each spec requirement/scenario to implementation evidence and tests. In lite mode, map every `proposal-lite.md` `AC-N` acceptance check to its task, implementation, and evidence.
 6. Check design decisions against changed code, including the accepted boundary/invariant constraints and quality scenarios. Trace each applicable scenario to its stated verification method; distinguish measurements from estimates and untested claims. Reuse evidence already gathered. Do not invent quality targets, prescribe a new architecture, or broaden a targeted recheck into discovery.
 7. Run test, build/type-check, coverage, and manual verification steps when available.
@@ -224,9 +224,10 @@ Return `## Verification Report` with change, mode, completeness table, build/tes
 
 ## References
 
-- [references/report-format.md](references/report-format.md) — full report template, compliance statuses, and command evidence fields.
+- [references/report-format.md](references/report-format.md) — the report template, the compliance results and the evidence each command leaves.
 - [references/ai-blind-spots.md](references/ai-blind-spots.md) — defect categories that self-review misses and the evidence each one requires.
-- [strict-tdd-verify.md](strict-tdd-verify.md) — load only when Strict TDD is active.
+- [strict-tdd-verify.md](strict-tdd-verify.md) — the extra steps and report sections of Strict TDD, read only in that mode.
+- `../_shared/sdd-phase-common.md` — how skills are loaded, artifacts read and persisted, and the result returned.
 
 ### Focal evidence recheck
 
@@ -260,4 +261,3 @@ Use `persistRecheckResultState(statePath, activeLineage, result.lineage)` from
 the directed reducer returns. It atomically compares the active identity and
 persists only the bound result, so a process restart reads the closed (or
 unresolved) state rather than replaying a completed journal.
-- `../_shared/sdd-phase-common.md` — skill loading, retrieval, persistence, and return envelope.
