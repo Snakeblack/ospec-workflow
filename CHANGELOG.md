@@ -7,15 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.185.4] - 2026-11-22
+
 ### Changed
-- Versiones propias de las skills de fase de SDD que conservan texto de gentle-ai (E1.105), primer cambio del reparto (own-sdd-phase-skills)
-- Versiones propias de sdd-design y sdd-tasks, segundo cambio de E1.105 (own-sdd-design-tasks)
-- Versiones propias de sdd-verify, strict-tdd-verify.md y report-format.md, tercer cambio de E1.105 (own-sdd-verify)
-- Versiones propias de sdd-init (con init-details.md), sdd-onboard, sdd-archive y sdd-clarify, cuarto cambio de E1.105 (own-sdd-init-onboard-archive-clarify)
-- Versiones propias de las referencias de skills/_shared (SKILL.md, openspec-convention.md, persistence-contract.md, sdd-phase-common.md, skill-resolver.md), de agents/sdd-orchestrator.agent.md y de las frases de agents/sdd-baseline y sdd-reconcile, quinto y último cambio de E1.105 (own-sdd-shared-orchestrator)
+- **Las skills de fase de SDD, las referencias de `_shared` y el agente orquestador tienen texto propio** (E1.105, en cinco cambios: own-sdd-phase-skills, own-sdd-design-tasks, own-sdd-verify, own-sdd-init-onboard-archive-clarify y own-sdd-shared-orchestrator).
+  - **Qué cambia**: sdd-explore, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-verify con `strict-tdd-verify.md` y `report-format.md`, sdd-init con `init-details.md`, sdd-onboard, sdd-archive, sdd-clarify, las referencias de `_shared`, `agents/sdd-orchestrator.agent.md` y dos frases de `sdd-baseline` y `sdd-reconcile` conservaban líneas largas idénticas a alguna versión del historial de gentle-ai. Los ficheros con el 50 % o más de esas líneas se reescriben enteros; el resto, solo en los pasajes que coincidían. Medido con `scripts/third-party-overlap.js`, solo quedan literales de interfaz: `disable-model-invocation: true`, las rutas de OpenSpec, las cuatro líneas del pronóstico de review de sdd-tasks, el encabezado `## Project Standards (auto-resolved)` y los títulos `SDD Init Guard (MANDATORY)` y `Review Workload Guard (MANDATORY)`.
+  - **Contrato de las fases**: se conservan los encabezados, formatos y pasos que leen otras fases, el archivado, el runtime y los tests: las plantillas de artefacto, el formato de línea de tarea, el paso 3b de decisiones de sdd-design, los niveles de evidencia, `verify_outcome` y el vocabulario de Strict TDD de sdd-verify, Plan-and-Report y el bloque Cost de sdd-archive, y el puente federado de sdd-init.
+  - **sdd-onboard**: deja de contradecirse sobre quién lo ejecuta. Es el ejecutor del agente `sdd-onboard`, se para con `question_gate` para elegir la mejora y para aprobar la propuesta, y termina en verify con `next_recommended: sdd-archive`, de modo que el orquestador archiva con su guarda y el runtime como en cualquier cambio.
+  - **`state.yaml` y modo del artifact store**: las referencias compartidas dan una sola regla. El runtime proyecta `phases.*`, `status`, `last_updated` y `blocking_questions` desde el sobre de la fase, también en `blocked`, y una fase escribe solo los bloques que su skill nombra. El orquestador pasa siempre `openspec` sin preguntar; `none` queda para una fase lanzada sin modo o con salida solo inline.
+  - **`NOTICE` y `metadata.author`**: las skills reescritas, `_shared` y el agente orquestador dejan de nombrar a gentle-ai. Su sección de `NOTICE` queda con branch-pr, issue-creation y skill-registry (E1.106).
+  - **Compatibilidad**: ningún programa cambia. SDD sigue el mismo flujo, salvo sdd-onboard, que pregunta a través del orquestador y le deja el archivado.
 
 ### Fixed
-- Un refactor que quita de la documentación una línea que solo parece un contrato puede conservar su kind con la respuesta del usuario (kind-mismatch-content-answer)
+- **Un refactor que quita de la documentación una línea que solo parece un contrato puede seguir siendo refactor con la respuesta del usuario** (kind-mismatch-content-answer).
+  - **Qué pasaba**: B9 rechazaba con `kind-mismatch` un `refactor` que quitaba de cualquier `.md` una línea con forma de contrato, como un ejemplo `POST /login`, y la única salida era subir el kind.
+  - **Ahora**: `ospec check` abre el gate `contract-removal` con cada línea quitada que casa con un patrón de contrato fuera de los documentos de contrato. La respuesta del usuario mantiene el kind solo para esas líneas; una línea nueva vuelve a preguntar. Una línea quitada de un documento de contrato declarado sigue rechazando el refactor sin gate.
+  - **Compatibilidad**: REQ-idd-008 pasa de nueve a diez gates, y los README, el quickstart y el handbook lo dicen.
+
+**Verificación directa**: `node scripts/check.js` (5089 tests, 5084 pasando, 0 fallos y 5 omitidos), 459 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados, en la punta de la cadena. El CI de las cinco PR pasó en Linux, macOS y Windows, con los tests de Go del arreglo de B9.
 
 ## [2.185.3] - 2026-11-20
 

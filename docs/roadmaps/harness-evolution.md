@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.185.3, 2026-11-20.
+> **Versión de referencia:** v2.185.4, 2026-11-22.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -225,7 +225,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.99** | `own-stack-skills` (lo mismo para las skills que conservan texto de ECC y de Caveman: las `stack-*`, accessibility, api-design, design-system, hexagonal-architecture y caveman-compress; con E1.105 y E1.106 hechos, `NOTICE` desaparece; fuera del orden ▶) | skills |
 | `pending` | **E1.103** | `product-ext-mts-cts` (`PRODUCT_EXT` de `scripts/lib/idd-signals.js` no reconoce `.mts` ni `.cts`, así que un módulo TypeScript con esas extensiones no cuenta como código de producto para ninguna señal; fuera del orden ▶) | bugfix |
 | `pending` | **E1.104** | `ui-file-server-templates` (`UI_FILE` de `scripts/lib/idd-facts.js` no reconoce las plantillas de servidor, así que un proyecto cuya interfaz solo vive en `.cshtml`, `.erb` o `.jinja` deja fuera de los hechos abiertos las categorías de estado en la URL y de accesibilidad; fuera del orden ▶) | bugfix |
-| `done` | **E1.105** | `own-sdd-phase-skills` (versiones propias de las skills de fase de SDD que conservaban texto de gentle-ai medido contra su historial: sdd-explore, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-verify con sus módulos, sdd-archive, sdd-clarify, sdd-init, sdd-onboard, las referencias de `_shared` y `agents/sdd-orchestrator.agent.md`, en cinco cambios encadenados que se fusionan, con una sola release, al terminar el último; la sección de gentle-ai de `NOTICE` queda con branch-pr, issue-creation y skill-registry) | skills |
+| `done` | **E1.105** | `own-sdd-phase-skills` (versiones propias de las skills de fase de SDD que conservaban texto de gentle-ai medido contra su historial: sdd-explore, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-verify con sus módulos, sdd-archive, sdd-clarify, sdd-init, sdd-onboard, las referencias de `_shared` y `agents/sdd-orchestrator.agent.md`, en cinco cambios encadenados que se fusionan, con una sola release, al terminar el último; la sección de gentle-ai de `NOTICE` queda con branch-pr, issue-creation y skill-registry; en v2.185.4) | skills |
 | `pending` | **E1.106** | `own-utility-skills` (lo mismo para issue-creation, branch-pr y skill-registry; con E1.105 hecho, la sección de gentle-ai sale de `NOTICE`; detrás de E1.105) | skills |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
@@ -2399,6 +2399,12 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-21: `own-sdd-shared-orchestrator` (IDD), publicado en v2.185.4. Quinto cambio de E1.105: `_shared`, el agente orquestador y dos frases de `sdd-baseline` y `sdd-reconcile` con texto propio, con una sola regla sobre quién escribe `state.yaml`. E1.105 hecho.
+- 2026-11-20: `own-sdd-init-onboard-archive-clarify` (IDD), publicado en v2.185.4. Cuarto cambio de E1.105: sdd-init, sdd-onboard, sdd-archive y sdd-clarify con texto propio; sdd-onboard pasa a ejecutor que termina en verify.
+- 2026-11-20: `own-sdd-verify` (IDD), publicado en v2.185.4. Tercer cambio de E1.105: sdd-verify, `strict-tdd-verify.md` y `report-format.md` con texto propio.
+- 2026-11-20: `own-sdd-design-tasks` (IDD), publicado en v2.185.4. Segundo cambio de E1.105: sdd-design y sdd-tasks con texto propio.
+- 2026-11-20: `kind-mismatch-content-answer` (IDD), publicado en v2.185.4. Arreglo de B9 que salió del segundo cambio de E1.105: el gate `contract-removal` deja seguir como refactor, con la respuesta del usuario, al que quita de la documentación una línea que solo parece un contrato.
+- 2026-11-20: `own-sdd-phase-skills` (IDD), publicado en v2.185.4. Primer cambio de E1.105: sdd-explore, sdd-propose y sdd-spec con texto propio.
 - 2026-11-20: `own-sdd-apply` (IDD), publicado en v2.185.3. E1.101 hecho: `sdd-apply` con texto propio, y `NOTICE` medido contra todo el historial de gentle-ai, con E1.105 y E1.106 para el resto. Con el seguimiento `overlap-windows-eof`: en Windows, la tubería rota llega como `EOF`.
 - 2026-11-19: `stop-count-before-trace` (IDD), publicado en v2.185.1. Seguimiento de `retract-answer-offer`. El Stop vuelve a contar el fin de turno antes de cargar la traza, como desde v2.168.9, para que el plazo del lanzador no lo deje sin contar, y lo descuenta cuando pide al agente que siga.
 - 2026-11-19: `retract-answer-offer` (IDD), publicado en v2.185.1. Arreglo pedido por delante de E1.101.
