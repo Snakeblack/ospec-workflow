@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Ahora**: `ospec check` abre el gate `contract-removal` con cada línea quitada que casa con un patrón de contrato fuera de los documentos de contrato. La respuesta del usuario mantiene el kind solo para esas líneas; una línea nueva vuelve a preguntar. Una línea quitada de un documento de contrato declarado sigue rechazando el refactor sin gate.
   - **Compatibilidad**: REQ-idd-008 pasa de nueve a diez gates, y los README, el quickstart y el handbook lo dicen.
 
-**Verificación directa**: `node scripts/check.js` (5089 tests, 5084 pasando, 0 fallos y 5 omitidos), 459 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados, en la punta de la cadena. El CI de las cinco PR pasó en Linux, macOS y Windows, con los tests de Go del arreglo de B9.
+**Verificación directa**: `node scripts/check.js` (5084 tests pasando, 0 fallos y 5 omitidos), 457 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados, en la punta de la cadena. El CI de las cinco PR pasó en Linux, macOS y Windows, con los tests de Go del arreglo de B9.
 
 ## [2.185.3] - 2026-11-20
 
