@@ -1,6 +1,8 @@
-# Skill Resolver — Universal Protocol
+# Skill Resolver
 
-Any agent that **delegates work to sub-agents** MUST follow this protocol to resolve and inject relevant skills. This applies to any orchestrator, phase controller, or future workflow that launches sub-agents.
+How an agent that **hands work to sub-agents** picks the project's skills and
+passes them on. The orchestrator follows it, and so does any other workflow
+that launches sub-agents.
 
 ## Why This Exists
 
@@ -70,21 +72,21 @@ Common examples — always defer to registry `triggers` as the source of truth:
 - `app/**`, `pages/**` → framework skills
 - `.py` → Python skills
 - `.go` → Go skills
-- `*.test.*`, `*.spec.*` → testing skills
+- test files such as `*.test.*` or `*.spec.*` → the testing skills
 - Style files → CSS/design-system skills
 
 ### Task Context
 
 What action will the sub-agent perform?
 
-| Sub-agent action | Match skills with triggers mentioning... |
+| The sub-agent will | Pick skills whose triggers name |
 | --- | --- |
-| Create a PR | "PR", "pull request" |
-| Write/review code | The specific framework/language |
-| Create tickets | "issue", "Jira", "epic", "task" |
-| Write docs | "docs", "RFC", "README" |
-| Write comments | "comment" |
-| Run tests | "test", "vitest", "pytest", "playwright" |
+| open a pull request | "PR" or "pull request" |
+| write or review code | its framework or language |
+| create tickets | "issue", "Jira", "epic", "task" |
+| write docs | "docs", "RFC", "README" |
+| write code comments | "comment" |
+| run the tests | "test" or the runner, such as "vitest", "pytest" or "playwright" |
 
 If more than five skill blocks match, keep only the five most relevant to the actual decision or risk. Match task context as well as file extensions: architectural design and boundary reviews must not lose relevant architecture guidance merely because several language skills match. Do not fill unused slots or select a framework/architecture solely because its skill exists.
 
@@ -109,7 +111,7 @@ Copy matching compact rule blocks into the sub-agent prompt before task-specific
 ```markdown
 ## Project Standards (auto-resolved)
 
-{paste compact rules blocks for each matching skill}
+{the compact rules of each skill that matched, one block per skill}
 ```
 
 Key rule: inject compact rules text when available. The sub-agent should read exact `SKILL.md` files only when the orchestrator explicitly chose fallback step 4.
@@ -120,7 +122,7 @@ If Project Standards or the registry cache includes project conventions, and the
 
 ```markdown
 ## Project Conventions
-Read these files for project-specific patterns:
+The project's own patterns are in:
 - {path1} — {notes}
 - {path2} — {notes}
 ```
@@ -129,7 +131,7 @@ Keep conventions compact: at most five blocks per delegation, 50–150 tokens ea
 
 ## Compaction Safety
 
-This protocol is compaction-safe because:
+Compacting the conversation loses nothing here:
 
 - The durable registry lives in `.ospec/cache/skill-registry.cache.json`, not only in orchestrator memory.
 - Each delegation can rehydrate the session cache from the registry cache if needed.
@@ -137,7 +139,8 @@ This protocol is compaction-safe because:
 
 ## Feedback Loop
 
-Sub-agents MUST report their skill resolution status in their return envelope:
+Every sub-agent says in the `skill_resolution` field of its envelope where its
+project standards came from:
 
 - `injected` — received `## Project Standards (auto-resolved)` from the orchestrator.
 - `fallback-registry` — no standards received, self-loaded from `.ospec/cache/skill-registry.cache.json`.

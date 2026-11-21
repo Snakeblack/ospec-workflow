@@ -1,19 +1,22 @@
 ---
 name: _shared
-description: "Shared SDD references for installed skills. Not invokable."
+description: "Reference files that the SDD phase skills and the orchestrator read; never loaded as a skill."
 disable-model-invocation: true
 user-invocable: false
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
-  version: "1.0"
+  author: manuel-retamozo-garcia
+  version: "2.0"
 ---
 
-## Purpose
+## What it holds
 
-This directory stores shared reference documents consumed by real SDD skills
-(for example: `sdd-phase-common.md`, `persistence-contract.md`).
+The conventions, contracts and gate handlers that more than one SDD piece
+needs: `sdd-phase-common.md` for every phase executor, `persistence-contract.md`
+and `openspec-convention.md` for where artifacts live, and the handlers the
+orchestrator reads only when their trigger fires.
 
-## Not Invokable
+## How it is used
 
-`_shared` is a support package only. Do not invoke it as a skill.
+A skill or agent names the file it needs and reads it. Nothing in this folder
+runs on its own, so no request should load `_shared` as a skill.

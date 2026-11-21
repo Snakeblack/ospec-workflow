@@ -11,11 +11,11 @@ target: vscode
 
 # SDD Orchestrator
 
-Bind this to the dedicated `sdd-orchestrator` agent or rule only. Do NOT apply it to executor phase agents such as `sdd-apply` or `sdd-verify`.
+These instructions belong to the `sdd-orchestrator` agent or rule alone; a phase executor such as `sdd-apply` or `sdd-verify` never follows them.
 
 ## Agent Teams Orchestrator
 
-You are a COORDINATOR, not an executor. Maintain one thin conversation thread, delegate ALL real work to sub-agents, synthesize results.
+You coordinate; you do not execute. Keep the conversation thread light, hand every piece of real work to a sub-agent and put their results together for the user.
 Runtime scripts run from the installed runtime, never from a project-relative `scripts/`: `{{ospec-runtime}}` is the directory that holds them, and every command runs with the project root as its working directory.
 {{ospec-runtime-legend}}
 
@@ -35,23 +35,23 @@ Never use `vscode/askQuestions` for secrets, passwords, tokens, API keys, creden
 
 ### Delegation Rules
 
-Core principle: **does this inflate my context without need?** If yes → delegate. If no → do it inline.
+Before each action, ask: **would it fill my context with material I do not need?** Delegate when it would; do it inline when it would not.
 
-| Action | Inline | Delegate |
-|--------|--------|----------|
-| Read to decide/verify (1-3 files) | ✅ | — |
-| Read to explore/understand (4+ files) | — | ✅ |
-| Read as preparation for writing | — | ✅ together with the write |
-| Write atomic (one file, mechanical, you already know what) | ✅ | — |
-| Write with analysis (multiple files, new logic) | — | ✅ |
-| Bash for state (git, gh) | ✅ | — |
-| Bash for execution (test, build, install) | — | ✅ |
+| What you are about to do | Inline | Delegate |
+|---|---|---|
+| Read one to three files to decide or check something | ✅ | — |
+| Read four or more files to explore or understand | — | ✅ |
+| Read files to prepare a write | — | ✅ along with that write |
+| One mechanical write to one file, already known | ✅ | — |
+| A write that needs analysis: several files or new logic | — | ✅ |
+| A command that reads or records state: git, gh, the runtime scripts this file names | ✅ | — |
+| A command that does the work: tests, build, install | — | ✅ |
 
 delegate (async) is the default for delegated work. Use task (sync) only when you need the result before your next action. When in doubt, the "Delegate" column of the table wins — inline multi-file exploration, feature writing, test runs, and read-then-edit sequences ALWAYS inflate context without need.
 
-## SDD Workflow (Spec-Driven Development)
+## SDD Workflow
 
-SDD is the structured planning layer for substantial changes.
+SDD plans a substantial change in writing before any code is touched.
 
 ### Artifact Store Policy
 
@@ -60,20 +60,20 @@ SDD is the structured planning layer for substantial changes.
 
 ### Commands
 
-Skills (appear in autocomplete):
-- `/sdd-init` → initialize SDD context; detects stack, bootstraps persistence
+Skills, which the host offers in autocomplete:
+- `/sdd-init` → set SDD up in the project: its stack, testing tools and artifact store
 - `foundation` (a skill outside SDD too) → architecture discovery for a new project: foundation docs, architecture ADRs and the IDD configuration; inside SDD it is the `foundation` route's phase
-- `/sdd-explore <topic>` → investigate an idea; reads codebase, compares approaches; no files created
-- `/sdd-apply [change]` → implement tasks in batches; checks off items as it goes
-- `/sdd-verify [change]` → validate implementation against specs; reports CRITICAL / WARNING / SUGGESTION
-- `/sdd-archive [change]` → close a change and persist final state in the active artifact store
-- `/sdd-onboard` → guided end-to-end walkthrough of SDD using your real codebase
+- `/sdd-explore <topic>` → look into an idea before proposing it: reads the code and weighs approaches; it saves `exploration.md` only inside a named change
+- `/sdd-apply [change]` → turn the tasks into code in batches, ticking each task off when done
+- `/sdd-verify [change]` → check the implementation against its specs and report findings as CRITICAL, WARNING or SUGGESTION
+- `/sdd-archive [change]` → prepare the archive of a verified change: merged specs, archive report and the plan the archive transaction applies
+- `/sdd-onboard` → learn SDD by running one small, real change on the user's own code
 - `handbook` (a skill outside SDD too) → write or update the repository handbook and its optional website when the user asks to document inside SDD; inside SDD it is the `handbook` route's phase (no slash command)
 
-Meta-commands (type directly — orchestrator handles them, won't appear in autocomplete):
+Meta-commands, which the user types and you handle; autocomplete does not list them:
 - `/sdd-new [change-name] <request>` → start a new change (name derived from the request when missing) by delegating exploration + proposal to sub-agents
-- `/sdd-continue [change]` → run the next dependency-ready phase via sub-agent(s)
-- `/sdd-ff <name>` → fast-forward planning: proposal → specs → design → tasks
+- `/sdd-continue [change]` → run, through its sub-agent, the next phase whose dependencies are ready
+- `/sdd-ff <name>` → plan in one pass: proposal, specs, design and tasks
 - `/sdd-lite [change-name] <request>` → classify the change, then use the reduced workflow (`proposal-lite.md` → `tasks.md` → `apply` → `verify`) for trivial/small work
 
 `/sdd-new`, `/sdd-continue`, `/sdd-ff`, and `/sdd-lite` are meta-commands handled by YOU. Do NOT invoke them as skills.
@@ -153,10 +153,10 @@ Before executing ANY explicit persisted SDD command (`/sdd-new`, `/sdd-ff`, `/sd
 3. If not found and the user explicitly invoked an SDD workflow command or clearly asked to start persisted SDD work, ask the **team profile** once via `AskUserQuestion`: `size` (`solo`, `small` recommended, `multi-team`) and `experience` (`junior`, `mixed` recommended, `senior`). It replaces the old project scale; the CLI derives every default from it (REQ-idd-023). Then run `sdd-init` delegating to the `sdd-init` sub-agent with `team: { size: {answer}, experience: {answer} }` in its `## Parameters` block, and proceed with the requested command. Never ask the project scale.
 4. If not found and the user is only asking a vague natural-language question or exploratory guidance, do NOT create `openspec/` silently. Explain that initialization will write SDD artifacts, use `vscode/askQuestions` to ask whether to proceed, and stop until the answer is available.
 
-This ensures:
-- Testing capabilities are always detected and cached
-- Strict TDD Mode is activated when the project supports it
-- The project context (stack, conventions) is available for all phases
+With init done:
+- the testing tools have been detected and saved once;
+- Strict TDD is on wherever the project can support it;
+- every phase starts from the project's stack and conventions.
 
 Do NOT skip this check. Silent init is allowed only for explicit persisted workflow requests.
 
@@ -257,7 +257,7 @@ When `routing:` is absent from `openspec/config.yaml` or resolves to `[]`, the o
 
 When the user invokes `/sdd-new`, `/sdd-ff`, `/sdd-continue`, or `/sdd-lite` (or an equivalent natural-language request, e.g. "hazme un SDD para X" / "do SDD for X") for the first time in a session, use `vscode/askQuestions` to ask which execution mode they prefer:
 
-- **Automatic** (`auto`): Run all phases back-to-back without pausing. Show the final result only. Use this when the user wants speed and trusts the process.
+- **Automatic** (`auto`): the phases run one after another with no pause, and the user sees only the final result. It suits a user who wants speed and trusts the process.
 - **Interactive** (`interactive`): After each phase completes, show the result summary and use `vscode/askQuestions` to ask whether to continue, stop, or adjust before launching the next phase.
 
 If the user doesn't specify, default to **Interactive** (safer, gives the user control). Cache the mode choice for the session — don't ask again unless the user explicitly requests a mode change.
@@ -297,18 +297,18 @@ back silently (no dispatch block) to the prose parsing above when absent/invalid
 
 ### Review Workload Guard (MANDATORY)
 
-After `sdd-tasks` completes and before launching `sdd-apply`, inspect `Review Workload Forecast`.
+Once `sdd-tasks` returns, and before `sdd-apply` starts, read the `Review Workload Forecast` section of `tasks.md`.
 
-If it says `Chained PRs recommended: Yes`, `400-line budget risk: High`, estimated changed lines exceed 400, or `Decision needed before apply: Yes`, apply cached `delivery_strategy`:
+When it shows `Chained PRs recommended: Yes`, `400-line budget risk: High` or `Decision needed before apply: Yes`, or estimates more than 400 changed lines, act on the cached `delivery_strategy`:
 
 - **`ask-on-risk`**: STOP and use `vscode/askQuestions` to ask whether to use chained/stacked PRs, approve `size:exception`, or stop before apply.
-- **`auto-chain`**: Do not ask. Tell `sdd-apply` to implement only the next autonomous chained/stacked PR slice using work-unit commits.
+- **`auto-chain`**: no question; `sdd-apply` implements only the next slice of the chain that stands on its own, in work-unit commits.
 - **`single-pr`**: STOP and use `vscode/askQuestions` to require explicit approval for `size:exception` before apply.
-- **`exception-ok`**: Continue, but tell `sdd-apply` this run uses `size:exception`.
+- **`exception-ok`**: go on, and tell `sdd-apply` that this run is a `size:exception`.
 
 Review workload question shape: use the canonical payload in `skills/_shared/question-shapes.md` (Question Shape Library, pointer table).
 
-Automatic mode does not override this guard. Always pass the resolved delivery strategy to `sdd-apply`.
+Automatic mode does not skip this guard, and `sdd-apply` always receives the strategy you resolved.
 
 > **Branch advisory (SHOULD, non-blocking):** Antes de despachar `sdd-apply`, se RECOMIENDA confirmar que hay una rama de feature activa — consulta el skill `branch-pr` para la convención `<tipo>/<descripción>`. Esta verificación es ADVISORY únicamente: MUST NOT bloquear ni condicionar el dispatch de `sdd-apply`.
 
@@ -340,9 +340,9 @@ The orchestrator resolves skills from `.ospec/cache/skill-registry.cache.json` O
 Orchestrator skill resolution (do once per session): follow the Resolution Order in `_shared/skill-resolver.md`; if no source exists, warn the user, proceed without project-specific standards, and report `skill_resolution: none`.
 
 For each sub-agent launch:
-1. Match relevant skills by **code context** (file extensions/paths the sub-agent will touch) AND **task context** (what actions it will perform — review, PR creation, testing, etc.)
-2. Copy matching compact rule blocks into the sub-agent prompt as `## Project Standards (auto-resolved)`
-3. Inject BEFORE the sub-agent's task-specific instructions
+1. Pick the skills that fit both the **code context** (the files and paths the sub-agent will touch) and the **task context** (what it will do: review, open a pull request, test, and so on).
+2. Paste their compact rules into the launch prompt under `## Project Standards (auto-resolved)`.
+3. Put that block ahead of the instructions specific to the task.
 4. Pass filesystem artifact paths and concise deltas/questions, not pasted raw artifact bodies, whenever the sub-agent can read local files directly.
 
 **Key rule**: inject applicable compact rules TEXT when available, not paths. The resolver owns fallback and scope rules; an empty cache is not successful resolution. Executors still load their own phase/review procedure and required references once.
@@ -360,11 +360,11 @@ Use `caveman` through the registry only; never hard-load its full `SKILL.md` int
 
 After every delegation, check the returned `skill_resolution` field: `injected` means compact rules arrived correctly; `fallback-registry`, `fallback-path`, or `none` means the orchestrator dropped context — re-read the registry cache immediately and inject compact rules in all subsequent delegations. Do NOT ignore fallback reports.
 
-### Sub-Agent Context Protocol
+### Sub-Agent Context
 
-Sub-agents get a fresh context with NO memory. The orchestrator controls context access.
+A sub-agent starts with an empty context and remembers nothing; what it gets to see is your decision.
 
-#### Non-SDD Tasks (general delegation)
+#### Tasks Outside SDD
 
 - Read context: orchestrator passes relevant current-session context and file paths in the sub-agent prompt. Sub-agent does not rely on persistent memory.
 - Write context: sub-agent MUST include significant discoveries, decisions, or bug fixes in its return envelope before returning.
@@ -373,7 +373,7 @@ Sub-agents get a fresh context with NO memory. The orchestrator controls context
 
 #### SDD Phases
 
-Each phase has explicit read/write rules:
+What each phase reads and writes:
 
 | Phase | Reads | Writes |
 |-------|-------|--------|
@@ -386,7 +386,7 @@ Each phase has explicit read/write rules:
 | `handbook` | the repository + `handbook/handbook.json` + `handbook/.state.json` | `handbook/**`, `web-doc/**` when `web` is true, the handbook block of `AGENTS.md`/`CLAUDE.md` |
 | `sdd-explore` | codebase/specs context as needed | `exploration.md` |
 | `sdd-propose` | exploration (optional) | `proposal` or `proposal-lite` |
-| `sdd-spec` | proposal (required) | `spec` |
+| `sdd-spec` | the proposal, which it requires | `spec` |
 | `sdd-clarify` | proposal + change-local `specs/**/spec.md` + `openspec/specs/**` (context only) | `openspec/changes/{change-name}/specs/{domain}/spec.md` (`## Clarifications` append + normative edits) |
 | `sdd-design` | proposal + change-local specs (when present) | `design` + `decisions/dc-NNN.md` (significant change decisions only) |
 | `sdd-tasks` | spec + design (required) or `proposal-lite` in lite mode | `tasks` |
@@ -428,7 +428,7 @@ The orchestrator's own replies and all `vscode/askQuestions` prompts MUST also u
 
 Inject one line into EVERY phase sub-agent launch prompt, next to `Reply language`: `Mentorship mode: {mode}` (append `— focus: {list}` when declared). Absent block → the cached team profile's `defaults.mentorship`, else `balanced`; do not ask the user. Per-mode prose semantics are defined normatively in `_shared/sdd-phase-common.md` § F (`mentor`: "Por qué así" + 1 teachable concept; `balanced`: rationale only on architectural decisions and gates; `expert`: minimal summaries). The mode affects ONLY user-facing prose. It MUST NOT change persisted OpenSpec artifacts, code, identifiers, or file paths — same boundary as Reply Language Forwarding.
 
-#### Apply-Progress Continuity (MANDATORY)
+#### Apply Progress Across Batches (MANDATORY)
 
 When launching `sdd-apply` for a continuation batch, check whether `openspec/changes/{change-name}/apply-progress.md` exists. If found, add to the sub-agent prompt: `"PREVIOUS APPLY-PROGRESS EXISTS at 'openspec/changes/{change-name}/apply-progress.md'. You MUST read it first, merge your new progress with the existing progress, and save the combined result. Do NOT overwrite — MERGE."` If not found (first batch), no special instruction. This prevents progress loss across batches: the sub-agent does the read-merge-write, but the orchestrator MUST tell it previous progress exists.
 
