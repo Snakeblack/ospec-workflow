@@ -144,6 +144,9 @@ function handleFile(file, profile, models, rulesContent, sources, withSdd) {
   // Passthrough (skills, shared docs). Tool names are still substituted so no
   // foreign namespace survives anywhere in the generated tree.
   if (path.endsWith(".md")) {
+    if (profile.skillFrontmatter && isSkillFile(path)) {
+      return handleSkill(file, profile);
+    }
     let content = file.content;
     if (profile.toolMap) {
       content = substituteProse(content, profile.toolMap);
@@ -292,6 +295,10 @@ function isAgent(path, profile) {
 
 function isCommand(path, profile) {
   return path.startsWith("commands/") && path.endsWith(profile.commandFile.from);
+}
+
+function isSkillFile(path) {
+  return path.startsWith("skills/") && path.endsWith("/SKILL.md");
 }
 
 function agentBaseName(path, profile) {
@@ -746,12 +753,17 @@ function handleAgent(file, profile, models) {
     newPath = remapDir(newPath, "agents/", profile.agentDir);
   }
 
+  // Capture pre-strip capabilities and visibility from canonical frontmatter.
+  const invocable = getField(frontmatter, "user-invocable");
+  const isNonUserInvocable = Boolean(invocable && invocable.value === "false");
+  const sourceToolsField = getField(frontmatter, "tools");
+  const sourceTools = sourceToolsField && Array.isArray(sourceToolsField.value) ? sourceToolsField.value : null;
+
   // Capture mode from user-invocable before it is stripped: the user-invocable
   // entry agent becomes a `primary` agent, every worker a `subagent`.
   let mode;
   if (profile.agentMode) {
-    const invocable = getField(frontmatter, "user-invocable");
-    mode = invocable && invocable.value === "false" ? profile.agentMode.subagent : profile.agentMode.primary;
+    mode = isNonUserInvocable ? profile.agentMode.subagent : profile.agentMode.primary;
   }
 
   if (profile.frontmatter && profile.frontmatter.stripKeys) {
@@ -760,6 +772,12 @@ function handleAgent(file, profile, models) {
 
   if (mode) {
     frontmatter = setScalar(frontmatter, "mode", mode);
+  }
+
+  if (profile.agentSubagentFields && isNonUserInvocable) {
+    for (const [key, value] of Object.entries(profile.agentSubagentFields)) {
+      frontmatter = setScalar(frontmatter, key, value);
+    }
   }
 
   if (profile.setAgentFrontmatter) {
@@ -812,7 +830,55 @@ function handleAgent(file, profile, models) {
     }
   }
 
+  if (profile.commandExecutionPolicyByCapability && Array.isArray(sourceTools)) {
+    const { executeTool = "execute", withExecute, withoutExecute } = profile.commandExecutionPolicyByCapability;
+    const policy = sourceTools.includes(executeTool) ? withExecute : withoutExecute;
+    if (policy) {
+      frontmatter = setScalar(frontmatter, "commandExecutionPolicy", policy);
+    }
+  }
+
+  if (profile.agentIsolatedMcp && Array.isArray(profile.agentIsolatedMcp.agents)) {
+    const isolatedName = agentName || originalAgentName;
+    if (isolatedName && profile.agentIsolatedMcp.agents.includes(isolatedName)) {
+      frontmatter = setScalar(frontmatter, "inheritMcp", "false");
+    }
+  }
+
   return { path: newPath, content: serialize({ frontmatter, body }) };
+}
+
+function handleSkill(file, profile) {
+  let { frontmatter, body } = parse(file.content);
+  const cfg = profile.skillFrontmatter;
+  let changed = false;
+
+  if (cfg.nonUserInvocableField) {
+    const invocable = getField(frontmatter, "user-invocable");
+    if (invocable && invocable.value === "false") {
+      frontmatter = setScalar(frontmatter, cfg.nonUserInvocableField, "true");
+      changed = true;
+    }
+  }
+  if (Array.isArray(cfg.stripKeys) && cfg.stripKeys.some((key) => getField(frontmatter, key) !== null)) {
+    frontmatter = stripKeys(frontmatter, cfg.stripKeys);
+    changed = true;
+  }
+
+  if (!changed) {
+    let content = file.content;
+    if (profile.toolMap) {
+      content = substituteProse(content, profile.toolMap);
+    }
+    content = substituteAgentNames(content, profile);
+    return { path: file.path, content };
+  }
+
+  if (profile.toolMap) {
+    body = substituteProse(body, profile.toolMap);
+  }
+  body = substituteAgentNames(body, profile);
+  return { path: file.path, content: serialize({ frontmatter, body }) };
 }
 
 // --- agents: TOML emission (codex-style profiles, agentFile.format:"toml") -
