@@ -7,7 +7,7 @@ This repository delivers one change at a time: at most one open pull request (`d
 3. **Commits by work unit** (the `work-unit-commits` skill): Conventional Commits in Spanish, each unit with its tests and docs, and the IDD archive with the unit it closes. The release commit (`chore(release): actualizar versión a X.Y.Z y changelog`) goes last, and it is the only commit that touches the version manifests. `ospec close` writes the change's line under `## [Unreleased]` of `CHANGELOG.md` (`delivery.changelog`), and that line goes with the IDD archive; the release commit moves it under the new version and expands it.
 4. **Integrating `main`:** before the first push the branch may be rebased onto `origin/main`. Once pushed, its history is shared: integrate with `git merge origin/main` and never rewrite it, because the hooks deny `git push --force` and `--force-with-lease`. With serial delivery `main` only moves when the previous PR merges, so this is rare.
 5. **Pull request:** run `node scripts/check.js` locally before pushing (plus the Go gate of [CONTRIBUTING.md](CONTRIBUTING.md) when `cmd/` or `internal/` changed), open the PR with the `branch-pr` skill and add one `type:*` label. A chain of PRs (the `chained-pr` skill) counts as one delivery: its PRs may be open together, and only the last one carries the release commit.
-6. **Merge** only with the user's explicit approval for that PR and green CI, as a merge commit: `gh pr merge <number> --merge --delete-branch`. Then run `git switch main`, `git pull --ff-only` and `git branch -d <branch>`.
+6. **Merge** only with the user's explicit approval for that PR and green CI, as a merge commit: `gh pr merge <number> --merge --delete-branch`. In a chain, first re-target the next PR to the base of the one being merged (`gh pr edit <next> --base <tracker or main>`): deleting a branch can close the PRs based on it instead of re-targeting them, and a closed PR cannot be re-targeted. Then run `git switch main`, `git pull --ff-only` and `git branch -d <branch>`.
 7. **Release right after the merge**, before the next branch exists: step 6 of the Post-Archive Flow tags the merge commit. Check that Publish Marketplace finishes green.
 8. **Never delete or push to the `release` branch:** Publish Marketplace owns it.
 
@@ -26,6 +26,7 @@ Immediately after a change is closed (the `sdd-archive` phase in SDD mode, or th
 2. **Changelog Update:**
    - Move the entries of `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) under a new section with the new version and the current date, and leave `## [Unreleased]` empty above it.
    - Expand the line `ospec close` wrote into the changes introduced by the archived change, in a concise and structured manner.
+   - End the section with the line `scripts/manifest-sync.test.js` reads, unless it cites an `openspec/changes/archive/<change>/` with its verify report: ``**Verificación directa**: `node scripts/check.js` (N tests pasando, 0 fallos y M omitidos)``, with the counts of the last local run, followed by whatever else ran (Go gate, trust review, CI).
 
 3. **Documentation Update:**
    - If the change affects product or technical documentation in `docs/`, update the corresponding files to reflect the final state concisely.

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.185.5] - 2026-11-22
+
+### Fixed
+- **En una cadena de PR, la PR siguiente se reapunta antes de fusionar la anterior con borrado de rama** (chain-merge-retarget).
+  - **Qué pasaba**: `chained-pr` y el paso 6 de AGENTS.md reapuntaban la PR siguiente después del merge, «cuando el host no lo hubiera hecho». Al fusionar la cadena de E1.105 con `gh pr merge --delete-branch`, borrar la rama de #539 cerró la PR #540 en vez de reapuntarla, y una PR cerrada no se puede reapuntar.
+  - **Ahora**: en las dos formas de cadena (`stacked-to-main` y `feature-branch-chain`), la PR siguiente se reapunta a la base de la que se fusiona (`gh pr edit <siguiente> --base <base o tracker>`) antes de `gh pr merge --merge --delete-branch`, sin contar con que el host lo haga. El playbook añade cómo reabrir una PR que el host cerró de todos modos: restaurar la rama desde el `headRefOid` de la PR fusionada, reabrir, reapuntar, borrar otra vez la rama y esperar su CI.
+  - **AGENTS.md**: el Post-Archive Flow nombra la línea de verificación directa que exige `scripts/manifest-sync.test.js`, con su formato exacto.
+  - **Compatibilidad**: ningún programa cambia. El `how` de branching de `ospec team` sigue diciendo que la rama se borra tras su merge, lo que sigue siendo cierto con la PR siguiente ya reapuntada.
+
+**Verificación directa**: `node scripts/check.js` (5084 tests pasando, 0 fallos y 5 omitidos), 457 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados. El cambio no tocaba Go ni derivó revisión de confianza.
+
 ## [2.185.4] - 2026-11-22
 
 ### Changed

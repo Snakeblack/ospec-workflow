@@ -44,14 +44,19 @@ gh pr create --head feat/orders-2-api --base feat/orders-1-model --title "<title
 gh pr create --head feat/orders-3-ui --base feat/orders-2-api --title "<title>" --body-file <file>
 ```
 
-When PR 1 merges, PR 2 becomes the first of the chain:
+When PR 1 merges, PR 2 becomes the first of the chain. Re-target it before
+the merge deletes its base branch, then bring the base in:
 
 ```bash
-gh pr edit <PR 2> --base <base>       # when the host did not re-target it
+gh pr edit <PR 2> --base <base>
+gh pr merge <PR 1> --merge --delete-branch
 git switch feat/orders-2-api
 git fetch origin && git merge origin/<base>
 git push
 ```
+
+Do not count on the host to re-target it: deleting the branch can close PR 2
+instead, and a closed pull request cannot be re-targeted.
 
 ## `feature-branch-chain`
 
@@ -72,6 +77,14 @@ git branch feat/orders <base> && git push -u origin feat/orders
 gh pr create --head feat/orders-1-model --base feat/orders --title "<title>" --body-file <file>
 gh pr create --head feat/orders-2-api --base feat/orders-1-model --title "<title>" --body-file <file>
 gh pr create --head feat/orders-3-ui --base feat/orders-2-api --title "<title>" --body-file <file>
+```
+
+Each slice merges into the tracker in order, with the next pull request
+re-targeted to the tracker first, for the same reason as above:
+
+```bash
+gh pr edit <PR 2> --base feat/orders
+gh pr merge <PR 1> --merge --delete-branch
 ```
 
 The tracker holds no commit of its own until PR 1 merges into it. Open its
@@ -115,6 +128,22 @@ The tracker's body lists the slices and says that it merges last.
 | Lines of a later slice | The branch points past the cut | Open a new branch at the right commit and a new pull request; close the old one |
 
 A pushed branch is never rebased or force-pushed.
+
+## A pull request closed by a merge
+
+When a merge deleted the base branch of the next pull request before it was
+re-targeted, the host may have closed it. Restore the branch from the head of
+the merged pull request, reopen, re-target, and delete the branch again:
+
+```bash
+sha=$(gh pr view <merged PR> --json headRefOid --jq .headRefOid)
+git push origin "$sha:refs/heads/<deleted branch>"
+gh pr reopen <closed PR>
+gh pr edit <closed PR> --base <base or tracker>
+git push origin --delete <deleted branch>
+```
+
+Reopening runs its checks again: wait for them before merging it.
 
 ## Reviewing a chain
 

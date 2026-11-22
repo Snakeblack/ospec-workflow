@@ -1,0 +1,176 @@
+{
+  "schema": "idd-state/v1",
+  "change": "chain-merge-retarget",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "arreglo idd en la proxima sesion, por delante del 1.106",
+    "requested_at": "2026-11-21T23:44:22.904Z",
+    "kind": "docs",
+    "summary": "En una cadena de PR, reapuntar la PR siguiente antes de fusionar la anterior con borrado de rama",
+    "acceptance": "chained-pr (SKILL.md y chain-playbook.md) y el paso 6 de AGENTS.md mandan reapuntar la PR siguiente a la base o al tracker antes de fusionar con --delete-branch, en las dos formas de cadena; el playbook dice cómo recuperar una PR hija que se cerró; el Post-Archive Flow de AGENTS.md nombra la línea de Verificación directa que lee manifest-sync.test.js; el roadmap anota el arreglo por delante de E1.106; node scripts/check.js pasa"
+  },
+  "facts": {
+    "open": [
+      "¿La regla de reapuntar antes de fusionar va solo en chained-pr y AGENTS.md, o también en el how de branching que ospec team imprime a todos los proyectos (delete the branch after its merge)?",
+      "¿El playbook añade la recuperación de una PR hija que GitHub cerró al borrar su rama base (restaurar la rama desde el headRefOid, reabrir, reapuntar y esperar su CI)?",
+      "¿Reapuntar la PR siguiente antes de cada fusión, o fusionar las PR de la cadena sin --delete-branch y borrar sus ramas al final?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "AGENTS.md",
+      "docs/roadmaps/harness-evolution.md",
+      "skills/chained-pr/SKILL.md",
+      "skills/chained-pr/references/chain-playbook.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "La regla de reapuntar va solo en chained-pr y AGENTS.md: el how de branching de ospec team (delete the branch after its merge) vale para cualquier PR y sigue siendo cierto si la siguiente se reapunta antes",
+      "En las dos formas de cadena se reapunta la PR siguiente a la base de la que se fusiona antes de gh pr merge --delete-branch, sin contar con que el host la reapunte",
+      "El playbook añade una sección para reabrir una PR cerrada por un merge: restaurar la rama desde el headRefOid, reabrir, reapuntar, borrar otra vez la rama y esperar su CI"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 623
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component skills: ADR 0003, 0006 and quality scenario offline-operation",
+      "source": "declaration",
+      "recorded_turn": 623
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 626
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "El orden de fusión de una cadena es un procedimiento de entrega en el host (git y gh), no una decisión de proceso de IDD: el CLI no lee estado de git ni de PR (REQ-idd-023), así que la skill lo describe como guía sin reimplementar ninguna regla que calcule ospec"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "El cambio no toca la memoria entre sesiones: solo el texto de chained-pr, AGENTS.md y el roadmap"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "No añade llamadas de red al CLI, los hooks ni las skills del flujo IDD: los comandos gh de chained-pr ya existían y son pasos de entrega que decide el usuario; next, check y close no cambian"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 623,
+      "answer": "todas las recomendadas: (1) solo en chained-pr y AGENTS.md; (2) sí, la recuperación como fila de la tabla de reparaciones del playbook; (3) reapuntar la PR n+1 y luego gh pr merge <n> --merge --delete-branch",
+      "source": "user",
+      "resolved_at": "2026-11-22T00:06:23.198Z",
+      "resolved_turn": 626
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-22T00:09:38.393Z",
+      "detail": {
+        "tree": "sha256:12ebd39ac2e0a5a4a9a5d83559957117f375e1bbcea05a2ce91b006f11802f58",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-22T00:09:38.393Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 none",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:12ebd39ac2e0a5a4a9a5d83559957117f375e1bbcea05a2ce91b006f11802f58",
+        "fitness": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-22T00:09:55.889Z"
+    }
+  ],
+  "base": "8ee31ed8b060d52a004c6327517c982cc7a60967",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b6e25979906a650bb26bd336f5319ec3655b687c0f647f3e59c88b4ae47fe2a7",
+      "tree": "sha256:12ebd39ac2e0a5a4a9a5d83559957117f375e1bbcea05a2ce91b006f11802f58",
+      "recorded_at": "2026-11-22T00:09:38.393Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:46cc4447ea9e34012d08f1f79c959327da67efd47dc44a2ae2323b2b1855805b",
+      "tree": "sha256:12ebd39ac2e0a5a4a9a5d83559957117f375e1bbcea05a2ce91b006f11802f58",
+      "recorded_at": "2026-11-22T00:09:38.393Z",
+      "tests": 2
+    }
+  ],
+  "closed_at": "2026-11-22T00:09:55.889Z"
+}
