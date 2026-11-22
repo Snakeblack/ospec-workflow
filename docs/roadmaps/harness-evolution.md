@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.185.4, 2026-11-22.
+> **Versión de referencia:** v2.185.5, 2026-11-22.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -2401,6 +2401,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-22: `chain-merge-retarget` (IDD), publicado en v2.185.5. Arreglo pedido por delante de E1.106. En una cadena, `chained-pr` y el paso 6 de AGENTS.md reapuntan la PR siguiente antes de fusionar la anterior con `--delete-branch`, y el playbook explica cómo reabrir una PR que el host cerró al borrar su rama base.
 - 2026-11-21: `own-sdd-shared-orchestrator` (IDD), publicado en v2.185.4. Quinto cambio de E1.105: `_shared`, el agente orquestador y dos frases de `sdd-baseline` y `sdd-reconcile` con texto propio, con una sola regla sobre quién escribe `state.yaml`. E1.105 hecho.
 - 2026-11-20: `own-sdd-init-onboard-archive-clarify` (IDD), publicado en v2.185.4. Cuarto cambio de E1.105: sdd-init, sdd-onboard, sdd-archive y sdd-clarify con texto propio; sdd-onboard pasa a ejecutor que termina en verify.
 - 2026-11-20: `own-sdd-verify` (IDD), publicado en v2.185.4. Tercer cambio de E1.105: sdd-verify, `strict-tdd-verify.md` y `report-format.md` con texto propio.
