@@ -26,6 +26,7 @@ Immediately after a change is closed (the `sdd-archive` phase in SDD mode, or th
 2. **Changelog Update:**
    - Move the entries of `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) under a new section with the new version and the current date, and leave `## [Unreleased]` empty above it.
    - Expand the line `ospec close` wrote into the changes introduced by the archived change, in a concise and structured manner.
+   - End the section with the line `scripts/manifest-sync.test.js` reads, unless it cites an `openspec/changes/archive/<change>/` with its verify report: ``**Verificación directa**: `node scripts/check.js` (N tests pasando, 0 fallos y M omitidos)``, with the counts of the last local run, followed by whatever else ran (Go gate, trust review, CI).
 
 3. **Documentation Update:**
    - If the change affects product or technical documentation in `docs/`, update the corresponding files to reflect the final state concisely.
