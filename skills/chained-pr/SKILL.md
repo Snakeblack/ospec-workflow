@@ -38,6 +38,7 @@ has no `ospec`, ask the user what to do above 400 changed lines.
 - Use one shape for the whole chain: `stacked-to-main` or `feature-branch-chain`.
 - Never rewrite a pushed branch: bring a moved parent in with `git merge`.
 - Merge in order, from the first slice; a later slice never merges before the ones it stands on.
+- Re-target the next pull request before merging the one it stands on, never after: deleting a merged branch can close the pull requests based on it instead of re-targeting them, and a closed pull request cannot be re-targeted.
 - Version files and the changelog section of a release go in the last pull request only.
 - Each pull request body carries the chain block: position, base, what the slice leaves working and what waits for a later one.
 - Opening pull requests is the user's decision: show the chain and wait, unless the strategy is `auto-chain`.
@@ -66,8 +67,10 @@ prints one. When SDD tasks name a `Chain strategy`, use that one.
 5. Create one branch per slice at its last commit, push them, and open the
    pull requests from the first slice on, as `references/chain-playbook.md`
    shows.
-6. After each merge, bring the base into the next slice and re-target its
-   pull request when the host did not.
+6. Merge each slice once it is approved: re-target the next pull request to
+   the base of the one being merged, merge it and delete its branch, then
+   bring the base into the next slice. A pull request the host closed anyway
+   is reopened as the playbook shows.
 
 In IDD the change closes once, before the chain is cut: its archive and its
 changelog line travel in the last slice. With serial branching the chain is
@@ -80,4 +83,4 @@ lines, the check run on each slice, and any exception with its reason.
 
 ## References
 
-- [references/chain-playbook.md](references/chain-playbook.md): the commands for each shape, the chain block of the pull request body and how to repair a diff that shows another slice. Open it at step 5.
+- [references/chain-playbook.md](references/chain-playbook.md): the commands for each shape, the merge order, the chain block of the pull request body, how to repair a diff that shows another slice and how to reopen a pull request closed by a merge. Open it at step 5.

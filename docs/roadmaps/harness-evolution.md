@@ -312,6 +312,8 @@ E1.105 `own-sdd-phase-skills` y E1.106 `own-utility-skills` entraron el 2026-11-
 
 El 2026-11-19, al entregar E1.102, el usuario pidió por delante de E1.101 dos arreglos que salieron de esa entrega, cada uno en su PR. El primero, `retract-answer-offer`: cuando `persistent-data` salía del contenido que el fichero ya tenía, `ospec next` y el hook de Stop solo empujaban a un test de migración, y la retirada con la respuesta del usuario solo aparecía en la negativa de `record retract`. El segundo es el defecto de `decisionBullets` de `scripts/lib/idd-close.js`, que pega al bullet anterior de Decisions el encabezado que le sigue.
 
+El 2026-11-22, al entregar E1.105, el usuario pidió por delante de E1.106 el arreglo `chain-merge-retarget`, en su PR. Al fusionar la cadena con `gh pr merge --delete-branch`, borrar la rama de #539 cerró la PR #540 en vez de reapuntarla, porque `chained-pr` y AGENTS.md reapuntaban la PR siguiente después del merge.
+
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
 **Regla multi-target de los ítems de la auditoría del 2026-10-25** (principio 6). Los 7 targets invocan el CLI de la misma forma (`node "<ruta>/scripts/ospec.js"`), así que la garantía vive en el CLI y vale en todos sin adaptación.

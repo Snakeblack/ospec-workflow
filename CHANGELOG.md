@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- En una cadena de PR, reapuntar la PR siguiente antes de fusionar la anterior con borrado de rama (chain-merge-retarget)
+
 ## [2.185.4] - 2026-11-22
 
 ### Changed
