@@ -1,0 +1,1020 @@
+{
+  "schema": "idd-state/v1",
+  "change": "agy-01-pretooluse-stop",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Cerrar bypass de PreToolUse en write_file/edit_file/read_file (AGY 1.5.14), respetar cwd nativo y evitar reanudacion en Stop cancelado o no ocioso, aislado al adaptador de Antigravity",
+    "acceptance": "En OSPEC_TARGET=antigravity, adaptAntigravityHookInput mapea Path/Content/Replacement de agy 1.5.14 para bloquear escrituras a ficheros del CLI y escanear secretos/marcadores [REDACTED:...] en Node y Go, prioriza parsed.cwd sobre workspacePaths, suprime stopNudge cuando fullyIdle es false o terminationReason difiere de NO_TOOL_CALL, y los demas targets permanecen sin cambios"
+  },
+  "facts": {
+    "open": [
+      "En edit_file de Antigravity, escanear solo los cuerpos escritos (Content y Replacement, como hoy ignora TargetContent) o tambien Target (como old_string en Claude)?",
+      "En fallos de inspeccion PreToolUse de Antigravity, emitir decision force_ask en todos los fallos de launcherFailure (unreadable, timeout, crash, salida invalida), solo en payload unreadable, o mantener ask?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/hooks/spec.md",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/ospec-hooks-launch.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Aislar el cambio integramente en el adaptador de Antigravity de scripts/hooks/ospec-hooks-launch.js (sin tocar pre-tool-use.js, pretooluse.go, idd-nudge.js ni iddnudge.go), cubriendo tanto el binario Go como el respaldo Node en Antigravity con cero impacto en los otros 6 targets"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 631
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration",
+      "recorded_turn": 631
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 631
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration",
+      "recorded_turn": 631
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration",
+      "recorded_turn": 631
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/ospec-hooks-launch.js imports scripts/lib/claude-router.js, which uses writeFile",
+      "source": "diff",
+      "recorded_turn": 635
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "Cierra el bypass de PreToolUse en write_file/edit_file/read_file de agy 1.5.14 y emite force_ask en fallos de inspeccion de Antigravity para fallar cerrado sin degradar por cache Always Allow"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Adaptacion pura en Node estandar dentro del launcher sin dependencias nuevas y compatible con el binario Go ospec-hooks y el respaldo Node"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Los intentos destructivos o escrituras a estado del CLI en agy 1.5.14 quedan denegados y los fallos de inspeccion piden confirmacion forzada (force_ask)"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-13"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-16"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-15"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-14"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-12"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 631,
+      "answer": "todas las recomendadas: (1) en edit_file escanear solo Content y Replacement sin Target; (2) emitir force_ask en todos los fallos de inspeccion de launcherFailure en OSPEC_TARGET=antigravity; (3) mantener ramas locales en el worktree hasta que PR #545 cierre",
+      "source": "user",
+      "resolved_at": "2026-11-22T00:26:24.677Z",
+      "resolved_turn": 633
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-22T00:29:19.791Z",
+      "detail": {
+        "red": "run-2",
+        "green": "run-3",
+        "counterproof": [
+          "run-4",
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-22T00:31:37.464Z",
+      "detail": {
+        "tree": "sha256:eb553a9bde66d19b5612b4679d2adab22e80243cfc62dd7156497001f8f818ad",
+        "runs": [
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-22T00:31:37.464Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:eb553a9bde66d19b5612b4679d2adab22e80243cfc62dd7156497001f8f818ad",
+        "fitness": [
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-22T00:32:00.811Z",
+      "detail": {
+        "run": "run-11",
+        "tree": "sha256:7d9cf4cc3ff7860fdf2f21ded2ba0f295cb279d7d2ace72ce64792fe39fbc947",
+        "plan": "Compatibilidad hacia atras preservada: el adaptador acepta tanto los payloads legados de agy 1.4.2 (AbsolutePath, TargetFile, CodeContent, ReplacementContent, workspacePaths sin cwd/terminationReason/fullyIdle) como los de agy 1.5.14 (Path, Content, Replacement, cwd, terminationReason, fullyIdle), sin cambiar ningun formato en disco (.ospec/idd-nudge.json y .ospec/turns intactos); rollback inmediato revirtiendo el commit."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-22T00:43:24.136Z",
+      "detail": {
+        "lineage_id": "sha256:7227029bd730f37e8d89eb6ed732a4009fbe82fae5835dc39df32225d6cdd4ca",
+        "candidate_id": "sha256:d1fa89a618a1950006f37e3a012a5c798976e88dce090ca421b1d06d74b501a7",
+        "candidate_tree": "ae0a265c88c64eaf129fa74125fa102c30252ce0",
+        "findings_digest": "sha256:fd2c18a1f128466fe9bad325136a7b9f48be2fe9539f69c10f409ca7815c18a5",
+        "attestation": "relayed"
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-22T00:48:10.143Z",
+      "detail": {
+        "tree": "sha256:19cac6bc4792cb83806aae9c832c20e5f8bf2ba25ec0fd2e6b8b54451216e1fd",
+        "runs": [
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-22T00:48:10.143Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:19cac6bc4792cb83806aae9c832c20e5f8bf2ba25ec0fd2e6b8b54451216e1fd",
+        "fitness": [
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-22T00:49:52.092Z",
+      "detail": {
+        "run": "run-17",
+        "tree": "sha256:c5e65dfc05f857b13db22409e570381595a40ef3c31e36594ceed6e7209f4504",
+        "plan": "Compatibilidad hacia atras preservada: el adaptador acepta tanto los payloads legados de agy 1.4.2 (AbsolutePath, TargetFile, CodeContent, ReplacementContent, workspacePaths sin cwd/terminationReason/fullyIdle) como los de agy 1.5.14 (Path, Content, Replacement, cwd, terminationReason, fullyIdle) y propiedades hermanas, sin cambiar ningun formato en disco (.ospec/idd-nudge.json y .ospec/turns intactos); rollback inmediato revirtiendo el commit."
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-22T00:51:48.847Z",
+      "detail": {
+        "tree": "sha256:0a1885eb00671ccfd7457a8be9cff086dd1052adeb5dc8248ee46376f7f883f7",
+        "runs": [
+          "run-18"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-22T00:51:48.847Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:0a1885eb00671ccfd7457a8be9cff086dd1052adeb5dc8248ee46376f7f883f7",
+        "fitness": [
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-22T01:00:58.143Z",
+      "detail": {
+        "lineage_id": "sha256:dd03aae6959127c291930dc8fdfa55bdc24c2e446b7272c561505a14a126618c",
+        "candidate_id": "sha256:e5756c2df82c65f861b91bd4f7922455b667b1a0e4e9006c82a01a4e4f2f0868",
+        "candidate_tree": "2a6364134d16da251e82ed7c032114ddb8d9e18e",
+        "findings_digest": "sha256:cfda51c43178ca3155a09183413a4042e850ff12587f14e2049aae8ee2217ca5",
+        "attestation": "relayed"
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-22T01:02:50.797Z",
+      "detail": {
+        "run": "run-23",
+        "tree": "sha256:bcc3043ebe46be99b20f4e6b859ca77c744c5f772bc13a55c364e3945849be22",
+        "plan": "Compatibilidad hacia atras preservada: el adaptador acepta tanto los payloads legados de agy 1.4.2 (AbsolutePath, TargetFile, CodeContent, ReplacementContent, workspacePaths sin cwd/terminationReason/fullyIdle) como los de agy 1.5.14 (Path, Content, Replacement, cwd, terminationReason, fullyIdle) y propiedades hermanas, sin cambiar ningun formato en disco (.ospec/idd-nudge.json y .ospec/turns intactos); rollback inmediato revirtiendo el commit."
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-22T01:04:25.456Z",
+      "detail": {
+        "tree": "sha256:8da7c9fac2753e65ded73433d07e1087212db2301adbfc89fddbb07538de8f82",
+        "runs": [
+          "run-24"
+        ]
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-22T01:04:25.456Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:8da7c9fac2753e65ded73433d07e1087212db2301adbfc89fddbb07538de8f82",
+        "fitness": [
+          "run-25",
+          "run-26",
+          "run-27",
+          "run-28"
+        ]
+      }
+    },
+    {
+      "id": "ev-15",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-22T01:08:08.796Z",
+      "detail": {
+        "lineage_id": "sha256:dd03aae6959127c291930dc8fdfa55bdc24c2e446b7272c561505a14a126618c",
+        "candidate_id": "sha256:e5756c2df82c65f861b91bd4f7922455b667b1a0e4e9006c82a01a4e4f2f0868",
+        "candidate_tree": "329ad2c6c9de266f634986db5b28e99dc28fe6ee",
+        "findings_digest": "sha256:cfda51c43178ca3155a09183413a4042e850ff12587f14e2049aae8ee2217ca5",
+        "correction": "advisory",
+        "attestation": "relayed"
+      }
+    },
+    {
+      "id": "ev-16",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-22T01:08:09.002Z"
+    }
+  ],
+  "base": "8ee31ed8b060d52a004c6327517c982cc7a60967",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:49bd9863cc48d35febeafddf155c36510302e9e1d5809bb27cb7e0051ea7a786",
+      "tree": "sha256:78d8354bcbcec358955b619e6e0315e341ff3670f1b325e0dda718e9dc71ee98",
+      "recorded_at": "2026-11-22T00:27:38.665Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:747cae7a5c205dab0e4aba687eed0614f697460e1c584accdcd45b84bdac804b",
+      "tree": "sha256:6a129db4b8a7b0a1540d1df201db760b9fe851fa975de4f248e247f57490daad",
+      "recorded_at": "2026-11-22T00:28:40.974Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4aaaa7c528d16becf75942d1174bf0480167891aee349b125b48e7657713ca05",
+      "tree": "sha256:7d9cf4cc3ff7860fdf2f21ded2ba0f295cb279d7d2ace72ce64792fe39fbc947",
+      "recorded_at": "2026-11-22T00:29:19.791Z",
+      "tests": 56,
+      "counterproof": [
+        "run-4",
+        "run-5"
+      ]
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "8ee31ed8b060d52a004c6327517c982cc7a60967",
+      "mount": "sha256:0cc21f2f45ac8c5342b3139f26b3abb75d4dece0048622efe09cca7d934fa397",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:25fe908a3f4bb3f2675c60ad7aadbfd32a96a95490daf424a8a8772a50ec7809",
+      "tree": "sha256:7d9cf4cc3ff7860fdf2f21ded2ba0f295cb279d7d2ace72ce64792fe39fbc947",
+      "recorded_at": "2026-11-22T00:29:19.791Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "8ee31ed8b060d52a004c6327517c982cc7a60967",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6497f9a5c3c486c12498cac359d1350687accf53603a906df7064fb8f7da0fca",
+      "tree": "sha256:7d9cf4cc3ff7860fdf2f21ded2ba0f295cb279d7d2ace72ce64792fe39fbc947",
+      "recorded_at": "2026-11-22T00:29:19.791Z",
+      "tests": 53
+    },
+    {
+      "id": "run-6",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:98adc63b1f52b1d2d2f87fc121d13d0e6379b5b6cf6cdf051eaf73e07761118b",
+      "tree": "sha256:eb553a9bde66d19b5612b4679d2adab22e80243cfc62dd7156497001f8f818ad",
+      "recorded_at": "2026-11-22T00:31:37.464Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ada3e8059e7def88b719f14dbc589a291d82cc776d9c09f4969f5f8bd881afc7",
+      "tree": "sha256:eb553a9bde66d19b5612b4679d2adab22e80243cfc62dd7156497001f8f818ad",
+      "recorded_at": "2026-11-22T00:31:37.464Z",
+      "tests": 103
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:eb553a9bde66d19b5612b4679d2adab22e80243cfc62dd7156497001f8f818ad",
+      "recorded_at": "2026-11-22T00:31:37.464Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3437f921195a9e48ae307eedd4da53fccef8ceed3d76e46e839aaf59ab806c14",
+      "tree": "sha256:eb553a9bde66d19b5612b4679d2adab22e80243cfc62dd7156497001f8f818ad",
+      "recorded_at": "2026-11-22T00:31:37.464Z",
+      "tests": 26
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:540c3d6586fe8c574a79c5af7c3b0b1877b9e5fa0ab916d67d996ef7a4f5efae",
+      "tree": "sha256:eb553a9bde66d19b5612b4679d2adab22e80243cfc62dd7156497001f8f818ad",
+      "recorded_at": "2026-11-22T00:31:37.464Z",
+      "tests": 103
+    },
+    {
+      "id": "run-11",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:202f799d684d5ac22be9f33aa2f0f6003214f60a8f64068beb4cbd46216b8ca8",
+      "tree": "sha256:7d9cf4cc3ff7860fdf2f21ded2ba0f295cb279d7d2ace72ce64792fe39fbc947",
+      "recorded_at": "2026-11-22T00:32:00.811Z",
+      "tests": 56
+    },
+    {
+      "id": "run-12",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:43dc59a06e49c2cd1c80557630ea02c87add84211300602c6c77c610ccf42a5e",
+      "tree": "sha256:19cac6bc4792cb83806aae9c832c20e5f8bf2ba25ec0fd2e6b8b54451216e1fd",
+      "recorded_at": "2026-11-22T00:48:10.143Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b47ee905bea4f53cfb0cc1b8612aaeeada9a544195635faad8b740bd8d393045",
+      "tree": "sha256:19cac6bc4792cb83806aae9c832c20e5f8bf2ba25ec0fd2e6b8b54451216e1fd",
+      "recorded_at": "2026-11-22T00:48:10.143Z",
+      "tests": 103
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:19cac6bc4792cb83806aae9c832c20e5f8bf2ba25ec0fd2e6b8b54451216e1fd",
+      "recorded_at": "2026-11-22T00:48:10.143Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d1b3cf72503ff4628d869643c5bd0b77171f447677e067a5025057c75dfe858b",
+      "tree": "sha256:19cac6bc4792cb83806aae9c832c20e5f8bf2ba25ec0fd2e6b8b54451216e1fd",
+      "recorded_at": "2026-11-22T00:48:10.143Z",
+      "tests": 26
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dca3a8502db8c5142ac710ce2b2b48a434dd3edb9d8a9c9b274a442da9db9859",
+      "tree": "sha256:19cac6bc4792cb83806aae9c832c20e5f8bf2ba25ec0fd2e6b8b54451216e1fd",
+      "recorded_at": "2026-11-22T00:48:10.143Z",
+      "tests": 103
+    },
+    {
+      "id": "run-17",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3758364cbfbe51eeb9dad7b45132fb201cacb45b59068bd8ab7420259e4ac5d1",
+      "tree": "sha256:c5e65dfc05f857b13db22409e570381595a40ef3c31e36594ceed6e7209f4504",
+      "recorded_at": "2026-11-22T00:49:52.092Z",
+      "tests": 56
+    },
+    {
+      "id": "run-18",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4c7ef081cf43a075f4ab3eff8d0cb7774e209c8371846fcfe861d326d7e51924",
+      "tree": "sha256:0a1885eb00671ccfd7457a8be9cff086dd1052adeb5dc8248ee46376f7f883f7",
+      "recorded_at": "2026-11-22T00:51:48.847Z"
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9fde19e27702df335b4ea810dde578b5efdc46b5d185500f4ff96a89747a8557",
+      "tree": "sha256:0a1885eb00671ccfd7457a8be9cff086dd1052adeb5dc8248ee46376f7f883f7",
+      "recorded_at": "2026-11-22T00:51:48.847Z",
+      "tests": 103
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:0a1885eb00671ccfd7457a8be9cff086dd1052adeb5dc8248ee46376f7f883f7",
+      "recorded_at": "2026-11-22T00:51:48.847Z"
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8d84bc7b53f4545620c3d44fc2d17626ca3ecd0a2c7f12f78eb59ecb9858c838",
+      "tree": "sha256:0a1885eb00671ccfd7457a8be9cff086dd1052adeb5dc8248ee46376f7f883f7",
+      "recorded_at": "2026-11-22T00:51:48.847Z",
+      "tests": 26
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b6eaa35f968922f6b3aeead857c6dc207fef8ff416110380b04ec4a5e5033180",
+      "tree": "sha256:0a1885eb00671ccfd7457a8be9cff086dd1052adeb5dc8248ee46376f7f883f7",
+      "recorded_at": "2026-11-22T00:51:48.847Z",
+      "tests": 103
+    },
+    {
+      "id": "run-23",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d79e10e8b3a1c7f3bc01a6dfcc5db655f3be485ecf46aa1601c7230907563e06",
+      "tree": "sha256:bcc3043ebe46be99b20f4e6b859ca77c744c5f772bc13a55c364e3945849be22",
+      "recorded_at": "2026-11-22T01:02:50.797Z",
+      "tests": 56
+    },
+    {
+      "id": "run-24",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9420997902c27c28689581d5e3a83887ed9f625f48dea3bd42ea12bfd0814afc",
+      "tree": "sha256:8da7c9fac2753e65ded73433d07e1087212db2301adbfc89fddbb07538de8f82",
+      "recorded_at": "2026-11-22T01:04:25.456Z"
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:50436bb2a8d7065de30752be9ef430fd6b39c85343950daa51878f680b81d331",
+      "tree": "sha256:8da7c9fac2753e65ded73433d07e1087212db2301adbfc89fddbb07538de8f82",
+      "recorded_at": "2026-11-22T01:04:25.456Z",
+      "tests": 103
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:8da7c9fac2753e65ded73433d07e1087212db2301adbfc89fddbb07538de8f82",
+      "recorded_at": "2026-11-22T01:04:25.456Z"
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0266efb518ae750ec33158b13bdcbf67e91814940d3fd0a9bd5b845adca4fb52",
+      "tree": "sha256:8da7c9fac2753e65ded73433d07e1087212db2301adbfc89fddbb07538de8f82",
+      "recorded_at": "2026-11-22T01:04:25.456Z",
+      "tests": 26
+    },
+    {
+      "id": "run-28",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2cfb2436a89c9f6fb05b5521155f9d1f304d3bc72c052d8d524645bfc93ac07f",
+      "tree": "sha256:8da7c9fac2753e65ded73433d07e1087212db2301adbfc89fddbb07538de8f82",
+      "recorded_at": "2026-11-22T01:04:25.456Z",
+      "tests": 103
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:7227029bd730f37e8d89eb6ed732a4009fbe82fae5835dc39df32225d6cdd4ca",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "f6c38b0dca52bbf410f846af53ed58a3e4836678",
+          "candidate_tree": "ae0a265c88c64eaf129fa74125fa102c30252ce0",
+          "paths": [
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js"
+          ],
+          "diff_hash": "sha256:062f609b759904a5beb071e2985add35857626e315af5f42a18b12d65ccfa48c",
+          "paths_digest": "sha256:2f0ec25383bd2624baa5f263c26e244dd1434c4d99aa5f3edef1ee24ddafb694",
+          "authored_lines": 235,
+          "original_changed_lines": 259
+        },
+        "candidate_id": "sha256:d1fa89a618a1950006f37e3a012a5c798976e88dce090ca421b1d06d74b501a7",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "ae0a265c88c64eaf129fa74125fa102c30252ce0",
+        "original_changed_lines": 259,
+        "authored_lines": 235
+      },
+      "current_candidate_id": "sha256:d1fa89a618a1950006f37e3a012a5c798976e88dce090ca421b1d06d74b501a7",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "f6c38b0dca52bbf410f846af53ed58a3e4836678",
+        "candidate_tree": "ae0a265c88c64eaf129fa74125fa102c30252ce0",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "diff_hash": "sha256:062f609b759904a5beb071e2985add35857626e315af5f42a18b12d65ccfa48c",
+        "paths_digest": "sha256:2f0ec25383bd2624baa5f263c26e244dd1434c4d99aa5f3edef1ee24ddafb694",
+        "authored_lines": 235,
+        "original_changed_lines": 259
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "agy-01-pretooluse-stop:lens-start:1:0",
+          "result_digest": "sha256:50980770e283db61f70331060712cbd84f48feb66fb6e4b91bde4b2b02bd3e41",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/hooks/ospec-hooks-launch.js:294-305 maps only the first non-empty entry of [args.Path, args.AbsolutePath, args.TargetFile] to file_path and overwrites args.file_path, args.content (even with '' when Content/Replacement is empty), and args.command. Downstream writesCliOwnedFile and [REDACTED:...] guards (pre-tool-use.js:296,575; pretooluse.go:1035,1298) check only lowercase OWNED_PATH_KEYS/DECLARED_PATH_KEYS. Conditionally—on MCP tools with lowercase keys and default additionalProperties (REQ-hooks-029), or if agy forwards extra args on legacy write_to_file/replace_file_content—a benign sibling Path/Content/CommandLine shadows or erases the real argument and bypasses deny/ask checks. Preserve all distinct paths, bodies, and commands without overwriting existing keys.",
+                "acceptance_criteria": "Under OSPEC_TARGET=antigravity in both Node and Go PreToolUse hooks: (1) write_to_file with both benign Path and CLI-owned TargetFile (e.g. idd/demo/state.yaml) or [REDACTED:...] targeting a secret file still returns decision 'deny'; (2) a write/edit tool with lowercase file_path pointing to idd/demo/state.yaml plus benign Path still returns 'deny'; (3) a tool with lowercase content holding a secret or [REDACTED:...] plus empty Content:'' still triggers 'ask'/'deny'; and (4) a tool with lowercase command matching a DENY rule plus empty CommandLine:'' still returns 'deny'.",
+                "location": "scripts/hooks/ospec-hooks-launch.js:294"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "scripts/hooks/ospec-hooks-launch.js:146-153 emits force_ask for launcherFailure on PreToolUse, but child-caught inspection failures exit 0 with permissionDecision 'ask' ('The safety hook could not inspect this tool call: ...' in pre-tool-use.js:743-752 and pretooluse.go:1230-1234) and are emitted as plain 'ask' at line 351, which cached Always Allow rules can auto-approve. On the Go binary, adaptAntigravityHookInput (lines 300-305) spreads raw ...args into tool_input, so any MCP or extra-arg call with non-string command (absent CommandLine) or non-array commands fails pretooluse.go's typed json.Unmarshal before h.run()—skipping all deny guards—and exits 0 as plain 'ask'. Avoid passing type-mismatched top-level command/commands from args and escalate child inspection-failure 'ask' envelopes to 'force_ask'.",
+                "acceptance_criteria": "Under OSPEC_TARGET=antigravity: (1) normalizeAntigravityHookOutput('pre-tool-use', ...) returns decision 'force_ask' when a child emits permissionDecision 'ask' with an inspection-failure reason ('The safety hook could not inspect this tool call: ...'), while keeping policy advisories as 'ask'; and (2) a PreToolUse call with a non-string args.command (without CommandLine) or non-array args.commands alongside a denied target (e.g. write_file on idd/demo/state.yaml) still evaluates to 'deny' on the Go binary rather than failing unmarshal into 'ask'.",
+                "location": "scripts/hooks/ospec-hooks-launch.js:351"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "scripts/hooks/ospec-hooks-launch.js:285-288 prioritizes parsed.cwd over workspacePaths using isDir, which accepts filesystem/volume roots ('/', 'C:\\'). If Antigravity sends a root parsed.cwd alongside a valid project in workspacePaths, adapted.cwd becomes that root and launch() (line 755) spawns the child there. Child hooks reject root input.cwd via validatePath (scripts/lib/pathsafe.js:41-46; internal/hooks/common.go:33-38) to prevent .ospec/ write-steering to the filesystem root, but fall back to process.cwd()—which is already that root—defeating the guard and steering Stop/SessionStart away from the workspace (and resolving relative PreToolUse args.Cwd from '/'). Reject filesystem roots when validating parsed.cwd and workspacePaths so a valid workspacePaths entry still wins.",
+                "acceptance_criteria": "When an Antigravity hook payload has parsed.cwd set to a filesystem root (e.g. '/' on POSIX or 'C:\\' on Windows) and workspacePaths holds an existing project directory, adaptAntigravityHookInput ignores the root cwd and resolves cwd to the workspace directory; when both parsed.cwd and workspacePaths contain only filesystem roots (and no valid non-root args.Cwd is provided), PreToolUse treats the call as unreadable ('force_ask') and Stop/SessionStart do not spawn the child with cwd set to the filesystem root.",
+                "location": "scripts/hooks/ospec-hooks-launch.js:285"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "agy-01-pretooluse-stop:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-36d39c67d4ff6752",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/hooks/ospec-hooks-launch.js:294-305 maps only the first non-empty entry of [args.Path, args.AbsolutePath, args.TargetFile] to file_path and overwrites args.file_path, args.content (even with '' when Content/Replacement is empty), and args.command. Downstream writesCliOwnedFile and [REDACTED:...] guards (pre-tool-use.js:296,575; pretooluse.go:1035,1298) check only lowercase OWNED_PATH_KEYS/DECLARED_PATH_KEYS. Conditionally—on MCP tools with lowercase keys and default additionalProperties (REQ-hooks-029), or if agy forwards extra args on legacy write_to_file/replace_file_content—a benign sibling Path/Content/CommandLine shadows or erases the real argument and bypasses deny/ask checks. Preserve all distinct paths, bodies, and commands without overwriting existing keys.",
+          "acceptance_criteria": "Under OSPEC_TARGET=antigravity in both Node and Go PreToolUse hooks: (1) write_to_file with both benign Path and CLI-owned TargetFile (e.g. idd/demo/state.yaml) or [REDACTED:...] targeting a secret file still returns decision 'deny'; (2) a write/edit tool with lowercase file_path pointing to idd/demo/state.yaml plus benign Path still returns 'deny'; (3) a tool with lowercase content holding a secret or [REDACTED:...] plus empty Content:'' still triggers 'ask'/'deny'; and (4) a tool with lowercase command matching a DENY rule plus empty CommandLine:'' still returns 'deny'.",
+          "location": "scripts/hooks/ospec-hooks-launch.js:294",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-3ead20c3f5333036",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/hooks/ospec-hooks-launch.js:146-153 emits force_ask for launcherFailure on PreToolUse, but child-caught inspection failures exit 0 with permissionDecision 'ask' ('The safety hook could not inspect this tool call: ...' in pre-tool-use.js:743-752 and pretooluse.go:1230-1234) and are emitted as plain 'ask' at line 351, which cached Always Allow rules can auto-approve. On the Go binary, adaptAntigravityHookInput (lines 300-305) spreads raw ...args into tool_input, so any MCP or extra-arg call with non-string command (absent CommandLine) or non-array commands fails pretooluse.go's typed json.Unmarshal before h.run()—skipping all deny guards—and exits 0 as plain 'ask'. Avoid passing type-mismatched top-level command/commands from args and escalate child inspection-failure 'ask' envelopes to 'force_ask'.",
+          "acceptance_criteria": "Under OSPEC_TARGET=antigravity: (1) normalizeAntigravityHookOutput('pre-tool-use', ...) returns decision 'force_ask' when a child emits permissionDecision 'ask' with an inspection-failure reason ('The safety hook could not inspect this tool call: ...'), while keeping policy advisories as 'ask'; and (2) a PreToolUse call with a non-string args.command (without CommandLine) or non-array args.commands alongside a denied target (e.g. write_file on idd/demo/state.yaml) still evaluates to 'deny' on the Go binary rather than failing unmarshal into 'ask'.",
+          "location": "scripts/hooks/ospec-hooks-launch.js:351",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-c69016cb68a98776",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/hooks/ospec-hooks-launch.js:285-288 prioritizes parsed.cwd over workspacePaths using isDir, which accepts filesystem/volume roots ('/', 'C:\\'). If Antigravity sends a root parsed.cwd alongside a valid project in workspacePaths, adapted.cwd becomes that root and launch() (line 755) spawns the child there. Child hooks reject root input.cwd via validatePath (scripts/lib/pathsafe.js:41-46; internal/hooks/common.go:33-38) to prevent .ospec/ write-steering to the filesystem root, but fall back to process.cwd()—which is already that root—defeating the guard and steering Stop/SessionStart away from the workspace (and resolving relative PreToolUse args.Cwd from '/'). Reject filesystem roots when validating parsed.cwd and workspacePaths so a valid workspacePaths entry still wins.",
+          "acceptance_criteria": "When an Antigravity hook payload has parsed.cwd set to a filesystem root (e.g. '/' on POSIX or 'C:\\' on Windows) and workspacePaths holds an existing project directory, adaptAntigravityHookInput ignores the root cwd and resolves cwd to the workspace directory; when both parsed.cwd and workspacePaths contain only filesystem roots (and no valid non-root args.Cwd is provided), PreToolUse treats the call as unreadable ('force_ask') and Stop/SessionStart do not spawn the child with cwd set to the filesystem root.",
+          "location": "scripts/hooks/ospec-hooks-launch.js:285",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:fd2c18a1f128466fe9bad325136a7b9f48be2fe9539f69c10f409ca7815c18a5",
+      "correction_budget": {
+        "limit_lines": 130,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:dd03aae6959127c291930dc8fdfa55bdc24c2e446b7272c561505a14a126618c",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:7227029bd730f37e8d89eb6ed732a4009fbe82fae5835dc39df32225d6cdd4ca",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "f6c38b0dca52bbf410f846af53ed58a3e4836678",
+          "candidate_tree": "2a6364134d16da251e82ed7c032114ddb8d9e18e",
+          "paths": [
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js"
+          ],
+          "diff_hash": "sha256:f3ec23310c6af1a752d14fa492b2a5aabe4ddf10846a800774dad698ee9a0053",
+          "paths_digest": "sha256:2f0ec25383bd2624baa5f263c26e244dd1434c4d99aa5f3edef1ee24ddafb694",
+          "authored_lines": 256,
+          "original_changed_lines": 288
+        },
+        "candidate_id": "sha256:e5756c2df82c65f861b91bd4f7922455b667b1a0e4e9006c82a01a4e4f2f0868",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "2a6364134d16da251e82ed7c032114ddb8d9e18e",
+        "original_changed_lines": 288,
+        "authored_lines": 256
+      },
+      "current_candidate_id": "sha256:e5756c2df82c65f861b91bd4f7922455b667b1a0e4e9006c82a01a4e4f2f0868",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "f6c38b0dca52bbf410f846af53ed58a3e4836678",
+        "candidate_tree": "2a6364134d16da251e82ed7c032114ddb8d9e18e",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "diff_hash": "sha256:f3ec23310c6af1a752d14fa492b2a5aabe4ddf10846a800774dad698ee9a0053",
+        "paths_digest": "sha256:2f0ec25383bd2624baa5f263c26e244dd1434c4d99aa5f3edef1ee24ddafb694",
+        "authored_lines": 256,
+        "original_changed_lines": 288
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "agy-01-pretooluse-stop:lens-start:2:0",
+          "result_digest": "sha256:47b653192451b509b255a543174ae93c8ef0fe49813547c087aade2470d96b23",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "scripts/hooks/ospec-hooks-launch.js:300-319 sanitizes only exact lowercase command/commands, overlooking Go encoding/json case-insensitive (EqualFold) matching to toolInput.Command/Commands (internal/hooks/pretooluse.go:754-763,1229-1237). On the Go binary—conditionally for MCP tools with PascalCase Command/Commands or additionalProperties, or if agy forwards extra args—(1) non-string Command or non-array Commands alongside a denied write (e.g. state.yaml) fails json.Unmarshal before h.run(), downgrading deny to force_ask; (2) when lowercase command:\"\" or commands:[] precedes Command:null/\"echo hi\" or Commands:null, in-place mutation (lines 314,317) keeps the case-variant later in JSON so Go overwrites the field and silently allows a denied CommandLine (e.g. rm -rf /). Relocate top-level case-variants matching command/commands before mapping CommandLine.",
+                "acceptance_criteria": "Under OSPEC_TARGET=antigravity running the Go ospec-hooks binary: (1) write_file targeting idd/demo/state.yaml with non-string args.Command (e.g. 123 or [\"echo\"]) or non-array args.Commands (e.g. \"echo\") still returns decision \"deny\" rather than failing unmarshal into \"force_ask\"; and (2) run_command with CommandLine \"rm -rf /\" alongside { command: \"\", Command: \"echo hi\" }, { command: \"\", Command: null }, or { command: \"echo hi\", commands: [], Commands: null } still returns decision \"deny\" rather than silent allow.",
+                "location": "scripts/hooks/ospec-hooks-launch.js:303"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "scripts/hooks/ospec-hooks-launch.js:282-294,349-357 validates cwd via isDir() on cleaned = path.normalize(dir.trim()) and isDirectory(cleaned), then discards cleaned and assigns raw parsed.cwd, workspacePaths[i], or absolute args.Cwd to adapted.cwd for spawnSync (line 798). Conditionally when a path has trailing spaces or \"..\": (1) \"<workspace> \" or \"/nonexistent/../<workspace>\" passes isDir() yet fails spawnSync with ENOENT before policy runs, downgrading PreToolUse deny to force_ask and breaking Stop/SessionStart; (2) on POSIX, \"<symlink-to-top-level>/..\" (e.g. \"/var/run/..\") normalizes lexically to non-root \"/var\" while kernel chdir enters root \"/\", violating REQ-hooks-026. Return and assign the validated cleaned path (like scripts/lib/pathsafe.js:61-64) so spawnSync runs in the exact directory checked.",
+                "acceptance_criteria": "In adaptAntigravityHookInput under OSPEC_TARGET=antigravity: (1) a valid path with trailing whitespace or a collapsible \"..\" segment (e.g. \"<workspace> \", \"/nonexistent/../<workspace>\") either resolves to the normalized existing directory that spawnSync can chdir into or is rejected in favor of a valid fallback so PreToolUse still evaluates policy (returning \"deny\" on idd/demo/state.yaml rather than ENOENT \"force_ask\"); and (2) an unnormalized path whose symlink+\"..\" traverses to filesystem root (e.g. \"<dir>/<symlink-to-top-level>/..\") never spawns the child process with process.cwd() equal to the filesystem root.",
+                "location": "scripts/hooks/ospec-hooks-launch.js:282"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "agy-01-pretooluse-stop:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-ab1f13a639030d4e",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/hooks/ospec-hooks-launch.js:300-319 sanitizes only exact lowercase command/commands, overlooking Go encoding/json case-insensitive (EqualFold) matching to toolInput.Command/Commands (internal/hooks/pretooluse.go:754-763,1229-1237). On the Go binary—conditionally for MCP tools with PascalCase Command/Commands or additionalProperties, or if agy forwards extra args—(1) non-string Command or non-array Commands alongside a denied write (e.g. state.yaml) fails json.Unmarshal before h.run(), downgrading deny to force_ask; (2) when lowercase command:\"\" or commands:[] precedes Command:null/\"echo hi\" or Commands:null, in-place mutation (lines 314,317) keeps the case-variant later in JSON so Go overwrites the field and silently allows a denied CommandLine (e.g. rm -rf /). Relocate top-level case-variants matching command/commands before mapping CommandLine.",
+          "acceptance_criteria": "Under OSPEC_TARGET=antigravity running the Go ospec-hooks binary: (1) write_file targeting idd/demo/state.yaml with non-string args.Command (e.g. 123 or [\"echo\"]) or non-array args.Commands (e.g. \"echo\") still returns decision \"deny\" rather than failing unmarshal into \"force_ask\"; and (2) run_command with CommandLine \"rm -rf /\" alongside { command: \"\", Command: \"echo hi\" }, { command: \"\", Command: null }, or { command: \"echo hi\", commands: [], Commands: null } still returns decision \"deny\" rather than silent allow.",
+          "location": "scripts/hooks/ospec-hooks-launch.js:303",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-01b3101bad2a790b",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/hooks/ospec-hooks-launch.js:282-294,349-357 validates cwd via isDir() on cleaned = path.normalize(dir.trim()) and isDirectory(cleaned), then discards cleaned and assigns raw parsed.cwd, workspacePaths[i], or absolute args.Cwd to adapted.cwd for spawnSync (line 798). Conditionally when a path has trailing spaces or \"..\": (1) \"<workspace> \" or \"/nonexistent/../<workspace>\" passes isDir() yet fails spawnSync with ENOENT before policy runs, downgrading PreToolUse deny to force_ask and breaking Stop/SessionStart; (2) on POSIX, \"<symlink-to-top-level>/..\" (e.g. \"/var/run/..\") normalizes lexically to non-root \"/var\" while kernel chdir enters root \"/\", violating REQ-hooks-026. Return and assign the validated cleaned path (like scripts/lib/pathsafe.js:61-64) so spawnSync runs in the exact directory checked.",
+          "acceptance_criteria": "In adaptAntigravityHookInput under OSPEC_TARGET=antigravity: (1) a valid path with trailing whitespace or a collapsible \"..\" segment (e.g. \"<workspace> \", \"/nonexistent/../<workspace>\") either resolves to the normalized existing directory that spawnSync can chdir into or is rejected in favor of a valid fallback so PreToolUse still evaluates policy (returning \"deny\" on idd/demo/state.yaml rather than ENOENT \"force_ask\"); and (2) an unnormalized path whose symlink+\"..\" traverses to filesystem root (e.g. \"<dir>/<symlink-to-top-level>/..\") never spawns the child process with process.cwd() equal to the filesystem root.",
+          "location": "scripts/hooks/ospec-hooks-launch.js:282",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:cfda51c43178ca3155a09183413a4042e850ff12587f14e2049aae8ee2217ca5",
+      "correction_budget": {
+        "limit_lines": 144,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "advisory_corrections": [
+    {
+      "lineage_id": "sha256:dd03aae6959127c291930dc8fdfa55bdc24c2e446b7272c561505a14a126618c",
+      "status": "passed",
+      "finding_ids": [
+        "F-01b3101bad2a790b",
+        "F-ab1f13a639030d4e"
+      ],
+      "paths": [
+        "scripts/hooks/ospec-hooks-launch.js",
+        "scripts/hooks/ospec-hooks-launch.test.js"
+      ],
+      "changed_lines": 47,
+      "candidate_tree": "329ad2c6c9de266f634986db5b28e99dc28fe6ee",
+      "diff_hash": "sha256:0eeef7355f405531851bcf62d337fee0b4e6859772787c80926cd0189a02157d",
+      "recorded_at": "2026-11-22T01:02:12.427Z",
+      "validation": {
+        "recorded_at": "2026-11-22T01:08:08.796Z",
+        "outcomes": [
+          {
+            "id": "F-01b3101bad2a790b",
+            "status": "resolved"
+          },
+          {
+            "id": "F-ab1f13a639030d4e",
+            "status": "resolved"
+          }
+        ],
+        "regression": {
+          "detected": false,
+          "evidence": [
+            "Recorded in idd/agy-01-pretooluse-stop/state.yaml after the advisory correction: run-23 (node --test scripts/hooks/ospec-hooks-launch.test.js, exit 0, 56 tests) and run-24 (node scripts/check.js, exit 0), plus fitness runs run-25..run-28 (exit 0).",
+            "Code trace of scripts/hooks/ospec-hooks-launch.js:271-375 confirms changes stay isolated to adaptAntigravityHookInput (OSPEC_TARGET=antigravity only), preserving Gen-1 sibling-arg, root-cwd, and force_ask protections without affecting other targets."
+          ]
+        },
+        "follow_ups": [
+          {
+            "owner": "trust",
+            "summary": "In scripts/hooks/ospec-hooks-launch.test.js:670, path.join(fsRoot, \"nonexistent\", \"..\", workspace) pre-normalizes \"..\" away and equals the workspacePaths[0] fallback, making the \"..\" fallback assertion vacuous; construct the unnormalized path verbatim against scripts and add wrapper end-to-end cases for symlink+\"..\" and PascalCase Command/Commands."
+          }
+        ]
+      }
+    }
+  ],
+  "closed_at": "2026-11-22T01:08:09.002Z"
+}
