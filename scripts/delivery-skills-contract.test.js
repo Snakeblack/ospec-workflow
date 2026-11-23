@@ -8,7 +8,8 @@ const test = require("node:test");
 const { extractCompactRules } = require("./lib/skill-registry.js");
 
 const ROOT = path.resolve(__dirname, "..");
-const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), "utf8");
+// A Windows checkout may hold CRLF: the assertions below read lines split on LF.
+const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), "utf8").replace(/\r\n/g, "\n");
 
 // openspec/specs/skills/spec.md §6a and §6b.
 const BRANCH_PR = read("skills/branch-pr/SKILL.md");
