@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.185.5, 2026-11-22.
+> **Versión de referencia:** v2.186.0, 2026-11-23.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -226,7 +226,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.103** | `product-ext-mts-cts` (`PRODUCT_EXT` de `scripts/lib/idd-signals.js` no reconoce `.mts` ni `.cts`, así que un módulo TypeScript con esas extensiones no cuenta como código de producto para ninguna señal; fuera del orden ▶) | bugfix |
 | `pending` | **E1.104** | `ui-file-server-templates` (`UI_FILE` de `scripts/lib/idd-facts.js` no reconoce las plantillas de servidor, así que un proyecto cuya interfaz solo vive en `.cshtml`, `.erb` o `.jinja` deja fuera de los hechos abiertos las categorías de estado en la URL y de accesibilidad; fuera del orden ▶) | bugfix |
 | `done` | **E1.105** | `own-sdd-phase-skills` (versiones propias de las skills de fase de SDD que conservaban texto de gentle-ai medido contra su historial: sdd-explore, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-verify con sus módulos, sdd-archive, sdd-clarify, sdd-init, sdd-onboard, las referencias de `_shared` y `agents/sdd-orchestrator.agent.md`, en cinco cambios encadenados que se fusionan, con una sola release, al terminar el último; la sección de gentle-ai de `NOTICE` queda con branch-pr, issue-creation y skill-registry; en v2.185.4) | skills |
-| `done` | **E1.106** | `own-utility-skills` (versiones propias de issue-creation, branch-pr y skill-registry, alineadas con el harness: el issue como intención de un cambio futuro, branch-pr por ciclo de vida leyendo de `ospec team` y del repositorio, y la orden `ospec registry`, que construye el registro con el constructor del hook; la sección de gentle-ai sale de `NOTICE`) | skills |
+| `done` | **E1.106** | `own-utility-skills` (versiones propias de issue-creation, branch-pr y skill-registry, alineadas con el harness: el issue como intención de un cambio futuro, branch-pr por ciclo de vida leyendo de `ospec team` y del repositorio, y la orden `ospec registry`, que construye el registro con el constructor del hook; la sección de gentle-ai sale de `NOTICE`; en v2.186.0) | skills |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -2417,7 +2417,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
-- 2026-11-23: `own-utility-skills` (IDD). E1.106 hecho: issue-creation, branch-pr y skill-registry con texto propio y alineadas con el harness, con la orden nueva `ospec registry`. La sección de gentle-ai sale de `NOTICE` y el README cuenta el origen. E5.15 se amplía a las skills y convenciones del proyecto.
+- 2026-11-23: `own-utility-skills` (IDD), publicado en v2.186.0. E1.106 hecho: issue-creation, branch-pr y skill-registry con texto propio y alineadas con el harness, con la orden nueva `ospec registry`. La sección de gentle-ai sale de `NOTICE` y el README cuenta el origen. E5.15 se amplía a las skills y convenciones del proyecto.
 - 2026-11-22: `chain-merge-retarget` (IDD), publicado en v2.185.5. Arreglo pedido por delante de E1.106. En una cadena, `chained-pr` y el paso 6 de AGENTS.md reapuntan la PR siguiente antes de fusionar la anterior con `--delete-branch`, y el playbook explica cómo reabrir una PR que el host cerró al borrar su rama base.
 - 2026-11-21: `own-sdd-shared-orchestrator` (IDD), publicado en v2.185.4. Quinto cambio de E1.105: `_shared`, el agente orquestador y dos frases de `sdd-baseline` y `sdd-reconcile` con texto propio, con una sola regla sobre quién escribe `state.yaml`. E1.105 hecho.
 - 2026-11-20: `own-sdd-init-onboard-archive-clarify` (IDD), publicado en v2.185.4. Cuarto cambio de E1.105: sdd-init, sdd-onboard, sdd-archive y sdd-clarify con texto propio; sdd-onboard pasa a ejecutor que termina en verify.
