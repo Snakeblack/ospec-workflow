@@ -579,13 +579,48 @@ test("normalizeAntigravityHookOutput speaks agy's decision and injectSteps contr
   assert.deepEqual(normalizeAntigravityHookOutput("pre-tool-use", allow), {}, "an affirmative allow would skip agy's prompts");
   assert.deepEqual(normalizeAntigravityHookOutput("pre-tool-use", null), {});
 
-  const session = { status: "ok", ospecDetected: true, systemMessage: "Crea una rama." };
+  const session = { status: "ok", ospecDetected: true, registry: { status: "reused" }, systemMessage: "Crea una rama." };
   assert.deepEqual(normalizeAntigravityHookOutput("session-start", session), {
-    injectSteps: [{ systemMessage: { systemMessage: 'Crea una rama.\n{"ospecDetected":true}' } }],
+    injectSteps: [{ systemMessage: { systemMessage: "", metadata: { user_markdown: "Crea una rama." } } }],
   });
+  const withIddAndSecurity = {
+    status: "ok",
+    ospecDetected: true,
+    registry: { status: "generated" },
+    security: {
+      status: "warning",
+      alerts: [{ type: "unignored-env-file", file: ".env", reason: "El archivo sensible no está ignorado en Git" }],
+    },
+    hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: "ospec: open changes" },
+    systemMessage: "Cuidado: .env\nospec: open IDD changes: `fix-a`.",
+  };
+  assert.deepEqual(normalizeAntigravityHookOutput("session-start", withIddAndSecurity), {
+    injectSteps: [
+      {
+        systemMessage: {
+          systemMessage: "ospec: open changes\n[ospec security] .env (El archivo sensible no está ignorado en Git)",
+          metadata: { user_markdown: "Cuidado: .env\nospec: open IDD changes: `fix-a`." },
+        },
+      },
+    ],
+  });
+  assert.deepEqual(
+    normalizeAntigravityHookOutput("session-start", { continue: true, systemMessage: "[ospec error] Hook session-start failed: ENOENT" }),
+    {
+      injectSteps: [
+        {
+          systemMessage: {
+            systemMessage: "[ospec error] Hook session-start failed: ENOENT",
+            metadata: { user_markdown: "[ospec error] Hook session-start failed: ENOENT" },
+          },
+        },
+      ],
+    },
+  );
   assert.deepEqual(normalizeAntigravityHookOutput("session-start", { status: "error", message: "boom" }), {
     injectSteps: [{ systemMessage: { systemMessage: "[ospec error] boom" } }],
   });
+  assert.deepEqual(normalizeAntigravityHookOutput("session-start", { status: "ok", ospecDetected: true, registry: { status: "reused" } }), {});
   assert.deepEqual(normalizeAntigravityHookOutput("session-start", { status: "ok" }), {});
   // Stop never blocks: only decision "continue" would keep agy running.
   assert.deepEqual(normalizeAntigravityHookOutput("stop", { continue: true, systemMessage: "x" }), {});
@@ -667,7 +702,7 @@ test("antigravity 1.5.14 maps Path/Content/Replacement, prefers non-root native 
   const okSession = { status: 0, stdout: '{"status":"ok"}', stderr: "" };
   assert.equal(agy15(["session-start"], { cwd: path.join(workspace, "no-such-dir"), workspacePaths: [workspace] }, okSession).options.cwd, workspace);
   assert.equal(agy15(["session-start"], { cwd: `${scripts} `, workspacePaths: [workspace] }, okSession).options.cwd, scripts, "trimmed cleaned cwd is passed to spawnSync");
-  assert.equal(agy15(["session-start"], { cwd: path.join(fsRoot, "nonexistent", "..", workspace), workspacePaths: [workspace] }, okSession).options.cwd, workspace, "unnormalized .. cwd falls back to workspacePaths");
+  assert.equal(agy15(["session-start"], { cwd: `${scripts}${path.sep}..${path.sep}scripts`, workspacePaths: [workspace] }, okSession).options.cwd, workspace, "verbatim .. cwd falls back to workspacePaths");
   assert.equal(agy15(["stop"], { cwd: fsRoot, workspacePaths: [workspace] }, { status: 0, stdout: '{"continue":true}', stderr: "" }).options.cwd, workspace, "root cwd falls back to workspacePaths");
 
   const caseVariant = agy15(["pre-tool-use"], { cwd: scripts, workspacePaths: [workspace], toolCall: { name: "run_command", args: { command: "", Command: null, Commands: "x", CommandLine: "echo ok" } } });
@@ -746,6 +781,8 @@ test("the antigravity wrapper enforces PreToolUse guards on agy 1.5.14 tools and
     ["lowercase DENY command + benign CommandLine", "run_command", { command: "rm -rf /", CommandLine: "echo hi" }, "deny", /./],
     ["non-string args.command + write_file state.yaml", "write_file", { command: ["echo", "hi"], Path: statePath, Content: "x" }, "deny", /CLI de ospec/],
     ["non-array args.commands + write_file state.yaml", "write_file", { commands: "echo hi", Path: statePath, Content: "x" }, "deny", /CLI de ospec/],
+    ["PascalCase Command/Commands + DENY CommandLine", "run_command", { Command: "echo ok", Commands: "x", CommandLine: "rm -rf /" }, "deny", /./],
+    ["PascalCase Command/Commands + write_file state.yaml", "write_file", { Command: null, Commands: "x", Path: statePath, Content: "x" }, "deny", /CLI de ospec/],
   ]) {
     const result = call(name, args);
     assert.equal(result.status, 0, `${label}: ${result.stderr}`);
@@ -753,6 +790,21 @@ test("the antigravity wrapper enforces PreToolUse guards on agy 1.5.14 tools and
     const output = JSON.parse(result.stdout);
     assert.equal(output.decision, decision, `${label}: ${result.stdout}`);
     assert.match(output.reason, reasonRe, `${label}: ${result.stdout}`);
+  }
+
+  // Symlink + verbatim `..` in cwd must be rejected and fall back to workspacePaths.
+  const subDir = path.join(workspace, "sub");
+  const linkDir = path.join(workspace, "link-sub");
+  fs.mkdirSync(subDir, { recursive: true });
+  let linked = false;
+  try { fs.symlinkSync(subDir, linkDir, "dir"); linked = true; } catch { /* skip on restricted Windows hosts */ }
+  if (linked) {
+    const res = spawnSync(process.execPath, [wrapper, "pre-tool-use"], {
+      input: JSON.stringify({ conversationId: "c-15", cwd: `${linkDir}${path.sep}..`, workspacePaths: [workspace], toolCall: { name: "write_file", args: { Path: statePath, Content: "x" } } }),
+      env, encoding: "utf8", cwd: os.homedir(), timeout: 10000,
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(JSON.parse(res.stdout).decision, "deny", "symlink+.. cwd falls back to workspace and enforces guard");
   }
 
   for (const [label, name, args] of [

@@ -1098,14 +1098,14 @@ test("real repo: all seven profile outputs retain the compact lite artifact cont
 // E1.8: /sdd-new and /sdd-lite take the whole request as their only input, so a
 // request without a change name is not split into "name" and "intent" words.
 test("real repo: sdd-new and sdd-lite receive the whole request in all seven targets", (t) => {
-  const wholeString = new Set(["claude", "opencode", "codex"]);
+  const wholeString = new Set(["claude", "opencode", "codex", "antigravity"]);
   for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor", "antigravity"]) {
     const out = tmpOut(t);
     const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
     for (const command of ["sdd-new", "sdd-lite"]) {
       const file = result.files.find((entry) =>
         entry.path.endsWith(`/${command}.md`) || entry.path.endsWith(`/${command}.prompt.md`) ||
-        entry.path === `skills/commands/${command}/SKILL.md`);
+        entry.path === `skills/commands/${command}/SKILL.md` || entry.path === `skills/${command}/SKILL.md`);
       assert.ok(file, `${target} must ship ${command}`);
       const { frontmatter, body } = parse(file.content);
       assert.equal(getField(frontmatter, "arguments"), null, `${target} ${command} must not split the request into named arguments`);
@@ -1115,6 +1115,22 @@ test("real repo: sdd-new and sdd-lite receive the whole request in all seven tar
       // Both forms: `<name> <request>` keeps its name, a bare request gets a derived one.
       assert.match(body, /kebab-case name with at least one hyphen/, `${target} ${command} must say when the first word is the name`);
       assert.match(body, /derive a short kebab-case change name/, `${target} ${command} must derive the name when it is missing`);
+    }
+    if (target === "antigravity") {
+      assert.deepEqual(result.files.filter((entry) => entry.path.startsWith("commands/")), []);
+      assert.equal(result.files.some((entry) => entry.path === ".mcp.json"), false);
+      for (const meta of ["sdd-continue", "sdd-ff", "sdd-lite", "sdd-new"]) {
+        const entry = result.files.find((file) => file.path === `skills/${meta}/SKILL.md`);
+        assert.ok(entry, `antigravity must emit skills/${meta}/SKILL.md`);
+        assert.equal(getField(parse(entry.content).frontmatter, "disable-model-invocation")?.value, "true");
+      }
+      // Regenerating over a tree with stale .mcp.json and commands/*.prompt.md prunes both.
+      fs.writeFileSync(path.join(out, ".mcp.json"), '{"legacy":true}\n');
+      fs.mkdirSync(path.join(out, "commands"), { recursive: true });
+      fs.writeFileSync(path.join(out, "commands", "sdd-new.prompt.md"), "stale\n");
+      runConfigure({ sourceDir: ROOT, target: "antigravity", outDir: out, validate: false, withSdd: true });
+      assert.equal(fs.existsSync(path.join(out, ".mcp.json")), false, "stale .mcp.json must be pruned");
+      assert.equal(fs.existsSync(path.join(out, "commands", "sdd-new.prompt.md")), false, "stale commands/*.prompt.md must be pruned");
     }
   }
 });

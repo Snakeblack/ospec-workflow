@@ -1668,3 +1668,89 @@ test("antigravity translates user-invocable:false to disable-slash-command:true 
   }
 });
 
+test("antigravity emits non-colliding SDD meta-commands as flat skills, prefixes relative rule globs, and drops .mcp.json", () => {
+  const files = [
+    {
+      path: "commands/sdd-apply.prompt.md",
+      content: "---\nname: sdd-apply\ndescription: Apply phase.\nagent: sdd-orchestrator\n---\n\nApply `${input:changeName}`.\n",
+    },
+    {
+      path: "commands/sdd-new.prompt.md",
+      content: "---\nname: sdd-new\ndescription: Start a new change.\nagent: sdd-orchestrator\n---\n\nStart: `${input:request}`.\n",
+    },
+    {
+      path: "commands/sdd-lite.prompt.md",
+      content: "---\nname: sdd-lite\ndescription: Run lite mode.\nagent: sdd-orchestrator\n---\n\nClassify: `${input:request}`.\n",
+    },
+    {
+      path: "commands/sdd-ff.prompt.md",
+      content: "---\nname: sdd-ff\ndescription: Fast-forward planning.\nagent: sdd-orchestrator\nargument-hint: \"<goal>\"\ntools: ['agent', 'read', 'search', 'edit']\n---\n\nUser input: `${input}`\n",
+    },
+    {
+      path: "commands/sdd-continue.prompt.md",
+      content: "---\nname: sdd-continue\ndescription: Continue SDD phase.\nagent: sdd-orchestrator\n---\n\nContinue `${input:changeName}`.\n",
+    },
+    {
+      path: "skills/sdd-apply/SKILL.md",
+      content: "---\nname: sdd-apply\ndescription: Phase executor.\ndisable-model-invocation: true\nuser-invocable: false\n---\n\nExecutor body.\n",
+    },
+    {
+      path: "rules/sdd-openspec.instructions.md",
+      content: "---\ndescription: OpenSpec paths.\napplyTo: 'openspec/**, ./docs/**, **/*.ts, /etc/hosts, C:/abs/**'\n---\n\nRule body.\n",
+    },
+    {
+      path: ".mcp.json",
+      content: JSON.stringify({ mcpServers: { markitdown: { command: "uvx", args: ["markitdown-mcp"] } } }),
+    },
+  ];
+
+  const agy = transform({ files, profile: antigravity, models: MODELS, withSdd: true });
+
+  // A2: zero commands/*.prompt.md; 4 non-colliding meta-commands as flat skills; colliding phase skill untouched.
+  assert.deepEqual(
+    agy.files.filter((f) => f.path.startsWith("commands/")),
+    [],
+    "antigravity must omit commands/*.prompt.md",
+  );
+  for (const name of ["sdd-continue", "sdd-ff", "sdd-lite", "sdd-new"]) {
+    const skill = find(agy, `skills/${name}/SKILL.md`);
+    assert.ok(skill, `antigravity must emit skills/${name}/SKILL.md`);
+    const { frontmatter, body } = parse(skill.content);
+    assert.equal(getField(frontmatter, "name")?.value, name);
+    assert.equal(getField(frontmatter, "disable-model-invocation")?.value, "true");
+    assert.equal(getField(frontmatter, "disable-slash-command"), null, `${name} must remain slash-invocable`);
+    for (const stripped of ["agent", "target", "tools", "argument-hint"]) {
+      assert.equal(getField(frontmatter, stripped), null, `${name} must strip ${stripped}`);
+    }
+    assert.match(body, /\$ARGUMENTS/, `${name} must substitute single/bare input with $ARGUMENTS`);
+    assert.doesNotMatch(body, /\$\{input/, `${name} must not leave \${input} residue`);
+    assert.match(body, /Spawn the `sdd-orchestrator` agent/, `${name} must route to sdd-orchestrator`);
+  }
+  const applySkill = find(agy, "skills/sdd-apply/SKILL.md");
+  assert.ok(applySkill, "colliding phase skill must survive intact");
+  assert.match(applySkill.content, /Executor body\./, "colliding command must not overwrite phase skill");
+  assert.equal(getField(parse(applySkill.content).frontmatter, "disable-slash-command")?.value, "true");
+  assert.equal(find(agy, "skills/commands/sdd-new/SKILL.md"), undefined, "antigravity uses flat skills/<name>/SKILL.md");
+
+  // A3: drop .mcp.json and keep managedRoots for stale pruning.
+  assert.equal(find(agy, ".mcp.json"), undefined, "antigravity must drop .mcp.json");
+  assert.ok(Array.isArray(antigravity.managedRoots) && antigravity.managedRoots.includes(".mcp.json"));
+  assert.ok(antigravity.managedRoots.includes("commands"));
+
+  // M1: prefix relative rule globs with **/ without touching already-prefixed or absolute globs.
+  const ruleFm = parse(find(agy, "rules/sdd-openspec.instructions.md").content).frontmatter;
+  assert.equal(getField(ruleFm, "trigger")?.value, "glob");
+  assert.equal(getField(ruleFm, "globs")?.value, "**/openspec/**, **/docs/**, **/*.ts, /etc/hosts, C:/abs/**");
+
+  // Non-regression: other targets keep their own rule globs, command paths, and .mcp.json handling.
+  const copilotOut = transform({ files, profile: githubCopilot, models: MODELS, withSdd: true });
+  assert.equal(
+    getField(parse(find(copilotOut, ".github/instructions/sdd-openspec.instructions.md").content).frontmatter, "applyTo")?.value,
+    "openspec/**,./docs/**,**/*.ts,/etc/hosts,C:/abs/**",
+  );
+  assert.ok(find(copilotOut, ".mcp.json"), "github-copilot keeps .mcp.json");
+  const codexOut = transform({ files, profile: codex, models: MODELS, withSdd: true });
+  assert.ok(find(codexOut, "skills/commands/sdd-apply/SKILL.md"), "codex still emits colliding commands under skills/commands/");
+  assert.equal(getField(parse(find(codexOut, "skills/commands/sdd-new/SKILL.md").content).frontmatter, "disable-model-invocation"), null);
+});
+

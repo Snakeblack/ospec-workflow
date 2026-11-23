@@ -1024,7 +1024,7 @@ The generator MUST keep the SDD package out of every target's output unless the 
 
 ### Requirement: A Command's Only Input Receives The Whole Request {#REQ-generator-026}
 
-Hosts assign named and positional command arguments one word each, so a free-text request split across two inputs loses everything after its first words (E1.8). When a command body names a single `${input:x}`, the targets that substitute arguments (Claude, OpenCode and Codex) MUST replace it with the whole argument string, `$ARGUMENTS`; Claude MUST then omit the `arguments` frontmatter and keep `x` as `argument-hint`. Bare `${input}` is always `$ARGUMENTS`. Several named inputs keep their positions: `$x` with `arguments` in Claude, `$1`/`$2` by first appearance in OpenCode and Codex. The other targets keep `${input:x}`.
+Hosts assign named and positional command arguments one word each, so a free-text request split across two inputs loses everything after its first words (E1.8). When a command body names a single `${input:x}`, the targets that substitute arguments (Claude, OpenCode, Codex and Antigravity) MUST replace it with the whole argument string, `$ARGUMENTS`; Claude MUST then omit the `arguments` frontmatter and keep `x` as `argument-hint`. Bare `${input}` is always `$ARGUMENTS`. Several named inputs keep their positions: `$x` with `arguments` in Claude, `$1`/`$2` by first appearance in OpenCode, Codex and Antigravity. The other targets keep `${input:x}`.
 
 `/sdd-new` and `/sdd-lite` MUST take one input, `${input:request}`, with the whole request, and MUST tell the orchestrator that the first word is the change name only when it is kebab-case with at least one hyphen (`add-login`); otherwise the whole request is the intent and the orchestrator derives a short kebab-case name from it.
 
@@ -1032,7 +1032,7 @@ Hosts assign named and positional command arguments one word each, so a free-tex
 
 - GIVEN a build generated with `withSdd: true` for each of the 7 targets
 - WHEN `sdd-new` and `sdd-lite` are read
-- THEN neither declares `arguments` nor takes a name and an intent separately, Claude, OpenCode and Codex pass `$ARGUMENTS` and the others `${input:request}`, and both say when the first word is the name and that a missing name is derived from the request
+- THEN neither declares `arguments` nor takes a name and an intent separately, Claude, OpenCode, Codex and Antigravity pass `$ARGUMENTS` and the others `${input:request}`, and both say when the first word is the name and that a missing name is derived from the request
 
 #### Scenario: Several named inputs keep their positions
 
@@ -1063,3 +1063,19 @@ For Antigravity `skills/*/SKILL.md` files declaring `user-invocable: false` (`_s
 - WHEN all seven targets are generated
 - THEN `antigravity` MUST emit `disable-slash-command: true`, keep `disable-model-invocation: true`, and strip `user-invocable`
 - AND the other six targets MUST remain byte-identical without `mainAgent`, `subagent`, `inheritMcp`, `commandExecutionPolicy`, or `disable-slash-command`
+
+### Requirement: Antigravity Meta-Command Skills, Absolute Rule Globs, and Dead MCP Removal {#REQ-generator-028}
+
+For the `antigravity` target, `commands/*.prompt.md` MUST NOT be emitted. When `withSdd` is enabled, each canonical command whose base name does not collide with an existing `skills/<name>/SKILL.md` (`sdd-continue`, `sdd-ff`, `sdd-lite`, `sdd-new`) MUST be emitted as a flat slash-invocable skill at `skills/<name>/SKILL.md` with `disable-model-invocation: true`, `$ARGUMENTS` substitution, and stripped `agent`/`target`/`tools`/`argument-hint` frontmatter; colliding commands MUST be skipped so all existing phase `skills/sdd-<phase>/SKILL.md` files stay intact (`REQ-generator-019`).
+
+Antigravity rule output (`rules/*.instructions.md` with `trigger: glob`) MUST prefix relative globs (not starting with `**/`, `/`, or a Windows drive letter, stripping any leading `./`) with `**/` so they match Antigravity's absolute file paths, leaving canonical rule sources and the other six targets unchanged. Antigravity MUST drop `.mcp.json` and declare `.mcp.json` and `commands` in `managedRoots` so regenerating prunes stale artifacts.
+
+#### Scenario: Antigravity ships flat meta-command skills, prefixes relative globs, and drops .mcp.json
+
+- GIVEN a canonical build with `withSdd: true`
+- WHEN the `antigravity` target is generated
+- THEN no `commands/*.prompt.md` or `.mcp.json` file MUST be present
+- AND `skills/{sdd-continue,sdd-ff,sdd-lite,sdd-new}/SKILL.md` MUST be present with `disable-model-invocation: true` and `$ARGUMENTS`
+- AND colliding `skills/sdd-apply/SKILL.md` MUST remain the phase skill with `disable-slash-command: true`
+- AND `rules/sdd-openspec.instructions.md` MUST emit `globs: "**/openspec/**"`
+- AND the other six targets MUST remain byte-identical

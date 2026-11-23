@@ -8,7 +8,17 @@ module.exports = {
   id: "antigravity",
 
   agentFile: { from: ".agent.md", to: ".agent.md" },
-  commandFile: { from: ".prompt.md", to: ".prompt.md" },
+  // Antigravity ignores commands/*.prompt.md; emit only non-colliding SDD
+  // meta-commands as flat slash-invocable skills while keeping phase skills
+  // intact (REQ-generator-019).
+  commandFile: {
+    from: ".prompt.md",
+    format: "skill",
+    dir: "skills",
+    skipCollidingSkills: true,
+    disableModelInvocation: true,
+    frontLoadDescription: false,
+  },
 
   // The host inherits its model; it must never receive selector metadata.
 
@@ -71,14 +81,17 @@ module.exports = {
   },
 
   // Antigravity rules scope with `trigger: always_on | glob` plus `globs`, not
-  // applyTo (antigravity.google/docs/rules, checked for E0.2).
+  // applyTo (antigravity.google/docs/rules, checked for E0.2). Antigravity
+  // matches globs against absolute paths, so relative globs need a `**/` prefix.
   rules: {
     strategy: "to-instructions",
     dir: "rules",
     scopeField: "trigger",
+    prefixRelativeGlobs: true,
   },
 
-  drop: [".claude-plugin/", ".codex-plugin/", ".github/", ".opencode/"],
+  drop: [".claude-plugin/", ".codex-plugin/", ".github/", ".opencode/", ".mcp.json"],
+  managedRoots: [".mcp.json", "commands"],
 
   validate: ["node", "scripts/configure/validate-antigravity.js", "{out}"],
 };
