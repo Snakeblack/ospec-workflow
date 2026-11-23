@@ -1,222 +1,133 @@
 ---
 name: branch-pr
-description: "Create pull requests with branch, validation, and publication checks. Trigger: creating, opening, or preparing PRs for review."
+description: "Take a change from its branch to a merged pull request. Trigger: create branch, open PR, pull request, merge PR."
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
-  version: "2.2"
+  author: manuel-retamozo-garcia
+  version: "3.0"
 ---
 
 ## When to Use
 
-Use this skill when:
-- Creating a pull request for any change
-- Preparing a branch for submission
-- Helping a contributor open a PR
+Load this skill twice in a change: before its first edit, to create the
+branch, and when the work is ready, to open the pull request and take it to
+the merge. `work-unit-commits` writes the commits, and `chained-pr` takes over
+when the diff exceeds the review budget.
 
----
+## Rules
 
-## Critical Rules
+- Feature branch MUST be created before any project file is edited: `git switch -c <type>/<description>` from the up-to-date base.
+- Never edit files or commit on the default branch: every change reaches it through a branch and a pull request.
+- Name the branch `<type>/<description>`: a Conventional Commit type, a slash, and lowercase words joined by hyphens.
+- Read the base branch and how many pull requests may be in flight from `ospec team`, and finish the open one first when it prints `serial`.
+- Open a pull request only for work whose checks pass on the committed tree; in IDD, only after `ospec close` succeeded.
+- One pull request delivers one change; above the review budget `ospec team` prints, load `chained-pr` before opening it.
+- Never rewrite a pushed branch: bring a moved base in with `git merge`, never with a rebase or a force-push.
+- Write the title as a Conventional Commit subject, and the title and the body in the project's language.
+- The body says what changed, why, and the evidence that it works: each command that ran and its result.
+- Use the pull request template and the labels the repository already has; never invent a label or link an issue that does not exist.
+- Never credit a model, a vendor or an agent tool in the title, the body or a comment.
+- Push, open, merge and release only with the user's approval for that step; green checks are not an approval.
+- Merge only with the checks of the pull request green, and delete the branch once it is merged.
 
-1. **Issue linkage is optional**. If a PR links an issue, verify it is relevant and approved; never fabricate or self-approve an issue.
-2. **Every PR MUST have exactly one `type:*` label**
-3. **Automated checks must pass** before merge is possible
-4. **PRs MUST describe scope and validation**, whether or not an issue is linked.
-5. **No model/tool attribution** in the PR title, body, or comments — never include
-   `Generated with`, a 🤖 footer, or any mention of Claude, Claude Code, Anthropic,
-   GPT, OpenAI, Codex, Copilot, Gemini, or any other model/vendor. See
-   `rules/no-model-attribution.instructions.md`.
-6. **Feature branch MUST be created before any project file is edited** — run `git checkout -b <type>/<description> main` as Step 0 before writing any code.
-7. **NEVER edit files or commit directly on the default branch (`main`)** — all changes require a feature branch and PR.
+## What the Project Decides
 
----
+`ospec team` prints what this skill does not decide. A project without `ospec`
+uses the fallback.
 
-## Workflow
+| Value | Line of `ospec team` | Fallback |
+|---|---|---|
+| Base branch | `integration`, when it prints one | The default branch: `git symbolic-ref --short refs/remotes/origin/HEAD` |
+| Pull requests in flight | `branching` and `branching rules` | One at a time |
+| Review budget | `delivery` | The one `chained-pr` gives |
+| Language | `language` | That of the recent subjects (`git log -20 --format=%s`), then the user's |
+| Release | `release` and `release rules` | None: ask the user |
 
-```
-0. Create a feature branch: git checkout -b <type>/<description> main
-1. If an issue is linked, verify it has the `status:approved` label; otherwise continue without issue linkage
-2. Create branch: type/description (see Branch Naming below)
-3. Implement changes with conventional commits
-4. Run shellcheck on modified scripts
-5. Open PR using the template
-6. Add exactly one type:* label
-7. Wait for automated checks to pass
-```
+## Before the Branch
 
----
+1. Check the tree with `git status --short`. Work already started on the base
+   moves to the branch in step 4; commits already made there stay, and the
+   user decides what to do with them.
+2. With `serial` branching, `gh pr list --state open` must be empty: finish
+   that pull request first, or ask the user. The pull requests of one chain
+   count as one.
+3. Update the base: `git switch <base>` and `git pull --ff-only`.
+4. Create the branch: `git switch -c <type>/<description>`. The type is the
+   one the commits will carry (`feat`, `fix`, `docs`, `refactor`, `perf`,
+   `test`, `build`, `ci`, `chore`, `revert`), and in IDD the description is the
+   change id.
 
-## Multi-Developer Collaboration
+## Before the Pull Request
 
-The project's branching decides how many PRs may be in flight. Read it from
-`ospec team` (or the `delivery` of `ospec next`): `branching`, its `reasons`
-and its rules in `how`. Without a declaration the recommendation is `serial`.
+1. Commit by work unit (`work-unit-commits`) until `git status --short` is
+   empty.
+2. Prove the checks on that tree. In IDD, `ospec close` succeeded and its
+   archive is committed. In SDD, the verify report passed. With neither, run
+   the checks the project declares (its contributing guide, its CI workflow
+   or its package scripts) and keep the output.
+3. Bring the base in when it moved: `git fetch`, then `git merge origin/<base>`.
+4. Measure the diff: `git diff --shortstat origin/<base>...HEAD`. Above the
+   review budget, load `chained-pr`.
+5. Write the title and the body, show them with the size and the labels, and
+   wait for the user's answer before pushing.
 
-- **Branching policy**: `serial` keeps one PR in flight, so the open PR is merged (and released, when the project cuts a release per change) before a new branch; `parallel` allows several branches, each integrating the default branch before its merge and editing version and changelog last.
-- **Branch hygiene**: one branch per task, named `<type>/<description>`; delete it after the merge.
-- **Default-branch protection**: NEVER edit files or commit directly on `main`; all work goes through feature branches and PRs.
-- **Sync coordination**: pull the default branch before branching. Rebase only a branch that was never pushed; once pushed, integrate the default branch with `git merge`, since the hooks deny force-pushing.
-- **Parallel work**: each developer works on a dedicated branch; integrate only via PR review, never direct push.
-- **Commit conventions**: use Conventional Commits with the subject in the project's language, imperative; keep commits atomic and buildable.
-- **Language**: write commit subjects and bodies and the PR title and body in the `language` that `ospec team` prints; when it prints none, in the language of the recent commit subjects (`git log -20 --format=%s`), and with no history in the user's. The commit type, the scope and the labels stay in English.
+## The Pull Request
 
----
+The title is the Conventional Commit subject that names the outcome of the
+whole change: `type(scope): subject`.
 
-## Branch Naming
-
-Branch names MUST match this regex:
-
-```
-^(feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert)\/[a-z0-9._-]+$
-```
-
-**Format:** `type/description` — lowercase, no spaces, only `a-z0-9._-` in description.
-
-| Type | Branch pattern | Example |
-|------|---------------|---------|
-| Feature | `feat/<description>` | `feat/user-login` |
-| Bug fix | `fix/<description>` | `fix/zsh-glob-error` |
-| Chore | `chore/<description>` | `chore/update-ci-actions` |
-| Docs | `docs/<description>` | `docs/installation-guide` |
-| Style | `style/<description>` | `style/format-scripts` |
-| Refactor | `refactor/<description>` | `refactor/extract-shared-logic` |
-| Performance | `perf/<description>` | `perf/reduce-startup-time` |
-| Test | `test/<description>` | `test/add-setup-coverage` |
-| Build | `build/<description>` | `build/update-shellcheck` |
-| CI | `ci/<description>` | `ci/add-branch-validation` |
-| Revert | `revert/<description>` | `revert/broken-setup-change` |
-
----
-
-## PR Body Format
-
-The PR template is at `.github/PULL_REQUEST_TEMPLATE.md`. Every PR body MUST contain:
-
-### 1. Linked Issue (OPTIONAL)
-
-Include `Closes #<issue-number>`, `Fixes #<issue-number>`, or
-`Resolves #<issue-number>` only when a relevant approved issue exists.
-Otherwise omit issue linkage; do not invent an issue or approval.
-
-### 2. PR Type (REQUIRED)
-
-Check exactly ONE in the template and add the matching label:
-
-| Checkbox | Label to add |
-|----------|-------------|
-| Bug fix | `type:bug` |
-| New feature | `type:feature` |
-| Documentation only | `type:docs` |
-| Code refactoring | `type:refactor` |
-| Maintenance/tooling | `type:chore` |
-| Breaking change | `type:breaking-change` |
-
-### 3. Summary
-
-1-3 bullet points of what the PR does.
-
-### 4. Changes Table
+When the repository has a template (`.github/PULL_REQUEST_TEMPLATE.md`, in any
+letter case, or one in `docs/` or the root), fill every section of it.
+Otherwise write these three:
 
 ```markdown
-| File | Change |
-|------|--------|
-| `path/to/file` | What changed |
+## Summary
+<what changed and why, in one to three lines>
+
+## Changes
+- <one outcome, and where it lives>
+
+## Evidence
+- `<command>`: <result>
 ```
 
-### 5. Test Plan
+Take the content from what the change recorded, not from memory: in IDD the
+intent, the decisions and the evidence of its `change.md`; in SDD the proposal
+and the verify report. Add `Closes #<n>` only for an issue that exists and
+that this pull request resolves.
 
-```markdown
-- [x] Scripts run without errors: `shellcheck scripts/*.sh`
-- [x] Manually tested the affected functionality
-- [x] Skills load correctly in target agent
-```
-
-### 6. Contributor Checklist
-
-All boxes must be checked:
-- Linked an approved issue when one exists, or explicitly omitted issue linkage
-- Added exactly one `type:*` label
-- Ran shellcheck on modified scripts
-- Skills tested in at least one agent
-- Docs updated if behavior changed
-- Conventional commit format
-- No `Co-Authored-By` trailers
-- No model/tool attribution in commits or PR body (no Claude/GPT/Gemini/Copilot/etc., no 🤖 footer)
-
----
-
-## Automated Checks (all must pass)
-
-| Check | Job name | What it verifies |
-|-------|----------|-----------------|
-| PR Validation | `Check PR Has type:* Label` | PR has exactly one `type:*` label |
-| CI | `Shellcheck` | Shell scripts pass `shellcheck` |
-
----
-
-## Conventional Commits
-
-Commit messages MUST match this regex:
-
-```
-^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9\._-]+\))?!?: .+
-```
-
-**Format:** `type(scope): description` or `type: description`
-
-- `type` — required, one of: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, `test`
-- `(scope)` — optional, lowercase with `a-z0-9._-`
-- `!` — optional, indicates breaking change
-- `description` — required, starts after `: ` and MUST be an imperative sentence in the project's language
-- Commit body, when needed, MUST be prose in the project's language
-
-Type-to-label mapping:
-
-| Commit type | PR label |
-|-------------|----------|
-| `feat` | `type:feature` |
-| `fix` | `type:bug` |
-| `docs` | `type:docs` |
-| `refactor` | `type:refactor` |
-| `chore` | `type:chore` |
-| `style` | `type:chore` |
-| `perf` | `type:feature` |
-| `test` | `type:chore` |
-| `build` | `type:chore` |
-| `ci` | `type:chore` |
-| `revert` | `type:bug` |
-| `feat!` / `fix!` | `type:breaking-change` |
-
-Examples, for a project whose language is English:
-```
-feat(scripts): add Codex support to setup.sh
-fix(skills): correct the topic format in sdd-apply
-docs(readme): update the multi-model setup guide
-refactor(skills): extract the shared persistence logic
-chore(ci): add shellcheck to PR validation
-perf(scripts): cut the run time of setup.sh
-style(skills): fix the markdown formatting
-test(scripts): add integration tests for setup.sh
-ci(workflows): validate branch names
-revert: undo the broken setup change
-feat!: redesign how skills are loaded
-```
-
----
-
-## Commands
+Read the labels with `gh label list` and add those that describe the change,
+such as a `type:*` label when the repository has that family. Then:
 
 ```bash
-# Create branch
-git checkout -b feat/my-feature main
-
-# Run shellcheck before pushing
-shellcheck scripts/*.sh
-
-# Push and create PR
-git push -u origin feat/my-feature
-gh pr create --title "feat(scope): <description>" --body "Closes #N"
-
-# Add type label to PR
-gh pr edit <pr-number> --add-label "type:feature"
+git push -u origin <branch>
+gh pr create --base <base> --title "<title>" --body-file <file> --label <label>
 ```
+
+Pass the body as inline text or as a literal file path. The ospec guard reads
+the title and the body before the command runs, and it refuses a body it
+cannot read, such as a path held in a shell variable or text piped in.
+
+Without `gh`, or on a host that is not GitHub, push the branch and use that
+host's CLI when it is installed. Without one, give the user the title, the
+body and the URL that `git push` printed.
+
+## After Opening
+
+1. Watch the checks: `gh pr checks <number> --watch`. Fix a failure with a new
+   commit on the branch.
+2. Ask the user to approve the merge of that pull request. Use the merge
+   method the project's instructions name; without one, the method the
+   repository allows
+   (`gh repo view --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed`),
+   and ask when it allows several.
+3. After the merge, update the base (`git switch <base>`,
+   `git pull --ff-only`) and delete the local branch.
+4. When `ospec close` returned a `release`, propose it now as the
+   `release rules` of `ospec team` say, and create nothing without the
+   user's OK.
+
+## Output
+
+Report the branch, the pull request URL, the state of its checks, and the
+step that waits for the user.
