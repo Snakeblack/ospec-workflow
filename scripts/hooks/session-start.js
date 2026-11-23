@@ -6,13 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
-const { isDeepStrictEqual } = require("node:util");
-const {
-  calculateFingerprint,
-  discoverSkills,
-  readRegistryCache,
-  writeRegistryCache,
-} = require("../lib/skill-registry.js");
+const { refreshRegistryCache, resolveSkillsRoot } = require("../lib/skill-registry.js");
 const { readBaselineState, detectSpecDrift } = require("../lib/ospec-state.js");
 const {
   parseCapabilities,
@@ -27,7 +21,6 @@ const { resolveGitState, composeAdvisory } = require("./lib/git-state.js");
 const { readIddSession } = require("./lib/idd-session.js");
 const { sessionStartNudge } = require("./lib/idd-nudge.js");
 
-const CACHE_VERSION = 2;
 const CACHE_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.cache;
 
 function buildBaselineHint(baselineState) {
@@ -77,14 +70,6 @@ function resolveWorkspace(input, fallbackCwd) {
   return resolveWorkspaceCwd(inputCwd, fallbackCwd);
 }
 
-function canonicalRuntimePath(directory) {
-  try {
-    return fs.realpathSync(directory);
-  } catch {
-    return path.resolve(directory);
-  }
-}
-
 async function runSessionStart({
   input = {},
   fallbackCwd = process.cwd(),
@@ -129,50 +114,16 @@ async function runSessionStart({
     // Baseline state read failure must not break session start
   }
 
-  // Global Codex installs split scripts (~/.codex/ospec-workflow) from skills
-  // (~/.agents/skills). Source and generated bundles retain root/skills.
-  const installedRoots = [path.join(homeDir, ".codex", "ospec-workflow")];
-  if (typeof codexHome === "string" && path.isAbsolute(codexHome)) {
-    installedRoots.push(path.join(codexHome, "ospec-workflow"));
-  }
-  const canonicalPluginRoot = canonicalRuntimePath(pluginRoot);
-  const installedCodex = target === "codex" && installedRoots.some(
-    root => path.relative(canonicalRuntimePath(root), canonicalPluginRoot) === "",
-  );
-  const skillsRoot = installedCodex
-    ? path.join(homeDir, ".agents", "skills")
-    : path.join(pluginRoot, "skills");
-  const registry = await discoverSkills(pluginRoot, { skillsRoot, requireSkills: true });
-  const fingerprint = await calculateFingerprint(registry.fingerprintPaths);
-  const currentCache = await readRegistryCache(cachePath);
-
-  // Report whether the cache was reused (matching inputs and entries, no write) or
-  // generated (created/refreshed). Callers use this to tell a cheap cache hit
-  // from real regeneration work instead of conflating both as "fresh".
-  const cacheHit =
-    currentCache?.version === CACHE_VERSION &&
-    currentCache.fingerprint === fingerprint &&
-    isDeepStrictEqual(currentCache.skills, registry.skills);
-
-  const registryResult = {
-    status: cacheHit ? "reused" : "generated",
-    path: store.cacheRelativePath,
-  };
-
-  if (!cacheHit) {
-    const cache = {
-      version: CACHE_VERSION,
-      fingerprint,
-      generated_at: now().toISOString(),
-      skills: registry.skills,
-    };
-    // v2: federate the workspace shape into the cache (null in single-repo mode).
-    const workspaceContext = await store.describeWorkspace();
-    if (workspaceContext) {
-      cache.workspace = workspaceContext;
-    }
-    await writeRegistryCache(cachePath, cache);
-  }
+  // reused: matching inputs and entries, no write. generated: created or
+  // refreshed. Callers tell a cheap cache hit from real regeneration work.
+  const refreshed = await refreshRegistryCache({
+    cachePath,
+    pluginRoot,
+    skillsRoot: resolveSkillsRoot({ pluginRoot, target, homeDir, codexHome }),
+    now,
+    describeWorkspace: () => store.describeWorkspace(),
+  });
+  const registryResult = { status: refreshed.status, path: store.cacheRelativePath };
 
   const result = { status: "ok", ospecDetected: true, registry: registryResult };
   if (baselineHint !== null) {

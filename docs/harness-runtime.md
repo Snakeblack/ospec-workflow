@@ -42,6 +42,9 @@ El siguiente diagrama detalla cómo interactúan los comandos de usuario, el orq
   y la regenera; no hay migración manual.
 - El hook reporta `registry.status`: `generated` (creada/refrescada), `reused` (hit de
   fingerprint, sin escritura) o `skipped` (sin OpenSpec).
+- `ospec registry` construye la misma cache bajo demanda, con el mismo constructor que el
+  hook y los mismos tres estados, y avisa de las skills sin reglas o que solo casan por su
+  nombre. Ningún agente escribe la cache a mano.
 
 ## No fuente de verdad
 

@@ -37,7 +37,7 @@ All JSON is pretty-printed with two-space indentation and terminated with a sing
 
 ### 2.3 Version Constant
 
-`CACHE_VERSION = 2` is defined in `session-start.js`. A cache is considered valid only when both `cache.version === 2` AND the stored fingerprint matches the recomputed fingerprint.
+`CACHE_VERSION = 2` is defined in `scripts/lib/skill-registry.js`. A cache is considered valid only when both `cache.version === 2` AND the stored fingerprint matches the recomputed fingerprint.
 
 ### 2.4 Cache Schema Version Stability
 
@@ -149,7 +149,7 @@ Parsing rule: the raw frontmatter string for `capabilities` (as returned by `par
 
 ## 6. Cache Lifecycle (SessionStart Hook)
 
-`runSessionStart` in `scripts/hooks/session-start.js` is the sole writer of the cache. It runs at Claude session start via the hooks system.
+The cache has one builder, `refreshRegistryCache` in `scripts/lib/skill-registry.js`, and two callers: `runSessionStart` in `scripts/hooks/session-start.js`, at the session start of every host, and `ospec registry` (§6.7). No agent writes the cache by hand: a cache that is not version 2 or whose fingerprint does not match is replaced by either caller.
 
 ### 6.1 Inputs
 
@@ -213,6 +213,43 @@ When a new cache must be written, the object MUST include:
 ```
 
 The `workspace` key is added conditionally: `store.describeWorkspace()` is called; if it returns a non-null value the result is merged as `cache.workspace`. In `openspec` single-repo mode `describeWorkspace()` always returns `null`, so the `workspace` key MUST NOT appear in the emitted JSON.
+
+### 6.7 The `ospec registry` Command
+
+`ospec registry [--json]` MUST build the cache of the project at `--root` (the current directory by default) with the same builder, skills root and detection gate as the hook, so a project gets the same cache when the hook did not run. Given the same skills, both callers MUST write the same cache object, and each MUST reuse a cache the other wrote.
+
+| Case | Result | Exit |
+|---|---|---|
+| No OpenSpec detected (§6.2) | `status: "skipped"` with `reason: "openspec-not-initialized"`; no file or directory is written | 0 |
+| Cache absent, of another version or stale | `status: "generated"` | 0 |
+| Cache fresh | `status: "reused"`; the file is not rewritten | 0 |
+| The installed skills root holds no `SKILL.md`, or an external root has no identity anchor | Refusal `registry-skills-missing`; the existing cache is kept | 1 |
+
+A built or reused result MUST carry `path`, `skills` (the number of entries) and `with_rules` (the entries whose `compact_rules` is not empty). It MUST also carry `warnings`, one `{ id, missing }` per entry that gives a delegation nothing to work with, where `missing` holds:
+
+- `rules` when `compact_rules` is empty;
+- `trigger` when the entry has no capability and its only trigger is its own id, which is what a description without `Trigger:` yields (§5.2).
+
+A warning never changes the exit code, and `warnings` is left out when there is none. In text the command prints the status with the path, the two counts, and one line per kind of gap with the ids it covers.
+
+#### Scenario: The hook did not run
+
+- GIVEN an OpenSpec project with no cache, in a session whose `SessionStart` hook did not run
+- WHEN `ospec registry` runs
+- THEN the cache MUST be the one the hook would have written
+- AND the next `SessionStart` MUST report `registry.status: "reused"`
+
+#### Scenario: An IDD-only project
+
+- GIVEN a project without `openspec/config.yaml`
+- WHEN `ospec registry` runs
+- THEN it MUST write nothing, exit 0 and say that OpenSpec is not initialized
+
+#### Scenario: A hand-written cache
+
+- GIVEN a cache with `version: 1` written by an agent
+- WHEN `ospec registry` or the hook runs
+- THEN it MUST be replaced by a version 2 cache built from the installed skills
 
 ---
 
