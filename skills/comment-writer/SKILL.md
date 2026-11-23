@@ -11,8 +11,9 @@ metadata:
 
 Load this skill to write a comment that people outside the conversation will
 read: review feedback, a reply on an issue or a pull request, or a status
-update on a thread. The body of a pull request belongs to `branch-pr`, and
-documentation to `cognitive-doc-design`.
+update on a thread. The body of a pull request belongs to `branch-pr`,
+documentation to `cognitive-doc-design`, and the evidence added to a duplicate
+issue found while filing one to `issue-creation`.
 
 A posted comment notifies people and stays in the record. Show the draft and
 post it only when the user agrees, unless they already asked for it to be
