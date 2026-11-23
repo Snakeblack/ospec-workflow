@@ -181,7 +181,9 @@ has them reads neither the registry nor the `SKILL.md` of those skills. Its own
 phase `SKILL.md` and `sdd-phase-common.md` are a different matter: it always
 reads them (`sdd-phase-common.md` §A).
 
-The registry is built by the `skill-registry` skill or by `sdd-init`.
+The runtime builds the registry: the `SessionStart` hook at each session
+start, and `ospec registry` on demand, which `sdd-init` and the
+`skill-registry` skill run. No agent writes it by hand.
 
 Without that block, a sub-agent goes down the Resolution Order of
 `skill-resolver.md` and reports in `skill_resolution` the source it used;

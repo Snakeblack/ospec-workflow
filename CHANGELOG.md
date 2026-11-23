@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Orden ospec registry, que construye el registro de skills con el constructor del hook, y versiones propias de issue-creation, branch-pr y skill-registry alineadas con el harness (E1.106) (own-utility-skills)
+
 ## [2.185.5] - 2026-11-22
 
 ### Fixed
