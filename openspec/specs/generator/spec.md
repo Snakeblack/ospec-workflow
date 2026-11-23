@@ -1039,3 +1039,27 @@ Hosts assign named and positional command arguments one word each, so a free-tex
 - GIVEN a command whose body names `${input:left}` and `${input:right}`
 - WHEN it is generated for Claude, OpenCode and Codex
 - THEN Claude writes `$left`/`$right` with `arguments: left right`, and OpenCode and Codex write `$1`/`$2`
+
+### Requirement: Antigravity Native Tool Grants, Subagent Isolation, and Internal Skill Flags {#REQ-generator-027}
+
+The `antigravity` target profile MUST map canonical abstract tools to Antigravity 1.5+ native names (`read→read_file`, `edit→write_file`+`edit_file` with primary `write_file`, `execute→run_command`, `agent→invoke_subagent`, `vscode/askQuestions`/`AskUserQuestion→ask_question`) and MUST drop `search` from frontmatter `tools:` grants (never emitting nonexistent `grep_search`/`list_dir` or legacy `view_file`/`write_to_file`/`replace_file_content`/`multi_replace_file_content`).
+
+For Antigravity agents, `user-invocable: false` MUST translate to `mainAgent: false` and `subagent: true` (stripping `user-invocable` while preserving `disable-model-invocation`). Agents whose canonical `tools:` grant omits `execute` MUST emit `commandExecutionPolicy: off`; agents with `execute` MUST omit `commandExecutionPolicy` so they inherit the user's session policy. The six quality-review subagents (`review-change`, `review-correction`, `review-trust`, `review-runtime`, `review-evolution`, `review-efficiency`) MUST additionally emit `inheritMcp: false` and `tools: ['read_file']`.
+
+For Antigravity `skills/*/SKILL.md` files declaring `user-invocable: false` (`_shared`, `review-*`, and SDD phase skills), the transform MUST translate `user-invocable: false` to `disable-slash-command: true`, strip `user-invocable`, and preserve `disable-model-invocation`. These hooks MUST be opt-in per profile so the other six targets remain byte-identical.
+
+#### Scenario: Antigravity isolates review subagents and scopes commandExecutionPolicy
+
+- GIVEN canonical `review-*`, non-`execute` edit, `execute`, and `sdd-orchestrator` agents
+- WHEN the `antigravity` target is generated
+- THEN each `review-*` agent MUST emit `tools: ['read_file']`, `mainAgent: false`, `subagent: true`, `inheritMcp: false`, and `commandExecutionPolicy: off`
+- AND non-`execute` subagents MUST emit `commandExecutionPolicy: off` without `inheritMcp`
+- AND `execute`-capable agents MUST omit `commandExecutionPolicy`
+- AND `sdd-orchestrator` MUST omit `mainAgent`, `subagent`, `inheritMcp`, and `commandExecutionPolicy`
+
+#### Scenario: Antigravity hides internal skills from slash commands without affecting other targets
+
+- GIVEN `skills/_shared/SKILL.md` and `skills/review-trust/SKILL.md` declaring `disable-model-invocation: true` and `user-invocable: false`
+- WHEN all seven targets are generated
+- THEN `antigravity` MUST emit `disable-slash-command: true`, keep `disable-model-invocation: true`, and strip `user-invocable`
+- AND the other six targets MUST remain byte-identical without `mainAgent`, `subagent`, `inheritMcp`, `commandExecutionPolicy`, or `disable-slash-command`

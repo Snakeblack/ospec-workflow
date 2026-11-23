@@ -1,0 +1,308 @@
+{
+  "schema": "idd-state/v1",
+  "change": "agy-02-agents-tools",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Actualizar toolMap de Antigravity a AGY 1.5.14, aislar subagentes review-* (mainAgent/subagent/inheritMcp/commandExecutionPolicy) y traducir flags de skills internas solo en target Antigravity",
+    "acceptance": "El perfil antigravity emite herramientas canonicas de AGY 1.5.14 (read_file, write_file, edit_file, run_command, invoke_subagent, ask_question) eliminando grep_search y list_dir, aísla los subagentes review-* con tools:[read_file], mainAgent:false, subagent:true, inheritMcp:false y commandExecutionPolicy:off, traduce user-invocable:false en agentes y skills internas de Antigravity conservando disable-model-invocation, y deja los otros 6 targets intactos byte a byte"
+  },
+  "facts": {
+    "open": [
+      "En los subagentes escritores/ejecutores de Antigravity (sdd-apply, sdd-verify, handbook, etc., fuera de review-*), fijar commandExecutionPolicy: sandbox u omitir commandExecutionPolicy para heredar la politica de sesion del usuario (y no forzar sandbox sobre bin/ospec antes de PR 7)?",
+      "En skills/*/SKILL.md del target Antigravity, traducir user-invocable: false a disable-slash-command: true (quitando user-invocable) en todas las skills internas que declaran user-invocable: false (_shared, review-* y ejecutores sdd-*), o solo en skills/_shared/SKILL.md?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/generator/spec.md",
+      "scripts/fixtures/context-baseline.json",
+      "scripts/lib/target-profiles/antigravity.js",
+      "scripts/lib/target-transform.js",
+      "scripts/lib/target-transform.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Anadir hooks declarativos opcionales en target-transform.js (solo activados cuando el perfil los declara en antigravity.js) para garantizar 0 bytes de diferencia en los otros 6 targets"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 646
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration",
+      "recorded_turn": 646
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 646
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration",
+      "recorded_turn": 646
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Todo el ajuste del target antigravity se declara en su perfil y se genera por la transformacion pura desde la unica fuente canonica sin tocar los otros 6 targets ni sus fixtures golden"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias externas; solo biblioteca estandar de Node en target-transform.js y el perfil antigravity.js"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Transformacion pura y determinista sin llamadas de red ni acceso a disco ni dependencia de memoria entre sesiones"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "La fuente canonica permanece intacta y la generacion multi-target mantiene los otros 6 targets byte a byte identicos mientras corrige la paridad de Antigravity con AGY 1.5.14"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado por inspeccion del diff en antigravity.js y target-transform.js: transformacion 100% pura en memoria sin llamadas de red, disco ni memoria; ospec next/run/check operan solo con estado en disco",
+      "recorded_at": "2026-11-22T01:49:15.161Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 646,
+      "answer": "todas las recomendadas: (1) omitir commandExecutionPolicy en agentes con execute para heredar la politica de sesion del usuario y emitir commandExecutionPolicy: off en agentes sin execute (revisores y fases sin shell); (2) traducir user-invocable: false a disable-slash-command: true (quitando user-invocable) en todas las skills internas que declaran user-invocable: false (_shared, review-* y ejecutores sdd-*), manteniendo disable-model-invocation: true; (3) subir ya la rama tracker feat/antigravity-15-remediation y abrir PR 1 (PR 2 se implementa en la siguiente sesion)",
+      "source": "user",
+      "resolved_at": "2026-11-22T01:40:16.106Z",
+      "resolved_turn": 647
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-22T01:49:03.714Z",
+      "detail": {
+        "red": "run-2",
+        "green": "run-3",
+        "counterproof": [
+          "run-4",
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-22T01:51:01.551Z",
+      "detail": {
+        "tree": "sha256:ebab11b3901ab1edb9566ec0b2555051e4e2681506ecc88e0c7e50673c488942",
+        "runs": [
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-22T01:51:01.551Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:ebab11b3901ab1edb9566ec0b2555051e4e2681506ecc88e0c7e50673c488942",
+        "fitness": [
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-22T01:51:17.151Z"
+    }
+  ],
+  "base": "e5e575250a7f93381c594364507312fb3b1ea4a9",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-transform.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:7aaa31aa9496666da746920a4a5a6a44626b5a065b61b813d55ae546d5990da9",
+      "tree": "sha256:750f7b21ae9d5d7856c14b05a4485f218252067eed691554066f3c786c49ad89",
+      "recorded_at": "2026-11-22T01:47:06.726Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-transform.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:50fe3297396e49ad48b6a898b4719a528632abe4478cf751e2eaa90b4f312f06",
+      "tree": "sha256:35cac75ef1fa7595b3bb77fe543cf5f1e1e90e1bcb5f1f3260e2ff5ddc41cd9b",
+      "recorded_at": "2026-11-22T01:48:16.748Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-transform.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:037a32472064ba30c4c812417f62c0bda2a6ebb11574c855c363e72d9c2e710b",
+      "tree": "sha256:eb768e7e6ba2a74c2f2b8c530e84ba595abffb91b13c7700ad9e2fa09a7e868b",
+      "recorded_at": "2026-11-22T01:49:03.714Z",
+      "tests": 98,
+      "counterproof": [
+        "run-4",
+        "run-5"
+      ]
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "e5e575250a7f93381c594364507312fb3b1ea4a9",
+      "mount": "sha256:831cde18658e4b747baa256b3ca754f582d8101c83c183e76663021d2ad86af8",
+      "command": "node --test scripts/lib/target-transform.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:02ed1ed556b885c0999b5e81ab082818398cb255861038d585ee347ad976ff38",
+      "tree": "sha256:eb768e7e6ba2a74c2f2b8c530e84ba595abffb91b13c7700ad9e2fa09a7e868b",
+      "recorded_at": "2026-11-22T01:49:03.714Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "e5e575250a7f93381c594364507312fb3b1ea4a9",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/lib/target-transform.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cd208da9926efa72de9e45c46016f42ff13d377c89bf46cc83e3352b180546e4",
+      "tree": "sha256:eb768e7e6ba2a74c2f2b8c530e84ba595abffb91b13c7700ad9e2fa09a7e868b",
+      "recorded_at": "2026-11-22T01:49:03.714Z",
+      "tests": 95
+    },
+    {
+      "id": "run-6",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:58cf3ede7fcca01fbd93fdfa109a0993b8be61f123504d8e70ede500486da2f5",
+      "tree": "sha256:ebab11b3901ab1edb9566ec0b2555051e4e2681506ecc88e0c7e50673c488942",
+      "recorded_at": "2026-11-22T01:51:01.551Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6e8df9170174d1d7a5591b5a630f5f90dcf9ea36e27c80ebb1527d22064b29a5",
+      "tree": "sha256:ebab11b3901ab1edb9566ec0b2555051e4e2681506ecc88e0c7e50673c488942",
+      "recorded_at": "2026-11-22T01:51:01.551Z",
+      "tests": 48
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:ebab11b3901ab1edb9566ec0b2555051e4e2681506ecc88e0c7e50673c488942",
+      "recorded_at": "2026-11-22T01:51:01.551Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:702e6546bcc5392d7b6312ed475dedfd906f869f8595fefd0393e00841b9de61",
+      "tree": "sha256:ebab11b3901ab1edb9566ec0b2555051e4e2681506ecc88e0c7e50673c488942",
+      "recorded_at": "2026-11-22T01:51:01.551Z",
+      "tests": 26
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4ba4fe3dbf7ef6781ad18d783420309fca1ef7547b61ef877946d32de551d78c",
+      "tree": "sha256:ebab11b3901ab1edb9566ec0b2555051e4e2681506ecc88e0c7e50673c488942",
+      "recorded_at": "2026-11-22T01:51:01.551Z",
+      "tests": 48
+    }
+  ],
+  "closed_at": "2026-11-22T01:51:17.151Z"
+}

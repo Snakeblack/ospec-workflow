@@ -1491,3 +1491,180 @@ test("cursor injects model from models.yaml cursor column", () => {
   assert.equal(getField(fm, "model").value, "composer-2.5[fast=false]");
 });
 
+// ---------------------------------------------------------------------------
+// Antigravity target (AGY 1.5.14 tools, subagent isolation, internal skills)
+// ---------------------------------------------------------------------------
+
+test("antigravity emits canonical AGY 1.5.14 tools and drops search without legacy aliases", () => {
+  const files = [
+    {
+      path: "agents/sdd-orchestrator.agent.md",
+      content:
+        "---\n" +
+        "name: sdd-orchestrator\n" +
+        "description: Coordinates SDD.\n" +
+        "tools: ['read', 'search', 'edit', 'execute', 'agent', 'vscode/askQuestions']\n" +
+        "user-invocable: true\n" +
+        "target: vscode\n" +
+        "---\n\n" +
+        "Use `read`, `edit`, `execute`, `agent`, and `vscode/askQuestions` or `AskUserQuestion`.\n",
+    },
+  ];
+  const out = transform({ files, profile: antigravity, models: MODELS });
+  const content = find(out, "agents/sdd-orchestrator.agent.md").content;
+  const fm = parse(content).frontmatter;
+
+  assert.deepEqual(getField(fm, "tools").value, [
+    "read_file",
+    "write_file",
+    "edit_file",
+    "run_command",
+    "invoke_subagent",
+    "ask_question",
+  ]);
+  assert.equal(getField(fm, "target"), null);
+  assert.equal(getField(fm, "user-invocable"), null);
+  assert.equal(getField(fm, "mainAgent"), null, "main agent omits mainAgent");
+  assert.equal(getField(fm, "subagent"), null, "main agent omits subagent");
+  assert.equal(getField(fm, "inheritMcp"), null, "orchestrator omits inheritMcp");
+  assert.equal(getField(fm, "commandExecutionPolicy"), null, "execute-capable agent omits commandExecutionPolicy");
+  assert.match(content, /Use `read_file`, `write_file`, `run_command`, `invoke_subagent`, and `ask_question` or `ask_question`\./);
+  assert.doesNotMatch(content, /view_file|write_to_file|replace_file_content|multi_replace_file_content|grep_search|list_dir|vscode\//);
+});
+
+test("antigravity isolates review-* subagents and sets commandExecutionPolicy by execute capability", () => {
+  const reviewers = [
+    "review-change",
+    "review-correction",
+    "review-efficiency",
+    "review-evolution",
+    "review-runtime",
+    "review-trust",
+  ];
+  const files = [
+    ...reviewers.map((name) => ({
+      path: `agents/${name}.agent.md`,
+      content:
+        "---\n" +
+        `name: ${name}\n` +
+        "description: Read-only reviewer.\n" +
+        "tools: ['read', 'search']\n" +
+        "user-invocable: false\n" +
+        "target: vscode\n" +
+        "---\n\nReview with `read`.\n",
+    })),
+    {
+      path: "agents/sdd-design.agent.md",
+      content:
+        "---\n" +
+        "name: sdd-design\n" +
+        "description: Design phase without shell.\n" +
+        "tools: ['read', 'search', 'edit']\n" +
+        "user-invocable: false\n" +
+        "target: vscode\n" +
+        "---\n\nWrite design.\n",
+    },
+    {
+      path: "agents/sdd-apply.agent.md",
+      content:
+        "---\n" +
+        "name: sdd-apply\n" +
+        "description: Apply phase with shell.\n" +
+        "tools: ['read', 'search', 'edit', 'execute']\n" +
+        "user-invocable: false\n" +
+        "target: vscode\n" +
+        "---\n\nRun tests.\n",
+    },
+  ];
+  const out = transform({ files, profile: antigravity, models: MODELS });
+
+  for (const name of reviewers) {
+    const fm = parse(find(out, `agents/${name}.agent.md`).content).frontmatter;
+    assert.deepEqual(getField(fm, "tools").value, ["read_file"], `${name} tools`);
+    assert.equal(getField(fm, "mainAgent")?.value, "false", `${name} mainAgent`);
+    assert.equal(getField(fm, "subagent")?.value, "true", `${name} subagent`);
+    assert.equal(getField(fm, "inheritMcp")?.value, "false", `${name} inheritMcp`);
+    assert.equal(getField(fm, "commandExecutionPolicy")?.value, "off", `${name} commandExecutionPolicy`);
+    assert.equal(getField(fm, "user-invocable"), null, `${name} strips user-invocable`);
+  }
+
+  const designFm = parse(find(out, "agents/sdd-design.agent.md").content).frontmatter;
+  assert.deepEqual(getField(designFm, "tools").value, ["read_file", "write_file", "edit_file"]);
+  assert.equal(getField(designFm, "mainAgent")?.value, "false");
+  assert.equal(getField(designFm, "subagent")?.value, "true");
+  assert.equal(getField(designFm, "inheritMcp"), null, "non-reviewer omits inheritMcp");
+  assert.equal(getField(designFm, "commandExecutionPolicy")?.value, "off", "non-execute phase sets policy off");
+
+  const applyFm = parse(find(out, "agents/sdd-apply.agent.md").content).frontmatter;
+  assert.deepEqual(getField(applyFm, "tools").value, ["read_file", "write_file", "edit_file", "run_command"]);
+  assert.equal(getField(applyFm, "mainAgent")?.value, "false");
+  assert.equal(getField(applyFm, "subagent")?.value, "true");
+  assert.equal(getField(applyFm, "inheritMcp"), null);
+  assert.equal(getField(applyFm, "commandExecutionPolicy"), null, "execute phase inherits user policy");
+});
+
+test("antigravity translates user-invocable:false to disable-slash-command:true on internal skills and preserves disable-model-invocation", () => {
+  const internalSkill = (dir, name) => ({
+    path: `skills/${dir}/SKILL.md`,
+    content:
+      "---\n" +
+      `name: ${name}\n` +
+      'description: "Internal skill."\n' +
+      "disable-model-invocation: true\n" +
+      "user-invocable: false\n" +
+      "metadata:\n" +
+      "  version: \"1.0\"\n" +
+      "---\n\nUse `read` and `vscode/askQuestions`.\n",
+  });
+  const files = [
+    internalSkill("_shared", "_shared"),
+    internalSkill("review-trust", "review-trust"),
+    internalSkill("sdd-apply", "sdd-apply"),
+    {
+      path: "skills/idd/SKILL.md",
+      content: "---\nname: idd\ndescription: \"User-invocable skill.\"\n---\n\nBody.\n",
+    },
+    {
+      path: "agents/review-trust.agent.md",
+      content:
+        "---\n" +
+        "name: review-trust\n" +
+        "description: Reviewer.\n" +
+        "tools: ['read', 'search']\n" +
+        "disable-model-invocation: true\n" +
+        "user-invocable: false\n" +
+        "target: vscode\n" +
+        "---\n\nBody.\n",
+    },
+  ];
+
+  const agy = transform({ files, profile: antigravity, models: MODELS });
+  for (const dir of ["_shared", "review-trust", "sdd-apply"]) {
+    const content = find(agy, `skills/${dir}/SKILL.md`).content;
+    const fm = parse(content).frontmatter;
+    assert.equal(getField(fm, "disable-slash-command")?.value, "true", `${dir} disable-slash-command`);
+    assert.equal(getField(fm, "disable-model-invocation")?.value, "true", `${dir} preserves disable-model-invocation`);
+    assert.equal(getField(fm, "user-invocable"), null, `${dir} strips user-invocable`);
+    assert.match(content, /metadata:\n  version: "1\.0"/, `${dir} preserves nested metadata`);
+    assert.match(content, /Use `read_file` and `ask_question`\./, `${dir} still substitutes prose tools`);
+  }
+
+  const iddFm = parse(find(agy, "skills/idd/SKILL.md").content).frontmatter;
+  assert.equal(getField(iddFm, "disable-slash-command"), null, "user-invocable skill stays slash-invocable");
+
+  const agentFm = parse(find(agy, "agents/review-trust.agent.md").content).frontmatter;
+  assert.equal(getField(agentFm, "disable-model-invocation")?.value, "true", "disable-model-invocation is no longer stripped");
+
+  // None of the other 6 targets receive Antigravity-only frontmatter fields.
+  for (const other of [claude, vscode, githubCopilot, opencode, codex, cursor]) {
+    const out = transform({ files, profile: other, models: MODELS });
+    const shared = find(out, "skills/_shared/SKILL.md").content;
+    const fm = parse(shared).frontmatter;
+    assert.equal(getField(fm, "disable-slash-command"), null, `${other.id} must not get disable-slash-command`);
+    assert.equal(getField(fm, "user-invocable")?.value, "false", `${other.id} keeps source user-invocable`);
+    for (const file of out.files) {
+      assert.doesNotMatch(file.content, /^(?:mainAgent|subagent|inheritMcp|commandExecutionPolicy|disable-slash-command):/m, `${other.id} ${file.path}`);
+    }
+  }
+});
+

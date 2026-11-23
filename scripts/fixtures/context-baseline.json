@@ -119,12 +119,12 @@
       "default_flow_bytes": 14918,
       "memory_flow_bytes": 17866,
       "agent_read_bytes": {
-        "review-change": 4761,
-        "review-correction": 5377,
-        "review-efficiency": 14565,
-        "review-evolution": 14771,
-        "review-runtime": 14633,
-        "review-trust": 14538
+        "review-change": 4790,
+        "review-correction": 5406,
+        "review-efficiency": 14589,
+        "review-evolution": 14795,
+        "review-runtime": 14657,
+        "review-trust": 14562
       }
     }
   },
@@ -898,6 +898,72 @@
         ]
       },
       "reason": "el protocolo de IDD nombra contract-removal, el gate nuevo con el que un refactor que quita de la documentación líneas que solo parecen un contrato conserva su kind con la respuesta del usuario"
+    },
+    {
+      "version": "2.185.5",
+      "metric": "agent_read_bytes.review-change",
+      "targets": {
+        "antigravity": [
+          4761,
+          4790
+        ]
+      },
+      "reason": "agy-02-agents-tools: aislamiento de revisores Antigravity (mainAgent:false, subagent:true, inheritMcp:false, commandExecutionPolicy:off) +24..29 B por agente, solo target antigravity"
+    },
+    {
+      "version": "2.185.5",
+      "metric": "agent_read_bytes.review-correction",
+      "targets": {
+        "antigravity": [
+          5377,
+          5406
+        ]
+      },
+      "reason": "agy-02-agents-tools: aislamiento de revisores Antigravity (mainAgent:false, subagent:true, inheritMcp:false, commandExecutionPolicy:off) +24..29 B por agente, solo target antigravity"
+    },
+    {
+      "version": "2.185.5",
+      "metric": "agent_read_bytes.review-efficiency",
+      "targets": {
+        "antigravity": [
+          14565,
+          14589
+        ]
+      },
+      "reason": "agy-02-agents-tools: aislamiento de revisores Antigravity (mainAgent:false, subagent:true, inheritMcp:false, commandExecutionPolicy:off) +24..29 B por agente, solo target antigravity"
+    },
+    {
+      "version": "2.185.5",
+      "metric": "agent_read_bytes.review-evolution",
+      "targets": {
+        "antigravity": [
+          14771,
+          14795
+        ]
+      },
+      "reason": "agy-02-agents-tools: aislamiento de revisores Antigravity (mainAgent:false, subagent:true, inheritMcp:false, commandExecutionPolicy:off) +24..29 B por agente, solo target antigravity"
+    },
+    {
+      "version": "2.185.5",
+      "metric": "agent_read_bytes.review-runtime",
+      "targets": {
+        "antigravity": [
+          14633,
+          14657
+        ]
+      },
+      "reason": "agy-02-agents-tools: aislamiento de revisores Antigravity (mainAgent:false, subagent:true, inheritMcp:false, commandExecutionPolicy:off) +24..29 B por agente, solo target antigravity"
+    },
+    {
+      "version": "2.185.5",
+      "metric": "agent_read_bytes.review-trust",
+      "targets": {
+        "antigravity": [
+          14538,
+          14562
+        ]
+      },
+      "reason": "agy-02-agents-tools: aislamiento de revisores Antigravity (mainAgent:false, subagent:true, inheritMcp:false, commandExecutionPolicy:off) +24..29 B por agente, solo target antigravity"
     }
   ]
 }

@@ -13,7 +13,42 @@ module.exports = {
   // The host inherits its model; it must never receive selector metadata.
 
   frontmatter: {
-    stripKeys: ["target", "disable-model-invocation"],
+    stripKeys: ["target", "user-invocable"],
+  },
+
+  // Antigravity ignores VS Code's `user-invocable: false`; subagent-only
+  // agents must set `mainAgent: false` + `subagent: true` so they do not
+  // pollute `agy agents`.
+  agentSubagentFields: {
+    mainAgent: "false",
+    subagent: "true",
+  },
+
+  // Agents without `execute` get `commandExecutionPolicy: off`; agents with
+  // `execute` omit the key to inherit the user's session policy (avoiding
+  // forced sandbox breakage on `~/.gemini/config/bin/ospec`).
+  commandExecutionPolicyByCapability: {
+    executeTool: "execute",
+    withoutExecute: "off",
+  },
+
+  // Read-only review subagents must not inherit user MCP tools.
+  agentIsolatedMcp: {
+    agents: [
+      "review-change",
+      "review-correction",
+      "review-trust",
+      "review-runtime",
+      "review-evolution",
+      "review-efficiency",
+    ],
+  },
+
+  // Internal skills declaring `user-invocable: false` translate to
+  // `disable-slash-command: true` while preserving `disable-model-invocation`.
+  skillFrontmatter: {
+    nonUserInvocableField: "disable-slash-command",
+    stripKeys: ["user-invocable"],
   },
 
   hooks: {
@@ -23,13 +58,15 @@ module.exports = {
     runtimePlaceholder: "__OSPEC_ANTIGRAVITY_ROOT__",
   },
 
+  // Canonical AGY 1.5.14 tool names; `search` (`grep_search`/`list_dir`) does
+  // not exist in AGY 1.5+ and is dropped from frontmatter grants.
+  dropTools: ["search"],
   toolMap: {
     "vscode/askQuestions": "ask_question",
     AskUserQuestion: "ask_question",
-    read: "view_file",
-    edit: ["write_to_file", "replace_file_content", "multi_replace_file_content"],
+    read: "read_file",
+    edit: ["write_file", "edit_file"],
     execute: "run_command",
-    search: ["grep_search", "list_dir"],
     agent: "invoke_subagent",
   },
 
