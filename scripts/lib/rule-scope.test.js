@@ -134,7 +134,7 @@ test("path-scoped rules use each host's native path mechanism", () => {
   assert.equal(getField(frontmatterOf(ruleFile(copilot, HEADING.strictTdd)), "applyTo").value, tdd.join(","));
 
   const antigravity = target("antigravity");
-  for (const [heading, globs] of [[HEADING.openspec, ["openspec/**"]], [HEADING.strictTdd, tdd]]) {
+  for (const [heading, globs] of [[HEADING.openspec, ["**/openspec/**"]], [HEADING.strictTdd, tdd]]) {
     const fm = frontmatterOf(ruleFile(antigravity, heading));
     assert.equal(getField(fm, "trigger").value, "glob");
     assert.equal(getField(fm, "globs").value, globs.join(", "));

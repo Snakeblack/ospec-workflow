@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Cerrar bypass de PreToolUse en write_file/edit_file/read_file (AGY 1.5.14), respetar cwd nativo y evitar reanudacion en Stop cancelado o no ocioso, aislado al adaptador de Antigravity (agy-01-pretooluse-stop)
 - Actualizar toolMap de Antigravity a AGY 1.5.14, aislar subagentes review-* (mainAgent/subagent/inheritMcp/commandExecutionPolicy) y traducir flags de skills internas solo en target Antigravity (agy-02-agents-tools)
+- Emitir meta-comandos SDD como skills planas, prefijar globs con **/ en reglas, eliminar .mcp.json muerto y separar metadata.user_markdown en SessionStart solo en target Antigravity (agy-03-commands-rules-mcp-hygiene)
 
 ## [2.185.5] - 2026-11-22
 

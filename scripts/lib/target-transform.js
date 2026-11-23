@@ -130,7 +130,7 @@ function handleFile(file, profile, models, rulesContent, sources, withSdd) {
 
   if (isCommand(path, profile)) {
     if (profile.commandFile.format === "skill") {
-      return handleCommandSkill(file, profile);
+      return handleCommandSkill(file, profile, sources);
     }
     return handleCommand(file, profile);
   }
@@ -1131,9 +1131,13 @@ function frontLoadDescription(description, name, limit = 80) {
 // instruction (the key itself is dropped from the emitted frontmatter — Codex
 // skills have no routing key), and the description is front-loaded for
 // progressive disclosure.
-function handleCommandSkill(file, profile) {
+function handleCommandSkill(file, profile, sources) {
   const base = file.path.slice("commands/".length, file.path.length - profile.commandFile.from.length);
-  const newPath = `skills/commands/${base}/SKILL.md`;
+  const skillDir = profile.commandFile.dir || "skills/commands";
+  const newPath = `${skillDir}/${base}/SKILL.md`;
+  if (profile.commandFile.skipCollidingSkills && sources && sources.has(newPath)) {
+    return null;
+  }
   let { frontmatter, body } = parse(file.content);
 
   const agentField = getField(frontmatter, "agent");
@@ -1157,10 +1161,17 @@ function handleCommandSkill(file, profile) {
   body = substituteAgentNames(body, profile);
 
   frontmatter = setScalar(frontmatter, "name", base);
+  if (profile.commandFile.disableModelInvocation) {
+    frontmatter = setScalar(frontmatter, "disable-model-invocation", "true");
+  }
   const descField = getField(frontmatter, "description");
   if (descField && descField.value) {
     const description = substituteAgentNames(descField.value, profile);
-    frontmatter = setScalar(frontmatter, "description", frontLoadDescription(description, base));
+    const finalDescription =
+      profile.commandFile.frontLoadDescription === false
+        ? description
+        : frontLoadDescription(description, base);
+    frontmatter = setScalar(frontmatter, "description", finalDescription);
   }
 
   return { path: newPath, content: serialize({ frontmatter, body }) };
@@ -1268,6 +1279,20 @@ function toMdcFile(file, profile) {
   return { path: `${dir}/${base}.mdc`, content: serialize({ frontmatter, body }) };
 }
 
+function toAbsoluteRuleGlob(glob) {
+  const normalized = glob.startsWith("./") ? glob.slice(2) : glob;
+  if (
+    !normalized ||
+    normalized === "**" ||
+    normalized.startsWith("**/") ||
+    normalized.startsWith("/") ||
+    /^[a-zA-Z]:[\\/]/.test(normalized)
+  ) {
+    return normalized || glob;
+  }
+  return `**/${normalized}`;
+}
+
 // rules/<name>.instructions.md -> <profile.rules.dir>/<name>.instructions.md
 // with the host's scope field: `applyTo` (Copilot, comma-separated globs) or
 // `trigger` + `globs` (Antigravity).
@@ -1282,7 +1307,8 @@ function toInstructionFile(file, profile) {
     frontmatter = stripKeys(frontmatter, ["applyTo", "activation"]);
     frontmatter = setScalar(frontmatter, "trigger", globs.length === 0 ? "always_on" : "glob");
     if (globs.length > 0) {
-      frontmatter = setScalar(frontmatter, "globs", globs.join(", "));
+      const formatted = profile.rules.prefixRelativeGlobs ? globs.map(toAbsoluteRuleGlob) : globs;
+      frontmatter = setScalar(frontmatter, "globs", formatted.join(", "));
     }
   } else {
     // setScalar quotes the glob itself ("**" starts with a YAML indicator);

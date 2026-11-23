@@ -386,6 +386,27 @@ function collectStrings(value, keys, found = []) {
   return found;
 }
 
+function formatSecurityAlerts(security) {
+  if (!isPlainObject(security)) {
+    return "";
+  }
+  const alerts = Array.isArray(security.alerts) ? security.alerts : [];
+  const items = alerts
+    .map((alert) => {
+      if (typeof alert === "string") return alert.trim();
+      if (!isPlainObject(alert)) return "";
+      const file = typeof alert.file === "string" ? alert.file.trim() : "";
+      const reason = typeof alert.reason === "string" ? alert.reason.trim() : "";
+      if (file && reason) return `${file} (${reason})`;
+      return file || reason || (typeof alert.type === "string" ? alert.type.trim() : "");
+    })
+    .filter(Boolean);
+  if (items.length > 0) {
+    return `[ospec security] ${items.join(", ")}`;
+  }
+  return security.status === "warning" ? "[ospec security] security warning detected at session start" : "";
+}
+
 // agy's PreToolUse takes { decision, reason }, its SessionStart injects steps
 // and its Stop only reads decision "continue", which ospec never asks for.
 // An affirmative allow would skip agy's own prompts, so none is emitted.
@@ -404,9 +425,29 @@ function normalizeAntigravityHookOutput(subcommand, output) {
     return {};
   }
   if (subcommand === "session-start") {
-    // The same model-facing context Codex receives as additionalContext.
-    const context = normalizeCodexHookOutput(subcommand, output).hookSpecificOutput?.additionalContext;
-    return context ? { injectSteps: [{ systemMessage: { systemMessage: context } }] } : {};
+    if (output.status === "error") {
+      const detail = typeof output.message === "string" && output.message.trim()
+        ? output.message.trim()
+        : "unknown session-start failure";
+      return { injectSteps: [{ systemMessage: { systemMessage: `[ospec error] ${detail}` } }] };
+    }
+    const userMarkdown = typeof output.systemMessage === "string" ? output.systemMessage.trim() : "";
+    const errorLines = userMarkdown
+      ? userMarkdown.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.startsWith("[ospec error]"))
+      : [];
+    const modelMessage = [
+      sessionContext(output),
+      ...errorLines,
+      formatSecurityAlerts(output.security),
+    ].filter(Boolean).join("\n");
+    if (!modelMessage && !userMarkdown) {
+      return {};
+    }
+    const step = { systemMessage: modelMessage };
+    if (userMarkdown) {
+      step.metadata = { user_markdown: userMarkdown };
+    }
+    return { injectSteps: [{ systemMessage: step }] };
   }
   if (subcommand === "stop") {
     const reason = continuationReason(output);
