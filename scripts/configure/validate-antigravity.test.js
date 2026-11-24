@@ -63,9 +63,10 @@ const WRAPPER = 'node "__OSPEC_ANTIGRAVITY_ROOT__/scripts/hooks/ospec-antigravit
 
 test("validate-antigravity passes for a valid generated tree", () => {
   const fakeFs = createFakeTree({
-    "agents/sdd-apply.agent.md": "---\nname: sdd-apply\n---\nbody",
-    "commands/sdd-propose.prompt.md": "---\nname: sdd-propose\n---\nbody",
-    "rules/agent-rules.md": "# Rules",
+    "agents/sdd-apply.agent.md": "---\nname: sdd-apply\ndescription: Apply.\ntools: ['read_file', 'write_file', 'edit_file', 'run_command']\n---\nbody",
+    "agents/review-trust.agent.md": "---\nname: review-trust\ndescription: Trust.\ntools: ['read_file']\nmainAgent: false\nsubagent: true\nmodel: pro\ncommandExecutionPolicy: off\ninheritMcp: false\n---\nbody",
+    "rules/agent-rules.instructions.md": "---\ntrigger: always_on\n---\n# Rules",
+    "rules/sdd-openspec.instructions.md": "---\ntrigger: glob\nglobs: \"**/openspec/**\"\n---\n# OpenSpec",
     "skills/accessibility/SKILL.md": "---\nname: accessibility\n---\nbody",
     "scripts/hooks/ospec-hooks-launch.js": "console.log('hook')",
     "hooks.json": JSON.stringify({
@@ -120,4 +121,44 @@ test("validate-antigravity flags a Stop or SessionStart that skips the agy wrapp
   });
   const errors = validate(path.resolve("/dist"), { fs: fakeFs }).errors.filter((e) => e.startsWith("hooks.json"));
   assert.deepEqual(errors, ["hooks.json ospec-stop.Stop must run scripts/hooks/ospec-antigravity-hook.js"]);
+});
+
+test("validate-antigravity rejects bad agent tools, invalid model, broken review isolation, relative globs, dead paths and ${input:}", () => {
+  const fakeFs = createFakeTree({
+    "agents/review-trust.agent.md": "---\nname: review-trust\ntools: ['grep_search']\nmodel: gemini-4-neon-high\n---\n${input:x}",
+    "rules/bad.instructions.md": "---\ntrigger: glob\nglobs: \"openspec/**\"\n---\nbody",
+    "commands/dead.prompt.md": "dead",
+    ".mcp.json": "{}",
+    "skills/idd/SKILL.md": "---\nname: idd\n---\nbody",
+    "scripts/hooks/ospec-hooks-launch.js": "",
+    "hooks.json": JSON.stringify({
+      "ospec-session-start": { SessionStart: [{ type: "command", command: `${WRAPPER} session-start` }] },
+      "ospec-pre-tool-use": { PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: `${WRAPPER} pre-tool-use` }] }] },
+      "ospec-stop": { Stop: [{ type: "command", command: `${WRAPPER} stop` }] },
+    }),
+  });
+  const joined = validate(path.resolve("/dist"), { fs: fakeFs }).errors.join("\n");
+  for (const re of [/forbidden target residue.*commands/, /forbidden target residue.*\.mcp\.json/, /description/, /unsupported Antigravity tool: grep_search/, /invalid Antigravity model tier/, /mainAgent: false/, /inheritMcp: false/, /commandExecutionPolicy: off/, /tools: \['read_file'\]/, /prefixed with \*\*\//, /\$\{input:/]) {
+    assert.match(joined, re);
+  }
+});
+
+test("validateInstalled rejects unrendered placeholders and ignores user-owned files outside manifest.files", () => {
+  const hookCmd = 'node "/home/u/.gemini/config/scripts/hooks/ospec-antigravity-hook.js"';
+  const base = {
+    "agents/sdd-apply.agent.md": "---\nname: sdd-apply\ndescription: Apply.\ntools: ['read_file']\n---\nbody",
+    "agents/user-custom.md": "---\nname: mine\n---\nno description or tools",
+    "rules/ospec-router.instructions.md": "---\ntrigger: always_on\n---\nbody",
+    "skills/idd/SKILL.md": "---\nname: idd\n---\nrun /home/u/.gemini/config/bin/ospec",
+    "scripts/hooks/ospec-antigravity-hook.js": "",
+    "hooks.json": JSON.stringify({
+      "ospec-session-start": { SessionStart: [{ type: "command", command: `${hookCmd} session-start` }] },
+      "ospec-pre-tool-use": { PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: `${hookCmd} pre-tool-use` }] }] },
+      "ospec-stop": { Stop: [{ type: "command", command: `${hookCmd} stop` }] },
+    }),
+    ".ospec-workflow-install.json": JSON.stringify({ target: "antigravity", files: ["agents/sdd-apply.agent.md", "rules/ospec-router.instructions.md", "skills/idd/SKILL.md", "hooks.json"] }),
+  };
+  assert.deepEqual(validateInstalled(path.resolve("/dist"), { fs: createFakeTree(base) }).errors, []);
+  const bad = validateInstalled(path.resolve("/dist"), { fs: createFakeTree({ ...base, "skills/idd/SKILL.md": "---\nname: idd\n---\n__OSPEC_RUNTIME_DIR__" }) }).errors;
+  assert.ok(bad.some((e) => e.includes("unrendered placeholder: __OSPEC_RUNTIME_DIR__")));
 });

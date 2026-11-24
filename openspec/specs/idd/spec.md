@@ -2545,7 +2545,15 @@ The checks MUST cover at least:
   `opencode.json` does not list `instructions/*.md`), `budget` (as for
   `claude`), `hooks` (`error` when the host's hook file is missing) and
   `engram` (as for `claude`, with that host's `engram setup` action and
-  without the allow rules, which only Claude Code's auto mode needs).
+  without the allow rules, which only Claude Code's auto mode needs). For
+  `antigravity`, `ospec doctor` MUST also run `hook-responds` (when
+  `scripts/hooks/ospec-antigravity-hook.js` is present or referenced by
+  `hooks.json`: executes it with an AGY `write_file` `Path` probe targeting
+  `idd/ospec-doctor-probe/state.yaml` in `os.tmpdir()` with 5 s timeout,
+  writing nothing, and reports `error` unless exit 0 with `decision: "deny"` and
+  no `[ospec error]`) and `sandbox-cli` (`warn` when `~/.gemini/antigravity-cli/settings.json`
+  sets `enableTerminalSandbox: true`, `agentMode: "auto"`, or is unreadable JSON;
+  `ok` otherwise).
 - `vscode`, found by the `ospec-workflow` plugins named in
   `chat.pluginLocations` of the user settings of VS Code and VS Code Insiders,
   read as an array or as a `{ path: enabled }` map: `plugin-locations`

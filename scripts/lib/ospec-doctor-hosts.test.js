@@ -451,3 +451,42 @@ test("a repository Codex install from before the shim is still recognized", asyn
   write(path.join(repo.root, ".codex", "ospec-workflow", "scripts", "ospec.js"), "// ospec CLI\n");
   assert.equal(find(await doctor(repo), "project", "codex-repo").status, "ok");
 });
+
+test("Antigravity: hook-responds probes write_file guard and fails closed on missing wrapper or bad response", async (t) => {
+  const env = setup(t);
+  const root = install(env.home, "antigravity");
+  const wrapper = path.join(root, "scripts", "hooks", "ospec-antigravity-hook.js");
+  write(path.join(root, "hooks.json"), '{"ospec-pre-tool-use":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"node ospec-antigravity-hook.js pre-tool-use"}]}]}}\n');
+  assert.equal(find(await doctor(env), "antigravity", "hook-responds").status, "error", "missing wrapper named by hooks.json");
+
+  write(wrapper, "// wrapper\n");
+  const okSpawn = (bin, args, opts) => {
+    if (bin === "/node" && args[0] === wrapper) {
+      const payload = JSON.parse(opts.input);
+      assert.equal(payload.toolCall.name, "write_file");
+      assert.match(payload.toolCall.args.Path, /idd[\\/]ospec-doctor-probe[\\/]state\.yaml$/);
+      return { status: 0, stdout: '{"decision":"deny","reason":"blocked"}\n', stderr: "" };
+    }
+    return makeSpawn()(bin, args, opts);
+  };
+  assert.equal(find(await doctor(env, { spawn: okSpawn, execPath: "/node" }), "antigravity", "hook-responds").status, "ok");
+  const badSpawn = (bin, args, opts) => (bin === "/node" && args[0] === wrapper ? { status: 0, stdout: "{}\n", stderr: "" } : makeSpawn()(bin, args, opts));
+  const failed = find(await doctor(env, { spawn: badSpawn, execPath: "/node" }), "antigravity", "hook-responds");
+  assert.equal(failed.status, "error");
+  assertActionable(failed, "antigravity hook-responds");
+});
+
+test("Antigravity: sandbox-cli warns on enableTerminalSandbox, agentMode auto, or unreadable JSON", async (t) => {
+  const env = setup(t);
+  install(env.home, "antigravity");
+  const settingsFile = path.join(env.home, ".gemini", "antigravity-cli", "settings.json");
+  assert.equal(find(await doctor(env), "antigravity", "sandbox-cli").status, "ok");
+  write(settingsFile, { agentMode: "accept-edits" });
+  assert.equal(find(await doctor(env), "antigravity", "sandbox-cli").status, "ok");
+  for (const raw of ['{"enableTerminalSandbox":true}', '{"agentMode":"auto"}', "{oops"]) {
+    write(settingsFile, raw);
+    const check = find(await doctor(env), "antigravity", "sandbox-cli");
+    assert.equal(check.status, "warn", raw);
+    assertActionable(check, raw);
+  }
+});
