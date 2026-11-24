@@ -7,15 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.187.0] - 2026-11-24
+
 ### Added
-- Habilitar enrutamiento de tiers de modelo nativos (pro, inherit, flash, flash_lite) para Antigravity en models.yaml, user-models, instalador y TUI (agy-04-model-tiers)
-- Endurecer validate-antigravity.js, anadir sonda hook-responds y check sandbox-cli en ospec doctor, configurar permisos Engram para Antigravity en engram-setup y sincronizar documentacion de Antigravity (agy-05-validator-doctor-engram-docs)
-- Empaquetar dist/antigravity como plugin nativo valido en agy plugin validate --strict, instalarlo en plugins/ospec-workflow con migracion atomica de legado y soporte --workspace, y detectar plugin/legado/duplicado en ospec doctor (agy-06-native-plugin)
+- **Plugin nativo de Antigravity, migración atómica de legado y soporte `--workspace`** (`agy-06-native-plugin`).
+  - `dist/antigravity` emite `.antigravity-plugin/plugin.json`, `assets/logo.svg` y `hooks.json` con rutas relativas `./scripts/hooks/ospec-antigravity-hook.js` (sin `${PLUGIN_ROOT}`), pasando `agy plugin validate --strict --json` con 0 hallazgos en builds por defecto y `--with-sdd`, manteniendo sin prefijo el router (`0 B` de cambio en `context-baseline.json`).
+  - `setup:antigravity` instala el plugin en `~/.gemini/config/plugins/ospec-workflow` (y raíz Windows en WSL) con un único `createRollbackJournal`, migrando y limpiando atómicamente solo archivos propios legados y grupos `ospec-*` de `hooks.json` heredado (conservando archivos de usuario, `mcp_config.json`, hooks ajenos y `--with-sdd`).
+  - Añade `--workspace <repo>` (mutuamente excluyente con `--dest`) para instalar en `<repo>/.agents/plugins/ospec-workflow` con rutas relativas portables sin tocar `~/.gemini/config` ni ejecutar Engram global.
+  - `ospec doctor --target antigravity` detecta `plugins/ospec-workflow` como instalación principal, valida `plugin-manifest`, avisa `legacy-duplicate` si coexiste legado y mantiene el diagnóstico con `plugin-layout` `info` cuando solo existe una instalación legada.
+- **Tiers de modelo nativos para Antigravity** (`agy-04-model-tiers`).
+  - `models.yaml`, `model-resolver.js`, `user-models.js`, `install-antigravity.js` y el adaptador del instalador TUI soportan los cuatro alias estables aceptados por Antigravity (`pro`, `inherit`, `flash`, `flash_lite`), omitiendo `model:` en `inherit` y rechazando IDs de modelo concretos que el cargador ignora.
+- **Validador estricto, sondas `ospec doctor` y permisos Engram para Antigravity** (`agy-05-validator-doctor-engram-docs`).
+  - `validate-antigravity.js` valida tools canónicas AGY 1.5+, aislamiento de subagentes `review-*`, alias de tier, prefijo `**/` en globs, prohibición de `commands/` y `.mcp.json`, manifiesto nativo, `logo` y hooks relativos.
+  - `ospec doctor --target antigravity` añade `hook-responds` (sonda `PreToolUse` `write_file` fail-closed y de solo lectura con `cwd` del plugin) y `sandbox-cli` (aviso ante `enableTerminalSandbox: true` o `agentMode: "auto"`).
+  - `engram-setup.js` añade reglas explícitas `permissions.allow` (`mcp(engram/<tool>)`) para las 23 herramientas no destructivas de Engram en `~/.gemini/antigravity-cli/settings.json` sin tocar `ask`/`deny` ni `mem_delete`/`mem_merge_projects`, respetando ADR 0006.
+  - Sincroniza `docs/plugin-installation.md`, `docs/plugin-installation.es.md`, `docs/model-routing.md`, `docs/target-capabilities.md` y las specs de `generator`, `hooks`, `install`, `idd` y `session-memory`.
 
 ### Fixed
-- Cerrar bypass de PreToolUse en write_file/edit_file/read_file (AGY 1.5.14), respetar cwd nativo y evitar reanudacion en Stop cancelado o no ocioso, aislado al adaptador de Antigravity (agy-01-pretooluse-stop)
-- Actualizar toolMap de Antigravity a AGY 1.5.14, aislar subagentes review-* (mainAgent/subagent/inheritMcp/commandExecutionPolicy) y traducir flags de skills internas solo en target Antigravity (agy-02-agents-tools)
-- Emitir meta-comandos SDD como skills planas, prefijar globs con **/ en reglas, eliminar .mcp.json muerto y separar metadata.user_markdown en SessionStart solo en target Antigravity (agy-03-commands-rules-mcp-hygiene)
+- **Hooks `PreToolUse`, `SessionStart` y `Stop` en Antigravity 1.5.14+** (`agy-01-pretooluse-stop`, `agy-03-commands-rules-mcp-hygiene`).
+  - Cierra el bypass del guard en `write_file`/`edit_file`/`read_file` al mapear `Path`/`TargetFile`, respeta el `cwd` nativo del payload, evita reanudar turnos cancelados o no ociosos en `Stop`, aplica `force_ask` para preguntas nativas y separa `metadata.user_markdown` en `SessionStart`.
+- **Tools, aislamiento de subagentes, skills internas y limpieza de artefactos en Antigravity** (`agy-02-agents-tools`, `agy-03-commands-rules-mcp-hygiene`).
+  - Actualiza `toolMap` a nombres canónicos AGY 1.5.14 (`read_file`, `write_file`, `edit_file`, `run_command`, `invoke_subagent`, `ask_question`; elimina `search`), aísla los subagentes `review-*` (`mainAgent: false`, `subagent: true`, `inheritMcp: false`, `commandExecutionPolicy: off`), traduce `user-invocable: false` a `disable-slash-command: true`, emite los 4 meta-comandos SDD no colisionantes como skills planas, prefija globs relativos con `**/` y descarta `commands/` y `.mcp.json`.
+- **Resolución de ancestros con symlink en `install-engine.js`** (`agy-06-native-plugin`).
+  - `realpathIfExists` resuelve el ancestro existente más cercano cuando `realpathSync` devuelve `ENOENT`, corrigiendo `assertPathSafe` en macOS (`/var` → `/private/var`) y rutas cortas de Windows al crear subdirectorios anidados sin relajar el bloqueo ante escapes por symlink.
+
+**Verificación directa**: `node scripts/check.js` (5120 tests pasando, 0 fallos y 5 omitidos), 460 de ellos en la fase serie, con los 10 tests de Python OK, los siete targets generados y validados, puerta Go (`gofmt`, `go vet ./...`, `go test ./...`) en verde, `agy plugin validate --strict --json` con 0 hallazgos en build por defecto y `--with-sdd` y 0 bytes de diferencia en los artefactos transformados de los otros seis targets.
 
 ## [2.186.0] - 2026-11-23
 

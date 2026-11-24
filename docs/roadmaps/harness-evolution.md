@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.186.0, 2026-11-23.
+> **Versión de referencia:** v2.187.0, 2026-11-24.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -2417,6 +2417,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-24: Remediación completa del target `antigravity` para Antigravity `agy 1.5.14`/`1.5.15` (Cadena 1: `agy-01-pretooluse-stop`, `agy-02-agents-tools`, `agy-03-commands-rules-mcp-hygiene`, `agy-04-model-tiers`, `agy-05-validator-doctor-engram-docs` y `agy-06-native-plugin`), publicada en v2.187.0. Cierra el bypass `PreToolUse` (`write_file`/`edit_file`/`read_file`), adopta `toolMap` AGY 1.5.14, aislamiento `review-*`, meta-comandos SDD como skills planas, globs `**/`, tiers nativos (`pro`, `inherit`, `flash`, `flash_lite`), permisos `mcp(engram/<tool>)`, validador estricto, sondas `ospec doctor` y empaquetado como plugin nativo (`.antigravity-plugin/plugin.json`, `plugins/ospec-workflow` con migración atómica de legado y `--workspace`), con 0 bytes de diferencia en los artefactos transformados de los otros seis targets.
 - 2026-11-23: `own-utility-skills` (IDD), publicado en v2.186.0. E1.106 hecho: issue-creation, branch-pr y skill-registry con texto propio y alineadas con el harness, con la orden nueva `ospec registry`. La sección de gentle-ai sale de `NOTICE` y el README cuenta el origen. E5.15 se amplía a las skills y convenciones del proyecto.
 - 2026-11-22: `chain-merge-retarget` (IDD), publicado en v2.185.5. Arreglo pedido por delante de E1.106. En una cadena, `chained-pr` y el paso 6 de AGENTS.md reapuntan la PR siguiente antes de fusionar la anterior con `--delete-branch`, y el playbook explica cómo reabrir una PR que el host cerró al borrar su rama base.
 - 2026-11-21: `own-sdd-shared-orchestrator` (IDD), publicado en v2.185.4. Quinto cambio de E1.105: `_shared`, el agente orquestador y dos frases de `sdd-baseline` y `sdd-reconcile` con texto propio, con una sola regla sobre quién escribe `state.yaml`. E1.105 hecho.
