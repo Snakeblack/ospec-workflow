@@ -79,7 +79,7 @@ after(() => {
 });
 
 for (const target of TARGETS) {
-  test(`dist/${target}: branch-pr Critical Rule 6 (branch-before-code) present`, () => {
+  test(`dist/${target}: branch-pr branch-before-code rule present`, () => {
     assert.ok(
       findPhrase(generated.get(target), BRANCH_PR_PHRASE),
       `generated ${target} target must contain '${BRANCH_PR_PHRASE}' — run scripts/configure to regenerate`

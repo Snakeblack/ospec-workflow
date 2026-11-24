@@ -410,55 +410,56 @@ implementation files not consumed by the registry.
 
 ### 6a.1 Branch-Before-Code Requirement
 
-The `skills/branch-pr/SKILL.md` body MUST include a prominent "branch before code" step. This guidance MUST:
-- Appear as Step 0 (or the first numbered step) in the existing Workflow section, before all other steps.
-- State that a feature branch MUST be created before any project file is edited.
-- Reference the project's `<type>/<description>` branch naming convention.
+The rules section of `skills/branch-pr/SKILL.md` MUST hold a rule that:
+- States that a feature branch MUST be created before any project file is edited.
+- Names the `<type>/<description>` branch naming convention.
 
-The step MUST also be represented as a rule in the Critical Rules section so that it is captured by compact-rule extraction and injected into sub-agent prompts.
+The first procedure of the body MUST end in the branch-creation step, before any step that commits or opens a pull request.
 
-#### Scenario: Workflow step visible at top
+#### Scenario: The branch comes first
 
 - GIVEN `skills/branch-pr/SKILL.md` is loaded by an agent
-- WHEN the agent reads the Workflow section
-- THEN the first actionable step MUST be a branch-creation instruction
-- AND it MUST precede the optional issue-validation step
+- WHEN the agent reads its procedures in order
+- THEN the branch-creation step MUST precede every step that commits, pushes or opens a pull request
 
 #### Scenario: Compact rules include branch-before-code
 
-- GIVEN the registry builds compact rules from `branch-pr`'s Critical Rules section via `extractCompactRules`
+- GIVEN the registry builds compact rules from the rules section of `branch-pr` via `extractCompactRules`
 - WHEN the extraction runs
-- THEN the output MUST include a rule stating that a feature branch MUST be created before any code is edited
-- AND this rule MUST be present in the sub-agent launch prompt when `branch-pr` is injected
+- THEN the output MUST include a rule stating that a feature branch MUST be created before any project file is edited
+- AND at least one extracted rule MUST prohibit editing or committing on the default branch
 
-### 6a.2 Multi-Developer Collaboration Strategies
+### 6a.2 Delivery Values Come From the Project
 
-The `skills/branch-pr/SKILL.md` MUST include a section titled `## Multi-Developer Collaboration` that documents the strategies below. This section MUST appear in the skill body after the Workflow section and before the Commands section.
+`skills/branch-pr/SKILL.md` MUST NOT fix what the project decides. It MUST name where each value below is read and what to do when that source is missing, so the skill works in IDD, in SDD and in a project without `ospec`.
 
-| Strategy | Required guidance |
-|----------|------------------|
-| Branching policy | The `branching` of `ospec team` or `ospec next` (REQ-idd-023): `serial` keeps one PR in flight, `parallel` lets each branch integrate the default branch before its merge |
-| Branch hygiene | One feature branch per task; descriptive names following `<type>/<description>`; delete merged branches |
-| Default branch protection | NEVER edit files or commit while on the default branch (e.g., `main`) |
-| Sync coordination | Pull the latest default branch before branching; rebase only a branch never pushed, and once pushed merge the default branch into it, since the hooks deny force-pushing |
-| Parallel work | Each developer works on a dedicated branch; changes are integrated via PR only, never by direct push |
-| Commit conventions | Use Conventional Commits with the subject in the project's language, imperative; each commit MUST be atomic and buildable |
-| Language | Commit messages and the PR title and body follow the `language` of `ospec team` (REQ-idd-029), then the language of the recent commit subjects, then the user's; no skill fixes a language |
+| Value | Source | Fallback |
+|-------|--------|----------|
+| Base branch | The `integration` line of `ospec team` (REQ-idd-023) | The default branch of the repository |
+| Pull requests in flight | The `branching` of `ospec team` or `ospec next` (REQ-idd-023) | One at a time |
+| Review budget | The `delivery` line of `ospec team` | The one `chained-pr` gives |
+| Language of the title and the body | The `language` of `ospec team` (REQ-idd-029) | The language of the recent commit subjects, then the user's |
+| Pull request template and labels | The repository | A body with summary, changes and evidence; no label |
+| Checks | `ospec close` in IDD, the verify report in SDD | The checks the project declares |
 
-The section SHOULD be 10–20 lines, so the skill stays short (§3.1).
+The skill MUST also:
+- Leave the commit message to `work-unit-commits` and a diff over the review budget to `chained-pr`, naming both.
+- Forbid rewriting a pushed branch: a moved base is integrated by merge, since the hooks deny force-pushing.
+- Name every step that waits for the user: pushing and opening the pull request, merging it, and the release.
+- Say what to hand the user when `gh` is missing or the host is not GitHub.
 
-#### Scenario: Multi-developer section present
+#### Scenario: A project without a template or type labels
 
-- GIVEN `skills/branch-pr/SKILL.md` contains the `## Multi-Developer Collaboration` section
-- WHEN the section is read
-- THEN all seven strategies in the table above MUST be represented
+- GIVEN a repository with no pull request template and no `type:*` label
+- WHEN an agent follows `branch-pr`
+- THEN the body MUST hold what changed, why and the evidence that it works
+- AND the agent MUST NOT create a label
 
-#### Scenario: Compact rules include default-branch protection
+#### Scenario: The user's decisions stay with the user
 
 - GIVEN `extractCompactRules` processes `branch-pr`
-- WHEN the Critical Rules section is scanned
-- THEN at least one extracted rule MUST prohibit editing or committing on the default branch
-- AND this rule MUST appear in the compact-rule output injected into sub-agent prompts
+- WHEN the rules section is scanned
+- THEN one extracted rule MUST say that pushing, opening, merging and releasing need the user's approval
 
 ## 6b. Specific Skill Requirements: issue-creation
 
