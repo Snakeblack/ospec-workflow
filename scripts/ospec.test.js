@@ -202,7 +202,7 @@ test("a usage error prints only the usage lines of its subcommand", (t) => {
   assert.strictEqual(unknown.code, 2);
   assert.strictEqual(
     unknown.stderr,
-    "ospec: unknown command: frobnicate (usage)\ncommands: status, next, record, signals, check, run, review, close, abandon, doctor, router, team, snapshot, foundation\n",
+    "ospec: unknown command: frobnicate (usage)\ncommands: status, next, record, signals, check, run, review, close, abandon, doctor, registry, router, team, snapshot, foundation\n",
   );
 
   const intent = ospec(root, "record", "intent", "--json");

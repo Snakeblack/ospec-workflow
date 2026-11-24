@@ -6,22 +6,17 @@ This product includes text from the third-party works below, each used under
 the MIT License. The skills and files listed under each work keep text from it,
 measured against every version in that work's history. ospec-workflow changed
 them, and its own changes are licensed under LICENSE. Each work's copyright
-notice and the MIT License permission notice, which applies to the three of
-them, follow.
+notice and the MIT License permission notice, which applies to both of them,
+follow.
 
-1. gentle-ai
-   https://github.com/Gentleman-Programming/gentle-ai
-   Copyright (c) 2025 Gentleman Programming
-   Skills: branch-pr, issue-creation and skill-registry.
-
-2. ECC (Everything Claude Code)
+1. ECC (Everything Claude Code)
    https://github.com/affaan-m/ECC
    Copyright (c) 2026 Affaan Mustafa
    Skills: accessibility, api-design, design-system, hexagonal-architecture,
    stack-angular, stack-dotnet, stack-go, stack-java, stack-kotlin,
    stack-python, stack-react, stack-springboot and stack-vite.
 
-3. Caveman
+2. Caveman
    https://github.com/JuliusBrussee/caveman
    Copyright (c) 2026 Julius Brussee
    Taken while Caveman was licensed under the MIT License, before its 3.0.0.

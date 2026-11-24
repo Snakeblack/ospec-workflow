@@ -84,6 +84,7 @@ const REFUSALS = Object.freeze({
   "map-invalid": "fix the knowledge map as the message says; ospec foundation next --profile <profile> --json returns its template",
   "map-missing": "pass --map <path> to an existing knowledge map, or start one with ospec foundation next --profile <profile> --json",
   "map-unreadable": "fix the knowledge map so it is JSON text (valid YAML 1.2)",
+  "registry-skills-missing": "the installed skills of ospec-workflow were not found: run ospec doctor, reinstall the plugin if it reports the installation, then run ospec registry again",
   "not-a-git-repo": "IDD works only inside a git work tree: set up the project's repository with git init -b main, then open the change again",
   "not-manual-fitness": "a fitness function with a Check: line runs in ospec check --change <id>; --evidence is only for one without it",
   "obligation-satisfied": `nothing to do: the obligation is satisfied; ${NEXT}`,

@@ -1,10 +1,14 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const fsSync = require("node:fs");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { isDeepStrictEqual } = require("node:util");
 
 const { mkdirOspec } = require("./ospec-gitignore.js");
+
+const CACHE_VERSION = 2;
 
 function compareStrings(left, right) {
   if (left < right) {
@@ -390,7 +394,74 @@ async function writeRegistryCache(cachePath, data) {
   }
 }
 
+function canonicalPath(directory) {
+  try {
+    return fsSync.realpathSync(directory);
+  } catch {
+    return path.resolve(directory);
+  }
+}
+
+// Global Codex installs split scripts (~/.codex/ospec-workflow) from skills
+// (~/.agents/skills). Source and generated bundles retain root/skills.
+function resolveSkillsRoot({ pluginRoot, target, homeDir, codexHome }) {
+  const installedRoots = [path.join(homeDir, ".codex", "ospec-workflow")];
+  if (typeof codexHome === "string" && path.isAbsolute(codexHome)) {
+    installedRoots.push(path.join(codexHome, "ospec-workflow"));
+  }
+  const canonicalPluginRoot = canonicalPath(pluginRoot);
+  const installedCodex = target === "codex" && installedRoots.some(
+    (root) => path.relative(canonicalPath(root), canonicalPluginRoot) === "",
+  );
+  return installedCodex ? path.join(homeDir, ".agents", "skills") : path.join(pluginRoot, "skills");
+}
+
+// What an entry lacks to serve a delegation: rules to inject, or a way to be
+// matched other than its own name (a `Trigger:` or a capability).
+function registryGaps(skills) {
+  const gaps = [];
+  for (const skill of skills) {
+    const missing = [];
+    if (skill.compact_rules.length === 0) missing.push("rules");
+    const nameOnly = skill.triggers.length === 1 && skill.triggers[0] === skill.id;
+    if (nameOnly && skill.capabilities.length === 0) missing.push("trigger");
+    if (missing.length > 0) gaps.push({ id: skill.id, missing });
+  }
+  return gaps;
+}
+
+// The one builder of the cache, shared by the SessionStart hook and
+// `ospec registry`: reuses a cache whose inputs and entries match, writes it
+// otherwise. `describeWorkspace` federates the workspace shape (null in
+// single-repo mode).
+async function refreshRegistryCache({ cachePath, pluginRoot, skillsRoot, now = () => new Date(), describeWorkspace }) {
+  const registry = await discoverSkills(pluginRoot, { skillsRoot, requireSkills: true });
+  const fingerprint = await calculateFingerprint(registry.fingerprintPaths);
+  const currentCache = await readRegistryCache(cachePath);
+  const cacheHit =
+    currentCache?.version === CACHE_VERSION &&
+    currentCache.fingerprint === fingerprint &&
+    isDeepStrictEqual(currentCache.skills, registry.skills);
+
+  if (!cacheHit) {
+    const cache = {
+      version: CACHE_VERSION,
+      fingerprint,
+      generated_at: now().toISOString(),
+      skills: registry.skills,
+    };
+    const workspaceContext = describeWorkspace ? await describeWorkspace() : null;
+    if (workspaceContext) {
+      cache.workspace = workspaceContext;
+    }
+    await writeRegistryCache(cachePath, cache);
+  }
+
+  return { status: cacheHit ? "reused" : "generated", skills: registry.skills };
+}
+
 module.exports = {
+  CACHE_VERSION,
   calculateFingerprint,
   collectFiles,
   discoverSkills,
@@ -398,5 +469,8 @@ module.exports = {
   extractCompactRules,
   hasOspecIdentity,
   readRegistryCache,
+  refreshRegistryCache,
+  registryGaps,
+  resolveSkillsRoot,
   writeRegistryCache,
 };

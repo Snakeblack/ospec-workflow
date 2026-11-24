@@ -288,6 +288,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // Skill registry runtime for globally installed Codex bundles.
   "scripts/lib/skill-registry.js",
   "scripts/lib/skill-registry.test.js",
+  // `ospec registry`: the CLI entry of that runtime.
+  "scripts/lib/ospec-registry.js",
+  "scripts/lib/ospec-registry.test.js",
   // PP2 evolves phase-artifact validation without reopening the frozen K1 candidate.
   "scripts/lib/flow-validator.js",
   "scripts/lib/flow-validator.test.js",

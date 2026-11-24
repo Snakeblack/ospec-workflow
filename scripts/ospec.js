@@ -102,6 +102,7 @@ const { buildSnapshotV3 } = require("./lib/progress-snapshot-v3.js");
 const { buildSnapshotV4 } = require("./lib/progress-snapshot-v4.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
+const { RegistryError, renderRegistry, runRegistry } = require("./lib/ospec-registry.js");
 const claudeRouter = require("./lib/claude-router.js");
 const { IRREVERSIBLE_OPERATIONS, addedTests, answerHits, applyDerivation, classifyPath, deriveSignals, inlineTests, requireDeclaredCeremony, securityHits } = require("./lib/idd-signals.js");
 const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
@@ -183,6 +184,9 @@ const USAGE = `Usage:
                 Their answer archives it as abandoned, without checks, reviews or a changelog entry;
                 without --reason or --cancel it finishes an archive that was interrupted
   ospec doctor [--target <host>] [--repair] [--json]
+  ospec registry [--json]
+                 builds the skill registry cache of an OpenSpec project, as the SessionStart hook does,
+                 and lists the skills that give SDD sub-agents no rules or match by name only
   ospec router install|remove [--scope user|project] [--force] [--json]
   ospec router off [--force] [--json]
   ospec router status [--json]
@@ -1745,6 +1749,7 @@ async function run(command, positionals, values) {
   if (command === "close") return close(root, values);
   if (command === "abandon") return abandon(root, values);
   if (command === "doctor") return runDoctor({ root, target: values.target ?? null, repair: values.repair === true });
+  if (command === "registry") return runRegistry({ root });
   if (command === "router") return routerCommand(root, positionals, values);
   if (command === "foundation") return foundation(root, positionals, values);
   if (command === "team") return readTeam(root, values.mode ?? null);
@@ -2141,6 +2146,7 @@ function describe(command, result) {
   }
   if (result.status === "abandoned" && result.archive) return describeAbandoned(result);
   if (command === "doctor") return renderDoctor(result);
+  if (command === "registry") return renderRegistry(result);
   if (command === "router") return describeRouter(result);
   if (command === "review") return describeReview(result);
   if (command === "signals") return describeSignals(result);
@@ -2268,6 +2274,7 @@ async function main(argv = process.argv.slice(2)) {
       error instanceof IddWorkspaceError ||
       error instanceof DecisionGapError ||
       error instanceof SnapshotError ||
+      error instanceof RegistryError ||
       error instanceof claudeRouter.RouterError;
     if (!known) throw error;
     const code = usage ? "usage" : error.code;
