@@ -44,18 +44,23 @@ test("the reader takes hosts, tiers and free-text models, quoted or bare", () =>
     '  default: "gpt-6 Terra (copilot)"',
     "cursor:",
     "  default: grok-4.6[fast=false]",
+    "antigravity:",
+    "  premium: PRO",
+    "  cheap: flash_lite",
     "",
   ].join("\r\n"));
   assert.deepEqual(models, {
     codex: { premium: "gpt-6.1-sol", cheap: "gpt-6-luna" },
     vscode: { default: "gpt-6 Terra (copilot)" },
     cursor: { default: "grok-4.6[fast=false]" },
+    antigravity: { premium: "pro", cheap: "flash_lite" },
   });
 });
 
 test("the reader rejects the whole file on anything it does not know", () => {
   for (const [text, reason] of [
-    ["antigravity:\n  premium: x\n", /unknown host/],
+    ["unknown-host:\n  premium: x\n", /unknown host/],
+    ["antigravity:\n  premium: gemini-4-neon-high\n", /pro, inherit, flash, flash_lite/],
     ["codex:\n  ultra: x\n", /unknown tier/],
     ["  premium: x\n", /needs its host/],
     ["codex:\n  premium: x\n  premium: y\n", /duplicate tier/],
@@ -90,8 +95,10 @@ test("writing sets and clears tiers of one host and keeps the others", (t) => {
   writeUserModels("codex", { cheap: null, premium: " gpt-sol-2 " }, options);
   assert.deepEqual(readUserModels(options).models, { codex: { premium: "gpt-sol-2" }, opencode: { default: "zai/glm" } });
   writeUserModels("opencode", { default: "" }, options);
-  assert.deepEqual(readUserModels(options).models, { codex: { premium: "gpt-sol-2" } });
-  assert.throws(() => writeUserModels("antigravity", { premium: "x" }, options), /hereda/);
+  writeUserModels("antigravity", { premium: "PRO", cheap: "FLASH_LITE" }, options);
+  assert.deepEqual(readUserModels(options).models, { codex: { premium: "gpt-sol-2" }, antigravity: { premium: "pro", cheap: "flash_lite" } });
+  assert.throws(() => writeUserModels("antigravity", { premium: "gemini-4-neon-high" }, options), /pro, inherit, flash, flash_lite/);
+  assert.throws(() => writeUserModels("unknown-host", { premium: "x" }, options), /hereda/);
   assert.throws(() => writeUserModels("codex", { premium: "a\nb" }, options), /no válido/);
 });
 
@@ -124,6 +131,7 @@ test("an installer saves its flags and gets the host's assignment and unassigned
   assert.deepEqual(prepared.userModels, { premium: "gpt-x" });
   assert.deepEqual(prepared.unassigned, ["default", "cheap"]);
   assert.deepEqual(prepareUserModels([], "claude", options).unassigned, [], "Claude falls back to its aliases");
+  assert.deepEqual(prepareUserModels([], "antigravity", options).unassigned, [], "Antigravity falls back to its aliases");
 });
 
 test("a dry run applies the flags to this run only", (t) => {
@@ -132,10 +140,14 @@ test("a dry run applies the flags to this run only", (t) => {
   assert.deepEqual(prepared.userModels, { cheap: "gpt-luna" });
   assert.equal(prepared.saved, null);
   assert.equal(fs.existsSync(file(options)), false);
+  const agyDry = prepareUserModels(["--model", "cheap=FLASH_LITE"], "antigravity", { ...options, persist: false });
+  assert.equal(agyDry.error, null);
+  assert.deepEqual(agyDry.userModels, { cheap: "flash_lite" });
+  assert.match(prepareUserModels(["--model", "premium=gemini-4-neon-high"], "antigravity", { ...options, persist: false }).error, /pro, inherit, flash, flash_lite/);
 });
 
 test("an inherited host refuses --model and takes no assignment", (t) => {
   const options = home(t);
-  assert.match(prepareUserModels(["--model", "premium=x"], "antigravity", options).error, /hereda/);
-  assert.deepEqual(prepareUserModels([], "antigravity", options), { argv: [], userModels: {}, saved: null, warning: null, unassigned: [], file: file(options), error: null });
+  assert.match(prepareUserModels(["--model", "premium=x"], "unknown-host", options).error, /hereda/);
+  assert.deepEqual(prepareUserModels([], "unknown-host", options), { argv: [], userModels: {}, saved: null, warning: null, unassigned: [], file: file(options), error: null });
 });

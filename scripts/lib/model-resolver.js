@@ -13,6 +13,7 @@
 const OMIT = Symbol("model-omit");
 const INHERIT = "inherit";
 const KNOWN_TIERS = ["premium", "default", "cheap"];
+const ANTIGRAVITY_MODEL_TIERS = Object.freeze(["pro", "inherit", "flash", "flash_lite"]);
 const REQUIRED_QUALITY_REVIEW_AGENTS = [
   "review-change",
   "review-correction",
@@ -67,9 +68,14 @@ function resolveModel(agentName, target, models) {
   const assigned = models.userModels && typeof models.userModels === "object" ? models.userModels[tier] : undefined;
 
   if (typeof assigned === "string" && assigned.trim()) {
+    const trimmed = assigned.trim();
+    if (target === "antigravity") {
+      const lower = trimmed.toLowerCase();
+      return lower === INHERIT ? OMIT : lower;
+    }
     // The user's model keeps the tier's settings that are not a model name
     // (Codex's reasoning effort).
-    return base && typeof base === "object" && !Array.isArray(base) ? { ...base, model: assigned.trim() } : assigned.trim();
+    return base && typeof base === "object" && !Array.isArray(base) ? { ...base, model: trimmed } : trimmed;
   }
 
   if (base === undefined || base === null || base === INHERIT) {
@@ -84,13 +90,16 @@ function resolveModel(agentName, target, models) {
   return base;
 }
 
-function validateUserModels(userModels) {
+function validateUserModels(userModels, target) {
   if (userModels === undefined) return { valid: true, errors: [] };
   if (!userModels || typeof userModels !== "object" || Array.isArray(userModels)) return { valid: false, errors: [{ code: "invalid-user-models" }] };
   const errors = [];
   for (const [tier, value] of Object.entries(userModels)) {
     if (!KNOWN_TIERS.includes(tier)) errors.push({ code: "unknown-tier", tier });
     else if (typeof value !== "string" || !value.trim()) errors.push({ code: "invalid-model", tier });
+    else if (target === "antigravity" && !ANTIGRAVITY_MODEL_TIERS.includes(value.trim().toLowerCase())) {
+      errors.push({ code: "invalid-antigravity-model", tier, value: value.trim(), allowed: ANTIGRAVITY_MODEL_TIERS });
+    }
   }
   return { valid: errors.length === 0, errors };
 }
@@ -117,5 +126,6 @@ module.exports = {
   REQUIRED_SDD_AGENTS,
   REQUIRED_QUALITY_REVIEW_AGENTS,
   KNOWN_TIERS,
+  ANTIGRAVITY_MODEL_TIERS,
   OMIT,
 };

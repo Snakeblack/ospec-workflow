@@ -17,7 +17,7 @@ function fixture(t) {
   fs.mkdirSync(path.join(root, "agents"));
   for (const name of ["alpha", "beta"]) fs.writeFileSync(path.join(root, "agents", `${name}.agent.md`), `---\nname: ${name}\n---\n`);
   const agents = ["sdd-apply", "sdd-archive", "sdd-baseline", "sdd-clarify", "sdd-design", "handbook", "sdd-explore", "foundation", "sdd-init", "sdd-onboard", "sdd-orchestrator", "sdd-propose", "sdd-reconcile", "sdd-spec", "sdd-tasks", "sdd-verify", "sdd-workspace", "review-change", "review-correction", "review-trust", "review-runtime", "review-evolution", "review-efficiency"];
-  fs.writeFileSync(path.join(root, "models.yaml"), `agents:\n  alpha: premium\n${agents.map(name => `  ${name}: cheap\n`).join("")}  _default: default\ntiers:\n  premium:\n    claude: opus\n    codex:\n      model_reasoning_effort: high\n  default:\n    claude: sonnet\n  cheap:\n    claude: haiku\n`);
+  fs.writeFileSync(path.join(root, "models.yaml"), `agents:\n  alpha: premium\n${agents.map(name => `  ${name}: cheap\n`).join("")}  _default: default\ntiers:\n  premium:\n    claude: opus\n    antigravity: pro\n    codex:\n      model_reasoning_effort: high\n  default:\n    claude: sonnet\n    antigravity: inherit\n  cheap:\n    claude: haiku\n    antigravity: flash\n`);
   return root;
 }
 function userOptions(t) {
@@ -40,8 +40,8 @@ test("v3 plan lists the agents of each tier, the user's models and what an empty
     { id: "cheap", agents: [], value: "", fallback: "" },
   ]);
   assert.deepEqual(target(plan, "claude").tiers.map(tier => tier.fallback), ["opus", "sonnet", "haiku"]);
-  assert.equal(target(plan, "antigravity").inherited, true);
-  assert.deepEqual(target(plan, "antigravity").tiers, []);
+  assert.equal(target(plan, "antigravity").inherited, false);
+  assert.deepEqual(target(plan, "antigravity").tiers.map(tier => tier.fallback), ["pro", "inherit", "flash"]);
   assert.equal(fs.readFileSync(path.join(root, "models.yaml"), "utf8"), before, "the plan never writes models.yaml");
 });
 
@@ -62,7 +62,13 @@ test("v3 validation accepts free-text models and rejects unknown tiers, bad text
   assert.throws(() => validateRequest({ ...request, models: { premium: "a\nb" } }, plan), /invalid model/);
   assert.throws(() => validateRequest({ ...request, models: { premium: 3 } }, plan), /invalid model/);
   assert.throws(() => validateRequest({ ...request, models: ["premium"] }, plan), /object/);
-  assert.throws(() => validateRequest({ version: PROTOCOL_VERSION, target: "antigravity", models: { premium: "x" } }, plan), /inherits/);
+  assert.deepEqual(
+    validateRequest({ version: PROTOCOL_VERSION, target: "antigravity", models: { premium: "PRO", default: "INHERIT", cheap: "flash_lite" } }, plan).models,
+    { premium: "pro", default: "inherit", cheap: "flash_lite" },
+  );
+  assert.throws(() => validateRequest({ version: PROTOCOL_VERSION, target: "antigravity", models: { premium: "gemini-4-neon-high" } }, plan), /pro, inherit, flash, flash_lite/);
+  const inheritedPlan = { ...plan, targets: [...plan.targets, { id: "legacy", inherited: true, tiers: [] }] };
+  assert.throws(() => validateRequest({ version: PROTOCOL_VERSION, target: "legacy", models: { premium: "x" } }, inheritedPlan), /inherits/);
   assert.throws(() => validateRequest({ ...request, version: 2 }, plan), /schema/);
   assert.throws(() => validateRequest({ ...request, selections: {} }, plan), /schema/);
 });

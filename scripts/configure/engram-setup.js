@@ -75,7 +75,7 @@ const {
   targetSpec,
 } = require("../lib/engram-detect.js");
 const { claudeConfigDir } = require("../lib/claude-router.js");
-const { missingEngramAllowRules } = require("../lib/engram-claude-allow.js");
+const { missingAntigravityEngramAllowRules, missingEngramAllowRules } = require("../lib/engram-claude-allow.js");
 const { createReporter, splitVerbose } = require("./install-output.js");
 const { prepareUserModels } = require("../lib/user-models.js");
 
@@ -337,13 +337,11 @@ function windowsSafeModeStep({ bash, spawn, fs: fsImpl, homedir, env, now, stdou
   );
 }
 
-// --- Claude Code auto mode: allow rules for the rewritten write tools (#475) ----
+// --- Claude Code / Antigravity auto mode: allow rules for Engram tools --------
 
-function claudeAllowRulesStep({ fs: fsImpl, homedir, env, stdout, stderr }) {
-  const settingsFile = path.join(claudeConfigDir({ env, homedir }), "settings.json");
-  const consequence = "las escrituras de Engram siguen sin regla allow y el modo auto de Claude Code puede denegarlas";
+function mergeAllowRulesStep({ settingsFile, missingFn, consequence, addedNote, fs: fsImpl, stdout, stderr }) {
   const settings = readJsonObject(fsImpl, settingsFile);
-  const missing = settings.ok ? missingEngramAllowRules(settings.value) : settings;
+  const missing = settings.ok ? missingFn(settings.value) : settings;
   if (!missing.ok) {
     stderr.write(`aviso: no se puede leer ${settingsFile} (${missing.reason}); ${consequence}.\n`);
     return;
@@ -360,10 +358,35 @@ function claudeAllowRulesStep({ fs: fsImpl, homedir, env, stdout, stderr }) {
     stderr.write(`aviso: no se puede escribir ${settingsFile} (${error.code || error.message}); ${consequence}.\n`);
     return;
   }
-  stdout.write(
-    `  - ${missing.missing.length} regla(s) allow para las escrituras de Engram en ${settingsFile}: el hook de engram reescribe su entrada y, sin ellas, el modo auto de Claude Code puede denegar esas llamadas.\n` +
+  stdout.write(addedNote(missing.missing.length, settingsFile));
+}
+
+function claudeAllowRulesStep({ fs: fsImpl, homedir, env, stdout, stderr }) {
+  mergeAllowRulesStep({
+    settingsFile: path.join(claudeConfigDir({ env, homedir }), "settings.json"),
+    missingFn: missingEngramAllowRules,
+    consequence: "las escrituras de Engram siguen sin regla allow y el modo auto de Claude Code puede denegarlas",
+    addedNote: (n, file) =>
+      `  - ${n} regla(s) allow para las escrituras de Engram en ${file}: el hook de engram reescribe su entrada y, sin ellas, el modo auto de Claude Code puede denegar esas llamadas.\n` +
       "    mem_delete y mem_merge_projects siguen pasando por el clasificador. Una herramienta que tengas en ask o deny no se toca.\n",
-  );
+    fs: fsImpl,
+    stdout,
+    stderr,
+  });
+}
+
+function antigravityAllowRulesStep({ fs: fsImpl, homedir, stdout, stderr }) {
+  mergeAllowRulesStep({
+    settingsFile: path.join(homedir(), ".gemini", "antigravity-cli", "settings.json"),
+    missingFn: missingAntigravityEngramAllowRules,
+    consequence: "las herramientas de Engram siguen sin regla allow en Antigravity y pedirán confirmación",
+    addedNote: (n, file) =>
+      `  - ${n} regla(s) allow para las herramientas no destructivas de Engram en ${file} (mcp(engram/...)).\n` +
+      "    mem_delete y mem_merge_projects siguen pidiendo confirmación. Una herramienta que tengas en ask o deny no se toca.\n",
+    fs: fsImpl,
+    stdout,
+    stderr,
+  });
 }
 
 // --- Windows: launch upstream .sh hooks with an absolute bash -----------------
@@ -629,6 +652,9 @@ function runEngramStep({
     }
     if (enabled && configured && target === "claude") {
       claudeAllowRulesStep({ fs: fsImpl, homedir, env, stdout, stderr });
+    }
+    if (enabled && configured && target === "antigravity") {
+      antigravityAllowRulesStep({ fs: fsImpl, homedir, stdout, stderr });
     }
     if (enabled && configured && target === "claude" && platform === "win32") {
       const gitBash = findGitBash({ spawn, fs: fsImpl, env, timeoutMs });

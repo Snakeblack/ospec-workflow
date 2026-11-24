@@ -232,3 +232,100 @@ test("main stays silent when uvx answers", (t) => {
   assert.doesNotMatch(stderr.join(""), /uvx/);
 });
 
+test("main forwards validated --model tier aliases, prints Modelos, and rejects concrete model IDs", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "agy-install-models-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const seen = [], out = [], err = [];
+  const io = (buf) => ({ write: (c) => buf.push(String(c)) });
+  const base = { homedir: () => root, stdout: io(out), stderr: io(err) };
+  const ok = main(["--dry-run", "--dest", path.join(root, "d"), "--model", "cheap=FLASH_LITE"], {
+    ...base,
+    runConfigure: (o) => { seen.push(o.userModels); return { exitCode: 0, validation: { errors: [] } }; },
+  });
+  assert.equal(ok, 0, err.join(""));
+  assert.deepEqual(seen, [{ cheap: "flash_lite" }]);
+  assert.match(out.join(""), /Modelos\s+premium alias por defecto · default alias por defecto · cheap flash_lite/);
+  let called = false;
+  assert.equal(main(["--dry-run", "--dest", path.join(root, "d"), "--model", "premium=gemini-4-neon-high"], { ...base, runConfigure: () => { called = true; return { exitCode: 0 }; } }), 2);
+  assert.equal(called, false);
+  assert.match(err.join(""), /pro, inherit, flash, flash_lite/);
+});
+
+function makeValidBuild(outDir, { withSdd = false } = {}) {
+  const put = (rel, c) => { const f = path.join(outDir, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, c); };
+  const cmd = (ev) => `node "./scripts/hooks/ospec-antigravity-hook.js" ${ev}`;
+  put(".antigravity-plugin/plugin.json", JSON.stringify({ name: "ospec-workflow", version: "2.186.0", description: "OSpec", logo: "assets/logo.svg" }));
+  put("assets/logo.svg", "<svg/>\n");
+  put("agents/review-trust.agent.md", "---\nname: review-trust\ndescription: Trust.\ntools: ['read_file']\nmainAgent: false\nsubagent: true\ninheritMcp: false\ncommandExecutionPolicy: off\n---\nbody\n");
+  if (withSdd) put("agents/sdd-orchestrator.agent.md", "---\nname: sdd-orchestrator\ndescription: Orch.\ntools: ['read_file']\n---\n__OSPEC_SHARED_DIR__/sdd.md\n");
+  put("rules/ospec-router.instructions.md", "---\ntrigger: always_on\n---\nrouter\n");
+  put("skills/idd/SKILL.md", "---\nname: idd\ndescription: IDD.\n---\nRun `__OSPEC_RUNTIME_DIR__/bin/ospec`.\n");
+  put("scripts/hooks/ospec-hooks-launch.js", "// launch\n");
+  put("scripts/hooks/ospec-antigravity-hook.js", "// agy\n");
+  put("hooks.json", JSON.stringify({
+    "ospec-session-start": { enabled: true, SessionStart: [{ type: "command", command: cmd("session-start") }] },
+    "ospec-pre-tool-use": { enabled: true, PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: cmd("pre-tool-use") }] }] },
+    "ospec-stop": { enabled: true, Stop: [{ type: "command", command: cmd("stop") }] },
+  }));
+}
+
+test("global setup installs native plugin, migrates legacy owned files/hooks atomically, and preserves SDD and user files", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "agy-plugin-migrate-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const sourceDir = path.join(root, "source"), home = path.join(root, "home");
+  const cfg = path.join(home, ".gemini", "config"), pluginDir = path.join(cfg, "plugins", "ospec-workflow");
+  const put = (f, c) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, c); };
+  put(path.join(sourceDir, "package.json"), JSON.stringify({ name: "ospec-workflow", version: "2.186.0" }));
+  put(path.join(cfg, "agents", "sdd-apply.agent.md"), "legacy sdd\n");
+  put(path.join(cfg, "agents", "my-custom.agent.md"), "user agent\n");
+  put(path.join(cfg, "rules", "ospec-router.instructions.md"), "legacy router\n");
+  put(path.join(cfg, "mcp_config.json"), '{"mcpServers":{"engram":{}}}\n');
+  put(path.join(cfg, "hooks.json"), JSON.stringify({ "ospec-stop": { Stop: [] }, "user-hook": { PreToolUse: [] } }));
+  put(path.join(cfg, ".ospec-workflow-install.json"), JSON.stringify({ version: "2.185.0", target: "antigravity", files: ["agents/sdd-apply.agent.md", "rules/ospec-router.instructions.md", "hooks.json", ".ospec-workflow-install.json"] }));
+  const seenSdd = [];
+  const runConfigure = ({ outDir, withSdd }) => { seenSdd.push(withSdd); makeValidBuild(outDir, { withSdd }); return { exitCode: 0, validation: { errors: [] } }; };
+  const baseDeps = { env: {}, runConfigure, copyBinaryToTree: () => {}, stdout: { write() {} }, stderr: { write() {} } };
+  assert.equal(main(["--source", sourceDir, "--no-engram"], { ...baseDeps, homedir: () => home }), 0);
+  assert.deepEqual(seenSdd, [true]);
+  assert.ok(fs.existsSync(path.join(pluginDir, ".antigravity-plugin", "plugin.json")) && fs.existsSync(path.join(pluginDir, "hooks.json")));
+  assert.equal(fs.existsSync(path.join(cfg, ".ospec-workflow-install.json")), false);
+  assert.equal(fs.existsSync(path.join(cfg, "agents", "sdd-apply.agent.md")), false);
+  assert.equal(fs.existsSync(path.join(cfg, "rules")), false);
+  assert.equal(fs.readFileSync(path.join(cfg, "agents", "my-custom.agent.md"), "utf8"), "user agent\n");
+  assert.ok(fs.existsSync(path.join(cfg, "mcp_config.json")));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(cfg, "hooks.json"), "utf8")), { "user-hook": { PreToolUse: [] } });
+  // Owned hooks.json with only ospec-* groups is removed cleanly; corrupt legacy hooks.json rolls back atomically.
+  const onlyHome = path.join(root, "only-home"), onlyCfg = path.join(onlyHome, ".gemini", "config");
+  put(path.join(onlyCfg, "hooks.json"), JSON.stringify({ "ospec-stop": { Stop: [] } }));
+  put(path.join(onlyCfg, ".ospec-workflow-install.json"), JSON.stringify({ target: "antigravity", files: ["hooks.json"] }));
+  assert.equal(main(["--source", sourceDir, "--no-engram"], { ...baseDeps, homedir: () => onlyHome }), 0);
+  assert.equal(fs.existsSync(path.join(onlyCfg, "hooks.json")), false);
+  const badHome = path.join(root, "bad-home"), badCfg = path.join(badHome, ".gemini", "config");
+  put(path.join(badCfg, "hooks.json"), "{broken");
+  put(path.join(badCfg, ".ospec-workflow-install.json"), JSON.stringify({ target: "antigravity", files: ["hooks.json"] }));
+  assert.equal(main(["--source", sourceDir, "--no-engram"], { ...baseDeps, homedir: () => badHome }), 1);
+  assert.equal(fs.readFileSync(path.join(badCfg, "hooks.json"), "utf8"), "{broken");
+  assert.equal(fs.existsSync(path.join(badCfg, "plugins")), false);
+});
+
+test("--workspace installs into <repo>/.agents/plugins/ospec-workflow with relative paths, skips Engram, and conflicts with --dest", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "agy-workspace-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const sourceDir = path.join(root, "source"), repoDir = path.join(root, "repo"), home = path.join(root, "home");
+  fs.mkdirSync(sourceDir, { recursive: true }); fs.mkdirSync(repoDir, { recursive: true });
+  fs.writeFileSync(path.join(sourceDir, "package.json"), JSON.stringify({ name: "ospec-workflow", version: "2.186.0" }));
+  assert.match(parseArgs(["--dest", "/a", "--workspace", "/b"]).error, /cannot be combined/);
+  let engramRan = false;
+  const code = main(["--source", sourceDir, "--workspace", repoDir, "--with-sdd"], {
+    homedir: () => home, env: {}, copyBinaryToTree: () => {},
+    runConfigure: ({ outDir, withSdd }) => { makeValidBuild(outDir, { withSdd }); return { exitCode: 0, validation: { errors: [] } }; },
+    engramStep: () => { engramRan = true; }, stdout: { write() {} }, stderr: { write() {} },
+  });
+  assert.equal(code, 0);
+  assert.equal(engramRan, false);
+  assert.equal(fs.existsSync(path.join(home, ".gemini")), false);
+  const pluginDir = path.join(repoDir, ".agents", "plugins", "ospec-workflow");
+  assert.match(fs.readFileSync(path.join(pluginDir, "skills", "idd", "SKILL.md"), "utf8"), /\.agents\/plugins\/ospec-workflow\/bin\/ospec/);
+  assert.match(fs.readFileSync(path.join(pluginDir, "agents", "sdd-orchestrator.agent.md"), "utf8"), /\.agents\/plugins\/ospec-workflow\/skills\/_shared\/sdd\.md/);
+});
+

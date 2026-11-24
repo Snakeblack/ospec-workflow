@@ -69,7 +69,7 @@ The generated Codex tree MUST contain `agent.md`, `.codex/agents/*.toml`, `skill
 
 ### 1.6 Antigravity — Native Configuration & Hooks
 
-`npm run setup:antigravity` builds `dist/antigravity` and deploys into `~/.gemini/config`, non-destructively merging `hooks.json` and tracking installed files via `.ospec-workflow-install.json`. The generated `hooks.json` holds the groups `ospec-session-start`, `ospec-pre-tool-use` and `ospec-stop`: `SessionStart` and `Stop` list their handlers directly, and only `PreToolUse` wraps them in a `{ matcher: "*", hooks }` group, because agy 1.4.2 discards the whole file when a flat event holds a matcher group. agy has no `PreCompact` or `SubagentStop` event, and its `PostToolUse` cannot rewrite tool output, so those events are not generated. The merge MUST replace the generated groups, remove any other `ospec-*` group left by an earlier release, and keep every other group. `validate-antigravity` MUST reject a handler shape that agy would reject.
+`npm run setup:antigravity` builds `dist/antigravity` and deploys into `~/.gemini/config`, non-destructively merging `hooks.json` and tracking installed files via `.ospec-workflow-install.json`. The generated `hooks.json` holds the groups `ospec-session-start`, `ospec-pre-tool-use` and `ospec-stop`: `SessionStart` and `Stop` list their handlers directly, and only `PreToolUse` wraps them in a `{ matcher: "*", hooks }` group, because agy 1.4.2 discards the whole file when a flat event holds a matcher group. agy has no `PreCompact` or `SubagentStop` event, and its `PostToolUse` cannot rewrite tool output, so those events are not generated. The merge MUST replace the generated groups, remove any other `ospec-*` group left by an earlier release, and keep every other group. `validate-antigravity` MUST reject invalid hook shapes, forbidden dead paths (`commands`, `.mcp.json`), unmapped `${input:...}`, invalid agent frontmatter (`name`/`description`, tools outside the AGY 1.5+ catalog, invalid `model` tiers, missing `review-*` isolation fields), invalid rule `trigger`/relative `globs` without `**/`, and (in `validateInstalled`) unrendered install placeholders in owned files.
 
 ---
 
@@ -675,19 +675,20 @@ When modifying existing target configuration files (`opencode.json`, `mcp-config
 
 ### Requirement: Antigravity Target Profile & Standard Compiler Pipeline {#REQ-install-010}
 
-Antigravity MUST be a first-class compiler target defined in `scripts/lib/target-profiles/antigravity.js` and registered in `PROFILES` (`scripts/configure/cli.js`). `npm run build:antigravity` and `npm run setup:antigravity` MUST build into `dist/antigravity` and install into `~/.gemini/config` using the standard transformation, model mapping, runtime script closure, validator, and transactional installer. The legacy script `scripts/sync-antigravity.js` MUST be removed.
+Antigravity MUST be a first-class compiler target defined in `scripts/lib/target-profiles/antigravity.js` and registered in `PROFILES` (`scripts/configure/cli.js`). `npm run build:antigravity` and `npm run setup:antigravity` MUST build a native plugin bundle into `dist/antigravity` and install it into `~/.gemini/config/plugins/ospec-workflow` (plus any detected Windows root under WSL) using the standard transformation, model mapping, runtime script closure, validator, and transactional installer. Global setup MUST atomically migrate a legacy loose `~/.gemini/config/.ospec-workflow-install.json` installation after validating the new plugin—removing only legacy owned files and `ospec-*` hook groups in `~/.gemini/config/hooks.json` while preserving user files, foreign hooks, and `--with-sdd`. Passing `--workspace <repo>` (mutually exclusive with `--dest`) MUST install into `<repo>/.agents/plugins/ospec-workflow` with portable relative `.agents/plugins/ospec-workflow` runtime/shared paths without touching `~/.gemini/config` or running global Engram setup. The legacy script `scripts/sync-antigravity.js` MUST be removed.
 
 #### Scenario: Antigravity builds and validates through standard CLI
 - GIVEN the canonical repository source
 - WHEN `npm run build:antigravity` is executed
-- THEN `dist/antigravity` MUST contain transformed agents, skills, rules, hooks, and runtime scripts
+- THEN `dist/antigravity` MUST contain `.antigravity-plugin/plugin.json`, `assets/logo.svg`, transformed agents, skills, rules, relative hooks, and runtime scripts
 - AND validation MUST pass with 0 errors
 
-#### Scenario: Antigravity global installation is transactional
-- GIVEN `npm run setup:antigravity` is executed
-- THEN files are deployed into `~/.gemini/config`
-- AND `~/.gemini/config/.ospec-workflow-install.json` is recorded
-- AND pre-existing user hooks in `hooks.json` are preserved
+#### Scenario: Antigravity global installation migrates legacy layout transactionally
+- GIVEN a legacy `~/.gemini/config/.ospec-workflow-install.json`, user files, and mixed hooks in `~/.gemini/config/hooks.json`
+- WHEN `npm run setup:antigravity` is executed
+- THEN the native plugin MUST be deployed into `~/.gemini/config/plugins/ospec-workflow` with its `.ospec-workflow-install.json`
+- AND legacy owned files and `ospec-*` groups MUST be removed while user files and foreign hooks stay intact
+- AND a migration failure MUST roll back both the new plugin and legacy state atomically
 
 ---
 
@@ -859,9 +860,9 @@ reasoning controls, E4.12.)
 - THEN it MUST list the three tiers with the agents each one serves and the user's current model
 - AND typing MUST edit only the focused tier, with every printable character (including `q`, `j` and `k`) part of the name
 
-#### Scenario: Antigravity remains inherited
+#### Scenario: Inherited host omits model entry
 
-- GIVEN the user selects Antigravity
+- GIVEN the user selects a target marked `inherited: true`
 - WHEN target configuration is displayed
 - THEN the TUI MUST show inherited host behavior
 - AND MUST NOT offer a model entry
@@ -876,18 +877,21 @@ reasoning controls, E4.12.)
 
 ### Requirement: User Tier Model Assignment {#REQ-install-020}
 
-ospec MUST NOT choose a model name for the user outside Claude's aliases (E4.12).
+ospec MUST NOT choose a model name for the user outside Claude's and Antigravity's tier aliases (E4.12).
 The user assigns a model to each tier and host, either with an installer's
 `--model <tier>=<model>` flag (an empty model clears that tier) or in the TUI. The
 assignment MUST be saved in the user's configuration, outside any project
 (`$XDG_CONFIG_HOME/ospec/models.yaml` or `~/.config/ospec/models.yaml`, and
 `%APPDATA%\ospec\models.yaml` on Windows), keeping the other hosts' entries. A model
 is free text as the host spells it, one line of at most 200 characters, never
-validated against a catalog. A tier without a model MUST degrade without error: Claude
-falls back to its alias in `models.yaml`, and every other host omits `model` so its
-agents inherit the session model. A file that cannot be read or parsed, or that names
-an unknown host or tier, MUST be ignored with a visible warning, and MUST NOT be
-overwritten. A `--dry-run` MUST apply the flags to that run only. Antigravity always
+validated against a catalog, except Antigravity, which accepts only its four native
+tier aliases (`pro`, `inherit`, `flash`, `flash_lite`, normalized to lowercase) and
+rejects other values fail-closed because its loader skips concrete model IDs. A tier
+without a model MUST degrade without error: Claude and Antigravity fall back to their
+aliases in `models.yaml` (`inherit` omitting `model:`), and every other host omits
+`model` so its agents inherit the session model. A file that cannot be read or parsed, or that names
+an unknown host, tier, or invalid Antigravity alias, MUST be ignored with a visible warning, and MUST NOT be
+overwritten. A `--dry-run` MUST apply the flags to that run only. An unassignable host always
 inherits and MUST refuse `--model`. An installation with model names that ospec wrote
 earlier is not migrated: its agents inherit, and the installer summary MUST list the
 models of each tier and say how to assign the tiers left to inherit.
@@ -915,11 +919,12 @@ catalog, applied per run without saving them.)
 - THEN it MUST warn that the file is ignored and install with inheriting agents
 - AND a `--model` flag MUST fail without rewriting the file
 
-#### Scenario: Antigravity takes no assignment
+#### Scenario: Antigravity accepts native tier aliases and rejects concrete model IDs
 
-- GIVEN a user passes `--model` to the Antigravity installer
-- WHEN it starts
-- THEN it MUST refuse before any installation
+- GIVEN a user passes `--model cheap=FLASH_LITE` to the Antigravity installer
+- WHEN it runs
+- THEN it MUST normalize the alias to `flash_lite`, forward it to the generator, and report `Modelos` in the summary
+- AND passing a concrete model ID such as `--model premium=gemini-4-neon-high` MUST fail closed before any installation
 
 ---
 
@@ -1259,7 +1264,7 @@ The step MUST run even when registration is skipped because Engram is already co
 
 To bind the session, the `PreToolUse` hook of `engram@engram` rewrites the input of every tool its matcher names (`updatedInput`), and Claude Code's auto mode can deny a call whose input changed after the classifier reviewed it (#475). A `permissions.allow` rule resolves the call before that review. On every platform, once Engram is configured for Claude Code, `setup:claude` MUST merge into `permissions.allow` of `<config>/settings.json` (`<config>` is `CLAUDE_CONFIG_DIR`, else `~/.claude`) a rule for each non-destructive write tool of that matcher (`mem_save`, `mem_update`, `mem_review`, `mem_save_prompt`, `mem_pin`, `mem_unpin`, `mem_session_summary`, `mem_session_start`, `mem_session_end`, `mem_capture_passive`, `mem_judge`, `mem_compare`) under both of its prefixes, `mcp__engram__` and `mcp__plugin_engram_engram__`. `mem_delete` and `mem_merge_projects` MUST NOT get a rule, so they keep going through the classifier.
 
-A tool that a rule already covers (the tool itself, its server such as `mcp__engram`, or a tool-name glob after the server prefix such as `mcp__engram__*`) under `allow`, `ask` or `deny` MUST NOT get a rule: an `ask` or `deny` entry is the user's decision. The step MUST preserve every other setting, MUST create a missing settings file, MUST NOT rewrite the file when no rule is missing, and MUST NOT rewrite a file that is not a JSON object or whose `permissions` is not an object or whose rule lists are not arrays; those cases warn without failing the install. It MUST NOT run with `--no-engram`, when Engram is not configured, or on other targets, and `--no-engram` MUST NOT remove rules an earlier install wrote.
+A tool that a rule already covers (the tool itself, its server such as `mcp__engram`, or a tool-name glob after the server prefix such as `mcp__engram__*`) under `allow`, `ask` or `deny` MUST NOT get a rule: an `ask` or `deny` entry is the user's decision. The step MUST preserve every other setting, MUST create a missing settings file, MUST NOT rewrite the file when no rule is missing, and MUST NOT rewrite a file that is not a JSON object or whose `permissions` is not an object or whose rule lists are not arrays; those cases warn without failing the install. It MUST NOT run with `--no-engram`, when Engram is not configured, or on other targets (except Antigravity, where `setup:antigravity` applies the same idempotent, fail-open merge to `~/.gemini/antigravity-cli/settings.json` using explicit `mcp(engram/<tool>)` rules for non-destructive Engram read/write tools, excluding `mem_delete` and `mem_merge_projects`, and respecting `mcp(engram/*)` plus `ask`/`deny`), and `--no-engram` MUST NOT remove rules an earlier install wrote.
 
 #### Scenario: Engram configured
 

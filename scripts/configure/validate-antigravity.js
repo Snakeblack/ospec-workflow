@@ -7,6 +7,7 @@ const { parse, getField } = require("../lib/frontmatter.js");
 const { MANIFEST_FILENAME } = require("./install-engine.js");
 
 const REQUIRED_PATHS = [
+  { rel: ".antigravity-plugin/plugin.json", type: "file" },
   { rel: "agents", type: "directory" },
   { rel: "rules", type: "directory" },
   { rel: "skills", type: "directory" },
@@ -14,12 +15,16 @@ const REQUIRED_PATHS = [
   { rel: "hooks.json", type: "file" },
 ];
 
-const FORBIDDEN_PATHS = [
-  ".claude-plugin",
-  ".codex-plugin",
-  ".github",
-  ".opencode",
-];
+const FORBIDDEN_MANIFEST_KEYS = ["agents", "commands", "skills", "rules", "hooks", "mcpServers"];
+
+const FORBIDDEN_PATHS = [".claude-plugin", ".codex-plugin", ".github", ".opencode", "commands", ".mcp.json"];
+const ALLOWED_TOOLS = new Set(["read_file", "write_file", "edit_file", "run_command", "invoke_subagent", "ask_question", "search_web", "manage_task"]);
+const ALLOWED_MODELS = new Set(["pro", "flash", "flash_lite"]);
+const REVIEW_AGENTS = new Set(["review-change", "review-correction", "review-trust", "review-runtime", "review-evolution", "review-efficiency"]);
+const REVIEW_REQUIRED = [["mainAgent", "false"], ["subagent", "true"], ["inheritMcp", "false"], ["commandExecutionPolicy", "off"]];
+const ALLOWED_TRIGGERS = new Set(["always_on", "glob"]);
+const GLOB_PREFIX = /^(?:\*\*\/|\/|[A-Za-z]:\/)/;
+const INSTALLED_PLACEHOLDERS = [["__OSPEC_", "ANTIGRAVITY_ROOT__"], ["__OSPEC_", "RUNTIME_DIR__"], ["__OSPEC_", "SHARED_DIR__"], ["{{ospec", "-cli}}"]].map((p) => p.join(""));
 
 const REQUIRED_HOOK_GROUPS = [
   "ospec-session-start",
@@ -82,6 +87,36 @@ function validateForbiddenPaths(root, errors, fsImpl = fs) {
   }
 }
 
+function validatePluginManifest(root, errors, fsImpl = fs) {
+  const manifestPath = path.join(root, ".antigravity-plugin", "plugin.json");
+  if (!fsImpl.existsSync(manifestPath)) return;
+  let doc;
+  try {
+    doc = JSON.parse(fsImpl.readFileSync(manifestPath, "utf8"));
+  } catch (error) {
+    errors.push(`.antigravity-plugin/plugin.json is not valid JSON: ${error.message}`);
+    return;
+  }
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
+    errors.push(".antigravity-plugin/plugin.json must be a JSON object");
+    return;
+  }
+  for (const field of ["name", "version", "description"]) {
+    if (typeof doc[field] !== "string" || !doc[field].trim()) {
+      errors.push(`.antigravity-plugin/plugin.json missing required string field: ${field}`);
+    }
+  }
+  for (const forbidden of FORBIDDEN_MANIFEST_KEYS) {
+    if (Object.hasOwn(doc, forbidden)) errors.push(`.antigravity-plugin/plugin.json contains unsupported manifest key: ${forbidden}`);
+  }
+  if (typeof doc.logo === "string" && doc.logo.trim()) {
+    const logoRel = doc.logo.replace(/^\.\//, "");
+    if (!fsImpl.existsSync(path.join(root, logoRel))) {
+      errors.push(`.antigravity-plugin/plugin.json logo asset missing: ${doc.logo}`);
+    }
+  }
+}
+
 function validateHooksJson(root, errors, fsImpl = fs) {
   const hooksPath = path.join(root, "hooks.json");
   if (!fsImpl.existsSync(hooksPath)) return;
@@ -103,9 +138,13 @@ function validateHooksJson(root, errors, fsImpl = fs) {
   // decision "continue" and injects the open IDD changes through injectSteps.
   for (const [group, event] of [["ospec-stop", "Stop"], ["ospec-session-start", "SessionStart"]]) {
     const entries = Array.isArray(parsed[group]?.[event]) ? parsed[group][event] : [];
-    if (entries.length === 0 || !entries.every((entry) => isHandler(entry) && entry.command.includes("scripts/hooks/ospec-antigravity-hook.js"))) {
-      errors.push(`hooks.json ${group}.${event} must run scripts/hooks/ospec-antigravity-hook.js`);
+    if (entries.length === 0 || !entries.every((entry) => isHandler(entry) && entry.command.includes("./scripts/hooks/ospec-antigravity-hook.js"))) {
+      errors.push(`hooks.json ${group}.${event} must run ./scripts/hooks/ospec-antigravity-hook.js`);
     }
+  }
+  const rawHooks = JSON.stringify(parsed);
+  if (rawHooks.includes("${PLUGIN_ROOT}")) {
+    errors.push("hooks.json must use relative ./scripts/hooks/... instead of ${PLUGIN_ROOT}");
   }
 
   for (const [group, spec] of Object.entries(parsed)) {
@@ -123,8 +162,15 @@ function validateHooksJson(root, errors, fsImpl = fs) {
   }
 }
 
-function validateAgents(root, errors, fsImpl = fs) {
-  const agentFiles = walkFiles(root, "agents", [], fsImpl).filter((f) => f.endsWith(".md") || f.endsWith(".agent.md"));
+function filterOwned(files, owned) {
+  return owned && owned.size > 0 ? files.filter((rel) => owned.has(rel)) : files;
+}
+
+function validateAgents(root, errors, fsImpl = fs, owned = null) {
+  const agentFiles = filterOwned(
+    walkFiles(root, "agents", [], fsImpl).filter((f) => f.endsWith(".md") || f.endsWith(".agent.md")),
+    owned,
+  );
   if (agentFiles.length === 0) {
     errors.push("agents directory contains no agent files");
     return;
@@ -135,47 +181,99 @@ function validateAgents(root, errors, fsImpl = fs) {
     if (content.includes("vscode/askQuestions")) {
       errors.push(`${rel} contains unmapped vscode/askQuestions reference`);
     }
+    const { frontmatter: fm } = parse(content);
+    const name = getField(fm, "name")?.value;
+    if (!name) errors.push(`${rel} missing required frontmatter field: name`);
+    if (!getField(fm, "description")?.value) errors.push(`${rel} missing required frontmatter field: description`);
+    const toolsField = getField(fm, "tools");
+    if (toolsField) {
+      if (!Array.isArray(toolsField.value)) {
+        errors.push(`${rel} tools field must be a YAML list`);
+      } else {
+        for (const tool of toolsField.value) {
+          if (!ALLOWED_TOOLS.has(tool)) errors.push(`${rel} contains unsupported Antigravity tool: ${tool}`);
+        }
+      }
+    }
+    const modelField = getField(fm, "model");
+    if (modelField && !ALLOWED_MODELS.has(String(modelField.value))) {
+      errors.push(`${rel} contains invalid Antigravity model tier: ${modelField.value} (allowed: pro, flash, flash_lite; inherit must be omitted)`);
+    }
+    if (REVIEW_AGENTS.has(name)) {
+      for (const [k, v] of REVIEW_REQUIRED) {
+        if (getField(fm, k)?.value !== v) errors.push(`${rel} review agent must set ${k}: ${v}`);
+      }
+      if (!Array.isArray(toolsField?.value) || toolsField.value.length !== 1 || toolsField.value[0] !== "read_file") {
+        errors.push(`${rel} review agent must declare tools: ['read_file']`);
+      }
+    }
   }
 }
 
-function validate(root, deps = {}) {
-  const fsImpl = deps.fs || fs;
-  const errors = [];
-  const warnings = [];
+function validateRules(root, errors, fsImpl = fs, owned = null) {
+  for (const rel of filterOwned(walkFiles(root, "rules", [], fsImpl).filter((f) => f.endsWith(".md")), owned)) {
+    const { frontmatter: fm } = parse(fsImpl.readFileSync(path.join(root, rel), "utf8"));
+    const trigger = getField(fm, "trigger")?.value;
+    if (!ALLOWED_TRIGGERS.has(trigger)) {
+      errors.push(`${rel} must declare trigger: always_on or trigger: glob`);
+    } else if (trigger === "glob") {
+      const globs = String(getField(fm, "globs")?.value || "").split(",").map((g) => g.trim()).filter(Boolean);
+      if (globs.length === 0) errors.push(`${rel} with trigger: glob must declare non-empty globs`);
+      for (const glob of globs) {
+        if (!GLOB_PREFIX.test(glob)) errors.push(`${rel} glob "${glob}" must be prefixed with **/ or an absolute path`);
+      }
+    }
+  }
+}
 
+function validatePlaceholders(root, errors, fsImpl = fs, { installed = false, owned = null } = {}) {
+  const mdFiles = filterOwned(["agents", "rules", "skills"].flatMap((d) => walkFiles(root, d, [], fsImpl).filter((f) => f.endsWith(".md"))), owned);
+  const files = [...mdFiles, ...(fsImpl.existsSync(path.join(root, "hooks.json")) ? ["hooks.json"] : [])];
+  for (const rel of files) {
+    const content = fsImpl.readFileSync(path.join(root, rel), "utf8");
+    if (content.includes("${input:")) errors.push(`${rel} contains unmapped VS Code \${input:...} placeholder`);
+    if (installed) {
+      for (const marker of INSTALLED_PLACEHOLDERS) {
+        if (content.includes(marker)) errors.push(`${rel} contains unrendered placeholder: ${marker}`);
+      }
+    }
+  }
+}
+
+function validateTree(root, errors, fsImpl, { installed = false, owned = null } = {}) {
   validateRequiredPaths(root, errors, fsImpl);
   validateForbiddenPaths(root, errors, fsImpl);
+  validatePluginManifest(root, errors, fsImpl);
   validateHooksJson(root, errors, fsImpl);
-  validateAgents(root, errors, fsImpl);
+  validateAgents(root, errors, fsImpl, owned);
+  validateRules(root, errors, fsImpl, owned);
+  validatePlaceholders(root, errors, fsImpl, { installed, owned });
+}
 
-  return { errors, warnings };
+function validate(root, deps = {}) {
+  const errors = [];
+  validateTree(root, errors, deps.fs || fs, { installed: false });
+  return { errors, warnings: [] };
 }
 
 function validateInstalled(targetRoot, deps = {}) {
   const fsImpl = deps.fs || fs;
   const errors = [];
-  const warnings = [];
-
-  validateRequiredPaths(targetRoot, errors, fsImpl);
-  validateForbiddenPaths(targetRoot, errors, fsImpl);
-  validateHooksJson(targetRoot, errors, fsImpl);
-  validateAgents(targetRoot, errors, fsImpl);
-
+  let owned = null;
   const manifestPath = path.join(targetRoot, MANIFEST_FILENAME);
   if (!fsImpl.existsSync(manifestPath)) {
     errors.push(`missing installation manifest at ${manifestPath}`);
   } else {
     try {
       const manifest = JSON.parse(fsImpl.readFileSync(manifestPath, "utf8"));
-      if (manifest.target !== "antigravity" || !Array.isArray(manifest.files)) {
-        errors.push("installed manifest is invalid or has incorrect target");
-      }
+      if (manifest.target !== "antigravity" || !Array.isArray(manifest.files)) errors.push("installed manifest is invalid or has incorrect target");
+      else if (manifest.files.length > 0) owned = new Set(manifest.files.map((f) => String(f).replace(/\\/g, "/")));
     } catch (error) {
       errors.push(`installed manifest is unparseable: ${error.message}`);
     }
   }
-
-  return { errors, warnings };
+  validateTree(targetRoot, errors, fsImpl, { installed: true, owned });
+  return { errors, warnings: [] };
 }
 
 function main(argv) {

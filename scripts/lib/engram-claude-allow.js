@@ -19,6 +19,21 @@ const ENGRAM_CLAUDE_WRITE_TOOLS = [
 ];
 const ENGRAM_CLAUDE_SERVERS = ["mcp__engram", "mcp__plugin_engram_engram"];
 const ENGRAM_CLAUDE_ALLOW_RULES = ENGRAM_CLAUDE_SERVERS.flatMap((server) => ENGRAM_CLAUDE_WRITE_TOOLS.map((tool) => `${server}__${tool}`));
+// Antigravity prompts on unconfigured MCP tools by default; list non-destructive
+// read and write tools using `mcp(engram/<tool>)` while keeping mem_delete and
+// mem_merge_projects out of permissions.allow.
+const ENGRAM_ANTIGRAVITY_TOOLS = [
+  ...ENGRAM_CLAUDE_WRITE_TOOLS,
+  "mem_judge_many", "mem_session_finalize", "mem_consolidate",
+  "mem_context", "mem_search", "mem_search_prompts", "mem_get_observation",
+  "mem_current_project", "mem_list_projects", "mem_suggest_topic_key", "mem_doctor",
+];
+const ENGRAM_ANTIGRAVITY_ALLOW_RULES = ENGRAM_ANTIGRAVITY_TOOLS.map((tool) => `mcp(engram/${tool})`);
+
+function globMatches(pattern, value) {
+  const re = pattern.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+  return new RegExp(`^${re}$`).test(value);
+}
 
 // A tool rule is covered by itself, by its server's rule (`mcp__engram`) and by a
 // tool-name glob after the server prefix (`mcp__engram__*`, `mcp__engram__mem_s*`),
@@ -27,27 +42,46 @@ function ruleCovers(rule, toolRule) {
   const server = toolRule.slice(0, toolRule.lastIndexOf("__mem_"));
   if (rule === server) return true;
   if (!rule.startsWith(`${server}__`)) return false;
-  const glob = rule.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
-  return new RegExp(`^${glob}$`).test(toolRule);
+  return globMatches(rule, toolRule);
 }
 
-// Pure. The engram allow rules that a Claude Code settings object lacks. A tool
-// the user already lists under permissions.ask or permissions.deny is their
-// decision and is never reported. A permissions block that is not an object,
-// or a rule list that is not an array, cannot be merged safely.
-function missingEngramAllowRules(settings) {
+function antigravityRuleCovers(rule, toolRule) {
+  if (rule === toolRule || rule === "mcp(engram/*)") return true;
+  if (!rule.startsWith("mcp(engram/") || !rule.endsWith(")")) return false;
+  return globMatches(rule.slice(11, -1), toolRule.slice(11, -1));
+}
+
+function decidedRules(settings) {
   const permissions = settings && settings.permissions;
   if (permissions !== undefined && (!permissions || typeof permissions !== "object" || Array.isArray(permissions))) {
     return { ok: false, reason: "permissions is not an object" };
   }
-  const lists = {};
+  const decided = [];
   for (const key of ["allow", "ask", "deny"]) {
     const list = permissions ? permissions[key] : undefined;
     if (list !== undefined && !Array.isArray(list)) return { ok: false, reason: `permissions.${key} is not an array` };
-    lists[key] = (list || []).filter((rule) => typeof rule === "string");
+    for (const rule of list || []) if (typeof rule === "string") decided.push(rule);
   }
-  const decided = [...lists.allow, ...lists.ask, ...lists.deny];
-  return { ok: true, missing: ENGRAM_CLAUDE_ALLOW_RULES.filter((toolRule) => !decided.some((rule) => ruleCovers(rule, toolRule))) };
+  return { ok: true, decided };
 }
 
-module.exports = { ENGRAM_CLAUDE_ALLOW_RULES, missingEngramAllowRules };
+// Pure. The engram allow rules that a settings object lacks. A tool the user
+// already lists under permissions.ask or permissions.deny is never reported.
+function missingEngramAllowRules(settings) {
+  const parsed = decidedRules(settings);
+  if (!parsed.ok) return parsed;
+  return { ok: true, missing: ENGRAM_CLAUDE_ALLOW_RULES.filter((toolRule) => !parsed.decided.some((rule) => ruleCovers(rule, toolRule))) };
+}
+
+function missingAntigravityEngramAllowRules(settings) {
+  const parsed = decidedRules(settings);
+  if (!parsed.ok) return parsed;
+  return { ok: true, missing: ENGRAM_ANTIGRAVITY_ALLOW_RULES.filter((toolRule) => !parsed.decided.some((rule) => antigravityRuleCovers(rule, toolRule))) };
+}
+
+module.exports = {
+  ENGRAM_CLAUDE_ALLOW_RULES,
+  ENGRAM_ANTIGRAVITY_ALLOW_RULES,
+  missingEngramAllowRules,
+  missingAntigravityEngramAllowRules,
+};

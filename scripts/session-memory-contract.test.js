@@ -69,10 +69,13 @@ test("the doctor's Engram diagnosis reads no memory and never fails a run", () =
 test("the Engram permission-rule list requires, reads and calls nothing", () => {
   const source = fs.readFileSync(path.join(ROOT, PERMISSION_RULES), "utf8");
   assert.doesNotMatch(source, /\brequire\s*\(|\bimport\b|\bprocess\.|\bfetch\s*\(/, `${PERMISSION_RULES} must stay a data module`);
-  const { ENGRAM_CLAUDE_ALLOW_RULES } = require(path.join(ROOT, PERMISSION_RULES));
+  const { ENGRAM_CLAUDE_ALLOW_RULES, ENGRAM_ANTIGRAVITY_ALLOW_RULES } = require(path.join(ROOT, PERMISSION_RULES));
   assert.ok(ENGRAM_CLAUDE_ALLOW_RULES.length > 0);
   assert.ok(ENGRAM_CLAUDE_ALLOW_RULES.every((rule) => /^mcp__(?:engram|plugin_engram_engram)__mem_[a-z_]+$/.test(rule)));
   assert.ok(!ENGRAM_CLAUDE_ALLOW_RULES.some((rule) => /__mem_(?:delete|merge_projects)$/.test(rule)), "destructive tools keep the classifier");
+  assert.ok(ENGRAM_ANTIGRAVITY_ALLOW_RULES.length > 0);
+  assert.ok(ENGRAM_ANTIGRAVITY_ALLOW_RULES.every((rule) => /^mcp\(engram\/mem_[a-z_]+\)$/.test(rule)));
+  assert.ok(!ENGRAM_ANTIGRAVITY_ALLOW_RULES.some((rule) => /\/mem_(?:delete|merge_projects)\)$/.test(rule)), "destructive tools stay reviewed in Antigravity");
 });
 
 test("no decision-path or shipped source references Engram outside the allowlist", () => {

@@ -61,7 +61,7 @@ function makeSpawn({ commands = {} } = {}) {
 const LAYOUTS = {
   codex: { root: [".codex"], runtime: "ospec-workflow/scripts/ospec.js", router: "AGENTS.md", hooks: "hooks.json", sdd: "agents/sdd-explore.toml", skills: [".agents", "skills"] },
   cursor: { root: [".cursor"], runtime: "scripts/ospec.js", router: "rules/ospec-router.mdc", hooks: "hooks.json", sdd: "agents/sdd-explore.md" },
-  antigravity: { root: [".gemini", "config"], runtime: "scripts/ospec.js", router: "rules/ospec-router.instructions.md", hooks: "hooks.json", sdd: "agents/sdd-explore.agent.md" },
+  antigravity: { root: [".gemini", "config", "plugins", "ospec-workflow"], runtime: "scripts/ospec.js", router: "rules/ospec-router.instructions.md", hooks: "hooks.json", sdd: "agents/sdd-explore.agent.md" },
   opencode: { root: [".config", "opencode"], runtime: "scripts/ospec.js", router: "instructions/ospec-router.instructions.md", hooks: "plugins/ospec.js", sdd: "agents/sdd-explore.md" },
   "github-copilot": { root: [".copilot"], runtime: "scripts/ospec.js", router: "instructions/ospec-router.instructions.md", hooks: "hooks/hooks.json", sdd: "agents/sdd-explore.agent.md" },
 };
@@ -86,6 +86,7 @@ function install(home, target, { version = "2.0.0", runtime = true, shim = runti
     write(path.join(root, layout.router), target === "codex" ? `# Mine\n\n${BEGIN}\n${router.trim()}\n${END}\n` : router);
   }
   if (target === "opencode") write(path.join(root, "opencode.json"), { instructions: ["instructions/*.md"] });
+  if (target === "antigravity") write(path.join(root, ".antigravity-plugin", "plugin.json"), { name: "ospec-workflow", version });
   if (hooks) write(path.join(root, layout.hooks), "{}\n");
   write(path.join(root, "agents", target === "codex" ? "review-trust.toml" : "review-trust.md"), "reviewer\n");
   if (sdd) write(path.join(root, layout.sdd), "phase\n");
@@ -450,4 +451,85 @@ test("a repository Codex install from before the shim is still recognized", asyn
   write(path.join(repo.root, ".agents", "skills", "idd", "SKILL.md"), "---\nname: idd\n---\n\n`ospec` below means `node \".codex/ospec-workflow/scripts/ospec.js\"`, run from the project root.\n");
   write(path.join(repo.root, ".codex", "ospec-workflow", "scripts", "ospec.js"), "// ospec CLI\n");
   assert.equal(find(await doctor(repo), "project", "codex-repo").status, "ok");
+});
+
+test("Antigravity: hook-responds probes write_file guard and fails closed on missing wrapper or bad response", async (t) => {
+  const env = setup(t);
+  const root = install(env.home, "antigravity");
+  const wrapper = path.join(root, "scripts", "hooks", "ospec-antigravity-hook.js");
+  write(path.join(root, "hooks.json"), '{"ospec-pre-tool-use":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"node ospec-antigravity-hook.js pre-tool-use"}]}]}}\n');
+  assert.equal(find(await doctor(env), "antigravity", "hook-responds").status, "error", "missing wrapper named by hooks.json");
+
+  write(wrapper, "// wrapper\n");
+  const okSpawn = (bin, args, opts) => {
+    if (bin === "/node" && args[0] === wrapper) {
+      const payload = JSON.parse(opts.input);
+      assert.equal(payload.toolCall.name, "write_file");
+      assert.match(payload.toolCall.args.Path, /idd[\\/]ospec-doctor-probe[\\/]state\.yaml$/);
+      return { status: 0, stdout: '{"decision":"deny","reason":"blocked"}\n', stderr: "" };
+    }
+    return makeSpawn()(bin, args, opts);
+  };
+  assert.equal(find(await doctor(env, { spawn: okSpawn, execPath: "/node" }), "antigravity", "hook-responds").status, "ok");
+  const badSpawn = (bin, args, opts) => (bin === "/node" && args[0] === wrapper ? { status: 0, stdout: "{}\n", stderr: "" } : makeSpawn()(bin, args, opts));
+  const failed = find(await doctor(env, { spawn: badSpawn, execPath: "/node" }), "antigravity", "hook-responds");
+  assert.equal(failed.status, "error");
+  assertActionable(failed, "antigravity hook-responds");
+});
+
+test("Antigravity: sandbox-cli warns on enableTerminalSandbox, agentMode auto, or unreadable JSON", async (t) => {
+  const env = setup(t);
+  install(env.home, "antigravity");
+  const settingsFile = path.join(env.home, ".gemini", "antigravity-cli", "settings.json");
+  assert.equal(find(await doctor(env), "antigravity", "sandbox-cli").status, "ok");
+  write(settingsFile, { agentMode: "accept-edits" });
+  assert.equal(find(await doctor(env), "antigravity", "sandbox-cli").status, "ok");
+  for (const raw of ['{"enableTerminalSandbox":true}', '{"agentMode":"auto"}', "{oops"]) {
+    write(settingsFile, raw);
+    const check = find(await doctor(env), "antigravity", "sandbox-cli");
+    assert.equal(check.status, "warn", raw);
+    assertActionable(check, raw);
+  }
+  write(path.join(env.home, ".gemini", "GEMINI.md"), "<!-- BEGIN ENGRAM MEMORY PROTOCOL -->\n");
+  write(path.join(env.home, ".gemini", "config", "mcp_config.json"), { mcpServers: { engram: {} } });
+  write(settingsFile, { agentMode: "accept-edits" });
+  const engramSpawn = makeSpawn({ commands: { "engram version": { stdout: "engram 1.2.3\n" }, "engram doctor --json": { stdout: '{"status":"ok"}' } } });
+  const warnEngram = find(await doctor(env, { spawn: engramSpawn }), "antigravity", "engram");
+  assert.equal(warnEngram.status, "warn");
+  assert.match(warnEngram.cause, /allow rule/);
+  write(settingsFile, { agentMode: "accept-edits", permissions: { allow: ["mcp(engram/*)"] } });
+  assert.equal(find(await doctor(env, { spawn: engramSpawn }), "antigravity", "engram").status, "ok");
+});
+
+test("Antigravity: doctor checks native plugin manifest, warns on legacy duplicate, and reports legacy-only layout as info", async (t) => {
+  const env = setup(t);
+  const pluginRoot = install(env.home, "antigravity");
+  assert.equal(find(await doctor(env), "antigravity", "plugin-manifest").status, "ok");
+  assert.equal(find(await doctor(env), "antigravity", "legacy-duplicate"), undefined);
+
+  // Coexisting legacy manifest warns about duplicate load.
+  write(path.join(env.home, ".gemini", "config", ".ospec-workflow-install.json"), { version: "2.0.0", target: "antigravity", files: [] });
+  const dup = find(await doctor(env), "antigravity", "legacy-duplicate");
+  assert.equal(dup.status, "warn");
+  assertActionable(dup, "antigravity legacy-duplicate");
+
+  // Missing .antigravity-plugin/plugin.json is an error.
+  fs.rmSync(path.join(pluginRoot, ".antigravity-plugin", "plugin.json"));
+  const missingManifest = find(await doctor(env), "antigravity", "plugin-manifest");
+  assert.equal(missingManifest.status, "error");
+  assertActionable(missingManifest, "antigravity plugin-manifest");
+
+  // Legacy-only install keeps checks working and emits plugin-layout info.
+  const legacyEnv = setup(t);
+  const legacyRoot = path.join(legacyEnv.home, ".gemini", "config");
+  write(path.join(legacyRoot, ".ospec-workflow-install.json"), { version: "2.0.0", target: "antigravity", files: [] });
+  write(path.join(legacyRoot, "scripts", "ospec.js"), "// cli\n");
+  writeShim(path.join(legacyRoot, "scripts", "ospec.js"));
+  write(path.join(legacyRoot, "rules", "ospec-router.instructions.md"), ROUTER);
+  write(path.join(legacyRoot, "hooks.json"), "{}\n");
+  write(path.join(legacyRoot, "skills", "idd", "SKILL.md"), SKILL);
+  const legacyRes = await doctor(legacyEnv);
+  assert.equal(find(legacyRes, "antigravity", "install").status, "ok");
+  assert.equal(find(legacyRes, "antigravity", "plugin-layout").status, "info");
+  assert.match(find(legacyRes, "antigravity", "plugin-layout").detail, /setup:antigravity/);
 });

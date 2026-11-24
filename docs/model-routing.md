@@ -10,9 +10,9 @@ sin modelo hereda el de la sesión.
 
 1. `agents`: a qué tier pertenece cada agente. Es la única decisión por agente, y
    un agente sin entrada cae en el tier de `_default`.
-2. `tiers`: por tier, los alias de Claude (`opus`, `sonnet`, `haiku`), que el host
-   resuelve a su último modelo, y el `model_reasoning_effort` y el `model_verbosity`
-   de Codex.
+2. `tiers`: por tier, los alias estables que resuelve cada host —Claude
+   (`opus`, `sonnet`, `haiku`) y Antigravity (`pro`, `inherit`, `flash`)— junto
+   al `model_reasoning_effort` y el `model_verbosity` de Codex.
 
 No trae nombres de modelo de Codex, OpenCode, Cursor, VS Code ni GitHub Copilot,
 porque caducan y dependen de los proveedores de cada usuario. El validador solo
@@ -35,7 +35,11 @@ npm run setup:tui    # un campo por tier en el instalador guiado
 - Con `--dry-run`, los flags valen solo para esa ejecución y no se guardan.
 - En Claude, `--model` sustituye el alias del tier (por ejemplo,
   `--model premium=fable`). Sin asignación, Claude usa los alias de `models.yaml`.
-- Antigravity hereda siempre el modelo de la sesión y rechaza `--model`.
+- En Antigravity, `--model` acepta solo los cuatro alias nativos de tier
+  (`pro`, `inherit`, `flash`, `flash_lite`, sin distinguir mayúsculas); cualquier
+  ID concreto de modelo se rechaza porque el cargador de Antigravity descarta el
+  agente. Sin asignación, usa los alias de `models.yaml` (`pro` / `inherit` /
+  `flash`), y `inherit` omite `model:` en el frontmatter.
 
 La asignación se guarda fuera de cualquier proyecto, porque los agentes se
 instalan por usuario:
@@ -63,12 +67,12 @@ sobrescribe: corrígelo o bórralo antes de volver a usar `--model`.
 `scripts/lib/model-resolver.js` busca el tier del agente y aplica, por orden:
 
 1. el modelo que asignaste a ese tier en ese host, con el effort del tier en Codex;
-2. el alias del tier en Claude;
+2. el alias del tier en Claude o Antigravity (salvo `inherit`, que omite `model`);
 3. nada: el generador no escribe `model` y el agente hereda el modelo de la sesión.
 
 Un build normal (`npm run build:*`, `dist/`, la CI o el marketplace publicado)
-nunca lee tu asignación, así que solo lleva los alias de Claude. Solo los
-instaladores la pasan al generador.
+nunca lee tu asignación, así que solo lleva los alias estables de Claude y
+Antigravity. Solo los instaladores la pasan al generador.
 
 ## Formato por host
 
@@ -80,7 +84,8 @@ instaladores la pasan al generador.
   defecto.
 - **`vscode`** y **`github-copilot`**: el nombre tal como lo muestra el selector de
   modelos (`"gpt-6 Sol (copilot)"`).
-- **`antigravity`**: nunca lleva `model`.
+- **`antigravity`**: alias de tier como escalar (`pro`, `flash` o `flash_lite`);
+  `inherit` omite `model` para heredar el de la sesión.
 
 ## Perfiles locales heredados
 

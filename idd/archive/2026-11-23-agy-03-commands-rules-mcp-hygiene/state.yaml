@@ -1,0 +1,619 @@
+{
+  "schema": "idd-state/v1",
+  "change": "agy-03-commands-rules-mcp-hygiene",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Emitir meta-comandos SDD como skills planas, prefijar globs con **/ en reglas, eliminar .mcp.json muerto y separar metadata.user_markdown en SessionStart solo en target Antigravity",
+    "acceptance": "El build de Antigravity omite commands/*.prompt.md y .mcp.json, emite los meta-comandos SDD sin colision como skills/<name>/SKILL.md con disable-model-invocation:true y $ARGUMENTS, prefija globs relativos de reglas con **/, separa metadata.user_markdown de systemMessage en SessionStart eliminando el JSON diagnostico, y deja los otros 6 targets intactos byte a byte"
+  },
+  "facts": {
+    "open": [
+      "A2 comandos SDD -> skills: emitir solo los 4 meta-comandos sin colision (sdd-continue, sdd-ff, sdd-lite, sdd-new) como skills/<name>/SKILL.md con disable-model-invocation:true y $ARGUMENTS y omitir los 14 comandos que colisionan con skills/sdd-<fase>/SKILL.md (conservando intactas las 14 skills de fase para REQ-generator-019), o buscar otra estrategia?",
+      "M1 regla sdd-openspec.instructions.md: dejar intacta la fuente canonica (conservando la mencion residual a Copilot para garantizar 0 bytes de diff en los otros 6 targets durante Cadena 1), o limpiar la mencion en la fuente canonica afectando los otros 6 targets?",
+      "M3 SessionStart en Antigravity: enviar en systemMessage (visible al modelo) el contexto IDD accionable (additionalContext) mas errores/alertas de seguridad (output.security) y mover el resumen de usuario (rama git, deriva, avisos) a metadata.user_markdown sin JSON crudo, o enviar al modelo exclusivamente additionalContext y errores?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/generator/spec.md",
+      "openspec/specs/hooks/spec.md",
+      "scripts/configure/real-repo.test.js",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/ospec-hooks-launch.test.js",
+      "scripts/lib/rule-scope.test.js",
+      "scripts/lib/target-profiles/antigravity.js",
+      "scripts/lib/target-transform.js",
+      "scripts/lib/target-transform.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Aislar A2/A3/M1 en opciones declarativas del perfil antigravity y M3 en normalizeAntigravityHookOutput para garantizar 0 bytes de diferencia en los otros 6 targets"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 648
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration",
+      "recorded_turn": 648
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 648
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration",
+      "recorded_turn": 648
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components generator, hooks: ADR 0001, 0008, 0010 and quality scenario guard-fail-closed, offline-operation, target-parity",
+      "source": "declaration",
+      "recorded_turn": 648
+    }
+  ],
+  "retracted": [
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/ospec-hooks-launch.js imports scripts/lib/claude-router.js, which uses writeFile",
+      "source": "diff",
+      "retract_reason": "Solo se modifica normalizeAntigravityHookOutput en memoria; el import a claude-router.js es previo de Claude y no cambia.",
+      "confirmed_by": "persistent data: scripts/hooks/ospec-hooks-launch.js imports scripts/lib/claude-router.js, which uses writeFile",
+      "hits": [
+        "scripts/hooks/ospec-hooks-launch.js imports scripts/lib/claude-router.js, which uses writeFile: fs.writeFileSync(temp, content, \"utf8\");"
+      ],
+      "answer": "confirmo",
+      "answer_source": "user",
+      "resolved_at": "2026-11-23T21:59:13.575Z",
+      "recorded_turn": 659,
+      "resolved_turn": 662
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Mantiene una única fuente canónica; los meta-comandos planos, el prefijo **/ en globs y la omisión de .mcp.json se expresan declarativamente en el perfil antigravity con hooks opt-in en target-transform.js y 0 bytes de diferencia en los artefactos generados de los otros 6 targets."
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "PreToolUse y su fallo cerrado con force_ask permanecen intactos; en SessionStart los errores [ospec error] y las alertas output.security siguen llegando al modelo y nunca se descartan."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo biblioteca estándar de Node en target-transform.js y ospec-hooks-launch.js; cero dependencias nuevas y sin cambios en el binario Go."
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "PreToolUse sigue fallando cerrado con force_ask y se amplían pruebas e2e de symlink+.. y variantes PascalCase Command/Commands; SessionStart preserva errores y alertas de seguridad para el modelo."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Sin llamadas de red ni lecturas de memoria nuevas; transformación pura y normalización síncrona local."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Antigravity gana paridad real de slash-commands SDD ($ARGUMENTS), globs absolutos y SessionStart limpio, verificado con 0 bytes de diferencia en los artefactos generados de los otros 6 targets."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado en el diff (target-profiles/antigravity.js, target-transform.js, ospec-hooks-launch.js): ninguna llamada de red ni dependencia externa ni acceso a memoria; todas las pruebas (168 repro-test + 43 real-repo) corren offline de forma determinista.",
+      "recorded_at": "2026-11-23T21:24:26.131Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "withdrawn",
+      "evidence": [],
+      "withdrawn_reason": "Solo se modifica normalizeAntigravityHookOutput en memoria; el import a claude-router.js es previo de Claude y no cambia."
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 648,
+      "answer": "todas las recomendadas: (1) A2 emitir solo los 4 meta-comandos SDD sin colision (sdd-continue, sdd-ff, sdd-lite, sdd-new) como skills/<name>/SKILL.md con disable-model-invocation: true y $ARGUMENTS, conservar las 14 skills/sdd-<fase>/SKILL.md intactas y omitir todo commands/*.prompt.md; (2) M1 dejar rules/sdd-openspec.instructions.md intacta en fuente canonica para mantener 0 bytes de diff en los otros 6 targets y prefijar **/ solo en la salida de Antigravity en toInstructionFile; (3) M3 en SessionStart de Antigravity enviar al modelo en systemMessage el contexto IDD accionable (additionalContext), errores [ospec error] y alertas de seguridad (output.security si existen, vacio en sesiones limpias), y mostrar output.systemMessage al usuario en metadata.user_markdown eliminando el JSON diagnostico; (4) PR 3 se implementa en la siguiente sesion",
+      "source": "user",
+      "resolved_at": "2026-11-22T01:56:53.000Z",
+      "resolved_turn": 649
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-23T21:23:11.731Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-23T21:31:26.771Z",
+      "detail": {
+        "lineage_id": "sha256:bc096ee9eefd9183c684a0be70cdd70b5eb0b158fa87fe952ec02f934aab7603",
+        "candidate_id": "sha256:0b76cce23c4938b32141cd38549ca806c4e572d06f60fb09a9fe68a5c2aa7474",
+        "candidate_tree": "7032e717d167d1a36e8f0785c86d854344d0da88",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "relayed"
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-23T21:33:01.689Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-23T22:00:49.462Z",
+      "detail": {
+        "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+        "runs": [
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-23T22:00:49.462Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+        "fitness": [
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-23T22:00:49.803Z"
+    }
+  ],
+  "base": "1656da66efaa1809d031497ce9167d843fec2121",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-transform.test.js scripts/lib/rule-scope.test.js scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:a8ec1843db9ce61af8f004c0d24749e62aa1903429b00cb09c58b3ebf8f2d5b6",
+      "tree": "sha256:31df8bbe1e0c7daf7e8f6483c96c4510ff93998891b77b5d72730acf2a4c8ede",
+      "recorded_at": "2026-11-23T21:21:36.103Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-transform.test.js scripts/lib/rule-scope.test.js scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:85d937ea07e2647f23fe3bce330a8f31e3db8961ad865db08d6b7648940ffed1",
+      "tree": "sha256:ed0232a6449fd08810ce2e9298f420465aa37194d33b3f4fee82bc2a4cc41bb4",
+      "recorded_at": "2026-11-23T21:23:11.731Z",
+      "tests": 168,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "1656da66efaa1809d031497ce9167d843fec2121",
+      "mount": "sha256:629eccb3a92b6130ddd087c393ea42bb8a8ee6d556573c3b74badbaf1426926e",
+      "command": "node --test scripts/lib/target-transform.test.js scripts/lib/rule-scope.test.js scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:369458f83d208af6ad302afdf312be769ab561c791400e1f7e5a9701828a68f9",
+      "tree": "sha256:ed0232a6449fd08810ce2e9298f420465aa37194d33b3f4fee82bc2a4cc41bb4",
+      "recorded_at": "2026-11-23T21:23:11.731Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "1656da66efaa1809d031497ce9167d843fec2121",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test scripts/lib/target-transform.test.js scripts/lib/rule-scope.test.js scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:377d62f64ce6c55e613f60e1eac4521abe0f71195df41dbf57a5b914cd046ce2",
+      "tree": "sha256:ed0232a6449fd08810ce2e9298f420465aa37194d33b3f4fee82bc2a4cc41bb4",
+      "recorded_at": "2026-11-23T21:23:11.731Z",
+      "tests": 167
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:c15547c2aefd02066d9ded0a5997a34f4ee599c0454c27b2b65c2f4fd66ae6b9",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T21:33:01.689Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0f6129689752090d72aaec2d8591db29472292317ef396d4b7a98e8820a242b9",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T21:33:01.689Z",
+      "tests": 48
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0492960bc284258ff5a8104377dee0efa1172c8be5dc97aa5afd40f8850b7fca",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T21:33:01.689Z",
+      "tests": 103
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T21:33:01.689Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2969e65229951b5ab7844a164e1318efaae63c937262d7be5b9880e0a8876be1",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T21:33:01.689Z",
+      "tests": 26
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e8444c95c4f19674a5976cd91c60142d4380bb76c9911174d342ad55f4ec2355",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T21:33:01.689Z",
+      "tests": 103
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7801a724858666818a23c26f950b3b429a59b26e75527fe7772c03175f9030a9",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T21:33:01.689Z",
+      "tests": 48
+    },
+    {
+      "id": "run-12",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c54756f3d9b7b69251fd4619769ef0b1b5cd1c8130c9c461cec20ca58c6c4035",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T22:00:49.462Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0e33294659d07380b556fbb1a9130eb0c2b97b737023fbe19fd5297d7cbe5a3d",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T22:00:49.462Z",
+      "tests": 48
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5342f8b9e620fd08c6b73bfcef0634ab1036ca00336c762784c8c3a845bb6408",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T22:00:49.462Z",
+      "tests": 103
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T22:00:49.462Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b937c768456a9a6fafbd2a8b16e376b4b129aaf0c0a4924a4ca3eed6c988134e",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T22:00:49.462Z",
+      "tests": 26
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:46d029e728202fbf5295b2f4b9d223d78dab9610bf07235ccec5dbef0458ceed",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T22:00:49.462Z",
+      "tests": 103
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:678eee55dc25eaca5615b130c1af1bd6ffe711cc53fc7c27c9c4f1976f41bc71",
+      "tree": "sha256:657f5c42add2df4532ee28999a8d74990730644da738001914777a18b823c3d6",
+      "recorded_at": "2026-11-23T22:00:49.462Z",
+      "tests": 48
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:bc096ee9eefd9183c684a0be70cdd70b5eb0b158fa87fe952ec02f934aab7603",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "51aefc055de3bb62420b9cf31bad7909d055b166",
+          "candidate_tree": "7032e717d167d1a36e8f0785c86d854344d0da88",
+          "paths": [
+            "openspec/specs/generator/spec.md",
+            "openspec/specs/hooks/spec.md",
+            "scripts/configure/real-repo.test.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/lib/rule-scope.test.js",
+            "scripts/lib/target-profiles/antigravity.js",
+            "scripts/lib/target-transform.js",
+            "scripts/lib/target-transform.test.js"
+          ],
+          "diff_hash": "sha256:cbe7427cf7fcdb36e7ed43fbf178793ca37a4ae071e2e6cc35eeaa477e4590ae",
+          "paths_digest": "sha256:e90a0ada93066a8f01c8934ed5b649a1a21d88e19b064ccaef9bb027705e024e",
+          "authored_lines": 273,
+          "original_changed_lines": 294
+        },
+        "candidate_id": "sha256:0b76cce23c4938b32141cd38549ca806c4e572d06f60fb09a9fe68a5c2aa7474",
+        "paths": [
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "scripts/configure/real-repo.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/rule-scope.test.js",
+          "scripts/lib/target-profiles/antigravity.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "7032e717d167d1a36e8f0785c86d854344d0da88",
+        "original_changed_lines": 294,
+        "authored_lines": 273
+      },
+      "current_candidate_id": "sha256:0b76cce23c4938b32141cd38549ca806c4e572d06f60fb09a9fe68a5c2aa7474",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "51aefc055de3bb62420b9cf31bad7909d055b166",
+        "candidate_tree": "7032e717d167d1a36e8f0785c86d854344d0da88",
+        "paths": [
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "scripts/configure/real-repo.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/rule-scope.test.js",
+          "scripts/lib/target-profiles/antigravity.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "diff_hash": "sha256:cbe7427cf7fcdb36e7ed43fbf178793ca37a4ae071e2e6cc35eeaa477e4590ae",
+        "paths_digest": "sha256:e90a0ada93066a8f01c8934ed5b649a1a21d88e19b064ccaef9bb027705e024e",
+        "authored_lines": 273,
+        "original_changed_lines": 294
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "agy-03-commands-rules-mcp-hygiene:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "agy-03-commands-rules-mcp-hygiene:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 147,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-11-23T22:00:49.803Z"
+}

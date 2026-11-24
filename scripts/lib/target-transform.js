@@ -59,12 +59,12 @@ function transform({ files: sourceFiles, profile, models, withExtras = false, wi
 function handleFile(file, profile, models, rulesContent, sources, withSdd) {
   const { path } = file;
 
-  if (isDropped(path, profile)) {
-    return null; // artifact the target does not consume (e.g. plugin manifest/hooks)
-  }
-
   if (profile.manifest && path === profile.manifest.location) {
     return reshapeManifest(file, profile);
+  }
+
+  if (isDropped(path, profile)) {
+    return null; // artifact the target does not consume (e.g. plugin manifest/hooks)
   }
 
   if (profile.hooks && profile.hooks.shape === "nested" && path === (profile.hooks.location || "hooks/hooks.json")) {
@@ -130,7 +130,7 @@ function handleFile(file, profile, models, rulesContent, sources, withSdd) {
 
   if (isCommand(path, profile)) {
     if (profile.commandFile.format === "skill") {
-      return handleCommandSkill(file, profile);
+      return handleCommandSkill(file, profile, sources);
     }
     return handleCommand(file, profile);
   }
@@ -144,6 +144,9 @@ function handleFile(file, profile, models, rulesContent, sources, withSdd) {
   // Passthrough (skills, shared docs). Tool names are still substituted so no
   // foreign namespace survives anywhere in the generated tree.
   if (path.endsWith(".md")) {
+    if (profile.skillFrontmatter && isSkillFile(path)) {
+      return handleSkill(file, profile);
+    }
     let content = file.content;
     if (profile.toolMap) {
       content = substituteProse(content, profile.toolMap);
@@ -294,6 +297,10 @@ function isCommand(path, profile) {
   return path.startsWith("commands/") && path.endsWith(profile.commandFile.from);
 }
 
+function isSkillFile(path) {
+  return path.startsWith("skills/") && path.endsWith("/SKILL.md");
+}
+
 function agentBaseName(path, profile) {
   return path.slice("agents/".length, path.length - profile.agentFile.from.length);
 }
@@ -344,15 +351,15 @@ function reshapeManifest(file, profile) {
     omitFields = [],
     dropFields = [],
     keepFields,
+    extraFields,
     relativePathFields = [],
     outLocation,
     interface: iface,
   } = profile.manifest;
 
-  // Allowlist + rename branch (codex): keep only the declared keys, inject an
-  // optional `interface` metadata block, and write to a renamed output path.
-  // Preferred over an omit/drop deny-list because it is future-proof against
-  // new canonical manifest keys and satisfies "no other top-level keys".
+  // Allowlist + rename branch (codex/antigravity): keep only the declared keys,
+  // merge optional static fields, inject an optional `interface` block, and
+  // write to a renamed output path.
   if (Array.isArray(keepFields)) {
     const kept = {};
     for (const key of keepFields) {
@@ -365,10 +372,13 @@ function reshapeManifest(file, profile) {
         kept[key] = toSafeRelativePath(file, key, kept[key]);
       }
     }
+    if (extraFields && typeof extraFields === "object") {
+      Object.assign(kept, extraFields);
+    }
     if (iface) {
       kept.interface = iface;
     }
-    return { path: outLocation || file.path, content: JSON.stringify(kept, null, 2) };
+    return { path: outLocation || file.path, content: JSON.stringify(kept, null, 2) + "\n" };
   }
 
   for (const key of omitFields) {
@@ -746,12 +756,17 @@ function handleAgent(file, profile, models) {
     newPath = remapDir(newPath, "agents/", profile.agentDir);
   }
 
+  // Capture pre-strip capabilities and visibility from canonical frontmatter.
+  const invocable = getField(frontmatter, "user-invocable");
+  const isNonUserInvocable = Boolean(invocable && invocable.value === "false");
+  const sourceToolsField = getField(frontmatter, "tools");
+  const sourceTools = sourceToolsField && Array.isArray(sourceToolsField.value) ? sourceToolsField.value : null;
+
   // Capture mode from user-invocable before it is stripped: the user-invocable
   // entry agent becomes a `primary` agent, every worker a `subagent`.
   let mode;
   if (profile.agentMode) {
-    const invocable = getField(frontmatter, "user-invocable");
-    mode = invocable && invocable.value === "false" ? profile.agentMode.subagent : profile.agentMode.primary;
+    mode = isNonUserInvocable ? profile.agentMode.subagent : profile.agentMode.primary;
   }
 
   if (profile.frontmatter && profile.frontmatter.stripKeys) {
@@ -760,6 +775,12 @@ function handleAgent(file, profile, models) {
 
   if (mode) {
     frontmatter = setScalar(frontmatter, "mode", mode);
+  }
+
+  if (profile.agentSubagentFields && isNonUserInvocable) {
+    for (const [key, value] of Object.entries(profile.agentSubagentFields)) {
+      frontmatter = setScalar(frontmatter, key, value);
+    }
   }
 
   if (profile.setAgentFrontmatter) {
@@ -812,7 +833,55 @@ function handleAgent(file, profile, models) {
     }
   }
 
+  if (profile.commandExecutionPolicyByCapability && Array.isArray(sourceTools)) {
+    const { executeTool = "execute", withExecute, withoutExecute } = profile.commandExecutionPolicyByCapability;
+    const policy = sourceTools.includes(executeTool) ? withExecute : withoutExecute;
+    if (policy) {
+      frontmatter = setScalar(frontmatter, "commandExecutionPolicy", policy);
+    }
+  }
+
+  if (profile.agentIsolatedMcp && Array.isArray(profile.agentIsolatedMcp.agents)) {
+    const isolatedName = agentName || originalAgentName;
+    if (isolatedName && profile.agentIsolatedMcp.agents.includes(isolatedName)) {
+      frontmatter = setScalar(frontmatter, "inheritMcp", "false");
+    }
+  }
+
   return { path: newPath, content: serialize({ frontmatter, body }) };
+}
+
+function handleSkill(file, profile) {
+  let { frontmatter, body } = parse(file.content);
+  const cfg = profile.skillFrontmatter;
+  let changed = false;
+
+  if (cfg.nonUserInvocableField) {
+    const invocable = getField(frontmatter, "user-invocable");
+    if (invocable && invocable.value === "false") {
+      frontmatter = setScalar(frontmatter, cfg.nonUserInvocableField, "true");
+      changed = true;
+    }
+  }
+  if (Array.isArray(cfg.stripKeys) && cfg.stripKeys.some((key) => getField(frontmatter, key) !== null)) {
+    frontmatter = stripKeys(frontmatter, cfg.stripKeys);
+    changed = true;
+  }
+
+  if (!changed) {
+    let content = file.content;
+    if (profile.toolMap) {
+      content = substituteProse(content, profile.toolMap);
+    }
+    content = substituteAgentNames(content, profile);
+    return { path: file.path, content };
+  }
+
+  if (profile.toolMap) {
+    body = substituteProse(body, profile.toolMap);
+  }
+  body = substituteAgentNames(body, profile);
+  return { path: file.path, content: serialize({ frontmatter, body }) };
 }
 
 // --- agents: TOML emission (codex-style profiles, agentFile.format:"toml") -
@@ -1065,9 +1134,13 @@ function frontLoadDescription(description, name, limit = 80) {
 // instruction (the key itself is dropped from the emitted frontmatter — Codex
 // skills have no routing key), and the description is front-loaded for
 // progressive disclosure.
-function handleCommandSkill(file, profile) {
+function handleCommandSkill(file, profile, sources) {
   const base = file.path.slice("commands/".length, file.path.length - profile.commandFile.from.length);
-  const newPath = `skills/commands/${base}/SKILL.md`;
+  const skillDir = profile.commandFile.dir || "skills/commands";
+  const newPath = `${skillDir}/${base}/SKILL.md`;
+  if (profile.commandFile.skipCollidingSkills && sources && sources.has(newPath)) {
+    return null;
+  }
   let { frontmatter, body } = parse(file.content);
 
   const agentField = getField(frontmatter, "agent");
@@ -1091,10 +1164,17 @@ function handleCommandSkill(file, profile) {
   body = substituteAgentNames(body, profile);
 
   frontmatter = setScalar(frontmatter, "name", base);
+  if (profile.commandFile.disableModelInvocation) {
+    frontmatter = setScalar(frontmatter, "disable-model-invocation", "true");
+  }
   const descField = getField(frontmatter, "description");
   if (descField && descField.value) {
     const description = substituteAgentNames(descField.value, profile);
-    frontmatter = setScalar(frontmatter, "description", frontLoadDescription(description, base));
+    const finalDescription =
+      profile.commandFile.frontLoadDescription === false
+        ? description
+        : frontLoadDescription(description, base);
+    frontmatter = setScalar(frontmatter, "description", finalDescription);
   }
 
   return { path: newPath, content: serialize({ frontmatter, body }) };
@@ -1202,6 +1282,20 @@ function toMdcFile(file, profile) {
   return { path: `${dir}/${base}.mdc`, content: serialize({ frontmatter, body }) };
 }
 
+function toAbsoluteRuleGlob(glob) {
+  const normalized = glob.startsWith("./") ? glob.slice(2) : glob;
+  if (
+    !normalized ||
+    normalized === "**" ||
+    normalized.startsWith("**/") ||
+    normalized.startsWith("/") ||
+    /^[a-zA-Z]:[\\/]/.test(normalized)
+  ) {
+    return normalized || glob;
+  }
+  return `**/${normalized}`;
+}
+
 // rules/<name>.instructions.md -> <profile.rules.dir>/<name>.instructions.md
 // with the host's scope field: `applyTo` (Copilot, comma-separated globs) or
 // `trigger` + `globs` (Antigravity).
@@ -1216,7 +1310,8 @@ function toInstructionFile(file, profile) {
     frontmatter = stripKeys(frontmatter, ["applyTo", "activation"]);
     frontmatter = setScalar(frontmatter, "trigger", globs.length === 0 ? "always_on" : "glob");
     if (globs.length > 0) {
-      frontmatter = setScalar(frontmatter, "globs", globs.join(", "));
+      const formatted = profile.rules.prefixRelativeGlobs ? globs.map(toAbsoluteRuleGlob) : globs;
+      frontmatter = setScalar(frontmatter, "globs", formatted.join(", "));
     }
   } else {
     // setScalar quotes the glob itself ("**" starts with a YAML indicator);
@@ -1253,6 +1348,11 @@ function synthesizeFiles(files, profile) {
   }
   if (profile.plugin) {
     out.push({ path: profile.plugin.location, content: profile.plugin.source });
+  }
+  if (Array.isArray(profile.extraFiles)) {
+    for (const entry of profile.extraFiles) {
+      out.push({ path: entry.path, content: entry.content });
+    }
   }
   if (profile.rules && profile.rules.globalFile) {
     const globalRules = collectGlobalRules(files, profile);

@@ -24,7 +24,7 @@ const { candidateCheckCommand, configureChecksStep } = require("./idd-checks-con
 const { readPrecommitStrict } = require("./precommit-strict.js");
 const { gitHooksDir, GIT_HOOK_LINES } = require("./git-hooks-dir.js");
 const { TARGETS: ENGRAM_TARGETS, isConfigured, isUnknown, detectEngram, parseJsonc } = require("./engram-detect.js");
-const { missingEngramAllowRules } = require("./engram-claude-allow.js");
+const { missingAntigravityEngramAllowRules, missingEngramAllowRules } = require("./engram-claude-allow.js");
 const { binaryCandidates, hostBinarySuffix } = require("../hooks/ospec-hooks-launch.js");
 const { claudeConfigDir, status: routerStatus } = require("./claude-router.js");
 const hosts = require("./ospec-doctor-hosts.js");
@@ -384,34 +384,40 @@ function claudeRouterChecks(primary, { claudeDir, root }, add) {
     : { id: "budget", status: "ok", detail: `${bytes} B` });
 }
 
-// #475: the engram@engram hook rewrites the input of its write tools, and Claude
-// Code's auto mode can deny such a call unless an allow rule resolves it first.
-function engramAllowRulesIssue(claudeDir) {
-  const file = path.join(claudeDir, "settings.json");
+function allowRulesIssueFor(file, missingFn, { script, missingCause }) {
   const text = readText(file);
   let settings = {};
   let result;
   if (text !== null) {
-    try {
-      settings = JSON.parse(text);
-    } catch {
-      result = { ok: false, reason: "invalid JSON" };
-    }
+    try { settings = JSON.parse(text); } catch { result = { ok: false, reason: "invalid JSON" }; }
   }
   result ||= settings && typeof settings === "object" && !Array.isArray(settings)
-    ? missingEngramAllowRules(settings)
+    ? missingFn(settings)
     : { ok: false, reason: "not a JSON object" };
   if (!result.ok) {
-    return {
-      cause: `${file} cannot be read (${result.reason}), so the Engram allow rules for auto mode cannot be checked`,
-      action: "Fix the file and run `npm run setup:claude` again.",
-    };
+    return { cause: `${file} cannot be read (${result.reason}), so the Engram allow rules for auto mode cannot be checked`, action: `Fix the file and run \`npm run ${script}\` again.` };
   }
   if (result.missing.length === 0) return null;
   return {
-    cause: `${file} lacks ${result.missing.length} allow rule(s) for Engram write tools, so Claude Code's auto mode can deny memory writes (the engram hook rewrites their input)`,
-    action: "Run `npm run setup:claude` from the ospec-workflow checkout, or add the allow rules listed in the Engram section of docs/plugin-installation.md; list a tool under permissions.ask or deny to keep it reviewed.",
+    cause: missingCause(file, result.missing.length),
+    action: `Run \`npm run ${script}\` from the ospec-workflow checkout, or add the allow rules listed in the Engram section of docs/plugin-installation.md; list a tool under permissions.ask or deny to keep it reviewed.`,
   };
+}
+
+// #475: the engram@engram hook rewrites the input of its write tools, and Claude
+// Code's auto mode can deny such a call unless an allow rule resolves it first.
+function engramAllowRulesIssue(claudeDir) {
+  return allowRulesIssueFor(path.join(claudeDir, "settings.json"), missingEngramAllowRules, {
+    script: "setup:claude",
+    missingCause: (file, count) => `${file} lacks ${count} allow rule(s) for Engram write tools, so Claude Code's auto mode can deny memory writes (the engram hook rewrites their input)`,
+  });
+}
+
+function antigravityEngramAllowRulesIssue(home) {
+  return allowRulesIssueFor(path.join(home, ".gemini", "antigravity-cli", "settings.json"), missingAntigravityEngramAllowRules, {
+    script: "setup:antigravity",
+    missingCause: (file, count) => `${file} lacks ${count} allow rule(s) for non-destructive Engram tools, so Antigravity may prompt on every memory call`,
+  });
 }
 
 function claudeEngramCheck({ spawn, home, env, platform, cli, claudeDir }, add) {
@@ -537,10 +543,16 @@ function hostEngramCheck(target, context, add) {
       cause: "the Engram binary does not support the Codex session hooks (`engram hook codex-*`)",
       action: "Update Engram, then run `engram setup codex`.",
     });
-  } else if (detection.doctor === "warn" || detection.doctor === "error") {
-    add({ id: "engram", status: "warn", cause: `\`engram doctor\` reports ${detection.doctor}`, action: "Run `engram doctor` and follow its advice." });
   } else {
-    add({ id: "engram", status: "ok", detail: detection.binary.version || "" });
+    const issues = [
+      detection.doctor === "warn" || detection.doctor === "error"
+        ? { cause: `\`engram doctor\` reports ${detection.doctor}`, action: "Run `engram doctor` and follow its advice." }
+        : null,
+      target === "antigravity" ? antigravityEngramAllowRulesIssue(context.home) : null,
+    ].filter(Boolean);
+    add(issues.length > 0
+      ? { id: "engram", status: "warn", cause: issues.map((issue) => issue.cause).join("; "), action: issues.map((issue) => issue.action).join(" ") }
+      : { id: "engram", status: "ok", detail: detection.binary.version || "" });
   }
 }
 
@@ -925,6 +937,8 @@ async function runDoctor({
     home,
     env,
     platform,
+    spawn,
+    execPath,
     budgetBytes: ALWAYS_ON_BUDGET_BYTES,
     memoryCheck: (host, add) => hostEngramCheck(host, engramContext, add),
   };

@@ -101,6 +101,7 @@ function normalizeFlaggedHostOutput(host, subcommand, output) {
 const CONTINUE = '{"continue":true}\n';
 // Leave one second for launch, normalization and host delivery (host: 5s).
 const CHILD_TIMEOUT_MS = 4000;
+const INSPECTION_FAILURE_PREFIX = "The safety hook could not inspect this tool call:";
 
 // A failed PostToolUse child must not let the original output through (ADR
 // 0008): redact in process, or withhold every string when that fails too.
@@ -132,7 +133,7 @@ function launcherFailure(sub, detail, cursorHost = false, rawInput = "") {
     }
     return 0;
   }
-  const message = `The safety hook could not inspect this tool call: ${detail}`;
+  const message = `${INSPECTION_FAILURE_PREFIX} ${detail}`;
   let output = sub === "pre-tool-use"
     ? { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: message } }
     : { continue: true, systemMessage: `[ospec error] Hook ${sub} failed: ${detail}` };
@@ -261,11 +262,12 @@ function normalizeCodexHookOutput(subcommand, output) {
   return reason ? { ...CONTINUATION.codex(reason), ...systemMessage } : systemMessage;
 }
 
-// agy (Antigravity 1.4.2) runs a hook from the directory holding hooks.json
-// and sends { toolCall: { name, args }, conversationId, workspacePaths }.
+// agy runs a hook from the directory holding hooks.json and sends
+// { toolCall: { name, args }, conversationId, cwd, workspacePaths }.
 // Rebuild the shared contract and the directory the policy must read from:
-// a shell command's own Cwd, else the first workspace that is a directory. A
-// tool call it cannot read is `unreadable`: the guard must not see it as empty.
+// a shell command's own Cwd, else native cwd (agy 1.5+), else the first
+// workspace that is a directory. A tool call it cannot read is `unreadable`:
+// the guard must not see it as empty.
 function adaptAntigravityHookInput(subcommand, rawInput, isDirectory = isExistingDirectory) {
   const unreadable = { input: rawInput, cwd: undefined, unreadable: subcommand === "pre-tool-use" };
   let parsed;
@@ -277,37 +279,97 @@ function adaptAntigravityHookInput(subcommand, rawInput, isDirectory = isExistin
   if (!isPlainObject(parsed)) {
     return unreadable;
   }
-  const isDir = (dir) => typeof dir === "string" && path.isAbsolute(dir) && isDirectory(dir);
-  const workspace = Array.isArray(parsed.workspacePaths) ? parsed.workspacePaths.find(isDir) : undefined;
-  const adapted = { ...parsed, session_id: parsed.conversationId, cwd: workspace };
-  let cwd = workspace;
+  const resolveDir = (dir) => {
+    if (typeof dir !== "string") return undefined;
+    const trimmed = dir.trim();
+    if (!trimmed || trimmed.split(/[\\/]/).includes("..")) return undefined;
+    const cleaned = path.normalize(trimmed);
+    if (!path.isAbsolute(cleaned) || path.dirname(cleaned) === cleaned) return undefined;
+    return isDirectory(cleaned) ? cleaned : undefined;
+  };
+  const workspace = Array.isArray(parsed.workspacePaths) ? parsed.workspacePaths.map(resolveDir).find(Boolean) : undefined;
+  let cwd = resolveDir(parsed.cwd) ?? workspace;
+  const adapted = { ...parsed, session_id: parsed.conversationId, cwd };
   if (subcommand === "pre-tool-use") {
     const args = parsed.toolCall?.args;
     if (!isPlainObject(parsed.toolCall) || typeof parsed.toolCall.name !== "string" || !isPlainObject(args)) {
       return unreadable;
     }
-    const filePath = [args.AbsolutePath, args.TargetFile].find((value) => typeof value === "string");
-    // write_to_file sends CodeContent; the replace tools send ReplacementContent,
-    // also inside ReplacementChunks.
-    const bodies = collectStrings(args, new Set(["CodeContent", "ReplacementContent"]));
+    const toolInput = { ...args };
+    // Avoid Go pretooluse.go json.Unmarshal failures or EqualFold overwrites
+    // from case-variant or type-mismatched top-level `command`/`commands`.
+    for (const key of Object.keys(toolInput)) {
+      if (key === "command" || key === "commands") continue;
+      const folded = key.replace(/\u017f/gi, "s").toLowerCase();
+      if (folded === "command" || folded === "commands") {
+        toolInput[`__ospec_raw_${key}`] = toolInput[key];
+        delete toolInput[key];
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(toolInput, "command") && typeof toolInput.command !== "string") {
+      toolInput.__ospec_raw_command = toolInput.command;
+      delete toolInput.command;
+    }
+    if (Object.prototype.hasOwnProperty.call(toolInput, "commands") && !Array.isArray(toolInput.commands)) {
+      toolInput.__ospec_raw_commands = toolInput.commands;
+      delete toolInput.commands;
+    }
+    if (typeof args.CommandLine === "string" && args.CommandLine.length > 0) {
+      if (typeof toolInput.command === "string" && toolInput.command.length > 0) {
+        if (toolInput.command !== args.CommandLine) {
+          toolInput.commands = [...(toolInput.commands || []), args.CommandLine];
+        }
+      } else {
+        toolInput.command = args.CommandLine;
+      }
+    }
+    const agyPaths = [...new Set([args.Path, args.AbsolutePath, args.TargetFile].filter((value) => typeof value === "string" && value.length > 0))];
+    if (agyPaths.length > 0) {
+      const hasExistingPath = Object.prototype.hasOwnProperty.call(toolInput, "file_path") && toolInput.file_path !== undefined && toolInput.file_path !== "";
+      const extraPaths = hasExistingPath
+        ? (typeof toolInput.file_path === "string" ? agyPaths.filter((p) => p !== toolInput.file_path) : agyPaths)
+        : ((toolInput.file_path = agyPaths[0]), agyPaths.slice(1));
+      if (extraPaths.length > 0) {
+        toolInput.__ospec_agy_paths = extraPaths.map((file_path) => ({ file_path }));
+      }
+    }
+    // agy 1.5+ write_file/edit_file send Content/Replacement; legacy
+    // write_to_file and replace tools send CodeContent/ReplacementContent
+    // (also inside ReplacementChunks). Target/TargetContent are not scanned.
+    const bodies = collectStrings(args, new Set(["Content", "Replacement", "CodeContent", "ReplacementContent"])).filter((value) => value.length > 0);
+    if (bodies.length > 0) {
+      const joined = bodies.join("\n");
+      if (toolInput.content === undefined) {
+        toolInput.content = joined;
+      } else if (typeof toolInput.content === "string") {
+        toolInput.content = toolInput.content.length > 0 ? `${toolInput.content}\n${joined}` : joined;
+      } else {
+        toolInput.__ospec_agy_content = { content: joined };
+      }
+    }
     adapted.tool_name = parsed.toolCall.name;
-    adapted.tool_input = {
-      ...args,
-      ...(typeof args.CommandLine === "string" ? { command: args.CommandLine } : {}),
-      ...(filePath ? { file_path: filePath } : {}),
-      ...(bodies.length > 0 ? { content: bodies.join("\n") } : {}),
-    };
-    // A relative Cwd is relative to the workspace, never to hooks.json's
-    // directory; an empty or missing one leaves the workspace. Without any
+    adapted.tool_input = toolInput;
+    // A relative Cwd is relative to the agent's cwd (or workspace), never to
+    // hooks.json's directory; an empty or missing one keeps cwd. Without any
     // directory to inspect from, the guard cannot read the call.
-    if (typeof args.Cwd === "string" && args.Cwd) {
-      const commandDir = path.isAbsolute(args.Cwd) ? args.Cwd : workspace && path.resolve(workspace, args.Cwd);
-      if (isDir(commandDir)) cwd = commandDir;
+    if (typeof args.Cwd === "string") {
+      const trimmedCwd = args.Cwd.trim();
+      if (trimmedCwd && !trimmedCwd.split(/[\\/]/).includes("..")) {
+        const base = cwd || workspace;
+        const commandDir = resolveDir(path.isAbsolute(trimmedCwd) ? trimmedCwd : base && path.resolve(base, trimmedCwd));
+        if (commandDir) cwd = commandDir;
+      }
     }
     if (!cwd) {
       return unreadable;
     }
     adapted.cwd = cwd;
+  }
+  if (subcommand === "stop") {
+    const reason = typeof parsed.terminationReason === "string" ? parsed.terminationReason.trim() : "";
+    if (parsed.fullyIdle === false || (reason && reason !== "NO_TOOL_CALL")) {
+      adapted.stop_hook_active = true;
+    }
   }
   return { input: JSON.stringify(adapted), cwd, unreadable: false };
 }
@@ -324,6 +386,27 @@ function collectStrings(value, keys, found = []) {
   return found;
 }
 
+function formatSecurityAlerts(security) {
+  if (!isPlainObject(security)) {
+    return "";
+  }
+  const alerts = Array.isArray(security.alerts) ? security.alerts : [];
+  const items = alerts
+    .map((alert) => {
+      if (typeof alert === "string") return alert.trim();
+      if (!isPlainObject(alert)) return "";
+      const file = typeof alert.file === "string" ? alert.file.trim() : "";
+      const reason = typeof alert.reason === "string" ? alert.reason.trim() : "";
+      if (file && reason) return `${file} (${reason})`;
+      return file || reason || (typeof alert.type === "string" ? alert.type.trim() : "");
+    })
+    .filter(Boolean);
+  if (items.length > 0) {
+    return `[ospec security] ${items.join(", ")}`;
+  }
+  return security.status === "warning" ? "[ospec security] security warning detected at session start" : "";
+}
+
 // agy's PreToolUse takes { decision, reason }, its SessionStart injects steps
 // and its Stop only reads decision "continue", which ospec never asks for.
 // An affirmative allow would skip agy's own prompts, so none is emitted.
@@ -335,13 +418,36 @@ function normalizeAntigravityHookOutput(subcommand, output) {
     const decision = output.hookSpecificOutput?.permissionDecision;
     const reason = output.hookSpecificOutput?.permissionDecisionReason || output.systemMessage;
     if (decision === "deny") return { decision: "deny", reason: reason || "Blocked by OSpec policy." };
-    if (decision === "ask") return reason ? { decision: "ask", reason } : { decision: "ask" };
+    if (decision === "ask") {
+      const agyDecision = typeof reason === "string" && reason.startsWith(INSPECTION_FAILURE_PREFIX) ? "force_ask" : "ask";
+      return reason ? { decision: agyDecision, reason } : { decision: agyDecision };
+    }
     return {};
   }
   if (subcommand === "session-start") {
-    // The same model-facing context Codex receives as additionalContext.
-    const context = normalizeCodexHookOutput(subcommand, output).hookSpecificOutput?.additionalContext;
-    return context ? { injectSteps: [{ systemMessage: { systemMessage: context } }] } : {};
+    if (output.status === "error") {
+      const detail = typeof output.message === "string" && output.message.trim()
+        ? output.message.trim()
+        : "unknown session-start failure";
+      return { injectSteps: [{ systemMessage: { systemMessage: `[ospec error] ${detail}` } }] };
+    }
+    const userMarkdown = typeof output.systemMessage === "string" ? output.systemMessage.trim() : "";
+    const errorLines = userMarkdown
+      ? userMarkdown.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.startsWith("[ospec error]"))
+      : [];
+    const modelMessage = [
+      sessionContext(output),
+      ...errorLines,
+      formatSecurityAlerts(output.security),
+    ].filter(Boolean).join("\n");
+    if (!modelMessage && !userMarkdown) {
+      return {};
+    }
+    const step = { systemMessage: modelMessage };
+    if (userMarkdown) {
+      step.metadata = { user_markdown: userMarkdown };
+    }
+    return { injectSteps: [{ systemMessage: step }] };
   }
   if (subcommand === "stop") {
     const reason = continuationReason(output);

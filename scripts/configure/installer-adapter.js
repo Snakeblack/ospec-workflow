@@ -8,7 +8,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { PROFILES, parseModels } = require("./cli.js");
 const { KNOWN_TIERS, validateSddModelPolicy } = require("../lib/model-resolver.js");
-const { ASSIGNABLE_HOSTS, isModelName, readUserModels } = require("../lib/user-models.js");
+const { ASSIGNABLE_HOSTS, normalizeHostModel, readUserModels } = require("../lib/user-models.js");
 const { runEngramStep } = require("./engram-setup.js");
 const PROTOCOL_VERSION = 3;
 const TARGET_INFO = { claude: ["Claude", "Install the Claude marketplace plugin"], vscode: ["VS Code", "Install VS Code settings and prompts"], "github-copilot": ["GitHub Copilot", "Install GitHub Copilot configuration"], opencode: ["OpenCode", "Install OpenCode configuration"], codex: ["Codex", "Install Codex configuration"], cursor: ["Cursor", "Install Cursor configuration"], antigravity: ["Antigravity", "Install Antigravity configuration"] };
@@ -42,11 +42,20 @@ function validateModels(target, models) {
     if (Object.keys(models).length) throw requestError(`${target.id} inherits the session model and takes no models`);
     return {};
   }
+  const normalized = {};
   for (const [tier, value] of Object.entries(models)) {
     if (!target.tiers.some(item => item.id === tier)) throw requestError(`unknown tier ${tier}`);
-    if (typeof value !== "string" || (value.trim() && !isModelName(value.trim()))) throw requestError(`invalid model for ${tier}`);
+    if (typeof value !== "string") throw requestError(`invalid model for ${tier}`);
+    const trimmed = value.trim();
+    if (!trimmed) {
+      normalized[tier] = "";
+      continue;
+    }
+    const checked = normalizeHostModel(target.id, tier, trimmed);
+    if (checked.error) throw requestError(checked.parseError || checked.error);
+    normalized[tier] = checked.value;
   }
-  return Object.fromEntries(Object.entries(models).map(([tier, value]) => [tier, value.trim()]));
+  return normalized;
 }
 function validateRequest(request, plan) {
   if (!request || typeof request !== "object" || Array.isArray(request)) throw requestError("must be an object");

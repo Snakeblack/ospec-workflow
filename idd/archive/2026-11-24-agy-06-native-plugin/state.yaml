@@ -1,0 +1,307 @@
+{
+  "schema": "idd-state/v1",
+  "change": "agy-06-native-plugin",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "PR 6 feat/agy-06-native-plugin: empaquetar target Antigravity como plugin nativo (.antigravity-plugin/plugin.json), migracion segura de instalacion global legada, scope --workspace y deteccion en ospec doctor",
+    "requested_at": "2026-11-24T15:16:55.465Z",
+    "kind": "feature",
+    "summary": "Empaquetar dist/antigravity como plugin nativo valido en agy plugin validate --strict, instalarlo en plugins/ospec-workflow con migracion atomica de legado y soporte --workspace, y detectar plugin/legado/duplicado en ospec doctor",
+    "acceptance": "dist/antigravity pasa agy plugin validate --strict --json con 0 hallazgos (.antigravity-plugin/plugin.json, assets/logo.svg, hooks.json relativo); setup:antigravity instala en ~/.gemini/config/plugins/ospec-workflow migrando archivos/hooks ospec-* legados con rollback journal y soporta --workspace <repo> en .agents/plugins/ospec-workflow; ospec doctor detecta plugin, legado y coexistencia; 0 bytes de diff en artefactos transformados de los otros 6 targets"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "Para el manifiesto y logo del plugin nativo, preferimos 1A (recomendada: .antigravity-plugin/plugin.json + assets/logo.svg + hooks.json con ./scripts/hooks/ospec-antigravity-hook.js que pasa agy plugin validate --strict con 0 hallazgos, manteniendo el router sin prefijo y 0 B de cambio en context-baseline.json) o 1B (plugin.json en raiz sin logo, dejando 1 note en validate)?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/configure/install-antigravity.js",
+          "line": 201
+        }
+      },
+      {
+        "category": "persistence",
+        "question": "Para --workspace <repo>, --dest y migracion de legado en setup:antigravity, preferimos 2A (recomendada: global instala en <configRoot>/plugins/ospec-workflow migrando con rollback journal solo los archivos/hooks ospec-* legados y conservando SDD; --workspace instala en <repo>/.agents/plugins/ospec-workflow con rutas relativas portables; --dest instala el plugin en <dir> y se actualiza bench/hosts/agy.js) o 2B (rutas absolutas tambien en --workspace)?"
+      },
+      {
+        "category": "copy",
+        "question": "Para respetar <=400 lineas revisables, preferimos 4A (recomendada: dividir en PR 6a generador/manifiesto/validador ~200 lineas y PR 6b instalador/migracion/workspace/doctor/docs ~320 lineas bajo este cambio IDD) o 4B (intentar una sola PR 6 con posible size:exception)?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/plugin-installation.md",
+          "line": 441
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/ospec-doctor-hosts.js",
+          "line": 17
+        }
+      },
+      {
+        "category": "errors",
+        "question": "En ospec doctor para Antigravity, preferimos 3A (recomendada: detectar plugins/ospec-workflow como principal, emitir warn antigravity/legacy-duplicate si coexiste legado, y si solo existe legado mantener checks con info recomendando migrar) o 3B (emitir warn cuando solo existe instalacion legada)?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/plugin-installation.es.md",
+      "docs/plugin-installation.md",
+      "openspec/specs/generator/spec.md",
+      "openspec/specs/idd/spec.md",
+      "openspec/specs/install/spec.md",
+      "scripts/configure/install-antigravity.js",
+      "scripts/configure/install-antigravity.test.js",
+      "scripts/configure/validate-antigravity.js",
+      "scripts/configure/validate-antigravity.test.js",
+      "scripts/evals/bench/hosts/agy.js",
+      "scripts/lib/ospec-doctor-hosts.js",
+      "scripts/lib/ospec-doctor-hosts.test.js",
+      "scripts/lib/target-profiles/antigravity.js",
+      "scripts/lib/target-transform.js",
+      "scripts/lib/target-transform.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Usar rutas relativas ./scripts/hooks/ospec-antigravity-hook.js en hooks.json del plugin nativo y mantener sin prefijo las entradas idd/foundation del router, verificado en vivo en agy 1.5.15 (agy plugin validate --strict: 0 findings; agy plugin list: skills sin prefijo salvo colision)"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 695
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 695
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration",
+      "recorded_turn": 695
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/install-antigravity.js adds writeFile",
+      "source": "diff",
+      "recorded_turn": 699
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Empaquetado de plugin nativo Antigravity (.antigravity-plugin/plugin.json, assets/logo.svg, hooks relativos) vive en el perfil declarativo antigravity.js y generador comun con 0 bytes de diff en los otros 6 targets"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Cero dependencias externas añadidas; el plugin nativo y el modo --workspace empaquetan el runtime autocontenido y sus shims bin/ospec"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Sin llamadas de red ni dependencias de memoria; ospec-doctor-hosts.js cumple ADR 0006 (session-memory-contract.test.js en verde) y el instalador/migracion operan 100% offline"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Verificado diff -ruN de 0 bytes en claude, vscode, github-copilot, opencode, codex y cursor en builds por defecto y --with-sdd"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Sin red: scripts/session-memory-contract.test.js en verde, install-antigravity.js/ospec-doctor-hosts.js no introducen llamadas de red, y agy plugin validate --strict + ospec doctor --target antigravity funcionan en HOME aislado offline",
+      "recorded_at": "2026-11-24T17:45:55.035Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 695,
+      "answer": "todas las recomendadas: (1A) emitir .antigravity-plugin/plugin.json + assets/logo.svg + hooks.json con ./scripts/hooks/ospec-antigravity-hook.js (agy plugin validate --strict: 0 hallazgos), manteniendo el router sin prefijo y 0 B en context-baseline.json; (2A) global en <configRoot>/plugins/ospec-workflow migrando con rollback journal solo archivos/hooks ospec-* legados y conservando SDD, --workspace <repo> en .agents/plugins/ospec-workflow con rutas relativas portables, --dest instala el plugin en <dir> y se actualiza bench/hosts/agy.js; (3A) ospec doctor detecta plugins/ospec-workflow como principal, emite warn antigravity/legacy-duplicate si coexiste legado e info si solo existe legado; (4A) entregar en PR 6a (generador/manifiesto/validador) + PR 6b (instalador/migracion/workspace/doctor/docs/cierre IDD) bajo <=400 lineas por PR",
+      "source": "user",
+      "resolved_at": "2026-11-24T17:31:43.694Z",
+      "resolved_turn": 696
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-24T17:47:30.901Z",
+      "detail": {
+        "tree": "sha256:61e6b216249189f3f51efd452b3fd1646462cd06a4bfd081f96e41a51e17fb2f",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-24T17:47:30.901Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:61e6b216249189f3f51efd452b3fd1646462cd06a4bfd081f96e41a51e17fb2f",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-24T17:47:42.887Z",
+      "detail": {
+        "run": "run-6",
+        "tree": "sha256:9b61f74ef39df7e60ea261fd2175c39e45e10fb1bfe702649d33c6c45511835c",
+        "plan": "Compatibilidad y rollback: setup:antigravity instala el nuevo plugin nativo en ~/.gemini/config/plugins/ospec-workflow bajo un unico createRollbackJournal(configRoot), valida el plugin instalado y solo despues migra el manifiesto heredado ~/.gemini/config/.ospec-workflow-install.json eliminando unicamente archivos propios legados y grupos ospec-* de hooks.json (conservando archivos de usuario, mcp_config.json, hooks ajenos y --with-sdd); ante cualquier fallo (p. ej. hooks.json corrupto) journal.rollback() restaura intacto el estado legado y limpia plugins/ospec-workflow. ospec doctor sigue diagnosticando instalaciones legadas sin migrar con aviso informativo plugin-layout."
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-24T17:47:43.085Z"
+    }
+  ],
+  "base": "8eec39f86867ab57f73f0bdf86b7e526b11d4981",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:80d57d4035dc96a6b9ec7472d48f3515dcfbd3bcff8b54ae7cc3fc351bae40c5",
+      "tree": "sha256:61e6b216249189f3f51efd452b3fd1646462cd06a4bfd081f96e41a51e17fb2f",
+      "recorded_at": "2026-11-24T17:47:30.901Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:aeeb195d7a0107ba2ffe8e3098acff8bf5d9914a913c86331f3c6c53ea33ad66",
+      "tree": "sha256:61e6b216249189f3f51efd452b3fd1646462cd06a4bfd081f96e41a51e17fb2f",
+      "recorded_at": "2026-11-24T17:47:30.901Z",
+      "tests": 48
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:61e6b216249189f3f51efd452b3fd1646462cd06a4bfd081f96e41a51e17fb2f",
+      "recorded_at": "2026-11-24T17:47:30.901Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5d628f5bc919b27721bc8492a9aeb5db24f6e94e35a0c10bb2825104626a4484",
+      "tree": "sha256:61e6b216249189f3f51efd452b3fd1646462cd06a4bfd081f96e41a51e17fb2f",
+      "recorded_at": "2026-11-24T17:47:30.901Z",
+      "tests": 26
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c1cd0518f7f9af26da421886d9da13e06d32f957af4260e2faf7e626e2cd881b",
+      "tree": "sha256:61e6b216249189f3f51efd452b3fd1646462cd06a4bfd081f96e41a51e17fb2f",
+      "recorded_at": "2026-11-24T17:47:30.901Z",
+      "tests": 48
+    },
+    {
+      "id": "run-6",
+      "purpose": "migration-test",
+      "command": "node --test scripts/configure/install-antigravity.test.js scripts/lib/ospec-doctor-hosts.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b6073a4235a13ad62749056311149ce56c98ece36c6ba93d99684f2ea5678ec5",
+      "tree": "sha256:9b61f74ef39df7e60ea261fd2175c39e45e10fb1bfe702649d33c6c45511835c",
+      "recorded_at": "2026-11-24T17:47:42.887Z",
+      "tests": 37
+    }
+  ],
+  "closed_at": "2026-11-24T17:47:43.085Z"
+}

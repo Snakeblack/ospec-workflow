@@ -746,8 +746,9 @@ only known phases/agents and catalog choices; catalog entries MUST use target-sc
 opaque IDs or values and MAY declare supported `effort`, `model_reasoning_effort`,
 `variant`, and runtime capabilities. The parser and policy validator MUST reject
 duplicate keys, malformed capability values, unknown target references, and preset
-references that cannot resolve. A catalog entry retained for Antigravity MUST NOT by
-itself make Antigravity selectable or cause model metadata injection.
+references that cannot resolve. Static tier aliases for host-resolved targets
+(such as Claude and Antigravity) MUST be emitted only when the target profile
+declares `model.format`.
 
 #### Scenario: Valid preset and capability data is accepted
 
@@ -763,12 +764,11 @@ itself make Antigravity selectable or cause model metadata injection.
 - THEN validation MUST return a structured error
 - AND no generated output tree MUST be written
 
-#### Scenario: Antigravity catalog does not enable selection
+#### Scenario: Profile without model.format omits model metadata
 
-- GIVEN `models.yaml` contains informational Antigravity catalog values but no selectable profile capability
-- WHEN the target plan and generator run
-- THEN the plan MUST mark Antigravity as inherited
-- AND generated Antigravity files MUST omit model-selection metadata
+- GIVEN `models.yaml` contains tier entries for a target whose profile omits `model.format`
+- WHEN the generator runs
+- THEN generated files for that target MUST omit model-selection metadata
 
 ### Requirement: Target-Compatible Reasoning Metadata and Stale-Value Safety {#REQ-generator-016}
 
@@ -1024,7 +1024,7 @@ The generator MUST keep the SDD package out of every target's output unless the 
 
 ### Requirement: A Command's Only Input Receives The Whole Request {#REQ-generator-026}
 
-Hosts assign named and positional command arguments one word each, so a free-text request split across two inputs loses everything after its first words (E1.8). When a command body names a single `${input:x}`, the targets that substitute arguments (Claude, OpenCode and Codex) MUST replace it with the whole argument string, `$ARGUMENTS`; Claude MUST then omit the `arguments` frontmatter and keep `x` as `argument-hint`. Bare `${input}` is always `$ARGUMENTS`. Several named inputs keep their positions: `$x` with `arguments` in Claude, `$1`/`$2` by first appearance in OpenCode and Codex. The other targets keep `${input:x}`.
+Hosts assign named and positional command arguments one word each, so a free-text request split across two inputs loses everything after its first words (E1.8). When a command body names a single `${input:x}`, the targets that substitute arguments (Claude, OpenCode, Codex and Antigravity) MUST replace it with the whole argument string, `$ARGUMENTS`; Claude MUST then omit the `arguments` frontmatter and keep `x` as `argument-hint`. Bare `${input}` is always `$ARGUMENTS`. Several named inputs keep their positions: `$x` with `arguments` in Claude, `$1`/`$2` by first appearance in OpenCode, Codex and Antigravity. The other targets keep `${input:x}`.
 
 `/sdd-new` and `/sdd-lite` MUST take one input, `${input:request}`, with the whole request, and MUST tell the orchestrator that the first word is the change name only when it is kebab-case with at least one hyphen (`add-login`); otherwise the whole request is the intent and the orchestrator derives a short kebab-case name from it.
 
@@ -1032,10 +1032,73 @@ Hosts assign named and positional command arguments one word each, so a free-tex
 
 - GIVEN a build generated with `withSdd: true` for each of the 7 targets
 - WHEN `sdd-new` and `sdd-lite` are read
-- THEN neither declares `arguments` nor takes a name and an intent separately, Claude, OpenCode and Codex pass `$ARGUMENTS` and the others `${input:request}`, and both say when the first word is the name and that a missing name is derived from the request
+- THEN neither declares `arguments` nor takes a name and an intent separately, Claude, OpenCode, Codex and Antigravity pass `$ARGUMENTS` and the others `${input:request}`, and both say when the first word is the name and that a missing name is derived from the request
 
 #### Scenario: Several named inputs keep their positions
 
 - GIVEN a command whose body names `${input:left}` and `${input:right}`
 - WHEN it is generated for Claude, OpenCode and Codex
 - THEN Claude writes `$left`/`$right` with `arguments: left right`, and OpenCode and Codex write `$1`/`$2`
+
+### Requirement: Antigravity Native Tool Grants, Subagent Isolation, and Internal Skill Flags {#REQ-generator-027}
+
+The `antigravity` target profile MUST map canonical abstract tools to Antigravity 1.5+ native names (`read→read_file`, `edit→write_file`+`edit_file` with primary `write_file`, `execute→run_command`, `agent→invoke_subagent`, `vscode/askQuestions`/`AskUserQuestion→ask_question`) and MUST drop `search` from frontmatter `tools:` grants (never emitting nonexistent `grep_search`/`list_dir` or legacy `view_file`/`write_to_file`/`replace_file_content`/`multi_replace_file_content`).
+
+For Antigravity agents, `user-invocable: false` MUST translate to `mainAgent: false` and `subagent: true` (stripping `user-invocable` while preserving `disable-model-invocation`). Agents whose canonical `tools:` grant omits `execute` MUST emit `commandExecutionPolicy: off`; agents with `execute` MUST omit `commandExecutionPolicy` so they inherit the user's session policy. The six quality-review subagents (`review-change`, `review-correction`, `review-trust`, `review-runtime`, `review-evolution`, `review-efficiency`) MUST additionally emit `inheritMcp: false` and `tools: ['read_file']`.
+
+For Antigravity `skills/*/SKILL.md` files declaring `user-invocable: false` (`_shared`, `review-*`, and SDD phase skills), the transform MUST translate `user-invocable: false` to `disable-slash-command: true`, strip `user-invocable`, and preserve `disable-model-invocation`. These hooks MUST be opt-in per profile so the other six targets remain byte-identical.
+
+#### Scenario: Antigravity isolates review subagents and scopes commandExecutionPolicy
+
+- GIVEN canonical `review-*`, non-`execute` edit, `execute`, and `sdd-orchestrator` agents
+- WHEN the `antigravity` target is generated
+- THEN each `review-*` agent MUST emit `tools: ['read_file']`, `mainAgent: false`, `subagent: true`, `inheritMcp: false`, and `commandExecutionPolicy: off`
+- AND non-`execute` subagents MUST emit `commandExecutionPolicy: off` without `inheritMcp`
+- AND `execute`-capable agents MUST omit `commandExecutionPolicy`
+- AND `sdd-orchestrator` MUST omit `mainAgent`, `subagent`, `inheritMcp`, and `commandExecutionPolicy`
+
+#### Scenario: Antigravity hides internal skills from slash commands without affecting other targets
+
+- GIVEN `skills/_shared/SKILL.md` and `skills/review-trust/SKILL.md` declaring `disable-model-invocation: true` and `user-invocable: false`
+- WHEN all seven targets are generated
+- THEN `antigravity` MUST emit `disable-slash-command: true`, keep `disable-model-invocation: true`, and strip `user-invocable`
+- AND the other six targets MUST remain byte-identical without `mainAgent`, `subagent`, `inheritMcp`, `commandExecutionPolicy`, or `disable-slash-command`
+
+### Requirement: Antigravity Meta-Command Skills, Absolute Rule Globs, and Dead MCP Removal {#REQ-generator-028}
+
+For the `antigravity` target, `commands/*.prompt.md` MUST NOT be emitted. When `withSdd` is enabled, each canonical command whose base name does not collide with an existing `skills/<name>/SKILL.md` (`sdd-continue`, `sdd-ff`, `sdd-lite`, `sdd-new`) MUST be emitted as a flat slash-invocable skill at `skills/<name>/SKILL.md` with `disable-model-invocation: true`, `$ARGUMENTS` substitution, and stripped `agent`/`target`/`tools`/`argument-hint` frontmatter; colliding commands MUST be skipped so all existing phase `skills/sdd-<phase>/SKILL.md` files stay intact (`REQ-generator-019`).
+
+Antigravity rule output (`rules/*.instructions.md` with `trigger: glob`) MUST prefix relative globs (not starting with `**/`, `/`, or a Windows drive letter, stripping any leading `./`) with `**/` so they match Antigravity's absolute file paths, leaving canonical rule sources and the other six targets unchanged. Antigravity MUST drop `.mcp.json` and declare `.mcp.json` and `commands` in `managedRoots` so regenerating prunes stale artifacts.
+
+#### Scenario: Antigravity ships flat meta-command skills, prefixes relative globs, and drops .mcp.json
+
+- GIVEN a canonical build with `withSdd: true`
+- WHEN the `antigravity` target is generated
+- THEN no `commands/*.prompt.md` or `.mcp.json` file MUST be present
+- AND `skills/{sdd-continue,sdd-ff,sdd-lite,sdd-new}/SKILL.md` MUST be present with `disable-model-invocation: true` and `$ARGUMENTS`
+- AND colliding `skills/sdd-apply/SKILL.md` MUST remain the phase skill with `disable-slash-command: true`
+- AND `rules/sdd-openspec.instructions.md` MUST emit `globs: "**/openspec/**"`
+- AND the other six targets MUST remain byte-identical
+
+### Requirement: Antigravity Native Model Tier Aliases {#REQ-generator-029}
+
+For the `antigravity` target, `scripts/lib/target-profiles/antigravity.js` MUST declare `model: { format: "alias" }`, and `models.yaml` MUST map `premium` to `pro`, `default` to `inherit`, and `cheap` to `flash`. `scripts/lib/model-resolver.js` MUST accept only `{pro, inherit, flash, flash_lite}` (case-insensitive, normalized to lowercase) for `antigravity`, MUST return `OMIT` (omitting `model:` from frontmatter) whenever the effective alias is `inherit` (whether from `models.yaml` or from user overrides), and MUST reject any value outside that closed set fail-closed before writing files.
+
+#### Scenario: Antigravity emits native tier aliases and omits inherit
+
+- GIVEN canonical `models.yaml` (`premium: pro`, `default: inherit`, `cheap: flash`)
+- WHEN `antigravity` is generated without user overrides
+- THEN `premium` agents MUST emit `model: pro`, `cheap` agents MUST emit `model: flash`, and `default` agents MUST omit `model:`
+- AND overrides `premium=INHERIT`, `cheap=FLASH_LITE` MUST omit `model:` on `premium` and emit `model: flash_lite` on `cheap`
+- AND any concrete model ID (such as `gemini-4-neon-high`) MUST fail validation without writing output
+
+### Requirement: Antigravity Native Plugin Bundle {#REQ-generator-030}
+
+For the `antigravity` target, the generator MUST emit `.antigravity-plugin/plugin.json` (allowlisted `name`, `version`, `description`, `author`, plus `keywords`, `suggestedPrompts`, and `logo: "assets/logo.svg"`, without `.claude-plugin/` residue or unsupported component path keys), `assets/logo.svg`, and root `hooks.json` with plugin-relative commands (`./scripts/hooks/ospec-antigravity-hook.js`, never `${PLUGIN_ROOT}`) so `dist/antigravity` passes `agy plugin validate --strict --json` with zero findings. Because Antigravity exposes plugin skills without a mandatory prefix unless a collision occurs, `rules/ospec-router.instructions.md` MUST keep bare `skill \`idd\`` / `skill \`foundation\`` entries (0 B context baseline change). `validate-antigravity` MUST validate `.antigravity-plugin/plugin.json`, its logo asset, and relative hook paths.
+
+#### Scenario: Built antigravity bundle validates cleanly in strict mode
+
+- GIVEN a canonical build for `antigravity` (default or `--with-sdd`)
+- WHEN `validate-antigravity` and `agy plugin validate --strict --json` run on the output
+- THEN `.antigravity-plugin/plugin.json`, `assets/logo.svg`, and relative `./scripts/hooks/ospec-antigravity-hook.js` commands MUST be present
+- AND validation MUST pass with zero findings while the other six targets remain byte-identical

@@ -261,7 +261,7 @@ test("antigravity keeps SessionStart and Stop flat, groups PreToolUse, and drops
     }),
   });
   const hooks = JSON.parse(find(transform({ files, profile: antigravity, models: MODELS }), "hooks.json").content);
-  const wrapper = 'node "__OSPEC_ANTIGRAVITY_ROOT__/scripts/hooks/ospec-antigravity-hook.js"';
+  const wrapper = 'node "./scripts/hooks/ospec-antigravity-hook.js"';
   assert.deepEqual(Object.keys(hooks), ["ospec-session-start", "ospec-pre-tool-use", "ospec-stop"]);
   assert.deepEqual(hooks["ospec-session-start"].SessionStart, [{ type: "command", command: `${wrapper} session-start`, timeout: 5 }]);
   assert.deepEqual(hooks["ospec-stop"].Stop, [{ type: "command", command: `${wrapper} stop`, timeout: 5 }]);
@@ -1489,5 +1489,308 @@ test("cursor injects model from models.yaml cursor column", () => {
   const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
   const fm = parse(find(out, "agents/sdd-apply.md").content).frontmatter;
   assert.equal(getField(fm, "model").value, "composer-2.5[fast=false]");
+});
+
+// ---------------------------------------------------------------------------
+// Antigravity target (AGY 1.5.14 tools, subagent isolation, internal skills)
+// ---------------------------------------------------------------------------
+
+test("antigravity emits canonical AGY 1.5.14 tools and drops search without legacy aliases", () => {
+  const files = [
+    {
+      path: "agents/sdd-orchestrator.agent.md",
+      content:
+        "---\n" +
+        "name: sdd-orchestrator\n" +
+        "description: Coordinates SDD.\n" +
+        "tools: ['read', 'search', 'edit', 'execute', 'agent', 'vscode/askQuestions']\n" +
+        "user-invocable: true\n" +
+        "target: vscode\n" +
+        "---\n\n" +
+        "Use `read`, `edit`, `execute`, `agent`, and `vscode/askQuestions` or `AskUserQuestion`.\n",
+    },
+  ];
+  const out = transform({ files, profile: antigravity, models: MODELS });
+  const content = find(out, "agents/sdd-orchestrator.agent.md").content;
+  const fm = parse(content).frontmatter;
+
+  assert.deepEqual(getField(fm, "tools").value, [
+    "read_file",
+    "write_file",
+    "edit_file",
+    "run_command",
+    "invoke_subagent",
+    "ask_question",
+  ]);
+  assert.equal(getField(fm, "target"), null);
+  assert.equal(getField(fm, "user-invocable"), null);
+  assert.equal(getField(fm, "mainAgent"), null, "main agent omits mainAgent");
+  assert.equal(getField(fm, "subagent"), null, "main agent omits subagent");
+  assert.equal(getField(fm, "inheritMcp"), null, "orchestrator omits inheritMcp");
+  assert.equal(getField(fm, "commandExecutionPolicy"), null, "execute-capable agent omits commandExecutionPolicy");
+  assert.match(content, /Use `read_file`, `write_file`, `run_command`, `invoke_subagent`, and `ask_question` or `ask_question`\./);
+  assert.doesNotMatch(content, /view_file|write_to_file|replace_file_content|multi_replace_file_content|grep_search|list_dir|vscode\//);
+});
+
+test("antigravity isolates review-* subagents and sets commandExecutionPolicy by execute capability", () => {
+  const reviewers = [
+    "review-change",
+    "review-correction",
+    "review-efficiency",
+    "review-evolution",
+    "review-runtime",
+    "review-trust",
+  ];
+  const files = [
+    ...reviewers.map((name) => ({
+      path: `agents/${name}.agent.md`,
+      content:
+        "---\n" +
+        `name: ${name}\n` +
+        "description: Read-only reviewer.\n" +
+        "tools: ['read', 'search']\n" +
+        "user-invocable: false\n" +
+        "target: vscode\n" +
+        "---\n\nReview with `read`.\n",
+    })),
+    {
+      path: "agents/sdd-design.agent.md",
+      content:
+        "---\n" +
+        "name: sdd-design\n" +
+        "description: Design phase without shell.\n" +
+        "tools: ['read', 'search', 'edit']\n" +
+        "user-invocable: false\n" +
+        "target: vscode\n" +
+        "---\n\nWrite design.\n",
+    },
+    {
+      path: "agents/sdd-apply.agent.md",
+      content:
+        "---\n" +
+        "name: sdd-apply\n" +
+        "description: Apply phase with shell.\n" +
+        "tools: ['read', 'search', 'edit', 'execute']\n" +
+        "user-invocable: false\n" +
+        "target: vscode\n" +
+        "---\n\nRun tests.\n",
+    },
+  ];
+  const out = transform({ files, profile: antigravity, models: MODELS });
+
+  for (const name of reviewers) {
+    const fm = parse(find(out, `agents/${name}.agent.md`).content).frontmatter;
+    assert.deepEqual(getField(fm, "tools").value, ["read_file"], `${name} tools`);
+    assert.equal(getField(fm, "mainAgent")?.value, "false", `${name} mainAgent`);
+    assert.equal(getField(fm, "subagent")?.value, "true", `${name} subagent`);
+    assert.equal(getField(fm, "inheritMcp")?.value, "false", `${name} inheritMcp`);
+    assert.equal(getField(fm, "commandExecutionPolicy")?.value, "off", `${name} commandExecutionPolicy`);
+    assert.equal(getField(fm, "user-invocable"), null, `${name} strips user-invocable`);
+  }
+
+  const designFm = parse(find(out, "agents/sdd-design.agent.md").content).frontmatter;
+  assert.deepEqual(getField(designFm, "tools").value, ["read_file", "write_file", "edit_file"]);
+  assert.equal(getField(designFm, "mainAgent")?.value, "false");
+  assert.equal(getField(designFm, "subagent")?.value, "true");
+  assert.equal(getField(designFm, "inheritMcp"), null, "non-reviewer omits inheritMcp");
+  assert.equal(getField(designFm, "commandExecutionPolicy")?.value, "off", "non-execute phase sets policy off");
+
+  const applyFm = parse(find(out, "agents/sdd-apply.agent.md").content).frontmatter;
+  assert.deepEqual(getField(applyFm, "tools").value, ["read_file", "write_file", "edit_file", "run_command"]);
+  assert.equal(getField(applyFm, "mainAgent")?.value, "false");
+  assert.equal(getField(applyFm, "subagent")?.value, "true");
+  assert.equal(getField(applyFm, "inheritMcp"), null);
+  assert.equal(getField(applyFm, "commandExecutionPolicy"), null, "execute phase inherits user policy");
+});
+
+test("antigravity translates user-invocable:false to disable-slash-command:true on internal skills and preserves disable-model-invocation", () => {
+  const internalSkill = (dir, name) => ({
+    path: `skills/${dir}/SKILL.md`,
+    content:
+      "---\n" +
+      `name: ${name}\n` +
+      'description: "Internal skill."\n' +
+      "disable-model-invocation: true\n" +
+      "user-invocable: false\n" +
+      "metadata:\n" +
+      "  version: \"1.0\"\n" +
+      "---\n\nUse `read` and `vscode/askQuestions`.\n",
+  });
+  const files = [
+    internalSkill("_shared", "_shared"),
+    internalSkill("review-trust", "review-trust"),
+    internalSkill("sdd-apply", "sdd-apply"),
+    {
+      path: "skills/idd/SKILL.md",
+      content: "---\nname: idd\ndescription: \"User-invocable skill.\"\n---\n\nBody.\n",
+    },
+    {
+      path: "agents/review-trust.agent.md",
+      content:
+        "---\n" +
+        "name: review-trust\n" +
+        "description: Reviewer.\n" +
+        "tools: ['read', 'search']\n" +
+        "disable-model-invocation: true\n" +
+        "user-invocable: false\n" +
+        "target: vscode\n" +
+        "---\n\nBody.\n",
+    },
+  ];
+
+  const agy = transform({ files, profile: antigravity, models: MODELS });
+  for (const dir of ["_shared", "review-trust", "sdd-apply"]) {
+    const content = find(agy, `skills/${dir}/SKILL.md`).content;
+    const fm = parse(content).frontmatter;
+    assert.equal(getField(fm, "disable-slash-command")?.value, "true", `${dir} disable-slash-command`);
+    assert.equal(getField(fm, "disable-model-invocation")?.value, "true", `${dir} preserves disable-model-invocation`);
+    assert.equal(getField(fm, "user-invocable"), null, `${dir} strips user-invocable`);
+    assert.match(content, /metadata:\n  version: "1\.0"/, `${dir} preserves nested metadata`);
+    assert.match(content, /Use `read_file` and `ask_question`\./, `${dir} still substitutes prose tools`);
+  }
+
+  const iddFm = parse(find(agy, "skills/idd/SKILL.md").content).frontmatter;
+  assert.equal(getField(iddFm, "disable-slash-command"), null, "user-invocable skill stays slash-invocable");
+
+  const agentFm = parse(find(agy, "agents/review-trust.agent.md").content).frontmatter;
+  assert.equal(getField(agentFm, "disable-model-invocation")?.value, "true", "disable-model-invocation is no longer stripped");
+
+  // None of the other 6 targets receive Antigravity-only frontmatter fields.
+  for (const other of [claude, vscode, githubCopilot, opencode, codex, cursor]) {
+    const out = transform({ files, profile: other, models: MODELS });
+    const shared = find(out, "skills/_shared/SKILL.md").content;
+    const fm = parse(shared).frontmatter;
+    assert.equal(getField(fm, "disable-slash-command"), null, `${other.id} must not get disable-slash-command`);
+    assert.equal(getField(fm, "user-invocable")?.value, "false", `${other.id} keeps source user-invocable`);
+    for (const file of out.files) {
+      assert.doesNotMatch(file.content, /^(?:mainAgent|subagent|inheritMcp|commandExecutionPolicy|disable-slash-command):/m, `${other.id} ${file.path}`);
+    }
+  }
+});
+
+test("antigravity emits non-colliding SDD meta-commands as flat skills, prefixes relative rule globs, and drops .mcp.json", () => {
+  const files = [
+    {
+      path: "commands/sdd-apply.prompt.md",
+      content: "---\nname: sdd-apply\ndescription: Apply phase.\nagent: sdd-orchestrator\n---\n\nApply `${input:changeName}`.\n",
+    },
+    {
+      path: "commands/sdd-new.prompt.md",
+      content: "---\nname: sdd-new\ndescription: Start a new change.\nagent: sdd-orchestrator\n---\n\nStart: `${input:request}`.\n",
+    },
+    {
+      path: "commands/sdd-lite.prompt.md",
+      content: "---\nname: sdd-lite\ndescription: Run lite mode.\nagent: sdd-orchestrator\n---\n\nClassify: `${input:request}`.\n",
+    },
+    {
+      path: "commands/sdd-ff.prompt.md",
+      content: "---\nname: sdd-ff\ndescription: Fast-forward planning.\nagent: sdd-orchestrator\nargument-hint: \"<goal>\"\ntools: ['agent', 'read', 'search', 'edit']\n---\n\nUser input: `${input}`\n",
+    },
+    {
+      path: "commands/sdd-continue.prompt.md",
+      content: "---\nname: sdd-continue\ndescription: Continue SDD phase.\nagent: sdd-orchestrator\n---\n\nContinue `${input:changeName}`.\n",
+    },
+    {
+      path: "skills/sdd-apply/SKILL.md",
+      content: "---\nname: sdd-apply\ndescription: Phase executor.\ndisable-model-invocation: true\nuser-invocable: false\n---\n\nExecutor body.\n",
+    },
+    {
+      path: "rules/sdd-openspec.instructions.md",
+      content: "---\ndescription: OpenSpec paths.\napplyTo: 'openspec/**, ./docs/**, **/*.ts, /etc/hosts, C:/abs/**'\n---\n\nRule body.\n",
+    },
+    {
+      path: ".mcp.json",
+      content: JSON.stringify({ mcpServers: { markitdown: { command: "uvx", args: ["markitdown-mcp"] } } }),
+    },
+  ];
+
+  const agy = transform({ files, profile: antigravity, models: MODELS, withSdd: true });
+
+  // A2: zero commands/*.prompt.md; 4 non-colliding meta-commands as flat skills; colliding phase skill untouched.
+  assert.deepEqual(
+    agy.files.filter((f) => f.path.startsWith("commands/")),
+    [],
+    "antigravity must omit commands/*.prompt.md",
+  );
+  for (const name of ["sdd-continue", "sdd-ff", "sdd-lite", "sdd-new"]) {
+    const skill = find(agy, `skills/${name}/SKILL.md`);
+    assert.ok(skill, `antigravity must emit skills/${name}/SKILL.md`);
+    const { frontmatter, body } = parse(skill.content);
+    assert.equal(getField(frontmatter, "name")?.value, name);
+    assert.equal(getField(frontmatter, "disable-model-invocation")?.value, "true");
+    assert.equal(getField(frontmatter, "disable-slash-command"), null, `${name} must remain slash-invocable`);
+    for (const stripped of ["agent", "target", "tools", "argument-hint"]) {
+      assert.equal(getField(frontmatter, stripped), null, `${name} must strip ${stripped}`);
+    }
+    assert.match(body, /\$ARGUMENTS/, `${name} must substitute single/bare input with $ARGUMENTS`);
+    assert.doesNotMatch(body, /\$\{input/, `${name} must not leave \${input} residue`);
+    assert.match(body, /Spawn the `sdd-orchestrator` agent/, `${name} must route to sdd-orchestrator`);
+  }
+  const applySkill = find(agy, "skills/sdd-apply/SKILL.md");
+  assert.ok(applySkill, "colliding phase skill must survive intact");
+  assert.match(applySkill.content, /Executor body\./, "colliding command must not overwrite phase skill");
+  assert.equal(getField(parse(applySkill.content).frontmatter, "disable-slash-command")?.value, "true");
+  assert.equal(find(agy, "skills/commands/sdd-new/SKILL.md"), undefined, "antigravity uses flat skills/<name>/SKILL.md");
+
+  // A3: drop .mcp.json and keep managedRoots for stale pruning.
+  assert.equal(find(agy, ".mcp.json"), undefined, "antigravity must drop .mcp.json");
+  assert.ok(Array.isArray(antigravity.managedRoots) && antigravity.managedRoots.includes(".mcp.json"));
+  assert.ok(antigravity.managedRoots.includes("commands"));
+
+  // M1: prefix relative rule globs with **/ without touching already-prefixed or absolute globs.
+  const ruleFm = parse(find(agy, "rules/sdd-openspec.instructions.md").content).frontmatter;
+  assert.equal(getField(ruleFm, "trigger")?.value, "glob");
+  assert.equal(getField(ruleFm, "globs")?.value, "**/openspec/**, **/docs/**, **/*.ts, /etc/hosts, C:/abs/**");
+
+  // Non-regression: other targets keep their own rule globs, command paths, and .mcp.json handling.
+  const copilotOut = transform({ files, profile: githubCopilot, models: MODELS, withSdd: true });
+  assert.equal(
+    getField(parse(find(copilotOut, ".github/instructions/sdd-openspec.instructions.md").content).frontmatter, "applyTo")?.value,
+    "openspec/**,./docs/**,**/*.ts,/etc/hosts,C:/abs/**",
+  );
+  assert.ok(find(copilotOut, ".mcp.json"), "github-copilot keeps .mcp.json");
+  const codexOut = transform({ files, profile: codex, models: MODELS, withSdd: true });
+  assert.ok(find(codexOut, "skills/commands/sdd-apply/SKILL.md"), "codex still emits colliding commands under skills/commands/");
+  assert.equal(getField(parse(find(codexOut, "skills/commands/sdd-new/SKILL.md").content).frontmatter, "disable-model-invocation"), null);
+});
+
+test("antigravity emits native model tier aliases, omits inherit, and respects validated overrides", () => {
+  const files = [...makeSource(), { path: "agents/sdd-init.agent.md", content: "---\nname: sdd-init\ndescription: Init.\n---\nBody.\n" }];
+  const models = {
+    agents: { ...MODELS.agents, "sdd-init": "cheap" },
+    tiers: {
+      premium: { ...MODELS.tiers.premium, antigravity: "pro" },
+      default: { ...MODELS.tiers.default, antigravity: "inherit" },
+      cheap: { ...MODELS.tiers.cheap, antigravity: "flash" },
+    },
+  };
+  const modelOf = (out, file) => getField(parse(find(out, file).content).frontmatter, "model")?.value ?? null;
+  const defaults = transform({ files, profile: antigravity, models });
+  assert.deepEqual([modelOf(defaults, "agents/sdd-orchestrator.agent.md"), modelOf(defaults, "agents/sdd-apply.agent.md"), modelOf(defaults, "agents/sdd-init.agent.md")], ["pro", null, "flash"]);
+  const over = transform({ files, profile: antigravity, models: { ...models, userModels: { premium: "INHERIT", cheap: "FLASH_LITE" } } });
+  assert.deepEqual([modelOf(over, "agents/sdd-orchestrator.agent.md"), modelOf(over, "agents/sdd-init.agent.md")], [null, "flash_lite"]);
+});
+
+test("antigravity emits native .antigravity-plugin/plugin.json, assets/logo.svg, and relative hooks without affecting other targets", () => {
+  const files = makeSource().map((f) => (f.path === "hooks/hooks.json" ? {
+    path: f.path,
+    content: JSON.stringify({
+      hooks: {
+        SessionStart: [{ type: "command", command: 'node "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js" session-start' }],
+        PreToolUse: [{ type: "command", command: 'node "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js" pre-tool-use' }],
+      },
+    }),
+  } : f));
+  const agy = transform({ files, profile: antigravity, models: MODELS });
+  const manifest = JSON.parse(find(agy, ".antigravity-plugin/plugin.json").content);
+  assert.equal(manifest.name, "ospec-workflow");
+  assert.equal(manifest.version, "2.1.0");
+  assert.equal(manifest.logo, "assets/logo.svg");
+  assert.ok(Array.isArray(manifest.suggestedPrompts) && manifest.suggestedPrompts.length > 0);
+  for (const key of ["agents", "commands", "skills", "rules", "hooks", "mcpServers"]) assert.equal(Object.hasOwn(manifest, key), false);
+  assert.equal(find(agy, ".claude-plugin/plugin.json"), undefined);
+  assert.match(find(agy, "assets/logo.svg").content, /^<svg /);
+  assert.match(find(agy, "hooks.json").content, /\.\/scripts\/hooks\/ospec-antigravity-hook\.js/);
+  assert.equal(find(transform({ files, profile: claude, models: MODELS }), ".antigravity-plugin/plugin.json"), undefined);
 });
 

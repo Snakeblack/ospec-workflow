@@ -2544,8 +2544,22 @@ The checks MUST cover at least:
   missing, when that `AGENTS.md` still holds the pre-E0.4 orchestrator, or when
   `opencode.json` does not list `instructions/*.md`), `budget` (as for
   `claude`), `hooks` (`error` when the host's hook file is missing) and
-  `engram` (as for `claude`, with that host's `engram setup` action and
-  without the allow rules, which only Claude Code's auto mode needs).
+  `engram` (as for `claude`, with that host's `engram setup` action; for
+  `antigravity`, also `warn` when `~/.gemini/antigravity-cli/settings.json`
+  cannot be read or lacks non-destructive `mcp(engram/<tool>)` allow rules not
+  listed under `ask`/`deny`). For
+  `antigravity`, `ospec doctor` MUST detect `~/.gemini/config/plugins/ospec-workflow`
+  as primary (falling back to legacy `~/.gemini/config` with `plugin-layout` `info`
+  recommending `npm run setup:antigravity`), check `.antigravity-plugin/plugin.json`
+  (`plugin-manifest`, `error` if missing), warn `legacy-duplicate` when both plugin
+  and legacy `~/.gemini/config/.ospec-workflow-install.json` coexist, and run
+  `hook-responds` (when `scripts/hooks/ospec-antigravity-hook.js` is present or
+  referenced by `hooks.json`: executes it with `cwd` set to the installed root and an
+  AGY `write_file` `Path` probe targeting `idd/ospec-doctor-probe/state.yaml` in
+  `os.tmpdir()` with 5 s timeout, writing nothing, and reports `error` unless exit 0
+  with `decision: "deny"` and no `[ospec error]`) and `sandbox-cli` (`warn` when
+  `~/.gemini/antigravity-cli/settings.json` sets `enableTerminalSandbox: true`,
+  `agentMode: "auto"`, or is unreadable JSON; `ok` otherwise).
 - `vscode`, found by the `ospec-workflow` plugins named in
   `chat.pluginLocations` of the user settings of VS Code and VS Code Insiders,
   read as an array or as a `{ path: enabled }` map: `plugin-locations`
