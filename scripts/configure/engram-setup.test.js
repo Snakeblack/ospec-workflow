@@ -675,6 +675,36 @@ test("claude auto mode: --no-engram, an unconfigured Engram and other targets wr
   assert.ok(!cursor.writes.some((file) => file.endsWith("settings.json")));
 });
 
+test("antigravity auto mode: configured Engram writes non-destructive mcp(engram/...) allow rules once, respects ask/deny and warns fail-open", () => {
+  const { ENGRAM_ANTIGRAVITY_ALLOW_RULES } = require("../lib/engram-claude-allow.js");
+  const settingsFile = home(".gemini", "antigravity-cli", "settings.json");
+  const configuredFiles = (extra = {}) => makeFs({
+    [home(".gemini", "GEMINI.md")]: "<!-- BEGIN ENGRAM MEMORY PROTOCOL -->\n",
+    [home(".gemini", "config", "mcp_config.json")]: '{"mcpServers":{"engram":{}}}',
+    ...extra,
+  });
+  const firstFiles = configuredFiles({ [settingsFile]: JSON.stringify({ agentMode: "accept-edits", permissions: { allow: ["command(git status)"], deny: ["mcp(engram/mem_pin)"] } }) });
+  const first = run({ target: "antigravity", spawn: makeSpawn(ENGRAM), fs: firstFiles });
+  const saved = JSON.parse(firstFiles.store.get(path.resolve(settingsFile)));
+  assert.equal(saved.permissions.allow[0], "command(git status)");
+  assert.deepEqual(saved.permissions.allow.slice(1), ENGRAM_ANTIGRAVITY_ALLOW_RULES.filter((r) => r !== "mcp(engram/mem_pin)"));
+  assert.ok(!saved.permissions.allow.some((r) => /mem_delete|mem_merge_projects/.test(r)));
+  assert.match(first.stdout, /regla\(s\) allow/);
+  const secondFiles = configuredFiles({ [settingsFile]: `${JSON.stringify(saved, null, 2)}\n` });
+  run({ target: "antigravity", spawn: makeSpawn(ENGRAM), fs: secondFiles });
+  assert.deepEqual(secondFiles.writes, [], "idempotent second run");
+  const wildcard = configuredFiles({ [settingsFile]: JSON.stringify({ permissions: { allow: ["mcp(engram/*)"] } }) });
+  run({ target: "antigravity", spawn: makeSpawn(ENGRAM), fs: wildcard });
+  assert.deepEqual(wildcard.writes, [], "mcp(engram/*) covers all rules");
+  const broken = configuredFiles({ [settingsFile]: "{bad" });
+  const warn = run({ target: "antigravity", spawn: makeSpawn(ENGRAM), fs: broken });
+  assert.deepEqual(broken.writes, []);
+  assert.match(warn.stderr, /no se puede leer .*settings\.json/);
+  const disabled = configuredFiles();
+  run({ target: "antigravity", argv: ["--no-engram"], spawn: makeSpawn(ENGRAM), fs: disabled });
+  assert.deepEqual(disabled.writes, []);
+});
+
 // --- Windows safe mode of the upstream Claude hook --------------------------------
 
 const BASH = path.resolve("/git/bin/bash.exe");

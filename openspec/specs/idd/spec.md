@@ -2544,8 +2544,10 @@ The checks MUST cover at least:
   missing, when that `AGENTS.md` still holds the pre-E0.4 orchestrator, or when
   `opencode.json` does not list `instructions/*.md`), `budget` (as for
   `claude`), `hooks` (`error` when the host's hook file is missing) and
-  `engram` (as for `claude`, with that host's `engram setup` action and
-  without the allow rules, which only Claude Code's auto mode needs). For
+  `engram` (as for `claude`, with that host's `engram setup` action; for
+  `antigravity`, also `warn` when `~/.gemini/antigravity-cli/settings.json`
+  cannot be read or lacks non-destructive `mcp(engram/<tool>)` allow rules not
+  listed under `ask`/`deny`). For
   `antigravity`, `ospec doctor` MUST also run `hook-responds` (when
   `scripts/hooks/ospec-antigravity-hook.js` is present or referenced by
   `hooks.json`: executes it with an AGY `write_file` `Path` probe targeting
