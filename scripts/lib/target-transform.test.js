@@ -261,7 +261,7 @@ test("antigravity keeps SessionStart and Stop flat, groups PreToolUse, and drops
     }),
   });
   const hooks = JSON.parse(find(transform({ files, profile: antigravity, models: MODELS }), "hooks.json").content);
-  const wrapper = 'node "__OSPEC_ANTIGRAVITY_ROOT__/scripts/hooks/ospec-antigravity-hook.js"';
+  const wrapper = 'node "./scripts/hooks/ospec-antigravity-hook.js"';
   assert.deepEqual(Object.keys(hooks), ["ospec-session-start", "ospec-pre-tool-use", "ospec-stop"]);
   assert.deepEqual(hooks["ospec-session-start"].SessionStart, [{ type: "command", command: `${wrapper} session-start`, timeout: 5 }]);
   assert.deepEqual(hooks["ospec-stop"].Stop, [{ type: "command", command: `${wrapper} stop`, timeout: 5 }]);
@@ -1769,5 +1769,28 @@ test("antigravity emits native model tier aliases, omits inherit, and respects v
   assert.deepEqual([modelOf(defaults, "agents/sdd-orchestrator.agent.md"), modelOf(defaults, "agents/sdd-apply.agent.md"), modelOf(defaults, "agents/sdd-init.agent.md")], ["pro", null, "flash"]);
   const over = transform({ files, profile: antigravity, models: { ...models, userModels: { premium: "INHERIT", cheap: "FLASH_LITE" } } });
   assert.deepEqual([modelOf(over, "agents/sdd-orchestrator.agent.md"), modelOf(over, "agents/sdd-init.agent.md")], [null, "flash_lite"]);
+});
+
+test("antigravity emits native .antigravity-plugin/plugin.json, assets/logo.svg, and relative hooks without affecting other targets", () => {
+  const files = makeSource().map((f) => (f.path === "hooks/hooks.json" ? {
+    path: f.path,
+    content: JSON.stringify({
+      hooks: {
+        SessionStart: [{ type: "command", command: 'node "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js" session-start' }],
+        PreToolUse: [{ type: "command", command: 'node "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js" pre-tool-use' }],
+      },
+    }),
+  } : f));
+  const agy = transform({ files, profile: antigravity, models: MODELS });
+  const manifest = JSON.parse(find(agy, ".antigravity-plugin/plugin.json").content);
+  assert.equal(manifest.name, "ospec-workflow");
+  assert.equal(manifest.version, "2.1.0");
+  assert.equal(manifest.logo, "assets/logo.svg");
+  assert.ok(Array.isArray(manifest.suggestedPrompts) && manifest.suggestedPrompts.length > 0);
+  for (const key of ["agents", "commands", "skills", "rules", "hooks", "mcpServers"]) assert.equal(Object.hasOwn(manifest, key), false);
+  assert.equal(find(agy, ".claude-plugin/plugin.json"), undefined);
+  assert.match(find(agy, "assets/logo.svg").content, /^<svg /);
+  assert.match(find(agy, "hooks.json").content, /\.\/scripts\/hooks\/ospec-antigravity-hook\.js/);
+  assert.equal(find(transform({ files, profile: claude, models: MODELS }), ".antigravity-plugin/plugin.json"), undefined);
 });
 

@@ -59,12 +59,12 @@ function transform({ files: sourceFiles, profile, models, withExtras = false, wi
 function handleFile(file, profile, models, rulesContent, sources, withSdd) {
   const { path } = file;
 
-  if (isDropped(path, profile)) {
-    return null; // artifact the target does not consume (e.g. plugin manifest/hooks)
-  }
-
   if (profile.manifest && path === profile.manifest.location) {
     return reshapeManifest(file, profile);
+  }
+
+  if (isDropped(path, profile)) {
+    return null; // artifact the target does not consume (e.g. plugin manifest/hooks)
   }
 
   if (profile.hooks && profile.hooks.shape === "nested" && path === (profile.hooks.location || "hooks/hooks.json")) {
@@ -351,15 +351,15 @@ function reshapeManifest(file, profile) {
     omitFields = [],
     dropFields = [],
     keepFields,
+    extraFields,
     relativePathFields = [],
     outLocation,
     interface: iface,
   } = profile.manifest;
 
-  // Allowlist + rename branch (codex): keep only the declared keys, inject an
-  // optional `interface` metadata block, and write to a renamed output path.
-  // Preferred over an omit/drop deny-list because it is future-proof against
-  // new canonical manifest keys and satisfies "no other top-level keys".
+  // Allowlist + rename branch (codex/antigravity): keep only the declared keys,
+  // merge optional static fields, inject an optional `interface` block, and
+  // write to a renamed output path.
   if (Array.isArray(keepFields)) {
     const kept = {};
     for (const key of keepFields) {
@@ -372,10 +372,13 @@ function reshapeManifest(file, profile) {
         kept[key] = toSafeRelativePath(file, key, kept[key]);
       }
     }
+    if (extraFields && typeof extraFields === "object") {
+      Object.assign(kept, extraFields);
+    }
     if (iface) {
       kept.interface = iface;
     }
-    return { path: outLocation || file.path, content: JSON.stringify(kept, null, 2) };
+    return { path: outLocation || file.path, content: JSON.stringify(kept, null, 2) + "\n" };
   }
 
   for (const key of omitFields) {
@@ -1345,6 +1348,11 @@ function synthesizeFiles(files, profile) {
   }
   if (profile.plugin) {
     out.push({ path: profile.plugin.location, content: profile.plugin.source });
+  }
+  if (Array.isArray(profile.extraFiles)) {
+    for (const entry of profile.extraFiles) {
+      out.push({ path: entry.path, content: entry.content });
+    }
   }
   if (profile.rules && profile.rules.globalFile) {
     const globalRules = collectGlobalRules(files, profile);
