@@ -675,19 +675,20 @@ When modifying existing target configuration files (`opencode.json`, `mcp-config
 
 ### Requirement: Antigravity Target Profile & Standard Compiler Pipeline {#REQ-install-010}
 
-Antigravity MUST be a first-class compiler target defined in `scripts/lib/target-profiles/antigravity.js` and registered in `PROFILES` (`scripts/configure/cli.js`). `npm run build:antigravity` and `npm run setup:antigravity` MUST build into `dist/antigravity` and install into `~/.gemini/config` using the standard transformation, model mapping, runtime script closure, validator, and transactional installer. The legacy script `scripts/sync-antigravity.js` MUST be removed.
+Antigravity MUST be a first-class compiler target defined in `scripts/lib/target-profiles/antigravity.js` and registered in `PROFILES` (`scripts/configure/cli.js`). `npm run build:antigravity` and `npm run setup:antigravity` MUST build a native plugin bundle into `dist/antigravity` and install it into `~/.gemini/config/plugins/ospec-workflow` (plus any detected Windows root under WSL) using the standard transformation, model mapping, runtime script closure, validator, and transactional installer. Global setup MUST atomically migrate a legacy loose `~/.gemini/config/.ospec-workflow-install.json` installation after validating the new plugin—removing only legacy owned files and `ospec-*` hook groups in `~/.gemini/config/hooks.json` while preserving user files, foreign hooks, and `--with-sdd`. Passing `--workspace <repo>` (mutually exclusive with `--dest`) MUST install into `<repo>/.agents/plugins/ospec-workflow` with portable relative `.agents/plugins/ospec-workflow` runtime/shared paths without touching `~/.gemini/config` or running global Engram setup. The legacy script `scripts/sync-antigravity.js` MUST be removed.
 
 #### Scenario: Antigravity builds and validates through standard CLI
 - GIVEN the canonical repository source
 - WHEN `npm run build:antigravity` is executed
-- THEN `dist/antigravity` MUST contain transformed agents, skills, rules, hooks, and runtime scripts
+- THEN `dist/antigravity` MUST contain `.antigravity-plugin/plugin.json`, `assets/logo.svg`, transformed agents, skills, rules, relative hooks, and runtime scripts
 - AND validation MUST pass with 0 errors
 
-#### Scenario: Antigravity global installation is transactional
-- GIVEN `npm run setup:antigravity` is executed
-- THEN files are deployed into `~/.gemini/config`
-- AND `~/.gemini/config/.ospec-workflow-install.json` is recorded
-- AND pre-existing user hooks in `hooks.json` are preserved
+#### Scenario: Antigravity global installation migrates legacy layout transactionally
+- GIVEN a legacy `~/.gemini/config/.ospec-workflow-install.json`, user files, and mixed hooks in `~/.gemini/config/hooks.json`
+- WHEN `npm run setup:antigravity` is executed
+- THEN the native plugin MUST be deployed into `~/.gemini/config/plugins/ospec-workflow` with its `.ospec-workflow-install.json`
+- AND legacy owned files and `ospec-*` groups MUST be removed while user files and foreign hooks stay intact
+- AND a migration failure MUST roll back both the new plugin and legacy state atomically
 
 ---
 

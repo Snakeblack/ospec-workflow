@@ -96,14 +96,17 @@ function lstatIfExists(targetPath, fsImpl = fs) {
 // `canonical` memoizes, for one sync, the paths that exist: the sync creates
 // directories between checks, so a missing path is resolved again each time.
 function realpathIfExists(targetPath, fsImpl = fs, canonical = null) {
-  if (canonical?.has(targetPath)) return canonical.get(targetPath);
+  const resolved = path.resolve(targetPath);
+  if (canonical?.has(resolved)) return canonical.get(resolved);
   try {
-    const real = fsImpl.realpathSync(targetPath);
-    canonical?.set(targetPath, real);
+    const real = fsImpl.realpathSync(resolved);
+    canonical?.set(resolved, real);
     return real;
   } catch (error) {
     if (error.code === "ENOENT") {
-      return path.resolve(targetPath);
+      const parent = path.dirname(resolved);
+      if (parent === resolved) return resolved;
+      return path.join(realpathIfExists(parent, fsImpl, canonical), path.basename(resolved));
     }
     throw error;
   }

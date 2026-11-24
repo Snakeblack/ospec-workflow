@@ -26,8 +26,11 @@ const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-p
 const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, filesRow, packagesRow, reportAborted, reportBuildFailure, reportModels, reporterFor, restartHint } = require("./install-output.js");
 const { commandsFromSourceMcp, warnIfUvxMissing } = require("./mcp-prereqs.js");
 
+const PLUGIN_SUBDIR = path.join("plugins", "ospec-workflow");
+const WORKSPACE_PLUGIN_REL = ".agents/plugins/ospec-workflow";
+
 function usage() {
-  return "uso: install-antigravity [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>] [--out <buildDir>] [--model <tier>=<modelo>] [--verbose]\n";
+  return "uso: install-antigravity [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir> | --workspace <repoDir>] [--out <buildDir>] [--model <tier>=<modelo>] [--verbose]\n";
 }
 
 function parseArgs(argv) {
@@ -55,6 +58,11 @@ function parseArgs(argv) {
       }
       args.dest = next;
       i += 1;
+    } else if (arg === "--workspace") {
+      const next = argv[i + 1];
+      if (!next || next.startsWith("--")) return { ...args, error: "missing value for --workspace" };
+      args.workspace = next;
+      i += 1;
     } else if (arg === "--out") {
       // The build directory, by default <source>/dist/antigravity.
       const next = argv[i + 1];
@@ -68,6 +76,9 @@ function parseArgs(argv) {
       args.error = `unknown argument: ${arg}`;
       return args;
     }
+  }
+  if (args.dest && args.workspace) {
+    args.error = "--dest and --workspace cannot be combined";
   }
   return args;
 }
@@ -198,16 +209,69 @@ function installHooksJson(outDir, antigravityRoot, deps = {}) {
   mutateFs("write hooks.json", destPath, () => fsImpl.writeFileSync(destPath, JSON.stringify(merged, null, 2) + "\n", "utf8"), deps.retryOptions);
 }
 
-function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) {
+function resolveInstallTargets(args, deps = {}) {
+  if (args.dest) {
+    return [{ pluginRoot: path.resolve(args.dest), legacyRoot: null, journalRoot: path.resolve(args.dest), relativePosix: null }];
+  }
+  if (args.workspace) {
+    const workspaceRoot = path.resolve(deps.cwd || process.cwd(), args.workspace);
+    return [{
+      pluginRoot: path.join(workspaceRoot, ".agents", "plugins", "ospec-workflow"),
+      legacyRoot: null,
+      journalRoot: workspaceRoot,
+      relativePosix: WORKSPACE_PLUGIN_REL,
+    }];
+  }
+  return getDestinationRoots(undefined, deps).map((configRoot) => ({
+    pluginRoot: path.join(configRoot, PLUGIN_SUBDIR),
+    legacyRoot: configRoot,
+    journalRoot: configRoot,
+    relativePosix: null,
+  }));
+}
+
+function migrateLegacyAntigravityInstall(legacyRoot, fsImpl, journal, retryOptions) {
+  const legacyManifest = readOwnershipManifest(legacyRoot, fsImpl);
+  if (!legacyManifest || (legacyManifest.target && legacyManifest.target !== "antigravity") || !Array.isArray(legacyManifest.files)) return { deleted: [] };
+  const legacyFiles = new Set(legacyManifest.files.map((file) => toPosix(file)));
+  const deleted = [];
+  const legacyHooksPath = path.join(legacyRoot, "hooks.json");
+  if (fsImpl.existsSync(legacyHooksPath)) {
+    let parsed;
+    try { parsed = JSON.parse(fsImpl.readFileSync(legacyHooksPath, "utf8")); }
+    catch (error) { throw new Error(`Failed to parse legacy hooks.json at ${legacyHooksPath}: ${error.message}`); }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(`Failed to parse legacy hooks.json at ${legacyHooksPath}: expected JSON object`);
+    if (Object.keys(parsed).some((key) => key.startsWith("ospec-"))) {
+      assertPathSafe(legacyRoot, legacyHooksPath, fsImpl);
+      if (journal) journal.capture(legacyHooksPath);
+      const remaining = Object.fromEntries(Object.entries(parsed).filter(([key]) => !key.startsWith("ospec-")));
+      if (Object.keys(remaining).length > 0) mutateFs("write legacy hooks.json", legacyHooksPath, () => fsImpl.writeFileSync(legacyHooksPath, JSON.stringify(remaining, null, 2) + "\n", "utf8"), retryOptions);
+      else if (legacyFiles.has("hooks.json")) { mutateFs("remove legacy hooks.json", legacyHooksPath, () => fsImpl.rmSync(legacyHooksPath, { force: true }), retryOptions); deleted.push("hooks.json"); }
+      else mutateFs("write legacy hooks.json", legacyHooksPath, () => fsImpl.writeFileSync(legacyHooksPath, "{}\n", "utf8"), retryOptions);
+    }
+  }
+  const filesToPrune = [...legacyFiles].filter((file) => file !== "hooks.json" && file !== MANIFEST_FILENAME && file !== "plugins/ospec-workflow" && !file.startsWith("plugins/ospec-workflow/"));
+  const pruned = pruneStaleFiles(legacyRoot, { files: filesToPrune }, [], fsImpl, journal, retryOptions);
+  const legacyManifestPath = path.join(legacyRoot, MANIFEST_FILENAME);
+  assertPathSafe(legacyRoot, legacyManifestPath, fsImpl);
+  if (journal) journal.capture(legacyManifestPath);
+  mutateFs("remove legacy manifest", legacyManifestPath, () => fsImpl.rmSync(legacyManifestPath, { force: true }), retryOptions);
+  return { deleted: [...deleted, ...pruned.deleted] };
+}
+
+function installAntigravityRoot(target, outDir, sourceDir, args, deps) {
+  const { pluginRoot, legacyRoot, journalRoot, relativePosix } = typeof target === "string"
+    ? { pluginRoot: target, legacyRoot: null, journalRoot: target, relativePosix: null }
+    : target;
   const fsImpl = deps.fs || fs;
   const reporter = reporterFor("antigravity", deps);
   const stderr = reporter.err;
   const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
-  const installHooks = deps.installHooksJson || installHooksJson;
   const validateInstalled = deps.validateInstalled || validateInstalledAntigravity;
 
   try {
-    assertPathSafe(antigravityRoot, antigravityRoot, fsImpl);
+    assertPathSafe(journalRoot, journalRoot, fsImpl);
+    assertPathSafe(journalRoot, pluginRoot, fsImpl);
   } catch (error) {
     stderr.write(`${error.message}\n`);
     return 1;
@@ -218,8 +282,13 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
   let journal = null;
   try {
     const retryOptions = { target: "antigravity", ...(deps.retryOptions || {}) };
-    journal = createRollbackJournal(antigravityRoot, fsImpl, retryOptions);
-    const previousManifest = readOwnershipManifest(antigravityRoot, fsImpl);
+    journal = createRollbackJournal(journalRoot, fsImpl, retryOptions);
+    if (journalRoot !== pluginRoot) {
+      for (let dir = path.dirname(pluginRoot); path.resolve(dir) !== path.resolve(journalRoot); dir = path.dirname(dir)) {
+        journal.captureDirectory(dir);
+      }
+    }
+    const previousManifest = readOwnershipManifest(pluginRoot, fsImpl);
 
     copyBinary(outDir, "antigravity", sourceDir, {
       fs: fsImpl,
@@ -228,23 +297,22 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
       required: false,
     });
 
-    // E0.4 (b): the orchestrator names this root's _shared directory, as the
-    // Antigravity host sees it (a WSL root is read from Windows).
-    const antigravityRootPosix = getHooksRootPosix(antigravityRoot);
-    const shared = renderSharedDir(outDir, `${antigravityRootPosix}/skills/_shared`, fsImpl);
-    // E1.6 (a): the IDD protocol names the installed ospec CLI; E1.45: the
-    // shim of the host that reads it, Windows for a WSL root.
-    const hostPlatform = /^[A-Za-z]:\//.test(antigravityRootPosix) ? "win32" : deps.platform || process.platform;
-    const runtime = renderRuntimeDir(outDir, antigravityRootPosix, fsImpl, { platform: hostPlatform });
+    // E0.4 (b) / E1.6 (a) / E1.45: workspace installs keep portable relative
+    // paths under `.agents/plugins/ospec-workflow`; global/dest installs render
+    // the host path (Windows drive slashes for a WSL root).
+    const pluginRootPosix = relativePosix || getHooksRootPosix(pluginRoot);
+    const shared = renderSharedDir(outDir, `${pluginRootPosix}/skills/_shared`, fsImpl);
+    const hostPlatform = !relativePosix && /^[A-Za-z]:\//.test(pluginRootPosix) ? "win32" : deps.platform || process.platform;
+    const runtime = renderRuntimeDir(outDir, pluginRootPosix, fsImpl, { platform: hostPlatform });
     let syncResult;
     try {
       syncResult = syncTargetTree(
         outDir,
-        antigravityRoot,
+        pluginRoot,
         fsImpl,
         { updated: [], unchanged: [], ownedFiles: [] },
-        new Set(["hooks.json"]),
-        antigravityRoot,
+        new Set(),
+        journalRoot,
         journal,
         "",
         retryOptions,
@@ -255,16 +323,8 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
       shared.restore();
     }
 
-    installHooks(outDir, antigravityRoot, {
-      fs: fsImpl,
-      dryRun: false,
-      journal,
-      antigravityRootPosix,
-      retryOptions,
-    });
-
-    const allOwned = Array.from(new Set([...syncResult.ownedFiles, "hooks.json", MANIFEST_FILENAME]));
-    const pruneResult = pruneStaleFiles(antigravityRoot, previousManifest, allOwned, fsImpl, journal, retryOptions);
+    const allOwned = Array.from(new Set([...syncResult.ownedFiles, MANIFEST_FILENAME]));
+    const pruneResult = pruneStaleFiles(pluginRoot, previousManifest, allOwned, fsImpl, journal, retryOptions);
 
     let version = "0.0.0";
     if (fsImpl.existsSync(path.join(sourceDir, "package.json"))) {
@@ -276,17 +336,21 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
       installedAt: new Date().toISOString(),
       files: allOwned,
     };
-    writeOwnershipManifest(antigravityRoot, manifest, fsImpl, journal, retryOptions);
+    writeOwnershipManifest(pluginRoot, manifest, fsImpl, journal, retryOptions);
 
-    const installedValidation = validateInstalled(antigravityRoot, { fs: fsImpl });
+    const installedValidation = validateInstalled(pluginRoot, { fs: fsImpl });
     if (installedValidation.errors.length > 0) {
       throw new Error(`installed Antigravity validation failed: ${installedValidation.errors.join("; ")}`);
     }
 
+    const legacyPruned = legacyRoot
+      ? migrateLegacyAntigravityInstall(legacyRoot, fsImpl, journal, retryOptions)
+      : { deleted: [] };
+
     const counts = deps.counts || { updated: 0, unchanged: 0, pruned: 0 };
     counts.updated += syncResult.updated.length;
     counts.unchanged += syncResult.unchanged.length;
-    counts.pruned += pruneResult.deleted.length;
+    counts.pruned += pruneResult.deleted.length + legacyPruned.deleted.length;
     return 0;
   } catch (error) {
     let rollbackError = null;
@@ -316,11 +380,12 @@ function install(argv = process.argv.slice(2), deps = {}) {
 
   const sourceDir = path.resolve(args.source || deps.sourceDir || cwd);
   const outDir = args.out ? path.resolve(cwd, args.out) : deps.outDir || path.join(sourceDir, "dist", "antigravity");
-  const targetRoots = getDestinationRoots(args.dest, deps);
+  const targets = resolveInstallTargets(args, deps);
+  const manifestRoots = targets.flatMap((t) => (t.legacyRoot ? [t.pluginRoot, t.legacyRoot] : [t.pluginRoot]));
 
   reporter.plan(args.dryRun ? [PHASE_BUILD] : [PHASE_BUILD, PHASE_FILES]);
   reporter.begin(PHASE_BUILD);
-  const withSdd = resolveWithSdd(args, () => previousInstallHasSdd({ manifestRoots: targetRoots, fs: deps.fs || fs }));
+  const withSdd = resolveWithSdd(args, () => previousInstallHasSdd({ manifestRoots, fs: deps.fs || fs }));
   const result = runConfigureImpl({
     sourceDir,
     target: "antigravity",
@@ -332,7 +397,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
   });
   if (reportBuildFailure(reporter, result)) return result.exitCode || 1;
   if (deps.models) reportModels(reporter, deps.models, "antigravity");
-  reporter.set("Destino", targetRoots.join(" · "));
+  reporter.set("Destino", targets.map((t) => t.pluginRoot).join(" · "));
   reporter.set("Paquetes", packagesRow(args, withSdd));
   if (args.dryRun) {
     reporter.set("Modo", DRY_RUN_ROW);
@@ -342,8 +407,8 @@ function install(argv = process.argv.slice(2), deps = {}) {
   reporter.begin(PHASE_FILES);
   const counts = { updated: 0, unchanged: 0, pruned: 0 };
   let exitCode = 0;
-  for (const root of targetRoots) {
-    const code = installAntigravityRoot(root, outDir, sourceDir, args, { ...deps, reporter, counts });
+  for (const target of targets) {
+    const code = installAntigravityRoot(target, outDir, sourceDir, args, { ...deps, reporter, counts });
     if (code !== 0) {
       exitCode = code;
     }
@@ -361,7 +426,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
 const main = withEngramStep("antigravity", install, {
   eligible(argv) {
     const args = parseArgs(argv);
-    return !args.error && !args.dryRun && !args.dest;
+    return !args.error && !args.dryRun && !args.dest && !args.workspace;
   },
 });
 

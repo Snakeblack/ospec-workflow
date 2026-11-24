@@ -475,9 +475,11 @@ test("buildOspecHome installs ospec for antigravity without SDD and identifies i
   const first = buildOspecHome({ repoRoot: REPO_ROOT, home });
   const version = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8")).version;
   assert.equal(first.version, version);
-  assert.ok(fs.existsSync(path.join(home, ".gemini", "config", "rules", "ospec-router.instructions.md")));
-  assert.ok(fs.existsSync(path.join(home, ".gemini", "config", "skills", "idd", "SKILL.md")));
-  assert.ok(!fs.existsSync(path.join(home, ".gemini", "config", "skills", "sdd-orchestrator")));
+  const pluginDir = path.join(home, ".gemini", "config", "plugins", "ospec-workflow");
+  assert.ok(fs.existsSync(path.join(pluginDir, ".antigravity-plugin", "plugin.json")));
+  assert.ok(fs.existsSync(path.join(pluginDir, "rules", "ospec-router.instructions.md")));
+  assert.ok(fs.existsSync(path.join(pluginDir, "skills", "idd", "SKILL.md")));
+  assert.ok(!fs.existsSync(path.join(pluginDir, "skills", "sdd-orchestrator")));
   // OSP-026 (#341): the digest identifies what a run reads, not where the
   // template HOME lives: another HOME of the same checkout gives the same digest.
   const again = buildOspecHome({ repoRoot: REPO_ROOT, home: path.join(dir, "elsewhere", "home") });
@@ -490,12 +492,12 @@ test("buildOspecHome installs ospec for antigravity without SDD and identifies i
 // other suites digest while they run.
 function withFakeEngramSetup(bin, args, options) {
   if (path.basename(bin) !== "engram") {
-    const configDir = args[args.indexOf("--dest") + 1];
-    const home = path.dirname(path.dirname(configDir));
-    fs.mkdirSync(path.join(configDir, "scripts", "hooks"), { recursive: true });
-    fs.writeFileSync(path.join(configDir, ".ospec-workflow-install.json"), JSON.stringify({ version: "2.142.2", installed_at: String(Math.random()) }));
-    fs.writeFileSync(path.join(configDir, "hooks.json"), JSON.stringify({ command: `node "${path.join(home, ".gemini", "config", "scripts", "hook.js")}"` }));
-    fs.writeFileSync(path.join(configDir, "scripts", "hooks", "ospec-hooks"), Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0, Math.floor(Math.random() * 255)]));
+    const pluginDir = args[args.indexOf("--dest") + 1];
+    const home = path.resolve(pluginDir, "..", "..", "..", "..");
+    fs.mkdirSync(path.join(pluginDir, "scripts", "hooks"), { recursive: true });
+    fs.writeFileSync(path.join(pluginDir, ".ospec-workflow-install.json"), JSON.stringify({ version: "2.142.2", installed_at: String(Math.random()) }));
+    fs.writeFileSync(path.join(pluginDir, "hooks.json"), JSON.stringify({ command: `node "${path.join(home, ".gemini", "config", "plugins", "ospec-workflow", "scripts", "hook.js")}"` }));
+    fs.writeFileSync(path.join(pluginDir, "scripts", "hooks", "ospec-hooks"), Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0, Math.floor(Math.random() * 255)]));
     return { status: 0, stdout: "" };
   }
   if (args[0] === "version") return { status: 0, stdout: "engram 3.4.0\n" };

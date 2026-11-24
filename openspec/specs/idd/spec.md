@@ -2548,14 +2548,18 @@ The checks MUST cover at least:
   `antigravity`, also `warn` when `~/.gemini/antigravity-cli/settings.json`
   cannot be read or lacks non-destructive `mcp(engram/<tool>)` allow rules not
   listed under `ask`/`deny`). For
-  `antigravity`, `ospec doctor` MUST also run `hook-responds` (when
-  `scripts/hooks/ospec-antigravity-hook.js` is present or referenced by
-  `hooks.json`: executes it with an AGY `write_file` `Path` probe targeting
-  `idd/ospec-doctor-probe/state.yaml` in `os.tmpdir()` with 5 s timeout,
-  writing nothing, and reports `error` unless exit 0 with `decision: "deny"` and
-  no `[ospec error]`) and `sandbox-cli` (`warn` when `~/.gemini/antigravity-cli/settings.json`
-  sets `enableTerminalSandbox: true`, `agentMode: "auto"`, or is unreadable JSON;
-  `ok` otherwise).
+  `antigravity`, `ospec doctor` MUST detect `~/.gemini/config/plugins/ospec-workflow`
+  as primary (falling back to legacy `~/.gemini/config` with `plugin-layout` `info`
+  recommending `npm run setup:antigravity`), check `.antigravity-plugin/plugin.json`
+  (`plugin-manifest`, `error` if missing), warn `legacy-duplicate` when both plugin
+  and legacy `~/.gemini/config/.ospec-workflow-install.json` coexist, and run
+  `hook-responds` (when `scripts/hooks/ospec-antigravity-hook.js` is present or
+  referenced by `hooks.json`: executes it with `cwd` set to the installed root and an
+  AGY `write_file` `Path` probe targeting `idd/ospec-doctor-probe/state.yaml` in
+  `os.tmpdir()` with 5 s timeout, writing nothing, and reports `error` unless exit 0
+  with `decision: "deny"` and no `[ospec error]`) and `sandbox-cli` (`warn` when
+  `~/.gemini/antigravity-cli/settings.json` sets `enableTerminalSandbox: true`,
+  `agentMode: "auto"`, or is unreadable JSON; `ok` otherwise).
 - `vscode`, found by the `ospec-workflow` plugins named in
   `chat.pluginLocations` of the user settings of VS Code and VS Code Insiders,
   read as an array or as a `{ path: enabled }` map: `plugin-locations`
