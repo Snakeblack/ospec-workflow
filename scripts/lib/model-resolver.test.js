@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const {
+  ANTIGRAVITY_MODEL_TIERS,
   resolveModel,
   validateSddModelPolicy,
   validateUserModels,
@@ -90,6 +91,20 @@ test("user model validation accepts known tiers with a model and rejects the res
   assert.equal(validateUserModels({ premium: "" }).valid, false);
   assert.equal(validateUserModels({ premium: ["a"] }).valid, false);
   assert.equal(validateUserModels(["premium"]).valid, false);
+});
+
+test("antigravity resolves tier aliases, normalizes overrides, omits inherit, and validates closed tier set", () => {
+  const models = {
+    agents: { "sdd-design": "premium", "sdd-apply": "default", "sdd-init": "cheap", _default: "default" },
+    tiers: { premium: { antigravity: "pro" }, default: { antigravity: "inherit" }, cheap: { antigravity: "flash" } },
+  };
+  assert.deepEqual(ANTIGRAVITY_MODEL_TIERS, ["pro", "inherit", "flash", "flash_lite"]);
+  assert.deepEqual(["sdd-design", "sdd-apply", "sdd-init"].map(a => resolveModel(a, "antigravity", models)), ["pro", OMIT, "flash"]);
+  assert.equal(resolveModel("sdd-init", "antigravity", { ...models, userModels: { cheap: " FLASH_LITE " } }), "flash_lite");
+  assert.equal(resolveModel("sdd-design", "antigravity", { ...models, userModels: { premium: "INHERIT" } }), OMIT);
+  assert.deepEqual(validateUserModels({ premium: "PRO", default: "inherit", cheap: "flash_lite" }, "antigravity"), { valid: true, errors: [] });
+  assert.equal(validateUserModels({ premium: "gemini-4-neon-high" }, "antigravity").errors[0].code, "invalid-antigravity-model");
+  assert.equal(validateUserModels({ premium: "gemini-4-neon-high" }, "codex").valid, true);
 });
 
 test("canonical validator accepts model, effort, reviewer, and default choices from models.yaml", () => {

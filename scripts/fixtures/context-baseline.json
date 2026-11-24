@@ -119,12 +119,12 @@
       "default_flow_bytes": 14918,
       "memory_flow_bytes": 17866,
       "agent_read_bytes": {
-        "review-change": 4790,
-        "review-correction": 5406,
-        "review-efficiency": 14589,
-        "review-evolution": 14795,
-        "review-runtime": 14657,
-        "review-trust": 14562
+        "review-change": 4801,
+        "review-correction": 5417,
+        "review-efficiency": 14600,
+        "review-evolution": 14806,
+        "review-runtime": 14668,
+        "review-trust": 14573
       }
     }
   },
@@ -964,6 +964,72 @@
         ]
       },
       "reason": "agy-02-agents-tools: aislamiento de revisores Antigravity (mainAgent:false, subagent:true, inheritMcp:false, commandExecutionPolicy:off) +24..29 B por agente, solo target antigravity"
+    },
+    {
+      "version": "2.185.5",
+      "metric": "agent_read_bytes.review-change",
+      "targets": {
+        "antigravity": [
+          4790,
+          4801
+        ]
+      },
+      "reason": "Antigravity premium tier emits native model: pro (+11 B) on review-* agents"
+    },
+    {
+      "version": "2.185.5",
+      "metric": "agent_read_bytes.review-correction",
+      "targets": {
+        "antigravity": [
+          5406,
+          5417
+        ]
+      },
+      "reason": "Antigravity premium tier emits native model: pro (+11 B) on review-* agents"
+    },
+    {
+      "version": "2.185.5",
+      "metric": "agent_read_bytes.review-efficiency",
+      "targets": {
+        "antigravity": [
+          14589,
+          14600
+        ]
+      },
+      "reason": "Antigravity premium tier emits native model: pro (+11 B) on review-* agents"
+    },
+    {
+      "version": "2.185.5",
+      "metric": "agent_read_bytes.review-evolution",
+      "targets": {
+        "antigravity": [
+          14795,
+          14806
+        ]
+      },
+      "reason": "Antigravity premium tier emits native model: pro (+11 B) on review-* agents"
+    },
+    {
+      "version": "2.185.5",
+      "metric": "agent_read_bytes.review-runtime",
+      "targets": {
+        "antigravity": [
+          14657,
+          14668
+        ]
+      },
+      "reason": "Antigravity premium tier emits native model: pro (+11 B) on review-* agents"
+    },
+    {
+      "version": "2.185.5",
+      "metric": "agent_read_bytes.review-trust",
+      "targets": {
+        "antigravity": [
+          14562,
+          14573
+        ]
+      },
+      "reason": "Antigravity premium tier emits native model: pro (+11 B) on review-* agents"
     }
   ]
 }

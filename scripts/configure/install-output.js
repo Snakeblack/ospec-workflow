@@ -198,8 +198,7 @@ function reportBuildFailure(reporter, result) {
 // unassigned tier does on this host.
 function reportModels(reporter, prepared, host) {
   if (prepared.warning) reporter.err.write(`aviso: ${prepared.warning}\n`);
-  if (host === "antigravity") return;
-  const fallback = host === "claude" ? "alias por defecto" : "heredado";
+  const fallback = host === "claude" || host === "antigravity" ? "alias por defecto" : "heredado";
   reporter.set("Modelos", ["premium", "default", "cheap"].map((tier) => `${tier} ${prepared.userModels[tier] || fallback}`).join(" · "));
   if (prepared.unassigned.length) {
     reporter.next(`Asigna un modelo a ${prepared.unassigned.join(", ")} con --model <tier>=<modelo> o con npm run setup:tui; se guarda en ${prepared.file}.`);

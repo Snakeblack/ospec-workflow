@@ -232,3 +232,22 @@ test("main stays silent when uvx answers", (t) => {
   assert.doesNotMatch(stderr.join(""), /uvx/);
 });
 
+test("main forwards validated --model tier aliases, prints Modelos, and rejects concrete model IDs", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "agy-install-models-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const seen = [], out = [], err = [];
+  const io = (buf) => ({ write: (c) => buf.push(String(c)) });
+  const base = { homedir: () => root, stdout: io(out), stderr: io(err) };
+  const ok = main(["--dry-run", "--dest", path.join(root, "d"), "--model", "cheap=FLASH_LITE"], {
+    ...base,
+    runConfigure: (o) => { seen.push(o.userModels); return { exitCode: 0, validation: { errors: [] } }; },
+  });
+  assert.equal(ok, 0, err.join(""));
+  assert.deepEqual(seen, [{ cheap: "flash_lite" }]);
+  assert.match(out.join(""), /Modelos\s+premium alias por defecto · default alias por defecto · cheap flash_lite/);
+  let called = false;
+  assert.equal(main(["--dry-run", "--dest", path.join(root, "d"), "--model", "premium=gemini-4-neon-high"], { ...base, runConfigure: () => { called = true; return { exitCode: 0 }; } }), 2);
+  assert.equal(called, false);
+  assert.match(err.join(""), /pro, inherit, flash, flash_lite/);
+});
+

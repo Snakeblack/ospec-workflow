@@ -746,8 +746,9 @@ only known phases/agents and catalog choices; catalog entries MUST use target-sc
 opaque IDs or values and MAY declare supported `effort`, `model_reasoning_effort`,
 `variant`, and runtime capabilities. The parser and policy validator MUST reject
 duplicate keys, malformed capability values, unknown target references, and preset
-references that cannot resolve. A catalog entry retained for Antigravity MUST NOT by
-itself make Antigravity selectable or cause model metadata injection.
+references that cannot resolve. Static tier aliases for host-resolved targets
+(such as Claude and Antigravity) MUST be emitted only when the target profile
+declares `model.format`.
 
 #### Scenario: Valid preset and capability data is accepted
 
@@ -763,12 +764,11 @@ itself make Antigravity selectable or cause model metadata injection.
 - THEN validation MUST return a structured error
 - AND no generated output tree MUST be written
 
-#### Scenario: Antigravity catalog does not enable selection
+#### Scenario: Profile without model.format omits model metadata
 
-- GIVEN `models.yaml` contains informational Antigravity catalog values but no selectable profile capability
-- WHEN the target plan and generator run
-- THEN the plan MUST mark Antigravity as inherited
-- AND generated Antigravity files MUST omit model-selection metadata
+- GIVEN `models.yaml` contains tier entries for a target whose profile omits `model.format`
+- WHEN the generator runs
+- THEN generated files for that target MUST omit model-selection metadata
 
 ### Requirement: Target-Compatible Reasoning Metadata and Stale-Value Safety {#REQ-generator-016}
 
@@ -1079,3 +1079,15 @@ Antigravity rule output (`rules/*.instructions.md` with `trigger: glob`) MUST pr
 - AND colliding `skills/sdd-apply/SKILL.md` MUST remain the phase skill with `disable-slash-command: true`
 - AND `rules/sdd-openspec.instructions.md` MUST emit `globs: "**/openspec/**"`
 - AND the other six targets MUST remain byte-identical
+
+### Requirement: Antigravity Native Model Tier Aliases {#REQ-generator-029}
+
+For the `antigravity` target, `scripts/lib/target-profiles/antigravity.js` MUST declare `model: { format: "alias" }`, and `models.yaml` MUST map `premium` to `pro`, `default` to `inherit`, and `cheap` to `flash`. `scripts/lib/model-resolver.js` MUST accept only `{pro, inherit, flash, flash_lite}` (case-insensitive, normalized to lowercase) for `antigravity`, MUST return `OMIT` (omitting `model:` from frontmatter) whenever the effective alias is `inherit` (whether from `models.yaml` or from user overrides), and MUST reject any value outside that closed set fail-closed before writing files.
+
+#### Scenario: Antigravity emits native tier aliases and omits inherit
+
+- GIVEN canonical `models.yaml` (`premium: pro`, `default: inherit`, `cheap: flash`)
+- WHEN `antigravity` is generated without user overrides
+- THEN `premium` agents MUST emit `model: pro`, `cheap` agents MUST emit `model: flash`, and `default` agents MUST omit `model:`
+- AND overrides `premium=INHERIT`, `cheap=FLASH_LITE` MUST omit `model:` on `premium` and emit `model: flash_lite` on `cheap`
+- AND any concrete model ID (such as `gemini-4-neon-high`) MUST fail validation without writing output

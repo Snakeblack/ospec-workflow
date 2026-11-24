@@ -859,9 +859,9 @@ reasoning controls, E4.12.)
 - THEN it MUST list the three tiers with the agents each one serves and the user's current model
 - AND typing MUST edit only the focused tier, with every printable character (including `q`, `j` and `k`) part of the name
 
-#### Scenario: Antigravity remains inherited
+#### Scenario: Inherited host omits model entry
 
-- GIVEN the user selects Antigravity
+- GIVEN the user selects a target marked `inherited: true`
 - WHEN target configuration is displayed
 - THEN the TUI MUST show inherited host behavior
 - AND MUST NOT offer a model entry
@@ -876,18 +876,21 @@ reasoning controls, E4.12.)
 
 ### Requirement: User Tier Model Assignment {#REQ-install-020}
 
-ospec MUST NOT choose a model name for the user outside Claude's aliases (E4.12).
+ospec MUST NOT choose a model name for the user outside Claude's and Antigravity's tier aliases (E4.12).
 The user assigns a model to each tier and host, either with an installer's
 `--model <tier>=<model>` flag (an empty model clears that tier) or in the TUI. The
 assignment MUST be saved in the user's configuration, outside any project
 (`$XDG_CONFIG_HOME/ospec/models.yaml` or `~/.config/ospec/models.yaml`, and
 `%APPDATA%\ospec\models.yaml` on Windows), keeping the other hosts' entries. A model
 is free text as the host spells it, one line of at most 200 characters, never
-validated against a catalog. A tier without a model MUST degrade without error: Claude
-falls back to its alias in `models.yaml`, and every other host omits `model` so its
-agents inherit the session model. A file that cannot be read or parsed, or that names
-an unknown host or tier, MUST be ignored with a visible warning, and MUST NOT be
-overwritten. A `--dry-run` MUST apply the flags to that run only. Antigravity always
+validated against a catalog, except Antigravity, which accepts only its four native
+tier aliases (`pro`, `inherit`, `flash`, `flash_lite`, normalized to lowercase) and
+rejects other values fail-closed because its loader skips concrete model IDs. A tier
+without a model MUST degrade without error: Claude and Antigravity fall back to their
+aliases in `models.yaml` (`inherit` omitting `model:`), and every other host omits
+`model` so its agents inherit the session model. A file that cannot be read or parsed, or that names
+an unknown host, tier, or invalid Antigravity alias, MUST be ignored with a visible warning, and MUST NOT be
+overwritten. A `--dry-run` MUST apply the flags to that run only. An unassignable host always
 inherits and MUST refuse `--model`. An installation with model names that ospec wrote
 earlier is not migrated: its agents inherit, and the installer summary MUST list the
 models of each tier and say how to assign the tiers left to inherit.
@@ -915,11 +918,12 @@ catalog, applied per run without saving them.)
 - THEN it MUST warn that the file is ignored and install with inheriting agents
 - AND a `--model` flag MUST fail without rewriting the file
 
-#### Scenario: Antigravity takes no assignment
+#### Scenario: Antigravity accepts native tier aliases and rejects concrete model IDs
 
-- GIVEN a user passes `--model` to the Antigravity installer
-- WHEN it starts
-- THEN it MUST refuse before any installation
+- GIVEN a user passes `--model cheap=FLASH_LITE` to the Antigravity installer
+- WHEN it runs
+- THEN it MUST normalize the alias to `flash_lite`, forward it to the generator, and report `Modelos` in the summary
+- AND passing a concrete model ID such as `--model premium=gemini-4-neon-high` MUST fail closed before any installation
 
 ---
 

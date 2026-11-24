@@ -1,0 +1,457 @@
+{
+  "schema": "idd-state/v1",
+  "change": "agy-04-model-tiers",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "PR 4 feat/agy-04-model-tiers: enrutamiento de modelos Antigravity tras sonda en vivo en agy 1.5.15",
+    "requested_at": "2026-11-23T22:38:53.098Z",
+    "kind": "feature",
+    "summary": "Habilitar enrutamiento de tiers de modelo nativos (pro, inherit, flash, flash_lite) para Antigravity en models.yaml, user-models, instalador y TUI",
+    "acceptance": "Los agentes generados de Antigravity emiten el tier de modelo resuelto (pro/flash/flash_lite u omision para inherit) validado por agy plugin validate y agy agents, setup:antigravity y el TUI soportan --model validado al conjunto cerrado de Antigravity, y los agentes/artefactos transformados de los otros 6 targets quedan intactos byte a byte"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "Que mapeo por defecto en models.yaml prefieres para Antigravity (A recomendada: premium=pro, default=inherit, cheap=flash; B: cheap=flash_lite; C: default=pro) y prefieres habilitar sobrescritura por usuario (--model y TUI) limitada al conjunto cerrado {pro, inherit, flash, flash_lite} o dejar Antigravity solo con alias fijos de models.yaml?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "Al asignar un override en Antigravity (si se habilita --model), normalizamos a minusculas y tratamos inherit igual que en models.yaml omitiendo model: del frontmatter (A recomendada), o emitimos model: inherit explicito?"
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/user-models.js",
+          "line": 100
+        }
+      },
+      {
+        "category": "copy",
+        "question": "Como la sonda en vivo en agy 1.5.15 confirmo que agents/*.agent.md rechaza IDs concretos (gemini-4-carbon/neon/hydrogen), dejamos la autodeteccion Carbon/Neon/Hydrogen via agy models para donde AGY si acepta IDs (run_workflow/bench en PR 10 y doctor en PR 5) (A recomendada), o anadimos ya un aviso informativo en setup:antigravity?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/model-routing.md",
+          "line": 1
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/install/spec.md",
+          "line": 877
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Ante un valor fuera de {pro, inherit, flash, flash_lite} en --model, TUI o ~/.config/ospec/models.yaml para Antigravity (p. ej. gemini-4-neon-high), rechazamos fail-closed explicando que el loader de Antigravity descarta agentes con IDs concretos (A recomendada), o aceptamos texto libre?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/model-routing.md",
+      "models.yaml",
+      "openspec/specs/generator/spec.md",
+      "openspec/specs/install/spec.md",
+      "scripts/configure/install-antigravity.js",
+      "scripts/configure/install-antigravity.test.js",
+      "scripts/configure/install-output.js",
+      "scripts/configure/installer-adapter.js",
+      "scripts/configure/installer-adapter.test.js",
+      "scripts/configure/installer-protocol.test.js",
+      "scripts/configure/user-model-map.test.js",
+      "scripts/fixtures/context-baseline.json",
+      "scripts/lib/model-resolver.js",
+      "scripts/lib/model-resolver.test.js",
+      "scripts/lib/target-profiles/antigravity.js",
+      "scripts/lib/target-transform.test.js",
+      "scripts/lib/user-models.js",
+      "scripts/lib/user-models.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Usar solo los 4 tiers abstractos validados en vivo por agy 1.5.15 (pro, inherit, flash, flash_lite) en frontmatter de agentes Antigravity para evitar que el loader descarte agentes"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 671
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 671
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration",
+      "recorded_turn": 671
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/configure/cli.js (matches scripts/configure/cli.js)",
+      "source": "diff",
+      "recorded_turn": 678
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/cli.js uses writeFile",
+      "source": "diff",
+      "recorded_turn": 678
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Solo modifica el perfil antigravity y resolucion de modelos sin romper la arquitectura de compilador unico multi-target ni tocar otros targets"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Habilita los 4 alias estables resueltos por Antigravity (pro, inherit, flash, flash_lite) con validacion fail-closed y 0 nombres concretos de modelo en el repo"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "setup:antigravity, build:antigravity y el adaptador TUI operan 100% offline usando solo alias estaticos de models.yaml y validacion local cerrada"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Verificado 0 bytes de diff en todos los artefactos transformados de los otros 6 targets (default y --with-sdd) y paridad de overrides --model/TUI en Antigravity"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado con tests unitarios y runConfigure/buildPlan sin red ni invocacion a agy models",
+      "recorded_at": "2026-11-24T04:57:56.545Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 671,
+      "answer": "todas las recomendadas: (1A) models.yaml con premium=pro, default=inherit, cheap=flash y antigravity en ASSIGNABLE_HOSTS con --model y TUI restringido a {pro, inherit, flash, flash_lite} con fallback a models.yaml como Claude; (2A) normalizar a minusculas y tratar inherit omitiendo model: del frontmatter; (3A) dejar IDs concretos Carbon/Neon/Hydrogen para run_workflow/bench (PR 10) y doctor (PR 5), manteniendo setup:antigravity 100% offline; (4A) fail-closed rechazando valores fuera de {pro, inherit, flash, flash_lite} en user-models, --model y TUI explicando que el loader de Antigravity descarta agentes con IDs concretos",
+      "source": "user",
+      "resolved_at": "2026-11-24T04:48:23.875Z",
+      "resolved_turn": 675
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-24T04:59:30.995Z",
+      "detail": {
+        "tree": "sha256:f90dec4cc53473c24b27f0a8209936bd25e3ea2149aa73cc733efd21a5668704",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-24T04:59:30.995Z",
+      "detail": {
+        "tree": "sha256:f90dec4cc53473c24b27f0a8209936bd25e3ea2149aa73cc733efd21a5668704",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/install/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/install-antigravity.test.js",
+          "scripts/configure/installer-adapter.test.js",
+          "scripts/configure/installer-protocol.test.js",
+          "scripts/configure/user-model-map.test.js",
+          "scripts/lib/model-resolver.test.js",
+          "scripts/lib/target-transform.test.js",
+          "scripts/lib/user-models.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-24T04:59:30.995Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:f90dec4cc53473c24b27f0a8209936bd25e3ea2149aa73cc733efd21a5668704",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-24T05:01:35.819Z",
+      "detail": {
+        "run": "run-6",
+        "tree": "sha256:caf8fa8ae5016a9a5c5b20c666de498e6cb19c1d52ff7cd009874b87183ba1fd",
+        "plan": "Formato retrocompatible de ~/.config/ospec/models.yaml: las entradas existentes de otros hosts se leen sin cambios, la seccion antigravity es opcional con validacion fail-closed y un archivo roto nunca se sobrescribe; revertir vuelve a ignorar antigravity con aviso sin perder configuracion"
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-24T05:03:09.458Z",
+      "detail": {
+        "tree": "sha256:4036e09e4a6cb58858ec81263bc91a58693d885921b9f7c5eab3f5a18d71d14e",
+        "runs": [
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-24T05:03:09.458Z",
+      "detail": {
+        "tree": "sha256:4036e09e4a6cb58858ec81263bc91a58693d885921b9f7c5eab3f5a18d71d14e",
+        "check": "ev-5",
+        "documents": [
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/install/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/install-antigravity.test.js",
+          "scripts/configure/installer-adapter.test.js",
+          "scripts/configure/installer-protocol.test.js",
+          "scripts/configure/user-model-map.test.js",
+          "scripts/lib/model-resolver.test.js",
+          "scripts/lib/target-transform.test.js",
+          "scripts/lib/user-models.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-24T05:03:09.458Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:4036e09e4a6cb58858ec81263bc91a58693d885921b9f7c5eab3f5a18d71d14e",
+        "fitness": [
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-24T05:03:09.602Z"
+    }
+  ],
+  "base": "783ebe015f67f68729b1fa4d8d1282946e6005e5",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:550d74626de2863745bc5d0eebab5bc0851665b134178f0fd1dc3d9b98b04d29",
+      "tree": "sha256:f90dec4cc53473c24b27f0a8209936bd25e3ea2149aa73cc733efd21a5668704",
+      "recorded_at": "2026-11-24T04:59:30.995Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ffe42b5125e78b741a799ed8a6aa81862431f22542eb532611edee13bb65c64f",
+      "tree": "sha256:f90dec4cc53473c24b27f0a8209936bd25e3ea2149aa73cc733efd21a5668704",
+      "recorded_at": "2026-11-24T04:59:30.995Z",
+      "tests": 48
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:f90dec4cc53473c24b27f0a8209936bd25e3ea2149aa73cc733efd21a5668704",
+      "recorded_at": "2026-11-24T04:59:30.995Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ffc2c10aa47f232f582299b12c10adf77910974adf46b17bdf2f5ec977f913b6",
+      "tree": "sha256:f90dec4cc53473c24b27f0a8209936bd25e3ea2149aa73cc733efd21a5668704",
+      "recorded_at": "2026-11-24T04:59:30.995Z",
+      "tests": 26
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7ece5997dd282a0fd793f72fb7139fa71d87944bdd07bc228ecfaf9d7c81fdc4",
+      "tree": "sha256:f90dec4cc53473c24b27f0a8209936bd25e3ea2149aa73cc733efd21a5668704",
+      "recorded_at": "2026-11-24T04:59:30.995Z",
+      "tests": 48
+    },
+    {
+      "id": "run-6",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/user-models.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:830ec6954a85e969fb1f4526c08c31269c3678ee0b0607daa60fdd3a04438814",
+      "tree": "sha256:caf8fa8ae5016a9a5c5b20c666de498e6cb19c1d52ff7cd009874b87183ba1fd",
+      "recorded_at": "2026-11-24T05:01:35.819Z",
+      "tests": 11
+    },
+    {
+      "id": "run-7",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d4bb30617bf1419304ceb1d8a40243f424a45933c725e1f5b3776ce07defc76f",
+      "tree": "sha256:4036e09e4a6cb58858ec81263bc91a58693d885921b9f7c5eab3f5a18d71d14e",
+      "recorded_at": "2026-11-24T05:03:09.458Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:acca3f99765c83b0ef1d1821ff852132a7d8338a26f11f144166d045297f2939",
+      "tree": "sha256:4036e09e4a6cb58858ec81263bc91a58693d885921b9f7c5eab3f5a18d71d14e",
+      "recorded_at": "2026-11-24T05:03:09.458Z",
+      "tests": 48
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4036e09e4a6cb58858ec81263bc91a58693d885921b9f7c5eab3f5a18d71d14e",
+      "recorded_at": "2026-11-24T05:03:09.458Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9d3e5a626f9fee34f411b718042c5766b912d559518781ad7db5797a59c39175",
+      "tree": "sha256:4036e09e4a6cb58858ec81263bc91a58693d885921b9f7c5eab3f5a18d71d14e",
+      "recorded_at": "2026-11-24T05:03:09.458Z",
+      "tests": 26
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:719ae34fd7a4548b23268f234223d8864225e233a357b9ebb6b9b05b02fdf77d",
+      "tree": "sha256:4036e09e4a6cb58858ec81263bc91a58693d885921b9f7c5eab3f5a18d71d14e",
+      "recorded_at": "2026-11-24T05:03:09.458Z",
+      "tests": 48
+    }
+  ],
+  "closed_at": "2026-11-24T05:03:09.602Z"
+}

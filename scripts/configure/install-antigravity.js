@@ -23,11 +23,11 @@ const {
   mutateFs,
 } = require("./install-engine.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
-const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, filesRow, packagesRow, reportAborted, reportBuildFailure, reporterFor, restartHint } = require("./install-output.js");
+const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, filesRow, packagesRow, reportAborted, reportBuildFailure, reportModels, reporterFor, restartHint } = require("./install-output.js");
 const { commandsFromSourceMcp, warnIfUvxMissing } = require("./mcp-prereqs.js");
 
 function usage() {
-  return "uso: install-antigravity [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>] [--out <buildDir>] [--verbose]\n";
+  return "uso: install-antigravity [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>] [--out <buildDir>] [--model <tier>=<modelo>] [--verbose]\n";
 }
 
 function parseArgs(argv) {
@@ -328,8 +328,10 @@ function install(argv = process.argv.slice(2), deps = {}) {
     validate: args.validate,
     withExtras: Boolean(args.withExtras),
     withSdd,
+    userModels: deps.models?.userModels,
   });
   if (reportBuildFailure(reporter, result)) return result.exitCode || 1;
+  if (deps.models) reportModels(reporter, deps.models, "antigravity");
   reporter.set("Destino", targetRoots.join(" · "));
   reporter.set("Paquetes", packagesRow(args, withSdd));
   if (args.dryRun) {
