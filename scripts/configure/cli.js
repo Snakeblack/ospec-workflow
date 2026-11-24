@@ -691,7 +691,7 @@ function runConfigure({ sourceDir, target, outDir, validate = true, withExtras =
 
   // Only an installer passes the user's assignment for this target: a plain
   // build (dist/, CI, the published marketplace) never reads user config.
-  const userPolicy = validateUserModels(userModels);
+  const userPolicy = validateUserModels(userModels, target);
   if (!userPolicy.valid) return { files: [], summary: [], exitCode: 1, validation: { status: 1, stdout: "", stderr: `invalid user models: ${JSON.stringify(userPolicy.errors)}\n` } };
 
   const resolvedModels = userModels === undefined ? models : { ...models, userModels: { ...userModels } };

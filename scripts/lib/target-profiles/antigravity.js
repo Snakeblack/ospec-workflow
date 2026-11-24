@@ -20,7 +20,10 @@ module.exports = {
     frontLoadDescription: false,
   },
 
-  // The host inherits its model; it must never receive selector metadata.
+  // Antigravity agent frontmatter accepts only its 4 stable tier aliases
+  // (pro, inherit, flash, flash_lite); concrete model IDs cause the loader to
+  // skip the agent. `inherit` omits `model:` so the agent uses the session model.
+  model: { format: "alias" },
 
   frontmatter: {
     stripKeys: ["target", "user-invocable"],

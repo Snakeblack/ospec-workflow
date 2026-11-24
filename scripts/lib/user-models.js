@@ -10,12 +10,13 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { KNOWN_TIERS } = require("./model-resolver.js");
+const { ANTIGRAVITY_MODEL_TIERS, KNOWN_TIERS } = require("./model-resolver.js");
 
-// Antigravity always inherits: it is not assignable.
-const ASSIGNABLE_HOSTS = ["claude", "codex", "opencode", "cursor", "vscode", "github-copilot"];
+const ASSIGNABLE_HOSTS = ["claude", "codex", "opencode", "cursor", "vscode", "github-copilot", "antigravity"];
 // A model name is free text, as the host spells it, but one line of at most
-// 200 characters: it ends up in agent frontmatter and TOML.
+// 200 characters: it ends up in agent frontmatter and TOML. Antigravity is
+// restricted to its 4 host-resolved tier aliases because its loader skips
+// agents with concrete model IDs.
 const MODEL_NAME = /^[^\u0000-\u001f\u007f]{1,200}$/;
 const FILE_HEADER = [
   "# ospec: modelo de cada tier por host. Lo escriben `--model <tier>=<modelo>`",
@@ -57,14 +58,34 @@ function parseUserModels(text) {
     if (raw.startsWith('"')) {
       try { value = JSON.parse(raw); } catch { fail("invalid quoted model"); }
     }
-    if (typeof value !== "string" || !isModelName(value.trim())) fail(`invalid model for ${host}.${tier}`);
-    models[host][tier] = value.trim();
+    const checked = normalizeHostModel(host, tier, value);
+    if (checked.error) fail(checked.parseError || checked.error);
+    models[host][tier] = checked.value;
   }
   return models;
 }
 
 function isModelName(value) {
   return typeof value === "string" && MODEL_NAME.test(value);
+}
+
+function normalizeHostModel(host, tier, value) {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  if (!isModelName(trimmed)) {
+    return { error: `modelo no válido para ${tier}: una línea de 1 a 200 caracteres`, parseError: `invalid model for ${host}.${tier}` };
+  }
+  if (host === "antigravity") {
+    const lower = trimmed.toLowerCase();
+    if (!ANTIGRAVITY_MODEL_TIERS.includes(lower)) {
+      const allowed = ANTIGRAVITY_MODEL_TIERS.join(", ");
+      return {
+        error: `modelo no válido para antigravity.${tier} ("${trimmed}"): el loader de Antigravity solo acepta ${allowed} (descarta agentes con IDs concretos de modelo)`,
+        parseError: `invalid model for antigravity.${tier} ("${trimmed}"): Antigravity only accepts ${allowed} (loader skips concrete model IDs)`,
+      };
+    }
+    return { value: lower };
+  }
+  return { value: trimmed };
 }
 
 function formatUserModels(models) {
@@ -106,8 +127,11 @@ function writeUserModels(host, updates, { fs: fsImpl = fs, ...pathOptions } = {}
   for (const [tier, value] of Object.entries(updates)) {
     if (!KNOWN_TIERS.includes(tier)) throw new Error(`tier desconocido "${tier}"`);
     if (value === null || !String(value).trim()) delete tiers[tier];
-    else if (!isModelName(String(value).trim())) throw new Error(`modelo no válido para ${tier}: una línea de 1 a 200 caracteres`);
-    else tiers[tier] = String(value).trim();
+    else {
+      const checked = normalizeHostModel(host, tier, String(value));
+      if (checked.error) throw new Error(checked.error);
+      tiers[tier] = checked.value;
+    }
   }
   if (Object.keys(tiers).length) models[host] = tiers;
   else delete models[host];
@@ -172,18 +196,27 @@ function prepareUserModels(argv, host, { persist = true, ...options } = {}) {
   if (updates && !persist) {
     for (const [tier, value] of Object.entries(flags.updates)) {
       if (value === null) delete result.userModels[tier];
-      else result.userModels[tier] = value;
+      else {
+        const checked = normalizeHostModel(host, tier, value);
+        if (checked.error) {
+          result.error = checked.error;
+          return result;
+        }
+        result.userModels[tier] = checked.value;
+      }
     }
   }
-  // Claude's tiers fall back to the aliases of models.yaml, never to inherit.
-  result.unassigned = host === "claude" ? [] : KNOWN_TIERS.filter(tier => !result.userModels[tier]);
+  // Claude and Antigravity fall back to the stable aliases in models.yaml.
+  result.unassigned = host === "claude" || host === "antigravity" ? [] : KNOWN_TIERS.filter(tier => !result.userModels[tier]);
   return result;
 }
 
 module.exports = {
+  ANTIGRAVITY_MODEL_TIERS,
   ASSIGNABLE_HOSTS,
   formatUserModels,
   isModelName,
+  normalizeHostModel,
   parseModelFlags,
   parseUserModels,
   prepareUserModels,

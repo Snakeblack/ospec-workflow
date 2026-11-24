@@ -1754,3 +1754,20 @@ test("antigravity emits non-colliding SDD meta-commands as flat skills, prefixes
   assert.equal(getField(parse(find(codexOut, "skills/commands/sdd-new/SKILL.md").content).frontmatter, "disable-model-invocation"), null);
 });
 
+test("antigravity emits native model tier aliases, omits inherit, and respects validated overrides", () => {
+  const files = [...makeSource(), { path: "agents/sdd-init.agent.md", content: "---\nname: sdd-init\ndescription: Init.\n---\nBody.\n" }];
+  const models = {
+    agents: { ...MODELS.agents, "sdd-init": "cheap" },
+    tiers: {
+      premium: { ...MODELS.tiers.premium, antigravity: "pro" },
+      default: { ...MODELS.tiers.default, antigravity: "inherit" },
+      cheap: { ...MODELS.tiers.cheap, antigravity: "flash" },
+    },
+  };
+  const modelOf = (out, file) => getField(parse(find(out, file).content).frontmatter, "model")?.value ?? null;
+  const defaults = transform({ files, profile: antigravity, models });
+  assert.deepEqual([modelOf(defaults, "agents/sdd-orchestrator.agent.md"), modelOf(defaults, "agents/sdd-apply.agent.md"), modelOf(defaults, "agents/sdd-init.agent.md")], ["pro", null, "flash"]);
+  const over = transform({ files, profile: antigravity, models: { ...models, userModels: { premium: "INHERIT", cheap: "FLASH_LITE" } } });
+  assert.deepEqual([modelOf(over, "agents/sdd-orchestrator.agent.md"), modelOf(over, "agents/sdd-init.agent.md")], [null, "flash_lite"]);
+});
+

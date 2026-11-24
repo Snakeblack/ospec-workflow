@@ -21,8 +21,10 @@ const AGENT_DIRS = {
   opencode: path.join(".opencode", "agents"),
   codex: path.join(".codex", "agents"),
   cursor: "agents",
+  antigravity: "agents",
 };
 const CLAUDE_ALIASES = new Set(["opus", "sonnet", "haiku"]);
+const ANTIGRAVITY_ALIASES = new Set(["pro", "flash", "flash_lite"]);
 
 function tempDir(t, prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -44,27 +46,29 @@ function declaredModels(out, target) {
 }
 
 for (const target of Object.keys(AGENT_DIRS)) {
-  test(`${target}: a fresh build writes ${target === "claude" ? "only Claude's aliases" : "no model name"} and the user's models once assigned`, (t) => {
+  test(`${target}: a fresh build writes ${target === "claude" ? "only Claude's aliases" : target === "antigravity" ? "only Antigravity's tier aliases" : "no model name"} and the user's models once assigned`, (t) => {
     const fresh = tempDir(t, `ospec-e412-${target}-`);
     // Cursor's own validator runs: an agent without model must pass it.
     const validate = target === "cursor";
     const first = runConfigure({ sourceDir: ROOT, target, outDir: fresh, validate, withSdd: true });
     assert.equal(first.exitCode, 0, first.validation?.stderr);
     const names = declaredModels(fresh, target);
-    if (target === "claude") {
-      assert.ok(names.length > 0);
-      assert.ok(names.every((name) => CLAUDE_ALIASES.has(name)), names.join(", "));
+    const allowed = target === "claude" ? CLAUDE_ALIASES : target === "antigravity" ? ANTIGRAVITY_ALIASES : null;
+    if (allowed) {
+      assert.ok(names.length > 0 && names.every((name) => allowed.has(name)), names.join(", "));
+      if (target === "antigravity") assert.doesNotMatch(fs.readFileSync(path.join(fresh, "agents", "sdd-apply.agent.md"), "utf8"), /^model:/m);
     } else {
       assert.deepEqual(names, [], `${target} must inherit until the user assigns a model`);
     }
 
     const assigned = tempDir(t, `ospec-e412-${target}-user-`);
-    const userModels = { premium: "user-premium", default: "user-default", cheap: "user-cheap" };
+    const userModels = target === "antigravity" ? { premium: "PRO", default: "INHERIT", cheap: "flash_lite" } : { premium: "user-premium", default: "user-default", cheap: "user-cheap" };
     const second = runConfigure({ sourceDir: ROOT, target, outDir: assigned, validate, withSdd: true, userModels });
     assert.equal(second.exitCode, 0, second.validation?.stderr);
     const chosen = declaredModels(assigned, target);
-    assert.ok(chosen.length > 0);
-    assert.ok(chosen.every((name) => Object.values(userModels).includes(name)), chosen.join(", "));
+    const expected = target === "antigravity" ? ["pro", "flash_lite"] : Object.values(userModels);
+    assert.ok(chosen.length > 0 && chosen.every((name) => expected.includes(name)), chosen.join(", "));
+    if (target === "antigravity") assert.doesNotMatch(fs.readFileSync(path.join(assigned, "agents", "sdd-apply.agent.md"), "utf8"), /^model:/m);
   });
 }
 
@@ -85,15 +89,19 @@ test("an installer takes --model, saves it for its host and reports the tiers le
   assert.equal(userModelsPath({ homedir: () => home, env: {} }), seen.models.file);
 });
 
-test("an installer refuses --model on a host that always inherits", (t) => {
+test("the antigravity installer accepts native tier aliases and rejects concrete model IDs", (t) => {
   const home = tempDir(t, "ospec-e412-home-");
   const out = [];
   const stream = { write: (text) => out.push(String(text)) };
-  let called = false;
-  const main = withEngramStep("antigravity", () => { called = true; return 0; });
-  assert.equal(main(["--model", "premium=x"], { homedir: () => home, stdout: stream, stderr: stream }), 2);
-  assert.equal(called, false);
-  assert.match(out.join(""), /hereda el modelo de la sesión/);
+  let seen;
+  const main = withEngramStep("antigravity", (argv, deps) => { seen = { argv, models: deps.models }; return 0; });
+  assert.equal(main(["--model", "premium=gemini-4-neon-high"], { homedir: () => home, stdout: stream, stderr: stream }), 2);
+  assert.equal(seen, undefined);
+  assert.match(out.join(""), /pro, inherit, flash, flash_lite/);
+
+  assert.equal(main(["--model", "cheap=FLASH_LITE"], { homedir: () => home, stdout: stream, stderr: stream }), 0);
+  assert.deepEqual(seen.models.userModels, { cheap: "flash_lite" });
+  assert.deepEqual(readUserModels({ homedir: () => home, env: {} }).models, { antigravity: { cheap: "flash_lite" } });
 });
 
 test("the summary shows each tier's model and says how to assign the rest", () => {

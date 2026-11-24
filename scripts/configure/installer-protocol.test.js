@@ -13,15 +13,18 @@ function cleanHome(t) {
   return { homedir: () => dir, env: {}, platform: process.platform };
 }
 
-test("the live plan offers every model tier on each assignable host, with no model name but Claude's aliases", (t) => {
+test("the live plan offers every model tier on each assignable host, with no model name but Claude's and Antigravity's aliases", (t) => {
   const plan = buildPlan({ sourceDir: process.cwd(), userModelsOptions: cleanHome(t) });
-  for (const id of ["claude", "codex", "opencode", "cursor", "vscode", "github-copilot"]) {
+  const expectedFallbacks = {
+    claude: ["opus", "sonnet", "haiku"],
+    antigravity: ["pro", "inherit", "flash"],
+  };
+  for (const id of ["claude", "codex", "opencode", "cursor", "vscode", "github-copilot", "antigravity"]) {
     const target = plan.targets.find(item => item.id === id);
     assert.deepEqual(target.tiers.map(tier => tier.id), ["premium", "default", "cheap"], id);
     assert.ok(target.tiers.every(tier => tier.value === "" && tier.agents.length > 0), id);
-    assert.deepEqual(target.tiers.map(tier => tier.fallback), id === "claude" ? ["opus", "sonnet", "haiku"] : ["", "", ""], id);
+    assert.deepEqual(target.tiers.map(tier => tier.fallback), expectedFallbacks[id] || ["", "", ""], id);
   }
-  assert.deepEqual(plan.targets.find(item => item.id === "antigravity").tiers, []);
 });
 
 test("protocol v3 accepts a request built from the live plan", (t) => {

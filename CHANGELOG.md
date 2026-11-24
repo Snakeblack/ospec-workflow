@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Habilitar enrutamiento de tiers de modelo nativos (pro, inherit, flash, flash_lite) para Antigravity en models.yaml, user-models, instalador y TUI (agy-04-model-tiers)
+
 ### Fixed
 - Cerrar bypass de PreToolUse en write_file/edit_file/read_file (AGY 1.5.14), respetar cwd nativo y evitar reanudacion en Stop cancelado o no ocioso, aislado al adaptador de Antigravity (agy-01-pretooluse-stop)
 - Actualizar toolMap de Antigravity a AGY 1.5.14, aislar subagentes review-* (mainAgent/subagent/inheritMcp/commandExecutionPolicy) y traducir flags de skills internas solo en target Antigravity (agy-02-agents-tools)

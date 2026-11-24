@@ -3,15 +3,16 @@
 # Two tables:
 #   agents: which tier each agent needs. THIS is the only agent→tier policy.
 #   tiers:  what each tier carries per target that does not age: Claude's
-#           aliases (the host resolves them to its latest model) and Codex's
-#           reasoning effort.
+#           aliases, Antigravity's tier aliases (pro, inherit, flash,
+#           flash_lite — host-resolved) and Codex's reasoning effort.
 #
 # ospec ships no model names (E4.12). On Codex, OpenCode, Cursor, VS Code and
 # GitHub Copilot the user assigns a model to each tier with an installer's
 # `--model <tier>=<model>` or the TUI; the assignment lives in the user's
-# config (scripts/lib/user-models.js) and can also replace a Claude alias.
-# A tier without a model leaves `model` out, so the agent inherits the
-# session model. The validator checks roster completeness and known tiers.
+# config (scripts/lib/user-models.js) and can also replace a Claude or
+# Antigravity alias. A tier without a model leaves `model` out, so the agent
+# inherits the session model. The validator checks roster completeness and
+# known tiers.
 
 agents:
   # Premium:
@@ -58,6 +59,7 @@ tiers:
   # Infrequent, high-blast-radius decisions.
   premium:
     claude: opus
+    antigravity: pro
     codex:
       model_reasoning_effort: high
       model_verbosity: medium
@@ -66,6 +68,7 @@ tiers:
   # Frequent semantic work.
   default:
     claude: sonnet
+    antigravity: inherit
     codex:
       model_reasoning_effort: high
       model_verbosity: medium
@@ -74,6 +77,7 @@ tiers:
   # Bounded or mechanical work.
   cheap:
     claude: haiku
+    antigravity: flash
     codex:
       model_reasoning_effort: low
       model_verbosity: low
