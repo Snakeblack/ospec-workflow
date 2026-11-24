@@ -284,7 +284,7 @@ test("global setup installs native plugin, migrates legacy owned files/hooks ato
   put(path.join(cfg, ".ospec-workflow-install.json"), JSON.stringify({ version: "2.185.0", target: "antigravity", files: ["agents/sdd-apply.agent.md", "rules/ospec-router.instructions.md", "hooks.json", ".ospec-workflow-install.json"] }));
   const seenSdd = [];
   const runConfigure = ({ outDir, withSdd }) => { seenSdd.push(withSdd); makeValidBuild(outDir, { withSdd }); return { exitCode: 0, validation: { errors: [] } }; };
-  const baseDeps = { platform: "linux", env: {}, runConfigure, copyBinaryToTree: () => {}, stdout: { write() {} }, stderr: { write() {} } };
+  const baseDeps = { env: {}, runConfigure, copyBinaryToTree: () => {}, stdout: { write() {} }, stderr: { write() {} } };
   assert.equal(main(["--source", sourceDir, "--no-engram"], { ...baseDeps, homedir: () => home }), 0);
   assert.deepEqual(seenSdd, [true]);
   assert.ok(fs.existsSync(path.join(pluginDir, ".antigravity-plugin", "plugin.json")) && fs.existsSync(path.join(pluginDir, "hooks.json")));
@@ -317,7 +317,7 @@ test("--workspace installs into <repo>/.agents/plugins/ospec-workflow with relat
   assert.match(parseArgs(["--dest", "/a", "--workspace", "/b"]).error, /cannot be combined/);
   let engramRan = false;
   const code = main(["--source", sourceDir, "--workspace", repoDir, "--with-sdd"], {
-    homedir: () => home, platform: "linux", env: {}, copyBinaryToTree: () => {},
+    homedir: () => home, env: {}, copyBinaryToTree: () => {},
     runConfigure: ({ outDir, withSdd }) => { makeValidBuild(outDir, { withSdd }); return { exitCode: 0, validation: { errors: [] } }; },
     engramStep: () => { engramRan = true; }, stdout: { write() {} }, stderr: { write() {} },
   });

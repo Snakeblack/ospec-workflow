@@ -381,4 +381,17 @@ test("safeParseJsonc preserves string literals containing comma and closing brac
   assert.equal(parsed.arrayInString, "[\n    1,\n  ]");
 });
 
+test("assertPathSafe resolves symlinked ancestors for non-existent nested paths and still rejects escaping symlinks", () => {
+  const root = path.resolve("/var/tmp/home/.gemini/config");
+  const realRoot = path.resolve("/private/var/tmp/home/.gemini/config");
+  const escape = path.join(root, "escape");
+  const enoent = () => Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+  const fakeFs = {
+    lstatSync: (p) => (path.resolve(p) === root || path.resolve(p) === escape ? { isSymbolicLink: () => false } : (() => { throw enoent(); })()),
+    realpathSync: (p) => (path.resolve(p) === root ? realRoot : path.resolve(p) === escape ? path.resolve("/etc") : (() => { throw enoent(); })()),
+  };
+  assert.doesNotThrow(() => assertPathSafe(root, path.join(root, "plugins", "ospec-workflow"), fakeFs));
+  assert.throws(() => assertPathSafe(root, path.join(escape, "x"), fakeFs), /escapes target root/);
+});
+
 
