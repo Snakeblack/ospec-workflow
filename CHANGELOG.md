@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.187.1] - 2026-11-24
+
+### Changed
+- **El roadmap registra el modo automático de IDD como E1.107 a E1.110** (roadmap-auto-mode). Es un modo opcional que ejecuta la cola de un roadmap con una sesión nueva por cambio; el interactivo queda como hoy y sigue siendo el de por defecto. No cambia código: solo fija los ítems y su orden.
+  - **Los ítems**: E1.107 `delegated-answers` (la recomendación por pregunta en disco, la fuente `delegated` y los gates que nunca la admiten, con un ADR que enmienda el principio 8), E1.108 `auto-conductor` (`ospec auto` sobre el conductor del banco, en Claude Code y Antigravity), E1.109 `execution-mode-choice` (la pregunta entre interactivo y automático cuando hay una cola) y E1.110 `auto-conductor-hosts` (Codex, OpenCode, Copilot CLI y Cursor, cada uno verificado en vivo).
+  - **El orden**: van por delante de E1.79 por decisión del usuario, y absorben E5.5 `change-program`, donde solo queda partir en cambios hijos un ítem que no cabe en un cambio.
+  - **El análisis**: `docs/analysis/2026-11-24-modo-automatico.md` recoge lo que permite cada host sin interfaz, lo que ospec ya tiene, la estrategia y las alternativas descartadas.
+
+**Verificación directa**: `node scripts/check.js` (5120 tests pasando, 0 fallos y 5 omitidos), 460 de ellos en la fase serie, con los siete targets generados y validados.
+
 ## [2.187.0] - 2026-11-24
 
 ### Added
