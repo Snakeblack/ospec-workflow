@@ -460,6 +460,26 @@ The section SHOULD be 10–20 lines, so the skill stays short (§3.1).
 - THEN at least one extracted rule MUST prohibit editing or committing on the default branch
 - AND this rule MUST appear in the compact-rule output injected into sub-agent prompts
 
+## 6b. Specific Skill Requirements: issue-creation
+
+`skills/issue-creation/SKILL.md` MUST describe an issue the next change can start from: its kind, a summary, the evidence, the observable result and the questions nobody has decided, the parts `ospec record intent` takes. It MUST use the templates and the labels the repository already has and MUST NOT assume a fixed approval workflow.
+
+Its rules section MUST forbid secrets, personal data and vulnerabilities in a public issue. It MUST also hold the rule that an issue, or evidence added to an existing one, is published only after the user saw that draft and agreed, with no exception for a user who asked for the issue, so the rule reaches a sub-agent through the compact rules.
+
+#### Scenario: An issue for what a change left out
+
+- GIVEN a change that found a defect outside its scope and a user who agreed to file it
+- WHEN an agent follows `issue-creation`
+- THEN the draft MUST carry the evidence recorded by that change and name it
+- AND the agent MUST show the draft before publishing it
+
+#### Scenario: A duplicate exists
+
+- GIVEN an open issue that already covers the problem
+- WHEN an agent follows `issue-creation`
+- THEN it MUST propose the comment that adds the new evidence and show it to the user
+- AND it MUST NOT post the comment or file a second issue before the user agrees
+
 ---
 
 ## 7. Scenarios

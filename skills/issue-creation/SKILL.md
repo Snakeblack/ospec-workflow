@@ -1,223 +1,86 @@
 ---
 name: issue-creation
-description: "Create GitHub issues with issue-first checks. Trigger: creating GitHub issues, bug reports, or feature requests."
+description: "Write an issue the next change can start from: one problem, its evidence and an observable result. Trigger: create issue, file an issue, bug report, feature request."
 license: MIT AND Commons-Clause
 metadata:
-  author: "gentleman-programming, manuel-retamozo-garcia"
-  version: "1.0"
+  author: manuel-retamozo-garcia
+  version: "2.0"
 ---
 
 ## When to Use
 
-Use this skill when:
-- Creating a GitHub issue (bug report or feature request)
-- Helping a contributor file an issue
-- Triaging or approving issues as a maintainer
+Load this skill when the user asks to file an issue, or agrees to file what a
+change left out: a defect outside its scope, a follow-up, a friction with a
+tool. Work that starts now needs no issue: open the change. A question is
+answered, not filed, and a reply on an existing issue belongs to
+`comment-writer`.
 
----
+An issue is published where other people read it. A request to file one asks
+for the draft, not for its publication: the user sees every draft before it
+goes out.
 
-## Critical Rules
+## Rules
 
-1. **Blank issues are disabled** — MUST use a template (bug report or feature request)
-2. **Every issue gets `status:needs-review` automatically** on creation
-3. **A maintainer MUST add `status:approved`** before any PR can be opened
-4. **Questions go to [Discussions](https://github.com/manuel-retamozo-garcia/agent-teams-lite/discussions)**, not issues
+- One issue holds one problem or one request: split what would be fixed or decided on its own.
+- Search open and closed issues first; when one covers the problem, propose adding the new evidence to it and file no second issue.
+- State the result as what a person can observe once the issue is done, never as the code to write.
+- A defect carries the steps that reproduce it, the expected result, the actual one, and the version or commit where it was seen.
+- Quote evidence exactly: the command, the error text and `path:line`, never a paraphrase of an error.
+- Never put secrets, tokens, personal data or private code in an issue: cut them from a log before quoting it.
+- Never file a vulnerability as a public issue: follow the security policy of the repository, or ask the user for the private channel.
+- Use the issue templates and the labels the repository already has; never create a label, assign a person or set a milestone unasked.
+- Write the title and the body in the project's language.
+- Never credit a model, a vendor or an agent tool in an issue.
+- Never approve, close or relabel an issue on behalf of a maintainer unless the user asked for that action.
+- Publish an issue, or evidence added to an existing one, only after the user saw that draft and agreed; a request to file is not that agreement.
 
----
+## What the Issue Holds
 
-## Workflow
+| Part | Content |
+|---|---|
+| Title | The problem or the request in one line, in the style of the existing titles |
+| Kind | `bug`, `feature`, `refactor` or `docs` |
+| Summary | What is wrong or missing, and who meets it |
+| Evidence | Steps, expected and actual result, `path:line`, version or commit |
+| Result | What can be observed when it is done |
+| Open questions | Each behavior nobody has decided yet, one per line |
+| Out of scope | What the issue does not ask for, when a reader could assume it |
 
-```
-1. Search existing issues for duplicates
-2. Choose the correct template (Bug Report or Feature Request)
-3. Fill in ALL required fields
-4. Check pre-flight checkboxes
-5. Submit → issue gets status:needs-review automatically
-6. Wait for maintainer to add status:approved
-7. Only then open a PR linking this issue
-```
+When the repository has a template its fields decide the shape: put each part
+in the field that asks for it, and add the result when no field does.
 
----
+These parts are what a change starts from. Whoever takes the issue passes
+them to `ospec record intent` as `--kind`, `--summary`, `--acceptance` and one
+`--open-fact` per open question.
 
-## Issue Templates
+The project's language is the `language` line of `ospec team`. When it prints
+none, or the project has no `ospec`, use the language of the existing issues,
+and with none the language the user writes in.
 
-### Bug Report
+## Steps
 
-Template: `.github/ISSUE_TEMPLATE/bug_report.yml`
-Auto-labels: `bug`, `status:needs-review`
+1. Find where issues live: `git remote get-url origin`. On GitHub use `gh`
+   once `gh auth status` passes; on another host use its CLI when it is
+   installed. Without one, the steps below still produce the draft, and the
+   user pastes it.
+2. Search for duplicates with the words of the problem:
+   `gh issue list --state all --search "<words>"`. Show a likely one to the
+   user before going on.
+3. Read what the repository asks for: its templates
+   (`.github/ISSUE_TEMPLATE/`) and its labels (`gh label list`).
+4. Draft the issue. For something a change left out, take the evidence from
+   that change (in IDD, `change.md` under `idd/<change>/` or
+   `idd/archive/<date>-<change>/`) and name it.
+5. Show the draft with its labels, or the comment for an existing issue, and
+   wait for the user's answer.
+6. Publish what the user agreed to, from a file:
+   `gh issue create --title "<title>" --body-file <file> --label <label>`, or
+   `gh issue comment <number> --body-file <file>` for an existing issue.
+   A form template (`.yml`) is not filled from the command line: write one
+   `### <field label>` heading per field, in the template's order, and pass
+   the labels the template declares.
 
-#### Required Fields
+## Output
 
-| Field | Description |
-|-------|-------------|
-| **Pre-flight Checks** | Checkboxes: no duplicate + understands approval workflow |
-| **Bug Description** | Clear description of the bug |
-| **Steps to Reproduce** | Numbered steps to reproduce |
-| **Expected Behavior** | What should have happened |
-| **Actual Behavior** | What happened instead (include errors/logs) |
-| **Operating System** | Dropdown: macOS, Linux variants, Windows, WSL |
-| **Agent / Client** | Dropdown: Claude Code, OpenCode, Gemini CLI, Cursor, Windsurf, Codex, Other |
-| **Shell** | Dropdown: bash, zsh, fish, Other |
-
-#### Optional Fields
-
-| Field | Description |
-|-------|-------------|
-| **Relevant Logs** | Log output (auto-formatted as code block) |
-| **Additional Context** | Screenshots, workarounds, extra info |
-
-#### Example — Bug Report via CLI
-
-```bash
-gh issue create --template "bug_report.yml" \
-  --title "fix(scripts): setup.sh fails on zsh with glob error" \
-  --body "
-### Pre-flight Checks
-- [x] I have searched existing issues and this is not a duplicate
-- [x] I understand this issue needs status:approved before a PR can be opened
-
-### Bug Description
-Running setup.sh on zsh throws a glob error when no matching files exist.
-
-### Steps to Reproduce
-1. Clone the repo
-2. Run \`./scripts/setup.sh\` in zsh
-3. See error: \`zsh: no matches found: skills/*\`
-
-### Expected Behavior
-The script should handle missing glob matches gracefully.
-
-### Actual Behavior
-Script crashes with glob error.
-
-### Operating System
-macOS
-
-### Agent / Client
-Claude Code
-
-### Shell
-zsh
-
-### Relevant Logs
-\`\`\`
-zsh: no matches found: skills/*
-\`\`\`
-"
-```
-
----
-
-### Feature Request
-
-Template: `.github/ISSUE_TEMPLATE/feature_request.yml`
-Auto-labels: `enhancement`, `status:needs-review`
-
-#### Required Fields
-
-| Field | Description |
-|-------|-------------|
-| **Pre-flight Checks** | Checkboxes: no duplicate + understands approval workflow |
-| **Problem Description** | The pain point this feature solves |
-| **Proposed Solution** | How it should work from the user's perspective |
-| **Affected Area** | Dropdown: Scripts, Skills, Examples, Documentation, CI/Workflows, Other |
-
-#### Optional Fields
-
-| Field | Description |
-|-------|-------------|
-| **Alternatives Considered** | Other approaches or workarounds |
-| **Additional Context** | Mockups, examples, references |
-
-#### Example — Feature Request via CLI
-
-```bash
-gh issue create --template "feature_request.yml" \
-  --title "feat(scripts): add Codex support to setup.sh" \
-  --body "
-### Pre-flight Checks
-- [x] I have searched existing issues and this is not a duplicate
-- [x] I understand this issue needs status:approved before a PR can be opened
-
-### Problem Description
-The setup script only configures Claude Code, Gemini CLI, and OpenCode. Codex users have to manually copy skills.
-
-### Proposed Solution
-Add a Codex option to setup.sh that links skills to the .codex/ directory.
-
-Example:
-\`\`\`bash
-./scripts/setup.sh --agent codex
-\`\`\`
-
-### Affected Area
-Scripts (setup, installation)
-
-### Alternatives Considered
-Manually symlinking, but that defeats the purpose of the setup script.
-"
-```
-
----
-
-## Label System
-
-### Applied Automatically on Issue Creation
-
-| Template | Labels added |
-|----------|-------------|
-| Bug Report | `bug`, `status:needs-review` |
-| Feature Request | `enhancement`, `status:needs-review` |
-
-### Applied by Maintainers
-
-| Label | When to apply |
-|-------|--------------|
-| `status:approved` | Issue accepted for implementation — PRs can now be opened |
-| `priority:high` | Critical bug or urgent feature |
-| `priority:medium` | Important but not blocking |
-| `priority:low` | Nice to have |
-
----
-
-## Maintainer Approval Workflow
-
-```
-1. New issue arrives with status:needs-review
-2. Review the issue — is it valid, clear, and in scope?
-3. If YES → add status:approved label
-4. If NO → comment with reason, close if needed
-5. Contributor can now open a PR linking this issue
-```
-
----
-
-## Decision Tree
-
-```
-Is it a bug?                    → Use Bug Report template
-Is it a new feature/improvement? → Use Feature Request template
-Is it a question?               → Use Discussions, NOT issues
-Is it a duplicate?              → Link to existing issue, close
-```
-
----
-
-## Commands
-
-```bash
-# Search existing issues before creating
-gh issue list --search "keyword"
-
-# Create bug report
-gh issue create --template "bug_report.yml" --title "fix(scope): description"
-
-# Create feature request
-gh issue create --template "feature_request.yml" --title "feat(scope): description"
-
-# Maintainer: approve an issue
-gh issue edit <number> --add-label "status:approved"
-
-# Maintainer: add priority
-gh issue edit <number> --add-label "priority:high"
-```
+Return the issue URL, or the draft when nothing was published; the duplicates
+considered; and anything the issue leaves out and why.
