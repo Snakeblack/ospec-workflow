@@ -7,12 +7,15 @@ const { parse, getField } = require("../lib/frontmatter.js");
 const { MANIFEST_FILENAME } = require("./install-engine.js");
 
 const REQUIRED_PATHS = [
+  { rel: ".antigravity-plugin/plugin.json", type: "file" },
   { rel: "agents", type: "directory" },
   { rel: "rules", type: "directory" },
   { rel: "skills", type: "directory" },
   { rel: "scripts/hooks", type: "directory" },
   { rel: "hooks.json", type: "file" },
 ];
+
+const FORBIDDEN_MANIFEST_KEYS = ["agents", "commands", "skills", "rules", "hooks", "mcpServers"];
 
 const FORBIDDEN_PATHS = [".claude-plugin", ".codex-plugin", ".github", ".opencode", "commands", ".mcp.json"];
 const ALLOWED_TOOLS = new Set(["read_file", "write_file", "edit_file", "run_command", "invoke_subagent", "ask_question", "search_web", "manage_task"]);
@@ -84,6 +87,36 @@ function validateForbiddenPaths(root, errors, fsImpl = fs) {
   }
 }
 
+function validatePluginManifest(root, errors, fsImpl = fs) {
+  const manifestPath = path.join(root, ".antigravity-plugin", "plugin.json");
+  if (!fsImpl.existsSync(manifestPath)) return;
+  let doc;
+  try {
+    doc = JSON.parse(fsImpl.readFileSync(manifestPath, "utf8"));
+  } catch (error) {
+    errors.push(`.antigravity-plugin/plugin.json is not valid JSON: ${error.message}`);
+    return;
+  }
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
+    errors.push(".antigravity-plugin/plugin.json must be a JSON object");
+    return;
+  }
+  for (const field of ["name", "version", "description"]) {
+    if (typeof doc[field] !== "string" || !doc[field].trim()) {
+      errors.push(`.antigravity-plugin/plugin.json missing required string field: ${field}`);
+    }
+  }
+  for (const forbidden of FORBIDDEN_MANIFEST_KEYS) {
+    if (Object.hasOwn(doc, forbidden)) errors.push(`.antigravity-plugin/plugin.json contains unsupported manifest key: ${forbidden}`);
+  }
+  if (typeof doc.logo === "string" && doc.logo.trim()) {
+    const logoRel = doc.logo.replace(/^\.\//, "");
+    if (!fsImpl.existsSync(path.join(root, logoRel))) {
+      errors.push(`.antigravity-plugin/plugin.json logo asset missing: ${doc.logo}`);
+    }
+  }
+}
+
 function validateHooksJson(root, errors, fsImpl = fs) {
   const hooksPath = path.join(root, "hooks.json");
   if (!fsImpl.existsSync(hooksPath)) return;
@@ -105,9 +138,13 @@ function validateHooksJson(root, errors, fsImpl = fs) {
   // decision "continue" and injects the open IDD changes through injectSteps.
   for (const [group, event] of [["ospec-stop", "Stop"], ["ospec-session-start", "SessionStart"]]) {
     const entries = Array.isArray(parsed[group]?.[event]) ? parsed[group][event] : [];
-    if (entries.length === 0 || !entries.every((entry) => isHandler(entry) && entry.command.includes("scripts/hooks/ospec-antigravity-hook.js"))) {
-      errors.push(`hooks.json ${group}.${event} must run scripts/hooks/ospec-antigravity-hook.js`);
+    if (entries.length === 0 || !entries.every((entry) => isHandler(entry) && entry.command.includes("./scripts/hooks/ospec-antigravity-hook.js"))) {
+      errors.push(`hooks.json ${group}.${event} must run ./scripts/hooks/ospec-antigravity-hook.js`);
     }
+  }
+  const rawHooks = JSON.stringify(parsed);
+  if (rawHooks.includes("${PLUGIN_ROOT}")) {
+    errors.push("hooks.json must use relative ./scripts/hooks/... instead of ${PLUGIN_ROOT}");
   }
 
   for (const [group, spec] of Object.entries(parsed)) {
@@ -206,6 +243,7 @@ function validatePlaceholders(root, errors, fsImpl = fs, { installed = false, ow
 function validateTree(root, errors, fsImpl, { installed = false, owned = null } = {}) {
   validateRequiredPaths(root, errors, fsImpl);
   validateForbiddenPaths(root, errors, fsImpl);
+  validatePluginManifest(root, errors, fsImpl);
   validateHooksJson(root, errors, fsImpl);
   validateAgents(root, errors, fsImpl, owned);
   validateRules(root, errors, fsImpl, owned);

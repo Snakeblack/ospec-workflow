@@ -7,6 +7,26 @@
 module.exports = {
   id: "antigravity",
 
+  // Native Antigravity plugin manifest (.antigravity-plugin/plugin.json) + icon
+  // so `dist/antigravity` passes `agy plugin validate --strict --json` cleanly.
+  manifest: {
+    location: ".claude-plugin/plugin.json",
+    outLocation: ".antigravity-plugin/plugin.json",
+    keepFields: ["name", "version", "description", "author"],
+    extraFields: {
+      keywords: ["idd", "sdd", "openspec", "workflow"],
+      suggestedPrompts: ["Check active change status"],
+      logo: "assets/logo.svg",
+    },
+  },
+  extraFiles: [
+    {
+      path: "assets/logo.svg",
+      content:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#111827"/><circle cx="16" cy="16" r="8" fill="none" stroke="#38bdf8" stroke-width="3"/></svg>\n',
+    },
+  ],
+
   agentFile: { from: ".agent.md", to: ".agent.md" },
   // Antigravity ignores commands/*.prompt.md; emit only non-colliding SDD
   // meta-commands as flat slash-invocable skills while keeping phase skills
@@ -64,11 +84,13 @@ module.exports = {
     stripKeys: ["user-invocable"],
   },
 
+  // Native Antigravity plugins run hook commands with cwd = <plugin-root>;
+  // `agy plugin validate --strict` requires relative `./scripts/hooks/...` paths.
   hooks: {
     format: "antigravity",
     source: "hooks/hooks.json",
     location: "hooks.json",
-    runtimePlaceholder: "__OSPEC_ANTIGRAVITY_ROOT__",
+    runtimePlaceholder: ".",
   },
 
   // Canonical AGY 1.5.14 tool names; `search` (`grep_search`/`list_dir`) does

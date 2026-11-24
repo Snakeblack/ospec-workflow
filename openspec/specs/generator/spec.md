@@ -1091,3 +1091,14 @@ For the `antigravity` target, `scripts/lib/target-profiles/antigravity.js` MUST 
 - THEN `premium` agents MUST emit `model: pro`, `cheap` agents MUST emit `model: flash`, and `default` agents MUST omit `model:`
 - AND overrides `premium=INHERIT`, `cheap=FLASH_LITE` MUST omit `model:` on `premium` and emit `model: flash_lite` on `cheap`
 - AND any concrete model ID (such as `gemini-4-neon-high`) MUST fail validation without writing output
+
+### Requirement: Antigravity Native Plugin Bundle {#REQ-generator-030}
+
+For the `antigravity` target, the generator MUST emit `.antigravity-plugin/plugin.json` (allowlisted `name`, `version`, `description`, `author`, plus `keywords`, `suggestedPrompts`, and `logo: "assets/logo.svg"`, without `.claude-plugin/` residue or unsupported component path keys), `assets/logo.svg`, and root `hooks.json` with plugin-relative commands (`./scripts/hooks/ospec-antigravity-hook.js`, never `${PLUGIN_ROOT}`) so `dist/antigravity` passes `agy plugin validate --strict --json` with zero findings. Because Antigravity exposes plugin skills without a mandatory prefix unless a collision occurs, `rules/ospec-router.instructions.md` MUST keep bare `skill \`idd\`` / `skill \`foundation\`` entries (0 B context baseline change). `validate-antigravity` MUST validate `.antigravity-plugin/plugin.json`, its logo asset, and relative hook paths.
+
+#### Scenario: Built antigravity bundle validates cleanly in strict mode
+
+- GIVEN a canonical build for `antigravity` (default or `--with-sdd`)
+- WHEN `validate-antigravity` and `agy plugin validate --strict --json` run on the output
+- THEN `.antigravity-plugin/plugin.json`, `assets/logo.svg`, and relative `./scripts/hooks/ospec-antigravity-hook.js` commands MUST be present
+- AND validation MUST pass with zero findings while the other six targets remain byte-identical
