@@ -22,7 +22,7 @@ La documentación interna de arquitectura y flujos sigue en español en [`docs/`
 
 > **Un cambio está hecho cuando la evidencia lo dice, no cuando lo dice el agente.** `ospec-workflow` es un arnés de desarrollo guiado por impacto (IDD, *impact-driven development*) para agentes de programación con IA. Cada cambio de código pasa por el CLI `ospec`: deriva las obligaciones del cambio a partir de lo que toca, registra evidencia solo de ejecuciones que observa y cierra el cambio cuando todas las obligaciones están satisfechas. El desarrollo guiado por especificación (SDD) con OpenSpec sigue disponible como modo opcional.
 
-Está basado en [Gentle-ai de Gentleman Programming](https://github.com/Gentleman-Programming/gentle-ai).
+Nació a partir de [Gentle-ai de Gentleman Programming](https://github.com/Gentleman-Programming/gentle-ai) y desde entonces se ha reescrito: ningún fichero conserva una parte sustancial suya.
 
 ---
 
@@ -456,4 +456,4 @@ Este proyecto se publica bajo la licencia MIT con la restricción [Commons Claus
 
 Uso, modificación y redistribución libres, también para empresas. No está permitido venderlo ni ofrecer servicios de pago cuyo valor proviene sustancialmente del software (alojamiento, consultoría o soporte) sin permiso ([hello@mretamozo.com](mailto:hello@mretamozo.com)). Las versiones publicadas antes de este cambio se distribuyeron bajo MIT sin Commons Clause.
 
-Todas las skills declaran esa misma licencia. Algunas conservan texto de tres obras publicadas con licencia MIT (gentle-ai, ECC y Caveman): [NOTICE](NOTICE) guarda el aviso de copyright de cada una y las skills que conservan su texto, y viaja con el plugin del marketplace de Claude junto a `LICENSE`.
+Todas las skills declaran esa misma licencia. Algunas conservan texto de dos obras publicadas con licencia MIT (ECC y Caveman): [NOTICE](NOTICE) guarda el aviso de copyright de cada una y las skills que conservan su texto, y viaja con el plugin del marketplace de Claude junto a `LICENSE`.

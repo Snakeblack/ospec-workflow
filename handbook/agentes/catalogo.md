@@ -95,7 +95,7 @@ Las skills `skills/sdd-*` (procedimiento de cada fase SDD) y los comandos `/sdd-
 
 ## Registro de skills en caché
 
-Para no releer cada `SKILL.md` en cada sesión, el hook `SessionStart` (igual en IDD y en SDD) calcula una huella de las skills y reutiliza o regenera `.ospec/cache/skill-registry.cache.json`; informa de si la caché se `reused` o `generated`. El registro indexa las skills de `skills/` salvo `sdd-*`, `_shared` y `skill-registry`, y extrae de cada una hasta 15 reglas compactas de sus secciones de reglas. La skill `skill-registry` crea o actualiza el registro bajo demanda, por ejemplo tras instalar o quitar skills.
+Para no releer cada `SKILL.md` en cada sesión, el hook `SessionStart`, en un proyecto con OpenSpec inicializado, calcula una huella de las skills y reutiliza o regenera `.ospec/cache/skill-registry.cache.json`; informa de si la caché se `reused` o `generated`. El registro indexa las skills de `skills/` salvo `sdd-*`, `_shared` y `skill-registry`, y extrae de cada una hasta 15 reglas compactas de sus secciones de reglas. `ospec registry` construye la misma caché bajo demanda, por ejemplo si el hook no corrió o una skill cambió a mitad de sesión, y avisa de las skills que no aportan reglas o que solo casan por su nombre. Nadie escribe la caché a mano. La skill `skill-registry` guía ese paso; IDD no usa el registro.
 
 ---
 

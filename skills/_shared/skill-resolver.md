@@ -36,7 +36,7 @@ The durable registry cache lives at:
 .ospec/cache/skill-registry.cache.json
 ```
 
-Suggested cache shape:
+The runtime writes it in this shape:
 
 ```json
 {
@@ -55,7 +55,7 @@ Suggested cache shape:
 }
 ```
 
-Fingerprint inputs should include `skills/**/SKILL.md`, `skills/_shared/*.md`, `rules/**/*.md`, and detected project convention files. If the fingerprint is unchanged, reuse the cache. If cache is missing or stale, regenerate compact rules.
+The `SessionStart` hook and `ospec registry` build it from the installed `skills/**/SKILL.md`, `skills/_shared/*.md` and `rules/**/*.md`, and reuse it while their fingerprint is unchanged. Never write it by hand: when it is missing or stale, run `ospec registry`.
 
 ## Match Relevant Skills
 
@@ -118,7 +118,7 @@ Key rule: inject compact rules text when available. The sub-agent should read ex
 
 ## Project Conventions
 
-If Project Standards or the registry cache includes project conventions, and the sub-agent will work on the project's code, also add:
+The registry cache holds no project conventions. When the orchestrator knows the project's own convention files (`AGENTS.md`, a contributing guide), and the sub-agent will work on the project's code, also add:
 
 ```markdown
 ## Project Conventions

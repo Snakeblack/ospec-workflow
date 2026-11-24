@@ -1,0 +1,150 @@
+{
+  "schema": "idd-state/v1",
+  "change": "issue-evidence-comment-owner",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "3 que no haya friccion (sobre la sugerencia del validador: decir qué skill escribe el comentario de evidencia en un issue duplicado)",
+    "requested_at": "2026-11-23T22:47:45.211Z",
+    "kind": "docs",
+    "summary": "issue-creation y comment-writer dicen cuál de las dos escribe el comentario de evidencia en un issue duplicado",
+    "acceptance": "skills/issue-creation/SKILL.md dice que la evidencia que añade a un duplicado es suya y que cualquier otra respuesta en un issue existente es de comment-writer; skills/comment-writer/SKILL.md nombra esa misma excepción; node scripts/check.js pasa"
+  },
+  "facts": {
+    "basis": "Los pasos 5 y 6 de issue-creation ya enseñan y publican ese comentario; el cambio solo hace que la sección When to Use de las dos skills lo diga"
+  },
+  "plan": {
+    "paths": [
+      "skills/comment-writer/SKILL.md",
+      "skills/issue-creation/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 672
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component skills: ADR 0003, 0006 and quality scenario offline-operation",
+      "source": "declaration",
+      "recorded_turn": 672
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "none",
+      "reason": "Solo cambia una frase de When to Use en dos skills; ninguna regla de cálculo se describe ni se mueve"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "Ninguna de las dos skills lee o escribe memoria entre sesiones"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "No se añade ninguna llamada de red ni cambia next, check o close"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "El diff son dos frases de When to Use; no describen ninguna regla que decida el CLI",
+      "recorded_at": "2026-11-23T22:47:57.790Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El diff no toca el CLI, los hooks ni la skill idd",
+      "recorded_at": "2026-11-23T22:47:57.939Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-23T22:49:28.974Z",
+      "detail": {
+        "tree": "sha256:126d1f468557af778d2b9e8e10b0ba6e201e642cc2ee55fa21cbccc1c3261020",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-23T22:49:28.974Z",
+      "detail": {
+        "refs": [
+          "adr:0003 none",
+          "adr:0006 none",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:126d1f468557af778d2b9e8e10b0ba6e201e642cc2ee55fa21cbccc1c3261020",
+        "fitness": [
+          "run-2"
+        ]
+      }
+    }
+  ],
+  "base": "c36dbd5a1a80af0a1f75fdea6dbe8a535942b317",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:93ef694893467f9781dc29ef8b83f34f3c076a1cad907a1730fea933c5163157",
+      "tree": "sha256:126d1f468557af778d2b9e8e10b0ba6e201e642cc2ee55fa21cbccc1c3261020",
+      "recorded_at": "2026-11-23T22:49:28.974Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2853e580f93414f799682aa46a95a4bde55edb7882b900622ea0174537de437b",
+      "tree": "sha256:126d1f468557af778d2b9e8e10b0ba6e201e642cc2ee55fa21cbccc1c3261020",
+      "recorded_at": "2026-11-23T22:49:28.974Z",
+      "tests": 2
+    }
+  ],
+  "completes": "own-utility-skills",
+  "closed_at": "2026-11-23T22:49:38.632Z"
+}

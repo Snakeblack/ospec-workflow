@@ -38,31 +38,21 @@ Either one missing keeps it closed.
 
 ## Building the skill registry
 
-Directories to scan, in this order of precedence when two skills share a name
-(the project wins over the user):
+The runtime builds the registry, never an agent by hand. Step 5 of `SKILL.md`
+runs `ospec registry` from the project root after the artifact store exists:
+without `openspec/config.yaml` the command writes nothing and reports
+`skipped`.
 
-- project: `{project-root}/.claude/skills/`, `{project-root}/.gemini/skills/`,
-  `{project-root}/.agent/skills/` and `{project-root}/skills/`;
-- user: `~/.claude/skills/`, `~/.config/opencode/skills/`, `~/.gemini/skills/`,
-  `~/.cursor/skills/`, `~/.copilot/skills/` and the directory that holds this
-  skill.
+The command reads the skills root of the ospec-workflow installation and
+leaves out `sdd-*`, `_shared` and `skill-registry`. Each entry keeps the
+`name`, the triggers taken from the `description`, the path of `SKILL.md`, the
+`capabilities` and up to 15 compact rules, taken from the sections whose
+heading ends in `Rules`. Its output names the skills that give a delegation no
+rules; that is information for the result, not a reason to stop.
 
-The registry leaves out `sdd-*`, `_shared` and `skill-registry`. For each
-remaining skill it reads `SKILL.md`; past 200 lines, the frontmatter and the
-sections of rules and patterns are enough. Each entry keeps the `name`, the
-trigger taken from the `description`, the path of `SKILL.md` and between 5 and
-15 lines of compact rules: limits, patterns to follow, breaking changes and
-traps. Purpose, motivation, installation and long examples stay out.
-
-The registry also lists the project's convention files: `agents.md`,
-`AGENTS.md`, the project's `CLAUDE.md`, `.cursorrules`, `GEMINI.md` and
-`copilot-instructions.md`. When one of them is an index, as `AGENTS.md` often
-is, the files it points to enter the registry beside it.
-
-`sdd-init` writes the registry when it does not exist yet. Keeping it fresh is
-the job of the `SessionStart` hook, so an SDD command rebuilds it only when it
-is missing, its fingerprint is stale, the user asks for a reindex or the stack
-or the configuration of the project changed.
+Keeping the registry fresh is the job of the `SessionStart` hook, which runs
+the same builder. An SDD command runs `ospec registry` again only when the
+cache is missing or the user asks for a reindex.
 
 ## How a skill is read
 

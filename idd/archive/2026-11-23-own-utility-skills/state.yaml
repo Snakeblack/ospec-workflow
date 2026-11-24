@@ -1,0 +1,1102 @@
+{
+  "schema": "idd-state/v1",
+  "change": "own-utility-skills",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua / espera, esta sesion no es de antigravity, ahora estabamos con skills owner o algo así (E1.106 own-utility-skills)",
+    "requested_at": "2026-11-23T21:17:57.595Z",
+    "kind": "feature",
+    "summary": "Orden ospec registry, que construye el registro de skills con el constructor del hook, y versiones propias de issue-creation, branch-pr y skill-registry alineadas con el harness (E1.106)",
+    "acceptance": "ospec registry genera, reutiliza u omite .ospec/cache/skill-registry.cache.json con el mismo resultado que el hook SessionStart y avisa de las skills que no aportan disparador o reglas; skill-registry, sdd-init, init-details, persistence-contract y skill-resolver citan la orden en vez del escaneo manual; skills/issue-creation, skills/branch-pr y skills/skill-registry no conservan líneas de 30 o más caracteres idénticas a ninguna versión del historial git de gentle-ai, salvo literales sin contenido o de interfaz, y su metadata.author nombra solo a manuel-retamozo-garcia; la sección de gentle-ai sale de NOTICE y el README cuenta el origen; el roadmap da E1.106 por hecho y amplía E5.15; node scripts/check.js pasa"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "En un proyecto sin OpenSpec inicializado (solo IDD), ¿ospec registry no escribe nada y lo dice, como el hook (skipped), o construye la caché igualmente?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/skill-registry.js",
+          "line": 295
+        }
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/skill-registry.js",
+          "line": 376
+        }
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "docs/harness-runtime.md",
+          "line": 43
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/skill-registry/spec.md",
+          "line": 21
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 873
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Cuando una skill instalada no tiene Trigger: o no tiene sección de reglas, ¿ospec registry lo da como aviso y sale con 0, o hace fallar la orden?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "NOTICE",
+      "README.es.md",
+      "README.md",
+      "docs/harness-runtime.md",
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/agentes/catalogo.md",
+      "handbook/legal/license.md",
+      "openspec/specs/skill-registry/spec.md",
+      "openspec/specs/skills/spec.md",
+      "scripts/configure.test.js",
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/delivery-skills-contract.test.js",
+      "scripts/fixtures/context-baseline.json",
+      "scripts/hooks/session-start.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/lib/idd-refusals.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/ospec-registry.js",
+      "scripts/lib/ospec-registry.test.js",
+      "scripts/lib/skill-registry.js",
+      "scripts/lib/skill-registry.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/_shared/persistence-contract.md",
+      "skills/_shared/skill-resolver.md",
+      "skills/branch-pr/SKILL.md",
+      "skills/issue-creation/SKILL.md",
+      "skills/sdd-init/SKILL.md",
+      "skills/sdd-init/references/init-details.md",
+      "skills/skill-registry/SKILL.md"
+    ],
+    "work_units": 3,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "issue-creation deja el flujo status:* de gentle-ai: el issue se escribe como la intención de un cambio futuro (tipo, resumen, evidencia, resultado observable, preguntas abiertas), usa las plantillas y etiquetas del repositorio y se publica solo con el OK del usuario; sigue en --with-extras (respuesta del usuario al gate open-facts)",
+      "branch-pr se organiza por ciclo de vida (antes de la rama, antes de la PR, la PR, después de abrirla) y lee de ospec team y del repositorio la base, el idioma, la plantilla, las etiquetas y los checks; el mensaje de commit queda en work-unit-commits y la spec de skills §6a se actualiza (respuesta del usuario al gate open-facts)",
+      "Entrega en cadena de tres PR con una sola release al final; el cambio se cierra una vez y la cadena se corta por unidad de trabajo, porque el CLI no deja estrechar el intent de un cambio ya resuelto",
+      "El registro tiene un solo constructor, refreshRegistryCache en scripts/lib/skill-registry.js, que llaman el hook SessionStart y ospec registry; ningún agente escribe la caché a mano",
+      "ospec registry avisa de una entrada sin reglas y de una que solo casa por su nombre (sin Trigger: y sin capabilities, porque una skill de stack casa por capability); los avisos no cambian la salida",
+      "sdd-init llama a la orden con {{ospec-runtime}}, como el resto de la prosa de SDD, y skill-registry con {{ospec-cli}}, como idd y foundation, porque Claude solo sustituye la ruta en el cuerpo de la skill que carga",
+      "Las descripciones de branch-pr y skill-registry se acortan para que el listado de skills no suba; el techo de contexto baja de 4769 a 4747 bytes"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 653
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component skills: ADR 0003, 0006 and quality scenario offline-operation",
+      "source": "declaration",
+      "recorded_turn": 653
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration",
+      "recorded_turn": 661
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration",
+      "recorded_turn": 661
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/session-start.js (matches scripts/hooks/**)",
+      "source": "declaration",
+      "recorded_turn": 661
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/skill-registry.js uses writeFile",
+      "source": "diff",
+      "recorded_turn": 667
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La construcción del registro deja de describirse en prosa en skill-registry y sdd-init y pasa a la orden ospec registry, con tests; branch-pr e issue-creation citan ospec team y ospec record intent en vez de repetir sus reglas"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "Ninguna de las tres skills ni la orden lee o escribe memoria entre sesiones"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "La orden y el constructor no hacen llamadas de red; branch-pr e issue-creation ya usaban gh y ahora dicen qué entregar sin él"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "session-start solo cambia de sitio el constructor del registro, que informa y falla abierto como antes; ningún guard de seguridad cambia"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "La orden y el constructor compartido usan solo la biblioteca estándar de Node; el hook interpretado conserva su resultado, así que la paridad con el binario compilado no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "next, status y el almacén de estado no cambian"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "none",
+      "reason": "Ningún guard cambia"
+    },
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Solo se edita la fuente canónica (skills/, scripts/, specs); los 7 targets salen de la generación, y skill-registry nombra el CLI con el marcador {{ospec-cli}} que cada instalador renderiza"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia cómo se derivan señales ni obligaciones; en el motor IDD solo entra el texto de un rechazo nuevo"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "No cambia qué evidencia satisface una obligación ni el cierre"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "ospec registry no lee ni escribe nada bajo idd/; solo comprueba si OpenSpec está inicializado y escribe .ospec/cache, la caché auxiliar de SDD, y ningún paso de IDD depende de ella"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Las tres skills y la orden salen de la misma fuente para los 7 targets, y el build de cada uno pasa sus tests"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "ospec registry tiene sus tests en scripts/lib/ospec-registry.test.js; skill-registry, sdd-init, init-details, persistence-contract y skill-resolver citan la orden y ya no describen el escaneo; branch-pr nombra la línea de ospec team de cada valor que no decide",
+      "recorded_at": "2026-11-23T22:08:11.168Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "scripts/lib/ospec-registry.js y refreshRegistryCache solo usan node:fs, node:path, node:os y node:crypto; ningún require de red; next, check y close no cambian",
+      "recorded_at": "2026-11-23T22:08:11.403Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-12"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 653,
+      "answer": "todas las recomendadas (recomendadas: (1) registro: orden nueva ospec registry que usa el constructor del hook, con la skill fina y sdd-init, init-details, persistence-contract y skill-resolver alineados; (2) alcance del registro: las entradas de hoy, y E5.15 se amplía a las skills y convenciones del proyecto; (3) issue-creation genérica, el issue como intención de un cambio futuro, y sigue en --with-extras; (4) branch-pr por ciclo de vida leyendo del proyecto y de ospec team, con la spec de skills §6a actualizada; (5) la frase del README pasa a contar el origen; (6) entrega en cadena de tres cambios con una sola release al final)",
+      "source": "user",
+      "resolved_at": "2026-11-23T21:31:48.231Z",
+      "resolved_turn": 659
+    },
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 661,
+      "answer": "todas las recomendadas (recomendadas: sin OpenSpec inicializado ospec registry no escribe nada y lo dice, como el hook; una skill sin Trigger: o sin sección de reglas es un aviso con salida 0)",
+      "source": "user",
+      "resolved_at": "2026-11-23T21:59:07.884Z",
+      "resolved_turn": 662
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-23T21:34:23.279Z",
+      "detail": {
+        "tree": "sha256:7c871063e0dd2df547f6d03393e26f253ee29427b6b4d18e7329afe1d7c6177f",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-23T22:11:29.416Z",
+      "detail": {
+        "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-23T22:11:29.416Z",
+      "detail": {
+        "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/skill-registry/spec.md",
+          "openspec/specs/skills/spec.md"
+        ],
+        "tests": [
+          "scripts/configure.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/delivery-skills-contract.test.js",
+          "scripts/lib/idd-refusals.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-registry.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-23T22:11:29.416Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 none",
+          "scenario:offline-operation conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:deterministic-resume none",
+          "scenario:guard-fail-closed none",
+          "adr:0001 conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0011 conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-23T22:11:45.762Z",
+      "detail": {
+        "run": "run-17",
+        "tree": "sha256:ba806954ed3c784d90093686c92423b7a35da29c11dd17a10c76c0924ca81149",
+        "plan": "El esquema de la caché no cambia: sigue en version 2 con los mismos campos, y el constructor que la escribe es el del hook, movido de sitio. Una caché escrita antes del cambio se reutiliza si su huella coincide, y una de otra versión o escrita a mano se reemplaza (tests 'the command and the SessionStart hook build the same cache' y 'a hand-written cache of another version is replaced'). Vuelta atrás: borrar .ospec/cache/skill-registry.cache.json, que es una caché regenerable y el hook reconstruye en el siguiente inicio de sesión"
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-23T22:15:00.406Z",
+      "detail": {
+        "lineage_id": "sha256:3e1927622627f4e8d913075bc927d51b2a65e5e5386a1306376afcbad87b80a0",
+        "candidate_id": "sha256:683d2dfc8088ca4b5a9ba301648ea3639086c01bfa1deef6036266b884d0347b",
+        "candidate_tree": "569cbd5c891220947c711787a3fcc03098dbbe44",
+        "findings_digest": "sha256:ac28af450b92e93d3e8b3c74afaf17fb3dd58a39771568992ca667b87bb0a476",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-23T22:14:33.315Z",
+          "result_digest": "sha256:e362f433905a954fd269d361495e28b4ed78b54d8f417efe5506727a2c54bfb9"
+        }
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-23T22:17:18.014Z",
+      "detail": {
+        "lineage_id": "sha256:3e1927622627f4e8d913075bc927d51b2a65e5e5386a1306376afcbad87b80a0",
+        "candidate_id": "sha256:683d2dfc8088ca4b5a9ba301648ea3639086c01bfa1deef6036266b884d0347b",
+        "candidate_tree": "b79a6370d711d7fc204cd6cb611fb9a1aff19105",
+        "findings_digest": "sha256:ac28af450b92e93d3e8b3c74afaf17fb3dd58a39771568992ca667b87bb0a476",
+        "correction": "advisory",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-correction",
+          "recorded_at": "2026-11-23T22:16:40.657Z",
+          "result_digest": "sha256:03b10584f3c60831f8404c78bfc80222932d605c8c5a472955b73b3e5af21329"
+        }
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-23T22:19:16.670Z",
+      "detail": {
+        "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+        "runs": [
+          "run-18"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-23T22:19:16.670Z",
+      "detail": {
+        "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+        "check": "ev-8",
+        "documents": [
+          "openspec/specs/skill-registry/spec.md",
+          "openspec/specs/skills/spec.md"
+        ],
+        "tests": [
+          "scripts/configure.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/delivery-skills-contract.test.js",
+          "scripts/lib/idd-refusals.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-registry.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-23T22:19:16.670Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 none",
+          "scenario:offline-operation conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:deterministic-resume none",
+          "scenario:guard-fail-closed none",
+          "adr:0001 conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0011 conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+        "fitness": [
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26",
+          "run-27",
+          "run-28",
+          "run-29"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-23T22:19:27.360Z",
+      "detail": {
+        "run": "run-30",
+        "tree": "sha256:a0a8c4576da4d77a29e2ec654c9d8143855c54927cf1f057b2e7023f952aeeb7",
+        "plan": "El esquema de la caché no cambia: sigue en version 2 con los mismos campos, y el constructor que la escribe es el del hook, movido de sitio. Una caché escrita antes del cambio se reutiliza si su huella coincide, y una de otra versión o escrita a mano se reemplaza (tests 'the command and the SessionStart hook build the same cache' y 'a hand-written cache of another version is replaced'). Vuelta atrás: borrar .ospec/cache/skill-registry.cache.json, que es una caché regenerable y el hook reconstruye en el siguiente inicio de sesión"
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-23T22:19:27.573Z"
+    }
+  ],
+  "base": "f47f8f2dcd48e9cb9dc2f5331aacaefb39ad9d59",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:019e301f7e72b35188144251e312295ad18199192a4ea5e45c5feeb27941a8dc",
+      "tree": "sha256:7c871063e0dd2df547f6d03393e26f253ee29427b6b4d18e7329afe1d7c6177f",
+      "recorded_at": "2026-11-23T21:19:30.515Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:361597f7a9c5989c6a69a35ab65831fa09f5c08b9bb0d17a8989a0dcc65189cb",
+      "tree": "sha256:7c871063e0dd2df547f6d03393e26f253ee29427b6b4d18e7329afe1d7c6177f",
+      "recorded_at": "2026-11-23T21:19:30.515Z",
+      "tests": 2
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ff160d0e199f83aba3000634ff79b67dd24129a2fb990ed660d3fc37a2ab25e8",
+      "tree": "sha256:7c871063e0dd2df547f6d03393e26f253ee29427b6b4d18e7329afe1d7c6177f",
+      "recorded_at": "2026-11-23T21:34:23.279Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7afe82561751e073642a8629653cc0b18ab1a5a473abee4374b145936d0df7c9",
+      "tree": "sha256:7c871063e0dd2df547f6d03393e26f253ee29427b6b4d18e7329afe1d7c6177f",
+      "recorded_at": "2026-11-23T21:34:23.279Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d920ea28dc986eb220042c2a9f407cc38ae979a8d97ba581e592fbd88f7e8f29",
+      "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+      "recorded_at": "2026-11-23T22:11:29.416Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dba79578dafcf2db32ab91ad649bd2a9ebf6cd07830b381e331f8684b9325c03",
+      "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+      "recorded_at": "2026-11-23T22:11:29.416Z",
+      "tests": 2
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:85f5a9ff9615bfadd395034328a27678b74085f83a8286eb6049c9eae23c0c15",
+      "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+      "recorded_at": "2026-11-23T22:11:29.416Z",
+      "tests": 103
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+      "recorded_at": "2026-11-23T22:11:29.416Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:df2ac66c0f99ff40c108127e32b7683e305e2db5b7b95f21daf7fd5dfbd8c5dc",
+      "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+      "recorded_at": "2026-11-23T22:11:29.416Z",
+      "tests": 26
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:563b9d5bcc1d327781c14ba2f21d9dd2849b69bc423f4d75ac041673e8154f85",
+      "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+      "recorded_at": "2026-11-23T22:11:29.416Z",
+      "tests": 60
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:86ea76e27a5f882d1e8d41d41a1f1e07987e0df9f6f0225eead27de95f4658b5",
+      "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+      "recorded_at": "2026-11-23T22:11:29.416Z",
+      "tests": 103
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a92ff7d8018a3eba2b814d6edba4596e677ed61ece427d3e921a8933349c0896",
+      "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+      "recorded_at": "2026-11-23T22:11:29.416Z",
+      "tests": 48
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5ac7c84ec2a5d6d411afb8c4cf4c72ca3f650daff905262daba8d36b659be4a8",
+      "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+      "recorded_at": "2026-11-23T22:11:29.416Z",
+      "tests": 63
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4f77170f6392ef825380fb323d282e3fecb496096a63d2e06672aece748087bd",
+      "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+      "recorded_at": "2026-11-23T22:11:29.416Z",
+      "tests": 21
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e04949edc1a8637cd74820da10698fe16e000065bd6d4ed253729adf8253ba20",
+      "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+      "recorded_at": "2026-11-23T22:11:29.416Z",
+      "tests": 101
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:54e2d7951e5f5b4b014d872a233541cf72a771c9a4ed192e02275b1fcc209da0",
+      "tree": "sha256:4c7988ddb57d034e738821005d06b284683b628789d666c21e0d73a05ea0fd15",
+      "recorded_at": "2026-11-23T22:11:29.416Z",
+      "tests": 48
+    },
+    {
+      "id": "run-17",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/ospec-registry.test.js scripts/hooks/session-start.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a5984576e0b0f100940017c6b810bc3f9b9cb98f7baa6d69a4f6232771484e5c",
+      "tree": "sha256:ba806954ed3c784d90093686c92423b7a35da29c11dd17a10c76c0924ca81149",
+      "recorded_at": "2026-11-23T22:11:45.762Z",
+      "tests": 48
+    },
+    {
+      "id": "run-18",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:72e6e52216980b1a8b559abb98086674441ab5f84723d7cf9755016f040d57e5",
+      "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+      "recorded_at": "2026-11-23T22:19:16.670Z"
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e4d49ed50a95a6ec6c421268de9c13b60206587cc75b60b9735baf9da69e9894",
+      "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+      "recorded_at": "2026-11-23T22:19:16.670Z",
+      "tests": 2
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:53be86a11645628e257117237d49b9e2319fdf7cbacd8751e93116e8cc2dad50",
+      "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+      "recorded_at": "2026-11-23T22:19:16.670Z",
+      "tests": 103
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+      "recorded_at": "2026-11-23T22:19:16.670Z"
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d6774cef8085c558bcf9a72edb82bf627e48a9c32ec2a2c60d5e417ddd51b5be",
+      "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+      "recorded_at": "2026-11-23T22:19:16.670Z",
+      "tests": 26
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7ac274c92c54ac28242c9ea44f6a498fbb6cc9b2b384ddc7cc677f9042a5bd1e",
+      "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+      "recorded_at": "2026-11-23T22:19:16.670Z",
+      "tests": 60
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a517e18b239562a832ef7ec77ac97e681c865887114901d9436a2ffc2391cf5e",
+      "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+      "recorded_at": "2026-11-23T22:19:16.670Z",
+      "tests": 103
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:17163b0439f5bf64c17cff430ecd244b221d9f8e0cd5db5e50e3030eb9007588",
+      "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+      "recorded_at": "2026-11-23T22:19:16.670Z",
+      "tests": 48
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:731d8ab9c2a12e5fc256118ebe9225c81325d4916e381f97c1513ef018d4937b",
+      "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+      "recorded_at": "2026-11-23T22:19:16.670Z",
+      "tests": 63
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e21a4721f3944ab333030bd719f235e0f60cd841e0b0b4cbefd945012475bfda",
+      "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+      "recorded_at": "2026-11-23T22:19:16.670Z",
+      "tests": 21
+    },
+    {
+      "id": "run-28",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:539f7c37568805ebb946ce6448c0ef0f2bb321e1a2bc41229652b14bdf1ad3d0",
+      "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+      "recorded_at": "2026-11-23T22:19:16.670Z",
+      "tests": 101
+    },
+    {
+      "id": "run-29",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:66cfe3910e4e327e69c459d3920eb922d086da5ac545345e7a5820eea89aee76",
+      "tree": "sha256:d30a368668b2ccf1f4cc4b4d912b13b5a8ff6f75d18eec487b85997166e0567f",
+      "recorded_at": "2026-11-23T22:19:16.670Z",
+      "tests": 48
+    },
+    {
+      "id": "run-30",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/ospec-registry.test.js scripts/hooks/session-start.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:79ac52384bf5d0f085450e8ce4cec097ec5217641be1a64b9323aa834de13baf",
+      "tree": "sha256:a0a8c4576da4d77a29e2ec654c9d8143855c54927cf1f057b2e7023f952aeeb7",
+      "recorded_at": "2026-11-23T22:19:27.360Z",
+      "tests": 48
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:3e1927622627f4e8d913075bc927d51b2a65e5e5386a1306376afcbad87b80a0",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "c2b9323714575e0ea152cf8de31a555bf6037d95",
+          "candidate_tree": "569cbd5c891220947c711787a3fcc03098dbbe44",
+          "paths": [
+            "NOTICE",
+            "README.es.md",
+            "README.md",
+            "docs/harness-runtime.md",
+            "docs/roadmaps/harness-evolution.md",
+            "handbook/agentes/catalogo.md",
+            "handbook/legal/license.md",
+            "openspec/specs/skill-registry/spec.md",
+            "openspec/specs/skills/spec.md",
+            "scripts/configure.test.js",
+            "scripts/configure/idd-protocol.test.js",
+            "scripts/delivery-skills-contract.test.js",
+            "scripts/fixtures/context-baseline.json",
+            "scripts/hooks/session-start.js",
+            "scripts/lib/idd-refusals.js",
+            "scripts/lib/idd-refusals.test.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/lib/ospec-registry.js",
+            "scripts/lib/ospec-registry.test.js",
+            "scripts/lib/skill-registry.js",
+            "scripts/ospec.js",
+            "scripts/ospec.test.js",
+            "skills/_shared/persistence-contract.md",
+            "skills/_shared/skill-resolver.md",
+            "skills/branch-pr/SKILL.md",
+            "skills/issue-creation/SKILL.md",
+            "skills/sdd-init/SKILL.md",
+            "skills/sdd-init/references/init-details.md",
+            "skills/skill-registry/SKILL.md"
+          ],
+          "diff_hash": "sha256:59469fb4077d66fa0a3b1ef6bae3eb65ea1ab7b49707d9a5d659a8d8a758213f",
+          "paths_digest": "sha256:231c2f8efab8fe0fad977d93d1356270bd64c824184e648bc2a2837ce958bb86",
+          "authored_lines": 865,
+          "original_changed_lines": 1595
+        },
+        "candidate_id": "sha256:683d2dfc8088ca4b5a9ba301648ea3639086c01bfa1deef6036266b884d0347b",
+        "paths": [
+          "NOTICE",
+          "README.es.md",
+          "README.md",
+          "docs/harness-runtime.md",
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/agentes/catalogo.md",
+          "handbook/legal/license.md",
+          "openspec/specs/skill-registry/spec.md",
+          "openspec/specs/skills/spec.md",
+          "scripts/configure.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/delivery-skills-contract.test.js",
+          "scripts/fixtures/context-baseline.json",
+          "scripts/hooks/session-start.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/idd-refusals.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-registry.js",
+          "scripts/lib/ospec-registry.test.js",
+          "scripts/lib/skill-registry.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/_shared/persistence-contract.md",
+          "skills/_shared/skill-resolver.md",
+          "skills/branch-pr/SKILL.md",
+          "skills/issue-creation/SKILL.md",
+          "skills/sdd-init/SKILL.md",
+          "skills/sdd-init/references/init-details.md",
+          "skills/skill-registry/SKILL.md"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "569cbd5c891220947c711787a3fcc03098dbbe44",
+        "original_changed_lines": 1595,
+        "authored_lines": 865
+      },
+      "current_candidate_id": "sha256:683d2dfc8088ca4b5a9ba301648ea3639086c01bfa1deef6036266b884d0347b",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "c2b9323714575e0ea152cf8de31a555bf6037d95",
+        "candidate_tree": "569cbd5c891220947c711787a3fcc03098dbbe44",
+        "paths": [
+          "NOTICE",
+          "README.es.md",
+          "README.md",
+          "docs/harness-runtime.md",
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/agentes/catalogo.md",
+          "handbook/legal/license.md",
+          "openspec/specs/skill-registry/spec.md",
+          "openspec/specs/skills/spec.md",
+          "scripts/configure.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/delivery-skills-contract.test.js",
+          "scripts/fixtures/context-baseline.json",
+          "scripts/hooks/session-start.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/idd-refusals.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-registry.js",
+          "scripts/lib/ospec-registry.test.js",
+          "scripts/lib/skill-registry.js",
+          "scripts/ospec.js",
+          "scripts/ospec.test.js",
+          "skills/_shared/persistence-contract.md",
+          "skills/_shared/skill-resolver.md",
+          "skills/branch-pr/SKILL.md",
+          "skills/issue-creation/SKILL.md",
+          "skills/sdd-init/SKILL.md",
+          "skills/sdd-init/references/init-details.md",
+          "skills/skill-registry/SKILL.md"
+        ],
+        "diff_hash": "sha256:59469fb4077d66fa0a3b1ef6bae3eb65ea1ab7b49707d9a5d659a8d8a758213f",
+        "paths_digest": "sha256:231c2f8efab8fe0fad977d93d1356270bd64c824184e648bc2a2837ce958bb86",
+        "authored_lines": 865,
+        "original_changed_lines": 1595
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "own-utility-skills:lens-start:1:0",
+          "result_digest": "sha256:9aec9ffdea96c106d1cfa7e3f5622c6fcf49c3d179828b234f43731dd3459dec",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "skills/issue-creation/SKILL.md:18-20 lets an agent publish without the user agreeing to the draft ('unless they already asked for it to be filed'). That conflicts with its own Step 5 (line 73: show the draft and wait for the user's answer) and with spec openspec/specs/skills/spec.md:472-475, where a user who agreed to file still MUST see the draft. The gate also sits outside ## Rules (22-34). extractCompactRules therefore hands an SDD sub-agent 'add the new evidence there and file nothing' (line 25) with no publication gate, unlike branch-pr:30. scripts/delivery-skills-contract.test.js:86-94 is titled 'the user approves the publication' but asserts the gate only on the full text. Impact: quoted logs, path:line or private data the user never reviewed can be posted to a public issue.",
+                "acceptance_criteria": "skills/issue-creation/SKILL.md gives one consistent instruction: an issue, or evidence added to an existing issue, is published only after the user has seen that draft and agreed. Any exception is worded the same in the skill and in spec §6b. extractCompactRules(skills/issue-creation/SKILL.md) returns a rule carrying that gate. scripts/delivery-skills-contract.test.js fails if that rule is removed from the compact rules, as it already does for branch-pr's approval rule.",
+                "location": "skills/issue-creation/SKILL.md:19"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "own-utility-skills:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-1fa45b550432b47b",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "skills/issue-creation/SKILL.md:18-20 lets an agent publish without the user agreeing to the draft ('unless they already asked for it to be filed'). That conflicts with its own Step 5 (line 73: show the draft and wait for the user's answer) and with spec openspec/specs/skills/spec.md:472-475, where a user who agreed to file still MUST see the draft. The gate also sits outside ## Rules (22-34). extractCompactRules therefore hands an SDD sub-agent 'add the new evidence there and file nothing' (line 25) with no publication gate, unlike branch-pr:30. scripts/delivery-skills-contract.test.js:86-94 is titled 'the user approves the publication' but asserts the gate only on the full text. Impact: quoted logs, path:line or private data the user never reviewed can be posted to a public issue.",
+          "acceptance_criteria": "skills/issue-creation/SKILL.md gives one consistent instruction: an issue, or evidence added to an existing issue, is published only after the user has seen that draft and agreed. Any exception is worded the same in the skill and in spec §6b. extractCompactRules(skills/issue-creation/SKILL.md) returns a rule carrying that gate. scripts/delivery-skills-contract.test.js fails if that rule is removed from the compact rules, as it already does for branch-pr's approval rule.",
+          "location": "skills/issue-creation/SKILL.md:19",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:ac28af450b92e93d3e8b3c74afaf17fb3dd58a39771568992ca667b87bb0a476",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "advisory_corrections": [
+    {
+      "lineage_id": "sha256:3e1927622627f4e8d913075bc927d51b2a65e5e5386a1306376afcbad87b80a0",
+      "status": "passed",
+      "finding_ids": [
+        "F-1fa45b550432b47b"
+      ],
+      "paths": [
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/specs/skills/spec.md",
+        "scripts/delivery-skills-contract.test.js",
+        "skills/issue-creation/SKILL.md"
+      ],
+      "changed_lines": 35,
+      "candidate_tree": "b79a6370d711d7fc204cd6cb611fb9a1aff19105",
+      "diff_hash": "sha256:25a77cc7fbe88b79c75540aa9404a71ef6ab553897980a62a37e4300383b7093",
+      "recorded_at": "2026-11-23T22:15:33.576Z",
+      "validation": {
+        "recorded_at": "2026-11-23T22:17:18.014Z",
+        "outcomes": [
+          {
+            "id": "F-1fa45b550432b47b",
+            "status": "resolved"
+          }
+        ],
+        "regression": {
+          "detected": false,
+          "evidence": [
+            "Static inspection only; no tests were run. skills/issue-creation/SKILL.md:18-20 no longer has the 'unless they already asked' exception: a request to file asks for the draft. Line 35, under ## Rules, gates both an issue and evidence added to an existing one on the user seeing the draft and agreeing. Line 25 now only proposes adding the evidence. Steps 5-6 (lines 74-78) show the draft or comment, wait for the user, and publish only what the user agreed to.",
+            "Spec §6b (openspec/specs/skills/spec.md:468) says the same thing as the skill, with no exception for a user who asked for the issue. A new scenario (spec.md:477-482) forbids posting the comment or filing a second issue before the user agrees. The earlier scenario at spec.md:470-475 still holds.",
+            "Tracing extractCompactRules (scripts/lib/skill-registry.js:123-173): the heading 'Rules' matches RULES_HEADING, so SKILL.md:24-35 yields 12 list-item rules (under 15) and line 35 comes out whole. delivery-skills-contract.test.js:93-96 asserts that rule is among the compact rules and fails if it is removed or moved out of ## Rules. Line 97 rejects the old 'add the new evidence there' rule, and line 98 rejects the old exception.",
+            "No regression found in the permitted paths. The other assertions in delivery-skills-contract.test.js:76-92 still match SKILL.md: table rows at 42-46, flags at 53-54, rules at 29-31, 'wait for the user's answer' at 75. The roadmap figure 'de 223 a 86 líneas' (harness-evolution.md:1755) matches the 86 lines of SKILL.md, and its 'solo con el OK del usuario' agrees with the gate. scripts/docs-figures.test.js does not check that figure."
+          ]
+        },
+        "follow_ups": [
+          {
+            "owner": "evolution",
+            "summary": "skills/issue-creation/SKILL.md:15-16 says a reply on an existing issue belongs to comment-writer, but steps 5-6 (lines 74-78) have issue-creation post evidence itself with 'gh issue comment'. The line between a reply and added evidence is only implied. One sentence naming which skill owns the duplicate-evidence comment would remove the overlap."
+          }
+        ]
+      }
+    }
+  ],
+  "closed_at": "2026-11-23T22:19:27.573Z"
+}

@@ -12,8 +12,8 @@ metadata:
 Load this skill when the user asks to file an issue, or agrees to file what a
 change left out: a defect outside its scope, a follow-up, a friction with a
 tool. Work that starts now needs no issue: open the change. A question is
-answered, not filed, and a reply on an existing issue belongs to
-`comment-writer`.
+answered, not filed. The evidence this skill adds to a duplicate it found is
+its own; any other reply on an existing issue belongs to `comment-writer`.
 
 An issue is published where other people read it. A request to file one asks
 for the draft, not for its publication: the user sees every draft before it

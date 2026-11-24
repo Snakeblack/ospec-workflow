@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.186.0] - 2026-11-23
+
+### Added
+- **`ospec registry` construye el registro de skills con el mismo constructor que el hook** (E1.106, own-utility-skills).
+  - **Qué pasaba**: solo el hook `SessionStart` construía `.ospec/cache/skill-registry.cache.json`. Si el hook no corría, nada determinista podía construirla, y la skill `skill-registry` y `sdd-init` mandaban leer cada `SKILL.md` y escribirla a mano, con un esquema que el hook descartaba en la sesión siguiente.
+  - **Ahora**: `ospec registry [--json]` da `generated`, `reused` o `skipped`, el número de entradas y cuántas llevan reglas. `refreshRegistryCache`, en `scripts/lib/skill-registry.js`, es el único constructor: lo llaman el hook y la orden, los dos escriben la misma caché y cada uno reutiliza la que escribió el otro. Sin OpenSpec inicializado la orden no escribe nada y lo dice, porque IDD no usa el registro.
+  - **Avisos**: la orden lista, sin cambiar su salida, las entradas que no dan reglas a un subagente y las que solo casan por su nombre, porque no tienen `Trigger:` ni `capabilities`.
+  - **Errores**: una instalación sin skills es el rechazo `registry-skills-missing`, que conserva la caché que hubiera.
+
+### Changed
+- **issue-creation, branch-pr y skill-registry tienen texto propio y siguen la dinámica del harness** (E1.106, own-utility-skills e issue-evidence-comment-owner).
+  - **issue-creation**: describía el flujo de aprobación del repositorio de gentle-ai. Ahora el issue se escribe como la intención de un cambio futuro: tipo, resumen, evidencia, resultado observable y preguntas abiertas, que son lo que toma `ospec record intent`. Usa las plantillas y etiquetas del repositorio, no publica secretos ni vulnerabilidades, y un issue o la evidencia que se añade a un duplicado se publican solo cuando el usuario ha visto el borrador. Esa evidencia la escribe issue-creation; cualquier otra respuesta en un issue, comment-writer.
+  - **branch-pr**: exigía en cualquier proyecto una etiqueta `type:*`, shellcheck, una plantilla de PR y dos jobs de CI. Ahora va de la rama al merge y lee de `ospec team` la base, las PR en vuelo, el presupuesto de review, el idioma y la release, con una alternativa para un proyecto sin `ospec`. La plantilla, las etiquetas y los checks son los del repositorio. Nombra las paradas del usuario (subir y abrir, fusionar, publicar) y qué entregar sin `gh`. El mensaje de commit queda en `work-unit-commits`.
+  - **skill-registry**: ya no manda escanear ni escribir la caché. Dice para qué sirve el registro, qué hace que una skill llegue a un subagente y cómo leer los avisos de `ospec registry`. `sdd-init`, `init-details.md`, `persistence-contract.md` y `skill-resolver.md` citan la orden.
+  - **Specs**: la de skills §6a deja de fijar la sección `Multi-Developer Collaboration` de branch-pr y pide el origen y la alternativa de cada valor; §6b es nueva, para issue-creation. La del registro §6.7 describe la orden.
+  - **`NOTICE` y README**: de las 169 líneas largas de las tres skills, ninguna coincide con el historial de gentle-ai, y fuera de ellas ningún fichero llega a 10. La sección de gentle-ai sale de `NOTICE`, que queda con ECC y Caveman, y el README dice que ospec nació a partir de gentle-ai y que ningún fichero conserva una parte sustancial suya.
+  - **Compatibilidad**: `sdd-init` en modo `none` ya no construye el registro, porque sin OpenSpec no hay nada que lo lea. El hook `SessionStart` da el mismo resultado que antes. El techo del listado de skills baja de 4769 a 4747 bytes.
+
+**Verificación directa**: `node scripts/check.js` (5099 tests pasando, 0 fallos y 5 omitidos), 457 de ellos en la fase serie, con los tests de Python OK y los siete targets generados y validados. La revisión de confianza del cambio quedó aprobada, con un aviso corregido y validado. El cambio no tocaba Go.
+
 ## [2.185.5] - 2026-11-22
 
 ### Fixed

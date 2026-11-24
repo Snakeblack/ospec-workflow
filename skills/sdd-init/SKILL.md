@@ -27,9 +27,9 @@ The orchestrator launches this phase to set up SDD in a project. The executor do
 - Stack, conventions, architecture, testing tools and artifact store come from the files that were read, never from a guess.
 - With `openspec`, the artifacts are files, laid out as `../_shared/openspec-convention.md` sets.
 - In `openspec` mode, treat OpenSpec files on disk as canonical workflow state for continuation and recovery; never rely on conversation history.
-- In `none` mode, return detected context only; write no SDD artifacts except the skill registry cache if required.
+- In `none` mode, return detected context only and write no SDD artifacts.
 - Always persist testing capabilities in `openspec/config.yaml` `testing:` when mode is `openspec`.
-- Always build `.ospec/cache/skill-registry.cache.json`.
+- Build the skill registry cache with the `ospec registry` command of step 5, never by hand.
 - When `openspec/` already exists, the result says what it holds, and nothing in it changes until the user approves through a `question_gate`.
 
 ## Decision Gates
@@ -37,7 +37,7 @@ The orchestrator launches this phase to set up SDD in a project. The executor do
 | Input | Action |
 |---|---|
 | `mode=openspec` | Write or update only the bootstrap files of `openspec/`. |
-| `mode=none` | Return detected context only; write no SDD artifacts except the skill registry cache if required. |
+| `mode=none` | Return detected context only; write no SDD artifacts. |
 | `testing.tdd_mode` marker/config found | Preserve explicitly configured TDD mode in `testing.tdd_mode`. |
 | no marker/config but `team` specified | Resolve `testing.tdd_mode` from the profile: `solo` → `standard`, `small` → `focused`, `multi-team` → `strict`; `experience: junior` → `strict`. |
 | no marker/config and no team | Default `testing.tdd_mode: focused` if test runner exists; otherwise `standard`. |
@@ -84,7 +84,7 @@ After resolving a valid base path, scan its immediate children (depth-1 only, no
 2. Find the test runner, the test layers, coverage, the linter, the type checker and the formatter.
 3. Resolve test runner availability and initialize `testing.tdd_mode` in `openspec/config.yaml` from the team profile (step 6b).
 4. Set up the artifact store the mode names.
-5. Build `.ospec/cache/skill-registry.cache.json` using the skill-registry scan rules.
+5. Build the skill registry cache: run `node "{{ospec-runtime}}/scripts/ospec.js" registry` from the project root, once step 4 wrote `openspec/config.yaml`.
 6. Save the testing capabilities and the project context.
 6b. **Team profile** (openspec mode only): read the `team: { size, experience }` line from the `## Parameters` prompt block (the orchestrator asks the user once at first init; ask nothing yourself). Write it as a top-level `team:` section (`size:` and `experience:`) into `openspec/config.yaml`; never write `idd/config.yaml` (ADR 0011). Then run `node "{{ospec-runtime}}/scripts/ospec.js" team --mode sdd --json --root <projectRoot>` and materialize its `defaults`, never your own reading of the profile:
    - `tdd_mode` → `testing: { tdd_mode }` (when a runner exists);
