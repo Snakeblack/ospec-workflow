@@ -925,6 +925,8 @@ async function runDoctor({
     home,
     env,
     platform,
+    spawn,
+    execPath,
     budgetBytes: ALWAYS_ON_BUDGET_BYTES,
     memoryCheck: (host, add) => hostEngramCheck(host, engramContext, add),
   };

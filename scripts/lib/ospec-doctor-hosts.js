@@ -9,7 +9,9 @@
 // `context.memoryCheck`, with `context.parseJsonc` for VS Code's settings.
 
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
+const HOOK_PROBE_TIMEOUT_MS = 5000;
 
 // The label and the setup script of each host, as the installers name them.
 const HOST_SETUP = {
@@ -372,6 +374,52 @@ function hooksCheck(host, add) {
       });
 }
 
+function antigravityHookProbe(host, context, add) {
+  const wrapper = path.join(host.root, "scripts", "hooks", "ospec-antigravity-hook.js");
+  const hooksText = readText(path.join(host.root, host.spec.hooks)) || "";
+  if (!fs.existsSync(wrapper)) {
+    if (hooksText.includes("ospec-antigravity-hook.js")) {
+      add({ id: "hook-responds", status: "error", cause: `${wrapper} is missing even though hooks.json references it`, action: setupAction("antigravity", "; it installs the Antigravity hook wrapper") });
+    }
+    return;
+  }
+  const cwd = os.tmpdir();
+  const input = JSON.stringify({ hookEventName: "PreToolUse", cwd, toolCall: { name: "write_file", args: { Path: path.join(cwd, "idd", "ospec-doctor-probe", "state.yaml"), Content: "{}" } } });
+  const started = Date.now();
+  const result = context.spawn(context.execPath, [wrapper, "pre-tool-use"], { input, cwd, env: { ...context.env, OSPEC_TARGET: "" }, timeout: HOOK_PROBE_TIMEOUT_MS, killSignal: "SIGKILL" }) || {};
+  let failure = result.error ? String(result.error.code || result.error.message)
+    : result.signal ? result.signal
+    : result.status !== 0 ? `exit ${result.status}${result.stderr ? `: ${result.stderr.trim().slice(0, 200)}` : ""}`
+    : (/\[ospec error\][^\r\n]*/.exec(result.stderr || "")?.[0] || null);
+  if (failure === null) {
+    try {
+      const decision = JSON.parse(String(result.stdout || "").trim() || "{}").decision;
+      if (decision !== "deny") failure = `expected decision "deny", got ${JSON.stringify(decision ?? null)}`;
+    } catch (error) {
+      failure = `invalid JSON output (${error.message})`;
+    }
+  }
+  add(failure === null
+    ? { id: "hook-responds", status: "ok", detail: `${Date.now() - started} ms` }
+    : { id: "hook-responds", status: "error", cause: `the installed Antigravity PreToolUse hook failed the write_file guard probe: ${failure}`, action: setupAction("antigravity", ", or check that Node and ospec-hooks run on this machine") });
+}
+
+function antigravitySandboxCheck(context, add) {
+  const file = path.join(context.home, ".gemini", "antigravity-cli", "settings.json");
+  const text = readText(file);
+  if (text === null) { add({ id: "sandbox-cli", status: "ok" }); return; }
+  let doc = null;
+  try { doc = JSON.parse(text); } catch { /* handled below */ }
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
+    add({ id: "sandbox-cli", status: "warn", cause: `${file} is not a readable JSON object, so terminal sandbox compatibility cannot be checked`, action: `Fix ${file} and run \`ospec doctor --target antigravity\` again.` });
+    return;
+  }
+  const active = [doc.enableTerminalSandbox === true ? "enableTerminalSandbox: true" : null, doc.agentMode === "auto" ? 'agentMode: "auto"' : null].filter(Boolean);
+  add(active.length > 0
+    ? { id: "sandbox-cli", status: "warn", cause: `${file} sets ${active.join(" and ")}; Antigravity's terminal sandbox restricts shell access outside the workspace and blocks ~/.gemini/config/bin/ospec`, action: "Use `agy --mode accept-edits` (or disable enableTerminalSandbox for ospec sessions) until ospec runs via MCP." }
+    : { id: "sandbox-cli", status: "ok" });
+}
+
 function vscodeLocationChecks(host, add) {
   for (const settings of host.settings) {
     if (settings.unreadable) {
@@ -464,6 +512,10 @@ function hostChecks(target, host, context, add) {
   markersCheck(host, add);
   routerChecks(host, add, context.budgetBytes);
   hooksCheck(host, add);
+  if (target === "antigravity") {
+    if (context.spawn && context.execPath) antigravityHookProbe(host, context, add);
+    antigravitySandboxCheck(context, add);
+  }
   if (context.memoryCheck) context.memoryCheck(target, add);
 }
 
