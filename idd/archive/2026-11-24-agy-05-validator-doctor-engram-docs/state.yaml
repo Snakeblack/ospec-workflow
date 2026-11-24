@@ -1,0 +1,370 @@
+{
+  "schema": "idd-state/v1",
+  "change": "agy-05-validator-doctor-engram-docs",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "PR 5 feat/agy-05-validator-doctor-engram-docs: validador estricto de Antigravity, sonda y aviso sandbox en ospec doctor, permisos Engram en settings.json y sincronizacion documental",
+    "requested_at": "2026-11-24T06:10:27.194Z",
+    "kind": "feature",
+    "summary": "Endurecer validate-antigravity.js, anadir sonda hook-responds y check sandbox-cli en ospec doctor, configurar permisos Engram para Antigravity en engram-setup y sincronizar documentacion de Antigravity",
+    "acceptance": "validate-antigravity rechaza frontmatter/tools/model/review-*/globs/archivos muertos/placeholders invalidos; ospec doctor ejecuta sonda PreToolUse en vivo sin escribir archivos y avisa ante sandbox C2; setup:antigravity y doctor gestionan permisos Engram en ~/.gemini/antigravity-cli/settings.json de forma idempotente y fail-open; docs reflejan agy 1.5.15 y los otros 6 targets mantienen 0 bytes de diff"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "Para los permisos de Engram en ~/.gemini/antigravity-cli/settings.json (setup:antigravity y ospec doctor), preferimos 1A (recomendada: reglas explicitas mcp(engram/<tool>) para herramientas no destructivas de lectura y escritura excluyendo mem_delete y mem_merge_projects), 1B (solo las 12 herramientas de escritura no destructivas igual que Claude) o 1C (wildcard mcp(engram/*))?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/engram-claude-allow.js",
+          "line": 38
+        }
+      },
+      {
+        "category": "persistence",
+        "question": "En ospec doctor antigravity/sandbox-cli (lectura de ~/.gemini/antigravity-cli/settings.json), preferimos 2A (recomendada: warn solo cuando enableTerminalSandbox:true, agentMode:auto o JSON ilegible; ok sin ruido si no existe o usa accept-edits/default) o 2B (emitir tambien info si no existe settings.json recordando el riesgo de --sandbox/--mode auto)?"
+      },
+      {
+        "category": "copy",
+        "question": "Para mantener PR 5 dentro del presupuesto de <=400 lineas, preferimos 4A (recomendada: entregar todo en una sola PR 5 concisa incluyendo docs/plugin-installation{.md,.es.md}, docs/target-capabilities.md y docs/roadmaps/harness-evolution.md, partiendo solo si superase 400 lineas) o 4B (dividir de entrada en PR 5a codigo/tests/specs y PR 5b docs)?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/plugin-installation.md",
+          "line": 454
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/ospec-doctor.js",
+          "line": 944
+        }
+      },
+      {
+        "category": "errors",
+        "question": "En validate-antigravity.js, preferimos 3A (recomendada: fail-closed con error para frontmatter/tools/model/review-*, globs sin **/, comandos/.mcp.json en FORBIDDEN_PATHS y ${input:...} en validate(), mas placeholders sin renderizar en validateInstalled()) o 3B (dejar globs relativos y model invalido como warning)?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/plugin-installation.es.md",
+      "docs/plugin-installation.md",
+      "docs/roadmaps/harness-evolution.md",
+      "docs/target-capabilities.md",
+      "openspec/specs/idd/spec.md",
+      "openspec/specs/install/spec.md",
+      "openspec/specs/session-memory/spec.md",
+      "scripts/configure/engram-setup.js",
+      "scripts/configure/engram-setup.test.js",
+      "scripts/configure/validate-antigravity.js",
+      "scripts/configure/validate-antigravity.test.js",
+      "scripts/lib/engram-claude-allow.js",
+      "scripts/lib/ospec-doctor-hosts.js",
+      "scripts/lib/ospec-doctor-hosts.test.js",
+      "scripts/lib/ospec-doctor.js",
+      "scripts/session-memory-contract.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Mantener los permisos allow de Engram para Antigravity en el modulo puro de datos (sin llamadas ni lecturas) y la comprobacion en ospec-doctor.js para preservar la frontera ADR 0006 verificada por session-memory-contract.test.js"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 686
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 686
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration",
+      "recorded_turn": 686
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/engram-setup.js uses writeFile",
+      "source": "diff",
+      "recorded_turn": 691
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Solo endurece validacion, diagnostico y permisos de Antigravity manteniendo la generacion multi-target desde una fuente sin alterar los artefactos de los otros 6 targets"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Validador, sonda doctor y reglas de permisos usan solo APIs estandar de Node sin dependencias externas y el modulo de datos preserva la frontera ADR 0006"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "validate-antigravity, hook-responds, sandbox-cli y las reglas locales permissions.allow operan 100% offline sin llamadas de red"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Equipara Antigravity con Claude Code en sonda hook-responds, reglas permissions.allow no destructivas de Engram y cobertura documental/validador sin tocar otros targets"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado con suites unitarias offline, ospec doctor --target antigravity y sonda local PreToolUse sin red ni escritura",
+      "recorded_at": "2026-11-24T06:30:55.179Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 686,
+      "answer": "confirmo todas las recomendadas: (1A) reglas explicitas mcp(engram/<tool>) para herramientas no destructivas de lectura y escritura de Engram excluyendo mem_delete y mem_merge_projects en ~/.gemini/antigravity-cli/settings.json respetando mcp(engram/*) y ask/deny con check no fatal en ospec doctor; (2A) antigravity/sandbox-cli en ospec doctor emite warn solo cuando enableTerminalSandbox:true, agentMode:auto o JSON ilegible y ok sin ruido si no existe o usa accept-edits/default; (3A) validate-antigravity fail-closed con error para frontmatter/tools/model/review-*, globs sin **/, commands/.mcp.json en FORBIDDEN_PATHS y ${input:...} en validate() mas placeholders sin renderizar en validateInstalled(); (4A) entregar todo de forma concisa en PR 5 dentro del presupuesto de <=400 lineas revisables, partiendo en 5a/5b solo si lo superase",
+      "source": "user",
+      "resolved_at": "2026-11-24T06:15:45.539Z",
+      "resolved_turn": 687
+    },
+    {
+      "id": "base-moved",
+      "status": "resolved",
+      "reason": "Integracion de origin/main (v2.186.0) en la rama tracker feat/antigravity-15-remediation para sincronizar el tag v2.186.0 en CHANGELOG.md y manifest-sync.test.js",
+      "from": "527c2ac7899ca6a4e45273850fcfcd5e5be562da",
+      "to": "6aa3fd99302ab026a32ba54b767e7a1ee8d4e8d3",
+      "commits": 17,
+      "paths": [
+        ".claude-plugin/plugin.json",
+        ".plugin.json",
+        "CHANGELOG.md",
+        "NOTICE",
+        "README.es.md",
+        "README.md",
+        "docs/harness-runtime.md",
+        "docs/roadmaps/harness-evolution.md",
+        "handbook/agentes/catalogo.md",
+        "handbook/legal/license.md",
+        "openspec/config.yaml",
+        "openspec/specs/skill-registry/spec.md",
+        "openspec/specs/skills/spec.md",
+        "package.json",
+        "scripts/configure.test.js",
+        "scripts/configure/idd-protocol.test.js",
+        "scripts/delivery-skills-contract.test.js",
+        "scripts/fixtures/context-baseline.json",
+        "scripts/hooks/session-start.js",
+        "scripts/lib/idd-refusals.js",
+        "scripts/lib/idd-refusals.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/ospec-registry.js",
+        "scripts/lib/ospec-registry.test.js",
+        "scripts/lib/skill-registry.js",
+        "scripts/ospec.js",
+        "scripts/ospec.test.js",
+        "skills/_shared/persistence-contract.md",
+        "skills/_shared/skill-resolver.md",
+        "skills/branch-pr/SKILL.md",
+        "skills/comment-writer/SKILL.md",
+        "skills/issue-creation/SKILL.md",
+        "skills/sdd-init/SKILL.md",
+        "skills/sdd-init/references/init-details.md",
+        "skills/skill-registry/SKILL.md"
+      ],
+      "archived": [
+        "2026-11-23-issue-evidence-comment-owner",
+        "2026-11-23-own-utility-skills"
+      ],
+      "opened_turn": 689,
+      "answer": "pertenecen a otros cambios",
+      "source": "user",
+      "resolved_at": "2026-11-24T08:09:24.795Z",
+      "resolved_turn": 690
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-24T08:10:58.962Z",
+      "detail": {
+        "tree": "sha256:dad1d68e8fb54a3c227119db2e28fadbb5aad996446e2f7ca3184cfcb2a745f3",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-24T08:10:58.962Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:dad1d68e8fb54a3c227119db2e28fadbb5aad996446e2f7ca3184cfcb2a745f3",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-24T08:11:22.028Z",
+      "detail": {
+        "run": "run-6",
+        "tree": "sha256:e8a105da7d8cc0686fe74239ad6fae06abded7117b88a8c8c3992ea53862b78e",
+        "plan": "Merge aditivo, idempotente y fail-open sobre ~/.gemini/antigravity-cli/settings.json: preserva todos los ajustes del usuario y listas ask/deny, nunca sobrescribe JSON invalido ni borra reglas con --no-engram; revertir el cambio deja intacta la configuracion existente"
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-24T08:11:22.233Z"
+    }
+  ],
+  "base": "6aa3fd99302ab026a32ba54b767e7a1ee8d4e8d3",
+  "base_moves": [
+    {
+      "from": "527c2ac7899ca6a4e45273850fcfcd5e5be562da",
+      "to": "6aa3fd99302ab026a32ba54b767e7a1ee8d4e8d3",
+      "reason": "Integracion de origin/main (v2.186.0) en la rama tracker feat/antigravity-15-remediation para sincronizar el tag v2.186.0 en CHANGELOG.md y manifest-sync.test.js",
+      "moved_at": "2026-11-24T08:09:24.795Z"
+    }
+  ],
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d8b9f370b7a3b39962c0721fd648f45f4b8938f14b95ded5e229f63a1c816bc3",
+      "tree": "sha256:dad1d68e8fb54a3c227119db2e28fadbb5aad996446e2f7ca3184cfcb2a745f3",
+      "recorded_at": "2026-11-24T08:10:58.962Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ca2e8277ccfdd30217c6885225df5026c75f8b108539a2dd833df4ce8f0db122",
+      "tree": "sha256:dad1d68e8fb54a3c227119db2e28fadbb5aad996446e2f7ca3184cfcb2a745f3",
+      "recorded_at": "2026-11-24T08:10:58.962Z",
+      "tests": 48
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:dad1d68e8fb54a3c227119db2e28fadbb5aad996446e2f7ca3184cfcb2a745f3",
+      "recorded_at": "2026-11-24T08:10:58.962Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1ae3d0c95547dcd0f94ee910022ac147a8aca0b6bf3c188ef7711a48d1a8026c",
+      "tree": "sha256:dad1d68e8fb54a3c227119db2e28fadbb5aad996446e2f7ca3184cfcb2a745f3",
+      "recorded_at": "2026-11-24T08:10:58.962Z",
+      "tests": 26
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6d10a48f5973e10ce029a4ae2cc0001dd4852102a176aeaaec2815b6eb2df819",
+      "tree": "sha256:dad1d68e8fb54a3c227119db2e28fadbb5aad996446e2f7ca3184cfcb2a745f3",
+      "recorded_at": "2026-11-24T08:10:58.962Z",
+      "tests": 48
+    },
+    {
+      "id": "run-6",
+      "purpose": "migration-test",
+      "command": "node --test scripts/configure/engram-setup.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:805ccb86712fc1122511e473afedb771cf7e376cd6cf1fecb46d171a7248c14b",
+      "tree": "sha256:e8a105da7d8cc0686fe74239ad6fae06abded7117b88a8c8c3992ea53862b78e",
+      "recorded_at": "2026-11-24T08:11:22.028Z",
+      "tests": 80
+    }
+  ],
+  "closed_at": "2026-11-24T08:11:22.233Z"
+}

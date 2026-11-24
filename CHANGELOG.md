@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Habilitar enrutamiento de tiers de modelo nativos (pro, inherit, flash, flash_lite) para Antigravity en models.yaml, user-models, instalador y TUI (agy-04-model-tiers)
+- Endurecer validate-antigravity.js, anadir sonda hook-responds y check sandbox-cli en ospec doctor, configurar permisos Engram para Antigravity en engram-setup y sincronizar documentacion de Antigravity (agy-05-validator-doctor-engram-docs)
 
 ### Fixed
 - Cerrar bypass de PreToolUse en write_file/edit_file/read_file (AGY 1.5.14), respetar cwd nativo y evitar reanudacion en Stop cancelado o no ocioso, aislado al adaptador de Antigravity (agy-01-pretooluse-stop)

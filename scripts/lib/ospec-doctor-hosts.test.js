@@ -489,4 +489,13 @@ test("Antigravity: sandbox-cli warns on enableTerminalSandbox, agentMode auto, o
     assert.equal(check.status, "warn", raw);
     assertActionable(check, raw);
   }
+  write(path.join(env.home, ".gemini", "GEMINI.md"), "<!-- BEGIN ENGRAM MEMORY PROTOCOL -->\n");
+  write(path.join(env.home, ".gemini", "config", "mcp_config.json"), { mcpServers: { engram: {} } });
+  write(settingsFile, { agentMode: "accept-edits" });
+  const engramSpawn = makeSpawn({ commands: { "engram version": { stdout: "engram 1.2.3\n" }, "engram doctor --json": { stdout: '{"status":"ok"}' } } });
+  const warnEngram = find(await doctor(env, { spawn: engramSpawn }), "antigravity", "engram");
+  assert.equal(warnEngram.status, "warn");
+  assert.match(warnEngram.cause, /allow rule/);
+  write(settingsFile, { agentMode: "accept-edits", permissions: { allow: ["mcp(engram/*)"] } });
+  assert.equal(find(await doctor(env, { spawn: engramSpawn }), "antigravity", "engram").status, "ok");
 });

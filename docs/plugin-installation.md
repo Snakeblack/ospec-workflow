@@ -438,6 +438,17 @@ This idempotent installer:
 5. Copies the `ospec-hooks` binary to `~/.cursor/scripts/hooks/` when it exists in `release/dist/`.
 6. `--dry-run` validates and writes nothing under `~/.cursor`.
 
+### Antigravity (`agy` CLI / App)
+
+The `antigravity` target installs into the global Antigravity config root (`~/.gemini/config`, plus any detected Windows root under WSL).
+
+```bash
+npm run build:antigravity
+npm run setup:antigravity
+```
+
+This idempotent installer builds and validates `dist/antigravity/` (AGY 1.5+ tool names, `review-*` subagent isolation, `**/` rule globs, flat SDD meta-command skills when `--with-sdd` is set, and native `pro`/`inherit`/`flash`/`flash_lite` tier aliases), syncs owned files with a rollback journal, merges the `ospec-*` groups into `~/.gemini/config/hooks.json` (`SessionStart`, `PreToolUse`, `Stop`), and renders runtime/shared paths. Pass `--model <tier>=<alias>` to override tiers within `{pro, inherit, flash, flash_lite}`, or `--dry-run` to validate without writing.
+
 ## Optional SDD package (every target)
 The SDD mode (the `sdd-*` skills and agents with the orchestrator, the `/sdd-*` commands and the `sdd-*` rules) is not installed by default. Add `--with-sdd` to any installer or build to include it (`npm run setup:claude -- --with-sdd`, `node scripts/configure/install-codex.js --with-sdd`, `node scripts/configure/cli.js --target claude --with-sdd`), or run the fixed scripts `npm run setup:<target>:sdd` / `npm run setup:<target>:no-sdd`; the guided TUI offers it as the «SDD mode» package. A reinstall without the flag keeps SDD when the previous install held it (read from its ownership manifest or its agents directory) and says so; `--no-sdd` removes it, and both flags together are a usage error. The `review-*` agents, `skills/_shared/` and the runtime stay in every install because IDD uses them. If you ask for SDD without the package, the router asks you to reinstall with `--with-sdd`.
 
@@ -458,6 +469,7 @@ When the binary reports a release version, the step also asks GitHub for the lat
 - **Claude Code on Windows**: a short Git Bash fork probe decides whether the upstream hook's safe mode can be turned off (`ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` in `~/.claude/settings.json`). The safe mode disables prompt capture and save reminders. A value you already set is never overwritten. The upstream hooks need bash, jq and curl. `.sh` hook commands, and those led by a bare `bash` or `sh`, in the installed plugin run in exec form with the absolute path of Git Bash (or of a `bash.exe` on `PATH` that is not the WSL launcher), even when Engram is already configured, so Windows neither opens them in the associated program nor runs them under WSL. With only the WSL bash, the hooks are left alone and a warning asks for Git Bash.
 - **Codex**: the installer also probes `codex-register`, `codex-resolve` and `codex-session-end` with empty input and a three-second timeout per command. This checks binary compatibility without creating sessions. Plugin/MCP presence and supported commands do not confirm runtime session registration. If a command is unsupported or cannot be checked, setup is skipped and the diagnostic identifies the command and exit status or spawn error. Use a compatible upstream binary, run `engram setup codex` in the active `CODEX_HOME` (including a host-managed runtime home), then restart or resume Codex. Confirm that `SessionStart` provides a registered runtime identity before agent-attributed writes; never supply a replacement session ID. Engram 3.0.0 with plugin 0.1.5 failed this check on Windows; upgrading the binary and server to [3.2.1](https://github.com/Gentleman-Programming/engram/releases/tag/v3.2.1) restored hook confirmation in the tested installation. See [issue #264 evidence](testing/engram-codex-runtime.tdd.md) for the verification limits.
 - **Cursor**: when `~/.cursor/engram-memory-protocol.md` has content, the installer writes `~/.cursor/rules/engram-memory-protocol.mdc` with `alwaysApply: true` (Always Apply, global). Cursor loads that rule. An empty or unreadable protocol skips the write and warns, without failing the install. `--no-engram` does not write it.
+- **Antigravity**: once Engram is configured, `setup:antigravity` adds explicit `permissions.allow` rules (`mcp(engram/<tool>)`) for the 23 non-destructive Engram read/write tools to `~/.gemini/antigravity-cli/settings.json` (`mem_delete` and `mem_merge_projects` stay reviewed). Existing rules, `mcp(engram/*)`, and tools listed under `ask` or `deny` are preserved; `--no-engram` leaves `settings.json` untouched; `ospec doctor --target antigravity` warns when rules are missing.
 - Every target ships the same host-neutral SDD memory addendum. Engram is non-authoritative: `idd/` and OpenSpec state on disk remain the source of truth.
 
 For a recurring `Hook failed`, capture the hook event, command, exit status and stderr from the host. A store-wide `engram doctor --json` warning does not identify which hook failed or prove that the current session is registered.
@@ -476,6 +488,7 @@ Start with the visible entry points and inspect further detail only if something
 | opencode (Local) | The destination repo contains `.opencode/`, `opencode.json`, `skills/`, and `scripts/`. When pressing Tab or typing its name, the agent `ospec-workflow` appears in the interface. |
 | opencode (Global) | The global folder (`~/.config/opencode/`) contains `agents/`, `commands/`, `instructions/`, `plugins/`, `skills/`, and `scripts/`, and `opencode.json` has the merged configuration. In any repo, when pressing Tab, the agent `ospec-workflow` appears in the interface. |
 | Cursor IDE (Global) | `~/.cursor/` contains `agents/`, `commands/`, `rules/*.mdc`, `hooks.json` (without unexpanded `__OSPEC_CURSOR_ROOT__`), `skills/`, and `scripts/`. With Engram configured, `rules/engram-memory-protocol.mdc` has `alwaysApply: true`. |
+| Antigravity (Global) | `~/.gemini/config/` contains `agents/`, `rules/*.instructions.md`, `hooks.json` (expanded paths, no `commands/` or `.mcp.json`), `skills/`, and `scripts/`. Run `agy agents` (only `sdd-orchestrator` if `--with-sdd`) and `ospec doctor --target antigravity`. |
 
 In Claude Code, if something does not appear after installing the persistent plugin, run:
 
@@ -512,9 +525,10 @@ The guided installer now starts with a target and a **Recommended** preset. Choo
 case-insensitive filtering and only shows controls that the selected target and
 model support. GitHub Copilot uses the same curated model choices as VS Code.
 
-Antigravity remains host-inherited and intentionally has no model or reasoning
-selector. The catalog is static-first: no local model-discovery command runs for
-IDE targets, so an unavailable or unsupported CLI cannot prevent installation.
+Antigravity supports its four host-resolved tier aliases (`pro`, `inherit`, `flash`,
+`flash_lite`; defaults `pro`/`inherit`/`flash`) via `--model` and the TUI, rejecting
+concrete model IDs fail-closed because Antigravity's loader skips them. The setup is
+100% offline: no local model-discovery command runs during installation.
 
 | Symptom | Likely cause | What to check |
 | --- | --- | --- |
