@@ -1,0 +1,75 @@
+{
+  "schema": "idd-state/v1",
+  "change": "roadmap-auto-mode",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "de acuerdo dale un repaso y confirma que lo recomendado es lo mejor o podemos incluso mejorarlo más, en cualquiera de los casos la mejor opción es lo que haremos como prioridad. me parece perfecto, pero me gustaria que esto se opcional, que te pregunte elegir el modo automatico o interactivo, el interactivo es como lo es actualmente, el automatico esto que propones que me parece muy bien. todas las recomendadas, pero te comento que el worktree ya esta mergeado en main",
+    "requested_at": "2026-11-24T20:29:29.992Z",
+    "kind": "docs",
+    "summary": "Llevar al roadmap el modo automático de IDD: ítems E1.107 a E1.110 por delante de E1.79, E5.5 absorbido, y el análisis fechado de lo que permite cada host",
+    "acceptance": "docs/roadmaps/harness-evolution.md tiene una fila en Estado y orden y una sección por cada ítem nuevo (problema, garantía que protege, alcance, dependencias, targets y hecho cuando); el orden ▶ y el diagrama los ponen por delante de E1.79; E5.5 dice que lo absorben; docs/analysis/2026-11-24-modo-automatico.md recoge la investigación con sus fuentes; node scripts/check.js pasa"
+  },
+  "facts": {
+    "basis": "El usuario fijó en esta sesión la prioridad, que el modo es opcional y se pregunta, que el interactivo no cambia y que la elección no se recuerda en la primera versión; la numeración E1.x, el análisis fechado en docs/analysis y no abrir issues nuevas siguen las respuestas del cambio roadmap-gentle-ai-comparison (2026-11-16)"
+  },
+  "plan": {
+    "paths": [
+      "docs/analysis/2026-11-24-modo-automatico.md",
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 715
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-24T20:33:49.512Z",
+      "detail": {
+        "tree": "sha256:f7f00de78119fd3eaf8ba29cd00fb766b740f16945b03dd813214ac19c45dda8",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "7c6ff24db8ec7c3c74201d6cab99ee4ed64134a3",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:60d6cd4d50e69aa97df7ab4f058162d25e25d7502d2c26238ef323f2a1033db9",
+      "tree": "sha256:f7f00de78119fd3eaf8ba29cd00fb766b740f16945b03dd813214ac19c45dda8",
+      "recorded_at": "2026-11-24T20:33:49.512Z"
+    }
+  ],
+  "assumptions": [
+    "El modo automático entra como cuatro ítems de la Etapa 1 (E1.107 a E1.110), cada uno con su criterio de cierre, y E5.5 change-program queda absorbido por ellos"
+  ],
+  "closed_at": "2026-11-24T20:33:49.580Z"
+}

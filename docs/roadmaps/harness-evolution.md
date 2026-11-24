@@ -227,6 +227,10 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.104** | `ui-file-server-templates` (`UI_FILE` de `scripts/lib/idd-facts.js` no reconoce las plantillas de servidor, así que un proyecto cuya interfaz solo vive en `.cshtml`, `.erb` o `.jinja` deja fuera de los hechos abiertos las categorías de estado en la URL y de accesibilidad; fuera del orden ▶) | bugfix |
 | `done` | **E1.105** | `own-sdd-phase-skills` (versiones propias de las skills de fase de SDD que conservaban texto de gentle-ai medido contra su historial: sdd-explore, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-verify con sus módulos, sdd-archive, sdd-clarify, sdd-init, sdd-onboard, las referencias de `_shared` y `agents/sdd-orchestrator.agent.md`, en cinco cambios encadenados que se fusionan, con una sola release, al terminar el último; la sección de gentle-ai de `NOTICE` queda con branch-pr, issue-creation y skill-registry; en v2.185.4) | skills |
 | `done` | **E1.106** | `own-utility-skills` (versiones propias de issue-creation, branch-pr y skill-registry, alineadas con el harness: el issue como intención de un cambio futuro, branch-pr por ciclo de vida leyendo de `ospec team` y del repositorio, y la orden `ospec registry`, que construye el registro con el constructor del hook; la sección de gentle-ai sale de `NOTICE`; en v2.186.0) | skills |
+| `pending` | **E1.107** | `delegated-answers` (cada pregunta de un gate guarda la recomendación del modelo, y una ejecución automática autorizada por el usuario puede resolverla con la fuente `delegated`; el CLI la rechaza en los gates bloqueantes, en una pregunta sin recomendación y fuera de una ejecución automática; con un ADR que enmienda el principio 8) | feature |
+| `pending` | **E1.108** | `auto-conductor` (`ospec auto` ejecuta la cola de un roadmap con una sesión sin interfaz nueva por cambio, sobre el conductor del banco: resuelve los gates delegables, para en los bloqueantes, solo avanza con el `close` en disco y respeta sus topes; en Claude Code y Antigravity; absorbe E5.5) | feature |
+| `pending` | **E1.109** | `execution-mode-choice` (cuando hay una cola de cambios, ospec pregunta si se trabaja en modo interactivo, que es el de hoy y el de por defecto, o en automático; al elegir automático la sesión lanza el conductor y solo recibe sus resúmenes y sus bloqueos) | feature |
+| `pending` | **E1.110** | `auto-conductor-hosts` (el conductor de E1.108 en Codex, OpenCode, Copilot CLI y Cursor, cada uno tras verificarlo en vivo; el host que no puede queda `unavailable` con su motivo) | feature |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -313,6 +317,8 @@ E1.105 `own-sdd-phase-skills` y E1.106 `own-utility-skills` entraron el 2026-11-
 El 2026-11-19, al entregar E1.102, el usuario pidió por delante de E1.101 dos arreglos que salieron de esa entrega, cada uno en su PR. El primero, `retract-answer-offer`: cuando `persistent-data` salía del contenido que el fichero ya tenía, `ospec next` y el hook de Stop solo empujaban a un test de migración, y la retirada con la respuesta del usuario solo aparecía en la negativa de `record retract`. El segundo es el defecto de `decisionBullets` de `scripts/lib/idd-close.js`, que pega al bullet anterior de Decisions el encabezado que le sigue.
 
 El 2026-11-22, al entregar E1.105, el usuario pidió por delante de E1.106 el arreglo `chain-merge-retarget`, en su PR. Al fusionar la cadena con `gh pr merge --delete-branch`, borrar la rama de #539 cerró la PR #540 en vez de reapuntarla, porque `chained-pr` y AGENTS.md reapuntaban la PR siguiente después del merge.
+
+E1.107 a E1.110 entraron el 2026-11-24 con el [análisis del modo automático](../analysis/2026-11-24-modo-automatico.md). El usuario pidió que ospec pueda ejecutar un roadmap entero, cambio a cambio, sin que el contexto llegue lleno al siguiente, eligiendo las respuestas recomendadas y parando solo ante un bloqueo explícito. El análisis concluyó que ningún host deja vaciar el contexto desde dentro de una sesión, y que el banco ya tiene el conductor que lanza una sesión nueva por cambio. El usuario decidió ese día que es la prioridad, por delante de E1.79; que el modo es opcional y ospec pregunta entre interactivo y automático; que el interactivo queda como hoy, y que en la primera versión la elección no se recuerda. Absorben E5.5 `change-program`.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -451,7 +457,7 @@ A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.56 �
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
 C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ E1.63 ─ E1.64 ─ E1.65 ─ E1.66 ─ E1.67 ─ E1.68 ─ E1.69 ─ E1.57
-   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.100 ─ E1.102 ─ E1.101 ─ E1.105 ─ E1.106 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
+   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.100 ─ E1.102 ─ E1.101 ─ E1.105 ─ E1.106 ─ E1.107 ─ E1.108 ─ E1.109 ─ E1.110 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
    ─ 4c2 ─ E1.70 ─ 4d ─ (avisos del guard) ─ PR5…PR8 ─ E1.52 ─ E1.59 ─ E1.60 ─ E1.82 ─ E1.83 ─ E1.84 ─ E3.7
 D: E4.14 ─ E4.6 (corrida de validación) ─ E4.18 ─ E4.4 ─ E4.13 ─ E1.85 ─ E1.86 ─ E1.87 ─ E4.11
 E1.28 espera a que E1.30 cumpla su criterio de hecho: su plazo del 2026-10-29 quedó fallido el 2026-10-26.
@@ -467,6 +473,10 @@ E1.80 (M0) ─┬─ E1.81 (M1) / E1.82 (M2)
             └─ E1.85 (M3) / E1.86 (M4) / E1.87 (M5), los tres también detrás de E4.13
 E1.30 ─ E1.28 ─ E1.89 (R11)
 Fuera del orden ▶: E1.88 (R13), E1.89, E1.90, E1.91 y E5.9 (con R10)
+
+Modo automático (2026-11-24, por delante de E1.79):
+E1.107 ─ E1.108 ─┬─ E1.109
+                 └─ E1.110
 ```
 
 E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado con escrituras atómicas propias hasta que `record` exista.
@@ -1757,6 +1767,67 @@ Origen y evidencia: [comparativa del 2026-11-16](../analysis/2026-11-16-comparat
   - **Medida.** De las 166 líneas largas de las tres skills, ninguna coincide con gentle-ai. Fuera de ellas ningún fichero llega a 10 líneas largas idénticas, ni en texto ni en código, así que la sección de gentle-ai sale de `NOTICE`, que queda con ECC y Caveman.
   - **README.** Dice que ospec nació a partir de gentle-ai y que ningún fichero conserva una parte sustancial suya.
 
+### Modo automático (2026-11-24)
+
+E1.107 a E1.110 salen del [análisis del 2026-11-24](../analysis/2026-11-24-modo-automatico.md). Es un modo opcional: el interactivo es IDD tal como funciona hoy y sigue siendo el de por defecto. En el automático, un conductor en código ejecuta la cola de un roadmap con una sesión nueva por cambio.
+
+### E1.107 — `delegated-answers`
+
+- **Problema:** un gate solo admite las fuentes `user` y `user-unverified` (`GATE_SOURCES`, `scripts/lib/idd-contract.js`), y `skills/idd/references/approvals.md` manda parar ante una respuesta saltada, vacía o por defecto. Una ejecución sin el usuario delante solo puede pararse en cada gate o registrar como suya una respuesta que no dio, que es lo que E1.49 marca.
+- **Garantía que protege:** el principio 8, que este ítem enmienda con un ADR. Una respuesta puede ser delegada cuando el usuario autorizó la ejecución de forma explícita; queda marcada como tal y nunca resuelve un gate bloqueante.
+- **Alcance:**
+  - Cada pregunta de un gate guarda en el estado la recomendación del modelo, o la marca de que no tiene ninguna.
+  - La fuente `delegated` lleva el id de la ejecución que la autoriza. `status`, `close` y la sección `Request and answers` de `change.md` (E1.77) listan cada respuesta delegada.
+  - La decide el código: el CLI rechaza `delegated` en `ambiguous-intent`, `irreversible-operation`, `adr-amend-or-contradict`, `contract-removal` y `abandon`, y en una pregunta sin recomendación.
+  - Fuera de una ejecución automática la fuente se rechaza y nada cambia: los gates se preguntan y se responden como hoy.
+- **Límite declarado:** la marca de ejecución la pone el conductor en el entorno de la sesión. Dificulta que el modelo se apruebe solo, pero el CLI sigue sin poder verificar quién responde (E1.29).
+- **Targets:** los 7, por el CLI común. Los hooks en Go leen el mismo estado.
+- **Hechos abiertos:** cómo se declara la recomendación en `record intent` y en los gates que abre `check`; si `checks-changed`, `review-limit` y `base-moved` admiten `delegated` cuando el usuario aprobó sus valores al autorizar la ejecución; qué hace una retracción que pide la respuesta del usuario; cómo se identifica una ejecución.
+- **Hecho cuando:** un gate `open-facts` con recomendación en todas sus preguntas se resuelve con `delegated` dentro de una ejecución autorizada y `close` lo lista; el mismo intento fuera de una ejecución, sobre un gate bloqueante o con una pregunta sin recomendación se rechaza con su causa; el corpus compartido lo fija en JS y en Go; el ADR está aceptado.
+
+### E1.108 — `auto-conductor`
+
+- **Problema:** tras `close`, el traspaso de `memory-loop.md` propone el siguiente ítem en una sesión nueva y espera. Encadenar los cambios de un roadmap exige que el usuario abra cada sesión, y si sigue en la misma, el contexto llega lleno al siguiente cambio. Ningún host deja que un hook o el modelo lo vacíen.
+- **Garantía que protege:** el principio 3, porque el conductor solo avanza con el `close` en disco, y el principio 4, porque encadenar, parar y contar los topes lo hace el código.
+- **Depende de:** E1.107. Absorbe E5.5.
+- **Antes de construir,** se prueba en vivo que `claude -p --permission-mode auto` cierra un cambio IDD sin que el clasificador deniegue las órdenes de ospec, de la memoria o de git. En #475 ese modo denegó escrituras de Engram.
+- **Alcance:**
+  - `ospec auto start`, `status`, `resume` y `stop`. La cola sale del roadmap del proyecto, con el lector de `ospec snapshot`.
+  - Una sesión sin interfaz nueva por ítem, con un encargo corto. El contexto lo recupera la sesión del disco, de `SessionStart` y de la memoria, como cualquier cambio IDD.
+  - Reutiliza el conductor del banco: `converse` (`scripts/evals/bench/driver.js`) y los adaptadores de `hosts/` pasan a código de producto, y el banco los consume.
+  - Tras cada turno lee `ospec next`. Un gate delegable lo resuelve con las recomendaciones y reanuda la sesión; uno bloqueante deja el bloqueo en `.ospec/auto/`, termina y avisa; con el `close` en disco pasa al siguiente ítem.
+  - Antes de cada ítem comprueba que el árbol está limpio, que los checks pasan sobre la base y que el cambio anterior está cerrado.
+  - Topes obligatorios al arrancar: cambios, coste o tokens y turnos por cambio. Una cuota agotada pausa la ejecución, que se reanuda después.
+  - Entrega: por defecto, un commit local por cambio en su rama y sin push. Subir, abrir la PR, fusionar o publicar solo ocurre si el usuario lo autorizó al arrancar.
+  - Informe final: los cambios cerrados, cada respuesta delegada, el coste y el motivo de la parada.
+- **Targets:** Claude Code y Antigravity, los dos adaptadores que el banco ya tiene. El resto, en E1.110.
+- **Riesgos:** un defecto de un cambio llega a los siguientes, así que la cola para al primer fallo; fuera de Claude los permisos sin supervisión son todo o nada, así que la ejecución pide un árbol de trabajo aislado.
+- **Hechos abiertos:** el formato de roadmap que acepta la cola y si admite una lista explícita de ítems; los topes por defecto; cómo avisa de un bloqueo; qué hace con un ítem que no cabe en un cambio; qué estrategia de ramas usa con `delivery.branching: serial`; el modo de permisos por host.
+- **Hecho cuando:** en un repositorio de prueba con un roadmap de tres ítems, `ospec auto start` cierra los tres en tres sesiones distintas sin intervención; un ítem con un gate bloqueante para la cola, y `resume` con la respuesta del usuario la continúa; un check en rojo sobre la base para antes de lanzar ninguna sesión; los tests del conductor con un host simulado fijan cada parada; la ejecución en vivo se hace con el modelo barato.
+
+### E1.109 — `execution-mode-choice`
+
+- **Decisión del usuario (2026-11-24):** el modo automático es opcional y ospec pregunta entre interactivo y automático. El interactivo queda como hoy. En la primera versión la elección no se recuerda.
+- **Garantía que protege:** el principio 1, porque la pregunta solo aparece cuando hay algo que decidir, y el principio 8, porque elegir automático es la respuesta explícita que autoriza las respuestas delegadas de E1.107.
+- **Depende de:** E1.108.
+- **Alcance:**
+  - La pregunta aparece cuando hay una cola: en el traspaso de `foundation` a IDD y al empezar o cerrar un ítem de un roadmap con más ítems pendientes. No aparece en un cambio suelto ni dentro de una sesión que lanzó el conductor.
+  - Una respuesta vacía o saltada es interactivo. El automático nunca arranca sin elegirlo.
+  - Al elegir automático, la misma pregunta fija los topes y la política de entrega de E1.108. La sesión lanza el conductor y se queda con sus resúmenes: uno corto por cambio, y la pregunta de cada bloqueo, que el usuario contesta ahí y queda como `user`.
+  - Cuándo preguntar lo dice el CLI en su salida, no la skill: `skills/idd/SKILL.md` ocupa 11.172 B de sus 12 KiB.
+- **Targets:** la pregunta, en los 7. Lanzar el conductor desde la sesión y recibir su aviso, en Claude Code; en los demás hosts la sesión da la orden para lanzarlo en una terminal, hasta que E1.110 diga qué permite cada uno.
+- **Hechos abiertos:** el texto de la pregunta y de sus opciones; qué cuenta como cola en un roadmap que el lector de `ospec snapshot` no reconoce; si después se añade una clave para fijar el modo por proyecto (`mode:` ya distingue IDD de SDD).
+- **Hecho cuando:** con un roadmap de varios ítems pendientes, `next` ofrece los dos modos y con un cambio suelto no; una respuesta vacía deja el flujo como hoy; al elegir automático en Claude Code, la sesión lanza la ejecución, recibe su final y traslada un bloqueo al usuario; dentro de una sesión del conductor la pregunta no aparece.
+
+### E1.110 — `auto-conductor-hosts`
+
+- **Problema:** E1.108 solo cubre los dos hosts con adaptador. El principio 6 pide que cada target declare lo que puede y degrade de forma explícita.
+- **Depende de:** E1.108.
+- **Alcance:** adaptadores de Codex (`codex exec`), OpenCode (`opencode run`), Copilot CLI (`copilot -p`) y Cursor (`cursor-agent -p`), cada uno verificado en vivo antes de activarse: que corre los hooks de ospec sin interfaz, que reanuda por id, qué hace con una pregunta del modelo y qué modo de permisos usa. VS Code no tiene modo sin interfaz y queda `unavailable`.
+- **Riesgos conocidos:** en `cursor-agent -p` hay informes de hooks que no disparan en Linux, y `agy -p` puede perder la salida sin terminal; OpenCode, Copilot y Cursor solo ofrecen permisos de todo o nada.
+- **Targets:** Codex, OpenCode, Copilot CLI, Cursor y VS Code.
+- **Hecho cuando:** cada host cierra en vivo un cambio de prueba lanzado por el conductor, o queda `unavailable` con su motivo en `docs/target-capabilities.md` y el conductor lo rechaza con ese mensaje; un test de contrato por host fija sus argumentos.
+
 ### E1.99 — `own-stack-skills`
 
 - **Origen:** E1.78, con la misma decisión del usuario que E1.98.
@@ -2274,7 +2345,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 - **E5.2 — paquetes de conocimiento bajo demanda:** consulta curada de fuentes externas (incluido el catálogo CNCF) con fuentes y vigencia (antes R2.3/R2.6).
 - **E5.3 — documentación y wiki:** la skill `handbook` (que sustituyó a `sdd-document` el 2026-11-03) y la web Starlight consumen el mapa de conocimiento y los ADR (antes R2.7).
 - **E5.4 — federación y workspace:** evolución de R4 cuando haya un caso real multi-repositorio.
-- **E5.5 — `change-program`:** objetivos grandes gestionados como programa, con cambios hijos y un cursor que retoma el siguiente. Insumo: [proporcionalidad y Change Program](archive/2026-10-03-arquitectura/research/proportional-process-and-change-program.md).
+- **E5.5 — `change-program`:** objetivos grandes gestionados como programa, con cambios hijos y un cursor que retoma el siguiente. Insumo: [proporcionalidad y Change Program](archive/2026-10-03-arquitectura/research/proportional-process-and-change-program.md). Desde el 2026-11-24 lo absorben E1.107 a E1.110: la cola, el cursor y la sesión nueva por cambio son el conductor de E1.108. Aquí solo queda partir en cambios hijos un ítem que no cabe en un cambio.
 - **E5.6 — deuda diferida H1–H7:** remediación del backlog de archive y runtime al terminar el roadmap (decisión del usuario del 2026-10-02).
 - **E5.7 — fin de la lectura de linajes v1:** retirar la lectura compatible de `schema_version: 1` (`4r-review-gate`, `LEGACY_DIMENSIONS`, la rama v1 de `review-correction`) y el clasificador v1 (`deriveReviewDimensions`, `validateReviewDecision`). Se abre a partir de v2.92.0, cuando termina la ventana de una versión menor de E0.3 (d).
 - **E5.8 — `sdd-marketplace-plugin`:** publicar un segundo plugin, `ospec-workflow-sdd`, en el marketplace de Claude. Desde v2.113.0, `publish-marketplace.yml` construye la build por defecto, sin `--with-sdd`, así que quien instala desde el marketplace no puede activar SDD; hoy solo puede instalarlo desde un checkout con `npm run setup:claude -- --with-sdd`. Primero hay que decidir entre un plugin completo con SDD que sustituye al principal y un complemento que solo añade el paquete SDD; el complemento obliga a resolver cómo conviven dos plugins: nombres de skills y agentes, hooks y runtime duplicados, y la ruta al CLI. Idea aprobada por el usuario el 2026-10-08 y aplazada: no es prioritaria. Se abre cuando alguien necesite SDD instalando desde el marketplace o al terminar E1.

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Llevar al roadmap el modo automático de IDD: ítems E1.107 a E1.110 por delante de E1.79, E5.5 absorbido, y el análisis fechado de lo que permite cada host (roadmap-auto-mode)
+
 ## [2.187.0] - 2026-11-24
 
 ### Added
