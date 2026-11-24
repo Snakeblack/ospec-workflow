@@ -58,7 +58,8 @@ const MANIFEST_HOSTS = {
     hooks: "hooks.json",
   },
   antigravity: {
-    root: ({ home }) => path.join(home, ".gemini", "config"),
+    root: ({ home }) => path.join(home, ".gemini", "config", "plugins", "ospec-workflow"),
+    legacyRoot: ({ home }) => path.join(home, ".gemini", "config"),
     runtime: "scripts/ospec.js",
     router: { file: "rules/ospec-router.instructions.md" },
     hooks: "hooks.json",
@@ -129,9 +130,20 @@ function hasSddPackage(agentsDir) {
 
 function detectManifestHost(target, context) {
   const spec = MANIFEST_HOSTS[target];
-  const root = spec.root(context);
-  const manifestFile = path.join(root, MANIFEST);
-  const text = readText(manifestFile);
+  let root = spec.root(context);
+  let manifestFile = path.join(root, MANIFEST);
+  let text = readText(manifestFile);
+  let layout = spec.legacyRoot ? "plugin" : null;
+  let legacyManifest = null;
+  if (text !== null && spec.legacyRoot) {
+    const legacyFile = path.join(spec.legacyRoot(context), MANIFEST);
+    if (fs.existsSync(legacyFile)) legacyManifest = legacyFile;
+  } else if (text === null && spec.legacyRoot) {
+    root = spec.legacyRoot(context);
+    manifestFile = path.join(root, MANIFEST);
+    text = readText(manifestFile);
+    layout = "legacy";
+  }
   if (text === null) return null;
   let manifest = null;
   try {
@@ -144,6 +156,8 @@ function detectManifestHost(target, context) {
     root,
     manifestFile,
     manifest,
+    layout,
+    legacyManifest,
     version: manifest && typeof manifest.version === "string" ? manifest.version : null,
     skills: spec.skills ? spec.skills(context) : path.join(root, "skills"),
     agents: path.join(root, "agents"),
@@ -386,7 +400,7 @@ function antigravityHookProbe(host, context, add) {
   const cwd = os.tmpdir();
   const input = JSON.stringify({ hookEventName: "PreToolUse", cwd, toolCall: { name: "write_file", args: { Path: path.join(cwd, "idd", "ospec-doctor-probe", "state.yaml"), Content: "{}" } } });
   const started = Date.now();
-  const result = context.spawn(context.execPath, [wrapper, "pre-tool-use"], { input, cwd, env: { ...context.env, OSPEC_TARGET: "" }, timeout: HOOK_PROBE_TIMEOUT_MS, killSignal: "SIGKILL" }) || {};
+  const result = context.spawn(context.execPath, [wrapper, "pre-tool-use"], { input, cwd: host.root, env: { ...context.env, OSPEC_TARGET: "" }, timeout: HOOK_PROBE_TIMEOUT_MS, killSignal: "SIGKILL" }) || {};
   let failure = result.error ? String(result.error.code || result.error.message)
     : result.signal ? result.signal
     : result.status !== 0 ? `exit ${result.status}${result.stderr ? `: ${result.stderr.trim().slice(0, 200)}` : ""}`
@@ -416,8 +430,22 @@ function antigravitySandboxCheck(context, add) {
   }
   const active = [doc.enableTerminalSandbox === true ? "enableTerminalSandbox: true" : null, doc.agentMode === "auto" ? 'agentMode: "auto"' : null].filter(Boolean);
   add(active.length > 0
-    ? { id: "sandbox-cli", status: "warn", cause: `${file} sets ${active.join(" and ")}; Antigravity's terminal sandbox restricts shell access outside the workspace and blocks ~/.gemini/config/bin/ospec`, action: "Use `agy --mode accept-edits` (or disable enableTerminalSandbox for ospec sessions) until ospec runs via MCP." }
+    ? { id: "sandbox-cli", status: "warn", cause: `${file} sets ${active.join(" and ")}; Antigravity's terminal sandbox restricts shell access outside the workspace and blocks ~/.gemini/config/plugins/ospec-workflow/bin/ospec`, action: "Use `agy --mode accept-edits` (or disable enableTerminalSandbox for ospec sessions) until ospec runs via MCP." }
     : { id: "sandbox-cli", status: "ok" });
+}
+
+function antigravityPluginChecks(host, add) {
+  if (host.layout === "plugin") {
+    const manifest = path.join(host.root, ".antigravity-plugin", "plugin.json");
+    add(fs.existsSync(manifest)
+      ? { id: "plugin-manifest", status: "ok" }
+      : { id: "plugin-manifest", status: "error", cause: `${manifest} is missing; Antigravity will not discover this directory as a native plugin`, action: setupAction("antigravity", "; it installs the native plugin manifest") });
+    if (host.legacyManifest) {
+      add({ id: "legacy-duplicate", status: "warn", cause: `both the native plugin (${host.root}) and a legacy loose installation (${host.legacyManifest}) are present, so Antigravity may load rules, skills or hooks twice`, action: setupAction("antigravity", "; it migrates and cleans the legacy loose files") });
+    }
+  } else if (host.layout === "legacy") {
+    add({ id: "plugin-layout", status: "info", detail: "legacy ~/.gemini/config layout; run `npm run setup:antigravity` to migrate to ~/.gemini/config/plugins/ospec-workflow" });
+  }
 }
 
 function vscodeLocationChecks(host, add) {
@@ -513,6 +541,7 @@ function hostChecks(target, host, context, add) {
   routerChecks(host, add, context.budgetBytes);
   hooksCheck(host, add);
   if (target === "antigravity") {
+    antigravityPluginChecks(host, add);
     if (context.spawn && context.execPath) antigravityHookProbe(host, context, add);
     antigravitySandboxCheck(context, add);
   }

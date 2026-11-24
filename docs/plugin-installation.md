@@ -440,14 +440,16 @@ This idempotent installer:
 
 ### Antigravity (`agy` CLI / App)
 
-The `antigravity` target installs into the global Antigravity config root (`~/.gemini/config`, plus any detected Windows root under WSL).
+The `antigravity` target installs as a native Antigravity plugin into `~/.gemini/config/plugins/ospec-workflow` (plus any detected Windows root under WSL), or into a repository with `--workspace <repo>` (`<repo>/.agents/plugins/ospec-workflow`).
 
 ```bash
 npm run build:antigravity
 npm run setup:antigravity
+# Or project-scoped plugin (portable relative runtime paths, no global changes):
+node scripts/configure/install-antigravity.js --workspace /path/to/repo
 ```
 
-This idempotent installer builds and validates `dist/antigravity/` (AGY 1.5+ tool names, `review-*` subagent isolation, `**/` rule globs, flat SDD meta-command skills when `--with-sdd` is set, and native `pro`/`inherit`/`flash`/`flash_lite` tier aliases), syncs owned files with a rollback journal, merges the `ospec-*` groups into `~/.gemini/config/hooks.json` (`SessionStart`, `PreToolUse`, `Stop`), and renders runtime/shared paths. Pass `--model <tier>=<alias>` to override tiers within `{pro, inherit, flash, flash_lite}`, or `--dry-run` to validate without writing.
+This idempotent installer builds and validates `dist/antigravity/` (`.antigravity-plugin/plugin.json`, `assets/logo.svg`, relative `./scripts/hooks/ospec-antigravity-hook.js` hooks, AGY 1.5+ tool names, `review-*` subagent isolation, `**/` rule globs, flat SDD meta-command skills when `--with-sdd` is set, and native `pro`/`inherit`/`flash`/`flash_lite` tier aliases), syncs the plugin with a rollback journal, and renders runtime/shared paths. When upgrading from a legacy loose `~/.gemini/config` install, global setup atomically migrates and removes only legacy owned files and `ospec-*` hook groups (preserving unrelated user files, `mcp_config.json`, foreign hooks, and `--with-sdd`). Pass `--model <tier>=<alias>` to override tiers within `{pro, inherit, flash, flash_lite}`, or `--dry-run` to validate without writing.
 
 ## Optional SDD package (every target)
 The SDD mode (the `sdd-*` skills and agents with the orchestrator, the `/sdd-*` commands and the `sdd-*` rules) is not installed by default. Add `--with-sdd` to any installer or build to include it (`npm run setup:claude -- --with-sdd`, `node scripts/configure/install-codex.js --with-sdd`, `node scripts/configure/cli.js --target claude --with-sdd`), or run the fixed scripts `npm run setup:<target>:sdd` / `npm run setup:<target>:no-sdd`; the guided TUI offers it as the «SDD mode» package. A reinstall without the flag keeps SDD when the previous install held it (read from its ownership manifest or its agents directory) and says so; `--no-sdd` removes it, and both flags together are a usage error. The `review-*` agents, `skills/_shared/` and the runtime stay in every install because IDD uses them. If you ask for SDD without the package, the router asks you to reinstall with `--with-sdd`.
@@ -488,7 +490,7 @@ Start with the visible entry points and inspect further detail only if something
 | opencode (Local) | The destination repo contains `.opencode/`, `opencode.json`, `skills/`, and `scripts/`. When pressing Tab or typing its name, the agent `ospec-workflow` appears in the interface. |
 | opencode (Global) | The global folder (`~/.config/opencode/`) contains `agents/`, `commands/`, `instructions/`, `plugins/`, `skills/`, and `scripts/`, and `opencode.json` has the merged configuration. In any repo, when pressing Tab, the agent `ospec-workflow` appears in the interface. |
 | Cursor IDE (Global) | `~/.cursor/` contains `agents/`, `commands/`, `rules/*.mdc`, `hooks.json` (without unexpanded `__OSPEC_CURSOR_ROOT__`), `skills/`, and `scripts/`. With Engram configured, `rules/engram-memory-protocol.mdc` has `alwaysApply: true`. |
-| Antigravity (Global) | `~/.gemini/config/` contains `agents/`, `rules/*.instructions.md`, `hooks.json` (expanded paths, no `commands/` or `.mcp.json`), `skills/`, and `scripts/`. Run `agy agents` (only `sdd-orchestrator` if `--with-sdd`) and `ospec doctor --target antigravity`. |
+| Antigravity (Global / Workspace) | `~/.gemini/config/plugins/ospec-workflow/` (or `<repo>/.agents/plugins/ospec-workflow/`) contains `.antigravity-plugin/plugin.json`, `assets/logo.svg`, `agents/`, `rules/*.instructions.md`, `hooks.json` (relative `./scripts/hooks/...`), `skills/`, and `scripts/`. Run `agy plugin list`, `agy agents` (only `sdd-orchestrator` if `--with-sdd`), and `ospec doctor --target antigravity`. |
 
 In Claude Code, if something does not appear after installing the persistent plugin, run:
 
