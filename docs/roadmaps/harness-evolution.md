@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.187.1, 2026-11-24.
+> **Versión de referencia:** v2.188.0, 2026-11-26.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -2491,6 +2491,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-26: `delegated-answers` (IDD), publicado en v2.188.0 junto con `release-shipped-changes`. E1.107 hecho: `ospec record recommendation` guarda la recomendación de cada pregunta de un gate, y una ejecución automática autorizada resuelve `open-facts` con la fuente `delegated` tras un turno; el resto de gates sigue esperando al usuario. El [ADR 0013](../architecture/decisions/0013-respuestas-delegadas.md) enmienda el principio 8 y fija que el conductor pone `OSPEC_AUTO_RUN` solo en su llamada a ospec, nunca en la sesión del modelo. Sigue E1.108 `auto-conductor`.
 - 2026-11-25: `release-shipped-changes` (IDD), sin versión propia: sale con la siguiente. `delivery.release` pasa a `batched`. `AGENTS.md` y `CONTRIBUTING.md` dicen qué PR publica versión (la que cambia lo que el plugin entrega), que una versión agrupa lo fusionado desde la anterior y cuándo una PR lleva varios commits.
 - 2026-11-24: `roadmap-auto-mode` (IDD), publicado en v2.187.1. El roadmap gana E1.107 a E1.110, el modo automático de IDD, por delante de E1.79, con el [análisis](../analysis/2026-11-24-modo-automatico.md) de lo que permite cada host. E5.5 queda absorbido.
 - 2026-11-24: Remediación completa del target `antigravity` para Antigravity `agy 1.5.14`/`1.5.15` (Cadena 1: `agy-01-pretooluse-stop`, `agy-02-agents-tools`, `agy-03-commands-rules-mcp-hygiene`, `agy-04-model-tiers`, `agy-05-validator-doctor-engram-docs` y `agy-06-native-plugin`), publicada en v2.187.0. Cierra el bypass `PreToolUse` (`write_file`/`edit_file`/`read_file`), adopta `toolMap` AGY 1.5.14, aislamiento `review-*`, meta-comandos SDD como skills planas, globs `**/`, tiers nativos (`pro`, `inherit`, `flash`, `flash_lite`), permisos `mcp(engram/<tool>)`, validador estricto, sondas `ospec doctor` y empaquetado como plugin nativo (`.antigravity-plugin/plugin.json`, `plugins/ospec-workflow` con migración atómica de legado y `--workspace`), con 0 bytes de diferencia en los artefactos transformados de los otros seis targets.

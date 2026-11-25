@@ -7,11 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.188.0] - 2026-11-26
+
 ### Added
-- Respuestas delegadas para el modo automático: `ospec record recommendation` guarda la respuesta recomendada para cada pregunta de un gate, y una ejecución automática autorizada (`OSPEC_AUTO_RUN`) resuelve `open-facts` con la fuente `delegated` una vez terminado el turno; el resto de gates sigue esperando al usuario (E1.107, ADR 0013) (delegated-answers)
+- **Respuestas delegadas para el modo automático** (delegated-answers, E1.107). Una ejecución sin el usuario delante ya no tiene que parar en cada gate ni registrar como suya una respuesta que no dio.
+  - **La recomendación**: `ospec record recommendation --change <id> --gate <id> --question <n> (--answer <texto> | --none)` guarda la respuesta que el modelo recomienda para cada pregunta de un gate abierto. `next` la muestra en `pending_decision.recommendations`, también en modo interactivo.
+  - **La respuesta delegada**: la fuente `delegated` la registra el conductor de una ejecución automática autorizada, con su id en `OSPEC_AUTO_RUN`. El CLI escribe la respuesta con las recomendaciones y solo la admite en `open-facts`, con recomendación en todas las preguntas y después de que termine un turno desde que se abrió el gate. En el resto de gates, en la intención ambigua y en las retracciones la rechaza con `delegation-refused` y su causa.
+  - **Dónde se ve**: `status` y `close` devuelven `delegated_answers`, que no es un aviso, y `change.md` marca cada una como `delegated, run <id>`.
+  - **Compatibilidad**: el estado crece sin subir `idd-state/v1`. Un test valida el estado nuevo con el contrato de v2.187.1, y el corpus compartido de los hooks fija que Node y Go lo leen igual.
+  - **La garantía**: el ADR 0013 enmienda el principio 8 del roadmap. La autorización explícita de una ejecución solo cuenta para los hechos abiertos, y el conductor pone `OSPEC_AUTO_RUN` solo en su propia llamada a ospec, nunca en la sesión del modelo. REQ-idd-030 lo fija en la spec.
 
 ### Changed
-- Publicar versión solo con los cambios que alteran lo que el plugin entrega: las PR de documentación, roadmap o CI se fusionan sin release y su entrada sale con la siguiente versión (release-shipped-changes)
+- **Solo publica versión la PR que cambia lo que el plugin entrega** (release-shipped-changes). Las PR de documentación, roadmap o CI se fusionan sin release y su entrada queda en `[Unreleased]` hasta la siguiente versión. `delivery.release` pasa a `batched`, y AGENTS.md dice qué rutas publican, cuándo una PR lleva varios commits y que una versión agrupa todo lo fusionado desde la anterior.
+
+**Verificación directa**: `node scripts/check.js` (5128 tests pasando, 0 fallos y 5 omitidos), 460 de ellos en la fase serie, con los siete targets generados y validados, puerta Go (`gofmt`, `go vet ./...`, `go test ./...`) en verde y la revisión de confianza aprobada, con su corrección validada.
 
 ## [2.187.1] - 2026-11-24
 
