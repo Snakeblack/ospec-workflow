@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Publicar versión solo con los cambios que alteran lo que el plugin entrega: las PR de documentación, roadmap o CI se fusionan sin release y su entrada sale con la siguiente versión (release-shipped-changes)
+
 ## [2.187.1] - 2026-11-24
 
 ### Changed
