@@ -8,15 +8,17 @@ team:
   experience: senior
 
 # How changes reach main (REQ-idd-023): one pull request in flight, since every
-# PR touches the version files; AGENTS.md holds the delivery order. ospec close
-# writes each change's entry under [Unreleased] of CHANGELOG.md and proposes
-# its release, cut right after the merge (REQ-idd-025). Commits, pull requests,
-# the changelog, the handbook and the roadmap are written in Spanish; skills,
-# code comments and the English documentation keep their own language.
+# PR touches the changelog; AGENTS.md holds the delivery order. ospec close
+# writes each change's entry under [Unreleased] of CHANGELOG.md (REQ-idd-025).
+# A version groups the changes merged since the previous one: only a pull
+# request that changes what the plugin delivers cuts it, as AGENTS.md says.
+# Commits, pull requests, the changelog, the handbook and the roadmap are
+# written in Spanish; skills, code comments and the English documentation keep
+# their own language.
 delivery:
   branching: serial
   changelog: CHANGELOG.md
-  release: per-change
+  release: batched
   language: es
 
 # The checks `ospec check` runs, in order (REQ-idd-014).

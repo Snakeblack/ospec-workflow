@@ -85,8 +85,16 @@ third-party runtime dependencies.
   backward-compatible capability, major for breaking the trust surface or phase
   contracts. Record the change in `CHANGELOG.md`.
 - **One change in flight.** Branch, commits, PR, merge and release follow the
-  delivery order in [AGENTS.md](AGENTS.md): one open PR at a time, released
-  right after its merge, since every PR touches the version files.
+  delivery order in [AGENTS.md](AGENTS.md): one open PR at a time, since every
+  PR touches the changelog.
+- **One commit per work unit.** A unit is the smallest part of a change that
+  reverts alone and passes the checks. Most changes are one commit; add another
+  only for a second unit, never per file or per step.
+- **Not every PR publishes a version.** Only a PR that changes what the plugin
+  delivers carries the release commit, and its version includes every change
+  merged since the previous one. A PR of documentation, roadmap, CI, tests or
+  bench merges without a version and leaves its line under `## [Unreleased]`.
+  [AGENTS.md](AGENTS.md) lists the paths.
 
 ## Reporting issues
 

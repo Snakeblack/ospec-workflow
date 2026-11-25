@@ -1,0 +1,87 @@
+{
+  "schema": "idd-state/v1",
+  "change": "release-shipped-changes",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "debemos darle una vuelta al tema de commits, Prs, Release, no se cuando hacer varios commits en un PR, cuantos PR hacer para una release, etc.. esto tenemos que darle una vuelta tambien. de acuerdo, abrimos el cambio de releases agrupadas antes de E1.108",
+    "requested_at": "2026-11-24T20:46:37.806Z",
+    "kind": "docs",
+    "summary": "Publicar versión solo con los cambios que alteran lo que el plugin entrega: las PR de documentación, roadmap o CI se fusionan sin release y su entrada sale con la siguiente versión",
+    "acceptance": "AGENTS.md y CONTRIBUTING.md dicen qué PR lleva commit de release y cuál no, cuándo una PR tiene varios commits y cuántas PR entran en una versión; idd/config.yaml declara la política de release que eso pide; node scripts/check.js pasa"
+  },
+  "facts": {
+    "open": [
+      "¿Qué PR publican versión? (a, recomendada) solo las que cambian lo que el plugin entrega: skills, agentes, hooks, reglas, órdenes, scripts, binarios, modelos y perfiles; las de solo documentación, roadmap, CI, tests o banco se fusionan sin versión y su línea queda en [Unreleased] hasta la siguiente; (b) todas, como hoy; (c) ninguna hasta que lo pidas",
+      "¿Dónde va el commit de release? (a, recomendada) sigue siendo el último commit de la PR que publica, sin PR extra, y la entrega sigue en serie; (b) en una PR propia de release, que añade una PR por versión pero permite PR en paralelo",
+      "¿Alcance? (a, recomendada) solo las reglas de este repositorio: AGENTS.md, CONTRIBUTING.md e idd/config.yaml con delivery.release: batched; (b) además cambiar ospec para que close diga si el cambio entrega algo y proponga la versión solo entonces, en todos los proyectos"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "AGENTS.md",
+      "CONTRIBUTING.md",
+      "idd/config.yaml"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 720
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 720,
+      "answer": "todas las recomendadas: 1) publican versión solo las PR que cambian lo que el plugin entrega; las de solo documentación, roadmap, CI, tests o banco se fusionan sin versión y su línea queda en [Unreleased] hasta la siguiente; 2) el commit de release sigue siendo el último de la PR que publica, sin PR extra, y la entrega sigue en serie; 3) solo las reglas de este repositorio: AGENTS.md, CONTRIBUTING.md e idd/config.yaml con delivery.release: batched",
+      "source": "user",
+      "resolved_at": "2026-11-25T11:19:04.705Z",
+      "resolved_turn": 722
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-25T11:22:02.519Z",
+      "detail": {
+        "tree": "sha256:42e5077c7efdfc21ec7bf9e6e759d02c267f61de3f638ab156d61d2d5266dbc5",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "02d9f2e8b9db8b5ab94c4f45ea84277f1b258cb0",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e4d0243700f51b80b70cd71ed951bbf45c08defc291c60ef0d6e90667e9797fb",
+      "tree": "sha256:42e5077c7efdfc21ec7bf9e6e759d02c267f61de3f638ab156d61d2d5266dbc5",
+      "recorded_at": "2026-11-25T11:22:02.519Z"
+    }
+  ],
+  "closed_at": "2026-11-25T11:22:02.592Z"
+}

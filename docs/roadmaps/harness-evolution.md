@@ -105,7 +105,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 - **Hasta E1.6,** cada ítem es un cambio directo en su rama, con el flujo de release de `AGENTS.md`, como v2.81.1–v2.81.3. Si cambia código, el test en rojo va primero. Si toca comportamiento especificado, actualiza la spec canónica de `openspec/specs/` en el mismo PR. No se usa SDD salvo que el ítem lo pida.
 - **Desde E1.6,** cada ítem se ejecuta con IDD y E4 registra su coste.
 - **Tamaño.** Si un ítem supera unas 400 líneas, se entrega en PRs encadenados; el ítem no se parte artificialmente.
-- **Al cerrar un ítem:** actualizar la tabla de estado y la versión de referencia, y seguir el flujo de release.
+- **Al cerrar un ítem:** actualizar la tabla de estado y seguir el orden de entrega de `AGENTS.md`. La versión de referencia solo cambia en la PR que publica versión: la que cambia lo que el plugin entrega.
 - **Al cerrar cada etapa:** checkpoint `continue | revise` contra la tabla de objetivos, con números.
 - **Entrada de trabajo nuevo:** un ítem nuevo solo entra si dice qué fila de los objetivos mueve o qué garantía protege.
 - **Lo aparcado** (al final) no se toca sin cumplir su criterio de reapertura.
@@ -319,6 +319,8 @@ El 2026-11-19, al entregar E1.102, el usuario pidió por delante de E1.101 dos a
 El 2026-11-22, al entregar E1.105, el usuario pidió por delante de E1.106 el arreglo `chain-merge-retarget`, en su PR. Al fusionar la cadena con `gh pr merge --delete-branch`, borrar la rama de #539 cerró la PR #540 en vez de reapuntarla, porque `chained-pr` y AGENTS.md reapuntaban la PR siguiente después del merge.
 
 E1.107 a E1.110 entraron el 2026-11-24 con el [análisis del modo automático](../analysis/2026-11-24-modo-automatico.md). El usuario pidió que ospec pueda ejecutar un roadmap entero, cambio a cambio, sin que el contexto llegue lleno al siguiente, eligiendo las respuestas recomendadas y parando solo ante un bloqueo explícito. El análisis concluyó que ningún host deja vaciar el contexto desde dentro de una sesión, y que el banco ya tiene el conductor que lanza una sesión nueva por cambio. El usuario decidió ese día que es la prioridad, por delante de E1.79; que el modo es opcional y ospec pregunta entre interactivo y automático; que el interactivo queda como hoy, y que en la primera versión la elección no se recuerda. Absorben E5.5 `change-program`.
+
+El 2026-11-24, al entregar ese cambio del roadmap, el usuario pidió revisar antes de E1.108 cuándo se hacen varios commits, cuántas PR entran en una versión y qué PR publica. Lo hace el cambio `release-shipped-changes`: `delivery.release` pasa a `batched`, y solo la PR que cambia lo que el plugin entrega lleva el commit de release, con todo lo fusionado desde la versión anterior. E1.108 lo necesita para que una ejecución de varios cambios no publique una versión por cambio.
 
 E1.28 `supply-chain-hardening` depende de E1.30, no de su posición. Iba a entrar el 2026-10-29 si E1.30 cumplía su plazo de 0 flakes, pero el flake de PowerShell en la PR #436 lo rompió el 2026-10-26, y el usuario lo dejó como fallido, sin plazo nuevo. E1.28 espera a que E1.30 cumpla su criterio de hecho.
 
@@ -2488,6 +2490,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-11-25: `release-shipped-changes` (IDD), sin versión propia: sale con la siguiente. `delivery.release` pasa a `batched`. `AGENTS.md` y `CONTRIBUTING.md` dicen qué PR publica versión (la que cambia lo que el plugin entrega), que una versión agrupa lo fusionado desde la anterior y cuándo una PR lleva varios commits.
 - 2026-11-24: `roadmap-auto-mode` (IDD), publicado en v2.187.1. El roadmap gana E1.107 a E1.110, el modo automático de IDD, por delante de E1.79, con el [análisis](../analysis/2026-11-24-modo-automatico.md) de lo que permite cada host. E5.5 queda absorbido.
 - 2026-11-24: Remediación completa del target `antigravity` para Antigravity `agy 1.5.14`/`1.5.15` (Cadena 1: `agy-01-pretooluse-stop`, `agy-02-agents-tools`, `agy-03-commands-rules-mcp-hygiene`, `agy-04-model-tiers`, `agy-05-validator-doctor-engram-docs` y `agy-06-native-plugin`), publicada en v2.187.0. Cierra el bypass `PreToolUse` (`write_file`/`edit_file`/`read_file`), adopta `toolMap` AGY 1.5.14, aislamiento `review-*`, meta-comandos SDD como skills planas, globs `**/`, tiers nativos (`pro`, `inherit`, `flash`, `flash_lite`), permisos `mcp(engram/<tool>)`, validador estricto, sondas `ospec doctor` y empaquetado como plugin nativo (`.antigravity-plugin/plugin.json`, `plugins/ospec-workflow` con migración atómica de legado y `--workspace`), con 0 bytes de diferencia en los artefactos transformados de los otros seis targets.
 - 2026-11-23: `own-utility-skills` (IDD), publicado en v2.186.0. E1.106 hecho: issue-creation, branch-pr y skill-registry con texto propio y alineadas con el harness, con la orden nueva `ospec registry`. La sección de gentle-ai sale de `NOTICE` y el README cuenta el origen. E5.15 se amplía a las skills y convenciones del proyecto.
