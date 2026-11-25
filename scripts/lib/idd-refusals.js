@@ -42,6 +42,7 @@ const REFUSALS = Object.freeze({
   "close-refused": "settle what the message lists, run ospec check --change <id>, then ospec close --change <id> again",
   "config-invalid": "fix idd/config.yaml as the message says (JSON text, valid YAML 1.2), keeping its other keys, then run the command again",
   "counterproof-unmounted": { byDesign: "the CLI skips that counterproof with this reason, marked in the evidence and warned by run, check and close (E1.48); it never refuses a command" },
+  "delegation-refused": `the gate waits for the user: end your turn with its questions and record their answer with ospec record gate --change <id> --gate <gate> --resolve ${ANSWER}; only an automatic run answers open-facts with --source delegated, once a turn ended and every question has a recommendation`,
   "decisions-invalid":
     "fix the ADR header at the line the message names ('# NNNN. <title>', '- Status:' and '- Date:'), or give its decision a reason under '## Decisions' of the progress file",
   "evidence-conflict": { byDesign: CLI_ONLY },
@@ -77,6 +78,7 @@ const REFUSALS = Object.freeze({
   "invalid-plan": "--work-units takes a positive integer",
   "invalid-record": "--record names the new ADR's .md file under docs/architecture/decisions/, and only for an ADR the change amends or supersedes",
   "invalid-reference": "name one reference: --adr <adr> or --quality <scenario>",
+  "invalid-question": "pass --question the number of a question of the gate, from 1, in the order the pending_decision of ospec next --change <id> --json lists them",
   "invalid-source": "use --source user for an answer the user gave in this session, or user-unverified for a relayed one",
   "kind-mismatch": 'raise the kind with ospec record intent --change <id> --kind <kind> and the same --summary and --acceptance; a refactor that only removes documentation lines that read like a contract gets contract-removal from ospec check instead',
   "knowledge-map-unreadable": "fix docs/architecture/knowledge-map.yaml so it is JSON text (valid YAML 1.2)",
@@ -95,6 +97,7 @@ const REFUSALS = Object.freeze({
   "progress-invalid": "fix the progress file at the line the message names, or pass --progress <path>",
   "progress-missing": "pass --progress <path> to read another progress file, or leave it out to read docs/progress.md when it exists",
   "reason-required": 'pass --reason "<why>"',
+  "recommendation-required": 'pass --answer "<the answer you recommend>", or --none when you recommend no answer',
   "reference-not-declared": "declare it first: ospec signals --change <id> --adr <adr> or --quality <scenario>",
   "retract-answer-refused": "the user's answer retracts only persistent-data or security-boundary that the content of the diff alone derives, and public-contract outside a contract document: keep the signal and satisfy its obligation",
   "retract-conflict": `nothing to record: the signal stays retracted with its first reason; ${NEXT}`,

@@ -146,6 +146,20 @@ test("a checks-changed asked again about other checks opens again at the new tur
   assert.strictEqual(after.gates[0].opened_turn, 6);
 });
 
+test("[REQ-idd-030] a recommendation changes no question, so the gate keeps the turn it opened in", () => {
+  const before = state({ id: "open-facts", status: "open", opened_turn: 3 });
+  const after = structuredClone(before);
+  after.gates[0].recommendations = [{ question: "Q?", answer: "A." }];
+  fenceGates(before, after, 6);
+  assert.strictEqual(after.gates[0].opened_turn, 3);
+
+  // A delegated answer takes the turn of its answer and keeps its source.
+  const answered = structuredClone(after);
+  Object.assign(answered.gates[0], { status: "resolved", answer: "Q? → A.", source: "delegated", run: "run-1" });
+  assert.deepStrictEqual(fenceGates(after, answered, 7), []);
+  assert.deepStrictEqual([answered.gates[0].resolved_turn, answered.gates[0].source], [7, "delegated"]);
+});
+
 test("an irreversible-operation that takes in another operation opens again at the new turn", () => {
   const before = state({ id: "irreversible-operation", status: "open", reason: "drop column", operations: ["drop column"], opened_turn: 3 });
   const after = structuredClone(before);

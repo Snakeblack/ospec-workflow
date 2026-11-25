@@ -2,7 +2,7 @@
 
 - Ended at: `2026-10-09T12:00:00Z`
 - Session: `session-idd`
-- Active change: `s-adr`, `s-boundary`, `s-checks`, `s-checks-changed`, `s-close`, `s-contract`, `s-gate`, `s-limit`, `s-living`, `s-migration`, `s-owed`, `s-review`, `s-tdd`, `s-vague` (ambiguous: 14 open changes)
+- Active change: `s-adr`, `s-boundary`, `s-checks`, `s-checks-changed`, `s-close`, `s-contract`, `s-delegated`, `s-gate`, `s-limit`, `s-living`, `s-migration`, `s-owed`, `s-recommended`, `s-review`, `s-tdd`, `s-vague` (ambiguous: 16 open changes)
 - Current phase: `multiple`
 - Change status: `multiple`
 - Detailed summary: `None`
@@ -15,11 +15,13 @@ Several changes are open; choose the one to resume:
 - `s-checks-changed` (idd): Resolve the `checks-changed` gate with the user: `ospec next --change s-checks-changed` shows what to ask.
 - `s-close` (idd): Close it: `ospec close --change s-close`.
 - `s-contract` (idd): Satisfy `contract-spec-and-test` with contract-spec-and-test evidence: in one diff, touch a contract document and its test (contracts.documents and contracts.tests of idd/config.yaml), then ospec check --change s-contract. If `public-contract` may be a false positive, `ospec next --change s-contract` says whether the user's answer can retract it instead.
+- `s-delegated` (idd): Satisfy `checks-pass` with check-run evidence: ospec check --change s-delegated; a run that reports tests 0 is not evidence.
 - `s-gate` (idd): Resolve the `irreversible-operation` gate with the user: `ospec next --change s-gate` shows what to ask.
 - `s-limit` (idd): Resolve the `review-limit` gate with the user: `ospec next --change s-limit` shows what to ask.
 - `s-living` (idd): Satisfy `living-doc` with living-doc-current evidence: the CLI writes the Plan of idd/s-living/change.md from --path and its Decisions from --decision "<text>"; add by hand what they leave out, then ospec close --change s-living.
 - `s-migration` (idd): Satisfy `migration-compat-and-test` with migration-test evidence: ospec run --change s-migration --obligation migration-compat-and-test --command "<migration test>" --plan "<compatibility or rollback>". If `persistent-data` may be a false positive, `ospec next --change s-migration` says whether the user's answer can retract it instead.
 - `s-owed` (idd): Run `ospec next --change s-owed`.
+- `s-recommended` (idd): Resolve the `open-facts` gate with the user: `ospec next --change s-recommended` shows what to ask.
 - `s-review` (idd): Satisfy `trust-review` with frozen-review evidence: ospec review start --change s-review, dispatch review-trust on the returned paths, then ospec review record --change s-review --result '<findings json>'. If `security-boundary` may be a false positive, `ospec next --change s-review` says whether the user's answer can retract it instead.
 - `s-tdd` (idd): Satisfy `tdd-red-green` with tdd-red-green evidence: ospec run --change s-tdd --obligation tdd-red-green --command "<test>" [--unit <name>]: failing before the code, passing after it, with the test in a test file of the diff; it must also fail against the base product.
 - `s-vague` (idd): Resolve the `ambiguous-intent` gate with the user: `ospec next --change s-vague` shows what to ask.

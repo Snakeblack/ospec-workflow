@@ -7,7 +7,9 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 
 const contract = require("./idd-contract.js");
 
@@ -591,6 +593,90 @@ test("a signal carries the turn of its record, and its retraction by an answer b
   }
   const plain = validState({ retracted: [{ id: "public-contract", reason: "r", source: "declaration", retract_reason: "not touched", recorded_turn: 3 }] });
   assert.match(contract.validateState(plain).errors.join("; "), /keeps the turn fence only for the user's answer/);
+});
+
+test("[REQ-idd-030] a gate keeps the recommendation of each question, and a delegated answer keeps its run, its recommendations and a turn end", () => {
+  const delegated = { status: "resolved", answer: "Q? → A.", source: "delegated", run: "run-1", recommendations: [{ question: "Q?", answer: "A." }], opened_turn: 3, resolved_turn: 4 };
+  const gate = (fields, id = "open-facts") => validState({ facts: { open: ["Q?", "R?"] }, gates: [{ id, ...fields }] });
+  const valid = [
+    { status: "open", recommendations: [{ question: "Q?", answer: "A." }, { question: "R?", none: true }] },
+    { status: "open", recommendations: [] },
+    { status: "resolved", answer: "yes", source: "user", recommendations: [{ question: "Q?", none: true }] },
+    delegated,
+    // A count that started again after the gate opened.
+    { ...delegated, opened_turn: 5, resolved_turn: 2 },
+  ];
+  for (const fields of valid) assert.deepStrictEqual(contract.validateState(gate(fields)), { ok: true, errors: [] }, JSON.stringify(fields));
+  const invalid = [
+    [{ status: "open", recommendations: [{ question: "Q?", answer: "A." }, { question: "Q?", answer: "B." }] }, /recommendations must name each question once/],
+    [{ status: "open", recommendations: [{ question: "Q?", answer: "A.", none: true }] }, /recommendations must name each question once/],
+    [{ status: "open", recommendations: [{ question: "Q?", none: false }] }, /recommendations must name each question once/],
+    [{ status: "open", recommendations: [{ question: "Q?", answer: " " }] }, /recommendations must name each question once/],
+    [{ status: "open", recommendations: [{ question: "Q?", answer: "A.", why: "x" }] }, /recommendations must name each question once/],
+    [{ status: "open", recommendations: { question: "Q?" } }, /recommendations must name each question once/],
+    [{ status: "resolved", answer: "yes", source: "user", run: "run-1" }, /run names the automatic run of a delegated answer/],
+    [{ ...delegated, run: "Run_1" }, /run names the automatic run of a delegated answer/],
+    [{ ...delegated, run: "r".repeat(65) }, /run names the automatic run of a delegated answer/],
+    [{ ...delegated, run: undefined }, /answered delegated must name its run/],
+    [{ ...delegated, recommendations: undefined }, /keep the recommendations it was answered with/],
+    [{ ...delegated, recommendations: [{ question: "Q?", none: true }] }, /keep the recommendations it was answered with/],
+    [{ ...delegated, resolved_turn: undefined }, /answered delegated without a turn end/],
+    [{ ...delegated, resolved_turn: 3 }, /answered delegated without a turn end/],
+    [{ ...delegated, opened_turn: null, resolved_turn: null }, /answered delegated without a turn end/],
+  ];
+  for (const [fields, error] of invalid) {
+    const { ok, errors } = contract.validateState(gate(fields));
+    assert.strictEqual(ok, false, JSON.stringify(fields));
+    assert.match(errors.join("; "), error);
+  }
+  // Only the delegable gates take it, and never a retraction.
+  assert.match(contract.validateState(gate(delegated, "irreversible-operation")).errors.join("; "), /gate irreversible-operation takes no delegated answer/);
+  const retraction = { id: "persistent-data", reason: "r", source: "diff", retract_reason: "no data", confirmed_by: "r", hits: ["a"], answer: "No data.", answer_source: "delegated" };
+  assert.match(contract.validateState(validState({ retracted: [retraction] })).errors.join("; "), /with the user's answer needs/);
+});
+
+// The state grows without a new schema (ADR 0009): the contract published
+// before delegated answers, which the CLI of that version validates every
+// state with, still accepts one that holds them. CI clones the whole history.
+test("[REQ-idd-030] the contract of v2.187.1 still accepts a state with recommendations and a delegated answer", (t) => {
+  const tag = "v2.187.1";
+  const git = (...args) => spawnSync("git", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+  if (git("rev-parse", "--verify", "--quiet", `${tag}^{commit}`).status !== 0) return t.skip(`${tag} is not in this clone`);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "idd-contract-previous-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  for (const name of ["idd-contract.js", "idd-facts.js", "idd-impact.js"]) {
+    const shown = git("show", `${tag}:scripts/lib/${name}`);
+    assert.strictEqual(shown.status, 0, shown.stderr);
+    fs.writeFileSync(path.join(dir, name), shown.stdout);
+  }
+  const previous = require(path.join(dir, "idd-contract.js"));
+  const state = validState({
+    facts: { open: ["Q?", "R?"] },
+    gates: [
+      { id: "open-facts", status: "resolved", opened_turn: 3, recommendations: [{ question: "Q?", answer: "A." }, { question: "R?", answer: "B." }], answer: "Q? → A.\nR? → B.", source: "delegated", run: "run-1", resolved_at: "2026-11-25T10:00:00.000Z", resolved_turn: 4 },
+      { id: "irreversible-operation", status: "open", reason: "drop the old pages", operations: ["drop the old pages"], opened_turn: 4, recommendations: [{ question: contract.GATE_QUESTIONS["irreversible-operation"], none: true }] },
+    ],
+  });
+  assert.deepStrictEqual(contract.validateState(state), { ok: true, errors: [] });
+  assert.deepStrictEqual(previous.validateState(state), { ok: true, errors: [] });
+});
+
+test("[REQ-idd-030] each gate has its questions, and status, close and the log name a delegated answer with its run", () => {
+  assert.deepStrictEqual(Object.keys(contract.GATE_QUESTIONS).sort(), [...contract.GATES].sort());
+  const state = validState({ facts: { open: ["Q?", "R?"] } });
+  assert.deepStrictEqual(contract.gateQuestions(state, { id: "open-facts" }), ["Q?", "R?"]);
+  assert.deepStrictEqual(contract.gateQuestions(state, { id: "contract-removal", hits: ["a.md removes route: GET /x"] }), ["a.md removes route: GET /x"]);
+  assert.deepStrictEqual(contract.gateQuestions(state, { id: "review-limit" }), [contract.GATE_QUESTIONS["review-limit"]]);
+  // A recommendation of a question the gate no longer asks is left out.
+  const gate = { id: "open-facts", recommendations: [{ question: "R?", none: true }, { question: "Old?", answer: "x" }, { question: "Q?", answer: "A." }] };
+  assert.deepStrictEqual(contract.currentRecommendations(state, gate), [{ question: "Q?", answer: "A." }, { question: "R?", none: true }]);
+
+  const answered = { ...state, gates: [{ id: "open-facts", status: "resolved", answer: "Q? → A.", source: "delegated", run: "run-1", resolved_at: "2026-11-25T10:00:00.000Z" }, { id: "irreversible-operation", status: "resolved", answer: "yes", source: "user" }] };
+  assert.deepStrictEqual(contract.delegatedAnswers(answered), [{ gate: "open-facts", run: "run-1", at: "2026-11-25T10:00:00.000Z", answer: "Q? → A." }]);
+  assert.deepStrictEqual(contract.userLog(answered).answers.map((entry) => [entry.label, entry.source]), [["irreversible-operation", "user"], ["open-facts", "delegated, run run-1"]]);
+  for (const [value, ok] of [["run-1", true], ["r".repeat(64), true], ["r".repeat(65), false], ["Run-1", false], ["run--1", false], ["", false], [undefined, false]]) {
+    assert.strictEqual(contract.isAutoRunId(value), ok, String(value));
+  }
 });
 
 test("a gate may carry a reason, which must be text", () => {

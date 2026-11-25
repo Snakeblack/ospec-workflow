@@ -1,0 +1,63 @@
+{
+  "schema": "idd-state/v1",
+  "change": "s-delegated",
+  "mode": "idd",
+  "status": "open",
+  "intent": {
+    "kind": "docs",
+    "summary": "Document the page size.",
+    "acceptance": "The README names the limit."
+  },
+  "facts": {
+    "open": [
+      "Is the limit 100 items?",
+      "Is a larger size refused?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 3,
+      "recommendations": [
+        {
+          "question": "Is the limit 100 items?",
+          "answer": "Yes, 100."
+        },
+        {
+          "question": "Is a larger size refused?",
+          "answer": "Yes, with an error."
+        }
+      ],
+      "answer": "Is the limit 100 items? → Yes, 100.\nIs a larger size refused? → Yes, with an error.",
+      "source": "delegated",
+      "run": "run-1",
+      "resolved_at": "2026-10-09T10:00:00.000Z",
+      "resolved_turn": 4
+    }
+  ],
+  "evidence": []
+}

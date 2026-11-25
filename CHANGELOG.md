@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Respuestas delegadas para el modo automático: `ospec record recommendation` guarda la respuesta recomendada para cada pregunta de un gate, y una ejecución automática autorizada (`OSPEC_AUTO_RUN`) resuelve `open-facts` con la fuente `delegated` una vez terminado el turno; el resto de gates sigue esperando al usuario (E1.107, ADR 0013) (delegated-answers)
+
 ### Changed
 - Publicar versión solo con los cambios que alteran lo que el plugin entrega: las PR de documentación, roadmap o CI se fusionan sin release y su entrada sale con la siguiente versión (release-shipped-changes)
 

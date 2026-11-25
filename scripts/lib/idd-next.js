@@ -5,7 +5,7 @@
 // same inputs yield the same output, whatever order the state's signals were
 // recorded in.
 
-const { ANSWER_RETRACTABLE_SIGNALS, CHANGE_ROOT, DECISIONS_ROOT, GATES, IMPACTS, INTENT_KINDS, LIVING_DOC_FILE, OBLIGATIONS, RUN_EVIDENCE, SIGNALS, owedQuestion } = require("./idd-contract.js");
+const { ANSWER_RETRACTABLE_SIGNALS, CHANGE_ROOT, DECISIONS_ROOT, GATES, GATE_QUESTIONS, IMPACTS, INTENT_KINDS, LIVING_DOC_FILE, OBLIGATIONS, RUN_EVIDENCE, SIGNALS, currentRecommendations, delegatedAnswers, owedQuestion } = require("./idd-contract.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
 const { COVERAGE_RULES, featureCommand, projectCategories } = require("./idd-facts.js");
 const { ANSWER_CONFIRMS } = require("./idd-record.js");
@@ -25,22 +25,6 @@ const WORK_ORDER = Object.freeze([
   "checks-pass",
   "living-doc",
 ]);
-
-const GATE_QUESTIONS = Object.freeze({
-  abandon:
-    "This change is abandoned: archived as it is, without checks, reviews or a changelog entry, and the working tree stays as it is. Abandon it? If not, withdraw the question with ospec abandon --cancel.",
-  "ambiguous-intent": "What must this change achieve? Confirm its kind, summary and acceptance.",
-  "kind-change": "This bug became a feature, which withdraws repro-test. Does the user approve the new kind? If not, resolve this gate with their words and record the intent back as a bug.",
-  "open-facts": "Before the change is built, answer these behavior questions that neither the request nor the code settles.",
-  "adr-amend-or-contradict": "This change amends or contradicts an ADR. Approve the amendment?",
-  "irreversible-operation": "This operation is destructive or irreversible. Approve it?",
-  "review-limit": "The trust reviews of this change are used up. Authorize one more trust review?",
-  "checks-changed": "The checks or the ceremony settings (strict_tdd, impact, contracts) in idd/config.yaml differ from the change's base. Approve them for this change?",
-  "contract-removal":
-    "This refactor removes documentation lines that read like a contract (an HTTP route or a selector). Do they state no contract, no route, request, response or published API, so the kind stays refactor? If they do, raise the kind with ospec record intent.",
-  "base-moved":
-    "The base of this change moves to a later commit, so the commits in between and the paths they change leave its diff. Do they all belong to other changes? If not, withdraw the question with ospec record base --cancel.",
-});
 
 const EVIDENCE_BY_OBLIGATION = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation.evidence]));
 
@@ -265,6 +249,10 @@ function pendingDecision(state, gate) {
       `changes archived in between: ${gate.archived.join(", ") || "none"}`,
     ];
   }
+  // What the model recommends for each question (REQ-idd-030), so the user
+  // can take it and an automatic run can answer a delegable gate with it.
+  const recommendations = currentRecommendations(state, gate);
+  if (recommendations.length > 0) decision.recommendations = recommendations;
   return decision;
 }
 
@@ -437,6 +425,9 @@ function statusOf(states) {
         .filter((gate) => gate.status === "open")
         .sort(byGateOrder)
         .map((gate) => gate.id),
+      // Each answer an automatic run recorded (REQ-idd-030); compact JSON
+      // leaves the empty list out.
+      delegated_answers: delegatedAnswers(state),
     }));
   return { changes };
 }

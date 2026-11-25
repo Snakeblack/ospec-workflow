@@ -13,6 +13,8 @@ const {
   BASE_GATE,
   CHANGE_ID_PATTERN,
   DECISIONS_ROOT,
+  DELEGABLE_GATES,
+  DELEGATED_SOURCE,
   GATED_IMPACTS,
   GATES,
   GATE_SOURCES,
@@ -26,7 +28,11 @@ const {
   SIGNALS,
   SIGNAL_SOURCES,
   STATE_SCHEMA,
+  USER_SOURCES,
   canWithdraw,
+  currentRecommendations,
+  gateQuestions,
+  isAutoRunId,
   isIntentAmbiguous,
   signalGaps,
   unaskedRisk,
@@ -284,7 +290,7 @@ function recordIntent(state, input = {}) {
     if (!input.answer || !input.source) {
       refuse("gate-answer-required", "resolving ambiguous-intent needs the user's answer and its source");
     }
-    requireGateSource(input.source);
+    requireUserSource(input.source, "ambiguous-intent");
     const facts = factsFor(input);
     const next = structuredClone(state);
     next.intent = resolvedIntent({ ...input, request: state.intent.request, requested_at: state.intent.requested_at });
@@ -337,6 +343,12 @@ function requireGateSource(source) {
   if (!GATE_SOURCES.includes(source)) refuse("invalid-source", `gate source must be one of ${GATE_SOURCES.join(", ")}`);
 }
 
+// What only the user's answer settles refuses a delegated one (REQ-idd-030).
+function requireUserSource(source, what) {
+  if (source === DELEGATED_SOURCE) refuse("delegation-refused", `${what} takes only the user's answer: a delegated answer resolves only ${DELEGABLE_GATES.join(", ")}`);
+  if (!USER_SOURCES.includes(source)) refuse("invalid-source", `the user's answer comes from one of ${USER_SOURCES.join(", ")}`);
+}
+
 function recordSignal(state, { id, reason, source } = {}) {
   requireOpen(state);
   if (isIntentAmbiguous(state)) refuse("ambiguous-intent-open", "no signal is derived while the intent is ambiguous");
@@ -351,7 +363,7 @@ function recordSignal(state, { id, reason, source } = {}) {
   return { state: next, changed: true };
 }
 
-function recordGate(state, { id, action, reason, answer, source, recordedAt } = {}) {
+function recordGate(state, { id, action, reason, answer, source, recordedAt, run, turn } = {}) {
   requireOpen(state);
   if (!GATES.includes(id)) refuse("unknown-gate", `unknown gate: ${id}`);
   if (id === "ambiguous-intent") {
@@ -401,6 +413,7 @@ function recordGate(state, { id, action, reason, answer, source, recordedAt } = 
   }
 
   if (action === "resolve") {
+    if (source === DELEGATED_SOURCE) return resolveDelegated(state, index, { id, answer, run, turn, recordedAt });
     if (!answer || !source) refuse("gate-answer-required", `resolving ${id} needs the user's answer and its source`);
     requireGateSource(source);
     if (!existing) refuse("gate-not-open", `gate ${id} is not open`);
@@ -425,6 +438,72 @@ function recordGate(state, { id, action, reason, answer, source, recordedAt } = 
   }
 
   return refuse("invalid-action", `gate action must be open or resolve, got ${JSON.stringify(action)}`);
+}
+
+// A delegated answer (REQ-idd-030): the conductor of the automatic run `run`
+// resolves a delegable gate with the recommendation of each question, after
+// the session's turn ended, so the model never answers its own question. The
+// CLI writes the answer from the recommendations; a replay by the same run
+// changes nothing.
+function resolveDelegated(state, index, { id, answer, run, turn, recordedAt }) {
+  const refused = (cause) => refuse("delegation-refused", cause);
+  if (answer !== undefined) refused("a delegated answer is written from the recommendations: pass no --answer");
+  if (!DELEGABLE_GATES.includes(id)) refused(`gate ${id} takes only the user's answer: a delegated answer resolves only ${DELEGABLE_GATES.join(", ")}`);
+  if (run === undefined || run === "") refused("a delegated answer is recorded only inside an automatic run: OSPEC_AUTO_RUN is not set");
+  if (!isAutoRunId(run)) refused(`OSPEC_AUTO_RUN must name the run as a kebab-case id of at most 64 characters, got ${JSON.stringify(run)}`);
+  const existing = index === -1 ? null : state.gates[index];
+  if (!existing) refuse("gate-not-open", `gate ${id} is not open`);
+  if (existing.status === "resolved") {
+    if (existing.source === DELEGATED_SOURCE && existing.run === run) return unchanged(state);
+    refuse("gate-conflict", `gate ${id} is already resolved from source ${existing.declared_source ?? existing.source}`);
+  }
+  const questions = gateQuestions(state, existing);
+  const recommended = new Map(currentRecommendations(state, existing).filter((entry) => entry.none !== true).map((entry) => [entry.question, entry.answer]));
+  const missing = questions.flatMap((question, at) => (recommended.has(question) ? [] : [at + 1]));
+  if (missing.length > 0) {
+    refused(`${missing.length === 1 ? "question" : "questions"} ${missing.join(", ")} of ${id} ${missing.length === 1 ? "has" : "have"} no recommendation: only the user answers ${missing.length === 1 ? "it" : "them"}`);
+  }
+  if (turn === null || turn === undefined) refused("no turn count in .ospec/turns: no end-of-turn hook ran in this workspace, so no turn end separates the question from its answer");
+  if (!Object.hasOwn(existing, "opened_turn")) refused(`gate ${id} keeps no turn of its opening, so no turn end can separate the question from its answer`);
+  if (turn === (existing.opened_turn ?? 0)) refused(`no turn ended since gate ${id} opened: the automatic run answers once the session's turn ends`);
+  const next = structuredClone(state);
+  const gate = next.gates[index];
+  gate.recommendations = questions.map((question) => ({ question, answer: recommended.get(question) }));
+  gate.status = "resolved";
+  gate.answer = questions.map((question) => `${question} → ${recommended.get(question)}`).join("\n");
+  gate.source = DELEGATED_SOURCE;
+  gate.run = run;
+  if (recordedAt) gate.resolved_at = recordedAt;
+  return { state: next, changed: true };
+}
+
+// The answer the model recommends for question `question` of the open gate
+// `gate`, numbered from 1 as next lists them, or `none` when it recommends
+// none (REQ-idd-030). Recording it again replaces it while the gate is open;
+// the turn fence does not count it as a change of the gate.
+function recordRecommendation(state, { gate: id, question, answer, none = false } = {}) {
+  requireOpen(state);
+  if (!GATES.includes(id)) refuse("unknown-gate", `unknown gate: ${id}`);
+  const index = state.gates.findIndex((gate) => gate.id === id && gate.status === "open");
+  if (index === -1) {
+    const answered = state.gates.some((gate) => gate.id === id);
+    refuse("gate-not-open", answered ? `gate ${id} is already answered: its recommendations stay as they were` : `gate ${id} is not open`);
+  }
+  if (none === (answer !== undefined)) refuse("recommendation-required", "a recommendation is an answer, or none when no answer is recommended");
+  if (!none) requireText(answer, "recommendation-required", "a recommended answer must be text");
+  const questions = gateQuestions(state, state.gates[index]);
+  if (!Number.isSafeInteger(question) || question < 1 || question > questions.length) {
+    refuse("invalid-question", `gate ${id} asks ${questions.length} ${questions.length === 1 ? "question" : "questions"}: pass --question from 1 to ${questions.length}`);
+  }
+  const text = questions[question - 1];
+  const entry = none ? { question: text, none: true } : { question: text, answer };
+  const kept = new Map(currentRecommendations(state, state.gates[index]).map((item) => [item.question, item]));
+  kept.set(text, entry);
+  const recommendations = questions.flatMap((item) => (kept.has(item) ? [kept.get(item)] : []));
+  if (sameJson(recommendations, state.gates[index].recommendations)) return unchanged(state);
+  const next = structuredClone(state);
+  next.gates[index].recommendations = recommendations;
+  return { state: next, changed: true };
 }
 
 // The user's answer to base-moved moves the base (REQ-idd-014): the commits in
@@ -641,7 +720,7 @@ function recordRetract(state, { id, reason, confirmedBy = null, answerable = fal
   const answered = answer !== undefined || source !== undefined;
   if (answered) {
     if (!answer || !source) refuse("gate-answer-required", `retracting ${id} with the user's answer needs the answer and its source`);
-    requireGateSource(source);
+    requireUserSource(source, `the retraction of ${id}`);
   }
   const signal = state.signals.find((entry) => entry.id === id);
   if (!signal) {
@@ -920,6 +999,7 @@ module.exports = {
   recordImpact,
   recordIntent,
   recordPlan,
+  recordRecommendation,
   recordReferences,
   recordRetract,
   recordSignal,

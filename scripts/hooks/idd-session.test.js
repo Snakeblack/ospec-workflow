@@ -74,8 +74,10 @@ test("several open changes are listed without choosing one, SDD first and IDD by
 test("every kind of next step is written as ospec next gives it", async (t) => {
   const { stopped } = await runCase(t, "steps");
   // s-owed is a feature that owes a question (ask-open-facts, E1.75), which
-  // the Go hooks write the same way since E1.51.
-  assert.equal(stopped.openChanges.length, 14);
+  // the Go hooks write the same way since E1.51. s-delegated holds an answer
+  // an automatic run recorded and s-recommended the recommendation of an
+  // open question (REQ-idd-030): both readers take them as they take any gate.
+  assert.equal(stopped.openChanges.length, 16);
 });
 
 test("malformed open states are skipped and the valid change is written as if alone", async (t) => {

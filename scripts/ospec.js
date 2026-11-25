@@ -56,7 +56,7 @@ const { classifyContractPaths } = require("./lib/idd-contracts.js");
 const { addEntry, changelogEntry, proposeRelease, replaceUnreleasedEntry, unreleasedEntry } = require("./lib/idd-changelog.js");
 const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvidence, requireResumable, staleEvidence } = require("./lib/idd-close.js");
 const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
-const { ABANDON_GATE, ARCHIVE_ROOT, CHANGE_ID_PATTERN, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, counterproofDetects, isIntentAmbiguous } = require("./lib/idd-contract.js");
+const { ABANDON_GATE, ARCHIVE_ROOT, CHANGE_ID_PATTERN, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, counterproofDetects, delegatedAnswers, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { TIMED_OUT_EXIT, captureCommand, dropRunOutputs, keepRunOutput, runCommand } = require("./lib/idd-exec.js");
 const { CATEGORY_IDS, UI_CATEGORY_IDS, countTests, featureCoverageHow, projectCategories, resolveFeatureCoverage } = require("./lib/idd-facts.js");
 const { fitnessPlan } = require("./lib/idd-fitness.js");
@@ -75,6 +75,7 @@ const {
   recordGate,
   recordImpact,
   recordIntent,
+  recordRecommendation,
   recordRetract,
   recordSignal,
   recordWithdraw,
@@ -95,7 +96,7 @@ const {
 } = require("./lib/idd-review.js");
 const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
 const { readReceipt } = require("./lib/review-receipt.js");
-const { unverifiedGateWarnings, unverifiedRetractWarnings } = require("./lib/turn-fence.js");
+const { unverifiedGateWarnings, unverifiedRetractWarnings, workspaceTurn } = require("./lib/turn-fence.js");
 const { DEFAULT_ROADMAP, SnapshotError, buildSnapshot } = require("./lib/progress-snapshot.js");
 const { DEFAULT_PROGRESS, buildSnapshotV2 } = require("./lib/progress-snapshot-v2.js");
 const { buildSnapshotV3 } = require("./lib/progress-snapshot-v3.js");
@@ -158,6 +159,10 @@ const USAGE = `Usage:
                          it passes its whole ceremony and adds no changelog entry of its own
   ospec record signal --change <id> --signal <id> --reason <text> [--source declaration|diff]
   ospec record gate --change <id> --gate <id> (--open [--reason <text>] | --resolve --answer <text> --source user|user-unverified)
+                    only an automatic run resolves open-facts with --resolve --source delegated, under
+                    OSPEC_AUTO_RUN=<run>: its answer is the recommendation of each question, so no --answer
+  ospec record recommendation --change <id> --gate <id> --question <n> (--answer <text> | --none)
+                    the answer recommended for question <n> of an open gate, numbered from 1 as next lists them
   ospec record base --change <id> (--to <rev> --reason <text> | --cancel)
                     asks the user, at the base-moved gate, to move the base of the change to <rev>:
                     a commit that descends from the base and is HEAD or one of its ancestors
@@ -258,6 +263,8 @@ const OPTIONS = {
   gate: { type: "string" },
   open: { type: "boolean" },
   resolve: { type: "boolean" },
+  question: { type: "string" },
+  none: { type: "boolean" },
   to: { type: "string" },
   cancel: { type: "boolean" },
   "superseded-by": { type: "string" },
@@ -382,9 +389,30 @@ function reducerFor(type, values, root) {
       }
       if (values.resolve && values.reason !== undefined) throw new UsageError("record gate --resolve takes no --reason: the gate keeps the reason it was opened with");
       const action = values.open ? "open" : "resolve";
+      // A delegated answer names the automatic run the conductor set in its
+      // environment, and needs a turn end since the gate opened (REQ-idd-030).
+      const delegated = values.source === "delegated";
       return existing((state) =>
-        recordGate(state, { id: values.gate, action, reason: values.reason, answer: values.answer, source: values.source, recordedAt: new Date().toISOString() }),
+        recordGate(state, {
+          id: values.gate,
+          action,
+          reason: values.reason,
+          answer: values.answer,
+          source: values.source,
+          recordedAt: new Date().toISOString(),
+          ...(delegated ? { run: process.env.OSPEC_AUTO_RUN, turn: workspaceTurn(root) } : {}),
+        }),
       );
+    }
+    case "recommendation": {
+      if (!values.gate) throw new UsageError("record recommendation needs --gate <id>");
+      if (values.answer !== undefined && values.none) throw new UsageError("record recommendation takes --answer <text> or --none, not both");
+      if (values.answer === undefined && !values.none) throw new UsageError("record recommendation needs --answer <text>, or --none when no answer is recommended");
+      const question = Number(values.question);
+      if (!/^[1-9][0-9]*$/.test(values.question ?? "") || !Number.isSafeInteger(question)) {
+        throw new UsageError("record recommendation needs --question <n>, the number of the question from 1");
+      }
+      return existing((state) => recordRecommendation(state, { gate: values.gate, question, answer: values.answer, none: values.none === true }));
     }
     case "base": {
       if ((values.to !== undefined) === (values.cancel === true)) throw new UsageError("record base needs exactly one of --to <rev> or --cancel");
@@ -423,7 +451,7 @@ function reducerFor(type, values, root) {
       });
     }
     default:
-      throw new UsageError(`unknown record type: ${type ?? "(none)"}; expected intent, assumption, signal, gate, base, withdraw, retract, impact or fitness`);
+      throw new UsageError(`unknown record type: ${type ?? "(none)"}; expected intent, assumption, signal, gate, recommendation, base, withdraw, retract, impact or fitness`);
   }
 }
 
@@ -1274,6 +1302,9 @@ async function close(root, values) {
       archive,
       assumptions: state.assumptions || [],
       reviews: reviewAttestations(state),
+      // Each answer an automatic run recorded (REQ-idd-030); compact JSON
+      // leaves the empty list out.
+      delegated_answers: delegatedAnswers(state),
       ...(warnings.length ? { warnings } : {}),
       records: readKnowledgeRecords(root, state, archive.destination),
       ...(delivery ?? closeDelivery(root, state, { write: false })),
@@ -2015,7 +2046,8 @@ function describeClose(result) {
   const assumptions = result.assumptions || [];
   const listed = assumptions.length ? assumptions.map((item) => `- ${item}`).join("\n") : "none declared";
   const reviews = (result.reviews || []).map((entry) => `\ntrust review ${entry.evidence}: ${entry.attestation ?? "not attested"}`).join("");
-  const body = `${line}\nassumptions:\n${listed}${reviews}`;
+  const delegated = result.delegated_answers?.length ? `\ndelegated answers: ${describeDelegated(result.delegated_answers)}` : "";
+  const body = `${line}\nassumptions:\n${listed}${reviews}${delegated}`;
   const records = result.records || [];
   const lines = [body, ...(result.warnings || []).map((warning) => `warning: ${warning}`), ...describeCloseDelivery(result)];
   // Each topic, since agents read the text (E1.47); --json adds the rest.
@@ -2024,6 +2056,11 @@ function describeClose(result) {
     for (const record of records) lines.push(`- ${record.topic} | ${record.title}`);
   }
   return lines.join("\n");
+}
+
+// Each gate an automatic run answered (REQ-idd-030), with the run that did.
+function describeDelegated(answers) {
+  return answers.map((entry) => `${entry.gate} (run ${entry.run})`).join(", ");
 }
 
 function describeAbandoned(result) {
@@ -2165,7 +2202,8 @@ function describe(command, result) {
         const pending = c.obligations.pending.join(", ") || "-";
         const gates = c.open_gates.join(", ") || "-";
         const signals = c.signals.join(", ") || "-";
-        return `${c.change}  ${c.status}  ${c.kind ?? "ambiguous"}  pending: ${pending}  gates: ${gates}  signals: ${signals}`;
+        const delegated = c.delegated_answers?.length ? `  delegated: ${describeDelegated(c.delegated_answers)}` : "";
+        return `${c.change}  ${c.status}  ${c.kind ?? "ambiguous"}  pending: ${pending}  gates: ${gates}  signals: ${signals}${delegated}`;
       })
       .join("\n");
   }

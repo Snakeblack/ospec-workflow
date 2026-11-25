@@ -125,6 +125,64 @@ test("[REQ-idd-008] an answer that retracts a security sink before a turn ends i
   assert.deepStrictEqual(warnings, ["warning: the retraction of security-boundary withdrew trust-review on an answer user-unverified: no turn ended between the signal's record and the answer"]);
 });
 
+// E1.107 delegated-answers (REQ-idd-030): the model leaves a recommendation
+// per question, and the conductor of an automatic run, with OSPEC_AUTO_RUN in
+// its environment, answers open-facts with them once the session's turn ended.
+test("[REQ-idd-030] an automatic run answers open-facts with the recommendations after a turn end, and status and close name it", (t) => {
+  const { root } = project(t);
+  const { OSPEC_AUTO_RUN: _unset, ...outside } = process.env;
+  const inside = { ...outside, OSPEC_AUTO_RUN: "run-1" };
+  writeTurns(root, 3);
+  ospec(root, "record", "intent", "--change", "fix-readme", "--kind", "docs", "--summary", "Fix a typo.", "--acceptance", "No typo.", "--open-fact", "Is the old spelling kept as an alias?", "--open-fact", "Is the fix listed in the changelog?");
+  const recommend = (question, ...answer) => ospec(root, "record", "recommendation", "--change", "fix-readme", "--gate", "open-facts", "--question", String(question), ...answer, "--json");
+  assert.strictEqual(recommend(1, "--answer", "No alias.").code, 0);
+  assert.strictEqual(recommend(2, "--none").code, 0);
+  const next = ospec(root, "next", "--change", "fix-readme", "--json").json;
+  assert.deepStrictEqual(next.pending_decision.recommendations, [
+    { question: "Is the old spelling kept as an alias?", answer: "No alias." },
+    { question: "Is the fix listed in the changelog?", none: true },
+  ]);
+
+  const delegate = (env) => ospecWith(env, root, "record", "gate", "--change", "fix-readme", "--gate", "open-facts", "--resolve", "--source", "delegated", "--json");
+  const refused = (result, cause) => {
+    assert.strictEqual(result.code, 1, result.stdout);
+    assert.strictEqual(result.json.error.code, "delegation-refused");
+    assert.match(result.json.error.message, cause);
+    assert.match(result.json.error.how, /end your turn with its questions/);
+  };
+  refused(delegate(inside), /question 2 of open-facts has no recommendation/);
+  assert.strictEqual(recommend(2, "--answer", "Yes, under Fixed.").code, 0);
+  refused(delegate(outside), /OSPEC_AUTO_RUN is not set/);
+  refused(delegate({ ...outside, OSPEC_AUTO_RUN: "Run 1" }), /kebab-case id/);
+  refused(delegate(inside), /no turn ended since gate open-facts opened/);
+  assert.strictEqual(stateOf(root, "fix-readme").gates[0].opened_turn, 3, "a recommendation keeps the turn the gate opened in");
+
+  writeTurns(root, 4);
+  const resolved = delegate(inside);
+  assert.strictEqual(resolved.code, 0, resolved.stdout);
+  assert.strictEqual(resolved.json.warnings, undefined);
+  const gate = stateOf(root, "fix-readme").gates[0];
+  assert.deepStrictEqual(
+    [gate.status, gate.source, gate.run, gate.opened_turn, gate.resolved_turn, gate.answer],
+    ["resolved", "delegated", "run-1", 3, 4, "Is the old spelling kept as an alias? → No alias.\nIs the fix listed in the changelog? → Yes, under Fixed."],
+  );
+  assert.strictEqual(delegate(inside).json.changed, false);
+  const [listed] = ospec(root, "status", "--json").json.changes;
+  assert.deepStrictEqual(listed.delegated_answers, [{ gate: "open-facts", run: "run-1", at: gate.resolved_at, answer: gate.answer }]);
+  assert.match(ospec(root, "status").stdout, /delegated: open-facts \(run run-1\)$/m);
+
+  const usage = recommend("x", "--answer", "a");
+  assert.strictEqual(usage.code, 2);
+  assert.strictEqual(ospec(root, "record", "recommendation", "--change", "fix-readme", "--gate", "open-facts", "--question", "1", "--answer", "a", "--none").code, 2);
+
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  const closed = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  assert.deepStrictEqual(closed.json.delegated_answers, listed.delegated_answers);
+  assert.strictEqual(closed.json.warnings, undefined, "a delegated answer is authorized, not a warning");
+});
+
 // E1.66 first-gate-turn-fence: the first gate of a repository opens before
 // any turn end wrote .ospec/turns.
 test("[E1.66] the first gate of a repository without .ospec/turns keeps user once a turn ended, with no warning", (t) => {
