@@ -43,7 +43,7 @@ test("[REQ-idd-032] the pending phases of docs/roadmap.md are the queue, in orde
   assert.match(mode.how, /ospec auto resume --answer/);
   assert.match(mode.how, /add --host with the session's host \(cursor[^)]*\) and give the user the command to run in a terminal/);
   assert.match(mode.how, /at most 30 turns per item and no spending cap unless they set one/);
-  assert.match(mode.how, /--max-cost-usd on a host that reports its cost \(Claude Code, OpenCode\), --max-tokens on one that does not/);
+  assert.match(mode.how, /--max-cost-usd on a host that reports its cost \(Claude Code, OpenCode\), --max-tokens on one that does not, --max-ai-credits on GitHub Copilot/);
 });
 
 test("[REQ-idd-032] a phase with an archived change is done and one with an active change is in progress: neither is queued", (t) => {

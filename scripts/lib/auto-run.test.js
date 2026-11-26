@@ -52,8 +52,8 @@ test("[REQ-idd-031] an unreadable run record is refused with run-invalid and lef
   refusedWith(() => readRun(root, "auto-7"), "run-invalid", /item 1/);
   write("auto-8", JSON.stringify(record("auto-8", "running", { current: 2 })));
   refusedWith(() => readRun(root, "auto-8"), "run-invalid", /current item/);
-  write("auto-10", JSON.stringify(record("auto-10", "running", { spend: "credits" })));
-  refusedWith(() => readRun(root, "auto-10"), "run-invalid", /spend "credits" is neither cost nor tokens/);
+  write("auto-10", JSON.stringify(record("auto-10", "running", { spend: "dollars" })));
+  refusedWith(() => readRun(root, "auto-10"), "run-invalid", /spend "dollars" is none of cost, tokens, credits/);
   // A run from before the field counts its cost.
   write("auto-11", JSON.stringify(record("auto-11", "done")));
   assert.equal(readRun(root, "auto-11").spend, undefined);

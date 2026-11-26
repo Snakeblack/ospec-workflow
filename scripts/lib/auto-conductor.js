@@ -22,10 +22,16 @@ const { runCommand } = require("./idd-exec.js");
 const { listChanges } = require("./idd-store.js");
 const { countTurnEnd, turnsRoot } = require("./turn-fence.js");
 
-// Only the turns of an item are capped by default: a spending cap, on cost or
-// on tokens, is the user's choice, since what a turn costs depends on the
-// model, the effort and the host.
+// Only the turns of an item are capped by default: a spending cap, on cost,
+// tokens or AI credits, is the user's choice, since what a turn costs depends
+// on the model, the effort and the host.
 const DEFAULT_LIMITS = Object.freeze({ max_turns: 30 });
+// What each kind of host reports as spent, and the cap that takes it.
+const CAPS = Object.freeze({
+  cost: { reports: "reports its cost", flag: "--max-cost-usd" },
+  tokens: { reports: "reports no cost", flag: "--max-tokens" },
+  credits: { reports: "reports AI credits", flag: "--max-ai-credits" },
+});
 const OSPEC_SCRIPT = path.join(__dirname, "..", "ospec.js");
 const STOP_POLL_MS = 250;
 const TEXT_CLIP = 80;
@@ -54,12 +60,16 @@ const clip = (text) => {
 const money = (value) => `$${value > 0 && value < 0.005 ? value.toFixed(4) : (Math.round(value * 100) / 100).toFixed(2)}`;
 const runCost = (run) => Math.round(run.items.reduce((sum, item) => sum + (item.cost_usd || 0), 0) * 1e6) / 1e6;
 const runTokens = (run) => run.items.reduce((sum, item) => sum + (item.tokens || 0), 0);
+const runCredits = (run) => Math.round(run.items.reduce((sum, item) => sum + (item.credits || 0), 0) * 1e6) / 1e6;
 const tokenCount = (value) => (value >= 1e6 ? `${Math.round(value / 1e5) / 10}M` : String(value));
-// What the run has spent: cost, or tokens on a host that reports no cost.
+const creditCount = (value) => `${(Math.round(value * 100) / 100).toFixed(2)} AI credits`;
+// The kind of spending a host reports: cost, tokens or AI credits.
+const spendOf = (host) => host.spend || (host.reportsCost ? "cost" : "tokens");
+// What the run has spent: cost, tokens on a host that reports no cost, or AI credits.
 const spent = (run, item = null) => {
-  const tokens = run.spend === "tokens";
-  const value = item ? (tokens ? item.tokens || 0 : item.cost_usd || 0) : tokens ? runTokens(run) : runCost(run);
-  return tokens ? `${tokenCount(value)} tokens` : money(value);
+  if (run.spend === "tokens") return `${tokenCount(item ? item.tokens || 0 : runTokens(run))} tokens`;
+  if (run.spend === "credits") return creditCount(item ? item.credits || 0 : runCredits(run));
+  return money(item ? item.cost_usd || 0 : runCost(run));
 };
 
 function defaultGit(root) {
@@ -200,7 +210,7 @@ async function stopWith(root, run, status, reason, emit, detail = null) {
   await writeRun(root, run);
   const label = `item ${Math.min(run.current + 1, run.items.length)}/${run.items.length}`;
   emit(`run ${run.id} ${status} at ${label}: ${reason}${detail ? `: ${detail}` : ""}`);
-  const raise = { "max-turns": " --max-turns <n>", "max-cost": " --max-cost-usd <usd>", "max-tokens": " --max-tokens <n>" }[reason];
+  const raise = { "max-turns": " --max-turns <n>", "max-cost": " --max-cost-usd <usd>", "max-tokens": " --max-tokens <n>", "max-credits": " --max-ai-credits <credits>" }[reason];
   if (status !== "done") emit(`  continue with: ospec auto resume${status === "failed" && raise ? raise : ""}`);
   return run;
 }
@@ -238,9 +248,10 @@ async function hostTurn(root, run, item, message, deps) {
   }, STOP_POLL_MS);
   try {
     const transcriptPath = path.join(runDir(root, run.id), `item-${run.current + 1}-turn-${String(item.turns).padStart(2, "0")}.jsonl`);
-    // What is left of the run's cost cap, for a host that caps its own turn.
+    // What is left of the run's cap, for a host that caps its own turn.
     const budgetUsd = run.limits.max_cost_usd !== undefined ? Math.max(0, run.limits.max_cost_usd - runCost(run)) : null;
-    return await deps.host.turn({ cwd: root, prompt: message, sessionId: item.session_id, transcriptPath, signal: controller.signal, budgetUsd });
+    const budgetCredits = run.limits.max_ai_credits !== undefined ? Math.max(0, run.limits.max_ai_credits - runCredits(run)) : null;
+    return await deps.host.turn({ cwd: root, prompt: message, sessionId: item.session_id, transcriptPath, signal: controller.signal, budgetUsd, budgetCredits });
   } finally {
     clearInterval(poll);
   }
@@ -270,6 +281,7 @@ async function driveItem(root, run, item, label, deps, firstMessage) {
     if (item.turns >= run.limits.max_turns) return stopWith(root, run, "failed", "max-turns", emit, `${item.turns} turns`);
     if (run.limits.max_cost_usd !== undefined && runCost(run) >= run.limits.max_cost_usd) return stopWith(root, run, "failed", "max-cost", emit, money(runCost(run)));
     if (run.limits.max_tokens !== undefined && runTokens(run) >= run.limits.max_tokens) return stopWith(root, run, "failed", "max-tokens", emit, spent(run));
+    if (run.limits.max_ai_credits !== undefined && runCredits(run) >= run.limits.max_ai_credits) return stopWith(root, run, "failed", "max-credits", emit, spent(run));
 
     item.turns += 1;
     const turn = await hostTurn(root, run, item, message, deps);
@@ -280,6 +292,8 @@ async function driveItem(root, run, item, label, deps, firstMessage) {
     if (run.spend === "tokens") {
       item.tokens = turn.session_tokens !== undefined ? Math.max(item.tokens || 0, Number(turn.session_tokens) || 0) : (item.tokens || 0) + (Number(turn.tokens) || 0);
     }
+    // AI credits come as the session's total so far.
+    if (run.spend === "credits") item.credits = Math.max(item.credits || 0, Number(turn.session_credits) || 0);
     await writeRun(root, run);
 
     if (turn.aborted || stopRequested(root, run.id)) {
@@ -395,22 +409,32 @@ function requireHost(deps) {
   }
 }
 
-// The cost cap takes a host that reports its cost, the token cap one that does not.
-function limitsFrom({ maxTurns, maxCostUsd, maxTokens }, base, host) {
+// The cost cap takes a host that reports its cost, the token cap one that
+// reports no cost and the AI-credit cap one that reports AI credits.
+function limitsFrom({ maxTurns, maxCostUsd, maxTokens, maxAiCredits }, base, host) {
   const limits = { ...base };
   if (maxTurns !== undefined) {
     if (!Number.isSafeInteger(maxTurns) || maxTurns < 1) throw new AutoError("invalid-limit", `--max-turns must be a whole number of turns from 1, got ${maxTurns}`);
     limits.max_turns = maxTurns;
   }
+  const kind = spendOf(host);
+  const takes = (cap) => {
+    if (cap !== kind) throw new AutoError("invalid-limit", `${host.name} ${CAPS[kind].reports}: cap the run with ${CAPS[kind].flag}`);
+  };
   if (maxCostUsd !== undefined) {
-    if (!host.reportsCost) throw new AutoError("invalid-limit", `${host.name} reports no cost: cap the run with --max-tokens`);
+    takes("cost");
     if (!Number.isFinite(maxCostUsd) || maxCostUsd <= 0) throw new AutoError("invalid-limit", `--max-cost-usd must be a positive amount, got ${maxCostUsd}`);
     limits.max_cost_usd = maxCostUsd;
   }
   if (maxTokens !== undefined) {
-    if (host.reportsCost) throw new AutoError("invalid-limit", `${host.name} reports its cost: cap the run with --max-cost-usd`);
+    takes("tokens");
     if (!Number.isSafeInteger(maxTokens) || maxTokens < 1) throw new AutoError("invalid-limit", `--max-tokens must be a whole number from 1, got ${maxTokens}`);
     limits.max_tokens = maxTokens;
+  }
+  if (maxAiCredits !== undefined) {
+    takes("credits");
+    if (!Number.isFinite(maxAiCredits) || maxAiCredits <= 0) throw new AutoError("invalid-limit", `--max-ai-credits must be a positive number of AI credits, got ${maxAiCredits}`);
+    limits.max_ai_credits = maxAiCredits;
   }
   return limits;
 }
@@ -429,13 +453,14 @@ function refuseActive(run) {
  * `deps.host` is the host adapter (auto-hosts.js); the other deps default to
  * the real git, ospec, checks and clock.
  */
-async function startRun({ root, items, host, model = null, maxTurns, maxCostUsd, maxTokens, deps: given = {} }) {
+async function startRun({ root, items, host, model = null, maxTurns, maxCostUsd, maxTokens, maxAiCredits, deps: given = {} }) {
   const deps = dependencies(root, given);
   refuseHost(host);
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_ITEMS) throw new AutoError("invalid-items", `a run takes 1 to ${MAX_ITEMS} items, got ${items?.length ?? 0}`);
   const blank = items.findIndex((text) => typeof text !== "string" || text.trim() === "");
   if (blank !== -1) throw new AutoError("invalid-items", `item ${blank + 1} is empty: each --item is the request of one change`);
-  const limits = limitsFrom({ maxTurns, maxCostUsd, maxTokens }, DEFAULT_LIMITS, deps.host);
+  const limits = limitsFrom({ maxTurns, maxCostUsd, maxTokens, maxAiCredits }, DEFAULT_LIMITS, deps.host);
+  const kind = spendOf(deps.host);
   const active = activeRun(root, deps.alive);
   if (active) refuseActive(active);
   const open = await openChanges(root);
@@ -457,24 +482,24 @@ async function startRun({ root, items, host, model = null, maxTurns, maxCostUsd,
     model,
     branch,
     limits,
-    spend: deps.host.reportsCost ? "cost" : "tokens",
+    spend: kind,
     status: "running",
     reason: null,
     pid: deps.pid,
     created_at: created.toISOString(),
     current: 0,
-    items: items.map((text) => ({ text, status: "pending", change: null, session_id: null, turns: 0, cost_usd: 0, ...(deps.host.reportsCost ? {} : { tokens: 0 }), delegated: 0, commit: null })),
+    items: items.map((text) => ({ text, status: "pending", change: null, session_id: null, turns: 0, cost_usd: 0, ...(kind === "cost" ? {} : { [kind]: 0 }), delegated: 0, commit: null })),
   };
   if (fs.existsSync(path.join(runDir(root, run.id), "run.json"))) throw new AutoError("run-active", `the automatic run ${run.id} already exists`, "wait a second and start again");
   await writeRun(root, run);
-  const cap = limits.max_tokens !== undefined ? `and ${tokenCount(limits.max_tokens)} tokens` : limits.max_cost_usd !== undefined ? `and ${money(limits.max_cost_usd)}` : "with no spending cap";
+  const cap = limits.max_tokens !== undefined ? `and ${tokenCount(limits.max_tokens)} tokens` : limits.max_cost_usd !== undefined ? `and ${money(limits.max_cost_usd)}` : limits.max_ai_credits !== undefined ? `and ${creditCount(limits.max_ai_credits)}` : "with no spending cap";
   const review = deps.host.reviewsActions ? "" : `; ${host} runs every action its configuration does not deny, without review`;
   deps.onEvent(`run ${run.id} started: ${items.length} ${items.length === 1 ? "item" : "items"} on ${host} (at most ${limits.max_turns} turns per item ${cap}${review})`);
   return drive(root, run, deps);
 }
 
 /** Continues a run that stopped, with the user's answer to its block when given. */
-async function resumeRun({ root, id, answer, maxTurns, maxCostUsd, maxTokens, deps: given = {} }) {
+async function resumeRun({ root, id, answer, maxTurns, maxCostUsd, maxTokens, maxAiCredits, deps: given = {} }) {
   const deps = dependencies(root, given);
   const run = selectRun(root, id);
   if (run.status === "done") throw new AutoError("run-done", `the automatic run ${run.id} is done: every item is closed`, "start a new one with ospec auto start");
@@ -482,7 +507,7 @@ async function resumeRun({ root, id, answer, maxTurns, maxCostUsd, maxTokens, de
   if (run.status === "running" && !isStale(run, deps.alive)) refuseActive(run);
   const other = activeRun(root, deps.alive);
   if (other && other.id !== run.id) refuseActive(other);
-  run.limits = limitsFrom({ maxTurns, maxCostUsd, maxTokens }, run.limits, deps.host);
+  run.limits = limitsFrom({ maxTurns, maxCostUsd, maxTokens, maxAiCredits }, run.limits, deps.host);
   const item = run.items[run.current];
   if (answer !== undefined) {
     if (typeof answer !== "string" || answer.trim() === "") throw new AutoError("invalid-answer", "--answer is the user's answer: it cannot be empty");
@@ -516,4 +541,4 @@ async function stopRun({ root, id, deps: given = {} }) {
   return { run, stopping: false };
 }
 
-module.exports = { DEFAULT_LIMITS, allRecommended, brief, defaultBranches, resumeRun, runCost, runTokens, spent, startRun, stopRun };
+module.exports = { DEFAULT_LIMITS, allRecommended, brief, defaultBranches, resumeRun, runCost, runCredits, runTokens, spent, startRun, stopRun };

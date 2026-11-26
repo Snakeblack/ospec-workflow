@@ -30,12 +30,13 @@ type stopHandler struct{}
 
 func (h *stopHandler) Name() string { return "stop" }
 
-// stopInput is the stdin payload for stop.
+// stopInput is the stdin payload for stop. Timestamp is kept raw: GitHub
+// Copilot's agentStop sends epoch milliseconds, and only a string is used.
 type stopInput struct {
-	Cwd                 string `json:"cwd"`
-	Timestamp           string `json:"timestamp"`
-	SessionID           string `json:"sessionId"`
-	SessionIDUnderscore string `json:"session_id"`
+	Cwd                 string          `json:"cwd"`
+	Timestamp           json.RawMessage `json:"timestamp"`
+	SessionID           string          `json:"sessionId"`
+	SessionIDUnderscore string          `json:"session_id"`
 }
 
 type stopOutput struct {
@@ -253,10 +254,14 @@ func runStop(input stopInput, raw map[string]any) (reason, warning string, err e
 	return "", "", writeLatest(s, latestContent)
 }
 
-// resolveStopTimestamp uses input.timestamp, else the current UTC time.
+// resolveStopTimestamp uses input.timestamp when it is a non-empty string,
+// else the current UTC time, as the Node hook does.
 func resolveStopTimestamp(input stopInput) string {
-	if ts := strings.TrimSpace(input.Timestamp); ts != "" {
-		return ts
+	var ts string
+	if json.Unmarshal(input.Timestamp, &ts) == nil {
+		if ts = strings.TrimSpace(ts); ts != "" {
+			return ts
+		}
 	}
 	return time.Now().UTC().Format(time.RFC3339Nano)
 }
