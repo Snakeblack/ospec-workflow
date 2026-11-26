@@ -3885,12 +3885,12 @@ MUST name its source `delegated, run <run>`. The CLI cannot verify who sets
 
 `ospec auto start --item <request>...` MUST work each request, from 1 to 20 in
 the given order, as one IDD change in a new headless session of the host.
-`--host` MUST take `claude`, the default, `cursor` or `opencode`, the hosts on
-which a run closed a change live; `vscode`, which has no headless mode, and any other
+`--host` MUST take `claude`, the default, `cursor`, `opencode` or `codex`, the
+hosts on which a run closed a change live; `vscode`, which has no headless mode, and any other
 host MUST be refused with `host-unavailable` and the reason. The session MUST
 run with the user's own configuration and ospec install, in the host's mode
 that reviews each action where it has one (`--permission-mode auto` in Claude
-Code, `--auto-review` in Cursor) or else approving whatever its configuration
+Code, `--auto-review` in Cursor, `--approve-for-me` in Codex) or else approving whatever its configuration
 does not deny (`--auto` in OpenCode), which the run's first line MUST say. Its environment MUST NOT hold `OSPEC_AUTO_RUN` nor the markers
 of a Claude Code session that launched the conductor. Each item MUST start with its request followed by a brief that asks
 for one IDD change until `ospec close`, a recommendation per question before a
@@ -3904,8 +3904,8 @@ while another run is running with a live conductor, blocked or paused,
 `idd/config.yaml` fails on `HEAD`. Before each later item the tree MUST be
 clean and no change open, or the run MUST fail on that item.
 
-On a host whose end-of-turn hook does not run headless (Cursor), the conductor
-MUST add each turn end to the count of REQ-idd-008 once the session's process
+On a host whose end-of-turn hook does not run headless (Cursor) or runs there
+only once the user approved it (Codex), the conductor MUST add each turn end to the count of REQ-idd-008 once the session's process
 ends, unless the turn was stopped. After each turn the conductor MUST read the
 disk, not the session's words:
 the item's change is the only change its session opened, and a session that
@@ -3926,7 +3926,7 @@ tree MUST stop it as `failed` on the item, with no later item started. A
 spending cap MUST NOT have a default: only when given, `--max-cost-usd` of the
 run on a host that reports its cost (Claude Code, OpenCode), from the cost
 each session reports so far and never the sum of its turns, and `--max-tokens` of the run on
-one that reports none (Cursor), from the tokens of each turn or of the session
+one that reports none (Cursor, Codex), from the tokens of each turn or of the session
 so far, MUST stop it the same way, as `max-cost` or `max-tokens`; each cap on
 the other kind of host MUST be refused with `invalid-limit`, and the run's
 first line MUST name its cap or say it has none. In Claude Code each turn MUST
