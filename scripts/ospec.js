@@ -108,6 +108,9 @@ const claudeRouter = require("./lib/claude-router.js");
 const { IRREVERSIBLE_OPERATIONS, addedTests, answerHits, applyDerivation, classifyPath, deriveSignals, inlineTests, requireDeclaredCeremony, securityHits } = require("./lib/idd-signals.js");
 const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { writeFileAtomic } = require("./lib/atomic-write.js");
+const { resumeRun, runCost, startRun, stopRun } = require("./lib/auto-conductor.js");
+const { createHost } = require("./lib/auto-hosts.js");
+const { AutoError, selectRun, runIsRunning } = require("./lib/auto-run.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange, renderLivingDoc, serializeState } = require("./lib/idd-store.js");
 const { withFileLock } = require("./lib/ospec-state.js");
 const {
@@ -188,6 +191,13 @@ const USAGE = `Usage:
                 opened by mistake; only when the user asked for it, never to get past an obligation.
                 Their answer archives it as abandoned, without checks, reviews or a changelog entry;
                 without --reason or --cancel it finishes an archive that was interrupted
+  ospec auto start --item <request>... [--host claude] [--model <model>] [--max-turns <n>] [--max-cost-usd <usd>]
+                   works each request as one IDD change in a new headless session, in order: answers
+                   open-facts from the recommendations, stops at any other gate and commits each closed change
+  ospec auto status [--run <id>]
+  ospec auto resume [--run <id>] [--answer <text>] [--max-turns <n>] [--max-cost-usd <usd>]
+                    continues a run that stopped; --answer goes to the session as the user's reply to its block
+  ospec auto stop [--run <id>]
   ospec doctor [--target <host>] [--repair] [--json]
   ospec registry [--json]
                  builds the skill registry cache of an OpenSpec project, as the SessionStart hook does,
@@ -305,6 +315,12 @@ const OPTIONS = {
   "schema-version": { type: "string" },
   progress: { type: "string" },
   out: { type: "string" },
+  item: { type: "string", multiple: true },
+  host: { type: "string" },
+  model: { type: "string" },
+  "max-turns": { type: "string" },
+  "max-cost-usd": { type: "string" },
+  run: { type: "string" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
 };
@@ -390,7 +406,8 @@ function reducerFor(type, values, root) {
       if (values.resolve && values.reason !== undefined) throw new UsageError("record gate --resolve takes no --reason: the gate keeps the reason it was opened with");
       const action = values.open ? "open" : "resolve";
       // A delegated answer names the automatic run the conductor set in its
-      // environment, and needs a turn end since the gate opened (REQ-idd-030).
+      // environment, registered as running in .ospec/auto, and needs a turn
+      // end since the gate opened (REQ-idd-030, REQ-idd-031).
       const delegated = values.source === "delegated";
       return existing((state) =>
         recordGate(state, {
@@ -400,7 +417,7 @@ function reducerFor(type, values, root) {
           answer: values.answer,
           source: values.source,
           recordedAt: new Date().toISOString(),
-          ...(delegated ? { run: process.env.OSPEC_AUTO_RUN, turn: workspaceTurn(root) } : {}),
+          ...(delegated ? { run: process.env.OSPEC_AUTO_RUN, registered: runIsRunning(root, process.env.OSPEC_AUTO_RUN), turn: workspaceTurn(root) } : {}),
         }),
       );
     }
@@ -1700,6 +1717,70 @@ function nextAfterWrite(root, state) {
 // belongs to; OSPEC_PLUGIN_ROOT names another, as it does for the hooks.
 const ROUTER_SUBCOMMANDS = ["install", "off", "remove", "status"];
 
+const AUTO_SUBCOMMANDS = Object.freeze(["start", "status", "resume", "stop"]);
+
+// A number of a flag of ospec auto, or undefined when the flag is absent.
+function autoNumber(values, flag, integer) {
+  const text = values[flag];
+  if (text === undefined) return undefined;
+  const value = Number(text);
+  if (!/^\d+(\.\d+)?$/.test(text) || (integer && !Number.isSafeInteger(value))) {
+    throw new UsageError(`--${flag} takes ${integer ? "a whole number" : "an amount"}, got ${JSON.stringify(text)}`);
+  }
+  return value;
+}
+
+// The automatic run (E1.108, REQ-idd-031). start and resume print a line per
+// step as they go, unless --json, and exit 0 only when the run is done.
+async function auto(root, [sub], values) {
+  if (!AUTO_SUBCOMMANDS.includes(sub)) throw new UsageError(`auto takes one of ${AUTO_SUBCOMMANDS.join(", ")}`);
+  if (sub === "status") return { auto: sub, run: selectRun(root, values.run), exit_code: 0 };
+  if (sub === "stop") return { auto: sub, ...(await stopRun({ root, id: values.run })), exit_code: 0 };
+  requireWorkTree(root);
+  const limits = { maxTurns: autoNumber(values, "max-turns", true), maxCostUsd: autoNumber(values, "max-cost-usd", false) };
+  const onEvent = values.json ? () => {} : (line) => process.stdout.write(`${line}\n`);
+  let run;
+  if (sub === "start") {
+    if (!values.item) throw new UsageError("auto start needs --item <request>, once per request");
+    const host = values.host ?? "claude";
+    run = await startRun({ root, items: values.item, host, model: values.model ?? null, ...limits, deps: { host: createHost(host, { model: values.model ?? null }), onEvent } });
+  } else {
+    const stored = selectRun(root, values.run);
+    run = await resumeRun({ root, id: stored.id, answer: values.answer, ...limits, deps: { host: createHost(stored.host, { model: stored.model }), onEvent } });
+  }
+  return { auto: sub, run, exit_code: run.status === "done" ? 0 : 1 };
+}
+
+function describeAutoRun(run) {
+  const money = (value) => `$${(Math.round(value * 100) / 100).toFixed(2)}`;
+  const closed = run.items.filter((item) => item.status === "closed").length;
+  const at = run.status === "done" ? "" : ` at item ${Math.min(run.current + 1, run.items.length)}/${run.items.length}`;
+  const reason = run.reason && run.reason !== "gate" ? ` (${run.reason}${run.detail ? `: ${run.detail}` : ""})` : "";
+  const lines = [`run ${run.id}: ${run.status}${reason}${at}, ${closed}/${run.items.length} closed, ${money(runCost(run))} on ${run.host}`];
+  if (run.status === "blocked" && run.block) {
+    lines.push(`blocked at ${run.block.gate}${run.block.cause ? ` (${run.block.cause})` : ""}`, ...run.block.questions.map((question) => `  - ${question}`));
+    lines.push(`answer with: ospec auto resume --answer "<your answer>"`);
+  }
+  run.items.forEach((item, index) => {
+    const what = item.change ? `${item.change} (${item.turns} turns, ${money(item.cost_usd || 0)})` : item.text.replace(/\s+/g, " ").slice(0, 80);
+    const extra = [
+      item.commit ? `commit ${item.commit.slice(0, 7)}` : null,
+      item.status === "running" && item.session_id ? `session ${item.session_id}` : null,
+      item.delegated ? `open-facts delegated ${item.delegated}` : null,
+    ].filter(Boolean);
+    lines.push(`item ${index + 1}/${run.items.length} ${item.status}: ${what}${extra.length ? `, ${extra.join(", ")}` : ""}`);
+  });
+  return lines.join("\n");
+}
+
+function describeAuto(result) {
+  if (result.auto === "stop") {
+    return result.stopping ? `run ${result.run.id}: stop requested; its conductor ends the turn in progress and stops` : `run ${result.run.id}: stopped`;
+  }
+  if (result.auto === "status") return describeAutoRun(result.run);
+  return describeAutoRun(result.run).split("\n")[0];
+}
+
 function routerCommand(root, [sub], values) {
   if (!ROUTER_SUBCOMMANDS.includes(sub)) throw new UsageError(`router takes one of ${ROUTER_SUBCOMMANDS.join(", ")}`);
   const scope = values.scope ?? "user";
@@ -1782,6 +1863,7 @@ async function run(command, positionals, values) {
   if (command === "doctor") return runDoctor({ root, target: values.target ?? null, repair: values.repair === true });
   if (command === "registry") return runRegistry({ root });
   if (command === "router") return routerCommand(root, positionals, values);
+  if (command === "auto") return auto(root, positionals, values);
   if (command === "foundation") return foundation(root, positionals, values);
   if (command === "team") return readTeam(root, values.mode ?? null);
   if (command === "snapshot") return snapshot(root, values);
@@ -2185,6 +2267,7 @@ function describe(command, result) {
   if (command === "doctor") return renderDoctor(result);
   if (command === "registry") return renderRegistry(result);
   if (command === "router") return describeRouter(result);
+  if (command === "auto") return describeAuto(result);
   if (command === "review") return describeReview(result);
   if (command === "signals") return describeSignals(result);
   if (command === "check") return describeCheck(result);
@@ -2299,7 +2382,7 @@ async function main(argv = process.argv.slice(2)) {
     if (command === "snapshot" && "text" in result) process.stdout.write(result.text);
     else if (wantsJson) process.stdout.write(jsonOf(command, { ok: true, command, ...result }));
     else process.stdout.write(`${describe(command, result)}\n`);
-    return command === "doctor" ? result.exit_code : 0;
+    return command === "doctor" || command === "auto" ? result.exit_code : 0;
   } catch (error) {
     const usage = error instanceof UsageError || error instanceof DoctorUsageError || error.code?.startsWith?.("ERR_PARSE_ARGS");
     const known =
@@ -2313,6 +2396,7 @@ async function main(argv = process.argv.slice(2)) {
       error instanceof DecisionGapError ||
       error instanceof SnapshotError ||
       error instanceof RegistryError ||
+      error instanceof AutoError ||
       error instanceof claudeRouter.RouterError;
     if (!known) throw error;
     const code = usage ? "usage" : error.code;

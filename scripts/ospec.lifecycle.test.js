@@ -128,10 +128,13 @@ test("[REQ-idd-008] an answer that retracts a security sink before a turn ends i
 // E1.107 delegated-answers (REQ-idd-030): the model leaves a recommendation
 // per question, and the conductor of an automatic run, with OSPEC_AUTO_RUN in
 // its environment, answers open-facts with them once the session's turn ended.
+// Since E1.108 the run must be registered as running in .ospec/auto.
 test("[REQ-idd-030] an automatic run answers open-facts with the recommendations after a turn end, and status and close name it", (t) => {
   const { root } = project(t);
   const { OSPEC_AUTO_RUN: _unset, ...outside } = process.env;
   const inside = { ...outside, OSPEC_AUTO_RUN: "run-1" };
+  const run = { schema: "ospec-auto-run/v1", id: "run-1", status: "running", pid: process.pid, current: 0, items: [{ text: "Fix the typo.", status: "running" }] };
+  writeFile(root, ".ospec/auto/run-1/run.json", JSON.stringify(run));
   writeTurns(root, 3);
   ospec(root, "record", "intent", "--change", "fix-readme", "--kind", "docs", "--summary", "Fix a typo.", "--acceptance", "No typo.", "--open-fact", "Is the old spelling kept as an alias?", "--open-fact", "Is the fix listed in the changelog?");
   const recommend = (question, ...answer) => ospec(root, "record", "recommendation", "--change", "fix-readme", "--gate", "open-facts", "--question", String(question), ...answer, "--json");
@@ -158,6 +161,11 @@ test("[REQ-idd-030] an automatic run answers open-facts with the recommendations
   assert.strictEqual(stateOf(root, "fix-readme").gates[0].opened_turn, 3, "a recommendation keeps the turn the gate opened in");
 
   writeTurns(root, 4);
+  writeFile(root, ".ospec/auto/run-1/run.json", JSON.stringify({ ...run, status: "blocked" }));
+  refused(delegate(inside), /run run-1 is not registered as running in \.ospec\/auto/);
+  fs.rmSync(path.join(root, ".ospec", "auto", "run-1"), { recursive: true });
+  refused(delegate(inside), /not registered as running/);
+  writeFile(root, ".ospec/auto/run-1/run.json", JSON.stringify(run));
   const resolved = delegate(inside);
   assert.strictEqual(resolved.code, 0, resolved.stdout);
   assert.strictEqual(resolved.json.warnings, undefined);

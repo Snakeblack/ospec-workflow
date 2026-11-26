@@ -15,6 +15,9 @@ const RESTORE_STATE =
   "the CLI owns idd/<id>/state.yaml: restore it with git checkout -- idd/<id>/state.yaml, or move it aside with ospec doctor --repair and resume the change, then run the command again";
 const CLI_ONLY = "only the CLI records evidence, from runs it observes; no agent input reaches it";
 
+const AUTO_STATUS = "ospec auto status names the run and its status";
+const NEW_BRANCH = "create a branch for the run first: git switch -c <type>/<name>";
+
 const REFUSALS = Object.freeze({
   "ambiguous-intent-open": `resolve the intent first: ask the question of ospec next --change <id> --json and record the answer with ospec record intent --change <id> ${ANSWER} and the kind, summary and acceptance`,
   "answer-incomplete": "confirmed and assumed need --source-kind and --source-ref, assumed also --review-trigger, n/a needs --reason and deferred needs --owner",
@@ -35,6 +38,23 @@ const REFUSALS = Object.freeze({
   "change-abandoned": 'an abandoned change takes no more records and never closes: open a new one with ospec record intent --change <new-id> --kind <kind> --summary "<what>" --acceptance "<observable result>"; one still under idd/ is archived by ospec abandon --change <id>',
   "change-closed": 'a closed change takes no more records: open a new one with ospec record intent --change <new-id> --kind <kind> --summary "<what>" --acceptance "<observable result>"',
   "change-mismatch": RESTORE_STATE,
+  "checks-failing": "fix the failing check first, as its own change, then start the run again",
+  "default-branch": NEW_BRANCH,
+  "detached-head": NEW_BRANCH,
+  "dirty-tree": "commit or stash the paths git status lists, then start the run again",
+  "git-failed": "run git status in the project to see the error, fix it and run the command again",
+  "host-not-found": "install the host's CLI and sign in to it, then run the command again",
+  "host-unavailable": "ospec auto drives claude in this version: pass --host claude or leave --host out",
+  "invalid-answer": "pass the user's reply to the block with --answer, or resume without it",
+  "invalid-items": "pass 1 to 20 --item flags, each the request of one change",
+  "invalid-limit": "--max-turns takes a whole number from 1 and --max-cost-usd a positive amount",
+  "no-run": `${AUTO_STATUS}; start one with ospec auto start --item "<request>"`,
+  "open-change": "close or abandon it first: ospec status lists it",
+  "run-active": `one automatic run at a time: ${AUTO_STATUS}; stop it with ospec auto stop, or continue it with ospec auto resume`,
+  "run-done": 'every item of that run is closed: start a new one with ospec auto start --item "<request>"',
+  "run-invalid": "nothing was changed: remove .ospec/auto/<run> to forget that run",
+  "run-not-active": `${AUTO_STATUS}: a stopped, failed or done run has nothing to stop`,
+  "still-blocked": 'answer the block with ospec auto resume --answer "<the user\'s words>", or in the session the run names, then ospec auto resume',
   "change-open": { byDesign: "only ospec close archives a change, after closing it; no agent input reaches it" },
   "changelog-invalid": "fix the changelog entry or heading at the line the message names: an entry goes once, under '## [Unreleased]' or '## [x.y.z] - YYYY-MM-DD'",
   "cite-outside-plan": "add the cited file to the plan with ospec signals --change <id> --path <file>, or cite a file of the plan or the diff",

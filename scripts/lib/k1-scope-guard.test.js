@@ -316,6 +316,18 @@ const SUCCESSOR_K2_EXACT = new Set([
   // value (REQ-lifecycle-kernel-034).
   "scripts/lib/capability-registry.js",
   "scripts/lib/capability-registry.test.js",
+  // E1.108 auto-conductor: the conductor of ospec auto, its run record and
+  // hosts, and the headless session and claude lookup it shares with the
+  // bench and the generator.
+  "scripts/lib/auto-conductor.js",
+  "scripts/lib/auto-conductor.test.js",
+  "scripts/lib/auto-hosts.js",
+  "scripts/lib/auto-hosts.test.js",
+  "scripts/lib/auto-run.js",
+  "scripts/lib/auto-run.test.js",
+  "scripts/lib/claude-bin.js",
+  "scripts/lib/headless-session.js",
+  "scripts/lib/headless-session.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [

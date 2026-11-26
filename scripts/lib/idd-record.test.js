@@ -456,7 +456,7 @@ function recommendAll(state) {
   return recordRecommendation(first, { gate: "open-facts", question: 2, answer: "Yes, it throws." }).state;
 }
 
-const DELEGATED = Object.freeze({ id: "open-facts", action: "resolve", source: "delegated", run: "run-7", turn: 4, recordedAt: "2026-11-25T10:00:00.000Z" });
+const DELEGATED = Object.freeze({ id: "open-facts", action: "resolve", source: "delegated", run: "run-7", registered: true, turn: 4, recordedAt: "2026-11-25T10:00:00.000Z" });
 
 test("[REQ-idd-030] a recommendation names a question of an open gate, in question order, and replaces itself while the gate is open", () => {
   const state = askedFacts();
@@ -524,6 +524,8 @@ test("[REQ-idd-030] a delegated answer is refused with its cause outside a run, 
   refusedWith(() => recordGate(recommended, { ...DELEGATED, run: "" }), /OSPEC_AUTO_RUN is not set/);
   refusedWith(() => recordGate(recommended, { ...DELEGATED, run: "Run_7" }), /kebab-case id of at most 64 characters/);
   refusedWith(() => recordGate(recommended, { ...DELEGATED, run: "r".repeat(65) }), /kebab-case id of at most 64 characters/);
+  refusedWith(() => recordGate(recommended, { ...DELEGATED, registered: false }), /run run-7 is not registered as running in \.ospec\/auto/);
+  refusedWith(() => recordGate(recommended, { ...DELEGATED, registered: undefined }), /not registered as running/);
   for (const id of GATES.filter((gate) => gate !== "open-facts" && gate !== "ambiguous-intent")) {
     refusedWith(() => recordGate(recommended, { ...DELEGATED, id }), new RegExp(`gate ${id} takes only the user's answer`));
   }

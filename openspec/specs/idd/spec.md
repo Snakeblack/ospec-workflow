@@ -3824,14 +3824,15 @@ read the run from the environment variable `OSPEC_AUTO_RUN`, a kebab-case id of
 at most 64 characters. The conductor of the run MUST set it only in the
 environment of its own `ospec` call that records the answer, never in that of
 the host session where the model works, so the model never holds it. It MUST resolve the gate only when the gate is
-`open-facts`, every question of the gate has a recommended answer, and a turn
+`open-facts`, the run is registered as running with a live conductor
+(REQ-idd-031), every question of the gate has a recommended answer, and a turn
 ended since the gate opened: the count of REQ-idd-008 at the answer exists and
 differs from `opened_turn`. Then the gate MUST hold `source` `delegated`, the
 `run`, the `recommendations` it was answered with and, as `answer`, one line
 per question, `<question> → <answer>`, written by the CLI. Otherwise it MUST be
 refused with `delegation-refused`, whose message names the cause: an
 `--answer`, a gate that takes only the user's answer, `OSPEC_AUTO_RUN` unset or
-not an id, the questions without a recommendation, or no turn count or no turn
+not an id, a run not registered as running, the questions without a recommendation, or no turn count or no turn
 end since the gate opened. `record intent` resolving `ambiguous-intent` and
 `record retract` with the user's answer (REQ-idd-006) MUST refuse `delegated`
 with `delegation-refused` too. Resolving again from the same run MUST change
@@ -3849,8 +3850,9 @@ MUST name its source `delegated, run <run>`. The CLI cannot verify who sets
 
 #### Scenario: An automatic run answers open facts after the turn ends
 
-- GIVEN `.ospec/turns` holds 3 when a change opens with two open facts, and
-  the model recommends an answer for each
+- GIVEN `.ospec/turns` holds 3 when a change opens with two open facts, the
+  model recommends an answer for each, and the run `run-1` is registered as
+  running
 - WHEN `record gate --gate open-facts --resolve --source delegated` runs with
   `OSPEC_AUTO_RUN=run-1` while the count is still 3
 - THEN it MUST be refused with `delegation-refused`, naming that no turn ended
@@ -3865,7 +3867,8 @@ MUST name its source `delegated, run <run>`. The CLI cannot verify who sets
   only `none`
 - WHEN it is resolved with `--source delegated` after a turn end
 - THEN it MUST be refused with `delegation-refused`, naming question 2
-- AND without `OSPEC_AUTO_RUN`, with `--answer`, on any other gate, on
+- AND without `OSPEC_AUTO_RUN`, with a run that is not registered as running,
+  with `--answer`, on any other gate, on
   `ambiguous-intent` through `record intent` or on a retraction, it MUST be
   refused with `delegation-refused` and its cause
 
@@ -3875,3 +3878,89 @@ MUST name its source `delegated, run <run>`. The CLI cannot verify who sets
 - WHEN its first question is recommended at turn 6
 - THEN the gate MUST keep `opened_turn` 3
 - AND `next` MUST show that recommendation for the question
+
+### Requirement: Automatic Run Conductor {#REQ-idd-031}
+
+`ospec auto start --item <request>...` MUST work each request, from 1 to 20 in
+the given order, as one IDD change in a new headless session of the host, and
+`--host` MUST take only `claude` in this version: any other host MUST be
+refused with `host-unavailable`. The session MUST run with the user's own
+configuration, in the `auto` permission mode, and its environment MUST NOT hold
+`OSPEC_AUTO_RUN` nor the markers of a Claude Code session that launched the
+conductor. Each item MUST start with its request followed by a brief that asks
+for one IDD change until `ospec close`, a recommendation per question before a
+turn ends with a gate's questions (REQ-idd-030), and no commit, push, pull
+request or release. Before the first item `start` MUST be refused with its
+code and how to get past it: `invalid-items`, `invalid-limit`, `run-active`
+while another run is running with a live conductor, blocked or paused,
+`open-change`, `detached-head`, `default-branch` on the branch of
+`origin/HEAD` or, without it, on `init.defaultBranch`, `main` or `master`,
+`dirty-tree`, `host-not-found` and `checks-failing` when a check of
+`idd/config.yaml` fails on `HEAD`. Before each later item the tree MUST be
+clean and no change open, or the run MUST fail on that item.
+
+After each turn the conductor MUST read the disk, not the session's words:
+the item's change is the only change its session opened, and a session that
+opened two MUST fail the run with `several-changes`. A change archived by
+`ospec close` MUST be committed by the conductor on the current branch with
+the subject `<type>: <summary>`, from the kind (`fix`, `feat`, `refactor`,
+`docs`) and the summary of its intent, through the user's git hooks; a
+refused commit MUST fail the run with `commit-failed`, and nothing MUST be
+pushed. An open `open-facts` whose every question has a recommendation MUST be
+answered with the source `delegated` and the run's id in the environment of
+the conductor's own `ospec` call, and the session resumed. Any other gate, or
+an `open-facts` with a question without recommendation or whose delegated
+answer is refused, MUST stop the run as `blocked` with the gate, its
+questions, the cause and the session. A spent usage quota MUST stop it as
+`paused`; two host errors in a row, `--max-turns` turns of the item (default
+30), `--max-cost-usd` of the run (default 25, from the cost each session
+reports so far, never the sum of its turns) and two turns in a row that change
+neither the change's state nor the tree MUST stop it as `failed` on the item,
+with no later item started. The run is `done` when every item is closed.
+
+The run MUST be recorded in `.ospec/auto/<run>/run.json`, written atomically
+after every step, with its id `auto-<YYYYMMDD>-<HHMMSS>` in UTC, schema
+`ospec-auto-run/v1`, host, branch, limits, status (`running`, `blocked`,
+`paused`, `stopped`, `failed` or `done`), reason, conductor pid, current item
+and, per item, its request, status (`pending`, `running` or `closed`), change,
+session, turns, cost, delegated answers and commit; each turn's transcript
+MUST sit beside it. A record that cannot be read MUST be refused with
+`run-invalid` and left untouched. `ospec auto status [--run <id>]` MUST report
+the latest run, or the one named, read-only. `ospec auto stop` MUST make a
+running conductor end its turn in progress within a second and stop the run
+as `stopped`, and MUST stop at once a run that is blocked, paused or whose
+conductor is gone; any other run MUST be refused with `run-not-active`.
+`ospec auto resume [--run <id>] [--answer <text>]` MUST continue a run that is
+not `done` and not running with a live conductor, in the item's session: with
+`--answer`, the text MUST reach the session as the user's reply; without it, a
+blocked run whose gate is still open MUST be refused with `still-blocked`.
+`--max-turns` and `--max-cost-usd` on `resume` MUST raise the run's limits.
+`start` and `resume` MUST print one line per step, unless `--json`, and MUST
+exit 0 only when the run is `done`.
+
+#### Scenario: A run closes two items and answers open facts
+
+- GIVEN a clean branch that is not the default one and a queue of two requests
+- WHEN the first session opens a change with two recommended open facts and,
+  once they are answered, closes it, and the second opens and closes its
+  change in one turn
+- THEN the conductor MUST answer `open-facts` with `delegated` and the run's
+  id, and commit each closed change with its own subject
+- AND the second item MUST start in a new session, and the run MUST end
+  `done`
+
+#### Scenario: A gate only the user answers blocks the run
+
+- GIVEN a session that opens `irreversible-operation`
+- WHEN its turn ends
+- THEN the run MUST be `blocked` with that gate, its question and the session
+- AND `resume` without `--answer` MUST be refused with `still-blocked`, and
+  `resume --answer <text>` MUST send that text to the same session
+
+#### Scenario: Stop ends the turn in progress
+
+- GIVEN a run whose session is in a turn
+- WHEN `ospec auto stop` runs
+- THEN the conductor MUST end the turn within a second and the run MUST be
+  `stopped`
+- AND `resume` MUST continue the same session

@@ -11,6 +11,7 @@ const { spawnSync } = require("node:child_process");
 
 const { transform } = require("../lib/target-transform.js");
 const { validateSddModelPolicy, validateUserModels } = require("../lib/model-resolver.js");
+const { isWindowsInteropPath, resolveBinFromPath, resolveClaudeBin } = require("../lib/claude-bin.js");
 const { withTransientFsRetries, TRANSIENT_FS_CODES } = require("./install-engine.js");
 
 const PROFILES = {
@@ -400,52 +401,6 @@ function unquote(value) {
 
 // --- validation gate -------------------------------------------------------
 
-function resolveWinGetClaudeBin(packagesDir) {
-  try {
-    for (const entry of fs.readdirSync(packagesDir)) {
-      if (entry.startsWith("Anthropic.ClaudeCode")) {
-        const fullPath = path.join(packagesDir, entry, "claude.exe");
-        if (fs.existsSync(fullPath)) {
-          return fullPath;
-        }
-      }
-    }
-  } catch {
-    // ignore read/access errors
-  }
-  return null;
-}
-
-function resolveBinFromPath(binName) {
-  const pathEnv = process.env.PATH || "";
-  const delimiter = process.platform === "win32" ? ";" : ":";
-  const extensions = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
-
-  for (const dir of pathEnv.split(delimiter)) {
-    if (!dir) continue;
-    for (const ext of extensions) {
-      const fullPath = path.join(dir, binName + ext);
-      try {
-        const stat = fs.statSync(fullPath);
-        if (stat.isFile()) {
-          return fullPath;
-        }
-      } catch {
-        // ignore access/existence errors
-      }
-    }
-  }
-  return null;
-}
-
-// A /mnt/<drive>/ path on linux is a Windows binary reached through the WSL
-// interop mount. It may start, but it reinterprets POSIX paths (a /tmp/...
-// argument becomes C:\tmp\... on the Windows side), so it can never consume
-// the POSIX output dirs we generate. Treat it as unusable.
-function isWindowsInteropPath(p) {
-  return process.platform === "linux" && /^\/mnt\/[a-z]\//.test(p);
-}
-
 // Spawn a resolved CLI binary synchronously. Node refuses to spawn .cmd/.bat
 // shims without a shell (EINVAL since the CVE-2024-27980 fix), and shell:true
 // does not quote paths with spaces, so Windows npm shims go through cmd.exe
@@ -460,23 +415,6 @@ function spawnCliSync(bin, args, options = {}) {
     );
   }
   return spawnSync(bin, args, { ...options, shell: false });
-}
-
-function resolveClaudeBin() {
-  const resolved = resolveBinFromPath("claude");
-  if (resolved && !isWindowsInteropPath(resolved)) {
-    return resolved;
-  }
-
-  // Fallback: check WinGet packages folder in LocalAppData on Windows
-  if (process.platform === "win32" && process.env.LOCALAPPDATA) {
-    const packagesDir = path.join(process.env.LOCALAPPDATA, "Microsoft", "WinGet", "Packages");
-    if (fs.existsSync(packagesDir)) {
-      return resolveWinGetClaudeBin(packagesDir);
-    }
-  }
-
-  return null;
 }
 
 // Run a target's validator as a child process. profile.validate is an argv array

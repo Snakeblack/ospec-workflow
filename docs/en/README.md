@@ -35,7 +35,10 @@ and archives it under `idd/archive/`.
   (`--source user`, or `user-unverified` for a relayed answer): the CLI
   refuses any other source but cannot verify that the answer was yours.
   Only an automatic run you authorized may answer open facts itself, with
-  the answer the model recommended for each question (`delegated`). A
+  the answer the model recommended for each question (`delegated`):
+  `ospec auto start --item "<request>"...` works a queue of requests in
+  Claude Code, one change each in a new headless session, commits each
+  closed change and stops at any other gate. A
   `user` answer recorded before another turn ended after the gate opened is
   kept as `user-unverified`, and `close` names it; so is an answer that
   retracts a signal before a turn ended after the signal was recorded.

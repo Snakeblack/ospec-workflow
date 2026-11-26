@@ -27,7 +27,7 @@ tooling only: it grants no authority and never runs a model in `npm test`.
 | `hosts/gentle-ai.js` | Installs gentle-ai into its bench HOME (for Claude Code or for agy), identifies that install, and starts an empty Engram per workspace |
 | `hosts/agy.js` | Headless `agy --print` turns and persona calls (prompts on stdin as stream-json), each workspace in a fresh copy of the arm's template HOME; installs ospec for antigravity as the IDD template. A persona model whose id starts with `grok-` is asked through `hosts/cursor-persona.js` instead |
 | `hosts/cursor-persona.js` | Cursor CLI persona (`agent --print --mode ask`) in an empty directory, for a Grok persona agy cannot serve |
-| `transcript.js` | Usage, cost, and session from a `stream-json` transcript (`modelUsage` includes subagents) |
+| `../../lib/headless-session.js` | Usage, cost, and session from a `stream-json` transcript (`modelUsage` includes subagents), and the process of a headless Claude turn |
 | `record.js` | The versioned record of one arm and its Markdown report |
 | `checkpoint.js`, `margins.json` | Predeclared margins, the declared harness exception, and the continue/revise decision |
 | `stats.js` | Per-scenario 95% t interval (the task is the statistical unit) |

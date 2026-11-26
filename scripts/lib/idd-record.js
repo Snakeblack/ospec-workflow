@@ -363,7 +363,7 @@ function recordSignal(state, { id, reason, source } = {}) {
   return { state: next, changed: true };
 }
 
-function recordGate(state, { id, action, reason, answer, source, recordedAt, run, turn } = {}) {
+function recordGate(state, { id, action, reason, answer, source, recordedAt, run, registered, turn } = {}) {
   requireOpen(state);
   if (!GATES.includes(id)) refuse("unknown-gate", `unknown gate: ${id}`);
   if (id === "ambiguous-intent") {
@@ -413,7 +413,7 @@ function recordGate(state, { id, action, reason, answer, source, recordedAt, run
   }
 
   if (action === "resolve") {
-    if (source === DELEGATED_SOURCE) return resolveDelegated(state, index, { id, answer, run, turn, recordedAt });
+    if (source === DELEGATED_SOURCE) return resolveDelegated(state, index, { id, answer, run, registered, turn, recordedAt });
     if (!answer || !source) refuse("gate-answer-required", `resolving ${id} needs the user's answer and its source`);
     requireGateSource(source);
     if (!existing) refuse("gate-not-open", `gate ${id} is not open`);
@@ -444,13 +444,15 @@ function recordGate(state, { id, action, reason, answer, source, recordedAt, run
 // resolves a delegable gate with the recommendation of each question, after
 // the session's turn ended, so the model never answers its own question. The
 // CLI writes the answer from the recommendations; a replay by the same run
-// changes nothing.
-function resolveDelegated(state, index, { id, answer, run, turn, recordedAt }) {
+// changes nothing. `registered` says whether the run is recorded as running in
+// .ospec/auto (REQ-idd-031).
+function resolveDelegated(state, index, { id, answer, run, registered, turn, recordedAt }) {
   const refused = (cause) => refuse("delegation-refused", cause);
   if (answer !== undefined) refused("a delegated answer is written from the recommendations: pass no --answer");
   if (!DELEGABLE_GATES.includes(id)) refused(`gate ${id} takes only the user's answer: a delegated answer resolves only ${DELEGABLE_GATES.join(", ")}`);
   if (run === undefined || run === "") refused("a delegated answer is recorded only inside an automatic run: OSPEC_AUTO_RUN is not set");
   if (!isAutoRunId(run)) refused(`OSPEC_AUTO_RUN must name the run as a kebab-case id of at most 64 characters, got ${JSON.stringify(run)}`);
+  if (registered !== true) refused(`the automatic run ${run} is not registered as running in .ospec/auto: only the conductor of a running ospec auto run answers`);
   const existing = index === -1 ? null : state.gates[index];
   if (!existing) refuse("gate-not-open", `gate ${id} is not open`);
   if (existing.status === "resolved") {
