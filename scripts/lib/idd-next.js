@@ -444,5 +444,6 @@ module.exports = {
   planDeclared,
   nextForProject,
   retractOffer,
+  shellArg,
   statusOf,
 };

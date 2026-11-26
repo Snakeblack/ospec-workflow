@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Elección del modo de ejecución (E1.109): con una cola de dos o más ítems pendientes en el roadmap, ospec next sin cambio abierto y ospec close devuelven un bloque execution_mode que ofrece interactivo (por defecto) o automático con la orden de ospec auto start, y las skills idd y foundation lo preguntan (execution-mode-choice)
+
 ## [2.189.0] - 2026-11-26
 
 ### Added

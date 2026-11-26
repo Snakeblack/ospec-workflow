@@ -252,6 +252,7 @@ module.exports = {
   MAX_BYTES,
   MAX_PHASES,
   MAX_TITLE,
+  PHASE_CELL,
   PHASE_ID_PATTERN,
   STATUSES,
   SnapshotError,

@@ -135,7 +135,7 @@ Read each file before writing and update it; never discard what the user wrote.
 | `docs/product/glossary.md` | Domain terms |
 | `docs/architecture/technical-baseline.md` | Context and boundaries, components and data ownership, integrations, quality scenarios, constraints, test strategy by risk, technology record |
 | `docs/architecture/decisions/NNNN-<title>.md` | One ADR per structural decision |
-| `docs/roadmap.md` | The first slice as a walking skeleton, then milestones; deferred decisions with their last responsible moment |
+| `docs/roadmap.md` | The first slice as a walking skeleton, then milestones, in a table whose rows start `<ID>. <title>`, one per milestone; deferred decisions with their last responsible moment |
 | `docs/architecture/knowledge-map.yaml` | The knowledge map and its open gaps |
 | `docs/architecture/component-map.yaml` | Brownfield only: the recovered components, boundaries, dependencies and divergences |
 
@@ -209,10 +209,12 @@ with no commit yet (`git rev-parse --verify HEAD` fails), propose its name
 (`main`) too: the first IDD change needs that base commit for its
 counterproof. With history, propose the commit, or a branch and a pull
 request as the approved delivery says. Run no `git init`, `git commit`, push
-or remote creation without the user's explicit yes. Delegated, run none of
-them: list in `open_questions` the `delivery:` question, answered from
-`ospec team` once `team:` is written, the remote question and the commit
-offer, for the orchestrator to ask and run.
+or remote creation without the user's explicit yes. Once that commit exists,
+run `ospec next`: with an `execution_mode`, ask it as its `how` says before
+the first change. Delegated, run none of them: list in `open_questions` the
+`delivery:` question, answered from `ospec team` once `team:` is written, the
+remote question, the commit offer and, after it, the `execution_mode` of
+`ospec next`, for the orchestrator to ask and run.
 
 ## Source documents
 

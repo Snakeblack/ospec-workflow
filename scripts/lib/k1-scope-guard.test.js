@@ -328,6 +328,10 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/claude-bin.js",
   "scripts/lib/headless-session.js",
   "scripts/lib/headless-session.test.js",
+  // E1.109 execution-mode-choice: the queue of the roadmap that next and
+  // close offer to work interactively or in an automatic run.
+  "scripts/lib/auto-queue.js",
+  "scripts/lib/auto-queue.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [

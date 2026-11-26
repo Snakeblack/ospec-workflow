@@ -110,6 +110,7 @@ const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-pr
 const { writeFileAtomic } = require("./lib/atomic-write.js");
 const { resumeRun, runCost, startRun, stopRun } = require("./lib/auto-conductor.js");
 const { createHost } = require("./lib/auto-hosts.js");
+const { executionMode } = require("./lib/auto-queue.js");
 const { AutoError, selectRun, runIsRunning } = require("./lib/auto-run.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange, renderLivingDoc, serializeState } = require("./lib/idd-store.js");
 const { withFileLock } = require("./lib/ospec-state.js");
@@ -1311,7 +1312,8 @@ async function close(root, values) {
     if (await fsp.stat(changeDir(root, state.change)).then(() => true, () => false)) writeEvidenceSection(root, state);
     const archive = await archiveChange(root, state);
     dropRunOutputs(root, state.change);
-    const warnings = [...skippedCheckWarnings(state), ...counterproofWarnings(state), ...unverifiedGateWarnings(state), ...unverifiedRetractWarnings(state)];
+    const queue = executionMode(root);
+    const warnings = [...skippedCheckWarnings(state), ...counterproofWarnings(state), ...unverifiedGateWarnings(state), ...unverifiedRetractWarnings(state), ...queue.warnings];
     return {
       change: state.change,
       status: state.status,
@@ -1325,6 +1327,8 @@ async function close(root, values) {
       ...(warnings.length ? { warnings } : {}),
       records: readKnowledgeRecords(root, state, archive.destination),
       ...(delivery ?? closeDelivery(root, state, { write: false })),
+      // Read once the change is archived, so its phase counts as done.
+      ...(queue.executionMode ? { execution_mode: queue.executionMode } : {}),
     };
   });
 }
@@ -1691,6 +1695,17 @@ function changeNext(root, state) {
   return nextForChange(state, { ...context, ...readProjectContext(root) });
 }
 
+// The execution mode choice of ospec next without an open change (E1.109,
+// REQ-idd-032): the queue of the roadmap, and why the roadmap offers none.
+function withExecutionMode(root, result) {
+  const { executionMode: mode, warnings } = executionMode(root);
+  return {
+    ...result,
+    ...(mode ? { execution_mode: mode } : {}),
+    ...(warnings.length ? { warnings: [...(result.warnings || []), ...warnings] } : {}),
+  };
+}
+
 // The retraction the user's answer may make in place of the obligation next
 // (REQ-idd-011): the one record retract would take, read from the diff as it
 // reads it. A diff git cannot read offers none; record retract says why.
@@ -1852,7 +1867,8 @@ async function run(command, positionals, values) {
       throw error;
     }
     if (next.change) return changeNext(root, states.find((state) => state.change === next.change));
-    return nextForProject(states, { projectFiles: FOUNDATION_STEPS.includes(next.next_step.action) ? readProjectFiles(root) : undefined });
+    const project = nextForProject(states, { projectFiles: FOUNDATION_STEPS.includes(next.next_step.action) ? readProjectFiles(root) : undefined });
+    return project.next_step.action === "open-change" ? withExecutionMode(root, project) : project;
   }
   if (command === "signals") return signals(root, values);
   if (command === "check") return values.close ? checkAndClose(root, values) : check(root, values);
@@ -1946,7 +1962,20 @@ function describeNext(result) {
   if (result.team) lines.push(`team: ${result.team.size}; delivery ${result.team.delivery_strategy}; mentorship ${result.team.mentorship}`);
   if (result.delivery) lines.push(...describeDelivery({ ...result.delivery, value: result.delivery.branching }, result.delivery));
   else if (result.language) lines.push(`language: ${result.language}`);
+  lines.push(...describeExecutionMode(result.execution_mode));
   return lines.join("\n");
+}
+
+// The queue of the roadmap and the two ways to work it (REQ-idd-032).
+function describeExecutionMode(mode) {
+  if (!mode) return [];
+  const first = mode.pending > mode.queue.length ? `, the first ${mode.queue.length} in the run` : "";
+  return [
+    `queue: ${mode.pending} pending items in ${mode.roadmap}${first}: ${mode.queue.map((entry) => `${entry.id} ${entry.title}`).join(", ")}`,
+    "mode: ask the user: interactive (default) or automatic",
+    `  ${mode.how}`,
+    `automatic: ${mode.command}`,
+  ];
 }
 
 // The step a command that writes returns, in one line with its literal
@@ -2137,6 +2166,7 @@ function describeClose(result) {
     lines.push(`${records.length} knowledge record(s) to keep in cross-session memory under its topic; summary and provenance: ospec close --change ${result.change} --json`);
     for (const record of records) lines.push(`- ${record.topic} | ${record.title}`);
   }
+  lines.push(...describeExecutionMode(result.execution_mode));
   return lines.join("\n");
 }
 

@@ -289,6 +289,47 @@ test("[REQ-idd-026] no IDD step, hook or check runs snapshot", () => {
   }
 });
 
+// E1.109 execution-mode-choice (REQ-idd-032): the queue of the roadmap, worked
+// interactively or in an automatic run.
+const QUEUE_ROADMAP = "| Phase | Content |\n| --- | --- |\n| A1. Alpha | x |\n| B2. Beta | y |\n| C3. Gamma | z |\n";
+
+test("[REQ-idd-032] next without an open change offers the queue of the roadmap, next with one does not, and a roadmap that does not read only warns", (t) => {
+  const { root } = project(t);
+  writeFile(root, "docs/roadmap.md", QUEUE_ROADMAP);
+  const next = ospec(root, "next", "--json").json;
+  assert.strictEqual(next.next_step.action, "open-change");
+  assert.deepStrictEqual(next.execution_mode.queue.map((entry) => entry.id), ["A1", "B2", "C3"]);
+  assert.strictEqual(next.execution_mode.command.split(" --item ").length, 4);
+  assert.match(
+    ospec(root, "next").stdout,
+    /\nqueue: 3 pending items in docs\/roadmap\.md: A1 Alpha, B2 Beta, C3 Gamma\nmode: ask the user: interactive \(default\) or automatic\n {2}ask the user, once, .*explicit choice.*\nautomatic: ospec auto start --item "Work roadmap item A1 of docs\/roadmap\.md: Alpha\. Name its change a1-<slug>, so the roadmap counts it done\." --item /,
+  );
+
+  ospec(root, ...OPEN_DOCS);
+  const open = ospec(root, "next", "--json").json;
+  assert.strictEqual(open.change, "fix-readme");
+  assert.ok(!("execution_mode" in open));
+
+  const other = project(t).root;
+  writeFile(other, "docs/roadmap.md", `${QUEUE_ROADMAP}| no id | w |\n`);
+  const warned = ospec(other, "next", "--json");
+  assert.strictEqual(warned.code, 0, warned.stderr);
+  assert.ok(!("execution_mode" in warned.json));
+  assert.match(warned.json.warnings.join("\n"), /^docs\/roadmap\.md:6: .*; no execution mode is offered until the roadmap reads$/);
+});
+
+test("[REQ-idd-032] close offers the queue left once its own phase counts as done", (t) => {
+  const { root } = project(t);
+  writeFile(root, "docs/roadmap.md", QUEUE_ROADMAP);
+  ospec(root, "record", "intent", "--change", "a1-alpha", "--kind", "docs", "--summary", "Alpha.", "--acceptance", "Alpha is done.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "check", "--change", "a1-alpha", "--json").json.verdict, "ready");
+  const closed = ospec(root, "close", "--change", "a1-alpha", "--json");
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  assert.deepStrictEqual(closed.json.execution_mode.queue.map((entry) => entry.id), ["B2", "C3"]);
+  assert.match(ospec(root, "close", "--change", "a1-alpha").stdout, /^a1-alpha already archived in [\s\S]*\nqueue: 2 pending items in docs\/roadmap\.md: B2 Beta, C3 Gamma\nmode: ask the user: interactive \(default\) or automatic\n/);
+});
+
 // E4.15 cli-chaining: the CLI chains what it already knows (REQ-idd-011,
 // REQ-idd-014).
 // ---------------------------------------------------------------------------
