@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.190.0] - 2026-11-26
+
 ### Added
-- Elección del modo de ejecución (E1.109): con una cola de dos o más ítems pendientes en el roadmap, ospec next sin cambio abierto y ospec close devuelven un bloque execution_mode que ofrece interactivo (por defecto) o automático con la orden de ospec auto start, y las skills idd y foundation lo preguntan (execution-mode-choice)
+- **Elegir entre modo interactivo y automático ante una cola del roadmap** (execution-mode-choice, E1.109). El modo automático de `ospec auto` ya se ofrece cuando hay algo que encadenar, sin que el usuario tenga que conocer la orden.
+  - **La cola**: con dos o más fases pendientes en `docs/roadmap.md`, `ospec next` sin cambio abierto y `ospec close` devuelven `execution_mode`. Lleva las fases `pending` en su orden, leídas con el lector de `ospec snapshot`, `default: interactive`, los topes de la ejecución y la orden `ospec auto start` con un `--item` por fase (como mucho 20), cada uno como una sola palabra del shell. `close` la lee después de archivar, así que su propia fase cuenta como hecha.
+  - **La pregunta**: el `how` del bloque dice cómo preguntar una vez y que una respuesta vacía, saltada o que no elige es interactivo. Dice también que la respuesta puede quedarse con menos ítems o cambiar los topes, que tras `close` se espera a la entrega porque la ejecución exige el árbol limpio y que en la rama por defecto se crea antes una rama. Donde el host lanza una orden en segundo plano y avisa al terminar, la sesión la lanza así, resume cada cambio cerrado y lleva un bloqueo al usuario con `ospec auto resume --answer`; en el resto, da la orden.
+  - **Cuándo no aparece**: con un cambio abierto, con `mode: sdd`, con menos de dos fases pendientes, sin roadmap o con uno que el lector no reconoce, y mientras haya una ejecución activa, que es el caso de toda sesión que lanza el conductor. Un roadmap con una fila mal formada da un aviso con fichero y línea, sin romper `next` ni `close`.
+  - **Cada ítem**: pide nombrar el cambio con la clave de su fase (`m2-<slug>` para `M2`), para que el roadmap la cuente hecha al cerrarse.
+  - **Las skills**: `idd` llama a `ospec next` antes de un ítem del roadmap y pregunta su `execution_mode` o el de `close`. Es una sola frase, porque el flujo con memoria estaba a 134 B de su presupuesto de 18 000 B, y los techos de contexto suben 107 B con su motivo. `foundation` escribe sus hitos como tabla de fases `<ID>. <título>` y hace la pregunta tras su commit.
+  - **La spec**: REQ-idd-032 lo fija, y REQ-idd-026 admite que `next` y `close` lean el roadmap sin emitir un snapshot.
+
+**Verificación directa**: `node scripts/check.js` (5165 tests pasando, 0 fallos y 5 omitidos), 460 de ellos en la fase serie, con los siete targets generados y validados, y una prueba en vivo con Claude Code y Haiku (0,04 USD). En un repositorio con un roadmap de dos fases, `ospec next` ofreció la cola y la ejecución lanzada en segundo plano cerró M1 con su commit; M2 se bloqueó en `checks-changed` y la sesión trasladó la pregunta al usuario. Dentro de las sesiones del conductor, `next` y `close` no devolvieron `execution_mode`.
 
 ## [2.189.0] - 2026-11-26
 
