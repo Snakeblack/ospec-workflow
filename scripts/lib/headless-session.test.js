@@ -62,6 +62,12 @@ test("a 429 result means the host's usage quota is exhausted", () => {
   assert.equal(summarizeTurn(jsonl({ ...result, is_error: true, subtype: "error_during_execution" })).quota_exhausted, false);
 });
 
+test("[REQ-idd-031] a result of error_max_budget_usd means --max-budget-usd ended the turn", () => {
+  const capped = summarizeTurn(jsonl({ ...result, is_error: true, subtype: "error_max_budget_usd", result: "", errors: ["Reached maximum budget ($0.4200)"] }));
+  assert.deepEqual([capped.is_error, capped.budget_exhausted, capped.quota_exhausted, capped.error], [true, true, false, "Reached maximum budget ($0.4200)"]);
+  assert.equal(summarizeTurn(jsonl(result)).budget_exhausted, false);
+});
+
 test("addUsage adds field by field", () => {
   assert.deepEqual(addUsage({ input: 1, output: 2, cache_read: 3, cache_creation: 4 }, { input: 1, output: 1, cache_read: 1, cache_creation: 1 }),
     { input: 2, output: 3, cache_read: 4, cache_creation: 5 });

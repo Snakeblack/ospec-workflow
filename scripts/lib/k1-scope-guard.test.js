@@ -332,6 +332,10 @@ const SUCCESSOR_K2_EXACT = new Set([
   // close offer to work interactively or in an automatic run.
   "scripts/lib/auto-queue.js",
   "scripts/lib/auto-queue.test.js",
+  // E1.110 auto-conductor-hosts: the adapter of each host the run drives
+  // besides Claude Code.
+  "scripts/lib/auto-host-cursor.js",
+  "scripts/lib/auto-host-cursor.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [

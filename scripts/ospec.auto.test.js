@@ -40,7 +40,11 @@ test("[REQ-idd-031] ospec auto names its subcommands and refuses a bad call befo
   assert.match(ospec(root, "auto", "status", "--item", "x").stderr, /auto status does not take --item/);
   const agy = ospec(root, "auto", "start", "--item", "x", "--host", "agy", "--json");
   assert.strictEqual(agy.code, 1);
-  assert.deepStrictEqual([agy.json.error.code, agy.json.error.how], ["host-unavailable", "the other hosts come with E1.110, each once verified live"]);
+  assert.deepStrictEqual([agy.json.error.code, agy.json.error.how], ["host-unavailable", "pass --host with a host ospec auto drives (ospec --help lists them), or leave it out for claude"]);
+  assert.match(agy.json.error.message, /cannot drive "agy": it is not a host ospec knows \(claude, cursor/);
+  const vscode = ospec(root, "auto", "start", "--item", "x", "--host", "vscode", "--json");
+  assert.match(vscode.json.error.message, /cannot drive "vscode": VS Code has no headless mode/);
+  assert.match(ospec(root, "auto", "start", "--item", "x", "--max-tokens", "lots").stderr, /--max-tokens takes a whole number, got "lots"/);
   const main = ospec(root, "auto", "start", "--item", "x", "--json");
   assert.strictEqual(main.json.error.code, "default-branch");
   assert.strictEqual(ospec(plainRoot(t), "auto", "start", "--item", "x", "--json").json.error.code, "not-a-git-repo");

@@ -1,0 +1,671 @@
+{
+  "schema": "idd-state/v1",
+  "change": "auto-conductor-hosts",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua (siguiente ítem del roadmap: E1.110 auto-conductor-hosts, el conductor de E1.108 en Antigravity, Codex, OpenCode, Copilot CLI y Cursor, cada uno tras verificarlo en vivo; el host que no puede queda unavailable con su motivo)",
+    "requested_at": "2026-11-26T18:57:42.991Z",
+    "kind": "feature",
+    "summary": "ospec auto conduce las sesiones de Antigravity, Codex, OpenCode, Copilot CLI y Cursor, cada una verificada en vivo; VS Code queda unavailable",
+    "acceptance": "ospec auto start --host <host> cierra en vivo un cambio de prueba en cada host verificado; un host no verificado o VS Code se rechaza con host-unavailable y su motivo, que docs/target-capabilities.md declara; un test de contrato por host fija sus argumentos"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Qué modo de permisos usa la sesión sin interfaz de cada host: la revisión automática donde existe (agy --mode auto, codex exec --approve-for-me, copilot --assisted-approval, cursor-agent --auto-review) y opencode run --auto, o saltarse todos los permisos (--dangerously-skip-permissions, --dangerously-bypass-approvals-and-sandbox, --allow-all, --force)?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-conductor.js",
+          "line": 402
+        }
+      },
+      {
+        "category": "persistence",
+        "question": "En un host que no informa del coste en USD, ¿el tope de coste pasa a un tope de tokens --max-tokens guardado en limits.max_tokens de run.json (por defecto 100 millones por ejecución, entrada, salida y caché), o la ejecución corre solo con el tope de 30 turnos por ítem?"
+      },
+      {
+        "category": "copy",
+        "question": "Fuera de Claude Code, ¿la orden ospec auto start de execution_mode lleva --host <id> (antigravity, codex, opencode, github-copilot, cursor) y la sesión se la da al usuario para una terminal, o la sesión la lanza en segundo plano donde el host lo permita?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/target-capabilities.md",
+          "line": 90
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 1769
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Con un host de todo o nada (OpenCode solo ofrece --auto), ¿el conductor se niega a arrancar fuera de un árbol enlazado de git worktree, o arranca y avisa en su primera línea de que el host no revisa cada acción?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "docs/target-capabilities.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/auto-conductor.js",
+      "scripts/lib/auto-conductor.test.js",
+      "scripts/lib/auto-hosts.js",
+      "scripts/lib/auto-hosts.test.js",
+      "scripts/lib/auto-queue.js",
+      "scripts/lib/auto-queue.test.js",
+      "scripts/lib/auto-run.js",
+      "scripts/lib/headless-session.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/ospec.js"
+    ],
+    "work_units": 6,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Permisos: revisión automática donde el host la tiene (agy --mode auto, codex exec --approve-for-me, copilot --assisted-approval, cursor-agent --auto-review) y opencode run --auto; si en vivo deniega ospec, memoria o ediciones, se vuelve al usuario antes de saltarse los permisos",
+      "Tope --max-tokens (limits.max_tokens, 100 millones por ejecución, entrada, salida y caché) solo en hosts que no informan coste en USD; Claude sigue con 25 USD",
+      "execution_mode: el how pide añadir --host <id> fuera de Claude Code y dar la orden para una terminal",
+      "Un host de todo o nada arranca igual: la línea de arranque avisa de que no revisa cada acción y target-capabilities lo declara",
+      "Entrega en cadena de PR: lo común con el primer host verificado, un tramo por host y la release minor al final",
+      "Valla de turnos: en un host cuyo hook de fin de turno no corre sin interfaz (Cursor -p no dispara stop), el conductor cuenta el fin de turno al ver terminar el proceso de la sesión"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 753
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 6 work units",
+      "source": "declaration",
+      "recorded_turn": 753
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration",
+      "recorded_turn": 753
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components auto-conductor, cli, idd-engine: ADR 0003, 0004, 0005, 0010, 0011, 0013 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration",
+      "recorded_turn": 753
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff",
+      "recorded_turn": 757
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La disponibilidad de cada host, sus topes y la cuenta de turnos los decide el CLI (auto-hosts.js, auto-conductor.js), con tests; el how solo pide --host"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia cómo se derivan señales ni obligaciones"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El conductor sigue avanzando solo con el close en disco en cada host"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; el runtime lanza el CLI del host que el usuario ya tiene instalado"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "No toca el estado SDD ni la separación en disco"
+    },
+    {
+      "kind": "adr",
+      "id": "0013",
+      "impact": "conforms",
+      "reason": "Solo open-facts se delega y sigue exigiendo un turno terminado; en Cursor ese fin de turno lo cuenta el conductor al ver terminar el proceso, que es el fin de turno real, y OSPEC_AUTO_RUN sigue fuera de la sesión"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "resume sigue la misma sesión por su id en cada host; run.json guarda los tokens por ítem"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "next, check y close no añaden red; solo ospec auto start, que el usuario lanza, ejecuta el CLI del host"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Verificado: ospec auto --host y --max-tokens tienen tests en scripts/ospec.auto.test.js y scripts/lib/auto-*.test.js; ninguna skill describe una regla nueva",
+      "recorded_at": "2026-11-26T19:33:33.283Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado: el diff no añade llamadas de red a hooks ni skills; auto-hosts solo lanza procesos locales del host al arrancar una ejecución; next y close solo cambian el texto del how",
+      "recorded_at": "2026-11-26T19:33:33.511Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 753,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_at": "2026-11-26T19:11:10.594Z",
+      "resolved_turn": 754
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-26T19:33:44.516Z",
+      "detail": {
+        "run": "run-9",
+        "tree": "sha256:26ceac8d7fd5789689418bdb9ec795e0f5767c7c2541c7edaaf53fd10748d617",
+        "plan": "run.json sigue en ospec-auto-run/v1: limits.max_tokens e item.tokens solo existen en ejecuciones de un host sin coste; una ejecución anterior, sin ellos, se lee y se reanuda con su tope de coste como antes"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-26T19:35:30.536Z",
+      "detail": {
+        "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+        "runs": [
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-26T19:35:30.536Z",
+      "detail": {
+        "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-host-cursor.test.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-26T19:35:30.536Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "adr:0013 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+        "fitness": [
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-26T19:36:01.541Z",
+      "detail": {
+        "run": "run-18",
+        "tree": "sha256:bc0cf0d9c68a6ffae5fee6c0dc52d4215062e7615a6e4f21b2531276167b1d1c",
+        "plan": "run.json sigue en ospec-auto-run/v1: limits.max_tokens e item.tokens solo existen en ejecuciones de un host sin coste; una ejecución anterior, sin ellos, se lee y se reanuda con su tope de coste como antes"
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-26T19:37:38.937Z",
+      "detail": {
+        "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+        "runs": [
+          "run-19"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-26T19:37:38.937Z",
+      "detail": {
+        "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+        "check": "ev-6",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-host-cursor.test.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-26T19:37:38.937Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "adr:0013 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+        "fitness": [
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-26T19:37:39.093Z"
+    }
+  ],
+  "base": "8a9df3047555c30e39a8405bfaaf9da1f48ae691",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:1f6a7766affd1755e8c8e05dea0d42884e210c49d28521557a06ac50ab656814",
+      "tree": "sha256:52b4437a1b2209a4e0cde3c6d677f602465ff75fca19ff890d8110c69fdd1bd2",
+      "recorded_at": "2026-11-26T19:31:58.669Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ef3a63ee9ae553c4066569535e97ed35268a0100cce819dbfb43b0e75cded831",
+      "tree": "sha256:52b4437a1b2209a4e0cde3c6d677f602465ff75fca19ff890d8110c69fdd1bd2",
+      "recorded_at": "2026-11-26T19:31:58.669Z",
+      "tests": 63
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7a4756ae965b641ff256928d56314276c37a4cd500209946e952cefd91774e53",
+      "tree": "sha256:52b4437a1b2209a4e0cde3c6d677f602465ff75fca19ff890d8110c69fdd1bd2",
+      "recorded_at": "2026-11-26T19:31:58.669Z",
+      "tests": 21
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:52b4437a1b2209a4e0cde3c6d677f602465ff75fca19ff890d8110c69fdd1bd2",
+      "recorded_at": "2026-11-26T19:31:58.669Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3f18da7518096d378a59c4a23859cd8a757a835c33ffec9f00ec23d5f814ba40",
+      "tree": "sha256:52b4437a1b2209a4e0cde3c6d677f602465ff75fca19ff890d8110c69fdd1bd2",
+      "recorded_at": "2026-11-26T19:31:58.669Z",
+      "tests": 26
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:16fce931087da44fd471dbc6075bcf4671fae08e6886ea126cdb90172cd75049",
+      "tree": "sha256:52b4437a1b2209a4e0cde3c6d677f602465ff75fca19ff890d8110c69fdd1bd2",
+      "recorded_at": "2026-11-26T19:31:58.669Z",
+      "tests": 101
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e106b294c9da350ecf64e2d73585473fe51e8ab01ea3e77923a437a9d571f681",
+      "tree": "sha256:52b4437a1b2209a4e0cde3c6d677f602465ff75fca19ff890d8110c69fdd1bd2",
+      "recorded_at": "2026-11-26T19:31:58.669Z",
+      "tests": 67
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f38f4c3749597ca6a8b0e3442656a1dd5ed4973922437216b30fa272ea043946",
+      "tree": "sha256:52b4437a1b2209a4e0cde3c6d677f602465ff75fca19ff890d8110c69fdd1bd2",
+      "recorded_at": "2026-11-26T19:31:58.669Z",
+      "tests": 60
+    },
+    {
+      "id": "run-9",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/auto-run.test.js scripts/lib/auto-conductor.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:16d816394731edb7cba1f2e1a17ecf6d9ec8039c71f93f4c2edbbddc6654e783",
+      "tree": "sha256:26ceac8d7fd5789689418bdb9ec795e0f5767c7c2541c7edaaf53fd10748d617",
+      "recorded_at": "2026-11-26T19:33:44.516Z",
+      "tests": 17
+    },
+    {
+      "id": "run-10",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a229c985dc151ef9181f2a4c3054731146768bced4b24bc30dcdb25ca495ec45",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:35:30.536Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e01edaa41a59641cb8a0da504357b6bbfac639a68cd064483131d72ae007d87b",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:35:30.536Z",
+      "tests": 63
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0b22dab60ca4aa6e0034948f8bed94a36b448a26fcc9b7da7e13bd4966ed3b0b",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:35:30.536Z",
+      "tests": 21
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:35:30.536Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:68f228c0e5bc47bc4221a5153145c978298ddda3978db24e88e34e70dcac5d7b",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:35:30.536Z",
+      "tests": 26
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b5327db4b5be167ddce703a6c64551fbf393baaa637a52f3dfca3f4a0110682d",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:35:30.536Z",
+      "tests": 101
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:67bc0b9103ad9e2e3544ca4950bbecd8018ecfc966f804ec97bb94bb78d0cab8",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:35:30.536Z",
+      "tests": 67
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7175203f16b2c009d47702f6bdce3d53102225dffb46ce23321e93f35c4110b3",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:35:30.536Z",
+      "tests": 60
+    },
+    {
+      "id": "run-18",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/auto-run.test.js scripts/lib/auto-conductor.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e42b83264d72ccb111be1812a309de3fdf48ac99a64d8ff5f01a6a4fd76f04c6",
+      "tree": "sha256:bc0cf0d9c68a6ffae5fee6c0dc52d4215062e7615a6e4f21b2531276167b1d1c",
+      "recorded_at": "2026-11-26T19:36:01.541Z",
+      "tests": 17
+    },
+    {
+      "id": "run-19",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d17d5583bce26c4df61027a06a708fcab83cb9e5057fed87cfd2d93e3553a575",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:37:38.937Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c1be37f10d5ba00a48fd641ed04883bf2713aa9fd490175b4ac38dda7b54845d",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:37:38.937Z",
+      "tests": 63
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0082b395ee7a130a8a83aa72531f25463bc2c031bad9f4fb7111d827f5cd6a7b",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:37:38.937Z",
+      "tests": 21
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:37:38.937Z"
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c5f699e50121087a436a0c0c3633c1b861fb750f311a5fc39c83b8fe811ba5c3",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:37:38.937Z",
+      "tests": 26
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:114c32e687387fc941d814ddc8f7fc8e73461cfb05fc9bb3d27cd0a56974bb0c",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:37:38.937Z",
+      "tests": 101
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c6c2fdf22a781396bea94b97b7fe1ead8df36c9c42283a1ce96ecb23ac527a35",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:37:38.937Z",
+      "tests": 67
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:272401b1785a92773df5f623ab2d955c8796a7fe1d867a76b0f7944c7002ccc4",
+      "tree": "sha256:63bc14c8b3cd45265e3556fc25629d57210f6f17745f733c53022371d15e7bc7",
+      "recorded_at": "2026-11-26T19:37:38.937Z",
+      "tests": 60
+    }
+  ],
+  "changelog_line": "**`ospec auto` en Cursor** (auto-conductor-hosts, E1.110, tramo 1). `ospec auto start --host cursor` conduce `cursor-agent -p` con `--auto-review`, verificado en vivo. Un host que no informa del coste se limita con `--max-tokens` (100 millones por defecto) en vez de `--max-cost-usd`, y cada tope se rechaza en el otro tipo de host. Como `cursor-agent -p` no dispara el hook `stop`, el conductor cuenta el fin de turno al ver terminar el proceso, y así la respuesta delegada de `open-facts` funciona. VS Code y los hosts aún sin verificar se rechazan con `host-unavailable` y su motivo, y `execution_mode` pide `--host` fuera de Claude Code. REQ-idd-031 y REQ-idd-032 lo fijan; `docs/target-capabilities.md` gana la matriz de la ejecución automática.",
+  "closed_at": "2026-11-26T19:37:39.093Z"
+}

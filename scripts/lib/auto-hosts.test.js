@@ -8,12 +8,25 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { claudeTurnArgs, createClaudeHost, createHost, sessionEnv } = require("./auto-hosts.js");
+const { HOSTS, claudeTurnArgs, createClaudeHost, createHost, sessionEnv, unavailableReason } = require("./auto-hosts.js");
 
 test("[REQ-idd-031] a Claude turn runs headless in the auto permission mode and resumes its session", () => {
   assert.deepEqual(claudeTurnArgs(), ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "auto"]);
   assert.deepEqual(claudeTurnArgs({ model: "haiku", sessionId: "s-1" }).slice(-4), ["--model", "haiku", "--resume", "s-1"]);
+  assert.deepEqual(claudeTurnArgs({ budgetUsd: 2.5 }).slice(-2), ["--max-budget-usd", "2.5000"]);
+  assert.deepEqual(claudeTurnArgs({ budgetUsd: 0 }).slice(-2), ["--max-budget-usd", "0.0000"]);
   assert.equal(createHost("agy"), null);
+});
+
+test("[REQ-idd-031] every host the run drives has an adapter that declares its cost and review; any other names why it cannot run", () => {
+  for (const name of HOSTS) {
+    const host = createHost(name, { resolveExecutable: () => name });
+    assert.equal(host.name, name);
+    assert.deepEqual([typeof host.reportsCost, typeof host.reviewsActions, typeof host.resumeCommand("s-1")], ["boolean", "boolean", "string"]);
+    assert.equal(unavailableReason(name), null);
+  }
+  assert.match(unavailableReason("vscode"), /no headless mode/);
+  assert.match(unavailableReason("agy"), /not a host ospec knows \(claude, cursor/);
 });
 
 test("[REQ-idd-031] the session never gets the run's mark nor the markers of the session that launched the conductor", () => {

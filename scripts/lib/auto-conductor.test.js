@@ -34,23 +34,29 @@ function runProject(t) {
 }
 
 // A host that plays `turns` in order, one per call, and records each prompt.
-function scriptedHost(turns) {
+function scriptedHost(turns, traits = {}) {
   const prompts = [];
+  const budgets = [];
   let index = 0;
   return {
     name: "claude",
+    reportsCost: true,
+    reviewsActions: true,
+    ...traits,
     prompts,
+    budgets,
     resolve: () => "claude",
     resumeCommand: (id) => `claude --resume ${id}`,
-    async turn({ cwd, prompt, sessionId, transcriptPath, signal }) {
+    async turn({ cwd, prompt, sessionId, transcriptPath, signal, budgetUsd }) {
       prompts.push({ prompt, sessionId });
+      budgets.push(budgetUsd);
       const play = turns[index];
       index += 1;
       if (!play) throw new Error(`no turn ${index} scripted`);
       fs.mkdirSync(path.dirname(transcriptPath), { recursive: true });
       fs.writeFileSync(transcriptPath, "");
       const result = (await play({ root: cwd, prompt, signal })) || {};
-      await countTurnEnd(cwd);
+      if (traits.countsTurnEnds !== false) await countTurnEnd(cwd);
       return { session_id: `s-${index}`, final_text: "", cost_usd: 0.01 * index, is_error: false, quota_exhausted: false, aborted: false, ...result };
     },
   };
@@ -207,6 +213,86 @@ test("[REQ-idd-031] a spent quota pauses the run; host errors, the turn limit an
   assert.deepEqual([raised.status, raised.limits.max_turns], ["done", 3]);
 });
 
+test("[REQ-idd-031] a host that reports no cost is capped by tokens, per turn or as its session's total, and one without review says so", async (t) => {
+  const { root } = runProject(t);
+  const events = [];
+  const cursor = scriptedHost([
+    ({ root: cwd }) => {
+      session(cwd, ...OPEN_DOCS("fix-readme", "Fix a typo."));
+      return { tokens: 1_200_000 };
+    },
+    ({ root: cwd }) => {
+      writeFile(cwd, "src/pages.txt", "2");
+      closeChange(cwd, "fix-readme");
+      return { tokens: 300_000 };
+    },
+  ], { name: "cursor", reportsCost: false, reviewsActions: false });
+  const done = await startRun({ root, items: ["Fix the typo."], host: "cursor", deps: deps(cursor, events) });
+  assert.deepEqual([done.status, done.limits, done.spend, done.items[0].tokens], ["done", { max_turns: 30 }, "tokens", 1_500_000]);
+  assert.match(events[0], /on cursor \(at most 30 turns per item with no spending cap; cursor runs every action its configuration does not deny, without review\)$/);
+  assert.match(events.at(-1), /closed \(1\.5M tokens\)$/);
+
+  const busy = runProject(t).root;
+  const totals = scriptedHost([
+    ({ root: cwd }) => {
+      session(cwd, ...OPEN_DOCS("fix-readme", "Fix a typo."));
+      return { session_tokens: 4000 };
+    },
+    () => ({ session_tokens: 9000 }),
+  ], { name: "cursor", reportsCost: false });
+  const capped = await startRun({ root: busy, items: ["Fix it."], host: "cursor", maxTokens: 5000, deps: deps(totals) });
+  assert.deepEqual([capped.status, capped.reason, capped.detail, capped.items[0].tokens], ["failed", "max-tokens", "9000 tokens", 9000]);
+  await assert.rejects(resumeRun({ root: busy, maxCostUsd: 5, deps: deps(totals) }), (error) => error.code === "invalid-limit");
+});
+
+test("[REQ-idd-031] a cost cap is optional; each turn gets what is left of it, and a turn the host's own cap ends fails the run with max-cost", async (t) => {
+  const { root } = runProject(t);
+  const events = [];
+  const capped = scriptedHost([
+    ({ root: cwd }) => {
+      session(cwd, ...OPEN_DOCS("fix-readme", "Fix a typo."));
+      return { cost_usd: 0.75 };
+    },
+    () => ({ cost_usd: 1.9, is_error: true, budget_exhausted: true, error: "Reached maximum budget ($1.2500)" }),
+  ]);
+  const failed = await startRun({ root, items: ["Fix it."], host: "claude", maxCostUsd: 2, deps: deps(capped, events) });
+  assert.deepEqual([failed.status, failed.reason, failed.detail, failed.limits], ["failed", "max-cost", "$1.90", { max_turns: 30, max_cost_usd: 2 }]);
+  assert.deepEqual(capped.budgets, [2, 1.25]);
+  assert.match(events[0], /\(at most 30 turns per item and \$2\.00\)$/);
+  assert.equal(events.at(-1), "  continue with: ospec auto resume --max-cost-usd <usd>");
+  const tiny = await startRun({ root: runProject(t).root, items: ["Fix it."], host: "claude", maxCostUsd: 0.003, deps: deps(scriptedHost([() => ({ cost_usd: 0.0048, is_error: true, budget_exhausted: true })]), events) });
+  assert.deepEqual([tiny.reason, tiny.detail], ["max-cost", "$0.0048"]);
+  assert.ok(events.some((line) => /\(at most 30 turns per item and \$0\.0030\)$/.test(line)));
+
+  const free = runProject(t).root;
+  const uncapped = scriptedHost([({ root: cwd }) => {
+    session(cwd, ...OPEN_DOCS("fix-readme", "Fix a typo."));
+    writeFile(cwd, "src/pages.txt", "2");
+    closeChange(cwd, "fix-readme");
+    return { cost_usd: 40 };
+  }]);
+  const done = await startRun({ root: free, items: ["Fix it."], host: "claude", deps: deps(uncapped, events) });
+  assert.deepEqual([done.status, done.limits, done.spend, uncapped.budgets[0]], ["done", { max_turns: 30 }, "cost", null]);
+  assert.ok(events.some((line) => /on claude \(at most 30 turns per item with no spending cap\)$/.test(line)));
+});
+
+test("[REQ-idd-031] on a host whose end-of-turn hook does not run headless the conductor counts each turn end, so open-facts is delegated", async (t) => {
+  const { root } = runProject(t);
+  const host = scriptedHost([
+    ({ root: cwd }) => {
+      session(cwd, ...OPEN_DOCS("fix-readme", "Fix a typo.", "Is the old spelling kept as an alias?"));
+      session(cwd, "record", "recommendation", "--change", "fix-readme", "--gate", "open-facts", "--question", "1", "--answer", "No alias.");
+    },
+    ({ root: cwd }) => {
+      writeFile(cwd, "src/pages.txt", "2");
+      closeChange(cwd, "fix-readme");
+    },
+  ], { name: "cursor", reportsCost: false, countsTurnEnds: false });
+  const done = await startRun({ root, items: ["Fix the typo."], host: "cursor", deps: deps(host) });
+  assert.deepEqual([done.status, done.items[0].delegated], ["done", 1]);
+  assert.equal(fs.readFileSync(path.join(root, ".ospec", "turns"), "utf8").trim(), "2");
+});
+
 test("[REQ-idd-031] a session that opens two changes fails the run, and a refused commit fails it until resume commits", async (t) => {
   const two = runProject(t).root;
   const several = await startRun({ root: two, items: ["Fix it."], host: "claude", deps: deps(scriptedHost([({ root: cwd }) => {
@@ -238,6 +324,9 @@ test("[REQ-idd-031] start refuses an unsupported host, a bad queue, the default 
   const { root, git } = runProject(t);
   const host = scriptedHost([]);
   await refused(startRun({ root, items: ["x"], host: "agy", deps: deps(host) }), "host-unavailable");
+  await assert.rejects(startRun({ root, items: ["x"], host: "vscode", deps: deps(host) }), (error) => error.code === "host-unavailable" && /VS Code has no headless mode/.test(error.message));
+  await refused(startRun({ root, items: ["x"], host: "claude", maxTokens: 1000, deps: deps(host) }), "invalid-limit");
+  await refused(startRun({ root, items: ["x"], host: "cursor", maxCostUsd: 5, deps: deps(scriptedHost([], { name: "cursor", reportsCost: false })) }), "invalid-limit");
   await refused(startRun({ root, items: [], host: "claude", deps: deps(host) }), "invalid-items");
   await refused(startRun({ root, items: Array(21).fill("x"), host: "claude", deps: deps(host) }), "invalid-items");
   await refused(startRun({ root, items: ["x", " "], host: "claude", deps: deps(host) }), "invalid-items");

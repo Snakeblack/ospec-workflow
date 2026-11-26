@@ -1,18 +1,27 @@
 "use strict";
 
-// The hosts an automatic run drives (E1.108, REQ-idd-031): one headless turn
-// at a time, a new session per item and `--resume` within it. Only Claude
-// Code in this version; the other hosts come with E1.110, each once verified
-// live. The session runs with the user's own configuration and plugin, in the
-// `auto` permission mode, and never sees OSPEC_AUTO_RUN: only the conductor's
-// own call to ospec carries it (ADR 0013).
+// The hosts an automatic run drives (E1.108, E1.110, REQ-idd-031): one
+// headless turn at a time, a new session per item, resumed by its id within
+// it. The session runs with the user's own configuration and the host's ospec
+// install, in the host's permission mode that reviews each action where it has
+// one, and never sees OSPEC_AUTO_RUN: only the conductor's own call to ospec
+// carries it (ADR 0013). A host is listed in HOSTS once a run closed a change
+// on it live; any other names why it cannot run.
 
 const fs = require("node:fs");
 const path = require("node:path");
 
+const { resolveBinFromPath, isWindowsInteropPath } = require("./claude-bin.js");
 const { resolveClaudeExecutable, runProcess, summarizeTurn } = require("./headless-session.js");
 
-const HOSTS = Object.freeze(["claude"]);
+const HOSTS = Object.freeze(["claude", "cursor"]);
+const UNAVAILABLE = Object.freeze({
+  antigravity: "not verified live yet",
+  codex: "not verified live yet",
+  opencode: "not verified live yet",
+  "github-copilot": "not verified live yet",
+  vscode: "VS Code has no headless mode: its agent runs only inside the editor",
+});
 const TURN_TIMEOUT_MS = 60 * 60 * 1000;
 // What the session that launched the conductor leaves in the environment: the
 // markers of a running Claude Code session, which a nested `claude -p` would
@@ -29,9 +38,42 @@ function sessionEnv(baseEnv) {
   return Object.fromEntries(Object.entries(baseEnv).filter(([key]) => !SESSION_MARKERS.some((pattern) => pattern.test(key))));
 }
 
+/** Why `name` cannot drive a run, or null when it can. */
+function unavailableReason(name) {
+  if (HOSTS.includes(name)) return null;
+  return UNAVAILABLE[name] || `it is not a host ospec knows (${[...HOSTS, ...Object.keys(UNAVAILABLE)].join(", ")})`;
+}
+
+/** The host's CLI on the PATH; throws when it is missing or cannot be spawned without a shell. */
+function resolveCli(bin) {
+  const found = resolveBinFromPath(bin);
+  if (!found || isWindowsInteropPath(found)) throw new Error(`${bin} CLI not found on PATH`);
+  if (/\.(cmd|bat)$/i.test(found)) throw new Error(`${found} is a shell shim, which the run cannot start without a shell`);
+  return found;
+}
+
+/**
+ * Runs one headless turn of a host and reads its transcript with
+ * `summarize`. A stopped, timed-out or failed process is an error, whatever
+ * the transcript says.
+ */
+async function headlessTurn({ run, executable, args, cwd, env, input, transcriptPath, timeoutMs, signal }, summarize) {
+  fs.mkdirSync(path.dirname(transcriptPath), { recursive: true });
+  const process_ = await run({ executable, args, cwd, env, input, stdoutPath: transcriptPath, timeoutMs, signal });
+  const summary = await summarize(fs.readFileSync(transcriptPath));
+  const failure = process_.aborted ? "stopped" : process_.timedOut ? "timeout" : process_.error ? process_.error.message : process_.code !== 0 ? `exit ${process_.code}: ${process_.stderr.trim()}` : null;
+  return {
+    ...summary,
+    aborted: process_.aborted === true,
+    wall_ms: process_.wall_ms,
+    ...(failure ? { is_error: true, error: summary.is_error ? `${failure} (${summary.error})` : failure } : {}),
+  };
+}
+
 // `--permission-mode auto` reviews every action with Claude Code's classifier;
 // a prompt nobody can answer in `-p` is denied, never waited on.
-function claudeTurnArgs({ model = null, sessionId = null } = {}) {
+// `--max-budget-usd` caps what this invocation spends, inside the turn.
+function claudeTurnArgs({ model = null, sessionId = null, budgetUsd = null } = {}) {
   return [
     "-p",
     "--output-format", "stream-json",
@@ -39,6 +81,7 @@ function claudeTurnArgs({ model = null, sessionId = null } = {}) {
     "--permission-mode", "auto",
     ...(model ? ["--model", model] : []),
     ...(sessionId ? ["--resume", sessionId] : []),
+    ...(budgetUsd !== null ? ["--max-budget-usd", budgetUsd.toFixed(4)] : []),
   ];
 }
 
@@ -51,26 +94,8 @@ function createClaudeHost({ model = null, baseEnv = process.env, resolveExecutab
     return executable;
   }
 
-  async function turn({ cwd, prompt, sessionId = null, transcriptPath, signal = null }) {
-    fs.mkdirSync(path.dirname(transcriptPath), { recursive: true });
-    const process_ = await run({
-      executable: resolve(),
-      args: claudeTurnArgs({ model, sessionId }),
-      cwd,
-      env: sessionEnv(baseEnv),
-      input: prompt,
-      stdoutPath: transcriptPath,
-      timeoutMs: turnTimeoutMs,
-      signal,
-    });
-    const summary = summarizeTurn(fs.readFileSync(transcriptPath));
-    const failure = process_.aborted ? "stopped" : process_.timedOut ? "timeout" : process_.error ? process_.error.message : process_.code !== 0 ? `exit ${process_.code}: ${process_.stderr.trim()}` : null;
-    return {
-      ...summary,
-      aborted: process_.aborted === true,
-      wall_ms: process_.wall_ms,
-      ...(failure ? { is_error: true, error: summary.is_error ? `${failure} (${summary.error})` : failure } : {}),
-    };
+  function turn({ cwd, prompt, sessionId = null, transcriptPath, signal = null, budgetUsd = null }) {
+    return headlessTurn({ run, executable: resolve(), args: claudeTurnArgs({ model, sessionId, budgetUsd }), cwd, env: sessionEnv(baseEnv), input: prompt, transcriptPath, timeoutMs: turnTimeoutMs, signal }, summarizeTurn);
   }
 
   /** How the user opens the session to answer in it. */
@@ -78,12 +103,13 @@ function createClaudeHost({ model = null, baseEnv = process.env, resolveExecutab
     return `claude --resume ${sessionId}`;
   }
 
-  return { name: "claude", resolve, turn, resumeCommand };
+  return { name: "claude", reportsCost: true, reviewsActions: true, resolve, turn, resumeCommand };
 }
 
 function createHost(name, options) {
   if (name === "claude") return createClaudeHost(options);
+  if (name === "cursor") return require("./auto-host-cursor.js").createCursorHost(options);
   return null;
 }
 
-module.exports = { HOSTS, claudeTurnArgs, createClaudeHost, createHost, sessionEnv };
+module.exports = { HOSTS, UNAVAILABLE, claudeTurnArgs, createClaudeHost, createHost, headlessTurn, resolveCli, sessionEnv, unavailableReason };

@@ -15,13 +15,17 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const { AutoError, MAX_ITEMS, RUN_SCHEMA, activeRun, clearStop, isStale, newRunId, processAlive, requestStop, runDir, selectRun, stopRequested, writeRun } = require("./auto-run.js");
-const { HOSTS } = require("./auto-hosts.js");
+const { unavailableReason } = require("./auto-hosts.js");
 const { ARCHIVE_ROOT, CHANGE_ROOT, STATE_FILE } = require("./idd-contract.js");
 const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
 const { runCommand } = require("./idd-exec.js");
 const { listChanges } = require("./idd-store.js");
+const { countTurnEnd, turnsRoot } = require("./turn-fence.js");
 
-const DEFAULT_LIMITS = Object.freeze({ max_turns: 30, max_cost_usd: 25 });
+// Only the turns of an item are capped by default: a spending cap, on cost or
+// on tokens, is the user's choice, since what a turn costs depends on the
+// model, the effort and the host.
+const DEFAULT_LIMITS = Object.freeze({ max_turns: 30 });
 const OSPEC_SCRIPT = path.join(__dirname, "..", "ospec.js");
 const STOP_POLL_MS = 250;
 const TEXT_CLIP = 80;
@@ -46,8 +50,17 @@ const clip = (text) => {
   const line = String(text).replace(/\s+/g, " ").trim();
   return line.length > TEXT_CLIP ? `${line.slice(0, TEXT_CLIP - 1)}…` : line;
 };
-const money = (value) => `$${(Math.round(value * 100) / 100).toFixed(2)}`;
+// Cents, or four decimals below a cent, so a small cap never reads $0.00.
+const money = (value) => `$${value > 0 && value < 0.005 ? value.toFixed(4) : (Math.round(value * 100) / 100).toFixed(2)}`;
 const runCost = (run) => Math.round(run.items.reduce((sum, item) => sum + (item.cost_usd || 0), 0) * 1e6) / 1e6;
+const runTokens = (run) => run.items.reduce((sum, item) => sum + (item.tokens || 0), 0);
+const tokenCount = (value) => (value >= 1e6 ? `${Math.round(value / 1e5) / 10}M` : String(value));
+// What the run has spent: cost, or tokens on a host that reports no cost.
+const spent = (run, item = null) => {
+  const tokens = run.spend === "tokens";
+  const value = item ? (tokens ? item.tokens || 0 : item.cost_usd || 0) : tokens ? runTokens(run) : runCost(run);
+  return tokens ? `${tokenCount(value)} tokens` : money(value);
+};
 
 function defaultGit(root) {
   return (args) => {
@@ -187,7 +200,8 @@ async function stopWith(root, run, status, reason, emit, detail = null) {
   await writeRun(root, run);
   const label = `item ${Math.min(run.current + 1, run.items.length)}/${run.items.length}`;
   emit(`run ${run.id} ${status} at ${label}: ${reason}${detail ? `: ${detail}` : ""}`);
-  if (status !== "done") emit(`  continue with: ospec auto resume${status === "failed" && /^max-/.test(reason) ? " --max-turns <n> --max-cost-usd <usd>" : ""}`);
+  const raise = { "max-turns": " --max-turns <n>", "max-cost": " --max-cost-usd <usd>", "max-tokens": " --max-tokens <n>" }[reason];
+  if (status !== "done") emit(`  continue with: ospec auto resume${status === "failed" && raise ? raise : ""}`);
   return run;
 }
 
@@ -212,7 +226,7 @@ async function closeItem(root, run, item, label, archive, deps) {
   const outcome = await commitItem(root, run, item, archive, deps);
   if (outcome.failed) return stopWith(root, run, "failed", "commit-failed", deps.onEvent, outcome.failed);
   await writeRun(root, run);
-  deps.onEvent(`${label} closed: ${item.change} (${item.turns} turns, ${money(item.cost_usd)})${item.commit ? `, commit ${item.commit.slice(0, 7)}` : ""}`);
+  deps.onEvent(`${label} closed: ${item.change} (${item.turns} turns, ${spent(run, item)})${item.commit ? `, commit ${item.commit.slice(0, 7)}` : ""}`);
   return null;
 }
 
@@ -224,7 +238,9 @@ async function hostTurn(root, run, item, message, deps) {
   }, STOP_POLL_MS);
   try {
     const transcriptPath = path.join(runDir(root, run.id), `item-${run.current + 1}-turn-${String(item.turns).padStart(2, "0")}.jsonl`);
-    return await deps.host.turn({ cwd: root, prompt: message, sessionId: item.session_id, transcriptPath, signal: controller.signal });
+    // What is left of the run's cost cap, for a host that caps its own turn.
+    const budgetUsd = run.limits.max_cost_usd !== undefined ? Math.max(0, run.limits.max_cost_usd - runCost(run)) : null;
+    return await deps.host.turn({ cwd: root, prompt: message, sessionId: item.session_id, transcriptPath, signal: controller.signal, budgetUsd });
   } finally {
     clearInterval(poll);
   }
@@ -252,19 +268,27 @@ async function driveItem(root, run, item, label, deps, firstMessage) {
       return stopWith(root, run, "stopped", "stop-requested", emit);
     }
     if (item.turns >= run.limits.max_turns) return stopWith(root, run, "failed", "max-turns", emit, `${item.turns} turns`);
-    if (runCost(run) >= run.limits.max_cost_usd) return stopWith(root, run, "failed", "max-cost", emit, money(runCost(run)));
+    if (run.limits.max_cost_usd !== undefined && runCost(run) >= run.limits.max_cost_usd) return stopWith(root, run, "failed", "max-cost", emit, money(runCost(run)));
+    if (run.limits.max_tokens !== undefined && runTokens(run) >= run.limits.max_tokens) return stopWith(root, run, "failed", "max-tokens", emit, spent(run));
 
     item.turns += 1;
     const turn = await hostTurn(root, run, item, message, deps);
     item.session_id = turn.session_id || item.session_id;
-    // A resumed session reports its cost so far, not the turn's.
+    // A resumed session reports its cost so far, not the turn's; tokens come
+    // per turn, or as the session's total so far.
     item.cost_usd = Math.max(item.cost_usd || 0, Number(turn.cost_usd) || 0);
+    if (run.spend === "tokens") {
+      item.tokens = turn.session_tokens !== undefined ? Math.max(item.tokens || 0, Number(turn.session_tokens) || 0) : (item.tokens || 0) + (Number(turn.tokens) || 0);
+    }
     await writeRun(root, run);
 
     if (turn.aborted || stopRequested(root, run.id)) {
       clearStop(root, run.id);
       return stopWith(root, run, "stopped", "stop-requested", emit);
     }
+    // A host whose end-of-turn hook does not run headless: the conductor saw
+    // the session's process end, which is the turn end that hook would count.
+    if (deps.host.countsTurnEnds === false) await countTurnEnd(turnsRoot(root));
 
     // The disk decides, whatever the turn said.
     const seen = await observe(root, deps.git);
@@ -275,6 +299,7 @@ async function driveItem(root, run, item, label, deps, firstMessage) {
     if (archive) return closeItem(root, run, item, label, archive, deps);
 
     if (turn.quota_exhausted) return stopWith(root, run, "paused", "host-quota", emit, turn.error || null);
+    if (turn.budget_exhausted) return stopWith(root, run, "failed", "max-cost", emit, money(runCost(run)));
     if (turn.is_error) {
       errors += 1;
       if (errors >= 2 || !item.session_id) return stopWith(root, run, "failed", "host-error", emit, turn.error || null);
@@ -358,7 +383,7 @@ async function drive(root, run, deps, firstMessage = null) {
   run.status = "done";
   run.reason = null;
   await writeRun(root, run);
-  deps.onEvent(`run ${run.id} done: ${run.items.length} ${run.items.length === 1 ? "item" : "items"} closed (${money(runCost(run))})`);
+  deps.onEvent(`run ${run.id} done: ${run.items.length} ${run.items.length === 1 ? "item" : "items"} closed (${spent(run)})`);
   return run;
 }
 
@@ -370,17 +395,29 @@ function requireHost(deps) {
   }
 }
 
-function limitsFrom({ maxTurns, maxCostUsd }, base = DEFAULT_LIMITS) {
+// The cost cap takes a host that reports its cost, the token cap one that does not.
+function limitsFrom({ maxTurns, maxCostUsd, maxTokens }, base, host) {
   const limits = { ...base };
   if (maxTurns !== undefined) {
     if (!Number.isSafeInteger(maxTurns) || maxTurns < 1) throw new AutoError("invalid-limit", `--max-turns must be a whole number of turns from 1, got ${maxTurns}`);
     limits.max_turns = maxTurns;
   }
   if (maxCostUsd !== undefined) {
+    if (!host.reportsCost) throw new AutoError("invalid-limit", `${host.name} reports no cost: cap the run with --max-tokens`);
     if (!Number.isFinite(maxCostUsd) || maxCostUsd <= 0) throw new AutoError("invalid-limit", `--max-cost-usd must be a positive amount, got ${maxCostUsd}`);
     limits.max_cost_usd = maxCostUsd;
   }
+  if (maxTokens !== undefined) {
+    if (host.reportsCost) throw new AutoError("invalid-limit", `${host.name} reports its cost: cap the run with --max-cost-usd`);
+    if (!Number.isSafeInteger(maxTokens) || maxTokens < 1) throw new AutoError("invalid-limit", `--max-tokens must be a whole number from 1, got ${maxTokens}`);
+    limits.max_tokens = maxTokens;
+  }
   return limits;
+}
+
+function refuseHost(name) {
+  const reason = unavailableReason(name);
+  if (reason) throw new AutoError("host-unavailable", `ospec auto cannot drive ${JSON.stringify(name)}: ${reason}`);
 }
 
 function refuseActive(run) {
@@ -392,13 +429,13 @@ function refuseActive(run) {
  * `deps.host` is the host adapter (auto-hosts.js); the other deps default to
  * the real git, ospec, checks and clock.
  */
-async function startRun({ root, items, host, model = null, maxTurns, maxCostUsd, deps: given = {} }) {
+async function startRun({ root, items, host, model = null, maxTurns, maxCostUsd, maxTokens, deps: given = {} }) {
   const deps = dependencies(root, given);
-  if (!HOSTS.includes(host)) throw new AutoError("host-unavailable", `ospec auto drives ${HOSTS.join(", ")} in this version, not ${JSON.stringify(host)}`, "the other hosts come with E1.110, each once verified live");
+  refuseHost(host);
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_ITEMS) throw new AutoError("invalid-items", `a run takes 1 to ${MAX_ITEMS} items, got ${items?.length ?? 0}`);
   const blank = items.findIndex((text) => typeof text !== "string" || text.trim() === "");
   if (blank !== -1) throw new AutoError("invalid-items", `item ${blank + 1} is empty: each --item is the request of one change`);
-  const limits = limitsFrom({ maxTurns, maxCostUsd });
+  const limits = limitsFrom({ maxTurns, maxCostUsd, maxTokens }, DEFAULT_LIMITS, deps.host);
   const active = activeRun(root, deps.alive);
   if (active) refuseActive(active);
   const open = await openChanges(root);
@@ -420,29 +457,32 @@ async function startRun({ root, items, host, model = null, maxTurns, maxCostUsd,
     model,
     branch,
     limits,
+    spend: deps.host.reportsCost ? "cost" : "tokens",
     status: "running",
     reason: null,
     pid: deps.pid,
     created_at: created.toISOString(),
     current: 0,
-    items: items.map((text) => ({ text, status: "pending", change: null, session_id: null, turns: 0, cost_usd: 0, delegated: 0, commit: null })),
+    items: items.map((text) => ({ text, status: "pending", change: null, session_id: null, turns: 0, cost_usd: 0, ...(deps.host.reportsCost ? {} : { tokens: 0 }), delegated: 0, commit: null })),
   };
   if (fs.existsSync(path.join(runDir(root, run.id), "run.json"))) throw new AutoError("run-active", `the automatic run ${run.id} already exists`, "wait a second and start again");
   await writeRun(root, run);
-  deps.onEvent(`run ${run.id} started: ${items.length} ${items.length === 1 ? "item" : "items"} on ${host} (at most ${limits.max_turns} turns per item and ${money(limits.max_cost_usd)})`);
+  const cap = limits.max_tokens !== undefined ? `and ${tokenCount(limits.max_tokens)} tokens` : limits.max_cost_usd !== undefined ? `and ${money(limits.max_cost_usd)}` : "with no spending cap";
+  const review = deps.host.reviewsActions ? "" : `; ${host} runs every action its configuration does not deny, without review`;
+  deps.onEvent(`run ${run.id} started: ${items.length} ${items.length === 1 ? "item" : "items"} on ${host} (at most ${limits.max_turns} turns per item ${cap}${review})`);
   return drive(root, run, deps);
 }
 
 /** Continues a run that stopped, with the user's answer to its block when given. */
-async function resumeRun({ root, id, answer, maxTurns, maxCostUsd, deps: given = {} }) {
+async function resumeRun({ root, id, answer, maxTurns, maxCostUsd, maxTokens, deps: given = {} }) {
   const deps = dependencies(root, given);
   const run = selectRun(root, id);
   if (run.status === "done") throw new AutoError("run-done", `the automatic run ${run.id} is done: every item is closed`, "start a new one with ospec auto start");
-  if (!HOSTS.includes(run.host) || !deps.host) throw new AutoError("host-unavailable", `the automatic run ${run.id} names the host ${JSON.stringify(run.host)}, which ospec auto does not drive in this version`);
+  refuseHost(run.host);
   if (run.status === "running" && !isStale(run, deps.alive)) refuseActive(run);
   const other = activeRun(root, deps.alive);
   if (other && other.id !== run.id) refuseActive(other);
-  run.limits = limitsFrom({ maxTurns, maxCostUsd }, run.limits);
+  run.limits = limitsFrom({ maxTurns, maxCostUsd, maxTokens }, run.limits, deps.host);
   const item = run.items[run.current];
   if (answer !== undefined) {
     if (typeof answer !== "string" || answer.trim() === "") throw new AutoError("invalid-answer", "--answer is the user's answer: it cannot be empty");
@@ -476,4 +516,4 @@ async function stopRun({ root, id, deps: given = {} }) {
   return { run, stopping: false };
 }
 
-module.exports = { DEFAULT_LIMITS, allRecommended, brief, defaultBranches, resumeRun, runCost, startRun, stopRun };
+module.exports = { DEFAULT_LIMITS, allRecommended, brief, defaultBranches, resumeRun, runCost, runTokens, spent, startRun, stopRun };

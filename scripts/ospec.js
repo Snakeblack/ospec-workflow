@@ -108,7 +108,7 @@ const claudeRouter = require("./lib/claude-router.js");
 const { IRREVERSIBLE_OPERATIONS, addedTests, answerHits, applyDerivation, classifyPath, deriveSignals, inlineTests, requireDeclaredCeremony, securityHits } = require("./lib/idd-signals.js");
 const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { writeFileAtomic } = require("./lib/atomic-write.js");
-const { resumeRun, runCost, startRun, stopRun } = require("./lib/auto-conductor.js");
+const { resumeRun, spent, startRun, stopRun } = require("./lib/auto-conductor.js");
 const { createHost } = require("./lib/auto-hosts.js");
 const { executionMode } = require("./lib/auto-queue.js");
 const { AutoError, selectRun, runIsRunning } = require("./lib/auto-run.js");
@@ -192,11 +192,13 @@ const USAGE = `Usage:
                 opened by mistake; only when the user asked for it, never to get past an obligation.
                 Their answer archives it as abandoned, without checks, reviews or a changelog entry;
                 without --reason or --cancel it finishes an archive that was interrupted
-  ospec auto start --item <request>... [--host claude] [--model <model>] [--max-turns <n>] [--max-cost-usd <usd>]
+  ospec auto start --item <request>... [--host <host>] [--model <model>] [--max-turns <n>] [--max-cost-usd <usd> | --max-tokens <n>]
                    works each request as one IDD change in a new headless session, in order: answers
-                   open-facts from the recommendations, stops at any other gate and commits each closed change
+                   open-facts from the recommendations, stops at any other gate and commits each closed change;
+                   --host is claude (the default) or cursor; a spending cap is optional: --max-cost-usd on a host
+                   that reports its cost, which Claude Code also applies inside each turn, --max-tokens on one that does not
   ospec auto status [--run <id>]
-  ospec auto resume [--run <id>] [--answer <text>] [--max-turns <n>] [--max-cost-usd <usd>]
+  ospec auto resume [--run <id>] [--answer <text>] [--max-turns <n>] [--max-cost-usd <usd> | --max-tokens <n>]
                     continues a run that stopped; --answer goes to the session as the user's reply to its block
   ospec auto stop [--run <id>]
   ospec doctor [--target <host>] [--repair] [--json]
@@ -321,6 +323,7 @@ const OPTIONS = {
   model: { type: "string" },
   "max-turns": { type: "string" },
   "max-cost-usd": { type: "string" },
+  "max-tokens": { type: "string" },
   run: { type: "string" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
@@ -1752,7 +1755,7 @@ async function auto(root, [sub], values) {
   if (sub === "status") return { auto: sub, run: selectRun(root, values.run), exit_code: 0 };
   if (sub === "stop") return { auto: sub, ...(await stopRun({ root, id: values.run })), exit_code: 0 };
   requireWorkTree(root);
-  const limits = { maxTurns: autoNumber(values, "max-turns", true), maxCostUsd: autoNumber(values, "max-cost-usd", false) };
+  const limits = { maxTurns: autoNumber(values, "max-turns", true), maxCostUsd: autoNumber(values, "max-cost-usd", false), maxTokens: autoNumber(values, "max-tokens", true) };
   const onEvent = values.json ? () => {} : (line) => process.stdout.write(`${line}\n`);
   let run;
   if (sub === "start") {
@@ -1767,17 +1770,16 @@ async function auto(root, [sub], values) {
 }
 
 function describeAutoRun(run) {
-  const money = (value) => `$${(Math.round(value * 100) / 100).toFixed(2)}`;
   const closed = run.items.filter((item) => item.status === "closed").length;
   const at = run.status === "done" ? "" : ` at item ${Math.min(run.current + 1, run.items.length)}/${run.items.length}`;
   const reason = run.reason && run.reason !== "gate" ? ` (${run.reason}${run.detail ? `: ${run.detail}` : ""})` : "";
-  const lines = [`run ${run.id}: ${run.status}${reason}${at}, ${closed}/${run.items.length} closed, ${money(runCost(run))} on ${run.host}`];
+  const lines = [`run ${run.id}: ${run.status}${reason}${at}, ${closed}/${run.items.length} closed, ${spent(run)} on ${run.host}`];
   if (run.status === "blocked" && run.block) {
     lines.push(`blocked at ${run.block.gate}${run.block.cause ? ` (${run.block.cause})` : ""}`, ...run.block.questions.map((question) => `  - ${question}`));
     lines.push(`answer with: ospec auto resume --answer "<your answer>"`);
   }
   run.items.forEach((item, index) => {
-    const what = item.change ? `${item.change} (${item.turns} turns, ${money(item.cost_usd || 0)})` : item.text.replace(/\s+/g, " ").slice(0, 80);
+    const what = item.change ? `${item.change} (${item.turns} turns, ${spent(run, item)})` : item.text.replace(/\s+/g, " ").slice(0, 80);
     const extra = [
       item.commit ? `commit ${item.commit.slice(0, 7)}` : null,
       item.status === "running" && item.session_id ? `session ${item.session_id}` : null,

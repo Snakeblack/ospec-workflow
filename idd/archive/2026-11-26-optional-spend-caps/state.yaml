@@ -1,0 +1,503 @@
+{
+  "schema": "idd-state/v1",
+  "change": "optional-spend-caps",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "B, e incluye los flags nativos en este tramo (B: lo de convergencia obligatorio; el gasto opcional, --max-cost-usd o --max-tokens solo si se pasan, sin valor por defecto; status y cada línea muestran lo gastado; donde el host tiene tope nativo el conductor le pasa lo que queda)",
+    "requested_at": "2026-11-26T19:47:09.507Z",
+    "kind": "feature",
+    "summary": "Los topes de gasto de ospec auto pasan a ser opcionales y, en Claude Code, el de coste se aplica dentro del turno con --max-budget-usd",
+    "acceptance": "Sin --max-cost-usd ni --max-tokens la ejecución no tiene tope de gasto y lo dice al empezar; con --max-cost-usd en Claude cada turno lleva --max-budget-usd con lo que queda y un turno cortado por él deja la ejecución failed con max-cost; el tope de turnos por ítem sigue obligatorio"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "Sin valor por defecto, --max-cost-usd solo vale en un host que informa del coste (Claude, que lo pasa a cada turno como --max-budget-usd con lo que queda de la ejecución) y --max-tokens solo en uno que no (Cursor), y el tope de 30 turnos por ítem sigue obligatorio. ¿Es así?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-conductor.js",
+          "line": 438
+        }
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-run.js",
+          "line": 19
+        }
+      },
+      {
+        "category": "copy",
+        "question": "Sin tope de gasto, ¿la primera línea de la ejecución lo dice (no spending cap) y el how de execution_mode deja de proponer 25 USD y ofrece el tope como opción del usuario?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/target-capabilities.md",
+          "line": 90
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 1771
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Cuando --max-budget-usd corta un turno de Claude a mitad (error_max_budget_usd), ¿la ejecución queda failed con max-cost, igual que el tope entre turnos, y se sigue con ospec auto resume --max-cost-usd <importe mayor>?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "docs/roadmaps/harness-evolution.md",
+      "docs/target-capabilities.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/auto-conductor.js",
+      "scripts/lib/auto-conductor.test.js",
+      "scripts/lib/auto-hosts.js",
+      "scripts/lib/auto-hosts.test.js",
+      "scripts/lib/auto-queue.js",
+      "scripts/lib/auto-queue.test.js",
+      "scripts/lib/auto-run.js",
+      "scripts/lib/auto-run.test.js",
+      "scripts/lib/headless-session.js",
+      "scripts/lib/headless-session.test.js",
+      "scripts/ospec.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Sin topes de gasto por defecto: --max-cost-usd solo en un host que informa del coste y --max-tokens solo en uno que no; el tope de turnos por ítem sigue obligatorio (30)",
+      "En Claude, cada turno lleva --max-budget-usd con lo que queda del tope de la ejecución (contando el acumulado del ítem), porque el flag cuenta el gasto de la invocación; un turno que termina con error_max_budget_usd deja la ejecución failed con max-cost",
+      "Sin tope, la primera línea dice no spending cap y execution_mode ofrece el tope como opción del usuario",
+      "La ejecución guarda en spend si mide coste o tokens, para mostrar lo gastado sin tope"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 761
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration",
+      "recorded_turn": 761
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components auto-conductor, cli: ADR 0003, 0005, 0010, 0013 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration",
+      "recorded_turn": 761
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 762
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/auto-run.js uses writeFile",
+      "source": "diff",
+      "recorded_turn": 764
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Qué tope admite cada host, lo que queda para --max-budget-usd y la parada por max-cost los decide el conductor, con tests"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El conductor sigue avanzando solo con el close en disco; un tope solo para la ejecución"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas: un flag más en la orden de claude"
+    },
+    {
+      "kind": "adr",
+      "id": "0013",
+      "impact": "none",
+      "reason": "No toca las respuestas delegadas ni la valla de turnos"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "resume conserva los topes de la ejecución y la medida (spend); una ejecución anterior sin spend se lee como coste"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "No añade red: solo cambia los argumentos de la sesión que el usuario lanza"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Verificado: --max-cost-usd, --max-tokens y --max-budget-usd tienen tests en scripts/lib/auto-conductor.test.js, auto-hosts.test.js y headless-session.test.js; ninguna skill describe la regla",
+      "recorded_at": "2026-11-26T19:54:24.892Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado: el diff no añade llamadas de red; next y close solo cambian el texto del how",
+      "recorded_at": "2026-11-26T19:54:25.128Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 761,
+      "answer": "lo recomendado",
+      "source": "user",
+      "resolved_at": "2026-11-26T19:49:14.628Z",
+      "resolved_turn": 762
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-26T19:56:57.443Z",
+      "detail": {
+        "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-26T19:56:57.443Z",
+      "detail": {
+        "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/auto-run.test.js",
+          "scripts/lib/headless-session.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-26T19:56:57.443Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0005 conforms",
+          "adr:0010 conforms",
+          "adr:0013 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-26T19:57:15.054Z",
+      "detail": {
+        "run": "run-7",
+        "tree": "sha256:f4b6fe97dae551c016568f1e835e2ca7e4f5a4b5b1cfa9ab9e223e25ebb06d0d",
+        "plan": "run.json sigue en ospec-auto-run/v1: spend es opcional y una ejecución anterior, sin él, se lee y cuenta su coste; sus limits con max_cost_usd 25 se conservan al reanudar; un spend corrupto se rechaza con run-invalid"
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-26T19:58:49.500Z",
+      "detail": {
+        "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+        "runs": [
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-26T19:58:49.500Z",
+      "detail": {
+        "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+        "check": "ev-5",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/auto-run.test.js",
+          "scripts/lib/headless-session.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-26T19:58:49.500Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0005 conforms",
+          "adr:0010 conforms",
+          "adr:0013 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+        "fitness": [
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-26T19:58:49.664Z"
+    }
+  ],
+  "base": "cf5fe2afdfd3ae4e0bf86fa289bde503273df251",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a66e6edc369001849321d27e443d801e7e02fbb8758256023529bf2965e94848",
+      "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+      "recorded_at": "2026-11-26T19:56:57.443Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:984cc9e5cbdb872f7e6dd83afcda67e024b42b6e7cd412ba2dd90192d1f0883e",
+      "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+      "recorded_at": "2026-11-26T19:56:57.443Z",
+      "tests": 21
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+      "recorded_at": "2026-11-26T19:56:57.443Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b750bece16d4f8dd96b62ebff15b005332f893566cf1daae77d5406731e3a33e",
+      "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+      "recorded_at": "2026-11-26T19:56:57.443Z",
+      "tests": 26
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cba25e91b6a1a0433b37a52708441c4ed4422e08577af3464d9f9d9f1e06a9c3",
+      "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+      "recorded_at": "2026-11-26T19:56:57.443Z",
+      "tests": 67
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a292422e4bf8d9c3dba64ae6f521b37b7adda071272cbbef576068e27c76f250",
+      "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+      "recorded_at": "2026-11-26T19:56:57.443Z",
+      "tests": 60
+    },
+    {
+      "id": "run-7",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/auto-run.test.js scripts/lib/auto-conductor.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5d5e64a873cb2711708e112b6bec072a1d503de88bb106946f36c43bcf799dcb",
+      "tree": "sha256:f4b6fe97dae551c016568f1e835e2ca7e4f5a4b5b1cfa9ab9e223e25ebb06d0d",
+      "recorded_at": "2026-11-26T19:57:15.054Z",
+      "tests": 18
+    },
+    {
+      "id": "run-8",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9599edda3af7a22a808f4b20cd37df295932f3f1776a26bf8c97e463e59e439e",
+      "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+      "recorded_at": "2026-11-26T19:58:49.500Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bb5411408b4b2cee7e023b02b57ecc954ad9089e7ad4ae6dc7f07a78e62e5e70",
+      "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+      "recorded_at": "2026-11-26T19:58:49.500Z",
+      "tests": 21
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+      "recorded_at": "2026-11-26T19:58:49.500Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c4a9356b6b7be527f1952e70682917089d35dd6a85c623fa3b58ccff81e92664",
+      "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+      "recorded_at": "2026-11-26T19:58:49.500Z",
+      "tests": 26
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8d2adb844d932e7b21ef8bc0d3d987515a0763fa38b341364a19359b4e40d541",
+      "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+      "recorded_at": "2026-11-26T19:58:49.500Z",
+      "tests": 67
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:86684d98417125fb28190d09e715c12c32b27a1bde548ca67b17c228225b0c1b",
+      "tree": "sha256:4008321d4f35e98cfaea17e6b25d1cac768aea478ab9b83975d19422040a33f1",
+      "recorded_at": "2026-11-26T19:58:49.500Z",
+      "tests": 60
+    }
+  ],
+  "completes": "auto-conductor-hosts",
+  "closed_at": "2026-11-26T19:58:49.664Z"
+}
