@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.189.0] - 2026-11-26
+
 ### Added
-- **Modo automático con `ospec auto`** (auto-conductor, E1.108). `ospec auto start --item "<petición>"...` trabaja una cola de peticiones con una sesión de Claude Code sin interfaz nueva por cambio: responde `open-facts` con las recomendaciones (`delegated`), para en el resto de gates, hace el commit de cada cambio cerrado y se sigue con `status`, `resume` y `stop`. (auto-conductor)
+- **Modo automático con `ospec auto`** (auto-conductor, E1.108). Encadenar los cambios de un roadmap ya no exige abrir cada sesión a mano, y el contexto no llega lleno al siguiente cambio.
+  - **La ejecución**: `ospec auto start --item "<petición>"...` trabaja una cola de 1 a 20 peticiones, una por cambio IDD, cada una en una sesión nueva de Claude Code sin interfaz y en el modo de permisos `auto`, con la configuración del usuario. `--model`, `--max-turns` (30 por petición) y `--max-cost-usd` (25 por ejecución) la ajustan.
+  - **El conductor**: tras cada turno lee el disco, no lo que dice la sesión. Responde `open-facts` con la recomendación que el modelo dejó para cada pregunta (fuente `delegated`), para como `blocked` en cualquier otro gate y, cuando `ospec close` archiva el cambio, hace su commit `<tipo>: <resumen>` en la rama actual con los hooks del usuario, sin push, PR ni release.
+  - **Las paradas**: antes de empezar exige una rama que no sea la de por defecto, el árbol limpio, ningún cambio abierto y los checks en verde. Una cuota agotada deja la ejecución `paused`; dos errores seguidos del host, los topes, dos turnos sin avance o un commit rechazado la dejan `failed`, y nunca salta a la petición siguiente.
+  - **El seguimiento**: `ospec auto status`, `ospec auto resume [--answer "<texto>"]`, que lleva la respuesta del usuario a la misma sesión, y `ospec auto stop`, que corta el turno en curso en menos de un segundo. El estado vive en `.ospec/auto/<ejecución>/run.json`, con el transcript de cada turno.
+  - **La garantía**: una respuesta `delegated` exige ahora que su ejecución conste en curso, con el conductor vivo. El commit lo hace el conductor porque el guard de colaboración git de ospec pide confirmación en todo commit con el árbol sucio, y sin interfaz nadie la da. REQ-idd-031 lo fija en la spec.
+  - **Por dentro**: la sesión sin interfaz del banco pasa a `scripts/lib/headless-session.js` y la búsqueda del binario de claude a `scripts/lib/claude-bin.js`, que el runtime de todos los targets lleva. Antigravity pasa a E1.110, porque no se pudo verificar en vivo.
+
+**Verificación directa**: `node scripts/check.js` (5148 tests pasando, 0 fallos y 5 omitidos), 460 de ellos en la fase serie, con los siete targets generados y validados, y una ejecución en vivo de `ospec auto` con Claude Code y Haiku que cerró tres peticiones (un bug, una mejora de documentación y una feature cuyo `open-facts` respondió el conductor), cada una en su sesión y con su commit.
 
 ## [2.188.0] - 2026-11-26
 
