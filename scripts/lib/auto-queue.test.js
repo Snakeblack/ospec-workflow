@@ -41,7 +41,8 @@ test("[REQ-idd-032] the pending phases of docs/roadmap.md are the queue, in orde
   assert.match(mode.how, /interactively \(the default/);
   assert.match(mode.how, /empty, skipped or undecided answer is interactive: never start the run without their explicit choice/);
   assert.match(mode.how, /ospec auto resume --answer/);
-  assert.match(mode.how, /give the user the command to run in a terminal/);
+  assert.match(mode.how, /add --host with the session's host \(cursor[^)]*\) and give the user the command to run in a terminal/);
+  assert.match(mode.how, /capped at 100M tokens \(--max-tokens\)/);
 });
 
 test("[REQ-idd-032] a phase with an archived change is done and one with an active change is in progress: neither is queued", (t) => {

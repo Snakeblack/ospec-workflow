@@ -137,7 +137,7 @@ Antes de terminar su turno con las preguntas de un gate, el agente puede dejar l
 
 ## Varios cambios seguidos: `ospec auto`
 
-`ospec auto` trabaja una cola de peticiones, una por cambio IDD, cada una en una sesión nueva de Claude Code sin interfaz. Así ningún cambio empieza con el contexto lleno del anterior. Es opcional: el modo interactivo no cambia.
+`ospec auto` trabaja una cola de peticiones, una por cambio IDD, cada una en una sesión nueva del host sin interfaz: Claude Code por defecto, o Cursor con `--host cursor`. Así ningún cambio empieza con el contexto lleno del anterior. Es opcional: el modo interactivo no cambia.
 
 ```sh
 git switch -c feat/lote
@@ -147,23 +147,23 @@ ospec auto start --item "Haz el ítem E1.109 del roadmap" --item "Arregla el pag
 - **Antes de empezar** exige una rama que no sea la de por defecto, el árbol limpio, ningún cambio abierto y los checks de `idd/config.yaml` en verde.
 - **Tras cada turno** lee el disco, no lo que dice la sesión. Responde `open-facts` con la recomendación que el agente dejó para cada pregunta (fuente `delegated`) y para en cualquier otro gate.
 - **Cuando `ospec close` archiva el cambio**, hace el commit `<tipo>: <resumen>` con tus hooks de git y pasa a la siguiente petición. No hace push, ni PR, ni release.
-- **Para** como `blocked` en un gate que solo respondes tú, `paused` si se agota la cuota del host y `failed` ante dos errores seguidos del host, 30 turnos de una petición, 25 USD de la ejecución, dos turnos sin avance o un commit rechazado. Nunca salta a la petición siguiente.
+- **Para** como `blocked` en un gate que solo respondes tú, `paused` si se agota la cuota del host y `failed` ante dos errores seguidos del host, 30 turnos de una petición, 25 USD de la ejecución (100 millones de tokens en un host que no informa del coste, como Cursor), dos turnos sin avance o un commit rechazado. Nunca salta a la petición siguiente.
 
 | Orden | Qué hace |
 | --- | --- |
 | `ospec auto status` | Muestra la última ejecución, cada petición y su bloqueo |
 | `ospec auto resume --answer "<texto>"` | Sigue en la misma sesión con tu respuesta al bloqueo |
-| `ospec auto resume` | Sigue una ejecución parada, o después de responder en la propia sesión (`claude --resume <id>`) |
+| `ospec auto resume` | Sigue una ejecución parada, o después de responder en la propia sesión (por ejemplo, `claude --resume <id>`) |
 | `ospec auto stop` | Corta el turno en curso en menos de un segundo; la ejecución se puede reanudar |
 
-`--max-turns` y `--max-cost-usd` cambian los topes al empezar o al reanudar. La sesión corre con tu configuración, en el modo de permisos `auto` de Claude Code. El estado vive en `.ospec/auto/<ejecución>/run.json`, con el transcript de cada turno al lado. Por ahora solo conduce Claude Code: cada host nuevo entra después de verificarlo en vivo.
+`--max-turns` y `--max-cost-usd` (o `--max-tokens`) cambian los topes al empezar o al reanudar. La sesión corre con tu configuración y tu instalación de ospec en el host, en su modo que revisa cada acción: `auto` en Claude Code y `--auto-review` en Cursor. El estado vive en `.ospec/auto/<ejecución>/run.json`, con el transcript de cada turno al lado. Cada host entra después de verificarlo en vivo; la sección 8 de [la matriz de capacidades](../../docs/target-capabilities.md) dice qué hace cada uno y por qué los demás no están.
 
 ### Interactivo o automático
 
 Cuando `docs/roadmap.md` tiene dos o más fases pendientes, `ospec next` sin cambio abierto y `ospec close` devuelven `execution_mode`: la cola en el orden del roadmap y la orden `ospec auto start` con un `--item` por fase, como mucho 20. El agente te pregunta una vez si la trabajas en interactivo, el modo de siempre y el de por defecto, o en automático. Una respuesta vacía o que no elige es interactivo.
 
 - **Si eliges automático,** puedes quedarte con menos ítems o cambiar los topes. Tras un `close`, la ejecución espera a la entrega que pidas, porque exige el árbol limpio, y en la rama por defecto el agente crea antes una rama.
-- **En Claude Code** la lanza en segundo plano: al terminar te resume cada cambio cerrado, y ante un bloqueo te pasa sus preguntas y lleva tu respuesta con `ospec auto resume --answer`. En los demás hosts te da la orden para una terminal.
+- **En Claude Code** la lanza en segundo plano: al terminar te resume cada cambio cerrado, y ante un bloqueo te pasa sus preguntas y lleva tu respuesta con `ospec auto resume --answer`. En los demás hosts te da la orden para una terminal, con `--host` y el host de la sesión.
 - **No aparece** con un cambio abierto, con `mode: sdd`, con menos de dos fases pendientes ni mientras haya una ejecución activa, que es el caso de las sesiones que lanza el conductor.
 
 Cada ítem pide nombrar el cambio con la clave de su fase (`m2-<slug>` para `M2`), para que el roadmap la cuente hecha al cerrarse. La cola sale del mismo lector que `ospec snapshot`: un roadmap sin tabla de fases no da ninguna, y una fila mal formada da un aviso con su línea.

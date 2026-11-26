@@ -3884,12 +3884,15 @@ MUST name its source `delegated, run <run>`. The CLI cannot verify who sets
 ### Requirement: Automatic Run Conductor {#REQ-idd-031}
 
 `ospec auto start --item <request>...` MUST work each request, from 1 to 20 in
-the given order, as one IDD change in a new headless session of the host, and
-`--host` MUST take only `claude` in this version: any other host MUST be
-refused with `host-unavailable`. The session MUST run with the user's own
-configuration, in the `auto` permission mode, and its environment MUST NOT hold
-`OSPEC_AUTO_RUN` nor the markers of a Claude Code session that launched the
-conductor. Each item MUST start with its request followed by a brief that asks
+the given order, as one IDD change in a new headless session of the host.
+`--host` MUST take `claude`, the default, or `cursor`, the hosts on which a
+run closed a change live; `vscode`, which has no headless mode, and any other
+host MUST be refused with `host-unavailable` and the reason. The session MUST
+run with the user's own configuration and ospec install, in the host's mode
+that reviews each action where it has one (`--permission-mode auto` in Claude
+Code, `--auto-review` in Cursor) or else approving whatever its configuration
+does not deny, which the run's first line MUST say. Its environment MUST NOT hold `OSPEC_AUTO_RUN` nor the markers
+of a Claude Code session that launched the conductor. Each item MUST start with its request followed by a brief that asks
 for one IDD change until `ospec close`, a recommendation per question before a
 turn ends with a gate's questions (REQ-idd-030), and no commit, push, pull
 request or release. Before the first item `start` MUST be refused with its
@@ -3901,7 +3904,10 @@ while another run is running with a live conductor, blocked or paused,
 `idd/config.yaml` fails on `HEAD`. Before each later item the tree MUST be
 clean and no change open, or the run MUST fail on that item.
 
-After each turn the conductor MUST read the disk, not the session's words:
+On a host whose end-of-turn hook does not run headless (Cursor), the conductor
+MUST add each turn end to the count of REQ-idd-008 once the session's process
+ends, unless the turn was stopped. After each turn the conductor MUST read the
+disk, not the session's words:
 the item's change is the only change its session opened, and a session that
 opened two MUST fail the run with `several-changes`. A change archived by
 `ospec close` MUST be committed by the conductor on the current branch with
@@ -3915,17 +3921,22 @@ an `open-facts` with a question without recommendation or whose delegated
 answer is refused, MUST stop the run as `blocked` with the gate, its
 questions, the cause and the session. A spent usage quota MUST stop it as
 `paused`; two host errors in a row, `--max-turns` turns of the item (default
-30), `--max-cost-usd` of the run (default 25, from the cost each session
-reports so far, never the sum of its turns) and two turns in a row that change
+30), on a host that reports its cost (Claude Code) `--max-cost-usd`
+of the run (default 25, from the cost each session reports so far, never the
+sum of its turns), on one that reports none (Cursor) `--max-tokens` of the run
+(default 100000000, from the tokens of each turn or of the session so far),
+and two turns in a row that change
 neither the change's state nor the tree MUST stop it as `failed` on the item,
-with no later item started. The run is `done` when every item is closed.
+with no later item started. Each cap on the other kind of host MUST be refused
+with `invalid-limit`. The run is `done` when every item is closed.
 
 The run MUST be recorded in `.ospec/auto/<run>/run.json`, written atomically
 after every step, with its id `auto-<YYYYMMDD>-<HHMMSS>` in UTC, schema
 `ospec-auto-run/v1`, host, branch, limits, status (`running`, `blocked`,
 `paused`, `stopped`, `failed` or `done`), reason, conductor pid, current item
 and, per item, its request, status (`pending`, `running` or `closed`), change,
-session, turns, cost, delegated answers and commit; each turn's transcript
+session, turns, cost, tokens on a host without cost, delegated answers and
+commit; each turn's transcript
 MUST sit beside it. A record that cannot be read MUST be refused with
 `run-invalid` and left untouched. `ospec auto status [--run <id>]` MUST report
 the latest run, or the one named, read-only. `ospec auto stop` MUST make a
@@ -3936,7 +3947,8 @@ conductor is gone; any other run MUST be refused with `run-not-active`.
 not `done` and not running with a live conductor, in the item's session: with
 `--answer`, the text MUST reach the session as the user's reply; without it, a
 blocked run whose gate is still open MUST be refused with `still-blocked`.
-`--max-turns` and `--max-cost-usd` on `resume` MUST raise the run's limits.
+`--max-turns`, `--max-cost-usd` and `--max-tokens` on `resume` MUST raise the
+run's limits.
 `start` and `resume` MUST print one line per step, unless `--json`, and MUST
 exit 0 only when the run is `done`.
 
@@ -3967,6 +3979,13 @@ exit 0 only when the run is `done`.
   `stopped`
 - AND `resume` MUST continue the same session
 
+#### Scenario: A host without cost is capped by tokens
+
+- GIVEN `ospec auto start --host cursor --max-tokens 5000`
+- WHEN the item's session has used 9000 tokens so far
+- THEN the run MUST fail on the item with `max-tokens`
+- AND `--max-cost-usd` on that run MUST be refused with `invalid-limit`
+
 ### Requirement: Execution Mode Choice {#REQ-idd-032}
 
 `ospec next` without an open change and `ospec close` MUST return, as
@@ -3996,7 +4015,9 @@ fewer items or change the limits; that the run needs a clean tree, so after
 default branch a branch is created first; that where the host runs a command
 in the background and reports its end, the run starts so, its end is reported
 per closed change and a block goes to the user, whose answer `ospec auto
-resume --answer` carries; and that elsewhere the user gets the command. The
+resume --answer` carries; and that elsewhere the user gets the command with
+`--host` and the session's host among those REQ-idd-031 drives, capped by
+tokens on a host without cost. The
 request of an item MUST name the phase, the roadmap and the change id prefix,
 the phase's link key, that makes REQ-idd-026 count the phase done. The text
 output MUST print the `queue:`, `mode:` and `automatic:` lines and the `how`.

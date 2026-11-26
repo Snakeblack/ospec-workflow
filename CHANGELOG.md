@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`ospec auto` en Cursor** (auto-conductor-hosts, E1.110, tramo 1). `ospec auto start --host cursor` conduce `cursor-agent -p` con `--auto-review`, verificado en vivo. Un host que no informa del coste se limita con `--max-tokens` (100 millones por defecto) en vez de `--max-cost-usd`, y cada tope se rechaza en el otro tipo de host. Como `cursor-agent -p` no dispara el hook `stop`, el conductor cuenta el fin de turno al ver terminar el proceso, y así la respuesta delegada de `open-facts` funciona. VS Code y los hosts aún sin verificar se rechazan con `host-unavailable` y su motivo, y `execution_mode` pide `--host` fuera de Claude Code. REQ-idd-031 y REQ-idd-032 lo fijan; `docs/target-capabilities.md` gana la matriz de la ejecución automática. (auto-conductor-hosts)
+
 ## [2.190.0] - 2026-11-26
 
 ### Added

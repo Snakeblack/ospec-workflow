@@ -11,7 +11,8 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { DEFAULT_LIMITS } = require("./auto-conductor.js");
+const { DEFAULT_LIMITS, DEFAULT_MAX_TOKENS } = require("./auto-conductor.js");
+const { HOSTS } = require("./auto-hosts.js");
 const { MAX_ITEMS, activeRun, processAlive } = require("./auto-run.js");
 const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
 const { shellArg } = require("./idd-next.js");
@@ -53,7 +54,8 @@ function howToAsk(count, limits) {
     "The run needs a clean tree, so after close ask once the delivery they want is done; on the default branch create a <type>/<name> branch first.",
     "Where the host runs a command in the background and tells you when it ends, run it so; when it ends, report one line per closed change from ospec auto status,",
     'and at a block ask the user its questions and pass their answer with ospec auto resume --answer "<their words>", in the background too.',
-    "Elsewhere, give the user the command to run in a terminal.",
+    `Elsewhere, add --host with the session's host (${HOSTS.filter((host) => host !== "claude").join(", ")}) and give the user the command to run in a terminal;`,
+    `a host that reports no cost is capped at ${DEFAULT_MAX_TOKENS / 1e6}M tokens (--max-tokens) instead of the cost, and another host cannot run it.`,
   ].join(" ");
 }
 
