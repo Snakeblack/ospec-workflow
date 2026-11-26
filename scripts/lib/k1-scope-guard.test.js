@@ -336,6 +336,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   // besides Claude Code.
   "scripts/lib/auto-host-cursor.js",
   "scripts/lib/auto-host-cursor.test.js",
+  "scripts/lib/auto-host-opencode.js",
+  "scripts/lib/auto-host-opencode.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
