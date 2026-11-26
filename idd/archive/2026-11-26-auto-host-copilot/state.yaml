@@ -1,0 +1,562 @@
+{
+  "schema": "idd-state/v1",
+  "change": "auto-host-copilot",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "A, y sí, fusiona la #565, ya he logado en agy (A: verificar Codex y Copilot en vivo con el cupo gratuito, un tramo cada uno)",
+    "requested_at": "2026-11-26T20:48:40.661Z",
+    "kind": "feature",
+    "summary": "ospec auto conduce Copilot CLI (copilot con el prompt por stdin y --output-format json), verificado en vivo",
+    "acceptance": "ospec auto start --host github-copilot cierra en vivo un cambio de prueba, delega open-facts y reanuda la sesión por su id; un test de contrato fija sus argumentos, la lectura de su consumo y el error de un turno fallido"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "En copilot sin interfaz, --assisted-approval deniega toda edición, también junto con --allow-all-tools (verificado en 1.0.112 con el plan Free: «Permission denied because no interactive user response was available»), y solo --allow-all-tools edita. ¿Copilot corre con --allow-all-tools, que aprueba todo lo que su configuración no deniega, y la primera línea de la ejecución lo avisa, como en OpenCode (recomendado), o queda unavailable con ese motivo?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-conductor.js",
+          "line": 439
+        }
+      },
+      {
+        "category": "persistence",
+        "question": "Copilot no da coste en USD, y sus tokens solo vienen en el primer turno de cada sesión; lo que da en cada turno es el total de créditos de IA de la sesión (totalNanoAiu), y tiene un tope nativo, --max-ai-credits. ¿La ejecución admite un tope opcional nuevo, --max-ai-credits, solo en Copilot, contado con los créditos de cada sesión, pasado a cada turno con lo que queda y guardado como spend credits en run.json (recomendado), o Copilot va sin tope de gasto, solo con los turnos y la convergencia, y rechaza --max-cost-usd y --max-tokens?"
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "docs/target-capabilities.md",
+          "line": 185
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "handbook/idd/flujo-idd.md",
+          "line": 159
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 1772
+        }
+      },
+      {
+        "category": "errors",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-hosts.js",
+          "line": 56
+        }
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/README.md",
+      "docs/en/README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "docs/target-capabilities.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/auto-conductor.js",
+      "scripts/lib/auto-conductor.test.js",
+      "scripts/lib/auto-host-copilot.js",
+      "scripts/lib/auto-host-copilot.test.js",
+      "scripts/lib/auto-hosts.js",
+      "scripts/lib/auto-queue.js",
+      "scripts/lib/auto-queue.test.js",
+      "scripts/lib/auto-run.js",
+      "scripts/lib/auto-run.test.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/ospec.auto.test.js",
+      "scripts/ospec.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El prompt va por stdin y la sesión se reanuda con --resume <id>; el id sale del evento result",
+      "Copilot corre con --allow-all-tools y --no-ask-user, porque --assisted-approval deniega toda edición sin un usuario interactivo; la primera línea de la ejecución avisa de que no revisa cada acción",
+      "Los créditos de Copilot salen de totalNanoAiu del último session.usage_checkpoint, que es el total de la sesión y sigue al reanudar; los tokens solo vienen en el primer turno de cada sesión",
+      "Cada turno de Copilot lleva --max-ai-credits con lo que queda del tope solo desde 30 créditos, el mínimo que admite Copilot; por debajo el tope se mira entre turnos",
+      "El conductor cuenta el fin de turno en Copilot, para que la ejecución no dependa de la versión del hook de ospec instalada, que antes de este arreglo no contaba el agentStop",
+      "Cada host declara qué gasto informa (spend: cost, tokens o credits; sin él, reportsCost decide entre coste y tokens) y limitsFrom acepta solo el tope de ese gasto",
+      "Copilot recibe --add-dir con su directorio (COPILOT_HOME o ~/.copilot), donde viven ospec y su runtime, porque sin usuario deniega toda orden que nombre una ruta fuera del repositorio; el usuario eligió esa opción (\"lo recomendado\") frente a --allow-all-paths o dejarlo unavailable"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 773
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 773
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration",
+      "recorded_turn": 773
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0003, 0005, 0010, 0013 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration",
+      "recorded_turn": 773
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/auto-run.js uses writeFile",
+      "source": "diff",
+      "recorded_turn": 778
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Los argumentos de Copilot, la lectura de sus créditos, el tope de créditos y su disponibilidad los decide el CLI (auto-host-copilot.js, auto-conductor.js, auto-hosts.js), con tests; las skills solo nombran el host"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El conductor sigue avanzando en Copilot solo con el close en disco"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; el runtime lanza el copilot que el usuario ya tiene instalado"
+    },
+    {
+      "kind": "adr",
+      "id": "0013",
+      "impact": "conforms",
+      "reason": "Solo open-facts se delega y sigue exigiendo un turno terminado; en Copilot ese fin de turno lo cuenta el conductor al ver terminar el proceso, y OSPEC_AUTO_RUN sigue fuera de la sesión"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "resume sigue la sesión de Copilot por su id con --resume; run.json guarda los créditos por ítem y el tope de créditos"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "next, check y close no añaden red; solo ospec auto start, que el usuario lanza, ejecuta copilot"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "Solo cambia el texto del how de invalid-limit; no cambia cómo se derivan señales ni obligaciones"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "No toca el estado SDD ni la separación en disco"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Verificado: los argumentos de copilot, el mínimo de 30 créditos del tope nativo, la lectura de totalNanoAiu, los errores de session.error y el tope max-credits tienen tests en scripts/lib/auto-host-copilot.test.js y scripts/lib/auto-conductor.test.js; ninguna skill describe una regla nueva",
+      "recorded_at": "2026-11-26T21:12:01.173Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado: el diff no añade llamadas de red a hooks ni skills; auto-host-copilot solo lanza procesos locales de copilot al arrancar una ejecución; next y close solo cambian el texto del how",
+      "recorded_at": "2026-11-26T21:12:01.394Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 773,
+      "recommendations": [
+        {
+          "question": "En copilot sin interfaz, --assisted-approval deniega toda edición, también junto con --allow-all-tools (verificado en 1.0.112 con el plan Free: «Permission denied because no interactive user response was available»), y solo --allow-all-tools edita. ¿Copilot corre con --allow-all-tools, que aprueba todo lo que su configuración no deniega, y la primera línea de la ejecución lo avisa, como en OpenCode (recomendado), o queda unavailable con ese motivo?",
+          "answer": "Copilot corre con --allow-all-tools y la primera línea de la ejecución avisa de que aprueba todo lo que su configuración no deniega, como OpenCode"
+        },
+        {
+          "question": "Copilot no da coste en USD, y sus tokens solo vienen en el primer turno de cada sesión; lo que da en cada turno es el total de créditos de IA de la sesión (totalNanoAiu), y tiene un tope nativo, --max-ai-credits. ¿La ejecución admite un tope opcional nuevo, --max-ai-credits, solo en Copilot, contado con los créditos de cada sesión, pasado a cada turno con lo que queda y guardado como spend credits en run.json (recomendado), o Copilot va sin tope de gasto, solo con los turnos y la convergencia, y rechaza --max-cost-usd y --max-tokens?",
+          "answer": "Un tope opcional --max-ai-credits solo en Copilot, contado con los créditos de cada sesión, pasado a cada turno con lo que queda y guardado como spend credits en run.json"
+        }
+      ],
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_at": "2026-11-26T21:06:00.284Z",
+      "resolved_turn": 774
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-26T21:27:16.021Z",
+      "detail": {
+        "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-26T21:27:16.021Z",
+      "detail": {
+        "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-host-copilot.test.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/auto-run.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-26T21:27:32.521Z",
+      "detail": {
+        "run": "run-9",
+        "tree": "sha256:147893cd3ccccedcc2cbacef3d6600ef9e450756c538bae7aba04380b371825d",
+        "plan": "run.json sigue en ospec-auto-run/v1: spend credits, item.credits y limits.max_ai_credits solo aparecen en ejecuciones de GitHub Copilot, y una ejecución anterior, sin ellos, se lee y se reanuda como antes; para volver atrás, un ospec anterior rechaza leer una ejecución con spend credits con run-invalid, sin modificarla"
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-26T21:29:18.059Z",
+      "detail": {
+        "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+        "runs": [
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-26T21:29:18.059Z",
+      "detail": {
+        "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+        "check": "ev-4",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-host-copilot.test.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/auto-run.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-26T21:29:18.059Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0005 conforms",
+          "adr:0010 conforms",
+          "adr:0013 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "adr:0004 none",
+          "adr:0011 none"
+        ],
+        "records": [],
+        "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+        "fitness": [
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-26T21:29:18.222Z"
+    }
+  ],
+  "base": "55ac8d7ac4f08dfaa7d2e7ccd8ee7ef613f76ef1",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3759342709ab453a500f041dbb6d855a3477e8b0129a68014c27cc5c766e3eb5",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:27:16.021Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:98edcb9310b6273fb5cd689770405ddb16114e5bb05c0b6e543013da0f16b886",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:27:16.021Z",
+      "tests": 21
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:27:16.021Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8e50dfa6d8e7af5dfaf0128af47fa8ed39db927e0be29d43f905ac9464ff55c3",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:27:16.021Z",
+      "tests": 26
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9ae2969e5050323e65617485ac473d6297e0bc70aaca0fe3014e51c8c7445a99",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:27:16.021Z",
+      "tests": 67
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3c69ccf6bb10e6895430e1a6a80510a60c3c709852d33e53fc0bd8736923e0d6",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:27:16.021Z",
+      "tests": 60
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3301404a9dcc9f26261a21919f6d6e2724079e8680d10958e1453c460bd20f93",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:27:16.021Z",
+      "tests": 63
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2d4b23aade48bca7dd8ad10aeb2a854a4c816a163c8ae72624f5bb0244342770",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:27:16.021Z",
+      "tests": 101
+    },
+    {
+      "id": "run-9",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/auto-run.test.js scripts/lib/auto-conductor.test.js scripts/lib/auto-host-copilot.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:245c63799e01f3075664349efb56652958de8119d74cbf814f13b9bb877b8581",
+      "tree": "sha256:147893cd3ccccedcc2cbacef3d6600ef9e450756c538bae7aba04380b371825d",
+      "recorded_at": "2026-11-26T21:27:32.521Z",
+      "tests": 23
+    },
+    {
+      "id": "run-10",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ccbc41195eff011399a32c6c55ff94e0b5c1727aaa8c184c616375da7867a255",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:29:18.059Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c821eb9d3b6002dd848358a9a4ec672a903f186795227d6dfbb3718035a69a0b",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:29:18.059Z",
+      "tests": 21
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:29:18.059Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0a05c96d6c69aa7d1f6212d01603c9d128707a6ddc42ec16bbbb54e84d20f3b3",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:29:18.059Z",
+      "tests": 26
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e6275034a09bd502b21cc4a0f91dcb6cc6434f236d92a91a559fe699f3fba864",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:29:18.059Z",
+      "tests": 67
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d1a6646655a124b2561157aa0ea196a0bf6844406607f0144b969ecbd142ace0",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:29:18.059Z",
+      "tests": 60
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d8dedaf93dd5a983b1196d0ccf21c74a80c7757cf7dab80cc5e42663b1a82c12",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:29:18.059Z",
+      "tests": 63
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c6a3509329bd889ae3e91ef21493cae9b0577c263781d75d6bf673a21bd72635",
+      "tree": "sha256:7102b53a59ad56dea2a280b2b66346a850981938e2b071247649aec4e082aa54",
+      "recorded_at": "2026-11-26T21:29:18.059Z",
+      "tests": 101
+    }
+  ],
+  "changelog_line": "**`ospec auto` en GitHub Copilot CLI** (auto-host-copilot, E1.110, tramo 4). `ospec auto start --host github-copilot` conduce `copilot --output-format json` con el prompt por stdin y reanuda la sesión con `--resume`, verificado en vivo con el plan Free: delega `open-facts`, para en otro gate y cierra el cambio con su commit. En `copilot` sin interfaz el juez de `--assisted-approval` deniega toda edición, así que corre con `--allow-all-tools`, y la primera línea de la ejecución avisa de que no revisa cada acción; `--add-dir` le abre su propio directorio (`COPILOT_HOME` o `~/.copilot`), donde está ospec, porque sin usuario deniega toda orden que nombre una ruta fuera del repositorio. Copilot no da coste y sus tokens solo vienen en el primer turno de cada sesión, así que la ejecución gana un tope opcional, `--max-ai-credits`, con los créditos de IA de cada sesión: cada turno lo recibe también como tope de Copilot desde 30 créditos, su mínimo, y al pasarlo la ejecución falla con `max-credits`. REQ-idd-031 lo fija.",
+  "closed_at": "2026-11-26T21:29:18.222Z"
+}

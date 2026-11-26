@@ -45,6 +45,8 @@ test("[REQ-idd-031] ospec auto names its subcommands and refuses a bad call befo
   const vscode = ospec(root, "auto", "start", "--item", "x", "--host", "vscode", "--json");
   assert.match(vscode.json.error.message, /cannot drive "vscode": VS Code has no headless mode/);
   assert.match(ospec(root, "auto", "start", "--item", "x", "--max-tokens", "lots").stderr, /--max-tokens takes a whole number, got "lots"/);
+  assert.match(ospec(root, "auto", "start", "--item", "x", "--max-ai-credits", "many").stderr, /--max-ai-credits takes an amount, got "many"/);
+  assert.match(ospec(root, "auto", "resume", "--max-ai-credits", "many").stderr, /--max-ai-credits takes an amount, got "many"/);
   const main = ospec(root, "auto", "start", "--item", "x", "--json");
   assert.strictEqual(main.json.error.code, "default-branch");
   assert.strictEqual(ospec(plainRoot(t), "auto", "start", "--item", "x", "--json").json.error.code, "not-a-git-repo");

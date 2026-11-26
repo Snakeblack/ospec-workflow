@@ -192,13 +192,15 @@ const USAGE = `Usage:
                 opened by mistake; only when the user asked for it, never to get past an obligation.
                 Their answer archives it as abandoned, without checks, reviews or a changelog entry;
                 without --reason or --cancel it finishes an archive that was interrupted
-  ospec auto start --item <request>... [--host <host>] [--model <model>] [--max-turns <n>] [--max-cost-usd <usd> | --max-tokens <n>]
+  ospec auto start --item <request>... [--host <host>] [--model <model>] [--max-turns <n>]
+                   [--max-cost-usd <usd> | --max-tokens <n> | --max-ai-credits <credits>]
                    works each request as one IDD change in a new headless session, in order: answers
                    open-facts from the recommendations, stops at any other gate and commits each closed change;
-                   --host is claude (the default), cursor, opencode or codex; a spending cap is optional: --max-cost-usd
-                   on a host that reports its cost, which Claude Code also applies inside each turn, --max-tokens on one that does not
+                   --host is claude (the default), cursor, opencode, codex or github-copilot; a spending cap is optional:
+                   --max-cost-usd on a host that reports its cost, which Claude Code also applies inside each turn,
+                   --max-tokens on one that does not, --max-ai-credits on GitHub Copilot, which also applies it from 30 credits
   ospec auto status [--run <id>]
-  ospec auto resume [--run <id>] [--answer <text>] [--max-turns <n>] [--max-cost-usd <usd> | --max-tokens <n>]
+  ospec auto resume [--run <id>] [--answer <text>] [--max-turns <n>] [--max-cost-usd <usd> | --max-tokens <n> | --max-ai-credits <credits>]
                     continues a run that stopped; --answer goes to the session as the user's reply to its block
   ospec auto stop [--run <id>]
   ospec doctor [--target <host>] [--repair] [--json]
@@ -324,6 +326,7 @@ const OPTIONS = {
   "max-turns": { type: "string" },
   "max-cost-usd": { type: "string" },
   "max-tokens": { type: "string" },
+  "max-ai-credits": { type: "string" },
   run: { type: "string" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
@@ -1755,7 +1758,7 @@ async function auto(root, [sub], values) {
   if (sub === "status") return { auto: sub, run: selectRun(root, values.run), exit_code: 0 };
   if (sub === "stop") return { auto: sub, ...(await stopRun({ root, id: values.run })), exit_code: 0 };
   requireWorkTree(root);
-  const limits = { maxTurns: autoNumber(values, "max-turns", true), maxCostUsd: autoNumber(values, "max-cost-usd", false), maxTokens: autoNumber(values, "max-tokens", true) };
+  const limits = { maxTurns: autoNumber(values, "max-turns", true), maxCostUsd: autoNumber(values, "max-cost-usd", false), maxTokens: autoNumber(values, "max-tokens", true), maxAiCredits: autoNumber(values, "max-ai-credits", false) };
   const onEvent = values.json ? () => {} : (line) => process.stdout.write(`${line}\n`);
   let run;
   if (sub === "start") {

@@ -47,9 +47,9 @@ function scriptedHost(turns, traits = {}) {
     budgets,
     resolve: () => "claude",
     resumeCommand: (id) => `claude --resume ${id}`,
-    async turn({ cwd, prompt, sessionId, transcriptPath, signal, budgetUsd }) {
+    async turn({ cwd, prompt, sessionId, transcriptPath, signal, budgetUsd, budgetCredits = null }) {
       prompts.push({ prompt, sessionId });
-      budgets.push(budgetUsd);
+      budgets.push(budgetCredits ?? budgetUsd);
       const play = turns[index];
       index += 1;
       if (!play) throw new Error(`no turn ${index} scripted`);
@@ -243,6 +243,29 @@ test("[REQ-idd-031] a host that reports no cost is capped by tokens, per turn or
   const capped = await startRun({ root: busy, items: ["Fix it."], host: "cursor", maxTokens: 5000, deps: deps(totals) });
   assert.deepEqual([capped.status, capped.reason, capped.detail, capped.items[0].tokens], ["failed", "max-tokens", "9000 tokens", 9000]);
   await assert.rejects(resumeRun({ root: busy, maxCostUsd: 5, deps: deps(totals) }), (error) => error.code === "invalid-limit");
+});
+
+test("[REQ-idd-031] GitHub Copilot is capped by the AI credits of its sessions, each turn gets what is left, and the other caps are refused", async (t) => {
+  const refused = (promise) => assert.rejects(promise, (error) => error.code === "invalid-limit");
+  const { root } = runProject(t);
+  const events = [];
+  const copilot = scriptedHost([
+    ({ root: cwd }) => {
+      session(cwd, ...OPEN_DOCS("fix-readme", "Fix a typo."));
+      return { session_credits: 12 };
+    },
+    () => ({ session_credits: 41.5 }),
+  ], { name: "github-copilot", spend: "credits", reportsCost: false, reviewsActions: false });
+  const capped = await startRun({ root, items: ["Fix it."], host: "github-copilot", maxAiCredits: 40, deps: deps(copilot, events) });
+  assert.deepEqual([capped.status, capped.reason, capped.detail, capped.spend, capped.limits, capped.items[0].credits], ["failed", "max-credits", "41.50 AI credits", "credits", { max_turns: 30, max_ai_credits: 40 }, 41.5]);
+  assert.deepEqual(copilot.budgets, [40, 28]);
+  assert.match(events[0], /on github-copilot \(at most 30 turns per item and 40\.00 AI credits; github-copilot runs every action its configuration does not deny, without review\)$/);
+  assert.equal(events.at(-1), "  continue with: ospec auto resume --max-ai-credits <credits>");
+  const other = scriptedHost([], { name: "github-copilot", spend: "credits", reportsCost: false });
+  await refused(startRun({ root: runProject(t).root, items: ["x"], host: "github-copilot", maxTokens: 5000, deps: deps(other) }));
+  await refused(startRun({ root: runProject(t).root, items: ["x"], host: "github-copilot", maxCostUsd: 5, deps: deps(other) }));
+  await refused(startRun({ root: runProject(t).root, items: ["x"], host: "claude", maxAiCredits: 30, deps: deps(scriptedHost([])) }));
+  await refused(startRun({ root: runProject(t).root, items: ["x"], host: "github-copilot", maxAiCredits: 0, deps: deps(other) }));
 });
 
 test("[REQ-idd-031] a cost cap is optional; each turn gets what is left of it, and a turn the host's own cap ends fails the run with max-cost", async (t) => {

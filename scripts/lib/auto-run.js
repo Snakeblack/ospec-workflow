@@ -21,8 +21,8 @@ const RUN_STATUSES = Object.freeze(["running", "blocked", "paused", "stopped", "
 // Only one run per repository is active: running, or waiting for the user.
 const ACTIVE_STATUSES = Object.freeze(["running", "blocked", "paused"]);
 const ITEM_STATUSES = Object.freeze(["pending", "running", "closed"]);
-// What a run counts as spent: the cost its host reports, or the tokens.
-const SPEND = Object.freeze(["cost", "tokens"]);
+// What a run counts as spent: the cost its host reports, the tokens or the AI credits.
+const SPEND = Object.freeze(["cost", "tokens", "credits"]);
 const MAX_ITEMS = 20;
 
 class AutoError extends Error {
@@ -61,7 +61,7 @@ function runProblem(run, id) {
   if (run.id !== id) return `it names the run ${JSON.stringify(run.id)}`;
   if (!RUN_STATUSES.includes(run.status)) return `its status ${JSON.stringify(run.status)} is none of ${RUN_STATUSES.join(", ")}`;
   // Absent in a run from before E1.110, which counts its cost.
-  if (run.spend !== undefined && !SPEND.includes(run.spend)) return `its spend ${JSON.stringify(run.spend)} is neither cost nor tokens`;
+  if (run.spend !== undefined && !SPEND.includes(run.spend)) return `its spend ${JSON.stringify(run.spend)} is none of ${SPEND.join(", ")}`;
   if (!Array.isArray(run.items) || run.items.length === 0 || run.items.length > MAX_ITEMS) return `it holds no list of 1 to ${MAX_ITEMS} items`;
   const item = run.items.findIndex((entry) => !isObject(entry) || typeof entry.text !== "string" || !ITEM_STATUSES.includes(entry.status));
   if (item !== -1) return `item ${item + 1} has no text or a status other than ${ITEM_STATUSES.join(", ")}`;

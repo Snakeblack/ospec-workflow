@@ -47,7 +47,7 @@ const REFUSALS = Object.freeze({
   "host-unavailable": "pass --host with a host ospec auto drives (ospec --help lists them), or leave it out for claude",
   "invalid-answer": "pass the user's reply to the block with --answer, or resume without it",
   "invalid-items": "pass 1 to 20 --item flags, each the request of one change",
-  "invalid-limit": "--max-turns takes a whole number from 1; --max-cost-usd, a positive amount, caps a host that reports its cost and --max-tokens, a whole number, one that does not",
+  "invalid-limit": "--max-turns takes a whole number from 1; --max-cost-usd, a positive amount, caps a host that reports its cost, --max-tokens, a whole number, one that does not, and --max-ai-credits, a positive number, GitHub Copilot",
   "no-run": `${AUTO_STATUS}; start one with ospec auto start --item "<request>"`,
   "open-change": "close or abandon it first: ospec status lists it",
   "run-active": `one automatic run at a time: ${AUTO_STATUS}; stop it with ospec auto stop, or continue it with ospec auto resume`,

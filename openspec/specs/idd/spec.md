@@ -3885,13 +3885,15 @@ MUST name its source `delegated, run <run>`. The CLI cannot verify who sets
 
 `ospec auto start --item <request>...` MUST work each request, from 1 to 20 in
 the given order, as one IDD change in a new headless session of the host.
-`--host` MUST take `claude`, the default, `cursor`, `opencode` or `codex`, the
-hosts on which a run closed a change live; `vscode`, which has no headless mode, and any other
+`--host` MUST take `claude`, the default, `cursor`, `opencode`, `codex` or
+`github-copilot`, the hosts on which a run closed a change live; `vscode`, which has no headless mode, and any other
 host MUST be refused with `host-unavailable` and the reason. The session MUST
 run with the user's own configuration and ospec install, in the host's mode
 that reviews each action where it has one (`--permission-mode auto` in Claude
 Code, `--auto-review` in Cursor, `--approve-for-me` in Codex) or else approving whatever its configuration
-does not deny (`--auto` in OpenCode), which the run's first line MUST say. Its environment MUST NOT hold `OSPEC_AUTO_RUN` nor the markers
+does not deny (`--auto` in OpenCode, `--allow-all-tools` in GitHub Copilot, whose
+assisted-approval judge denies every edit headless, with `--add-dir` on
+Copilot's own home, where its ospec install lives), which the run's first line MUST say. Its environment MUST NOT hold `OSPEC_AUTO_RUN` nor the markers
 of a Claude Code session that launched the conductor. Each item MUST start with its request followed by a brief that asks
 for one IDD change until `ospec close`, a recommendation per question before a
 turn ends with a gate's questions (REQ-idd-030), and no commit, push, pull
@@ -3904,8 +3906,9 @@ while another run is running with a live conductor, blocked or paused,
 `idd/config.yaml` fails on `HEAD`. Before each later item the tree MUST be
 clean and no change open, or the run MUST fail on that item.
 
-On a host whose end-of-turn hook does not run headless (Cursor) or runs there
-only once the user approved it (Codex), the conductor MUST add each turn end to the count of REQ-idd-008 once the session's process
+On a host whose end-of-turn hook does not run headless (Cursor), runs there
+only once the user approved it (Codex) or counted no turn end before this
+version (GitHub Copilot), the conductor MUST add each turn end to the count of REQ-idd-008 once the session's process
 ends, unless the turn was stopped. After each turn the conductor MUST read the
 disk, not the session's words:
 the item's change is the only change its session opened, and a session that
@@ -3927,12 +3930,16 @@ spending cap MUST NOT have a default: only when given, `--max-cost-usd` of the
 run on a host that reports its cost (Claude Code, OpenCode), from the cost
 each session reports so far and never the sum of its turns, and `--max-tokens` of the run on
 one that reports none (Cursor, Codex), from the tokens of each turn or of the session
-so far, MUST stop it the same way, as `max-cost` or `max-tokens`; each cap on
-the other kind of host MUST be refused with `invalid-limit`, and the run's
+so far, and `--max-ai-credits` of the run on GitHub Copilot, from the AI credits
+each session reports so far, MUST stop it the same way, as `max-cost`,
+`max-tokens` or `max-credits`; each cap on another kind of host MUST be refused
+with `invalid-limit`, and the run's
 first line MUST name its cap or say it has none. In Claude Code each turn MUST
 carry `--max-budget-usd` with what is left of the cost cap, which Claude Code
 counts per invocation, and a turn it ends (`error_max_budget_usd`) MUST stop
-the run as `max-cost`. The run is `done` when every item is closed.
+the run as `max-cost`. In GitHub Copilot each turn MUST carry `--max-ai-credits`
+with what is left of the credit cap, rounded down, while at least 30 credits,
+the least Copilot takes, are left. The run is `done` when every item is closed.
 
 The run MUST be recorded in `.ospec/auto/<run>/run.json`, written atomically
 after every step, with its id `auto-<YYYYMMDD>-<HHMMSS>` in UTC, schema
@@ -3990,6 +3997,15 @@ exit 0 only when the run is `done`.
 - WHEN the item's session has used 9000 tokens so far
 - THEN the run MUST fail on the item with `max-tokens`
 - AND `--max-cost-usd` on that run MUST be refused with `invalid-limit`
+
+#### Scenario: GitHub Copilot is capped by AI credits
+
+- GIVEN `ospec auto start --host github-copilot --max-ai-credits 40`
+- WHEN the item's session reports 12 AI credits after its first turn
+- THEN its second turn MUST carry no `--max-ai-credits`, since 28 credits are left
+- AND when the session reports 41.5 credits, the run MUST fail with `max-credits`
+- AND `--max-tokens` or `--max-cost-usd` on that run MUST be refused with
+  `invalid-limit`
 
 #### Scenario: Claude Code applies the cost cap inside the turn
 
