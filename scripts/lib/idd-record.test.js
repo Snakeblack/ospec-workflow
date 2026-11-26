@@ -8,7 +8,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 
-const { unaskedRisk, validateState } = require("./idd-contract.js");
+const { GATES, unaskedRisk, validateState } = require("./idd-contract.js");
 const {
   IddRecordError,
   requireAskedRisk,
@@ -21,7 +21,9 @@ const {
   recordGate,
   recordImpact,
   recordIntent,
+  recordRecommendation,
   recordReferences,
+  recordRetract,
   recordSignal,
   recordWithdraw,
   reopenDerived,
@@ -434,6 +436,114 @@ test("gate records reject unknown gates, unopened resolutions and the intent-own
   );
   assertCode(() => recordGate(state, { id: "ambiguous-intent", action: "open" }), "gate-managed-by-intent");
   assertCode(() => recordGate(state, { id: "irreversible-operation", action: "skip" }), "invalid-action");
+});
+
+// ---------------------------------------------------------------------------
+// recommendations and delegated answers (REQ-idd-030)
+// ---------------------------------------------------------------------------
+
+const QUESTIONS = Object.freeze(["Is the threshold checked after the discount?", "Is an unknown code an error?"]);
+
+// An open-facts gate as the turn fence leaves it: opened at turn 3.
+function askedFacts() {
+  const state = structuredClone(recordIntent(null, { ...FEATURE, kind: "bug", openFacts: [...QUESTIONS] }).state);
+  state.gates[0].opened_turn = 3;
+  return state;
+}
+
+function recommendAll(state) {
+  const first = recordRecommendation(state, { gate: "open-facts", question: 1, answer: "After the discount." }).state;
+  return recordRecommendation(first, { gate: "open-facts", question: 2, answer: "Yes, it throws." }).state;
+}
+
+const DELEGATED = Object.freeze({ id: "open-facts", action: "resolve", source: "delegated", run: "run-7", turn: 4, recordedAt: "2026-11-25T10:00:00.000Z" });
+
+test("[REQ-idd-030] a recommendation names a question of an open gate, in question order, and replaces itself while the gate is open", () => {
+  const state = askedFacts();
+  const second = recordRecommendation(state, { gate: "open-facts", question: 2, none: true });
+  assertValid(second.state);
+  assert.deepStrictEqual(second.state.gates[0].recommendations, [{ question: QUESTIONS[1], none: true }]);
+  const both = recordRecommendation(second.state, { gate: "open-facts", question: 1, answer: "After the discount." }).state;
+  assert.deepStrictEqual(both.gates[0].recommendations, [{ question: QUESTIONS[0], answer: "After the discount." }, { question: QUESTIONS[1], none: true }]);
+  assert.strictEqual(recordRecommendation(both, { gate: "open-facts", question: 1, answer: "After the discount." }).changed, false);
+  const replaced = recordRecommendation(both, { gate: "open-facts", question: 2, answer: "Yes, it throws." }).state;
+  assert.deepStrictEqual(replaced.gates[0].recommendations[1], { question: QUESTIONS[1], answer: "Yes, it throws." });
+  assert.strictEqual(replaced.gates[0].opened_turn, 3, "the gate keeps the turn it opened in");
+
+  // A gate without a list asks one question: its own.
+  const irreversible = recordGate(opened(), { id: "irreversible-operation", action: "open", reason: "drops fax_number" }).state;
+  const one = recordRecommendation(irreversible, { gate: "irreversible-operation", question: 1, answer: "Approve it: the column is empty." }).state;
+  assert.deepStrictEqual(one.gates[0].recommendations, [{ question: "This operation is destructive or irreversible. Approve it?", answer: "Approve it: the column is empty." }]);
+  assertCode(() => recordRecommendation(irreversible, { gate: "irreversible-operation", question: 2, answer: "x" }), "invalid-question");
+
+  assertCode(() => recordRecommendation(state, { gate: "open-facts", question: 3, answer: "x" }), "invalid-question");
+  assertCode(() => recordRecommendation(state, { gate: "open-facts", question: 0, answer: "x" }), "invalid-question");
+  assertCode(() => recordRecommendation(state, { gate: "open-facts", question: 1 }), "recommendation-required");
+  assertCode(() => recordRecommendation(state, { gate: "open-facts", question: 1, answer: "x", none: true }), "recommendation-required");
+  assertCode(() => recordRecommendation(state, { gate: "open-facts", question: 1, answer: "  " }), "recommendation-required");
+  assertCode(() => recordRecommendation(state, { gate: "size-review", question: 1, answer: "x" }), "unknown-gate");
+  assertCode(() => recordRecommendation(state, { gate: "review-limit", question: 1, answer: "x" }), "gate-not-open");
+  // Once answered, the recommendations stay as they were.
+  const answered = recordGate(both, { id: "open-facts", action: "resolve", answer: "As recommended.", source: "user" }).state;
+  assert.deepStrictEqual(answered.gates[0].recommendations, both.gates[0].recommendations);
+  assertCode(() => recordRecommendation(answered, { gate: "open-facts", question: 2, answer: "x" }), "gate-not-open");
+});
+
+test("[REQ-idd-030] an automatic run answers open-facts with the recommendation of each question, after a turn end, once", () => {
+  const recommended = recommendAll(askedFacts());
+  const { state, changed } = recordGate(recommended, DELEGATED);
+  assert.strictEqual(changed, true);
+  assert.deepStrictEqual(state.gates, [
+    {
+      id: "open-facts",
+      status: "resolved",
+      opened_turn: 3,
+      recommendations: [
+        { question: QUESTIONS[0], answer: "After the discount." },
+        { question: QUESTIONS[1], answer: "Yes, it throws." },
+      ],
+      answer: `${QUESTIONS[0]} → After the discount.\n${QUESTIONS[1]} → Yes, it throws.`,
+      source: "delegated",
+      run: "run-7",
+      resolved_at: DELEGATED.recordedAt,
+    },
+  ]);
+  // The turn fence stamps the turn of the answer.
+  assertValid({ ...state, gates: [{ ...state.gates[0], resolved_turn: 4 }] });
+  assert.strictEqual(recordGate(state, { ...DELEGATED, turn: 5 }).changed, false, "a replay by the same run changes nothing");
+  assertCode(() => recordGate(state, { ...DELEGATED, run: "run-8" }), "gate-conflict");
+  assertCode(() => recordGate(state, { id: "open-facts", action: "resolve", answer: "No.", source: "user" }), "gate-conflict");
+});
+
+test("[REQ-idd-030] a delegated answer is refused with its cause outside a run, on a gate only the user answers, without every recommendation or before a turn end", () => {
+  const recommended = recommendAll(askedFacts());
+  const refusedWith = (fn, cause) =>
+    assert.throws(fn, (error) => error instanceof IddRecordError && error.code === "delegation-refused" && cause.test(error.message), String(cause));
+  refusedWith(() => recordGate(recommended, { ...DELEGATED, answer: "Mine." }), /pass no --answer/);
+  refusedWith(() => recordGate(recommended, { ...DELEGATED, run: undefined }), /only inside an automatic run: OSPEC_AUTO_RUN is not set/);
+  refusedWith(() => recordGate(recommended, { ...DELEGATED, run: "" }), /OSPEC_AUTO_RUN is not set/);
+  refusedWith(() => recordGate(recommended, { ...DELEGATED, run: "Run_7" }), /kebab-case id of at most 64 characters/);
+  refusedWith(() => recordGate(recommended, { ...DELEGATED, run: "r".repeat(65) }), /kebab-case id of at most 64 characters/);
+  for (const id of GATES.filter((gate) => gate !== "open-facts" && gate !== "ambiguous-intent")) {
+    refusedWith(() => recordGate(recommended, { ...DELEGATED, id }), new RegExp(`gate ${id} takes only the user's answer`));
+  }
+  refusedWith(
+    () => recordIntent(recordIntent(null, { change: "improve-login", ambiguous: true, request: "Improve the login." }).state, { change: "improve-login", kind: "bug", summary: "s", acceptance: "a", answer: "x", source: "delegated", ...NO_OPEN_FACTS }),
+    /ambiguous-intent takes only the user's answer/,
+  );
+  refusedWith(() => recordRetract(opened(), { id: "persistent-data", reason: "no data", answer: "No data.", source: "delegated" }), /the retraction of persistent-data takes only the user's answer/);
+
+  const partial = recordRecommendation(askedFacts(), { gate: "open-facts", question: 1, answer: "After the discount." }).state;
+  refusedWith(() => recordGate(partial, DELEGATED), /question 2 of open-facts has no recommendation/);
+  refusedWith(() => recordGate(askedFacts(), DELEGATED), /questions 1, 2 of open-facts have no recommendation/);
+  const none = recordRecommendation(partial, { gate: "open-facts", question: 2, none: true }).state;
+  refusedWith(() => recordGate(none, DELEGATED), /question 2 of open-facts has no recommendation/);
+
+  refusedWith(() => recordGate(recommended, { ...DELEGATED, turn: null }), /no turn count in \.ospec\/turns/);
+  refusedWith(() => recordGate(recommended, { ...DELEGATED, turn: 3 }), /no turn ended since gate open-facts opened/);
+  const unfenced = structuredClone(recommended);
+  delete unfenced.gates[0].opened_turn;
+  refusedWith(() => recordGate(unfenced, DELEGATED), /keeps no turn of its opening/);
 });
 
 // ---------------------------------------------------------------------------

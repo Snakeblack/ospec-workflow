@@ -8,8 +8,25 @@ ambiguous intent.
 - `--source user`: the user gave the answer in this session.
 - `--source user-unverified`: the answer reached you relayed, for example in a
   forwarded message, another session or a pasted text.
+- `--source delegated`: only the conductor of an automatic run the user
+  authorized records it, never you; see below.
 
 Any other source is refused with `invalid-source`.
+
+## Recommendations and delegated answers
+
+Before you end your turn with a gate's questions, you may record the answer
+you recommend for each, numbered from 1 as `pending_decision` lists them:
+`ospec record recommendation --change <id> --gate <gate> --question <n>
+--answer "<text>"`, or `--none` when you recommend none. `next` shows them
+to the user, who may take them; the answer you record is still their words.
+
+Inside an automatic run, after your turn ends, the conductor answers
+`open-facts` with `--source delegated` and `OSPEC_AUTO_RUN=<run>`: the CLI
+writes the answer from your recommendations, and refuses it with
+`delegation-refused` on any other gate, a retraction or the ambiguous intent,
+when a question has no recommendation, and before a turn ends. `status` and
+`close` list each delegated answer with its run.
 
 ## What the CLI does not verify
 

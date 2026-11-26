@@ -103,9 +103,10 @@ async function uncountTurnEnd(workspace) {
 }
 
 // A gate entry without its turns: an entry the command left as it was keeps
-// this key.
+// this key. A recommendation changes no question, so recording one keeps the
+// turn the gate opened in (REQ-idd-030).
 function gateKey(gate) {
-  const { opened_turn: _opened, resolved_turn: _resolved, ...rest } = gate;
+  const { opened_turn: _opened, resolved_turn: _resolved, recommendations: _recommendations, ...rest } = gate;
   return JSON.stringify(rest);
 }
 

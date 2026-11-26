@@ -13,7 +13,7 @@
       "summary": "Deriva señales y obligaciones de un cambio, registra la evidencia observada y lo cierra.",
       "evidence": ["scripts/lib/idd-signals.js:4", "scripts/lib/idd-close.js:4"],
       "paths": ["scripts/lib/idd-*.js"],
-      "knowledge": { "adrs": ["0003", "0004", "0005", "0011"], "scenarios": ["deterministic-resume"] }
+      "knowledge": { "adrs": ["0003", "0004", "0005", "0011", "0013"], "scenarios": ["deterministic-resume"] }
     },
     {
       "id": "change-state",

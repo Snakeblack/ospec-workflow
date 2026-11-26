@@ -295,6 +295,7 @@ test("status summarizes each change in id order", () => {
         signals: ["always", "bug-fix"],
         obligations: { pending: ["repro-test"], satisfied: ["checks-pass"], withdrawn: [] },
         open_gates: [],
+        delegated_answers: [],
       },
       {
         change: "improve-login",
@@ -304,6 +305,7 @@ test("status summarizes each change in id order", () => {
         signals: [],
         obligations: { pending: [], satisfied: [], withdrawn: [] },
         open_gates: ["ambiguous-intent"],
+        delegated_answers: [],
       },
     ],
   });

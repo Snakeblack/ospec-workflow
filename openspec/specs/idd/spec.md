@@ -92,7 +92,8 @@ about (REQ-idd-014): `from`, `to`, `commits`, `paths` and `archived`, for `aband
 `superseded_by`, the id of the change that replaces this one (REQ-idd-028), and, since E1.49, the turn counts of its
 opening and answer, `opened_turn` and `resolved_turn`, and for an answer the
 turn fence kept as `user-unverified` the `declared_source` `user` and the
-`unverified_reason` (REQ-idd-008)) and
+`unverified_reason` (REQ-idd-008), and, since E1.107, the `recommendations`
+of its questions and, for a `delegated` answer, the `run` (REQ-idd-030)) and
 `evidence` (each with `id`, `kind`, `obligation` and `recorded_at`, plus the
 `detail` that names the runs behind run evidence), and optionally `base` (the
 commit the change started from, or null outside git), `base_moves` (each move
@@ -472,10 +473,11 @@ when a `refactor` removes documentation lines that read like a contract
 later commit (REQ-idd-014). No
 other question MAY block progress. A gate MUST be
 resolved only by an explicit user answer, recorded with its source: `user`, or
-`user-unverified` for an answer relayed rather than given in the session. Any
-other source MUST be refused with `invalid-source`, both in `record gate` and
-when `record intent` resolves `ambiguous-intent`; a stored state MUST keep the
-source it already has. The source, the answer and a `--quote` of `--request`
+`user-unverified` for an answer relayed rather than given in the session, or,
+for `open-facts` alone, by the `delegated` answer of an automatic run the user
+authorized (REQ-idd-030). Any other source MUST be refused with
+`invalid-source`, both in `record gate` and when `record intent` resolves
+`ambiguous-intent`; a stored state MUST keep the source it already has. The source, the answer and a `--quote` of `--request`
 are declared by the agent: the CLI MUST NOT claim to verify that the user gave
 them, so a gate the agent resolves itself, `review-limit` included, still
 records as resolved. While
@@ -742,7 +744,7 @@ reproduce these expectations.
 
 The `ospec` CLI MUST expose `status`, `next` and `record`, each with a `--json`
 output. `status` MUST list each change with its kind, its open gates, its
-obligations by status and the ids of its recorded signals, read-only. `record` MUST accept the types `intent`, `signal`, `gate`, `withdraw`,
+obligations by status, the ids of its recorded signals and the answers an automatic run recorded (`delegated_answers`, REQ-idd-030), read-only. `record` MUST accept the types `intent`, `signal`, `gate`, `recommendation` (REQ-idd-030), `withdraw`,
 `retract` (REQ-idd-006) and `impact` (REQ-idd-020), and MUST NOT accept evidence: evidence is recorded only by the CLI
 commands that observe the execution it proves (REQ-idd-007). Every `record`
 MUST be idempotent: repeating it MUST leave `state.yaml` byte-identical, and
@@ -3796,3 +3798,80 @@ keep requiring every obligation of a change that is delivered (REQ-idd-009).
 - THEN its step MUST be `abandon` with `ospec abandon --change <id>`
 - AND that command MUST move it to the archive, and `ospec close` and
   `ospec check` MUST be refused with `change-abandoned`
+
+### Requirement: Delegated Answers In An Automatic Run {#REQ-idd-030}
+
+A gate MAY keep the answer the model recommends for each of its questions.
+`ospec record recommendation --change <id> --gate <id> --question <n>
+(--answer <text> | --none)` MUST record it on the open entry of that gate as
+`recommendations`, one per question, each with its `question` text and either
+the recommended `answer` or `none: true`, in the order of the questions. The
+questions of a gate are numbered from 1: the open facts of `open-facts`, the
+removed lines of `contract-removal`, and the one question of any other gate,
+the one `next` shows. A number outside them MUST be refused with
+`invalid-question`, a gate that is not open with `gate-not-open`, and an answer
+that is no text, or both `--answer` and `--none`, with
+`recommendation-required`. Recording a question again MUST replace its
+recommendation while the gate is open, the same one MUST change nothing, and
+a recommendation MUST NOT count as a change of the gate for the turn fence
+(REQ-idd-008), so the gate keeps the turn it opened in. `next` MUST show the
+recommendations of the questions the gate asks in `pending_decision`, as
+`recommendations`; one of a question it no longer asks MUST be left out.
+
+The source `delegated` is the answer of an automatic run the user authorized.
+`record gate --resolve --source delegated` MUST take no `--answer` and MUST
+read the run from the environment variable `OSPEC_AUTO_RUN`, a kebab-case id of
+at most 64 characters. The conductor of the run MUST set it only in the
+environment of its own `ospec` call that records the answer, never in that of
+the host session where the model works, so the model never holds it. It MUST resolve the gate only when the gate is
+`open-facts`, every question of the gate has a recommended answer, and a turn
+ended since the gate opened: the count of REQ-idd-008 at the answer exists and
+differs from `opened_turn`. Then the gate MUST hold `source` `delegated`, the
+`run`, the `recommendations` it was answered with and, as `answer`, one line
+per question, `<question> → <answer>`, written by the CLI. Otherwise it MUST be
+refused with `delegation-refused`, whose message names the cause: an
+`--answer`, a gate that takes only the user's answer, `OSPEC_AUTO_RUN` unset or
+not an id, the questions without a recommendation, or no turn count or no turn
+end since the gate opened. `record intent` resolving `ambiguous-intent` and
+`record retract` with the user's answer (REQ-idd-006) MUST refuse `delegated`
+with `delegation-refused` too. Resolving again from the same run MUST change
+nothing; any other answer to a resolved gate MUST be refused with
+`gate-conflict`. `validateState` MUST refuse `recommendations` that name a
+question twice or hold anything but a question with an answer or `none: true`,
+a `run` outside a `delegated` answer, and a `delegated` answer on another gate,
+without its `run`, without its recommendations or with a `none` among them, or
+without both turns and a turn end between them; a retraction MUST NOT hold
+`delegated`. `status` (REQ-idd-011) and `close` (REQ-idd-017) MUST return each
+gate a delegated answer resolved in `delegated_answers`, with its `gate`, `run`,
+`at` and `answer`, which is no warning, and the log of `change.md` (REQ-idd-004)
+MUST name its source `delegated, run <run>`. The CLI cannot verify who sets
+`OSPEC_AUTO_RUN`, as it cannot verify a `user` answer.
+
+#### Scenario: An automatic run answers open facts after the turn ends
+
+- GIVEN `.ospec/turns` holds 3 when a change opens with two open facts, and
+  the model recommends an answer for each
+- WHEN `record gate --gate open-facts --resolve --source delegated` runs with
+  `OSPEC_AUTO_RUN=run-1` while the count is still 3
+- THEN it MUST be refused with `delegation-refused`, naming that no turn ended
+- AND once the count is 4 the same command MUST resolve the gate with `source`
+  `delegated`, `run` `run-1`, `resolved_turn` 4 and one line per question
+- AND `status` and `close` MUST list it in `delegated_answers`, and `close`
+  MUST NOT warn about it
+
+#### Scenario: A delegated answer outside its limits is refused with its cause
+
+- GIVEN an open `open-facts` whose second question has no recommendation, or
+  only `none`
+- WHEN it is resolved with `--source delegated` after a turn end
+- THEN it MUST be refused with `delegation-refused`, naming question 2
+- AND without `OSPEC_AUTO_RUN`, with `--answer`, on any other gate, on
+  `ambiguous-intent` through `record intent` or on a retraction, it MUST be
+  refused with `delegation-refused` and its cause
+
+#### Scenario: A recommendation keeps the turn of the gate
+
+- GIVEN an `open-facts` gate opened at turn 3
+- WHEN its first question is recommended at turn 6
+- THEN the gate MUST keep `opened_turn` 3
+- AND `next` MUST show that recommendation for the question

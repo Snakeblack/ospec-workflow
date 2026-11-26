@@ -1,0 +1,1000 @@
+{
+  "schema": "idd-state/v1",
+  "change": "delegated-answers",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "requested_at": "2026-11-25T20:55:50.585Z",
+    "kind": "feature",
+    "summary": "Respuestas delegadas (E1.107): cada pregunta de un gate guarda la recomendación del modelo, y una ejecución automática autorizada puede resolver con la fuente delegated los gates que no son bloqueantes",
+    "acceptance": "Un gate open-facts con recomendación en todas sus preguntas se resuelve con la fuente delegated dentro de una ejecución autorizada y close lo lista; el mismo intento fuera de una ejecución, sobre un gate bloqueante o con una pregunta sin recomendación se rechaza con su causa; el corpus compartido lo fija en JS y en Go; el ADR está aceptado"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Cómo deja el modelo su recomendación por pregunta y cómo se forma la respuesta delegada: con una orden nueva «ospec record recommendation --gate <id> --question <n> (--answer \"<texto>\" | --none)» válida en cualquier gate abierto, y resolviendo con «--source delegated» sin «--answer», para que el CLI componga la respuesta con las recomendaciones guardadas?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿Cómo se identifica una ejecución autorizada y cuándo vale su respuesta: con la variable «OSPEC_AUTO_RUN=<id>» (kebab-case, hasta 64 caracteres) que el conductor pone solo en sus llamadas al CLI, exigiendo además que haya terminado al menos 1 turno desde que se abrió el gate, y rechazando sin contador de turnos?"
+      },
+      {
+        "category": "persistence",
+        "question": "¿Dónde se guarda y qué compatibilidad tiene: «recommendations» en la entrada del gate (texto de la pregunta y respuesta o «none»), «source: delegated» con «run: <id>» al resolver, sin subir el esquema «idd-state/v1» y legible por un CLI anterior; y una recomendación repetida sustituye a la anterior mientras el gate siga abierto?"
+      },
+      {
+        "category": "copy",
+        "question": "¿Cómo se muestran: «next» con la recomendación de cada pregunta en «pending_decision» también en modo interactivo, «status» y «close» con un campo «delegated_answers» que no es un aviso, «change.md» con «delegated, run <id>» en «Request and answers», y el ADR 0013 registrado como «accepted» con estas respuestas?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "skills/idd/SKILL.md",
+          "line": 23
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1786
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿Qué gates admiten «delegated» en esta versión: solo «open-facts», rechazando con «delegation-refused» y su causa los 5 bloqueantes, «kind-change», «checks-changed», «review-limit», «base-moved», la retracción con respuesta del usuario y un gate con alguna pregunta sin recomendación?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/README.md",
+      "docs/architecture/component-map.yaml",
+      "docs/architecture/decisions/0013-respuestas-delegadas.md",
+      "docs/en/README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/flujo-idd.md",
+      "internal/testdata/idd-session/steps/expected/session/latest.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/hooks/idd-session.test.js",
+      "scripts/lib/idd-close.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/lib/turn-fence.js",
+      "scripts/lib/turn-fence.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.lifecycle.test.js",
+      "scripts/ospec.test.js",
+      "skills/idd/references/approvals.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "La recomendación de cada pregunta se registra con la orden nueva ospec record recommendation --gate <id> --question <n> (--answer | --none), válida en cualquier gate abierto, y se guarda en la entrada del gate como recommendations; repetirla con el gate abierto la sustituye y con el gate resuelto se rechaza",
+      "La fuente delegated no admite --answer: el CLI compone la respuesta con las recomendaciones guardadas, así lo registrado es la recomendación literal",
+      "La ejecución autorizada se identifica con OSPEC_AUTO_RUN=<id> (kebab-case, hasta 64 caracteres), que queda en el gate como run; delegated exige un turno terminado desde la apertura del gate y se rechaza sin contador de turnos. El registro en .ospec/auto/ queda para E1.108",
+      "Solo open-facts admite delegated en esta versión; el resto de gates, la retracción con respuesta del usuario y un gate con alguna pregunta sin recomendación se rechazan con delegation-refused y su causa",
+      "El estado crece de forma aditiva sin subir idd-state/v1: un CLI anterior lo sigue leyendo",
+      "next muestra las recomendaciones en pending_decision; status y close devuelven delegated_answers, que no es un aviso; change.md marca la respuesta como delegated, run <id>"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 726
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration",
+      "recorded_turn": 726
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration",
+      "recorded_turn": 726
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 727
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/idd-session.test.js (matches scripts/hooks/**)",
+      "source": "declaration",
+      "recorded_turn": 727
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff",
+      "recorded_turn": 728
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Qué gates admiten delegated, que toda pregunta tenga recomendación y el turno terminado los decide el CLI con tests; la skill solo lo describe"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "Delegar nunca baja la ceremonia: kind-change y las retracciones siguen esperando al usuario y ninguna obligación cambia"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "Una respuesta delegada solo resuelve open-facts y no satisface ninguna obligación; close sigue exigiendo evidencia y ningún gate abierto"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "La memoria entre sesiones no interviene: la recomendación y la respuesta delegada salen del estado en disco"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "No añade dependencias ni descargas"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "Solo toca el estado de IDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "next muestra las recomendaciones desde el disco y status y close leen las respuestas delegadas del estado, así que una sesión nueva retoma igual"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "Nada depende de la red ni de la memoria"
+    },
+    {
+      "kind": "adr",
+      "id": "0002",
+      "impact": "conforms",
+      "reason": "Las recomendaciones y las respuestas delegadas viven en state.yaml y solo el CLI las escribe, validadas y bajo lock"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "Los campos nuevos son aditivos bajo idd-state/v1, y un test valida el estado nuevo con el contrato de v2.187.1"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "La versión anterior lee el estado con recomendaciones y respuestas delegadas: lo fija un test contra el contrato de v2.187.1"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "Sin OSPEC_AUTO_RUN válido, sin contador de turnos, sin turno terminado o con una pregunta sin recomendación, la respuesta delegada se rechaza"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Ante una ejecución sin id, sin contador de turnos o sin recomendación completa, el CLI rechaza la respuesta delegada en vez de admitirla"
+    },
+    {
+      "kind": "adr",
+      "id": "0013",
+      "impact": "conforms",
+      "reason": "Este cambio lo implementa: solo open-facts admite delegated, con la recomendación de cada pregunta, la ejecución de OSPEC_AUTO_RUN y un turno terminado"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 726,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_at": "2026-11-25T22:26:54.714Z",
+      "resolved_turn": 727
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-25T22:48:07.179Z",
+      "detail": {
+        "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-25T22:48:07.179Z",
+      "detail": {
+        "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.lifecycle.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-25T22:48:47.253Z",
+      "detail": {
+        "run": "run-14",
+        "tree": "sha256:355626ec81fbf5d9ee39180b949c11cdd56c165687c0a2d0503de97de26e8f7e",
+        "plan": "Sin migración: recommendations, run y la fuente delegated se añaden bajo idd-state/v1 sin cambiar ningún campo existente, y el contrato de v2.187.1 valida el estado nuevo, así que volver a la versión anterior lo sigue leyendo; un estado anterior no tiene esos campos y sigue siendo válido"
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-25T22:57:01.415Z",
+      "detail": {
+        "lineage_id": "sha256:9f08f4833627ae8751d8b24bb87ac464ed476d8d760e977bf72d8cdc291b7860",
+        "candidate_id": "sha256:17324b4df535920eb0b619847369f0fece6a2cdfcd2988fe5fa2e3200e272d88",
+        "candidate_tree": "549f0794ab3de7e576204f5a558d5cff44617ad9",
+        "findings_digest": "sha256:2fbee5c469e99a7174e9482e3ebda73cb921077f0385ac345b4dcfd71cea829a",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-25T22:56:54.637Z",
+          "result_digest": "sha256:c2c00ae8a2baa6469d4de141add29d6f54523429a2e3f1285c69ab2811c2adb8"
+        }
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-25T22:59:39.270Z",
+      "detail": {
+        "lineage_id": "sha256:9f08f4833627ae8751d8b24bb87ac464ed476d8d760e977bf72d8cdc291b7860",
+        "candidate_id": "sha256:17324b4df535920eb0b619847369f0fece6a2cdfcd2988fe5fa2e3200e272d88",
+        "candidate_tree": "848eed2a826da17d440bdc440ffc04b563e15114",
+        "findings_digest": "sha256:2fbee5c469e99a7174e9482e3ebda73cb921077f0385ac345b4dcfd71cea829a",
+        "correction": "advisory",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-correction",
+          "recorded_at": "2026-11-25T22:59:31.378Z",
+          "result_digest": "sha256:5a170fcf794ffad550be8ace82a24f78e53ac2957c5fdd32984c170eda97f835"
+        }
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "detail": {
+        "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+        "runs": [
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "detail": {
+        "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+        "check": "ev-6",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.lifecycle.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none",
+          "adr:0002 conforms",
+          "adr:0009 conforms",
+          "scenario:contract-compatibility conforms",
+          "adr:0008 conforms",
+          "scenario:guard-fail-closed conforms",
+          "adr:0013 conforms"
+        ],
+        "records": [],
+        "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+        "fitness": [
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26",
+          "run-27"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-25T23:01:43.535Z",
+      "detail": {
+        "run": "run-28",
+        "tree": "sha256:d31e4e490e932483695581316a8848b41e3d649094c00dc344f43484fbf0917a",
+        "plan": "Sin migración: recommendations, run y la fuente delegated se añaden bajo idd-state/v1 sin cambiar ningún campo existente, y el contrato de v2.187.1 valida el estado nuevo, así que volver a la versión anterior lo sigue leyendo; un estado anterior no tiene esos campos y sigue siendo válido"
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-25T23:02:03.006Z"
+    }
+  ],
+  "base": "c324a29e2cec300b1bfbdeb88246883048973748",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fc3c1d37767a5628aa0d346dcdcb769c7ef84c93dc4acef2e401a7388f032d80",
+      "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+      "recorded_at": "2026-11-25T22:48:07.179Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9d9ad251b2c6648b4d0f47c27242e60ca147e588d883e342789f3ccf2bdf70e3",
+      "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+      "recorded_at": "2026-11-25T22:48:07.179Z",
+      "tests": 63
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d53eae286471f06d206715efa07ca4e2c9a7cd43115cfc96ce43cab5b1fd1751",
+      "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+      "recorded_at": "2026-11-25T22:48:07.179Z",
+      "tests": 21
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:192190f8f6a9e22f92200f2686b9b9546a424d7571da30b6b9a47b307fef87fe",
+      "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+      "recorded_at": "2026-11-25T22:48:07.179Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+      "recorded_at": "2026-11-25T22:48:07.179Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ad0f6f1611565d95fbbef0857b1b1c6490be912f40c4d780a1baf09f7e653e29",
+      "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+      "recorded_at": "2026-11-25T22:48:07.179Z",
+      "tests": 26
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ea4d2e058635adca7782e66515847032d656864ef14c7f4cd5c6cd1db4591ef4",
+      "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+      "recorded_at": "2026-11-25T22:48:07.179Z",
+      "tests": 101
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4eac945ce266d6fc15f0643aefe2b4150a52ebf3007d73945be3d6062a14475f",
+      "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+      "recorded_at": "2026-11-25T22:48:07.179Z",
+      "tests": 60
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a3f3c1641a9af86dd7c64988f5e64d633ffa5b38de50abb4df356b2aecb08cec",
+      "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+      "recorded_at": "2026-11-25T22:48:07.179Z",
+      "tests": 19
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:527a9c10c11dce08986a2f325d3d9ebff46330f1ccaef343f59b893f98c4893c",
+      "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+      "recorded_at": "2026-11-25T22:48:07.179Z",
+      "tests": 32
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d02c0d2b23d1de90b18657b95f70f957432d39b87f30d2b8cb0a7188d4bb04cd",
+      "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+      "recorded_at": "2026-11-25T22:48:07.179Z",
+      "tests": 32
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ff3a1f24adc83e5d2d2abffc3cfd44979ccee94482dc833981b60a5bd4ed4c0e",
+      "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+      "recorded_at": "2026-11-25T22:48:07.179Z",
+      "tests": 103
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6c07f048beb684f3389a3476c2f6965488aafb47f847f8818a9e372e3cc559bb",
+      "tree": "sha256:ffe2bd5040aae98eddc401db2b2fc3f756a76ac6e7f88cf0c076e2ba6aeea04f",
+      "recorded_at": "2026-11-25T22:48:07.179Z",
+      "tests": 103
+    },
+    {
+      "id": "run-14",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"contract of v2.187.1\" scripts/lib/idd-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:458848068f83f8bf6ec43988afefadbc14aee522a52e5b702bc8ab09f1d1fa75",
+      "tree": "sha256:355626ec81fbf5d9ee39180b949c11cdd56c165687c0a2d0503de97de26e8f7e",
+      "recorded_at": "2026-11-25T22:48:47.253Z",
+      "tests": 1
+    },
+    {
+      "id": "run-15",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d2c9f44f10f8410bcca277ef52e14a8e67038e09e56282ccd7a4dc3cdbe40b10",
+      "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+      "recorded_at": "2026-11-25T23:01:27.850Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:82ea9b91e8a3147a5211296c649771973473bea45c1314558e2e6dc39cebf289",
+      "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "tests": 63
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0a22151026529f2d6cfc88016605491ece17471f7ecc8b1217f449b36ffb8e6f",
+      "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "tests": 21
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2b3b2909020a6466d5d7c5c72325f77ded07d98e782b646c13cd89f638f54fdb",
+      "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "tests": 2
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+      "recorded_at": "2026-11-25T23:01:27.850Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:60690b1e58f15d4b9092262a729e9183b3bcde93528ab20639c6a6731e719f2b",
+      "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "tests": 26
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2bfad021ac5351db0e296e41a8c256b7e87144044523439540036453838b9f14",
+      "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "tests": 101
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:54c172dd7d552d47b9e90f622c6a02d0de78b6ee6672c006fd7d5758b3703ac4",
+      "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "tests": 60
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6e6582b4f5f2f12788191ab7143f3402cec135d54d4e4f58d9b1fa93fdf4aefa",
+      "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "tests": 19
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5c902c2cded66f002e87b9b805a029fb18338ada2789d8bc40dc8185f1408bbd",
+      "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "tests": 32
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c090e58e4b461826437e0aca42f1b1d4571b5af18ac06e2d3537de61d490cf24",
+      "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "tests": 32
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:af33703f7e4a9316c71259068fc07929b129b58619af92e326ddca4de15bc5b0",
+      "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "tests": 103
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3f34de37e428a06100df64180811d5c8ed00f6cf66adf7ccfc98fce1832aa396",
+      "tree": "sha256:d5932b272d656f1f54fdf4542a3d7d9dc6bef053af4acb3ad2c76aeb058f24dd",
+      "recorded_at": "2026-11-25T23:01:27.850Z",
+      "tests": 103
+    },
+    {
+      "id": "run-28",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"contract of v2.187.1\" scripts/lib/idd-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:110658a74dde7c478e787771ecfc811f7fb34cc35e7f6d550d7edba0e11ab564",
+      "tree": "sha256:d31e4e490e932483695581316a8848b41e3d649094c00dc344f43484fbf0917a",
+      "recorded_at": "2026-11-25T23:01:43.535Z",
+      "tests": 1
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:9f08f4833627ae8751d8b24bb87ac464ed476d8d760e977bf72d8cdc291b7860",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "a86b8bc8e2e06f007b3182350358847ad05b4376",
+          "candidate_tree": "549f0794ab3de7e576204f5a558d5cff44617ad9",
+          "paths": [
+            "README.es.md",
+            "README.md",
+            "docs/README.md",
+            "docs/architecture/component-map.yaml",
+            "docs/architecture/decisions/0013-respuestas-delegadas.md",
+            "docs/en/README.md",
+            "docs/roadmaps/harness-evolution.md",
+            "handbook/idd/flujo-idd.md",
+            "internal/testdata/idd-session/steps/expected/session/latest.md",
+            "internal/testdata/idd-session/steps/expected/session/s-delegated/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-recommended/session-summary.md",
+            "internal/testdata/idd-session/steps/workspace/idd/s-delegated/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-recommended/state.yaml",
+            "openspec/specs/idd/spec.md",
+            "scripts/hooks/idd-session.test.js",
+            "scripts/lib/idd-contract.js",
+            "scripts/lib/idd-contract.test.js",
+            "scripts/lib/idd-next.js",
+            "scripts/lib/idd-next.test.js",
+            "scripts/lib/idd-record.js",
+            "scripts/lib/idd-record.test.js",
+            "scripts/lib/idd-refusals.js",
+            "scripts/lib/turn-fence.js",
+            "scripts/lib/turn-fence.test.js",
+            "scripts/ospec.js",
+            "scripts/ospec.lifecycle.test.js",
+            "skills/idd/references/approvals.md"
+          ],
+          "diff_hash": "sha256:72efb334f48812ee0a540fae25d9ea7b91e727ebc1d5419899b75d69b7881fdc",
+          "paths_digest": "sha256:18156b027e4d164f7756e14e8fa33f8d184acb48e5042eb7622b085d44f9638f",
+          "authored_lines": 806,
+          "original_changed_lines": 854
+        },
+        "candidate_id": "sha256:17324b4df535920eb0b619847369f0fece6a2cdfcd2988fe5fa2e3200e272d88",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/README.md",
+          "docs/architecture/component-map.yaml",
+          "docs/architecture/decisions/0013-respuestas-delegadas.md",
+          "docs/en/README.md",
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/idd/flujo-idd.md",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-delegated/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-recommended/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-delegated/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-recommended/state.yaml",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.lifecycle.test.js",
+          "skills/idd/references/approvals.md"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "549f0794ab3de7e576204f5a558d5cff44617ad9",
+        "original_changed_lines": 854,
+        "authored_lines": 806
+      },
+      "current_candidate_id": "sha256:17324b4df535920eb0b619847369f0fece6a2cdfcd2988fe5fa2e3200e272d88",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "a86b8bc8e2e06f007b3182350358847ad05b4376",
+        "candidate_tree": "549f0794ab3de7e576204f5a558d5cff44617ad9",
+        "paths": [
+          "README.es.md",
+          "README.md",
+          "docs/README.md",
+          "docs/architecture/component-map.yaml",
+          "docs/architecture/decisions/0013-respuestas-delegadas.md",
+          "docs/en/README.md",
+          "docs/roadmaps/harness-evolution.md",
+          "handbook/idd/flujo-idd.md",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-delegated/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-recommended/session-summary.md",
+          "internal/testdata/idd-session/steps/workspace/idd/s-delegated/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-recommended/state.yaml",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/lib/idd-contract.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-next.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/turn-fence.js",
+          "scripts/lib/turn-fence.test.js",
+          "scripts/ospec.js",
+          "scripts/ospec.lifecycle.test.js",
+          "skills/idd/references/approvals.md"
+        ],
+        "diff_hash": "sha256:72efb334f48812ee0a540fae25d9ea7b91e727ebc1d5419899b75d69b7881fdc",
+        "paths_digest": "sha256:18156b027e4d164f7756e14e8fa33f8d184acb48e5042eb7622b085d44f9638f",
+        "authored_lines": 806,
+        "original_changed_lines": 854
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "delegated-answers:lens-start:1:0",
+          "result_digest": "sha256:bb4162cdd5dc21769b4720c5e89f401f211c815967c8ec05b2c452898158dd57",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "The only thing that authorizes a delegated answer is OSPEC_AUTO_RUN in the CLI's environment (scripts/ospec.js:403, scripts/lib/idd-record.js:452-453). The user approved that the conductor sets it only on its own CLI calls (the uniqueness fact, answered 'todas las recomendadas'). ADR 0013 Decision (line 17) and REQ-idd-030 (openspec/specs/idd/spec.md:3821-3846) leave that constraint out. The E1.107 declared limit says the opposite: 'la pone el conductor en el entorno de la sesión' (docs/roadmaps/harness-evolution.md:1785). Suppose E1.108 follows that text and starts the host session with OSPEC_AUTO_RUN in its environment. Then every Bash call the model makes inherits it. In any later turn the model can resolve open-facts as delegated, using recommendations it rewrote in that same turn, because a recommendation keeps the gate's opened_turn (scripts/lib/turn-fence.js:108-111). That breaks 'el modelo nunca se aprueba a sí mismo'.",
+                "acceptance_criteria": "ADR 0013 and REQ-idd-030 state that OSPEC_AUTO_RUN is set only in the environment of the conductor's own ospec call that records the delegated answer, and never in the environment of the host session where the model runs. The E1.107 'Límite declarado' in docs/roadmaps/harness-evolution.md agrees with that rule and no longer says the run mark goes in the session's environment.",
+                "location": "docs/architecture/decisions/0013-respuestas-delegadas.md:17"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "delegated-answers:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-313d3114ac79b513",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The only thing that authorizes a delegated answer is OSPEC_AUTO_RUN in the CLI's environment (scripts/ospec.js:403, scripts/lib/idd-record.js:452-453). The user approved that the conductor sets it only on its own CLI calls (the uniqueness fact, answered 'todas las recomendadas'). ADR 0013 Decision (line 17) and REQ-idd-030 (openspec/specs/idd/spec.md:3821-3846) leave that constraint out. The E1.107 declared limit says the opposite: 'la pone el conductor en el entorno de la sesión' (docs/roadmaps/harness-evolution.md:1785). Suppose E1.108 follows that text and starts the host session with OSPEC_AUTO_RUN in its environment. Then every Bash call the model makes inherits it. In any later turn the model can resolve open-facts as delegated, using recommendations it rewrote in that same turn, because a recommendation keeps the gate's opened_turn (scripts/lib/turn-fence.js:108-111). That breaks 'el modelo nunca se aprueba a sí mismo'.",
+          "acceptance_criteria": "ADR 0013 and REQ-idd-030 state that OSPEC_AUTO_RUN is set only in the environment of the conductor's own ospec call that records the delegated answer, and never in the environment of the host session where the model runs. The E1.107 'Límite declarado' in docs/roadmaps/harness-evolution.md agrees with that rule and no longer says the run mark goes in the session's environment.",
+          "location": "docs/architecture/decisions/0013-respuestas-delegadas.md:17",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:2fbee5c469e99a7174e9482e3ebda73cb921077f0385ac345b4dcfd71cea829a",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "advisory_corrections": [
+    {
+      "lineage_id": "sha256:9f08f4833627ae8751d8b24bb87ac464ed476d8d760e977bf72d8cdc291b7860",
+      "status": "passed",
+      "finding_ids": [
+        "F-313d3114ac79b513"
+      ],
+      "paths": [
+        "docs/architecture/decisions/0013-respuestas-delegadas.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/specs/idd/spec.md"
+      ],
+      "changed_lines": 10,
+      "candidate_tree": "848eed2a826da17d440bdc440ffc04b563e15114",
+      "diff_hash": "sha256:1dcf7f878b4f94d8bf5156f58c01d32ceb41fbe160baff8c656a918e04e09c29",
+      "recorded_at": "2026-11-25T22:57:35.194Z",
+      "validation": {
+        "recorded_at": "2026-11-25T22:59:39.270Z",
+        "outcomes": [
+          {
+            "id": "F-313d3114ac79b513",
+            "status": "resolved"
+          }
+        ],
+        "regression": {
+          "detected": false,
+          "evidence": [
+            "ADR 0013 Decision (line 17) now says the conductor puts the id in OSPEC_AUTO_RUN only in the environment of its own ospec call that records the answer, never in the environment of the session where the model works. Lines 11 and 20 still say who sets the mark cannot be verified, so the two statements agree.",
+            "REQ-idd-030 (spec.md:3824-3826) now says the conductor MUST set OSPEC_AUTO_RUN only in the environment of its own ospec call that records the answer, never in the host session where the model works. Line 3848 still says the CLI cannot verify who sets it. The refusal causes and scenarios at 3850-3877 are unchanged.",
+            "The E1.107 'Límite declarado' (harness-evolution.md:1785) now matches that rule. A search for 'entorno de la sesi' in docs, openspec, skills and handbook finds nothing. Line 1789 repeats the rule as an E1.108 duty, and line 230 does not contradict it.",
+            "Inspection only. No tests were run, because the correction touches only docs and spec text."
+          ]
+        },
+        "follow_ups": [
+          {
+            "owner": "trust",
+            "summary": "docs/analysis/2026-11-24-modo-automatico.md:84, which is outside this lineage's permitted paths, still says only that the conductor puts the run mark 'en el entorno'. It does not limit this to the conductor's own ospec call. A separate successor could align it with ADR 0013."
+          },
+          {
+            "owner": "evolution",
+            "summary": "spec.md:3826 adds the new sentence to a line far longer than the file's usual hard wrap. Rewrapping the paragraph is a formatting fix only."
+          }
+        ]
+      }
+    }
+  ],
+  "changelog_line": "Respuestas delegadas para el modo automático: `ospec record recommendation` guarda la respuesta recomendada para cada pregunta de un gate, y una ejecución automática autorizada (`OSPEC_AUTO_RUN`) resuelve `open-facts` con la fuente `delegated` una vez terminado el turno; el resto de gates sigue esperando al usuario (E1.107, ADR 0013)",
+  "closed_at": "2026-11-25T23:02:03.006Z"
+}

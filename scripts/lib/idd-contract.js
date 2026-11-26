@@ -67,7 +67,18 @@ const GATE_STATUSES = Object.freeze(["open", "resolved"]);
 // Who answered a gate, as the agent declares it (#343): the CLI cannot verify
 // it. `user-unverified` is an answer relayed rather than given in the session.
 // Only new answers are checked; a stored state keeps the source it has.
-const GATE_SOURCES = Object.freeze(["user", "user-unverified"]);
+const USER_SOURCES = Object.freeze(["user", "user-unverified"]);
+// An answer the conductor of an automatic run the user authorized records from
+// the recommendations the model left (E1.107, REQ-idd-030): only on the
+// DELEGABLE_GATES, with the id of the run, and never on a retraction.
+const DELEGATED_SOURCE = "delegated";
+const GATE_SOURCES = Object.freeze([...USER_SOURCES, DELEGATED_SOURCE]);
+const DELEGABLE_GATES = Object.freeze(["open-facts"]);
+// The id of an automatic run, as OSPEC_AUTO_RUN carries it.
+const AUTO_RUN_MAX = 64;
+function isAutoRunId(value) {
+  return typeof value === "string" && value.length <= AUTO_RUN_MAX && CHANGE_ID_PATTERN.test(value);
+}
 // What a CLI-observed run was for (REQ-idd-014): the declared checks, the test
 // command of a red → green pair, a fitness check of an ADR or quality
 // scenario the change touches (REQ-idd-022), or the counterproof of a pair or
@@ -128,6 +139,51 @@ const BASE_GATE = "base-moved";
 // `ospec abandon` opens it and its answer archives the change.
 const ABANDON_GATE = "abandon";
 
+// What each gate asks the user (REQ-idd-011): next shows it as the pending
+// decision, and a recommendation names one of its questions (REQ-idd-030).
+const GATE_QUESTIONS = Object.freeze({
+  abandon:
+    "This change is abandoned: archived as it is, without checks, reviews or a changelog entry, and the working tree stays as it is. Abandon it? If not, withdraw the question with ospec abandon --cancel.",
+  "ambiguous-intent": "What must this change achieve? Confirm its kind, summary and acceptance.",
+  "kind-change": "This bug became a feature, which withdraws repro-test. Does the user approve the new kind? If not, resolve this gate with their words and record the intent back as a bug.",
+  "open-facts": "Before the change is built, answer these behavior questions that neither the request nor the code settles.",
+  "adr-amend-or-contradict": "This change amends or contradicts an ADR. Approve the amendment?",
+  "irreversible-operation": "This operation is destructive or irreversible. Approve it?",
+  "review-limit": "The trust reviews of this change are used up. Authorize one more trust review?",
+  "checks-changed": "The checks or the ceremony settings (strict_tdd, impact, contracts) in idd/config.yaml differ from the change's base. Approve them for this change?",
+  "contract-removal":
+    "This refactor removes documentation lines that read like a contract (an HTTP route or a selector). Do they state no contract, no route, request, response or published API, so the kind stays refactor? If they do, raise the kind with ospec record intent.",
+  "base-moved":
+    "The base of this change moves to a later commit, so the commits in between and the paths they change leave its diff. Do they all belong to other changes? If not, withdraw the question with ospec record base --cancel.",
+});
+
+/**
+ * The questions a recommendation answers, numbered from 1 (REQ-idd-030): the
+ * open facts of open-facts, the removed lines of contract-removal, each the
+ * user's to judge, and the one question of any other gate.
+ */
+function gateQuestions(state, gate) {
+  if (gate.id === "open-facts") {
+    const facts = state.facts || {};
+    return facts.open || (facts.coverage || []).flatMap((entry) => (entry.question ? [entry.question] : []));
+  }
+  if (gate.id === "contract-removal") return [...(gate.hits || [])];
+  return [GATE_QUESTIONS[gate.id]];
+}
+
+/** The recommendations of `gate` that name one of its current questions, in their order. */
+function currentRecommendations(state, gate) {
+  const stored = new Map((gate.recommendations || []).map((entry) => [entry.question, entry]));
+  return gateQuestions(state, gate).flatMap((question) => (stored.has(question) ? [stored.get(question)] : []));
+}
+
+/** Each gate a delegated answer resolved (REQ-idd-030), oldest first: what status and close list. */
+function delegatedAnswers(state) {
+  return (state?.gates || [])
+    .filter((gate) => gate.status === "resolved" && gate.source === DELEGATED_SOURCE)
+    .map((gate) => ({ gate: gate.id, run: gate.run, at: gate.resolved_at ?? null, answer: gate.answer }));
+}
+
 // Architecture references a change declares (E3.1): accepted ADRs under
 // DECISIONS_ROOT and quality scenarios of the knowledge map. Each gets one
 // impact; the gated impacts open adr-amend-or-contradict, and an ADR amended
@@ -182,7 +238,7 @@ function userLog(state) {
   const answers = [
     ...(state?.gates || [])
       .filter((gate) => gate.status === "resolved" && gate.answer)
-      .map((gate) => ({ label: gate.id, source: gate.source, at: gate.resolved_at ?? null, text: gate.answer })),
+      .map((gate) => ({ label: gate.id, source: gate.source === DELEGATED_SOURCE ? `${DELEGATED_SOURCE}, run ${gate.run}` : gate.source, at: gate.resolved_at ?? null, text: gate.answer })),
     ...(state?.retracted || [])
       .filter((entry) => entry?.answer)
       .map((entry) => ({ label: `retract ${entry.id}`, source: entry.answer_source, at: entry.resolved_at ?? null, text: entry.answer })),
@@ -317,7 +373,7 @@ function validateState(state) {
       // #416, E1.58, E1.50, #496: a signal the user's answer retracted, with the hits it covered.
       if (!ANSWER_RETRACTABLE_SIGNALS.includes(entry.id) || !isText(entry.reason) || !SIGNAL_SOURCES.includes(entry.source) || !isText(entry.retract_reason)
         || !isText(entry.confirmed_by) || !Array.isArray(entry.hits) || entry.hits.length === 0 || !entry.hits.every(isText)
-        || !isText(entry.answer) || !GATE_SOURCES.includes(entry.answer_source)) {
+        || !isText(entry.answer) || !USER_SOURCES.includes(entry.answer_source)) {
         fail(`retracted signal ${entry.id} with the user's answer needs its reason, source, retract_reason, confirmed_by, hits, answer and answer_source`);
       }
     } else if (!isText(entry.reason) || !SIGNAL_SOURCES.includes(entry.source) || !isText(entry.retract_reason)) {
@@ -409,6 +465,24 @@ function validateState(state) {
     }
     if (gate.source === "user" && gate.resolved_turn !== undefined && !(gate.opened_turn !== null && gate.resolved_turn !== null && gate.resolved_turn !== gate.opened_turn)) {
       fail(`gate ${gate.id} is answered user without a turn end after it opened`);
+    }
+    // REQ-idd-030: a delegated answer comes from the recommendations, on a
+    // delegable gate, with the run that recorded it, after a turn end.
+    if (gate.recommendations !== undefined && !isRecommendations(gate.recommendations)) {
+      fail(`gate ${gate.id} recommendations must name each question once, with its answer or none`);
+    }
+    if (gate.run !== undefined && !(gate.source === DELEGATED_SOURCE && isAutoRunId(gate.run))) {
+      fail(`gate ${gate.id}: run names the automatic run of a delegated answer, as a kebab-case id of at most ${AUTO_RUN_MAX} characters`);
+    }
+    if (gate.source === DELEGATED_SOURCE) {
+      if (!DELEGABLE_GATES.includes(gate.id)) fail(`gate ${gate.id} takes no delegated answer`);
+      if (gate.run === undefined) fail(`gate ${gate.id} answered delegated must name its run`);
+      if (!(Array.isArray(gate.recommendations) && gate.recommendations.length > 0 && gate.recommendations.every((entry) => entry?.none === undefined))) {
+        fail(`gate ${gate.id} answered delegated must keep the recommendations it was answered with`);
+      }
+      if (!(isCount(gate.opened_turn) && isCount(gate.resolved_turn) && gate.resolved_turn !== gate.opened_turn)) {
+        fail(`gate ${gate.id} is answered delegated without a turn end after it opened`);
+      }
     }
     // irreversible-operation lists the operations it asks about, and its
     // answer approves only those; an entry recorded before asks about the
@@ -741,6 +815,20 @@ function isTextList(value) {
   return Array.isArray(value) && value.every((entry) => typeof entry === "string" && entry !== "");
 }
 
+// The recommendations of a gate (REQ-idd-030): each names a question once,
+// with the recommended answer or `none: true`.
+function isRecommendations(value) {
+  if (!Array.isArray(value)) return false;
+  const questions = new Set();
+  const isText = (text) => typeof text === "string" && text.trim() !== "";
+  return value.every((entry) => {
+    if (entry === null || typeof entry !== "object" || !isText(entry.question) || questions.has(entry.question)) return false;
+    questions.add(entry.question);
+    const keys = Object.keys(entry).sort().join(",");
+    return (keys === "answer,question" && isText(entry.answer)) || (keys === "none,question" && entry.none === true);
+  });
+}
+
 // A check as checks-changed approves it: its name and command, and the paths
 // of a scoped check (E1.67).
 function isApprovedCheck(entry) {
@@ -911,6 +999,7 @@ module.exports = {
   ABANDON_GATE,
   ANSWER_RETRACTABLE_SIGNALS,
   ARCHIVE_ROOT,
+  AUTO_RUN_MAX,
   BASE_GATE,
   CHANGE_ID_PATTERN,
   CHANGE_ROOT,
@@ -919,10 +1008,13 @@ module.exports = {
   DECISIONS_MARKERS,
   DECISIONS_ROOT,
   DEFAULT_MODE,
+  DELEGABLE_GATES,
+  DELEGATED_SOURCE,
   EVIDENCE_KINDS,
   EVIDENCE_MARKERS,
   GATED_IMPACTS,
   GATES,
+  GATE_QUESTIONS,
   GATE_SOURCES,
   GATE_STATUSES,
   IMPACTS,
@@ -945,11 +1037,16 @@ module.exports = {
   STATE_FIELDS,
   STATE_FILE,
   STATE_SCHEMA,
+  USER_SOURCES,
   canClose,
   canWithdraw,
   counterproofDetected,
   counterproofDetects,
+  currentRecommendations,
+  delegatedAnswers,
   deriveObligations,
+  gateQuestions,
+  isAutoRunId,
   isIntentAmbiguous,
   owedQuestion,
   resolveMode,
