@@ -13,6 +13,8 @@ const { HOSTS, claudeTurnArgs, createClaudeHost, createHost, sessionEnv, unavail
 test("[REQ-idd-031] a Claude turn runs headless in the auto permission mode and resumes its session", () => {
   assert.deepEqual(claudeTurnArgs(), ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "auto"]);
   assert.deepEqual(claudeTurnArgs({ model: "haiku", sessionId: "s-1" }).slice(-4), ["--model", "haiku", "--resume", "s-1"]);
+  assert.deepEqual(claudeTurnArgs({ budgetUsd: 2.5 }).slice(-2), ["--max-budget-usd", "2.5000"]);
+  assert.deepEqual(claudeTurnArgs({ budgetUsd: 0 }).slice(-2), ["--max-budget-usd", "0.0000"]);
   assert.equal(createHost("agy"), null);
 });
 

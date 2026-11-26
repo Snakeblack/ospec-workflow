@@ -177,12 +177,12 @@ Fuera de SDD, cada petición carga unos 20 KB menos. En una sesión SDD el total
 
 | Host | Estado | Orden de cada turno | Permisos | Tope de la ejecución | Fin de turno | Verificado |
 |---|---|---|---|---|---|---|
-| claude | ✅ | `claude -p --output-format stream-json --permission-mode auto [--resume <id>]` | clasificador del modo `auto`; lo que preguntaría se deniega | 25 USD, el coste de cada sesión hasta ese turno | hook `Stop` | 2.1.330 |
-| cursor | ✅ | `cursor-agent -p --output-format stream-json --trust --auto-review [--resume <chat>]` | `--auto-review`: el clasificador de Cursor ejecuta lo seguro y deniega lo que preguntaría | 100 millones de tokens (`--max-tokens`): Cursor da los tokens de cada turno y ningún coste | `-p` ejecuta `beforeSubmitPrompt` pero nunca `stop`, así que el conductor cuenta el fin de turno al ver terminar el proceso | 2026.10.19 |
+| claude | ✅ | `claude -p --output-format stream-json --permission-mode auto [--resume <id>] [--max-budget-usd <lo que queda>]` | clasificador del modo `auto`; lo que preguntaría se deniega | `--max-cost-usd`, del coste de cada sesión hasta ese turno; cada turno lo aplica también por dentro con `--max-budget-usd` | hook `Stop` | 2.1.330 |
+| cursor | ✅ | `cursor-agent -p --output-format stream-json --trust --auto-review [--resume <chat>]` | `--auto-review`: el clasificador de Cursor ejecuta lo seguro y deniega lo que preguntaría | `--max-tokens`, entre turnos: Cursor da los tokens de cada turno y ningún coste | `-p` ejecuta `beforeSubmitPrompt` pero nunca `stop`, así que el conductor cuenta el fin de turno al ver terminar el proceso | 2026.10.19 |
 | antigravity | `unavailable` | — | — | — | — | sin verificar en vivo |
 | codex | `unavailable` | — | — | — | — | sin verificar en vivo |
 | github-copilot | `unavailable` | — | — | — | — | sin verificar en vivo |
 | opencode | `unavailable` | — | — | — | — | sin verificar en vivo |
 | vscode | `unavailable` | — | — | — | — | VS Code no tiene modo sin interfaz: su agente solo corre dentro del editor |
 
-`--max-cost-usd` solo vale en un host que informa de su coste y `--max-tokens` solo en uno que no; el otro se rechaza con `invalid-limit`. Un host sin modo que revise cada acción aprueba todo lo que su configuración no deniega, y la primera línea de la ejecución lo avisa.
+Solo los 30 turnos por ítem son obligatorios: el tope de gasto es opcional y no tiene valor por defecto, porque lo que cuesta un turno depende del modelo, del effort y del host. `--max-cost-usd` solo vale en un host que informa de su coste y `--max-tokens` solo en uno que no; el otro se rechaza con `invalid-limit`. El conductor mira el tope entre turnos; donde el host tiene un tope propio, como `claude --max-budget-usd`, que cuenta lo que gasta cada invocación, le pasa lo que queda y el tope vale también dentro del turno. Un host sin modo que revise cada acción aprueba todo lo que su configuración no deniega, y la primera línea de la ejecución lo avisa.

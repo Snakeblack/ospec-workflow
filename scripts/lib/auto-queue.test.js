@@ -34,7 +34,7 @@ test("[REQ-idd-032] the pending phases of docs/roadmap.md are the queue, in orde
   assert.equal(mode.roadmap, "docs/roadmap.md");
   assert.equal(mode.pending, 3);
   assert.equal(mode.default, "interactive");
-  assert.deepEqual(mode.limits, { max_turns: 30, max_cost_usd: 25 });
+  assert.deepEqual(mode.limits, { max_turns: 30 });
   assert.deepEqual(mode.queue.map(({ id, title }) => [id, title]), [["M1", "Walking skeleton"], ["M2", "Sign-up"], ["M3", "Billing"]]);
   assert.equal(mode.queue[1].item, "Work roadmap item M2 of docs/roadmap.md: Sign-up. Name its change m2-<slug>, so the roadmap counts it done.");
   assert.equal(mode.command, `ospec auto start ${mode.queue.map((entry) => `--item "${entry.item}"`).join(" ")}`);
@@ -42,7 +42,8 @@ test("[REQ-idd-032] the pending phases of docs/roadmap.md are the queue, in orde
   assert.match(mode.how, /empty, skipped or undecided answer is interactive: never start the run without their explicit choice/);
   assert.match(mode.how, /ospec auto resume --answer/);
   assert.match(mode.how, /add --host with the session's host \(cursor[^)]*\) and give the user the command to run in a terminal/);
-  assert.match(mode.how, /capped at 100M tokens \(--max-tokens\)/);
+  assert.match(mode.how, /at most 30 turns per item and no spending cap unless they set one/);
+  assert.match(mode.how, /--max-cost-usd on a host that reports its cost \(Claude Code\), --max-tokens on one that does not/);
 });
 
 test("[REQ-idd-032] a phase with an archived change is done and one with an active change is in progress: neither is queued", (t) => {

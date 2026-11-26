@@ -147,7 +147,7 @@ ospec auto start --item "Haz el ítem E1.109 del roadmap" --item "Arregla el pag
 - **Antes de empezar** exige una rama que no sea la de por defecto, el árbol limpio, ningún cambio abierto y los checks de `idd/config.yaml` en verde.
 - **Tras cada turno** lee el disco, no lo que dice la sesión. Responde `open-facts` con la recomendación que el agente dejó para cada pregunta (fuente `delegated`) y para en cualquier otro gate.
 - **Cuando `ospec close` archiva el cambio**, hace el commit `<tipo>: <resumen>` con tus hooks de git y pasa a la siguiente petición. No hace push, ni PR, ni release.
-- **Para** como `blocked` en un gate que solo respondes tú, `paused` si se agota la cuota del host y `failed` ante dos errores seguidos del host, 30 turnos de una petición, 25 USD de la ejecución (100 millones de tokens en un host que no informa del coste, como Cursor), dos turnos sin avance o un commit rechazado. Nunca salta a la petición siguiente.
+- **Para** como `blocked` en un gate que solo respondes tú, `paused` si se agota la cuota del host y `failed` ante dos errores seguidos del host, 30 turnos de una petición, dos turnos sin avance, un commit rechazado o el tope de gasto, si pusiste uno. Nunca salta a la petición siguiente.
 
 | Orden | Qué hace |
 | --- | --- |
@@ -156,7 +156,7 @@ ospec auto start --item "Haz el ítem E1.109 del roadmap" --item "Arregla el pag
 | `ospec auto resume` | Sigue una ejecución parada, o después de responder en la propia sesión (por ejemplo, `claude --resume <id>`) |
 | `ospec auto stop` | Corta el turno en curso en menos de un segundo; la ejecución se puede reanudar |
 
-`--max-turns` y `--max-cost-usd` (o `--max-tokens`) cambian los topes al empezar o al reanudar. La sesión corre con tu configuración y tu instalación de ospec en el host, en su modo que revisa cada acción: `auto` en Claude Code y `--auto-review` en Cursor. El estado vive en `.ospec/auto/<ejecución>/run.json`, con el transcript de cada turno al lado. Cada host entra después de verificarlo en vivo; la sección 8 de [la matriz de capacidades](../../docs/target-capabilities.md) dice qué hace cada uno y por qué los demás no están.
+`--max-turns` cambia el tope de turnos al empezar o al reanudar. El tope de gasto es opcional y sin valor por defecto, porque lo que cuesta un turno depende del modelo, del effort y del host: `--max-cost-usd` en un host que informa del coste y `--max-tokens` en uno que no, como Cursor. En Claude Code cada turno lo aplica también por dentro con `--max-budget-usd`, así que un turno no se lo salta. La sesión corre con tu configuración y tu instalación de ospec en el host, en su modo que revisa cada acción: `auto` en Claude Code y `--auto-review` en Cursor. El estado vive en `.ospec/auto/<ejecución>/run.json`, con el transcript de cada turno al lado. Cada host entra después de verificarlo en vivo; la sección 8 de [la matriz de capacidades](../../docs/target-capabilities.md) dice qué hace cada uno y por qué los demás no están.
 
 ### Interactivo o automático
 

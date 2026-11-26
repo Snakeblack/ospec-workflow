@@ -82,9 +82,13 @@ function summarizeTurn(bytes) {
     // HTTP 429 at the end of a turn: the account's usage quota (for example
     // a subscription session limit) is spent. Retrying only burns the next turn.
     quota_exhausted: result.is_error === true && Number(result.api_error_status) === 429,
+    // `--max-budget-usd` ended the turn.
+    budget_exhausted: result.subtype === "error_max_budget_usd",
     sha256,
   };
-  if (turn.is_error) turn.error = turn.quota_exhausted ? turn.final_text || "usage quota exhausted" : result.subtype || "error";
+  if (turn.is_error) {
+    turn.error = turn.quota_exhausted ? turn.final_text || "usage quota exhausted" : turn.budget_exhausted && Array.isArray(result.errors) && result.errors.length ? String(result.errors[0]) : result.subtype || "error";
+  }
   return turn;
 }
 

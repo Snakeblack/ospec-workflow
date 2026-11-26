@@ -36,6 +36,7 @@ function runProject(t) {
 // A host that plays `turns` in order, one per call, and records each prompt.
 function scriptedHost(turns, traits = {}) {
   const prompts = [];
+  const budgets = [];
   let index = 0;
   return {
     name: "claude",
@@ -43,10 +44,12 @@ function scriptedHost(turns, traits = {}) {
     reviewsActions: true,
     ...traits,
     prompts,
+    budgets,
     resolve: () => "claude",
     resumeCommand: (id) => `claude --resume ${id}`,
-    async turn({ cwd, prompt, sessionId, transcriptPath, signal }) {
+    async turn({ cwd, prompt, sessionId, transcriptPath, signal, budgetUsd }) {
       prompts.push({ prompt, sessionId });
+      budgets.push(budgetUsd);
       const play = turns[index];
       index += 1;
       if (!play) throw new Error(`no turn ${index} scripted`);
@@ -225,8 +228,8 @@ test("[REQ-idd-031] a host that reports no cost is capped by tokens, per turn or
     },
   ], { name: "cursor", reportsCost: false, reviewsActions: false });
   const done = await startRun({ root, items: ["Fix the typo."], host: "cursor", deps: deps(cursor, events) });
-  assert.deepEqual([done.status, done.limits, done.items[0].tokens], ["done", { max_turns: 30, max_tokens: 100_000_000 }, 1_500_000]);
-  assert.match(events[0], /on cursor \(at most 30 turns per item and 100M tokens; cursor runs every action its configuration does not deny, without review\)$/);
+  assert.deepEqual([done.status, done.limits, done.spend, done.items[0].tokens], ["done", { max_turns: 30 }, "tokens", 1_500_000]);
+  assert.match(events[0], /on cursor \(at most 30 turns per item with no spending cap; cursor runs every action its configuration does not deny, without review\)$/);
   assert.match(events.at(-1), /closed \(1\.5M tokens\)$/);
 
   const busy = runProject(t).root;
@@ -240,6 +243,37 @@ test("[REQ-idd-031] a host that reports no cost is capped by tokens, per turn or
   const capped = await startRun({ root: busy, items: ["Fix it."], host: "cursor", maxTokens: 5000, deps: deps(totals) });
   assert.deepEqual([capped.status, capped.reason, capped.detail, capped.items[0].tokens], ["failed", "max-tokens", "9000 tokens", 9000]);
   await assert.rejects(resumeRun({ root: busy, maxCostUsd: 5, deps: deps(totals) }), (error) => error.code === "invalid-limit");
+});
+
+test("[REQ-idd-031] a cost cap is optional; each turn gets what is left of it, and a turn the host's own cap ends fails the run with max-cost", async (t) => {
+  const { root } = runProject(t);
+  const events = [];
+  const capped = scriptedHost([
+    ({ root: cwd }) => {
+      session(cwd, ...OPEN_DOCS("fix-readme", "Fix a typo."));
+      return { cost_usd: 0.75 };
+    },
+    () => ({ cost_usd: 1.9, is_error: true, budget_exhausted: true, error: "Reached maximum budget ($1.2500)" }),
+  ]);
+  const failed = await startRun({ root, items: ["Fix it."], host: "claude", maxCostUsd: 2, deps: deps(capped, events) });
+  assert.deepEqual([failed.status, failed.reason, failed.detail, failed.limits], ["failed", "max-cost", "$1.90", { max_turns: 30, max_cost_usd: 2 }]);
+  assert.deepEqual(capped.budgets, [2, 1.25]);
+  assert.match(events[0], /\(at most 30 turns per item and \$2\.00\)$/);
+  assert.equal(events.at(-1), "  continue with: ospec auto resume --max-cost-usd <usd>");
+  const tiny = await startRun({ root: runProject(t).root, items: ["Fix it."], host: "claude", maxCostUsd: 0.003, deps: deps(scriptedHost([() => ({ cost_usd: 0.0048, is_error: true, budget_exhausted: true })]), events) });
+  assert.deepEqual([tiny.reason, tiny.detail], ["max-cost", "$0.0048"]);
+  assert.ok(events.some((line) => /\(at most 30 turns per item and \$0\.0030\)$/.test(line)));
+
+  const free = runProject(t).root;
+  const uncapped = scriptedHost([({ root: cwd }) => {
+    session(cwd, ...OPEN_DOCS("fix-readme", "Fix a typo."));
+    writeFile(cwd, "src/pages.txt", "2");
+    closeChange(cwd, "fix-readme");
+    return { cost_usd: 40 };
+  }]);
+  const done = await startRun({ root: free, items: ["Fix it."], host: "claude", deps: deps(uncapped, events) });
+  assert.deepEqual([done.status, done.limits, done.spend, uncapped.budgets[0]], ["done", { max_turns: 30 }, "cost", null]);
+  assert.ok(events.some((line) => /on claude \(at most 30 turns per item with no spending cap\)$/.test(line)));
 });
 
 test("[REQ-idd-031] on a host whose end-of-turn hook does not run headless the conductor counts each turn end, so open-facts is delegated", async (t) => {

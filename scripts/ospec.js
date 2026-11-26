@@ -195,7 +195,8 @@ const USAGE = `Usage:
   ospec auto start --item <request>... [--host <host>] [--model <model>] [--max-turns <n>] [--max-cost-usd <usd> | --max-tokens <n>]
                    works each request as one IDD change in a new headless session, in order: answers
                    open-facts from the recommendations, stops at any other gate and commits each closed change;
-                   --host is claude (the default) or cursor, and a host that reports no cost is capped by --max-tokens
+                   --host is claude (the default) or cursor; a spending cap is optional: --max-cost-usd on a host
+                   that reports its cost, which Claude Code also applies inside each turn, --max-tokens on one that does not
   ospec auto status [--run <id>]
   ospec auto resume [--run <id>] [--answer <text>] [--max-turns <n>] [--max-cost-usd <usd> | --max-tokens <n>]
                     continues a run that stopped; --answer goes to the session as the user's reply to its block

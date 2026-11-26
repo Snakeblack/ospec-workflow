@@ -72,7 +72,8 @@ async function headlessTurn({ run, executable, args, cwd, env, input, transcript
 
 // `--permission-mode auto` reviews every action with Claude Code's classifier;
 // a prompt nobody can answer in `-p` is denied, never waited on.
-function claudeTurnArgs({ model = null, sessionId = null } = {}) {
+// `--max-budget-usd` caps what this invocation spends, inside the turn.
+function claudeTurnArgs({ model = null, sessionId = null, budgetUsd = null } = {}) {
   return [
     "-p",
     "--output-format", "stream-json",
@@ -80,6 +81,7 @@ function claudeTurnArgs({ model = null, sessionId = null } = {}) {
     "--permission-mode", "auto",
     ...(model ? ["--model", model] : []),
     ...(sessionId ? ["--resume", sessionId] : []),
+    ...(budgetUsd !== null ? ["--max-budget-usd", budgetUsd.toFixed(4)] : []),
   ];
 }
 
@@ -92,8 +94,8 @@ function createClaudeHost({ model = null, baseEnv = process.env, resolveExecutab
     return executable;
   }
 
-  function turn({ cwd, prompt, sessionId = null, transcriptPath, signal = null }) {
-    return headlessTurn({ run, executable: resolve(), args: claudeTurnArgs({ model, sessionId }), cwd, env: sessionEnv(baseEnv), input: prompt, transcriptPath, timeoutMs: turnTimeoutMs, signal }, summarizeTurn);
+  function turn({ cwd, prompt, sessionId = null, transcriptPath, signal = null, budgetUsd = null }) {
+    return headlessTurn({ run, executable: resolve(), args: claudeTurnArgs({ model, sessionId, budgetUsd }), cwd, env: sessionEnv(baseEnv), input: prompt, transcriptPath, timeoutMs: turnTimeoutMs, signal }, summarizeTurn);
   }
 
   /** How the user opens the session to answer in it. */

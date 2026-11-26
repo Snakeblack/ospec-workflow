@@ -3921,18 +3921,23 @@ an `open-facts` with a question without recommendation or whose delegated
 answer is refused, MUST stop the run as `blocked` with the gate, its
 questions, the cause and the session. A spent usage quota MUST stop it as
 `paused`; two host errors in a row, `--max-turns` turns of the item (default
-30), on a host that reports its cost (Claude Code) `--max-cost-usd`
-of the run (default 25, from the cost each session reports so far, never the
-sum of its turns), on one that reports none (Cursor) `--max-tokens` of the run
-(default 100000000, from the tokens of each turn or of the session so far),
-and two turns in a row that change
-neither the change's state nor the tree MUST stop it as `failed` on the item,
-with no later item started. Each cap on the other kind of host MUST be refused
-with `invalid-limit`. The run is `done` when every item is closed.
+30) and two turns in a row that change neither the change's state nor the
+tree MUST stop it as `failed` on the item, with no later item started. A
+spending cap MUST NOT have a default: only when given, `--max-cost-usd` of the
+run on a host that reports its cost (Claude Code), from the cost each session
+reports so far and never the sum of its turns, and `--max-tokens` of the run on
+one that reports none (Cursor), from the tokens of each turn or of the session
+so far, MUST stop it the same way, as `max-cost` or `max-tokens`; each cap on
+the other kind of host MUST be refused with `invalid-limit`, and the run's
+first line MUST name its cap or say it has none. In Claude Code each turn MUST
+carry `--max-budget-usd` with what is left of the cost cap, which Claude Code
+counts per invocation, and a turn it ends (`error_max_budget_usd`) MUST stop
+the run as `max-cost`. The run is `done` when every item is closed.
 
 The run MUST be recorded in `.ospec/auto/<run>/run.json`, written atomically
 after every step, with its id `auto-<YYYYMMDD>-<HHMMSS>` in UTC, schema
-`ospec-auto-run/v1`, host, branch, limits, status (`running`, `blocked`,
+`ospec-auto-run/v1`, host, branch, limits, what it counts as spent (`spend`:
+`cost`, or `tokens` on a host without cost), status (`running`, `blocked`,
 `paused`, `stopped`, `failed` or `done`), reason, conductor pid, current item
 and, per item, its request, status (`pending`, `running` or `closed`), change,
 session, turns, cost, tokens on a host without cost, delegated answers and
@@ -3986,6 +3991,14 @@ exit 0 only when the run is `done`.
 - THEN the run MUST fail on the item with `max-tokens`
 - AND `--max-cost-usd` on that run MUST be refused with `invalid-limit`
 
+#### Scenario: Claude Code applies the cost cap inside the turn
+
+- GIVEN `ospec auto start --max-cost-usd 2` on Claude Code, whose item has
+  cost 0.75 so far
+- WHEN its next turn starts
+- THEN the turn MUST carry `--max-budget-usd 1.2500`
+- AND when that cap ends the turn, the run MUST fail with `max-cost`
+
 ### Requirement: Execution Mode Choice {#REQ-idd-032}
 
 `ospec next` without an open change and `ospec close` MUST return, as
@@ -4016,8 +4029,8 @@ default branch a branch is created first; that where the host runs a command
 in the background and reports its end, the run starts so, its end is reported
 per closed change and a block goes to the user, whose answer `ospec auto
 resume --answer` carries; and that elsewhere the user gets the command with
-`--host` and the session's host among those REQ-idd-031 drives, capped by
-tokens on a host without cost. The
+`--host` and the session's host among those REQ-idd-031 drives; and that the
+run has no spending cap unless the user sets one. The
 request of an item MUST name the phase, the roadmap and the change id prefix,
 the phase's link key, that makes REQ-idd-026 count the phase done. The text
 output MUST print the `queue:`, `mode:` and `automatic:` lines and the `how`.

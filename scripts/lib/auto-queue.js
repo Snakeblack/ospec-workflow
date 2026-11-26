@@ -11,7 +11,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { DEFAULT_LIMITS, DEFAULT_MAX_TOKENS } = require("./auto-conductor.js");
+const { DEFAULT_LIMITS } = require("./auto-conductor.js");
 const { HOSTS } = require("./auto-hosts.js");
 const { MAX_ITEMS, activeRun, processAlive } = require("./auto-run.js");
 const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
@@ -22,7 +22,6 @@ const MIN_QUEUE = 2;
 // The roadmaps that hold no queue: nothing to offer, and the flow stays as it is.
 const NO_QUEUE = Object.freeze(["roadmap-missing", "roadmap-unrecognized"]);
 
-const money = (value) => `$${Number.isInteger(value) ? value : value.toFixed(2)}`;
 
 function projectMode(root) {
   let text;
@@ -48,14 +47,15 @@ function itemRequest(roadmap, { id, label, title }) {
 function howToAsk(count, limits) {
   return [
     `ask the user, once, whether to work ${count === 1 ? "this item" : `these ${count} items`} interactively (the default: the next item in a new session, as today)`,
-    `or in an automatic run (in order, one headless session per change, at most ${limits.max_turns} turns per item and ${money(limits.max_cost_usd)} in all,`,
-    "a commit per closed change on the current branch, or on a new branch off the default one, and no push); their answer may keep fewer items or change the limits",
-    "(--max-turns, --max-cost-usd). An empty, skipped or undecided answer is interactive: never start the run without their explicit choice.",
+    `or in an automatic run (in order, one headless session per change, at most ${limits.max_turns} turns per item and no spending cap unless they set one,`,
+    "a commit per closed change on the current branch, or on a new branch off the default one, and no push); their answer may keep fewer items, change --max-turns",
+    "or cap the spending: --max-cost-usd on a host that reports its cost (Claude Code), --max-tokens on one that does not.",
+    "An empty, skipped or undecided answer is interactive: never start the run without their explicit choice.",
     "The run needs a clean tree, so after close ask once the delivery they want is done; on the default branch create a <type>/<name> branch first.",
     "Where the host runs a command in the background and tells you when it ends, run it so; when it ends, report one line per closed change from ospec auto status,",
     'and at a block ask the user its questions and pass their answer with ospec auto resume --answer "<their words>", in the background too.',
     `Elsewhere, add --host with the session's host (${HOSTS.filter((host) => host !== "claude").join(", ")}) and give the user the command to run in a terminal;`,
-    `a host that reports no cost is capped at ${DEFAULT_MAX_TOKENS / 1e6}M tokens (--max-tokens) instead of the cost, and another host cannot run it.`,
+    "another host cannot run it.",
   ].join(" ");
 }
 
