@@ -1,0 +1,425 @@
+{
+  "schema": "idd-state/v1",
+  "change": "auto-host-opencode",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua (E1.110, tramo de OpenCode de la cadena elegida: lo común con el primer host verificado y un tramo por host)",
+    "requested_at": "2026-11-26T19:40:23.910Z",
+    "kind": "feature",
+    "summary": "ospec auto conduce OpenCode (opencode run --standalone --auto), verificado en vivo",
+    "acceptance": "ospec auto start --host opencode cierra en vivo un cambio de prueba, delega open-facts y reanuda la sesión por su id; la ejecución avisa al empezar de que OpenCode no revisa cada acción; un test de contrato fija sus argumentos y la lectura del coste"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-host-opencode.js",
+          "line": 18
+        }
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-conductor.js",
+          "line": 438
+        }
+      },
+      {
+        "category": "persistence",
+        "question": "OpenCode informa del coste en USD (opencode session export), pero da 0 con sus modelos gratuitos y con proveedores de suscripción, así que el tope de 25 USD nunca salta. ¿Se queda solo con el tope de coste, como decidimos para los hosts que informan del coste, o lleva además el tope de 100 millones de tokens (--max-tokens), y la ejecución para con el primero que se alcance?"
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "docs/target-capabilities.md",
+          "line": 188
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/target-capabilities.md",
+          "line": 90
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 1771
+        }
+      },
+      {
+        "category": "errors",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-host-opencode.js",
+          "line": 54
+        }
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "docs/target-capabilities.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/auto-conductor.js",
+      "scripts/lib/auto-host-opencode.js",
+      "scripts/lib/auto-host-opencode.test.js",
+      "scripts/lib/auto-hosts.js",
+      "scripts/lib/auto-hosts.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/ospec.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Con los topes de gasto opcionales, OpenCode admite solo --max-cost-usd, como los demás hosts que informan del coste",
+      "El coste de OpenCode se lee tras cada turno con opencode session export, porque los eventos de --format json no traen el step_finish del último paso",
+      "opencode run y session export van con --standalone: cada uno levanta su propio servidor, así que matar el proceso para el agente y ospec auto stop funciona"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 759
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration",
+      "recorded_turn": 759
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components auto-conductor, cli: ADR 0003, 0005, 0010, 0013 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration",
+      "recorded_turn": 759
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 762
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff",
+      "recorded_turn": 767
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Los argumentos de OpenCode, la lectura de su coste y su disponibilidad los decide el CLI (auto-host-opencode.js, auto-hosts.js), con tests; las skills solo nombran el host"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El conductor sigue avanzando en OpenCode solo con el close en disco"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; el runtime lanza el opencode que el usuario ya tiene instalado"
+    },
+    {
+      "kind": "adr",
+      "id": "0013",
+      "impact": "conforms",
+      "reason": "Solo open-facts se delega y sigue exigiendo un turno terminado, que en OpenCode cuenta el plugin de ospec; OSPEC_AUTO_RUN sigue fuera de la sesión"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "resume sigue la sesión de OpenCode por su id con --session; run.json guarda el coste por ítem"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "next, check y close no añaden red; solo ospec auto start, que el usuario lanza, ejecuta opencode"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Verificado: los argumentos de opencode run, la lectura del coste de opencode session export y el error de una exportación fallida tienen tests en scripts/lib/auto-host-opencode.test.js; ninguna skill describe una regla nueva",
+      "recorded_at": "2026-11-26T20:08:56.414Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado: el diff no añade llamadas de red a hooks ni skills; auto-host-opencode solo lanza procesos locales de opencode al arrancar una ejecución; next y close solo cambian el texto del how",
+      "recorded_at": "2026-11-26T20:08:56.640Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 759,
+      "answer": "lo recomendado",
+      "source": "user",
+      "resolved_at": "2026-11-26T19:49:14.778Z",
+      "resolved_turn": 762
+    },
+    {
+      "id": "base-moved",
+      "status": "resolved",
+      "reason": "El seguimiento optional-spend-caps del tramo 1 entró en la rama después de abrir este cambio; sus commits no son de OpenCode",
+      "from": "cf5fe2afdfd3ae4e0bf86fa289bde503273df251",
+      "to": "264575267d4be32417d0a84a8ae0da5f91033315",
+      "commits": 1,
+      "paths": [
+        "CHANGELOG.md",
+        "docs/README.md",
+        "docs/roadmaps/harness-evolution.md",
+        "docs/target-capabilities.md",
+        "handbook/idd/flujo-idd.md",
+        "openspec/specs/idd/spec.md",
+        "scripts/lib/auto-conductor.js",
+        "scripts/lib/auto-conductor.test.js",
+        "scripts/lib/auto-hosts.js",
+        "scripts/lib/auto-hosts.test.js",
+        "scripts/lib/auto-queue.js",
+        "scripts/lib/auto-queue.test.js",
+        "scripts/lib/auto-run.js",
+        "scripts/lib/auto-run.test.js",
+        "scripts/lib/headless-session.js",
+        "scripts/lib/headless-session.test.js",
+        "scripts/ospec.js"
+      ],
+      "archived": [
+        "2026-11-26-optional-spend-caps"
+      ],
+      "opened_turn": 765,
+      "answer": "todas las recomendadas",
+      "source": "user",
+      "resolved_at": "2026-11-26T20:04:42.006Z",
+      "resolved_turn": 766
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-26T20:12:12.273Z",
+      "detail": {
+        "tree": "sha256:3a382b3bb805b5edc2848587e10b3afae2a9b70209fd14c9d7267c32780e5d62",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-26T20:12:12.273Z",
+      "detail": {
+        "tree": "sha256:3a382b3bb805b5edc2848587e10b3afae2a9b70209fd14c9d7267c32780e5d62",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/auto-host-opencode.test.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/k1-scope-guard.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-26T20:12:12.273Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0005 conforms",
+          "adr:0010 conforms",
+          "adr:0013 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:3a382b3bb805b5edc2848587e10b3afae2a9b70209fd14c9d7267c32780e5d62",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-26T20:12:52.242Z",
+      "detail": {
+        "run": "run-7",
+        "tree": "sha256:cce1ac635f03e190fadb58879e508ca19ccf7c3e5fba2618b6346a9b1941863d",
+        "plan": "run.json sigue en ospec-auto-run/v1 sin campos nuevos: una ejecución de OpenCode guarda host opencode, spend cost y cost_usd por ítem, igual que una de Claude, y una ejecución anterior se lee y se reanuda como antes; para volver atrás, un ospec anterior lee la de OpenCode y rechaza reanudarla con host-unavailable, sin modificarla"
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-26T20:13:07.598Z"
+    }
+  ],
+  "base": "264575267d4be32417d0a84a8ae0da5f91033315",
+  "base_moves": [
+    {
+      "from": "cf5fe2afdfd3ae4e0bf86fa289bde503273df251",
+      "to": "264575267d4be32417d0a84a8ae0da5f91033315",
+      "reason": "El seguimiento optional-spend-caps del tramo 1 entró en la rama después de abrir este cambio; sus commits no son de OpenCode",
+      "moved_at": "2026-11-26T20:04:42.006Z"
+    }
+  ],
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:26c7f277bd61c0d96b186550e97e2693aa081c590eabf1b8be9cec661a2afa29",
+      "tree": "sha256:3a382b3bb805b5edc2848587e10b3afae2a9b70209fd14c9d7267c32780e5d62",
+      "recorded_at": "2026-11-26T20:12:12.273Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:699f42fe7b56ad014bf9a92b4056493dea0ea32f5e7417fa5c83820045808d38",
+      "tree": "sha256:3a382b3bb805b5edc2848587e10b3afae2a9b70209fd14c9d7267c32780e5d62",
+      "recorded_at": "2026-11-26T20:12:12.273Z",
+      "tests": 21
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:3a382b3bb805b5edc2848587e10b3afae2a9b70209fd14c9d7267c32780e5d62",
+      "recorded_at": "2026-11-26T20:12:12.273Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fe8eb802d4c7e8a7b787d9192876d375ddc285f1ca621734143b5898d0219ee0",
+      "tree": "sha256:3a382b3bb805b5edc2848587e10b3afae2a9b70209fd14c9d7267c32780e5d62",
+      "recorded_at": "2026-11-26T20:12:12.273Z",
+      "tests": 26
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:23be2aeb12ae66dcabe779cf07ce43ba85e788f6821199d0523aa447f7ff9ac4",
+      "tree": "sha256:3a382b3bb805b5edc2848587e10b3afae2a9b70209fd14c9d7267c32780e5d62",
+      "recorded_at": "2026-11-26T20:12:12.273Z",
+      "tests": 67
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ff5b73cce8760dba0eb7b8825ecbacb0f5a9671803dab70ed9e4245d2b2d0b5c",
+      "tree": "sha256:3a382b3bb805b5edc2848587e10b3afae2a9b70209fd14c9d7267c32780e5d62",
+      "recorded_at": "2026-11-26T20:12:12.273Z",
+      "tests": 60
+    },
+    {
+      "id": "run-7",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/auto-run.test.js scripts/lib/auto-host-opencode.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fa4a85634a8237aba7d64c3174ccf76fcbd69084abd1d128f58d15c69968c3a1",
+      "tree": "sha256:cce1ac635f03e190fadb58879e508ca19ccf7c3e5fba2618b6346a9b1941863d",
+      "recorded_at": "2026-11-26T20:12:52.242Z",
+      "tests": 10
+    }
+  ],
+  "changelog_line": "**`ospec auto` en OpenCode** (auto-host-opencode, E1.110, tramo 2). `ospec auto start --host opencode` conduce `opencode run --standalone --format json --auto`, verificado en vivo: cierra un cambio, delega `open-facts` y reanuda la sesión con `--session`. OpenCode no tiene un modo que revise cada acción, así que la primera línea de la ejecución avisa de que aprueba todo lo que su configuración no deniega. Sus eventos no traen el coste del último paso, así que el conductor lee el de la sesión con `opencode session export` y admite `--max-cost-usd`; con modelos gratuitos o de suscripción ese coste es 0. `--standalone` le da su propio servidor, de modo que `ospec auto stop` corta el agente. Un turno que termina con su error solo en los eventos, como la cuota gratuita agotada, ya no deja `exit 1: (…)` en el motivo de la pausa. REQ-idd-031 y REQ-idd-032 lo fijan.",
+  "closed_at": "2026-11-26T20:13:07.598Z"
+}

@@ -3885,13 +3885,13 @@ MUST name its source `delegated, run <run>`. The CLI cannot verify who sets
 
 `ospec auto start --item <request>...` MUST work each request, from 1 to 20 in
 the given order, as one IDD change in a new headless session of the host.
-`--host` MUST take `claude`, the default, or `cursor`, the hosts on which a
-run closed a change live; `vscode`, which has no headless mode, and any other
+`--host` MUST take `claude`, the default, `cursor` or `opencode`, the hosts on
+which a run closed a change live; `vscode`, which has no headless mode, and any other
 host MUST be refused with `host-unavailable` and the reason. The session MUST
 run with the user's own configuration and ospec install, in the host's mode
 that reviews each action where it has one (`--permission-mode auto` in Claude
 Code, `--auto-review` in Cursor) or else approving whatever its configuration
-does not deny, which the run's first line MUST say. Its environment MUST NOT hold `OSPEC_AUTO_RUN` nor the markers
+does not deny (`--auto` in OpenCode), which the run's first line MUST say. Its environment MUST NOT hold `OSPEC_AUTO_RUN` nor the markers
 of a Claude Code session that launched the conductor. Each item MUST start with its request followed by a brief that asks
 for one IDD change until `ospec close`, a recommendation per question before a
 turn ends with a gate's questions (REQ-idd-030), and no commit, push, pull
@@ -3924,8 +3924,8 @@ questions, the cause and the session. A spent usage quota MUST stop it as
 30) and two turns in a row that change neither the change's state nor the
 tree MUST stop it as `failed` on the item, with no later item started. A
 spending cap MUST NOT have a default: only when given, `--max-cost-usd` of the
-run on a host that reports its cost (Claude Code), from the cost each session
-reports so far and never the sum of its turns, and `--max-tokens` of the run on
+run on a host that reports its cost (Claude Code, OpenCode), from the cost
+each session reports so far and never the sum of its turns, and `--max-tokens` of the run on
 one that reports none (Cursor), from the tokens of each turn or of the session
 so far, MUST stop it the same way, as `max-cost` or `max-tokens`; each cap on
 the other kind of host MUST be refused with `invalid-limit`, and the run's

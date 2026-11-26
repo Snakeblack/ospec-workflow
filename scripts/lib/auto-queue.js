@@ -49,7 +49,7 @@ function howToAsk(count, limits) {
     `ask the user, once, whether to work ${count === 1 ? "this item" : `these ${count} items`} interactively (the default: the next item in a new session, as today)`,
     `or in an automatic run (in order, one headless session per change, at most ${limits.max_turns} turns per item and no spending cap unless they set one,`,
     "a commit per closed change on the current branch, or on a new branch off the default one, and no push); their answer may keep fewer items, change --max-turns",
-    "or cap the spending: --max-cost-usd on a host that reports its cost (Claude Code), --max-tokens on one that does not.",
+    "or cap the spending: --max-cost-usd on a host that reports its cost (Claude Code, OpenCode), --max-tokens on one that does not.",
     "An empty, skipped or undecided answer is interactive: never start the run without their explicit choice.",
     "The run needs a clean tree, so after close ask once the delivery they want is done; on the default branch create a <type>/<name> branch first.",
     "Where the host runs a command in the background and tells you when it ends, run it so; when it ends, report one line per closed change from ospec auto status,",

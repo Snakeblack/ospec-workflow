@@ -14,11 +14,10 @@ const path = require("node:path");
 const { resolveBinFromPath, isWindowsInteropPath } = require("./claude-bin.js");
 const { resolveClaudeExecutable, runProcess, summarizeTurn } = require("./headless-session.js");
 
-const HOSTS = Object.freeze(["claude", "cursor"]);
+const HOSTS = Object.freeze(["claude", "cursor", "opencode"]);
 const UNAVAILABLE = Object.freeze({
   antigravity: "not verified live yet",
   codex: "not verified live yet",
-  opencode: "not verified live yet",
   "github-copilot": "not verified live yet",
   vscode: "VS Code has no headless mode: its agent runs only inside the editor",
 });
@@ -61,7 +60,8 @@ async function headlessTurn({ run, executable, args, cwd, env, input, transcript
   fs.mkdirSync(path.dirname(transcriptPath), { recursive: true });
   const process_ = await run({ executable, args, cwd, env, input, stdoutPath: transcriptPath, timeoutMs, signal });
   const summary = await summarize(fs.readFileSync(transcriptPath));
-  const failure = process_.aborted ? "stopped" : process_.timedOut ? "timeout" : process_.error ? process_.error.message : process_.code !== 0 ? `exit ${process_.code}: ${process_.stderr.trim()}` : null;
+  const stderr = process_.stderr.trim();
+  const failure = process_.aborted ? "stopped" : process_.timedOut ? "timeout" : process_.error ? process_.error.message : process_.code !== 0 ? `exit ${process_.code}${stderr ? `: ${stderr}` : ""}` : null;
   return {
     ...summary,
     aborted: process_.aborted === true,
@@ -109,6 +109,7 @@ function createClaudeHost({ model = null, baseEnv = process.env, resolveExecutab
 function createHost(name, options) {
   if (name === "claude") return createClaudeHost(options);
   if (name === "cursor") return require("./auto-host-cursor.js").createCursorHost(options);
+  if (name === "opencode") return require("./auto-host-opencode.js").createOpencodeHost(options);
   return null;
 }
 
