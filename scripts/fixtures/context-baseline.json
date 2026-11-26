@@ -7,9 +7,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4747,
-      "idd_protocol_bytes": 11194,
-      "default_flow_bytes": 14668,
-      "memory_flow_bytes": 17616,
+      "idd_protocol_bytes": 11301,
+      "default_flow_bytes": 14775,
+      "memory_flow_bytes": 17723,
       "agent_read_bytes": {
         "review-change": 4757,
         "review-correction": 5373,
@@ -25,9 +25,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4747,
-      "idd_protocol_bytes": 11190,
-      "default_flow_bytes": 14908,
-      "memory_flow_bytes": 17856,
+      "idd_protocol_bytes": 11297,
+      "default_flow_bytes": 15015,
+      "memory_flow_bytes": 17963,
       "agent_read_bytes": {
         "review-change": 4754,
         "review-correction": 5370,
@@ -43,9 +43,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4747,
-      "idd_protocol_bytes": 11190,
-      "default_flow_bytes": 14908,
-      "memory_flow_bytes": 17856,
+      "idd_protocol_bytes": 11297,
+      "default_flow_bytes": 15015,
+      "memory_flow_bytes": 17963,
       "agent_read_bytes": {
         "review-change": 4740,
         "review-correction": 5356,
@@ -61,9 +61,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4747,
-      "idd_protocol_bytes": 11190,
-      "default_flow_bytes": 14586,
-      "memory_flow_bytes": 17534,
+      "idd_protocol_bytes": 11297,
+      "default_flow_bytes": 14693,
+      "memory_flow_bytes": 17641,
       "agent_read_bytes": {
         "review-change": 4752,
         "review-correction": 5368,
@@ -79,9 +79,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4747,
-      "idd_protocol_bytes": 11190,
-      "default_flow_bytes": 14589,
-      "memory_flow_bytes": 17537,
+      "idd_protocol_bytes": 11297,
+      "default_flow_bytes": 14696,
+      "memory_flow_bytes": 17644,
       "agent_read_bytes": {
         "review-change": 4797,
         "review-correction": 5413,
@@ -97,9 +97,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4747,
-      "idd_protocol_bytes": 11190,
-      "default_flow_bytes": 14916,
-      "memory_flow_bytes": 17864,
+      "idd_protocol_bytes": 11297,
+      "default_flow_bytes": 15023,
+      "memory_flow_bytes": 17971,
       "agent_read_bytes": {
         "review-change": 4706,
         "review-correction": 5322,
@@ -115,9 +115,9 @@
       "skills_installed": 34,
       "skills_listed": 28,
       "skill_listing_bytes": 4747,
-      "idd_protocol_bytes": 11190,
-      "default_flow_bytes": 14918,
-      "memory_flow_bytes": 17866,
+      "idd_protocol_bytes": 11297,
+      "default_flow_bytes": 15025,
+      "memory_flow_bytes": 17973,
       "agent_read_bytes": {
         "review-change": 4801,
         "review-correction": 5417,
@@ -1030,6 +1030,111 @@
         ]
       },
       "reason": "Antigravity premium tier emits native model: pro (+11 B) on review-* agents"
+    },
+    {
+      "version": "2.189.0",
+      "metric": "idd_protocol_bytes",
+      "targets": {
+        "claude": [
+          11194,
+          11301
+        ],
+        "vscode": [
+          11190,
+          11297
+        ],
+        "github-copilot": [
+          11190,
+          11297
+        ],
+        "opencode": [
+          11190,
+          11297
+        ],
+        "codex": [
+          11190,
+          11297
+        ],
+        "cursor": [
+          11190,
+          11297
+        ],
+        "antigravity": [
+          11190,
+          11297
+        ]
+      },
+      "reason": "E1.109: el protocolo IDD manda llamar a ospec next antes de un ítem del roadmap y preguntar el execution_mode que devuelve con close (107 B)"
+    },
+    {
+      "version": "2.189.0",
+      "metric": "default_flow_bytes",
+      "targets": {
+        "claude": [
+          14668,
+          14775
+        ],
+        "vscode": [
+          14908,
+          15015
+        ],
+        "github-copilot": [
+          14908,
+          15015
+        ],
+        "opencode": [
+          14586,
+          14693
+        ],
+        "codex": [
+          14589,
+          14696
+        ],
+        "cursor": [
+          14916,
+          15023
+        ],
+        "antigravity": [
+          14918,
+          15025
+        ]
+      },
+      "reason": "E1.109: el protocolo IDD manda llamar a ospec next antes de un ítem del roadmap y preguntar el execution_mode que devuelve con close (107 B)"
+    },
+    {
+      "version": "2.189.0",
+      "metric": "memory_flow_bytes",
+      "targets": {
+        "claude": [
+          17616,
+          17723
+        ],
+        "vscode": [
+          17856,
+          17963
+        ],
+        "github-copilot": [
+          17856,
+          17963
+        ],
+        "opencode": [
+          17534,
+          17641
+        ],
+        "codex": [
+          17537,
+          17644
+        ],
+        "cursor": [
+          17864,
+          17971
+        ],
+        "antigravity": [
+          17866,
+          17973
+        ]
+      },
+      "reason": "E1.109: el protocolo IDD manda llamar a ospec next antes de un ítem del roadmap y preguntar el execution_mode que devuelve con close (107 B)"
     }
   ]
 }

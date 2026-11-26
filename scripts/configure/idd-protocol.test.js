@@ -186,6 +186,19 @@ for (const target of Object.keys(ROUTERS)) {
     assert.doesNotMatch(byPath.get(ROUTERS[target]), /roadmap\/next-change/, `${target}: the always-on router stays out of the hand-off`);
   });
 
+  // E1.109 (REQ-idd-032): a roadmap queue is worked interactively, the
+  // default, or in an automatic run; the CLI says when to ask and how.
+  test(`${target}: with a roadmap queue, IDD and foundation ask the execution mode the CLI returns`, (t) => {
+    const { byPath } = generate(t, target);
+    const protocol = byPath.get(PROTOCOL).replace(/\s+/g, " ");
+    // The rest of the question, its default and the run live in the `how` the
+    // CLI returns, so the protocol stays within its context budget.
+    assert.match(protocol, /Before a roadmap item, run `ospec next`; ask the `execution_mode` it or `close` returns as its `how` says\./, `${target}: the protocol asks the execution mode`);
+    const foundation = byPath.get(FOUNDATION).replace(/\s+/g, " ");
+    assert.match(foundation, /milestones, in a table whose rows start `<ID>\. <title>`/, `${target}: the roadmap of foundation reads as a queue`);
+    assert.match(foundation, /Once that commit exists, run `ospec next`: with an `execution_mode`, ask it as its `how` says before the first change\./, `${target}: foundation asks the execution mode`);
+  });
+
   // E3.5 and E1.47 (REQ-session-memory-011): recall with the query of record
   // intent before asking the open facts, contrast with the disk, save the
   // close records by topic; memory decides nothing.

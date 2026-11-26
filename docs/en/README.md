@@ -38,7 +38,10 @@ and archives it under `idd/archive/`.
   the answer the model recommended for each question (`delegated`):
   `ospec auto start --item "<request>"...` works a queue of requests in
   Claude Code, one change each in a new headless session, commits each
-  closed change and stops at any other gate. A
+  closed change and stops at any other gate. When `docs/roadmap.md` holds
+  two or more pending phases, `ospec next` and `ospec close` return that
+  queue with its command, and the agent asks whether to work it
+  interactively, the default, or in an automatic run. A
   `user` answer recorded before another turn ended after the gate opened is
   kept as `user-unverified`, and `close` names it; so is an answer that
   retracts a signal before a turn ended after the signal was recorded.

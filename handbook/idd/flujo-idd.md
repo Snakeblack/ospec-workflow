@@ -158,6 +158,16 @@ ospec auto start --item "Haz el ítem E1.109 del roadmap" --item "Arregla el pag
 
 `--max-turns` y `--max-cost-usd` cambian los topes al empezar o al reanudar. La sesión corre con tu configuración, en el modo de permisos `auto` de Claude Code. El estado vive en `.ospec/auto/<ejecución>/run.json`, con el transcript de cada turno al lado. Por ahora solo conduce Claude Code: cada host nuevo entra después de verificarlo en vivo.
 
+### Interactivo o automático
+
+Cuando `docs/roadmap.md` tiene dos o más fases pendientes, `ospec next` sin cambio abierto y `ospec close` devuelven `execution_mode`: la cola en el orden del roadmap y la orden `ospec auto start` con un `--item` por fase, como mucho 20. El agente te pregunta una vez si la trabajas en interactivo, el modo de siempre y el de por defecto, o en automático. Una respuesta vacía o que no elige es interactivo.
+
+- **Si eliges automático,** puedes quedarte con menos ítems o cambiar los topes. Tras un `close`, la ejecución espera a la entrega que pidas, porque exige el árbol limpio, y en la rama por defecto el agente crea antes una rama.
+- **En Claude Code** la lanza en segundo plano: al terminar te resume cada cambio cerrado, y ante un bloqueo te pasa sus preguntas y lleva tu respuesta con `ospec auto resume --answer`. En los demás hosts te da la orden para una terminal.
+- **No aparece** con un cambio abierto, con `mode: sdd`, con menos de dos fases pendientes ni mientras haya una ejecución activa, que es el caso de las sesiones que lanza el conductor.
+
+Cada ítem pide nombrar el cambio con la clave de su fase (`m2-<slug>` para `M2`), para que el roadmap la cuente hecha al cerrarse. La cola sale del mismo lector que `ospec snapshot`: un roadmap sin tabla de fases no da ninguna, y una fila mal formada da un aviso con su línea.
+
 ---
 
 ## La configuración: `idd/config.yaml`

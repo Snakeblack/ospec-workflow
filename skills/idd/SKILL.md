@@ -190,4 +190,6 @@ compatibility (a major), and cut it only with the user's OK. When they ask, use
 
 After `ospec close`, and after the delivery the user asks for, follow
 `references/memory-loop.md`: save the `records` of `close` when memory tools
-exist, and propose the next roadmap item in any case.
+exist, and propose the next roadmap item in any case. Before a roadmap item,
+run `ospec next`; ask the `execution_mode` it or `close` returns as its `how`
+says.

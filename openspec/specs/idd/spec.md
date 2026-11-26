@@ -3299,7 +3299,9 @@ only `id`, `title` and `status` (`pending`, `in-progress` or `done`), with
 `--schema-version 2`, `3` or `4` asks for the v2, the v3 or the v4 below;
 `--schema-version` takes `1`, the default, `2`, `3` or `4`. It MUST run only
 when invoked: no IDD or SDD step, hook, check, gate or doctor check runs it,
-and it writes nothing but the snapshot. It needs no git work tree.
+and it writes nothing but the snapshot. It needs no git work tree. `ospec
+next` and `ospec close` read the same roadmap with the same rules for the
+queue of REQ-idd-032, and emit no snapshot.
 
 The phases MUST come from the roadmap, `docs/roadmap.md` unless
 `--roadmap <path>` names another, in the order the file lists them. Each body
@@ -3964,3 +3966,64 @@ exit 0 only when the run is `done`.
 - THEN the conductor MUST end the turn within a second and the run MUST be
   `stopped`
 - AND `resume` MUST continue the same session
+
+### Requirement: Execution Mode Choice {#REQ-idd-032}
+
+`ospec next` without an open change and `ospec close` MUST return, as
+`execution_mode`, the queue of the project roadmap and the two ways to work
+it: interactively, the default and the flow of every other requirement, or in
+an automatic run (REQ-idd-031). The queue MUST be the `pending` phases of
+`docs/roadmap.md`, in its order, with the phases and statuses REQ-idd-026
+reads; `ospec close` MUST read them once its change is archived, so its own
+phase counts as done. The block MUST be returned only with at least two
+pending phases, and MUST NOT be returned with an open change, with `mode: sdd`
+or a configuration that does not parse, nor while an automatic run is running
+with a live conductor, blocked or paused, which covers every session its
+conductor launched. A missing roadmap or one without phases MUST return
+nothing; one refused with `roadmap-invalid`, or one that cannot be read, MUST
+add a warning naming it, with the line when there is one, and neither command
+MUST fail because of it. Nothing MUST be written, and the choice is not
+remembered.
+
+The block MUST hold the roadmap, the number of pending phases, the first 20
+as the queue, each with its id as the roadmap writes it, its title and the
+request of its item, `default: interactive`, the limits of a run, the command
+`ospec auto start` with one `--item` per queued phase, each one shell word,
+and `how`. The `how` MUST say to ask the user once; that an empty, skipped or
+undecided answer is interactive and starts nothing; that the answer may keep
+fewer items or change the limits; that the run needs a clean tree, so after
+`close` the question waits for the delivery the user asks for, and that on the
+default branch a branch is created first; that where the host runs a command
+in the background and reports its end, the run starts so, its end is reported
+per closed change and a block goes to the user, whose answer `ospec auto
+resume --answer` carries; and that elsewhere the user gets the command. The
+request of an item MUST name the phase, the roadmap and the change id prefix,
+the phase's link key, that makes REQ-idd-026 count the phase done. The text
+output MUST print the `queue:`, `mode:` and `automatic:` lines and the `how`.
+
+#### Scenario: Next offers the queue
+
+- GIVEN `docs/roadmap.md` with three pending phases and no open change
+- WHEN `ospec next` runs
+- THEN it MUST return `execution_mode` with the three phases in order and the
+  command that starts a run with one item each
+- AND with a change open it MUST NOT return it
+
+#### Scenario: Close offers what is left
+
+- GIVEN the change of the first of three pending phases
+- WHEN `ospec close` archives it
+- THEN its `execution_mode` MUST queue the other two
+
+#### Scenario: No choice inside a run
+
+- GIVEN an automatic run that is blocked
+- WHEN `ospec next` runs without an open change
+- THEN it MUST NOT return `execution_mode`
+
+#### Scenario: A roadmap that does not read
+
+- GIVEN a phase table with a row that does not read `<ID>. <title>`
+- WHEN `ospec next` runs without an open change
+- THEN it MUST succeed with a warning naming the file and the line and no
+  `execution_mode`

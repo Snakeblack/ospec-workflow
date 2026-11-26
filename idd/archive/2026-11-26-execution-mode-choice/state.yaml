@@ -1,0 +1,842 @@
+{
+  "schema": "idd-state/v1",
+  "change": "execution-mode-choice",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "requested_at": "2026-11-26T16:17:27.563Z",
+    "kind": "feature",
+    "summary": "Elección del modo de ejecución (E1.109): con una cola de dos o más ítems pendientes en el roadmap, ospec next sin cambio abierto y ospec close devuelven un bloque execution_mode que ofrece interactivo (por defecto) o automático con la orden de ospec auto start, y las skills idd y foundation lo preguntan",
+    "acceptance": "Con un docs/roadmap.md de varias fases pendientes, ospec next sin cambio y ospec close devuelven execution_mode con la cola y la orden ospec auto start; con menos de dos pendientes, sin roadmap reconocido, con un cambio abierto, con mode: sdd o con una ejecución de ospec auto activa no lo devuelven; un roadmap inválido da un aviso sin romper next ni close; y las skills idd y foundation preguntan interactivo o automático y tratan una respuesta vacía como interactivo"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿De dónde sale la cola y cuándo hay una? Propuesta: de docs/roadmap.md (el que escribe foundation y lee por defecto ospec snapshot), con el mismo lector: filas `<ID>. <título>` y estado por el nombre de los cambios; cuentan solo las fases pending, en su orden; hay cola con 2 o más, y la opción automática lleva las 20 primeras (el tope de ospec auto). Sin ese fichero, con uno que el lector no reconoce (como docs/roadmaps/harness-evolution.md de este repositorio) o con menos de 2 pendientes, no hay pregunta y todo queda como hoy; uno inválido da un aviso con fichero y línea, sin pregunta, y ni next ni close fallan por él."
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿Cuándo aparece la pregunta y cómo se nombra cada ítem? Propuesta: la devuelven ospec next sin cambio abierto (la skill lo llama al empezar a trabajar el roadmap, nunca en un cambio suelto) y ospec close (con la fase recién cerrada ya contada como hecha); foundation escribe sus hitos como tabla de fases `<ID>. <título>` y, tras su commit, hace la misma pregunta con ospec next. No aparece con un cambio abierto, con mode: sdd ni mientras haya una ejecución de ospec auto activa (running, blocked o paused), que es el caso de toda sesión del conductor. Cada ítem de la orden es `Roadmap item <ID> of docs/roadmap.md: <título>` y pide nombrar el cambio `<clave>-<slug>` (la clave es el id sin puntos y en minúsculas) para que el roadmap lo cuente hecho."
+      },
+      {
+        "category": "persistence",
+        "question": "¿Qué se guarda? Propuesta: nada nuevo. La elección no se recuerda (decisión del 2026-11-24); next y close solo leen el roadmap y .ospec/auto/ (una ejecución ilegible se ignora, como ya hace ospec auto); la ejecución queda en su run.json de E1.108; y REQ-idd-026 se enmienda para decir que next y close leen el roadmap con ese lector sin emitir ningún snapshot."
+      },
+      {
+        "category": "copy",
+        "question": "¿Qué dicen el CLI y la pregunta? Propuesta: el CLI añade el bloque execution_mode al JSON y, en texto, `queue: <n> pending items in docs/roadmap.md: <ID> <título>, …`, `mode: ask the user: interactive (default) or automatic` y `automatic: ospec auto start --item \"…\" …`. La sesión pregunta en el idioma del usuario, por ejemplo: «Quedan N ítems en el roadmap. ¿Interactivo (por defecto: el siguiente en una sesión nueva, como hoy) o automático (los N en orden, una sesión sin interfaz por cambio, 30 turnos por ítem y 25 USD en total, un commit por cambio en esta rama o en una nueva si estás en la por defecto, sin push)?». La respuesta puede acotar los ítems o cambiar los topes."
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1822
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 1823
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿Qué pasa con cada respuesta y cada final? Propuesta: una respuesta vacía, saltada o que no elige es interactivo y nada arranca. Al elegir automático: en close la pregunta va tras la entrega que pida el usuario, porque la ejecución exige árbol limpio; en la rama por defecto la sesión crea antes `<tipo>/<nombre>`; en Claude Code lanza ospec auto start en segundo plano y, al terminar, resume con una línea por cambio cerrado; ante un bloqueo traslada sus preguntas al usuario y lleva su respuesta con ospec auto resume --answer, que la sesión del conductor registra como user; un fallo (checks en rojo, topes, sin progreso) se cuenta con su motivo y la orden para seguir; en los demás hosts la sesión da la orden para una terminal."
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/README.md",
+      "docs/en/README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/fixtures/context-baseline.json",
+      "scripts/lib/auto-queue.js",
+      "scripts/lib/auto-queue.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/progress-snapshot.js",
+      "scripts/ospec.js",
+      "scripts/ospec.output.test.js",
+      "skills/foundation/SKILL.md",
+      "skills/idd/SKILL.md",
+      "skills/idd/references/memory-loop.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "La cola la calcula un módulo nuevo, scripts/lib/auto-queue.js, con el lector del snapshot v1 (roadmapPhases, readChanges y phaseStatuses); next y close solo leen y nunca emiten un snapshot",
+      "Una sesión lanzada por el conductor se reconoce por la ejecución activa de .ospec/auto (activeRun), sin variable de entorno nueva; la misma regla deja fuera la pregunta mientras otra ejecución está en marcha",
+      "Cada ítem de la orden pide nombrar el cambio con la clave de su fase, porque el lector del roadmap solo cuenta como hecha una fase cuyo cambio empieza por esa clave",
+      "El protocolo IDD solo gana una frase (107 B) y el resto de la pregunta vive en el how de execution_mode, porque el flujo con memoria estaba a 134 B de su presupuesto absoluto de 18 000 B; memory-loop.md no cambia"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 742
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 742
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration",
+      "recorded_turn": 742
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0003, 0013",
+      "source": "declaration",
+      "recorded_turn": 742
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff",
+      "recorded_turn": 743
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Las frases nuevas de skills/idd/SKILL.md y skills/foundation/SKILL.md salen de su única fuente y el generador las emite igual a los 7 targets; scripts/configure/idd-protocol.test.js lo comprueba en cada uno"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Cuándo preguntar el modo, qué fases forman la cola y la orden que la lanza las decide el CLI (scripts/lib/auto-queue.js, en ospec next y ospec close); las skills idd y foundation solo preguntan el execution_mode que devuelve y siguen su how"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "close sigue cerrando solo con la evidencia fresca; execution_mode se lee después de archivar y no interviene en la decisión, y la ejecución automática solo avanza con el close en disco"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "La cola no lee ni escribe memoria entre sesiones: sale del roadmap y de .ospec/auto"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "none",
+      "reason": "Ningún contrato versionado por esquema cambia: el snapshot sigue igual y la clave execution_mode de next y close no tiene esquema"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "scripts/lib/auto-queue.js solo usa módulos de Node y de scripts/lib, sin dependencias ni scripts/configure"
+    },
+    {
+      "kind": "adr",
+      "id": "0013",
+      "impact": "conforms",
+      "reason": "Elegir automático es la autorización explícita de la ejecución que el ADR exige para las respuestas delegated; el cambio no abre ningún otro gate a la delegación y una respuesta vacía o saltada es interactivo, así que nada arranca sin el usuario"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "next y close solo ganan la clave opcional execution_mode; ninguna clave existente cambia y un lector anterior la ignora"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "execution_mode se deriva del disco (roadmap, nombres de cambios y .ospec/auto) sin escribir nada, así que next y close dan lo mismo al retomar"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "La cola no añade llamadas de red: solo lee ficheros locales"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "La frase del protocolo sale igual en los 7 targets; idd-protocol.test.js lo comprueba en cada uno"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "El cambio no toca la derivación de señales ni de obligaciones"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "De openspec/changes solo lee nombres de directorio, como el snapshot, y con mode: sdd no ofrece nada"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "La regla de la cola vive en scripts/lib/auto-queue.js con sus tests en scripts/lib/auto-queue.test.js y scripts/ospec.output.test.js (REQ-idd-032); skills/idd/SKILL.md, references/memory-loop.md y skills/foundation/SKILL.md citan ospec next y ospec close y su execution_mode, sin describir la regla de cálculo",
+      "recorded_at": "2026-11-26T17:54:24.517Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "scripts/lib/auto-queue.js solo usa fs y path sobre ficheros del proyecto (docs/roadmap.md, idd/, openspec/changes, .ospec/auto, idd/config.yaml), sin red ni memoria; las frases nuevas de las skills no añaden llamadas; next y close dan el mismo execution_mode con el mismo disco (scripts/lib/auto-queue.test.js)",
+      "recorded_at": "2026-11-26T18:00:46.076Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 742,
+      "answer": "sí, como se propone",
+      "source": "user",
+      "resolved_at": "2026-11-26T17:47:31.324Z",
+      "resolved_turn": 743
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-26T17:57:21.972Z",
+      "detail": {
+        "run": "run-14",
+        "tree": "sha256:2ba2543089cf89006cba80f37e7700a3a713748c5857ffc6d30e0d60b3224a5c",
+        "plan": "Ningún dato persistente cambia de formato ni se escribe nada nuevo: next y close solo leen docs/roadmap.md y .ospec/auto, y su JSON gana la clave opcional execution_mode, que un lector anterior ignora; el estado del cambio, el archivo y el changelog quedan como estaban. Sin migración: la vuelta atrás es revertir el commit."
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-26T17:59:58.701Z",
+      "detail": {
+        "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+        "runs": [
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-26T17:59:58.701Z",
+      "detail": {
+        "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.output.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "detail": {
+        "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+        "runs": [
+          "run-28"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "detail": {
+        "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+        "check": "ev-4",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.output.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0009 none",
+          "adr:0010 conforms",
+          "adr:0013 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms",
+          "adr:0004 none",
+          "adr:0011 conforms"
+        ],
+        "records": [],
+        "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+        "fitness": [
+          "run-29",
+          "run-30",
+          "run-31",
+          "run-32",
+          "run-33",
+          "run-34",
+          "run-35",
+          "run-36",
+          "run-37",
+          "run-38",
+          "run-39",
+          "run-40"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-26T18:03:15.551Z",
+      "detail": {
+        "run": "run-41",
+        "tree": "sha256:f305cf001c2cca6658ce7f0d53c6cd7979c5386c08aa1de36dc92b87c685ae82",
+        "plan": "Ningún dato persistente cambia de formato ni se escribe nada nuevo: next y close solo leen docs/roadmap.md y .ospec/auto, y su JSON gana la clave opcional execution_mode, que un lector anterior ignora; el estado del cambio, el archivo y el changelog quedan como estaban. Sin migración: la vuelta atrás es revertir el commit."
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-26T18:03:19.435Z"
+    }
+  ],
+  "base": "45363fc3d29befacb3b54a9d22b62d3e6609be83",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:f50de18878ecc2bb9e6747327a48357200aa8d7e76311a59bb72a0df1bca3f50",
+      "tree": "sha256:a51dfb5e4195d455bc00e57400c6a378b6365000c33c2403b4e57a2d9de97027",
+      "recorded_at": "2026-11-26T17:55:12.143Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7b3d8bde76b4d84b2c6976d62f640ba23affe4ba4241722f94cf57a7ffa76b22",
+      "tree": "sha256:a51dfb5e4195d455bc00e57400c6a378b6365000c33c2403b4e57a2d9de97027",
+      "recorded_at": "2026-11-26T17:55:12.143Z",
+      "tests": 48
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f9be78c05a6ff0f222abef18ed7f2db63a914a9da4c89c65913cdeb818bfec11",
+      "tree": "sha256:a51dfb5e4195d455bc00e57400c6a378b6365000c33c2403b4e57a2d9de97027",
+      "recorded_at": "2026-11-26T17:55:12.143Z",
+      "tests": 21
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c4067ba3b54df338ba7849baa153ac866b7eaf74ab704cad99996a569c61e991",
+      "tree": "sha256:a51dfb5e4195d455bc00e57400c6a378b6365000c33c2403b4e57a2d9de97027",
+      "recorded_at": "2026-11-26T17:55:12.143Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8272a8d7e77e73466be19f7599f4364130fde2d7f6edd4ab69d7de113196d117",
+      "tree": "sha256:a51dfb5e4195d455bc00e57400c6a378b6365000c33c2403b4e57a2d9de97027",
+      "recorded_at": "2026-11-26T17:55:12.143Z",
+      "tests": 32
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:a51dfb5e4195d455bc00e57400c6a378b6365000c33c2403b4e57a2d9de97027",
+      "recorded_at": "2026-11-26T17:55:12.143Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:de72c1bbc40e7a26b82db885510f4c17ea068276fb3d2e8bcfa3de8dcc0fd0aa",
+      "tree": "sha256:a51dfb5e4195d455bc00e57400c6a378b6365000c33c2403b4e57a2d9de97027",
+      "recorded_at": "2026-11-26T17:55:12.143Z",
+      "tests": 26
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:05b940049a22c111a397d87b833de4e5c498704c68f6e75ea35b212e084e10b0",
+      "tree": "sha256:a51dfb5e4195d455bc00e57400c6a378b6365000c33c2403b4e57a2d9de97027",
+      "recorded_at": "2026-11-26T17:55:12.143Z",
+      "tests": 67
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3d2cf528560a8a5bc3c378cc5cc1af0351398d74ba7538019b7771e81ce8e377",
+      "tree": "sha256:a51dfb5e4195d455bc00e57400c6a378b6365000c33c2403b4e57a2d9de97027",
+      "recorded_at": "2026-11-26T17:55:12.143Z",
+      "tests": 32
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:17e7847a42613395678509da2136c9cdda7e516269fc3af59f19038ea79959b5",
+      "tree": "sha256:a51dfb5e4195d455bc00e57400c6a378b6365000c33c2403b4e57a2d9de97027",
+      "recorded_at": "2026-11-26T17:55:12.143Z",
+      "tests": 60
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:91ce80db930fb23a48f78e3882adb2265bd98a9219d591c61f7dd8368e13ee88",
+      "tree": "sha256:a51dfb5e4195d455bc00e57400c6a378b6365000c33c2403b4e57a2d9de97027",
+      "recorded_at": "2026-11-26T17:55:12.143Z",
+      "tests": 48
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:11ce90b99f4b99150c4458a3f8c0dab4bea7a25eea70dc333cfb8d92198f86c1",
+      "tree": "sha256:a51dfb5e4195d455bc00e57400c6a378b6365000c33c2403b4e57a2d9de97027",
+      "recorded_at": "2026-11-26T17:55:12.143Z",
+      "tests": 63
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:24ec23d0a2b2325ef735d666eaf824c40f398260262043b18c940995409c9a6f",
+      "tree": "sha256:a51dfb5e4195d455bc00e57400c6a378b6365000c33c2403b4e57a2d9de97027",
+      "recorded_at": "2026-11-26T17:55:12.143Z",
+      "tests": 101
+    },
+    {
+      "id": "run-14",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/auto-queue.test.js scripts/ospec.output.test.js scripts/ospec.lifecycle.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9f676ffd043a01ccca7ad786f4aa7d4a29507069a3fa0ac3b1e4d6ddbe3b16b9",
+      "tree": "sha256:2ba2543089cf89006cba80f37e7700a3a713748c5857ffc6d30e0d60b3224a5c",
+      "recorded_at": "2026-11-26T17:57:21.972Z",
+      "tests": 67
+    },
+    {
+      "id": "run-15",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4d99c8019a6d42e01765be9780a395d304bae5c6dbffd46c8246b418bc0d5e79",
+      "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+      "recorded_at": "2026-11-26T17:59:58.701Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:117b0aa20a6fcb8ea15b817643e35cfeda129a44860c62567a4e4d25b10b031c",
+      "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+      "recorded_at": "2026-11-26T17:59:58.701Z",
+      "tests": 48
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dc1cf4f87ca723486433356260b3220829279403c04a09514579cecab4f7b77a",
+      "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+      "recorded_at": "2026-11-26T17:59:58.701Z",
+      "tests": 21
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3adb4a55b7f3090a173539a99a148ac4f60bc4c8afbe167f67ed210836b37ca7",
+      "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+      "recorded_at": "2026-11-26T17:59:58.701Z",
+      "tests": 2
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1d2781f3f79aa38a82f0263ea1a5417e9e6a1d828afb62709253d7a8c0bde5b8",
+      "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+      "recorded_at": "2026-11-26T17:59:58.701Z",
+      "tests": 32
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+      "recorded_at": "2026-11-26T17:59:58.701Z"
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e85270fb7df516008df9d8c096213b04d734492b71e96dd8e810bced11dd5ee8",
+      "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+      "recorded_at": "2026-11-26T17:59:58.701Z",
+      "tests": 26
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e0babc3f8215b85a3b149c6afe0e09cf9cac7f21285a4501297040bf6ee6e09a",
+      "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+      "recorded_at": "2026-11-26T17:59:58.701Z",
+      "tests": 67
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7d3766af9d29b5581ed2f89d4141ff6203812399f3c33c15f7d369202c3e630c",
+      "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+      "recorded_at": "2026-11-26T17:59:58.701Z",
+      "tests": 32
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:22f053a953f8a3d3386f03bee144303ecf7e8230b90dfabbf35299b9a2926fd0",
+      "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+      "recorded_at": "2026-11-26T17:59:58.701Z",
+      "tests": 60
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ae5d63187eaedc1ba8161335fe9cf4ec283f3628853b7cc75967dfd7f1b410ba",
+      "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+      "recorded_at": "2026-11-26T17:59:58.701Z",
+      "tests": 48
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:62b62009f7f6e0c82e834d150693f52b41dd3be5fc10726dfb1064b783bee30c",
+      "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+      "recorded_at": "2026-11-26T17:59:58.701Z",
+      "tests": 63
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:321684a4157ce8548628e36c07dce0a5f7e13c17ca8b6907481dda04b30920ba",
+      "tree": "sha256:274af4d26e655cbbc7a8dad4e90c520a1e7fc416f59ea0ca82837e93568bc3dc",
+      "recorded_at": "2026-11-26T17:59:58.701Z",
+      "tests": 101
+    },
+    {
+      "id": "run-28",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:32ad125b7280e938fb7228bd535b8f9c424f7c6ac263eb3a2efaf80e7b62608f",
+      "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+      "recorded_at": "2026-11-26T18:02:49.236Z"
+    },
+    {
+      "id": "run-29",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:735cc779c6f5b96bdce73f0aecfabb68440402b654b45a0e614692af5876bd0a",
+      "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "tests": 48
+    },
+    {
+      "id": "run-30",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6264fd1cf5465c94091bae3a73d551b4ecf1a349d37e9d280ba428ce25f36d81",
+      "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "tests": 21
+    },
+    {
+      "id": "run-31",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:facfbf0759d2ca71c29e612b3cf7c081a560d388a66a92b89417fbf9e839dccc",
+      "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "tests": 2
+    },
+    {
+      "id": "run-32",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1cbafa754ce207a77e8a0dfaf5c7c0115fb6063a24aa2cda48aa6278b24f3d4f",
+      "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "tests": 32
+    },
+    {
+      "id": "run-33",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+      "recorded_at": "2026-11-26T18:02:49.236Z"
+    },
+    {
+      "id": "run-34",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a11b90fd0f4afcefd94d69d0158af924a50fa16ec6ae29238d010b1d4f08d23f",
+      "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "tests": 26
+    },
+    {
+      "id": "run-35",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f02f95fb330f7a7ba82f59d6a2ca24f6837e83c2acca3fa9cfb1870460fdcf9b",
+      "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "tests": 67
+    },
+    {
+      "id": "run-36",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eeba8637b080bbe32cf427ea2832a51d7016b6e7c26a3a4827d696ce005992d3",
+      "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "tests": 32
+    },
+    {
+      "id": "run-37",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6a2e731fe9c4c273b2310ced3d314ea95ae502cad5aa7dd96794027346d3cb7b",
+      "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "tests": 60
+    },
+    {
+      "id": "run-38",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3831414a0d22de303f52c8a261bdf1ade79c43474b91bac448d70938050ff180",
+      "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "tests": 48
+    },
+    {
+      "id": "run-39",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1262a40844fd2032842e14785f1c668b11ae8216c2f550ca67df62169bf48d26",
+      "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "tests": 63
+    },
+    {
+      "id": "run-40",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1b652fa89ef902bcb0438bf403a256a1ae5afc3716c445b95febed5634fc7421",
+      "tree": "sha256:e93a19f3067f73ee8119f4059789924b1023cd864ef5ff10cfe11bc983125293",
+      "recorded_at": "2026-11-26T18:02:49.236Z",
+      "tests": 101
+    },
+    {
+      "id": "run-41",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/auto-queue.test.js scripts/ospec.output.test.js scripts/ospec.lifecycle.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9afa98be8449333cc82db587039001d119a539b00e487809cffaf0181d01862d",
+      "tree": "sha256:f305cf001c2cca6658ce7f0d53c6cd7979c5386c08aa1de36dc92b87c685ae82",
+      "recorded_at": "2026-11-26T18:03:15.551Z",
+      "tests": 67
+    }
+  ],
+  "closed_at": "2026-11-26T18:03:19.435Z"
+}
