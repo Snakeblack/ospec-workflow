@@ -137,7 +137,7 @@ Antes de terminar su turno con las preguntas de un gate, el agente puede dejar l
 
 ## Varios cambios seguidos: `ospec auto`
 
-`ospec auto` trabaja una cola de peticiones, una por cambio IDD, cada una en una sesión nueva del host sin interfaz: Claude Code por defecto, o Cursor u OpenCode con `--host cursor` o `--host opencode`. Así ningún cambio empieza con el contexto lleno del anterior. Es opcional: el modo interactivo no cambia.
+`ospec auto` trabaja una cola de peticiones, una por cambio IDD, cada una en una sesión nueva del host sin interfaz: Claude Code por defecto, o Cursor, OpenCode o Codex con `--host cursor`, `--host opencode` o `--host codex`. Así ningún cambio empieza con el contexto lleno del anterior. Es opcional: el modo interactivo no cambia.
 
 ```sh
 git switch -c feat/lote
@@ -156,7 +156,7 @@ ospec auto start --item "Haz el ítem E1.109 del roadmap" --item "Arregla el pag
 | `ospec auto resume` | Sigue una ejecución parada, o después de responder en la propia sesión (por ejemplo, `claude --resume <id>`) |
 | `ospec auto stop` | Corta el turno en curso en menos de un segundo; la ejecución se puede reanudar |
 
-`--max-turns` cambia el tope de turnos al empezar o al reanudar. El tope de gasto es opcional y sin valor por defecto, porque lo que cuesta un turno depende del modelo, del effort y del host: `--max-cost-usd` en un host que informa del coste y `--max-tokens` en uno que no, como Cursor. En Claude Code cada turno lo aplica también por dentro con `--max-budget-usd`, así que un turno no se lo salta. La sesión corre con tu configuración y tu instalación de ospec en el host, en su modo que revisa cada acción: `auto` en Claude Code y `--auto-review` en Cursor. OpenCode no tiene ese modo: con `--auto` aprueba todo lo que su configuración no deniega, y la ejecución lo avisa al empezar. El estado vive en `.ospec/auto/<ejecución>/run.json`, con el transcript de cada turno al lado. Cada host entra después de verificarlo en vivo; la sección 8 de [la matriz de capacidades](../../docs/target-capabilities.md) dice qué hace cada uno y por qué los demás no están.
+`--max-turns` cambia el tope de turnos al empezar o al reanudar. El tope de gasto es opcional y sin valor por defecto, porque lo que cuesta un turno depende del modelo, del effort y del host: `--max-cost-usd` en un host que informa del coste y `--max-tokens` en uno que no, como Cursor y Codex. En Claude Code cada turno lo aplica también por dentro con `--max-budget-usd`, así que un turno no se lo salta. La sesión corre con tu configuración y tu instalación de ospec en el host, en su modo que revisa cada acción: `auto` en Claude Code, `--auto-review` en Cursor y `--approve-for-me` en Codex. En Codex, `codex exec` solo ejecuta los hooks de ospec si los apruebas una vez en `/hooks`; sin eso no corren sus guards, aunque el conductor cuenta igual cada fin de turno. OpenCode no tiene ese modo: con `--auto` aprueba todo lo que su configuración no deniega, y la ejecución lo avisa al empezar. El estado vive en `.ospec/auto/<ejecución>/run.json`, con el transcript de cada turno al lado. Cada host entra después de verificarlo en vivo; la sección 8 de [la matriz de capacidades](../../docs/target-capabilities.md) dice qué hace cada uno y por qué los demás no están.
 
 ### Interactivo o automático
 

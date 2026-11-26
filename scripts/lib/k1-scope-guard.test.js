@@ -338,6 +338,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/auto-host-cursor.test.js",
   "scripts/lib/auto-host-opencode.js",
   "scripts/lib/auto-host-opencode.test.js",
+  "scripts/lib/auto-host-codex.js",
+  "scripts/lib/auto-host-codex.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [

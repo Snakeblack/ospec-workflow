@@ -1,0 +1,392 @@
+{
+  "schema": "idd-state/v1",
+  "change": "auto-host-codex",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "A, y sí, fusiona la #565, ya he logado en agy (A: verificar Codex y Copilot en vivo con el cupo gratuito, un tramo cada uno)",
+    "requested_at": "2026-11-26T20:32:22.485Z",
+    "kind": "feature",
+    "summary": "ospec auto conduce Codex (codex exec --approve-for-me), verificado en vivo",
+    "acceptance": "ospec auto start --host codex cierra en vivo un cambio de prueba, delega open-facts y reanuda la sesión por su id; la ejecución limita por tokens; un test de contrato fija sus argumentos, la lectura de los tokens y el error de un turno fallido"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "Codex solo ejecuta en codex exec los hooks aprobados en /hooks, y los de ospec acaban de instalarse sin aprobar, así que en la ejecución no corren ni sus guards ni el Stop que cuenta el fin de turno. ¿El conductor cuenta él el fin de turno, como en Cursor, sin tocar la confianza, y la documentación pide aprobar una vez los hooks de ospec en /hooks para que corran sus guards (recomendado), o pasa --dangerously-bypass-hook-trust, que ejecuta también sin aprobar los hooks del .codex/hooks.json de cada repositorio?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-conductor.js",
+          "line": 439
+        }
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-conductor.js",
+          "line": 460
+        }
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "docs/target-capabilities.md",
+          "line": 184
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "handbook/idd/flujo-idd.md",
+          "line": 159
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 1772
+        }
+      },
+      {
+        "category": "errors",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-hosts.js",
+          "line": 56
+        }
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/README.md",
+      "docs/en/README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "docs/target-capabilities.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/auto-conductor.js",
+      "scripts/lib/auto-host-codex.js",
+      "scripts/lib/auto-host-codex.test.js",
+      "scripts/lib/auto-hosts.js",
+      "scripts/lib/auto-queue.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/ospec.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Codex informa de los tokens de cada turno en turn.completed y ningún coste, así que admite solo --max-tokens; cuenta input_tokens más output_tokens, porque cached_input_tokens va dentro de input_tokens",
+      "Las opciones de codex exec (--json, --approve-for-me, --model) van antes del subcomando resume, que no las tiene",
+      "El adaptador quita del stderr de Codex sus líneas de log (como el 403 de un servidor MCP) y saca el mensaje del JSON del API que trae turn.failed, para que el motivo de una pausa sea legible",
+      "En Codex el conductor cuenta el fin de turno al ver terminar el proceso y no pasa --dangerously-bypass-hook-trust; los hooks de ospec solo corren en codex exec si el usuario los aprueba una vez en /hooks"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 770
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 770
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration",
+      "recorded_turn": 770
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0003, 0005, 0010, 0013 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration",
+      "recorded_turn": 770
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff",
+      "recorded_turn": 772
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Los argumentos de Codex, la lectura de sus tokens y de sus errores y su disponibilidad los decide el CLI (auto-host-codex.js, auto-hosts.js), con tests; las skills solo nombran el host"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El conductor sigue avanzando en Codex solo con el close en disco"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; el runtime lanza el codex que el usuario ya tiene instalado"
+    },
+    {
+      "kind": "adr",
+      "id": "0013",
+      "impact": "conforms",
+      "reason": "Solo open-facts se delega y sigue exigiendo un turno terminado; en Codex ese fin de turno lo cuenta el conductor al ver terminar el proceso, que es el fin de turno real, y OSPEC_AUTO_RUN sigue fuera de la sesión"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "resume sigue la sesión de Codex por su thread_id con codex exec resume; run.json guarda los tokens por ítem"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "next, check y close no añaden red; solo ospec auto start, que el usuario lanza, ejecuta codex"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Verificado: los argumentos de codex exec y de su resume, la suma de tokens, el mensaje del API de turn.failed, la cuota y el filtrado de los registros del stderr tienen tests en scripts/lib/auto-host-codex.test.js; ninguna skill describe una regla nueva",
+      "recorded_at": "2026-11-26T20:36:48.271Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado: el diff no añade llamadas de red a hooks ni skills; auto-host-codex solo lanza procesos locales de codex al arrancar una ejecución; next y close solo cambian el texto del how",
+      "recorded_at": "2026-11-26T20:36:48.489Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 770,
+      "recommendations": [
+        {
+          "question": "Codex solo ejecuta en codex exec los hooks aprobados en /hooks, y los de ospec acaban de instalarse sin aprobar, así que en la ejecución no corren ni sus guards ni el Stop que cuenta el fin de turno. ¿El conductor cuenta él el fin de turno, como en Cursor, sin tocar la confianza, y la documentación pide aprobar una vez los hooks de ospec en /hooks para que corran sus guards (recomendado), o pasa --dangerously-bypass-hook-trust, que ejecuta también sin aprobar los hooks del .codex/hooks.json de cada repositorio?",
+          "answer": "El conductor cuenta él el fin de turno en Codex, como en Cursor, y no pasa --dangerously-bypass-hook-trust; la documentación pide aprobar una vez los hooks de ospec en /hooks de Codex para que corran sus guards"
+        }
+      ],
+      "answer": "A, lo recomendado",
+      "source": "user",
+      "resolved_at": "2026-11-26T20:33:10.949Z",
+      "resolved_turn": 771
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-26T20:39:42.799Z",
+      "detail": {
+        "tree": "sha256:cb131dc636a6d286eadfb03ca912b2a812825d62e334e4dff8f740bb001e1912",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-26T20:39:42.799Z",
+      "detail": {
+        "tree": "sha256:cb131dc636a6d286eadfb03ca912b2a812825d62e334e4dff8f740bb001e1912",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/auto-host-codex.test.js",
+          "scripts/lib/k1-scope-guard.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-26T20:39:42.799Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0005 conforms",
+          "adr:0010 conforms",
+          "adr:0013 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:cb131dc636a6d286eadfb03ca912b2a812825d62e334e4dff8f740bb001e1912",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-26T20:39:48.306Z",
+      "detail": {
+        "run": "run-7",
+        "tree": "sha256:4261041a4afe2e67dc0d0ab5b14e213588ade7f64b0a77a877439c0b30d95521",
+        "plan": "run.json sigue en ospec-auto-run/v1 sin campos nuevos: una ejecución de Codex guarda host codex, spend tokens y tokens por ítem, igual que una de Cursor, y una ejecución anterior se lee y se reanuda como antes; para volver atrás, un ospec anterior lee la de Codex y rechaza reanudarla con host-unavailable, sin modificarla"
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-26T20:39:52.877Z"
+    }
+  ],
+  "base": "1f29e6f408a8f234d419dcb538605fb6cd13f1ac",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:753bc0d81e344873ab2e3b2ca3b1779420fbc07b1a58b9418ac10b15c3be9c78",
+      "tree": "sha256:cb131dc636a6d286eadfb03ca912b2a812825d62e334e4dff8f740bb001e1912",
+      "recorded_at": "2026-11-26T20:39:42.799Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e58024e0b96fec602dd1260ddfadbe4e60c4b3fb76fd144ca323339bf3ed1d53",
+      "tree": "sha256:cb131dc636a6d286eadfb03ca912b2a812825d62e334e4dff8f740bb001e1912",
+      "recorded_at": "2026-11-26T20:39:42.799Z",
+      "tests": 21
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:cb131dc636a6d286eadfb03ca912b2a812825d62e334e4dff8f740bb001e1912",
+      "recorded_at": "2026-11-26T20:39:42.799Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e2110c09ccb5abb0c20b3ca22d2096dbaa6e547ff370d4f541cadac5c108b8b2",
+      "tree": "sha256:cb131dc636a6d286eadfb03ca912b2a812825d62e334e4dff8f740bb001e1912",
+      "recorded_at": "2026-11-26T20:39:42.799Z",
+      "tests": 26
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5a2210f26fa5ac5cfdddaece3d2f74a797711c7231bc5e61884f50d1e6408c3e",
+      "tree": "sha256:cb131dc636a6d286eadfb03ca912b2a812825d62e334e4dff8f740bb001e1912",
+      "recorded_at": "2026-11-26T20:39:42.799Z",
+      "tests": 67
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:39a6def4abec027ecf2f5f95dddc92e6206dc1a82014da1d7f3cbd2f8d012403",
+      "tree": "sha256:cb131dc636a6d286eadfb03ca912b2a812825d62e334e4dff8f740bb001e1912",
+      "recorded_at": "2026-11-26T20:39:42.799Z",
+      "tests": 60
+    },
+    {
+      "id": "run-7",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/auto-run.test.js scripts/lib/auto-host-codex.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cd5d9a9d7cc54cb8a64450f113df30afa1d183c1ebd573ad72dfe579b871a39f",
+      "tree": "sha256:4261041a4afe2e67dc0d0ab5b14e213588ade7f64b0a77a877439c0b30d95521",
+      "recorded_at": "2026-11-26T20:39:48.306Z",
+      "tests": 10
+    }
+  ],
+  "changelog_line": "**`ospec auto` en Codex** (auto-host-codex, E1.110, tramo 3). `ospec auto start --host codex` conduce `codex exec --json --approve-for-me`, verificado en vivo con una cuenta gratuita de ChatGPT: delega `open-facts`, reanuda la sesión con `codex exec resume` y cierra el cambio con su commit. Codex da los tokens de cada turno y ningún coste, así que admite `--max-tokens`. `codex exec` solo ejecuta los hooks aprobados en `/hooks`, así que el conductor cuenta cada fin de turno y la respuesta delegada funciona aunque los hooks de ospec estén sin aprobar; aprobarlos una vez hace que corran también sus guards. El motivo de un turno fallido lleva el mensaje del API, sin los registros que Codex escribe en stderr. REQ-idd-031 lo fija.",
+  "closed_at": "2026-11-26T20:39:52.877Z"
+}
