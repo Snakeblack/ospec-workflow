@@ -347,6 +347,32 @@ func TestStop_CountsEachTurnEnd(t *testing.T) {
 	}
 }
 
+// GitHub Copilot's agentStop sends the timestamp as epoch milliseconds. The
+// Node hook ignores a timestamp that is not text, and so must the binary.
+func TestStop_CountsCopilotAgentStopWithANumericTimestamp(t *testing.T) {
+	ws := createStopWorkspace(t)
+	payload, _ := json.Marshal(map[string]any{
+		"sessionId":        "6f4c86d2-40c8-4067-a757-bb3b3b003718",
+		"timestamp":        1795725885970,
+		"cwd":              ws,
+		"transcriptPath":   "/home/u/.copilot/session-state/6f4c86d2/events.jsonl",
+		"stopReason":       "end_turn",
+		"stop_hook_active": false,
+	})
+
+	r, code := runStopHook(t, payload)
+
+	if code != 0 || !r.Continue {
+		t.Errorf("got exit %d, continue %v; want 0, true", code, r.Continue)
+	}
+	if r.SystemMessage != "" {
+		t.Errorf("systemMessage: got %q, want none", r.SystemMessage)
+	}
+	if got := readTurns(t, ws); got != "1\n" {
+		t.Errorf("turns: got %q, want %q", got, "1\n")
+	}
+}
+
 func TestStop_UnreadableTurnCountStartsAgain(t *testing.T) {
 	ws := createStopWorkspace(t)
 	if err := os.MkdirAll(filepath.Join(ws, ".ospec"), 0755); err != nil {

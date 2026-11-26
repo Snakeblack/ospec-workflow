@@ -1315,8 +1315,10 @@ Then it MUST treat the workspace as having no active change.
 ```
 
 `sessionId` is resolved from `input.sessionId` or `input.session_id`; defaults to
-`"unknown"`. Timestamp uses `input.timestamp` if supplied; otherwise
-`now().toISOString()`.
+`"unknown"`. Timestamp uses `input.timestamp` when it is a non-empty string;
+any other value, such as the epoch milliseconds of GitHub Copilot's
+`agentStop`, falls back to `now().toISOString()`, in the Node hook and the
+native binary alike.
 
 `Detailed summary` is set to the portable relative path of
 `.ospec/session/{changeName}/session-summary.md` if that file exists; otherwise
@@ -1933,6 +1935,7 @@ The Stop hook, in the Node hook and the native binary alike, MUST add one to the
 - GIVEN a Stop whose `cwd` does not exist THEN the count MUST rise in the hook's own directory and nothing MUST be created at that `cwd`.
 - GIVEN `.ospec/turns` is a directory THEN the trace MUST still be written and the `systemMessage` MUST name the count.
 - GIVEN OpenCode ends a turn in which a subagent ran THEN the count MUST rise by one (verified live on 1.18.35 and 2.0.32).
+- GIVEN GitHub Copilot's `agentStop` payload, whose `timestamp` is epoch milliseconds, THEN the native binary MUST count the turn end with no `systemMessage` (verified live on 1.0.116, headless too).
 
 ### Requirement: The Launcher Runs The Node Hook When The Binary Cannot Start {#REQ-hooks-031}
 

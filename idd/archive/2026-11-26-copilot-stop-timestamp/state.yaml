@@ -1,0 +1,150 @@
+{
+  "schema": "idd-state/v1",
+  "change": "copilot-stop-timestamp",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "todas las recomendadas (incluido arreglar en la misma PR del tramo 4 el hook stop, que no cuenta el agentStop de Copilot porque llega timestamp numérico)",
+    "requested_at": "2026-11-26T21:30:57.296Z",
+    "kind": "bug",
+    "summary": "El hook stop nativo cuenta el fin de turno del agentStop de GitHub Copilot, que manda timestamp como número",
+    "acceptance": "Con el payload del agentStop de Copilot (timestamp en milisegundos), el binario ospec-hooks suma el turno en .ospec/turns y escribe la traza con la hora actual, como el hook de Node; verificado en vivo con copilot sin interfaz"
+  },
+  "facts": {
+    "basis": "El hook de Node ya fija el comportamiento: ignora un timestamp que no es texto y usa la hora actual (scripts/hooks/stop.js:53-57), y REQ-hooks-030 exige el mismo conteo en el binario nativo"
+  },
+  "plan": {
+    "paths": [
+      "docs/target-capabilities.md",
+      "internal/hooks/stop.go",
+      "internal/hooks/stop_test.go",
+      "openspec/specs/hooks/spec.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 778
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration",
+      "recorded_turn": 778
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-26T21:31:30.109Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-26T21:33:51.883Z",
+      "detail": {
+        "tree": "sha256:e1a1dcd7c6a808fb57e00c12f0ca0a3f1ee5b0195580e661f3f89f32225239e1",
+        "runs": [
+          "run-5"
+        ]
+      }
+    }
+  ],
+  "base": "5c71129cc2284720b66beb617ea9b6d3a6191e56",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "go test ./internal/hooks -run TestStop_CountsCopilotAgentStopWithANumericTimestamp -count=1",
+      "exit_code": 1,
+      "output_sha256": "sha256:d631d023587b2a6ca24604f6c01700477150b374e39788289ccf379ee112cc99",
+      "tree": "sha256:fd3b284de7b80d194b087eae791f5b2ec8627f7f114a318259a14c64c0872018",
+      "recorded_at": "2026-11-26T21:31:14.655Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "go test ./internal/hooks -run TestStop_CountsCopilotAgentStopWithANumericTimestamp -count=1",
+      "exit_code": 0,
+      "output_sha256": "sha256:d02a2c198aa44de9787772cc913de739850dd62944aeed2c8dc5cf3bcfcf1e34",
+      "tree": "sha256:2aaeff677589e5809b543f15dcdcd307ee3a93f65ca544d648757d1b48d6e9fd",
+      "recorded_at": "2026-11-26T21:31:30.109Z",
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "5c71129cc2284720b66beb617ea9b6d3a6191e56",
+      "mount": "sha256:0355774dda2ffdd3f8ca3a876c82b06cbea3b4d0c2bafd4a516c3591d505472d",
+      "command": "go test ./internal/hooks -run TestStop_CountsCopilotAgentStopWithANumericTimestamp -count=1",
+      "exit_code": 1,
+      "output_sha256": "sha256:ae97f844ae4b90dbb196dea6ab44c8d5db9bce6e6fa22162f5d5dfce4176962e",
+      "tree": "sha256:2aaeff677589e5809b543f15dcdcd307ee3a93f65ca544d648757d1b48d6e9fd",
+      "recorded_at": "2026-11-26T21:31:30.109Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "5c71129cc2284720b66beb617ea9b6d3a6191e56",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "go test ./internal/hooks -run TestStop_CountsCopilotAgentStopWithANumericTimestamp -count=1",
+      "exit_code": 0,
+      "output_sha256": "sha256:88f2f88e866281b07d926e18b93e2df01a68fcefa5d3facd3c810050cf9b12f7",
+      "tree": "sha256:2aaeff677589e5809b543f15dcdcd307ee3a93f65ca544d648757d1b48d6e9fd",
+      "recorded_at": "2026-11-26T21:31:30.109Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ef9f0d51d0612eb1ce5081d7dcb34da79b46d29170215f1818cde4770e815b38",
+      "tree": "sha256:e1a1dcd7c6a808fb57e00c12f0ca0a3f1ee5b0195580e661f3f89f32225239e1",
+      "recorded_at": "2026-11-26T21:33:51.883Z"
+    }
+  ],
+  "changelog_line": "**El hook de fin de turno cuenta el `agentStop` de GitHub Copilot CLI** (copilot-stop-timestamp). Copilot manda en ese evento el `timestamp` como milisegundos, y el binario `ospec-hooks` lo esperaba como texto: el hook salía sin contar el turno en `.ospec/turns` ni escribir la traza, así que en Copilot toda respuesta a un gate quedaba `user-unverified`. Ahora, como el hook de Node, usa el `timestamp` solo si es texto y si no la hora actual; verificado en vivo con Copilot 1.0.116, también sin interfaz. Hay que reinstalar ospec en Copilot (`npm run setup:copilot`) para que llegue el binario corregido. REQ-hooks-030 lo fija.",
+  "closed_at": "2026-11-26T21:33:51.953Z"
+}
