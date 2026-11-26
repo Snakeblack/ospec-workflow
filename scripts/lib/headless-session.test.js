@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { addUsage, emptyUsage, summarizeTurn, tokenTotal } = require("./transcript.js");
+const { addUsage, emptyUsage, summarizeTurn, tokenTotal } = require("./headless-session.js");
 
 const result = {
   type: "result",

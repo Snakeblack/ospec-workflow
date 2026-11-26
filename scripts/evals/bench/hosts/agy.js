@@ -42,7 +42,7 @@ const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 
 const { PERSONA_SCHEMA, buildPersonaPrompt, buildPersonaSystemPrompt, normalizePersonaReply } = require("../persona.js");
-const { emptyUsage } = require("../transcript.js");
+const { emptyUsage } = require("../../../lib/headless-session.js");
 const { listFiles } = require("../scenarios.js");
 const { homeAsTilde, setupEngram } = require("./engram.js");
 

@@ -316,6 +316,11 @@ const SUCCESSOR_K2_EXACT = new Set([
   // value (REQ-lifecycle-kernel-034).
   "scripts/lib/capability-registry.js",
   "scripts/lib/capability-registry.test.js",
+  // E1.108 auto-conductor: the headless session and claude lookup shared
+  // with the bench and the generator.
+  "scripts/lib/claude-bin.js",
+  "scripts/lib/headless-session.js",
+  "scripts/lib/headless-session.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [

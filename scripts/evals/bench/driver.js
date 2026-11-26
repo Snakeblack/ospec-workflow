@@ -26,7 +26,7 @@ const { spawnSync } = require("node:child_process");
 
 const { listFiles, materializeRepo } = require("./scenarios.js");
 const { runChecks } = require("./checks.js");
-const { addUsage, emptyUsage, tokenTotal } = require("./transcript.js");
+const { addUsage, emptyUsage, tokenTotal } = require("../../lib/headless-session.js");
 
 const DEFAULT_LIMITS = Object.freeze({ maxAgentTurns: 30, maxSetupTurns: 6, maxCostUsd: 25 });
 const RESUME_AFTER_ERROR = "Continúa donde lo dejaste.";

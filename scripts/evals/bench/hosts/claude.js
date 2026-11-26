@@ -16,18 +16,16 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawn, spawnSync } = require("node:child_process");
+const { spawnSync } = require("node:child_process");
 
-const { resolveClaudeBin } = require("../../../configure/cli.js");
 const { writeRouterBlock } = require("../../../configure/instruction-block.js");
 const { homeEnv } = require("./gentle-ai.js");
 const { listFiles } = require("../scenarios.js");
 const { PERSONA_SCHEMA, buildPersonaPrompt, buildPersonaSystemPrompt, normalizePersonaReply } = require("../persona.js");
-const { emptyUsage, summarizeTurn } = require("../transcript.js");
+const { emptyUsage, resolveClaudeExecutable, runProcess, summarizeTurn } = require("../../../lib/headless-session.js");
 
 const DEFAULT_TURN_TIMEOUT_MS = 60 * 60 * 1000;
 const PERSONA_TIMEOUT_MS = 5 * 60 * 1000;
-const STDERR_TAIL = 2000;
 const CREDENTIALS_FILE = ".credentials.json";
 // Variables of the calling session that would leak into the bench: nested
 // Claude Code markers, this repository's hook switches, and an API key that
@@ -40,14 +38,6 @@ const PERSONA_FALLBACK = Object.freeze({
   deviates_from_recommendation: false,
   unknown_facts: [],
 });
-
-function resolveClaudeExecutable(bin = resolveClaudeBin()) {
-  if (!bin) throw new Error("claude CLI not found on PATH");
-  if (!/\.(cmd|bat)$/i.test(bin)) return bin;
-  const native = path.join(path.dirname(bin), "node_modules", "@anthropic-ai", "claude-code", "bin", "claude.exe");
-  if (!fs.existsSync(native)) throw new Error(`could not find the native binary behind ${bin}`);
-  return native;
-}
 
 const inheritedEnv = (baseEnv) => Object.fromEntries(Object.entries(baseEnv).filter(([key]) => !STRIPPED_ENV.some((pattern) => pattern.test(key))));
 
@@ -89,45 +79,6 @@ function personaArgs({ model, system }) {
     "--json-schema", JSON.stringify(PERSONA_SCHEMA),
     "--system-prompt", system,
   ];
-}
-
-function runProcess({ executable, args, cwd, env, input, stdoutPath, timeoutMs, children = null }) {
-  return new Promise((resolve) => {
-    const started = Date.now();
-    const child = spawn(executable, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
-    if (children) children.add(child);
-    const chunks = [];
-    let stderr = "";
-    let timedOut = false;
-    const out = stdoutPath ? fs.createWriteStream(stdoutPath) : null;
-    child.stdout.on("data", (chunk) => {
-      if (out) out.write(chunk);
-      else chunks.push(chunk);
-    });
-    child.stderr.on("data", (chunk) => { stderr = (stderr + chunk).slice(-STDERR_TAIL); });
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill();
-    }, timeoutMs);
-    const finish = (code, error) => {
-      clearTimeout(timer);
-      if (children) children.delete(child);
-      const done = () => resolve({
-        code,
-        error,
-        timedOut,
-        stderr,
-        stdout: out ? null : Buffer.concat(chunks).toString("utf8"),
-        wall_ms: Date.now() - started,
-      });
-      if (out) out.end(done);
-      else done();
-    };
-    child.on("error", (error) => finish(null, error));
-    child.on("close", (code) => finish(code, null));
-    child.stdin.on("error", () => {});
-    child.stdin.end(input);
-  });
 }
 
 function hashTree(dir) {
