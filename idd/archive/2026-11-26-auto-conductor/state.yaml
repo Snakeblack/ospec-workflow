@@ -1,0 +1,484 @@
+{
+  "schema": "idd-state/v1",
+  "change": "auto-conductor",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua",
+    "requested_at": "2026-11-26T14:25:50.618Z",
+    "kind": "feature",
+    "summary": "Conductor del modo automático (E1.108): ospec auto start|status|resume|stop ejecuta una cola de encargos con una sesión sin interfaz nueva por cambio, responde open-facts con la fuente delegated, para en los gates bloqueantes y solo avanza con el close en disco",
+    "acceptance": "Con un host simulado, ospec auto start lleva dos encargos hasta su close con un commit por cambio y open-facts resuelto con delegated; para en blocked ante un gate bloqueante y resume la continúa; stop la detiene; una respuesta delegada sin una ejecución en curso registrada en .ospec/auto se rechaza; y una ejecución real en Claude Code con Haiku cierra un cambio de prueba"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Qué recibe ospec auto start y con qué topes: la cola como lista explícita de encargos --item \"<texto>\" repetida (de 1 a 20), en el orden dado y sin leer el roadmap (E1.109 la armará); solo --host claude en esta versión, con agy pasando a E1.110 porque aquí no tiene sesión iniciada para verificarlo en vivo; --model opcional (sin él, el de la configuración del usuario); como mucho 30 turnos del conductor por ítem y 25 USD para toda la ejecución, ajustables con --max-turns y --max-cost-usd?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿Cómo se identifican la ejecución y su cambio: una sola ejecución activa (running, blocked o paused) por repositorio, con id auto-<AAAAMMDD>-<HHMMSS>; start se niega con un cambio IDD abierto o en la rama por defecto; y el cambio de cada ítem es el único que abre su sesión, de modo que si abre ninguno o más de uno la cola para?"
+      },
+      {
+        "category": "persistence",
+        "question": "¿Dónde vive el estado y quién hace el commit: .ospec/auto/<run>/run.json escrito de forma atómica, con el transcript de cada turno al lado; uno ilegible o de otro formato hace que status y resume se nieguen con run-invalid sin tocar nada; la respuesta delegada exige esa ejecución registrada y running; y tras cada close el conductor hace él el commit en la rama actual, con el asunto <tipo>: <resumen del intent> y los hooks de git del usuario (sin --no-verify), sin push, PR ni release, porque el guard de colaboración git de ospec deniega en -p todo commit de la sesión?"
+      },
+      {
+        "category": "copy",
+        "question": "¿Qué imprime y qué encargo recibe cada sesión: una línea por evento en inglés, como el resto del CLI (item 1/3 started, open-facts answered from the recommendations, blocked at <gate>, item 1/3 closed: <change> (<n> turns, <coste>)), y --json con el estado completo; y la sesión recibe el texto del ítem tal cual más un encargo fijo: trabajar con IDD hasta ospec close, dejar con ospec record recommendation la recomendación de cada pregunta antes de terminar el turno, y no hacer commit, push ni release?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "docs/analysis/2026-11-24-modo-automatico.md",
+          "line": 66
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "docs/roadmaps/harness-evolution.md",
+          "line": 231
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿Cómo para y se reanuda: antes del primer ítem exige árbol limpio y los checks de idd/config.yaml en verde sobre HEAD, y entre ítems árbol limpio y el close anterior en disco; un gate distinto de open-facts, o open-facts con una pregunta sin recomendación, deja la ejecución blocked con la pregunta y el id de la sesión, y el usuario responde con ospec auto resume --answer \"<texto>\", que llega tal cual a la sesión como mensaje suyo, o en la propia sesión (claude --resume <id>) antes de ospec auto resume; la cuota agotada la deja paused; dos errores seguidos del host, el tope de turnos o de coste, dos turnos seguidos sin cambio en el estado del cambio o un commit que falla la dejan failed en ese ítem sin saltar al siguiente; y ospec auto stop corta el turno en curso en menos de 1 s y la deja stopped, reanudable?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/README.md",
+      "docs/architecture/component-map.yaml",
+      "docs/en/README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/configure/cli.js",
+      "scripts/evals/bench/README.md",
+      "scripts/evals/bench/driver.js",
+      "scripts/evals/bench/hosts/agy.js",
+      "scripts/evals/bench/hosts/claude.js",
+      "scripts/lib/auto-conductor.js",
+      "scripts/lib/auto-hosts.js",
+      "scripts/lib/auto-run.js",
+      "scripts/lib/claude-bin.js",
+      "scripts/lib/headless-session.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/ospec.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El conductor reutiliza del banco el lanzador de procesos y el resumen del stream-json de Claude, que pasan a scripts/lib/headless-session.js; la persona, el aislamiento de la configuración y el juicio se quedan en el banco",
+      "El conductor hace él el commit de cada cambio cerrado, porque el guard de colaboración git de ospec pide confirmación en todo commit con el árbol sucio y sin interfaz nadie la da; la sesión no hace commit",
+      "La resolución del binario de claude pasa de scripts/configure/cli.js a scripts/lib/claude-bin.js, porque el runtime instalado de los targets lleva scripts/lib y no scripts/configure",
+      "El coste de un ítem es el último total_cost_usd de su sesión, porque con --resume Claude informa el acumulado de la sesión y no el del turno",
+      "Una respuesta delegada exige además que su ejecución conste como running en .ospec/auto con el conductor vivo; el reductor sigue puro y ospec.js le pasa si está registrada"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 739
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 739
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration",
+      "recorded_turn": 739
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine: ADR 0003, 0004, 0005, 0010, 0011, 0013 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration",
+      "recorded_turn": 739
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/auto-run.js adds writeFile",
+      "source": "diff",
+      "recorded_turn": 740
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Cuándo responder, parar, avanzar y hacer commit lo decide el conductor en código con tests (auto-conductor.js); el encargo de la sesión no reimplementa ninguna regla"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "Cada ítem es un cambio IDD normal: sus señales y obligaciones salen igual que en modo interactivo, y el conductor no añade ni quita ceremonia"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El conductor solo avanza al siguiente ítem con el close archivado en disco; nunca da un ítem por hecho por lo que diga la sesión"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "El conductor usa solo la biblioteca estándar de Node y lanza el host que el usuario ya tiene instalado; no declara dependencias"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "El conductor lee solo idd/ y .ospec/auto; no lee ni escribe el estado de SDD"
+    },
+    {
+      "kind": "adr",
+      "id": "0013",
+      "impact": "conforms",
+      "reason": "La respuesta delegada sigue limitada a open-facts y OSPEC_AUTO_RUN va solo en la llamada propia del conductor; el cambio la restringe más al exigir la ejecución registrada como running"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "status y resume parten de .ospec/auto/<run>/run.json y del estado del cambio en disco, nunca de la memoria de la conversación"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "ospec auto es opcional y lanza el host del usuario, que necesita red; next, check y close no hacen llamadas de red y dan el mismo resultado sin él"
+    },
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "La resolución de claude pasa a scripts/lib/claude-bin.js, que el runtime de los siete targets ya lleva; el generador sigue partiendo de una sola fuente y su salida no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Los siete targets llevan los módulos nuevos en su runtime y sus validadores pasan; ospec auto solo conduce Claude Code y en el resto rechaza el host con host-unavailable y su motivo"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Las cuatro subórdenes de ospec auto tienen tests: el conductor en scripts/lib/auto-conductor.test.js, su registro en auto-run.test.js, el host en auto-hosts.test.js y el contrato del CLI en scripts/ospec.auto.test.js. Ninguna skill cambia: las reglas de cuándo responder, parar, avanzar y hacer commit viven en auto-conductor.js",
+      "recorded_at": "2026-11-26T14:59:12.147Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Ningún módulo nuevo ni ospec.js requiere http, https, net, tls, dgram o dns ni usa fetch; next, check y close siguen el mismo camino; solo ospec auto, que es opcional, lanza el host del usuario, que es quien usa la red",
+      "recorded_at": "2026-11-26T14:59:12.412Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 739,
+      "recommendations": [
+        {
+          "question": "¿Qué recibe ospec auto start y con qué topes: la cola como lista explícita de encargos --item \"<texto>\" repetida (de 1 a 20), en el orden dado y sin leer el roadmap (E1.109 la armará); solo --host claude en esta versión, con agy pasando a E1.110 porque aquí no tiene sesión iniciada para verificarlo en vivo; --model opcional (sin él, el de la configuración del usuario); como mucho 30 turnos del conductor por ítem y 25 USD para toda la ejecución, ajustables con --max-turns y --max-cost-usd?",
+          "answer": "Sí: cola explícita con --item (1 a 20) en el orden dado, solo --host claude (agy a E1.110), --model opcional, 30 turnos por ítem y 25 USD por ejecución, ajustables"
+        },
+        {
+          "question": "¿Cómo se identifican la ejecución y su cambio: una sola ejecución activa (running, blocked o paused) por repositorio, con id auto-<AAAAMMDD>-<HHMMSS>; start se niega con un cambio IDD abierto o en la rama por defecto; y el cambio de cada ítem es el único que abre su sesión, de modo que si abre ninguno o más de uno la cola para?",
+          "answer": "Sí: una ejecución activa por repositorio con id auto-<AAAAMMDD>-<HHMMSS>; start se niega con un cambio IDD abierto o en la rama por defecto; el cambio del ítem es el único que abre su sesión"
+        },
+        {
+          "question": "¿Dónde vive el estado y quién hace el commit: .ospec/auto/<run>/run.json escrito de forma atómica, con el transcript de cada turno al lado; uno ilegible o de otro formato hace que status y resume se nieguen con run-invalid sin tocar nada; la respuesta delegada exige esa ejecución registrada y running; y tras cada close el conductor hace él el commit en la rama actual, con el asunto <tipo>: <resumen del intent> y los hooks de git del usuario (sin --no-verify), sin push, PR ni release, porque el guard de colaboración git de ospec deniega en -p todo commit de la sesión?",
+          "answer": "Sí: .ospec/auto/<run>/run.json atómico con transcripts; run-invalid si es ilegible; delegated exige la ejecución running; el conductor hace el commit tras close con <tipo>: <resumen> y los hooks del usuario, sin push, PR ni release"
+        },
+        {
+          "question": "¿Qué imprime y qué encargo recibe cada sesión: una línea por evento en inglés, como el resto del CLI (item 1/3 started, open-facts answered from the recommendations, blocked at <gate>, item 1/3 closed: <change> (<n> turns, <coste>)), y --json con el estado completo; y la sesión recibe el texto del ítem tal cual más un encargo fijo: trabajar con IDD hasta ospec close, dejar con ospec record recommendation la recomendación de cada pregunta antes de terminar el turno, y no hacer commit, push ni release?",
+          "answer": "Sí: una línea por evento en inglés y --json; la sesión recibe el ítem tal cual más el encargo fijo (IDD hasta close, recomendación por pregunta, sin commit, push ni release)"
+        },
+        {
+          "question": "¿Cómo para y se reanuda: antes del primer ítem exige árbol limpio y los checks de idd/config.yaml en verde sobre HEAD, y entre ítems árbol limpio y el close anterior en disco; un gate distinto de open-facts, o open-facts con una pregunta sin recomendación, deja la ejecución blocked con la pregunta y el id de la sesión, y el usuario responde con ospec auto resume --answer \"<texto>\", que llega tal cual a la sesión como mensaje suyo, o en la propia sesión (claude --resume <id>) antes de ospec auto resume; la cuota agotada la deja paused; dos errores seguidos del host, el tope de turnos o de coste, dos turnos seguidos sin cambio en el estado del cambio o un commit que falla la dejan failed en ese ítem sin saltar al siguiente; y ospec auto stop corta el turno en curso en menos de 1 s y la deja stopped, reanudable?",
+          "answer": "Sí: comprobaciones previas, blocked con resume --answer o la sesión interactiva, paused por cuota, failed sin saltar de ítem, stop en menos de 1 s y reanudable"
+        }
+      ],
+      "answer": "sí, como se propone",
+      "source": "user",
+      "resolved_at": "2026-11-26T14:34:30.266Z",
+      "resolved_turn": 740
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-26T15:03:24.037Z",
+      "detail": {
+        "tree": "sha256:a502269dcf92122a0665ee7030b3a24cde54520cd396ec5d204587a26045b7c2",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-26T15:03:24.037Z",
+      "detail": {
+        "tree": "sha256:a502269dcf92122a0665ee7030b3a24cde54520cd396ec5d204587a26045b7c2",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/evals/bench/transcript.test.js",
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-run.test.js",
+          "scripts/lib/headless-session.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-refusals.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js",
+          "scripts/ospec.lifecycle.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-26T15:03:24.037Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "adr:0013 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "adr:0001 conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:a502269dcf92122a0665ee7030b3a24cde54520cd396ec5d204587a26045b7c2",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-26T15:03:37.613Z",
+      "detail": {
+        "run": "run-11",
+        "tree": "sha256:89f4f0728f912ec63b0d19f15eb5f2b4927d6f40db4b7b455c0388b829000566",
+        "plan": "El registro de una ejecución es un formato nuevo, ospec-auto-run/v1, sin versión anterior que migrar. Un registro ilegible o de otro esquema se rechaza con run-invalid y queda intacto, y se olvida borrando .ospec/auto/<run>, que es local y no se versiona. El estado de los cambios (idd-state/v1) no cambia: la condición de ejecución registrada se calcula al responder y no se guarda."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-26T15:03:45.260Z"
+    }
+  ],
+  "base": "79a01a47bb1305ec021ed950b485fc84c5f16ff0",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a3e0c17fb4b5f0b5449ac6f5b1ab7736faf6f4953ddf48262b12c7a40779df8a",
+      "tree": "sha256:a502269dcf92122a0665ee7030b3a24cde54520cd396ec5d204587a26045b7c2",
+      "recorded_at": "2026-11-26T15:03:24.037Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a2f22f9d1a226712517addc4a96deed58b07168a7fdbe87903a56aa6eac8167e",
+      "tree": "sha256:a502269dcf92122a0665ee7030b3a24cde54520cd396ec5d204587a26045b7c2",
+      "recorded_at": "2026-11-26T15:03:24.037Z",
+      "tests": 63
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0978765a9329d829c720a179efc577548f78e0f3048d659723a5b01d4c4ac417",
+      "tree": "sha256:a502269dcf92122a0665ee7030b3a24cde54520cd396ec5d204587a26045b7c2",
+      "recorded_at": "2026-11-26T15:03:24.037Z",
+      "tests": 21
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:a502269dcf92122a0665ee7030b3a24cde54520cd396ec5d204587a26045b7c2",
+      "recorded_at": "2026-11-26T15:03:24.037Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:573079510867a526b7610cd3ca37614516a37d22b95d2017411695306216fcb1",
+      "tree": "sha256:a502269dcf92122a0665ee7030b3a24cde54520cd396ec5d204587a26045b7c2",
+      "recorded_at": "2026-11-26T15:03:24.037Z",
+      "tests": 26
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7f0900f627b079b4c1d22acb51a28632b654ec12dac20713489d689fdc2928e0",
+      "tree": "sha256:a502269dcf92122a0665ee7030b3a24cde54520cd396ec5d204587a26045b7c2",
+      "recorded_at": "2026-11-26T15:03:24.037Z",
+      "tests": 101
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:decba91c95f8d563888402bf7acc7e6c91c803bdf25dbd3250e11dfd01b08139",
+      "tree": "sha256:a502269dcf92122a0665ee7030b3a24cde54520cd396ec5d204587a26045b7c2",
+      "recorded_at": "2026-11-26T15:03:24.037Z",
+      "tests": 67
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b69c353b4dfc744fa9d04e7cb956f9bb4ea18bf15d70cc26687d78b98ff16bcc",
+      "tree": "sha256:a502269dcf92122a0665ee7030b3a24cde54520cd396ec5d204587a26045b7c2",
+      "recorded_at": "2026-11-26T15:03:24.037Z",
+      "tests": 60
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:27cffde0994370798b88f43ccca8318ff3ea9bc4dd0c89ec0cd6cdc71528fee7",
+      "tree": "sha256:a502269dcf92122a0665ee7030b3a24cde54520cd396ec5d204587a26045b7c2",
+      "recorded_at": "2026-11-26T15:03:24.037Z",
+      "tests": 48
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c58e2cfe10c964370a03618e80fa8afe9b1a66390dad369921e576c662d1ef15",
+      "tree": "sha256:a502269dcf92122a0665ee7030b3a24cde54520cd396ec5d204587a26045b7c2",
+      "recorded_at": "2026-11-26T15:03:24.037Z",
+      "tests": 48
+    },
+    {
+      "id": "run-11",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/auto-run.test.js scripts/ospec.auto.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0ab7758b18af3a044ec984310834feba63c9860cddfaf8fb1ec1b81274b87a8b",
+      "tree": "sha256:89f4f0728f912ec63b0d19f15eb5f2b4927d6f40db4b7b455c0388b829000566",
+      "recorded_at": "2026-11-26T15:03:37.613Z",
+      "tests": 8
+    }
+  ],
+  "changelog_line": "**Modo automático con `ospec auto`** (auto-conductor, E1.108). `ospec auto start --item \"<petición>\"...` trabaja una cola de peticiones con una sesión de Claude Code sin interfaz nueva por cambio: responde `open-facts` con las recomendaciones (`delegated`), para en el resto de gates, hace el commit de cada cambio cerrado y se sigue con `status`, `resume` y `stop`.",
+  "closed_at": "2026-11-26T15:03:45.260Z"
+}

@@ -135,6 +135,31 @@ Antes de terminar su turno con las preguntas de un gate, el agente puede dejar l
 
 ---
 
+## Varios cambios seguidos: `ospec auto`
+
+`ospec auto` trabaja una cola de peticiones, una por cambio IDD, cada una en una sesión nueva de Claude Code sin interfaz. Así ningún cambio empieza con el contexto lleno del anterior. Es opcional: el modo interactivo no cambia.
+
+```sh
+git switch -c feat/lote
+ospec auto start --item "Haz el ítem E1.109 del roadmap" --item "Arregla el paginado de la lista"
+```
+
+- **Antes de empezar** exige una rama que no sea la de por defecto, el árbol limpio, ningún cambio abierto y los checks de `idd/config.yaml` en verde.
+- **Tras cada turno** lee el disco, no lo que dice la sesión. Responde `open-facts` con la recomendación que el agente dejó para cada pregunta (fuente `delegated`) y para en cualquier otro gate.
+- **Cuando `ospec close` archiva el cambio**, hace el commit `<tipo>: <resumen>` con tus hooks de git y pasa a la siguiente petición. No hace push, ni PR, ni release.
+- **Para** como `blocked` en un gate que solo respondes tú, `paused` si se agota la cuota del host y `failed` ante dos errores seguidos del host, 30 turnos de una petición, 25 USD de la ejecución, dos turnos sin avance o un commit rechazado. Nunca salta a la petición siguiente.
+
+| Orden | Qué hace |
+| --- | --- |
+| `ospec auto status` | Muestra la última ejecución, cada petición y su bloqueo |
+| `ospec auto resume --answer "<texto>"` | Sigue en la misma sesión con tu respuesta al bloqueo |
+| `ospec auto resume` | Sigue una ejecución parada, o después de responder en la propia sesión (`claude --resume <id>`) |
+| `ospec auto stop` | Corta el turno en curso en menos de un segundo; la ejecución se puede reanudar |
+
+`--max-turns` y `--max-cost-usd` cambian los topes al empezar o al reanudar. La sesión corre con tu configuración, en el modo de permisos `auto` de Claude Code. El estado vive en `.ospec/auto/<ejecución>/run.json`, con el transcript de cada turno al lado. Por ahora solo conduce Claude Code: cada host nuevo entra después de verificarlo en vivo.
+
+---
+
 ## La configuración: `idd/config.yaml`
 
 El fichero es opcional, pero sin al menos un check ningún cambio puede cerrar. Sus claves son `mode`, `strict_tdd`, `team`, `delivery`, `checks`, `impact` y `contracts`. Una clave desconocida o repetida se rechaza con `config-invalid`.

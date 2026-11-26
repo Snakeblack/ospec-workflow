@@ -9,6 +9,13 @@
       "knowledge": { "adrs": ["0003", "0010"], "scenarios": ["deterministic-resume", "offline-operation"], "constraints": ["functional.capabilities", "technology.stack"] }
     },
     {
+      "id": "auto-conductor",
+      "summary": "Conduce una ejecución automática: una sesión sin interfaz por cambio, open-facts respondido con las recomendaciones y un commit por cambio cerrado.",
+      "evidence": ["scripts/lib/auto-conductor.js:3", "scripts/lib/auto-run.js:3"],
+      "paths": ["scripts/lib/auto-*.js", "scripts/lib/headless-session.js", "scripts/lib/claude-bin.js"],
+      "knowledge": { "adrs": ["0003", "0005", "0010", "0013"], "scenarios": ["deterministic-resume", "offline-operation"] }
+    },
+    {
       "id": "idd-engine",
       "summary": "Deriva señales y obligaciones de un cambio, registra la evidencia observada y lo cierra.",
       "evidence": ["scripts/lib/idd-signals.js:4", "scripts/lib/idd-close.js:4"],

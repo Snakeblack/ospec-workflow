@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Modo automático con `ospec auto`** (auto-conductor, E1.108). `ospec auto start --item "<petición>"...` trabaja una cola de peticiones con una sesión de Claude Code sin interfaz nueva por cambio: responde `open-facts` con las recomendaciones (`delegated`), para en el resto de gates, hace el commit de cada cambio cerrado y se sigue con `status`, `resume` y `stop`. (auto-conductor)
+
 ## [2.188.0] - 2026-11-26
 
 ### Added
