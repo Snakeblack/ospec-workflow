@@ -232,6 +232,15 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.109** | `execution-mode-choice` (con dos o más fases pendientes en `docs/roadmap.md`, `ospec next` sin cambio abierto y `ospec close` devuelven `execution_mode` con la cola y la orden `ospec auto start`; las skills `idd` y `foundation` preguntan interactivo, el de por defecto, o automático, y al elegir automático la sesión lanza el conductor y recibe su final y sus bloqueos; en v2.190.0) | feature |
 | `done` | **E1.110** | `auto-conductor-hosts` (el conductor de E1.108 en Antigravity, Codex, OpenCode, Copilot CLI y Cursor, cada uno tras verificarlo en vivo; el host que no puede queda `unavailable` con su motivo; topes de gasto opcionales; en v2.191.0) | feature |
 | `pending` | **E1.111** | `auto-run-permission-policy` (en la ejecución automática, una orden de `DENY_RULES` nunca corre, una de `ASK_RULES` o la lectura de un secreto para la ejecución para el usuario como un gate, y el resto corre sin preguntar, igual en todos los hosts; detrás de E1.110) | feature |
+| `pending` | **E1.112** | `stop-nudge-waits` (el nudge del hook `Stop` calla mientras el agente espera una tarea en segundo plano o la respuesta del usuario a una pregunta fuera del catálogo de gates; #569) | feature |
+| `pending` | **E1.113** | `check-declarations-first` (`ospec check` pide las declaraciones que salen del diff, como el impacto sobre un ADR nuevo, antes de correr los checks, para no correr la batería dos veces; #570) | feature |
+| `pending` | **E1.114** | `check-evidence-reuse` (la entrega no repite la batería completa cuando, desde la evidencia de `ospec check`, solo cambió lo que escribe `ospec close`; #571) | feature |
+| `pending` | **E1.115** | `persistent-data-scope` (`persistent-data` sale de escrituras que el diff añade o cambia, no de las que ya tenía un fichero tocado o un módulo que importa; #572) | bugfix |
+| `pending` | **E1.116** | `guard-quoted-arguments` (las reglas `deny` y `ask` del guard casan con las palabras de la orden, no con el texto de un argumento entrecomillado, salvo en `bash -c`; #573) | bugfix |
+| `pending` | **E1.117** | `ui-facts-by-plan` (`url-state` y `accessibility` solo se piden cuando el plan o el diff tocan un fichero de UI; #574) | feature |
+| `pending` | **E1.118** | `cites-checked-at-record` (`record intent` rechaza una cita de código fuera del plan, y `check` avisa de una cita cuya línea cambió; #575) | feature |
+| `pending` | **E1.119** | `attribution-body-same-command` (el guard de atribución explica cómo seguir, o comprueba el texto, cuando la misma orden genera el `--body-file` que usa; #576) | feature |
+| `pending` | **E1.120** | `changelog-code-spans` (la línea del changelog conserva los espacios dentro de un bloque de código y no repite el `(<cambio>)` que ya trae; #577) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -322,6 +331,8 @@ El 2026-11-22, al entregar E1.105, el usuario pidió por delante de E1.106 el ar
 E1.107 a E1.110 entraron el 2026-11-24 con el [análisis del modo automático](../analysis/2026-11-24-modo-automatico.md). El usuario pidió que ospec pueda ejecutar un roadmap entero, cambio a cambio, sin que el contexto llegue lleno al siguiente, eligiendo las respuestas recomendadas y parando solo ante un bloqueo explícito. El análisis concluyó que ningún host deja vaciar el contexto desde dentro de una sesión, y que el banco ya tiene el conductor que lanza una sesión nueva por cambio. El usuario decidió ese día que es la prioridad, por delante de E1.79; que el modo es opcional y ospec pregunta entre interactivo y automático; que el interactivo queda como hoy, y que en la primera versión la elección no se recuerda. Absorben E5.5 `change-program`.
 
 E1.111 `auto-run-permission-policy` entró el 2026-11-27, durante el tramo 5 de E1.110, al verificar qué hace cada host con las reglas `ask` y `deny` de ospec. El usuario pidió que la ejecución automática no pregunte cada orden de bash, que lo denegado nunca corra y que lo crítico pregunte, y lo colocó justo detrás de E1.110, por delante de E1.79. El arreglo de los hooks de Copilot, que no aplicaban ninguna regla, va en el tramo 5.
+
+E1.112 a E1.120 entraron el 2026-11-27, al terminar E1.110: son las fricciones con el harness de esa entrega, cada una comprobada en el código y con su issue (#569 a #577). El usuario las colocó detrás de E1.111 y por delante de E1.79. Van en orden de lo que cuestan: primero los turnos de más del nudge, después las baterías de checks repetidas y la ceremonia que no aporta, y al final los arreglos pequeños.
 
 El 2026-11-24, al entregar ese cambio del roadmap, el usuario pidió revisar antes de E1.108 cuándo se hacen varios commits, cuántas PR entran en una versión y qué PR publica. Lo hace el cambio `release-shipped-changes`: `delivery.release` pasa a `batched`, y solo la PR que cambia lo que el plugin entrega lleva el commit de release, con todo lo fusionado desde la versión anterior. E1.108 lo necesita para que una ejecución de varios cambios no publique una versión por cambio.
 
@@ -462,7 +473,7 @@ A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.56 �
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
 C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ E1.63 ─ E1.64 ─ E1.65 ─ E1.66 ─ E1.67 ─ E1.68 ─ E1.69 ─ E1.57
-   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.100 ─ E1.102 ─ E1.101 ─ E1.105 ─ E1.106 ─ E1.107 ─ E1.108 ─ E1.109 ─ E1.110 ─ E1.111 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
+   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.100 ─ E1.102 ─ E1.101 ─ E1.105 ─ E1.106 ─ E1.107 ─ E1.108 ─ E1.109 ─ E1.110 ─ E1.111 ─ E1.112 ─ E1.113 ─ E1.114 ─ E1.115 ─ E1.116 ─ E1.117 ─ E1.118 ─ E1.119 ─ E1.120 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
    ─ 4c2 ─ E1.70 ─ 4d ─ (avisos del guard) ─ PR5…PR8 ─ E1.52 ─ E1.59 ─ E1.60 ─ E1.82 ─ E1.83 ─ E1.84 ─ E3.7
 D: E4.14 ─ E4.6 (corrida de validación) ─ E4.18 ─ E4.4 ─ E4.13 ─ E1.85 ─ E1.86 ─ E1.87 ─ E4.11
 E1.28 espera a que E1.30 cumpla su criterio de hecho: su plazo del 2026-10-29 quedó fallido el 2026-10-26.
@@ -481,7 +492,7 @@ Fuera del orden ▶: E1.88 (R13), E1.89, E1.90, E1.91 y E5.9 (con R10)
 
 Modo automático (2026-11-24, por delante de E1.79):
 E1.107 ─ E1.108 ─┬─ E1.109
-                 └─ E1.110 ─ E1.111
+                 └─ E1.110 ─ E1.111 ─ E1.112 … E1.120 (fricciones del harness)
 ```
 
 E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado con escrituras atómicas propias hasta que `record` exista.
@@ -1852,6 +1863,78 @@ E1.107 a E1.110 salen del [análisis del 2026-11-24](../analysis/2026-11-24-modo
 - **Alcance:** la misma política en todos los hosts de `ospec auto`. Una orden de `DENY_RULES` nunca corre. Una de `ASK_RULES`, o la lectura de un secreto, nunca corre sola: la ejecución para como `blocked` con la orden y su motivo, y `ospec auto resume --answer` lleva la respuesta del usuario. El resto corre sin preguntar. Cada host se verifica en vivo, Codex con los hooks aprobados y sin aprobar.
 - **Targets:** los hosts de `ospec auto`.
 - **Hecho cuando:** en cada host verificado, una orden `deny` se bloquea, una `ask` para la ejecución para el usuario y una orden normal corre sin preguntar, con un test de contrato por caso, y `docs/target-capabilities.md` lo dice por host.
+
+### E1.112 — `stop-nudge-waits`
+
+- **Problema:** El hook `Stop` bloquea el fin de turno cuando hay un cambio abierto con un paso pendiente y ningún gate abierto (`stopNudge` de `scripts/hooks/lib/idd-nudge.js` y `iddnudge.go`). No distingue esperar una tarea en segundo plano, como las pruebas en vivo de E1.110, de una pregunta al usuario fuera del catálogo de gates, como ampliar permisos de Copilot. En la entrega costó unos seis turnos de más.
+- **Depende de:** E1.111, por orden del usuario.
+- **Alcance:** Un gate genérico para una pregunta fuera del catálogo, con el que el nudge calla, y una forma de declarar la espera de una tarea en segundo plano, con caducidad; paridad entre Node y Go.
+- **Hecho cuando:** una pregunta registrada fuera de los gates y la espera de una tarea en segundo plano no reciben el nudge, con tests en Node y Go.
+- **Issue:** #569.
+
+### E1.113 — `check-declarations-first`
+
+- **Problema:** `ospec check` corre la batería entera y solo después pide las declaraciones que salen del diff. En `auto-host-copilot` pidió el impacto sobre los ADR 0004 y 0011 tras unos seis minutos de checks, y su evidencia exigió otro `check` completo.
+- **Depende de:** E1.111, por orden del usuario.
+- **Alcance:** Calcular primero las señales y las declaraciones que faltan, y parar sin correr los checks dando sus órdenes; o enseñarlas en `ospec next` a partir del diff.
+- **Hecho cuando:** un diff con un ADR nuevo sin declarar hace que `ospec check` lo pida sin correr los checks, y tras declararlo basta un `check`.
+- **Issue:** #570.
+
+### E1.114 — `check-evidence-reuse`
+
+- **Problema:** En cada tramo de E1.110 la batería completa corrió dos o tres veces sobre casi el mismo árbol: `ospec check`, y después, por la regla 5 de AGENTS.md, antes del push, aunque `ospec close` solo añadió el archivo del cambio y la línea del changelog.
+- **Depende de:** E1.111, por orden del usuario.
+- **Alcance:** Que `ospec close` diga qué evidencia cubre el árbol final cuando el diff desde ella solo toca lo que escribe `close`, y que AGENTS.md la acepte; o una caché de la batería por fase y por hash de lo que lee.
+- **Hecho cuando:** tras `check` y `close`, el push no exige otra batería cuando solo cambió lo que escribe `close`, con un test de cuándo sigue valiendo la evidencia.
+- **Issue:** #571.
+
+### E1.115 — `persistent-data-scope`
+
+- **Problema:** `persistentHits` (`scripts/lib/idd-signals.js`) deriva `persistent-data` de un fichero tocado que ya escribía o que importa un módulo que escribe. Los cinco tramos de E1.110 tocaron el texto de uso de `scripts/ospec.js` y los cinco registraron `migration-compat-and-test`, en tres de ellos sin ningún dato persistido que cambiara.
+- **Depende de:** E1.111, por orden del usuario.
+- **Alcance:** Derivarla de escrituras añadidas o cambiadas y de los módulos importados que también cambian; resumir la lista de `answer covers`.
+- **Hecho cuando:** cambiar un texto de un fichero que escribe en otras funciones no deriva `persistent-data`, y añadir o cambiar una escritura sí, con tests.
+- **Issue:** #572.
+
+### E1.116 — `guard-quoted-arguments`
+
+- **Problema:** `findMatchingRule` (`scripts/hooks/pre-tool-use.js`) aplica las reglas `deny` y `ask` al texto de la orden, también dentro de comillas. Una orden `agy -p` cuyo prompt citaba un push forzado quedó bloqueada en Claude Code.
+- **Depende de:** E1.111, por orden del usuario.
+- **Alcance:** Casar las reglas con las palabras de la orden ya partida, salvo en `bash -c` y `sh -c`, donde el texto entrecomillado se ejecuta; paridad entre Node y Go.
+- **Hecho cuando:** un prompt o un `echo` que cite una orden peligrosa no casa con ninguna regla, y `bash -c` con esa orden sigue bloqueado, con tests en Node y Go.
+- **Issue:** #573.
+
+### E1.117 — `ui-facts-by-plan`
+
+- **Problema:** `projectCategories` (`scripts/lib/idd-facts.js`) pide `url-state` y `accessibility` a todo `feature` de un proyecto con algún fichero de UI. Los adaptadores de `ospec auto`, solo de CLI, tuvieron que cubrirlas con citas sin relación porque `web-doc/` tiene UI.
+- **Depende de:** E1.111, por orden del usuario.
+- **Alcance:** Pedirlas cuando el plan o el diff tocan un fichero de UI; un proyecto sin código y con UI sigue pidiendo las siete.
+- **Hecho cuando:** un `feature` que solo toca CLI en un repositorio con UI pide cinco categorías, y uno que toca UI pide siete, con tests.
+- **Issue:** #574.
+
+### E1.118 — `cites-checked-at-record`
+
+- **Problema:** `ospec record intent` acepta una cita de código fuera del plan que `ospec check` rechaza después con `cite-outside-plan`, cuando el código ya está hecho. Además, una cita guarda solo el número de línea, que deja de valer cuando la base avanza.
+- **Depende de:** E1.111, por orden del usuario.
+- **Alcance:** Aplicar la regla al registrar, con el mismo `how`, y guardar con la cita el texto o el hash de la línea para avisar si cambia.
+- **Hecho cuando:** `record intent` rechaza una cita de código fuera del plan y `check` avisa de una cita cuya línea cambió, con tests.
+- **Issue:** #575.
+
+### E1.119 — `attribution-body-same-command`
+
+- **Problema:** El guard de atribución lee el fichero de `--body-file` o `-F` antes de ejecutar la orden, así que una orden que genera el cuerpo con otra y lo usa en la misma línea queda bloqueada. El mensaje propone un heredoc, que no sirve cuando el cuerpo sale de otra orden.
+- **Depende de:** E1.111, por orden del usuario.
+- **Alcance:** Explicar en el mensaje cómo seguir en ese caso, o comprobar el texto que lo genera cuando se pueda leer; el check de CI sigue de respaldo.
+- **Hecho cuando:** el mensaje dice cómo seguir cuando el cuerpo lo genera otra orden, y si se decide comprobarlo, un test fija ese caso.
+- **Issue:** #576.
+
+### E1.120 — `changelog-code-spans`
+
+- **Problema:** `ospec close` colapsa todo espacio repetido de la línea del changelog (`scripts/lib/idd-changelog.js`), también dentro de un bloque de código: el motivo literal `exit 1:  (…)` de `auto-host-opencode` quedó con un solo espacio. Además añade `(<cambio>)` aunque la línea de `record changelog` ya termine con él, y en `harness-frictions` quedó repetido.
+- **Depende de:** E1.111, por orden del usuario.
+- **Alcance:** Colapsar los saltos de línea pero conservar los espacios dentro de un bloque de código, y no añadir `(<cambio>)` cuando la línea ya termina con él, o rechazarlo en `record changelog`.
+- **Hecho cuando:** una línea con un bloque de código de espacios dobles llega igual al changelog, y una que ya termina con `(<cambio>)` no lo repite, con tests.
+- **Issue:** #577.
 
 ### E1.99 — `own-stack-skills`
 
