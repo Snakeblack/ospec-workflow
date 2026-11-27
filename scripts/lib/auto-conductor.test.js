@@ -245,6 +245,20 @@ test("[REQ-idd-031] a host that reports no cost is capped by tokens, per turn or
   await assert.rejects(resumeRun({ root: busy, maxCostUsd: 5, deps: deps(totals) }), (error) => error.code === "invalid-limit");
 });
 
+test("[REQ-idd-031] a host that reviews actions only on some accounts says so on the run's first line", async (t) => {
+  const { root } = runProject(t);
+  const events = [];
+  const agy = scriptedHost([({ root: cwd }) => {
+    session(cwd, ...OPEN_DOCS("fix-readme", "Fix a typo."));
+    writeFile(cwd, "src/pages.txt", "2");
+    closeChange(cwd, "fix-readme");
+    return { tokens: 1000 };
+  }], { name: "antigravity", reportsCost: false, reviewsActions: false, reviewNote: "antigravity reviews each action only where the account has --mode auto" });
+  const done = await startRun({ root, items: ["Fix it."], host: "antigravity", deps: deps(agy, events) });
+  assert.equal(done.status, "done");
+  assert.match(events[0], /on antigravity \(at most 30 turns per item with no spending cap; antigravity reviews each action only where the account has --mode auto\)$/);
+});
+
 test("[REQ-idd-031] GitHub Copilot is capped by the AI credits of its sessions, each turn gets what is left, and the other caps are refused", async (t) => {
   const refused = (promise) => assert.rejects(promise, (error) => error.code === "invalid-limit");
   const { root } = runProject(t);

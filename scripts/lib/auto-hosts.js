@@ -14,9 +14,8 @@ const path = require("node:path");
 const { resolveBinFromPath, isWindowsInteropPath } = require("./claude-bin.js");
 const { resolveClaudeExecutable, runProcess, summarizeTurn } = require("./headless-session.js");
 
-const HOSTS = Object.freeze(["claude", "cursor", "opencode", "codex", "github-copilot"]);
+const HOSTS = Object.freeze(["claude", "cursor", "opencode", "codex", "github-copilot", "antigravity"]);
 const UNAVAILABLE = Object.freeze({
-  antigravity: "not verified live yet",
   vscode: "VS Code has no headless mode: its agent runs only inside the editor",
 });
 const TURN_TIMEOUT_MS = 60 * 60 * 1000;
@@ -110,6 +109,7 @@ function createHost(name, options) {
   if (name === "opencode") return require("./auto-host-opencode.js").createOpencodeHost(options);
   if (name === "codex") return require("./auto-host-codex.js").createCodexHost(options);
   if (name === "github-copilot") return require("./auto-host-copilot.js").createCopilotHost(options);
+  if (name === "antigravity") return require("./auto-host-antigravity.js").createAntigravityHost(options);
   return null;
 }
 

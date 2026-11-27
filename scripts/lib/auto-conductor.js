@@ -493,7 +493,8 @@ async function startRun({ root, items, host, model = null, maxTurns, maxCostUsd,
   if (fs.existsSync(path.join(runDir(root, run.id), "run.json"))) throw new AutoError("run-active", `the automatic run ${run.id} already exists`, "wait a second and start again");
   await writeRun(root, run);
   const cap = limits.max_tokens !== undefined ? `and ${tokenCount(limits.max_tokens)} tokens` : limits.max_cost_usd !== undefined ? `and ${money(limits.max_cost_usd)}` : limits.max_ai_credits !== undefined ? `and ${creditCount(limits.max_ai_credits)}` : "with no spending cap";
-  const review = deps.host.reviewsActions ? "" : `; ${host} runs every action its configuration does not deny, without review`;
+  // A host that reviews actions only on some accounts says so in its own words.
+  const review = deps.host.reviewsActions ? "" : `; ${deps.host.reviewNote || `${host} runs every action its configuration does not deny, without review`}`;
   deps.onEvent(`run ${run.id} started: ${items.length} ${items.length === 1 ? "item" : "items"} on ${host} (at most ${limits.max_turns} turns per item ${cap}${review})`);
   return drive(root, run, deps);
 }

@@ -37,7 +37,7 @@ and archives it under `idd/archive/`.
   Only an automatic run you authorized may answer open facts itself, with
   the answer the model recommended for each question (`delegated`):
   `ospec auto start --item "<request>"...` works a queue of requests in
-  Claude Code, or in Cursor, OpenCode, Codex or GitHub Copilot with `--host`, one change each in
+  Claude Code, or in Cursor, OpenCode, Codex, GitHub Copilot or Antigravity with `--host`, one change each in
   a new headless session, commits each
   closed change and stops at any other gate. When `docs/roadmap.md` holds
   two or more pending phases, `ospec next` and `ospec close` return that

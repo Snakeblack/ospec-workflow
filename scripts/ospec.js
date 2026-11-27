@@ -196,7 +196,7 @@ const USAGE = `Usage:
                    [--max-cost-usd <usd> | --max-tokens <n> | --max-ai-credits <credits>]
                    works each request as one IDD change in a new headless session, in order: answers
                    open-facts from the recommendations, stops at any other gate and commits each closed change;
-                   --host is claude (the default), cursor, opencode, codex or github-copilot; a spending cap is optional:
+                   --host is claude (the default), cursor, opencode, codex, github-copilot or antigravity; a spending cap is optional:
                    --max-cost-usd on a host that reports its cost, which Claude Code also applies inside each turn,
                    --max-tokens on one that does not, --max-ai-credits on GitHub Copilot, which also applies it from 30 credits
   ospec auto status [--run <id>]
