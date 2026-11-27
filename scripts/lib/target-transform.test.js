@@ -549,12 +549,16 @@ test("github-copilot reshapes hooks into .github/hooks/hooks.json with the Copil
   assert.equal(parsed.version, 1);
   // PascalCase events -> camelCase
   assert.ok(parsed.hooks.sessionStart, "SessionStart -> sessionStart");
-  assert.ok(parsed.hooks.preToolUse, "PreToolUse -> preToolUse");
+  // The guard keeps Claude Code's name: Copilot sends a PreToolUse hook
+  // tool_name and tool_input, which it reads, and a preToolUse hook toolName
+  // and toolArgs, which it would let through.
+  assert.ok(parsed.hooks.PreToolUse, "PreToolUse stays PreToolUse");
+  assert.equal(parsed.hooks.preToolUse, undefined);
   // command -> bash/powershell, timeout -> timeoutSec
   assert.equal(parsed.hooks.sessionStart[0].type, "command");
   // E1.51: Copilot CLI reads the sessionStart context at the top level.
   assert.equal(parsed.hooks.sessionStart[0].bash, "node x.js --host github-copilot");
-  assert.equal(parsed.hooks.preToolUse[0].timeoutSec, 5);
+  assert.equal(parsed.hooks.PreToolUse[0].timeoutSec, 5);
 });
 
 test("no vscode/ namespaced strings remain anywhere in a github-copilot tree", () => {

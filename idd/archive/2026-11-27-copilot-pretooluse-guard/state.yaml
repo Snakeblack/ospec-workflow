@@ -1,0 +1,265 @@
+{
+  "schema": "idd-state/v1",
+  "change": "copilot-pretooluse-guard",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "si, sigue con lo propuesto recomendado (en la misma PR, un fix(hooks) para Copilot: registrar los hooks de ospec con los nombres de evento de Claude Code, para que deny y ask funcionen también en interactivo)",
+    "requested_at": "2026-11-27T18:23:02.134Z",
+    "kind": "bug",
+    "summary": "El guard PreToolUse de ospec bloquea y pregunta en GitHub Copilot CLI",
+    "acceptance": "Con los hooks que genera ospec para Copilot, una orden de DENY_RULES (git push --force) se bloquea y una de ASK_RULES (git reset --hard) pregunta, o sin usuario se deniega, también en copilot sin interfaz; verificado en vivo"
+  },
+  "facts": {
+    "basis": "Copilot documenta que un hook registrado como PreToolUse recibe los campos de Claude Code (tool_name, tool_input), que el guard ya lee, y la prueba en vivo con ese nombre bloqueó el deny y denegó el ask sin usuario; el guard y sus reglas no cambian"
+  },
+  "plan": {
+    "paths": [
+      "docs/target-capabilities.md",
+      "scripts/configure/__fixtures__/golden/github-copilot/.github/hooks/hooks.json",
+      "scripts/lib/target-profiles/github-copilot.js",
+      "scripts/lib/target-transform.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 783
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration",
+      "recorded_turn": 783
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration",
+      "recorded_turn": 783
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El hook sigue saliendo de la fuente única hooks/hooks.json; solo cambia el nombre de evento que el perfil de Copilot da al guard"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; el guard y el lanzador no cambian"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "No añade red: solo cambia el nombre de un evento en el hooks.json generado"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Copilot pasa a aplicar las mismas reglas deny y ask del guard que Claude Code; verificado en vivo"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado: el diff solo cambia el nombre del evento PreToolUse en el perfil de Copilot y su fixture; no toca el CLI, los hooks ni las skills",
+      "recorded_at": "2026-11-27T18:23:47.231Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-11-27T18:23:30.780Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2",
+        "counterproof": [
+          "run-3",
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-27T18:26:39.297Z",
+      "detail": {
+        "tree": "sha256:b4e78fc0baf5ac42fa8febd51029cc8dae9dc689e876ed17e1ffe524af5d0dca",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-27T18:26:39.297Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:b4e78fc0baf5ac42fa8febd51029cc8dae9dc689e876ed17e1ffe524af5d0dca",
+        "fitness": [
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    }
+  ],
+  "base": "6b04a9892b4e79dd7d868d4097eacdc11fdc1909",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"github-copilot reshapes hooks\" scripts/lib/target-transform.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:943f6eeb46ed8b983d074edb47c41b76d768ce8bf64cf06a845e181cd488550a",
+      "tree": "sha256:b351548b46f72e86150470fa2260563069c7340b3519ca219733888c46a08057",
+      "recorded_at": "2026-11-27T18:23:17.238Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"github-copilot reshapes hooks\" scripts/lib/target-transform.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5bc10e21c0f9e37379996a6425a9265590067d479baa123fbdc7b792b1524205",
+      "tree": "sha256:ba2074e3a6dc679221f473f6c3f16b198d71d3107e2f7c09df52a14b83a9f077",
+      "recorded_at": "2026-11-27T18:23:30.780Z",
+      "tests": 1,
+      "counterproof": [
+        "run-3",
+        "run-4"
+      ]
+    },
+    {
+      "id": "run-3",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "6b04a9892b4e79dd7d868d4097eacdc11fdc1909",
+      "mount": "sha256:7f54144151315212da12bb3a45faa46b05d4070c6e67e5b670893333f4bb71b3",
+      "command": "node --test --test-name-pattern=\"github-copilot reshapes hooks\" scripts/lib/target-transform.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:03265bcefcd603fa7d66c4580c63de4e4dc9b4e9fb582e820aa4d0d64a52b10c",
+      "tree": "sha256:ba2074e3a6dc679221f473f6c3f16b198d71d3107e2f7c09df52a14b83a9f077",
+      "recorded_at": "2026-11-27T18:23:30.780Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "counterproof",
+      "obligation": "repro-test",
+      "base": "6b04a9892b4e79dd7d868d4097eacdc11fdc1909",
+      "mount": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "control": true,
+      "command": "node --test --test-name-pattern=\"github-copilot reshapes hooks\" scripts/lib/target-transform.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1d5e540e5f1a98b2164b26e2a6fbfc9f4b5118cc2014db04bbfb2dd2fc39f04b",
+      "tree": "sha256:ba2074e3a6dc679221f473f6c3f16b198d71d3107e2f7c09df52a14b83a9f077",
+      "recorded_at": "2026-11-27T18:23:30.780Z",
+      "tests": 1
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:638f841e7eab61c3868f6d789f244ae667cde02e1ef0bf4aa74bd4c20ae55d5f",
+      "tree": "sha256:b4e78fc0baf5ac42fa8febd51029cc8dae9dc689e876ed17e1ffe524af5d0dca",
+      "recorded_at": "2026-11-27T18:26:39.297Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9937b0e51039b9cc95b1328f45dd147ac1d242fa538df387fc54aa018345eb88",
+      "tree": "sha256:b4e78fc0baf5ac42fa8febd51029cc8dae9dc689e876ed17e1ffe524af5d0dca",
+      "recorded_at": "2026-11-27T18:26:39.297Z",
+      "tests": 48
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:b4e78fc0baf5ac42fa8febd51029cc8dae9dc689e876ed17e1ffe524af5d0dca",
+      "recorded_at": "2026-11-27T18:26:39.297Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:406f84a0366b4846e30ff5e5478994f434a43cfaf129a9c2de9f827daaa146cb",
+      "tree": "sha256:b4e78fc0baf5ac42fa8febd51029cc8dae9dc689e876ed17e1ffe524af5d0dca",
+      "recorded_at": "2026-11-27T18:26:39.297Z",
+      "tests": 26
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c94439deba9cda2e4fdfb4e4fc27f8b76b5f3c91d0baaf12b841d4095d62f686",
+      "tree": "sha256:b4e78fc0baf5ac42fa8febd51029cc8dae9dc689e876ed17e1ffe524af5d0dca",
+      "recorded_at": "2026-11-27T18:26:39.297Z",
+      "tests": 48
+    }
+  ],
+  "changelog_line": "**El guard de ospec bloquea y pregunta en GitHub Copilot CLI** (copilot-pretooluse-guard). ospec registraba el guard como `preToolUse`, y Copilot manda ese evento con `toolName` y `toolArgs`, que el guard no lee: cualquier orden pasaba, también un `git push --force` o un `git reset --hard`, en interactivo y sin interfaz. Ahora lo registra con el nombre de Claude Code, `PreToolUse`, para el que Copilot manda `tool_name` y `tool_input`: una orden de las reglas `deny` se bloquea, una de las `ask` pregunta, o sin usuario se deniega, y el resto corre sin preguntar; verificado en vivo con Copilot 1.0.116. Hay que reinstalar ospec en Copilot (`npm run setup:copilot`).",
+  "closed_at": "2026-11-27T18:26:39.388Z"
+}

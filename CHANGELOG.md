@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **El hook de fin de turno cuenta el `agentStop` de GitHub Copilot CLI** (copilot-stop-timestamp). Copilot manda en ese evento el `timestamp` como milisegundos, y el binario `ospec-hooks` lo esperaba como texto: el hook salía sin contar el turno en `.ospec/turns` ni escribir la traza, así que en Copilot toda respuesta a un gate quedaba `user-unverified`. Ahora, como el hook de Node, usa el `timestamp` solo si es texto y si no la hora actual; verificado en vivo con Copilot 1.0.116, también sin interfaz. Hay que reinstalar ospec en Copilot (`npm run setup:copilot`) para que llegue el binario corregido. REQ-hooks-030 lo fija. (copilot-stop-timestamp)
+- **El guard de ospec bloquea y pregunta en GitHub Copilot CLI** (copilot-pretooluse-guard). ospec registraba el guard como `preToolUse`, y Copilot manda ese evento con `toolName` y `toolArgs`, que el guard no lee: cualquier orden pasaba, también un `git push --force` o un `git reset --hard`, en interactivo y sin interfaz. Ahora lo registra con el nombre de Claude Code, `PreToolUse`, para el que Copilot manda `tool_name` y `tool_input`: una orden de las reglas `deny` se bloquea, una de las `ask` pregunta, o sin usuario se deniega, y el resto corre sin preguntar; verificado en vivo con Copilot 1.0.116. Hay que reinstalar ospec en Copilot (`npm run setup:copilot`). (copilot-pretooluse-guard)
 
 ## [2.190.0] - 2026-11-26
 

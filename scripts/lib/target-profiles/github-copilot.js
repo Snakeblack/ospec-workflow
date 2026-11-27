@@ -29,7 +29,10 @@ module.exports = {
   rules: { strategy: "to-instructions", dir: ".github/instructions", scopeField: "applyTo" },
 
   // Project-level hooks: .github/hooks/hooks.json with Copilot's own schema
-  // (version + camelCase events + bash/powershell + timeoutSec). Events without a
+  // (version + camelCase events + bash/powershell + timeoutSec). The guard keeps
+  // Claude Code's PreToolUse: Copilot sends that hook tool_name and tool_input,
+  // which the guard reads, and a preToolUse hook toolName and toolArgs, which
+  // it would let through, deny and ask alike. Events without a
   // Copilot equivalent (e.g. PreCompact) are dropped; ${CLAUDE_PLUGIN_ROOT}/ becomes
   // a repo-relative path (project hooks run from the repo root).
   hooks: {
@@ -38,7 +41,7 @@ module.exports = {
     location: ".github/hooks/hooks.json",
     eventMap: {
       SessionStart: "sessionStart",
-      PreToolUse: "preToolUse",
+      PreToolUse: "PreToolUse",
       SubagentStop: "subagentStop",
       Stop: "agentStop",
     },
