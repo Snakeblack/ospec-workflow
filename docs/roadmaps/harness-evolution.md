@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.190.0, 2026-11-26.
+> **Versión de referencia:** v2.191.0, 2026-11-27.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -230,7 +230,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.107** | `delegated-answers` (cada pregunta de un gate guarda la recomendación del modelo con `ospec record recommendation`, y una ejecución automática autorizada por el usuario resuelve `open-facts` con la fuente `delegated` y su id en `OSPEC_AUTO_RUN`; el CLI la rechaza en el resto de gates, en la retracción de una señal, con una pregunta sin recomendación, fuera de una ejecución y antes de que termine un turno; el ADR 0013 enmienda el principio 8; en v2.188.0) | feature |
 | `done` | **E1.108** | `auto-conductor` (`ospec auto start`, `status`, `resume` y `stop` trabajan una cola explícita de peticiones con una sesión de Claude Code sin interfaz nueva por cambio, en el modo de permisos `auto`: el conductor responde `open-facts` con la fuente `delegated`, para en el resto de gates, solo avanza con el `close` en disco, hace el commit de cada cambio y respeta sus topes; la respuesta delegada exige la ejecución registrada en `.ospec/auto/`; Antigravity pasa a E1.110; absorbe E5.5; en v2.189.0) | feature |
 | `done` | **E1.109** | `execution-mode-choice` (con dos o más fases pendientes en `docs/roadmap.md`, `ospec next` sin cambio abierto y `ospec close` devuelven `execution_mode` con la cola y la orden `ospec auto start`; las skills `idd` y `foundation` preguntan interactivo, el de por defecto, o automático, y al elegir automático la sesión lanza el conductor y recibe su final y sus bloqueos; en v2.190.0) | feature |
-| `pending` | **E1.110** | `auto-conductor-hosts` (el conductor de E1.108 en Antigravity, Codex, OpenCode, Copilot CLI y Cursor, cada uno tras verificarlo en vivo; el host que no puede queda `unavailable` con su motivo) | feature |
+| `done` | **E1.110** | `auto-conductor-hosts` (el conductor de E1.108 en Antigravity, Codex, OpenCode, Copilot CLI y Cursor, cada uno tras verificarlo en vivo; el host que no puede queda `unavailable` con su motivo; topes de gasto opcionales; en v2.191.0) | feature |
+| `pending` | **E1.111** | `auto-run-permission-policy` (en la ejecución automática, una orden de `DENY_RULES` nunca corre, una de `ASK_RULES` o la lectura de un secreto para la ejecución para el usuario como un gate, y el resto corre sin preguntar, igual en todos los hosts; detrás de E1.110) | feature |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -319,6 +320,8 @@ El 2026-11-19, al entregar E1.102, el usuario pidió por delante de E1.101 dos a
 El 2026-11-22, al entregar E1.105, el usuario pidió por delante de E1.106 el arreglo `chain-merge-retarget`, en su PR. Al fusionar la cadena con `gh pr merge --delete-branch`, borrar la rama de #539 cerró la PR #540 en vez de reapuntarla, porque `chained-pr` y AGENTS.md reapuntaban la PR siguiente después del merge.
 
 E1.107 a E1.110 entraron el 2026-11-24 con el [análisis del modo automático](../analysis/2026-11-24-modo-automatico.md). El usuario pidió que ospec pueda ejecutar un roadmap entero, cambio a cambio, sin que el contexto llegue lleno al siguiente, eligiendo las respuestas recomendadas y parando solo ante un bloqueo explícito. El análisis concluyó que ningún host deja vaciar el contexto desde dentro de una sesión, y que el banco ya tiene el conductor que lanza una sesión nueva por cambio. El usuario decidió ese día que es la prioridad, por delante de E1.79; que el modo es opcional y ospec pregunta entre interactivo y automático; que el interactivo queda como hoy, y que en la primera versión la elección no se recuerda. Absorben E5.5 `change-program`.
+
+E1.111 `auto-run-permission-policy` entró el 2026-11-27, durante el tramo 5 de E1.110, al verificar qué hace cada host con las reglas `ask` y `deny` de ospec. El usuario pidió que la ejecución automática no pregunte cada orden de bash, que lo denegado nunca corra y que lo crítico pregunte, y lo colocó justo detrás de E1.110, por delante de E1.79. El arreglo de los hooks de Copilot, que no aplicaban ninguna regla, va en el tramo 5.
 
 El 2026-11-24, al entregar ese cambio del roadmap, el usuario pidió revisar antes de E1.108 cuándo se hacen varios commits, cuántas PR entran en una versión y qué PR publica. Lo hace el cambio `release-shipped-changes`: `delivery.release` pasa a `batched`, y solo la PR que cambia lo que el plugin entrega lleva el commit de release, con todo lo fusionado desde la versión anterior. E1.108 lo necesita para que una ejecución de varios cambios no publique una versión por cambio.
 
@@ -459,7 +462,7 @@ A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.56 �
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
 C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ E1.63 ─ E1.64 ─ E1.65 ─ E1.66 ─ E1.67 ─ E1.68 ─ E1.69 ─ E1.57
-   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.100 ─ E1.102 ─ E1.101 ─ E1.105 ─ E1.106 ─ E1.107 ─ E1.108 ─ E1.109 ─ E1.110 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
+   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.100 ─ E1.102 ─ E1.101 ─ E1.105 ─ E1.106 ─ E1.107 ─ E1.108 ─ E1.109 ─ E1.110 ─ E1.111 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
    ─ 4c2 ─ E1.70 ─ 4d ─ (avisos del guard) ─ PR5…PR8 ─ E1.52 ─ E1.59 ─ E1.60 ─ E1.82 ─ E1.83 ─ E1.84 ─ E3.7
 D: E4.14 ─ E4.6 (corrida de validación) ─ E4.18 ─ E4.4 ─ E4.13 ─ E1.85 ─ E1.86 ─ E1.87 ─ E4.11
 E1.28 espera a que E1.30 cumpla su criterio de hecho: su plazo del 2026-10-29 quedó fallido el 2026-10-26.
@@ -478,7 +481,7 @@ Fuera del orden ▶: E1.88 (R13), E1.89, E1.90, E1.91 y E5.9 (con R10)
 
 Modo automático (2026-11-24, por delante de E1.79):
 E1.107 ─ E1.108 ─┬─ E1.109
-                 └─ E1.110
+                 └─ E1.110 ─ E1.111
 ```
 
 E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado con escrituras atómicas propias hasta que `record` exista.
@@ -1840,6 +1843,15 @@ E1.107 a E1.110 salen del [análisis del 2026-11-24](../analysis/2026-11-24-modo
 - **Tramo 2 (OpenCode):** `opencode run --standalone --format json --auto`, con el coste de la sesión leído de `opencode session export`, porque los eventos no traen el del último paso. En vivo (2.0.32, modelo gratuito `deepseek-v4.1-flash-free`), OpenCode cerró un cambio sin hechos abiertos en un turno, y en otro delegó `open-facts`, paró en `checks-changed` y cerró tras `resume --answer` en 3 turnos; su plugin contó cada fin de turno. Con los topes opcionales, otra ejecución delegó `open-facts` y se pausó como `host-quota` al agotarse el uso gratuito de OpenCode, que solo da ese error en sus eventos. Siguen Codex, Copilot CLI y Antigravity.
 - **Tramo 3 (Codex):** `codex exec --json --approve-for-me`, reanudado con `codex exec resume <id>`, que solo admite las opciones de `exec` antes del subcomando. `codex exec` no ejecuta los hooks sin aprobar en `/hooks`, y los de ospec se instalan sin aprobar, así que el conductor cuenta el fin de turno, como en Cursor (el usuario eligió eso frente a `--dangerously-bypass-hook-trust`, que ejecutaría también los hooks de repo sin aprobar). En vivo (0.162.1, cuenta gratuita de ChatGPT y su modelo por defecto), Codex delegó `open-facts` y cerró el cambio con su commit en 2 turnos y 991 000 tokens. Siguen Copilot CLI y Antigravity.
 - **Tramo 4 (GitHub Copilot):** `copilot --output-format json --allow-all-tools --add-dir <COPILOT_HOME> --no-ask-user`, con el prompt por stdin y `--resume <id>`. En `copilot` sin interfaz, el juez de `--assisted-approval` deniega toda edición, y Copilot deniega toda orden que nombre una ruta fuera del repositorio, como el ospec de `~/.copilot/bin`: el usuario eligió `--allow-all-tools`, con el aviso en la primera línea, y `--add-dir` sobre el directorio de Copilot frente a `--allow-all-paths`. Copilot no da coste y sus tokens solo vienen en el primer turno de cada sesión, así que la ejecución gana un tope opcional `--max-ai-credits` con los créditos de IA de cada sesión, que cada turno recibe también de Copilot desde 30 créditos, su mínimo. El conductor cuenta el fin de turno: el hook `stop` de ospec no contaba el `agentStop` de Copilot, que manda `timestamp` como número. En vivo (1.0.116, plan Free y su modelo automático), Copilot delegó `open-facts`, paró en `checks-changed` cuando el modelo cambió el check y, tras `resume --answer`, cerró el cambio con su commit en 3 turnos y 2,25 créditos. Sigue Antigravity.
+- **Tramo 5 (Antigravity):** `agy --print=<prompt> --output-format stream-json --mode auto`, reanudado con `--conversation <id>`; el prompt va en `--print=`, porque el modo `-p` no lee stdin. La cuenta del usuario no tiene `--mode auto`, y agy sigue entonces en su modo por defecto, que sin interfaz ejecuta todo lo que su configuración no deniega: el usuario eligió seguir pidiendo `--mode auto` y que la primera línea lo avise. El hook `Stop` de ospec cuenta el fin de turno en `agy -p`. En vivo (1.5.18), Antigravity delegó `open-facts` y cerró el cambio con su commit en 2 turnos y 135 454 tokens. Al probar las reglas de ospec, una orden `deny` quedó bloqueada en Antigravity, pero una `ask` se ejecutó sin preguntar, y en Copilot se ejecutaron las dos: de ahí E1.111 y el arreglo de los hooks de Copilot en este tramo.
+
+### E1.111 — `auto-run-permission-policy`
+
+- **Problema:** lo que hace cada host de `ospec auto` con las reglas de ospec cambia. En Antigravity sin `--mode auto`, una orden de `ASK_RULES` se ejecuta sin preguntar; en Codex los hooks de ospec no corren hasta aprobarlos en `/hooks`, y en Claude Code, Cursor y OpenCode está sin verificar. El usuario pidió el 2026-11-27 que la ejecución no pregunte cada orden, que lo denegado nunca corra y que lo crítico pregunte.
+- **Depende de:** E1.110.
+- **Alcance:** la misma política en todos los hosts de `ospec auto`. Una orden de `DENY_RULES` nunca corre. Una de `ASK_RULES`, o la lectura de un secreto, nunca corre sola: la ejecución para como `blocked` con la orden y su motivo, y `ospec auto resume --answer` lleva la respuesta del usuario. El resto corre sin preguntar. Cada host se verifica en vivo, Codex con los hooks aprobados y sin aprobar.
+- **Targets:** los hosts de `ospec auto`.
+- **Hecho cuando:** en cada host verificado, una orden `deny` se bloquea, una `ask` para la ejecución para el usuario y una orden normal corre sin preguntar, con un test de contrato por caso, y `docs/target-capabilities.md` lo dice por host.
 
 ### E1.99 — `own-stack-skills`
 

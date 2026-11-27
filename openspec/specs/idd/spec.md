@@ -3885,15 +3885,17 @@ MUST name its source `delegated, run <run>`. The CLI cannot verify who sets
 
 `ospec auto start --item <request>...` MUST work each request, from 1 to 20 in
 the given order, as one IDD change in a new headless session of the host.
-`--host` MUST take `claude`, the default, `cursor`, `opencode`, `codex` or
-`github-copilot`, the hosts on which a run closed a change live; `vscode`, which has no headless mode, and any other
+`--host` MUST take `claude`, the default, `cursor`, `opencode`, `codex`,
+`github-copilot` or `antigravity`, the hosts on which a run closed a change live; `vscode`, which has no headless mode, and any other
 host MUST be refused with `host-unavailable` and the reason. The session MUST
 run with the user's own configuration and ospec install, in the host's mode
 that reviews each action where it has one (`--permission-mode auto` in Claude
-Code, `--auto-review` in Cursor, `--approve-for-me` in Codex) or else approving whatever its configuration
+Code, `--auto-review` in Cursor, `--approve-for-me` in Codex, `--mode auto` in
+Antigravity where its account has it) or else approving whatever its configuration
 does not deny (`--auto` in OpenCode, `--allow-all-tools` in GitHub Copilot, whose
 assisted-approval judge denies every edit headless, with `--add-dir` on
-Copilot's own home, where its ospec install lives), which the run's first line MUST say. Its environment MUST NOT hold `OSPEC_AUTO_RUN` nor the markers
+Copilot's own home, where its ospec install lives; Antigravity's default mode
+where its account lacks `--mode auto`), which the run's first line MUST say. Its environment MUST NOT hold `OSPEC_AUTO_RUN` nor the markers
 of a Claude Code session that launched the conductor. Each item MUST start with its request followed by a brief that asks
 for one IDD change until `ospec close`, a recommendation per question before a
 turn ends with a gate's questions (REQ-idd-030), and no commit, push, pull
@@ -3929,7 +3931,7 @@ tree MUST stop it as `failed` on the item, with no later item started. A
 spending cap MUST NOT have a default: only when given, `--max-cost-usd` of the
 run on a host that reports its cost (Claude Code, OpenCode), from the cost
 each session reports so far and never the sum of its turns, and `--max-tokens` of the run on
-one that reports none (Cursor, Codex), from the tokens of each turn or of the session
+one that reports none (Cursor, Codex, Antigravity), from the tokens of each turn or of the session
 so far, and `--max-ai-credits` of the run on GitHub Copilot, from the AI credits
 each session reports so far, MUST stop it the same way, as `max-cost`,
 `max-tokens` or `max-credits`; each cap on another kind of host MUST be refused

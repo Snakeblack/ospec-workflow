@@ -8,7 +8,7 @@
         "powershell": "scripts/hooks/ospec-hooks session-start --host github-copilot"
       }
     ],
-    "preToolUse": [
+    "PreToolUse": [
       {
         "type": "command",
         "bash": "scripts/hooks/ospec-hooks pre-tool-use",

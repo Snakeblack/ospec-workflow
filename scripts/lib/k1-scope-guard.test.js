@@ -342,6 +342,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/auto-host-codex.test.js",
   "scripts/lib/auto-host-copilot.js",
   "scripts/lib/auto-host-copilot.test.js",
+  "scripts/lib/auto-host-antigravity.js",
+  "scripts/lib/auto-host-antigravity.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [

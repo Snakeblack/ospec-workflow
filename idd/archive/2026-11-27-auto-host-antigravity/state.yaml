@@ -1,0 +1,394 @@
+{
+  "schema": "idd-state/v1",
+  "change": "auto-host-antigravity",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "A, y sí, fusiona la #565, ya he logado en agy (A: verificar Codex y Copilot en vivo con el cupo gratuito, un tramo cada uno; Antigravity cierra la cadena)",
+    "requested_at": "2026-11-26T21:40:25.198Z",
+    "kind": "feature",
+    "summary": "ospec auto conduce Antigravity (agy -p con --output-format stream-json), verificado en vivo",
+    "acceptance": "ospec auto start --host antigravity cierra en vivo un cambio de prueba, delega open-facts y reanuda la conversación por su id; la ejecución limita por tokens; un test de contrato fija sus argumentos, la lectura de los tokens y el error de un turno fallido"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "Tu cuenta de Antigravity no tiene --mode auto («--mode auto is not available for this account; continuing in the default mode»), y en agy -p el modo por defecto ejecutó todo sin preguntar: órdenes, ediciones, ospec y herramientas MCP (verificado en 1.5.18). ¿El conductor sigue pasando --mode auto, que revisa cada acción donde la cuenta lo tiene, y la primera línea de la ejecución avisa de que agy solo revisa cada acción con --mode auto y si no lo ejecuta todo (recomendado), o va siempre en el modo por defecto con el aviso de que no revisa, o Antigravity queda unavailable?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-conductor.js",
+          "line": 464
+        }
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-conductor.js",
+          "line": 485
+        }
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "docs/target-capabilities.md",
+          "line": 185
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "handbook/idd/flujo-idd.md",
+          "line": 159
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 1775
+        }
+      },
+      {
+        "category": "errors",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-hosts.js",
+          "line": 54
+        }
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/README.md",
+      "docs/en/README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "docs/target-capabilities.md",
+      "handbook/idd/flujo-idd.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/auto-conductor.js",
+      "scripts/lib/auto-conductor.test.js",
+      "scripts/lib/auto-host-antigravity.js",
+      "scripts/lib/auto-host-antigravity.test.js",
+      "scripts/lib/auto-hosts.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/ospec.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "El prompt va como valor de -p, porque agy -p no lee stdin (-p - envía un guion literal); la conversación se reanuda con --conversation <id>, que sale de result.conversation_id",
+      "Antigravity da los tokens de cada turno en result.usage.total_tokens (entrada, con la caché leída, más salida) y ningún coste, así que admite --max-tokens",
+      "El hook Stop de ospec corre en agy -p y cuenta el fin de turno (verificado en vivo), así que el conductor no lo cuenta",
+      "La primera línea de la ejecución usa el aviso propio del host (reviewNote) cuando lo trae: Antigravity revisa cada acción solo donde la cuenta tiene --mode auto, y si no ejecuta todo lo que su configuración no deniega (respuesta del usuario: lo recomendado)",
+      "El adaptador deja del stderr de agy solo la primera línea que no es un aviso (warning:), porque repite el error seguido de la lista de modelos"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 779
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 779
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration",
+      "recorded_turn": 779
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0003, 0005, 0010, 0013 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration",
+      "recorded_turn": 779
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.js uses writeFile",
+      "source": "diff",
+      "recorded_turn": 783
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Los argumentos de agy, la lectura de sus tokens y de sus errores, el aviso de la primera línea y su disponibilidad los decide el CLI (auto-host-antigravity.js, auto-conductor.js, auto-hosts.js), con tests; las skills solo nombran el host"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El conductor sigue avanzando en Antigravity solo con el close en disco"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; el runtime lanza el agy que el usuario ya tiene instalado"
+    },
+    {
+      "kind": "adr",
+      "id": "0013",
+      "impact": "conforms",
+      "reason": "Solo open-facts se delega y sigue exigiendo un turno terminado, que en Antigravity cuenta el hook Stop de ospec (verificado en vivo); OSPEC_AUTO_RUN sigue fuera de la sesión"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "resume sigue la conversación de Antigravity por su id con --conversation; run.json guarda los tokens por ítem"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "next, check y close no añaden red; solo ospec auto start, que el usuario lanza, ejecuta agy"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "Verificado: los argumentos de agy, la suma de tokens, el error de result, la cuota, el filtrado del stderr y el aviso propio de la primera línea tienen tests en scripts/lib/auto-host-antigravity.test.js y scripts/lib/auto-conductor.test.js; ninguna skill describe una regla nueva",
+      "recorded_at": "2026-11-27T18:15:06.436Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado: el diff no añade llamadas de red a hooks ni skills; auto-host-antigravity solo lanza procesos locales de agy al arrancar una ejecución; next y close solo cambian el texto del how",
+      "recorded_at": "2026-11-27T18:15:06.668Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 779,
+      "recommendations": [
+        {
+          "question": "Tu cuenta de Antigravity no tiene --mode auto («--mode auto is not available for this account; continuing in the default mode»), y en agy -p el modo por defecto ejecutó todo sin preguntar: órdenes, ediciones, ospec y herramientas MCP (verificado en 1.5.18). ¿El conductor sigue pasando --mode auto, que revisa cada acción donde la cuenta lo tiene, y la primera línea de la ejecución avisa de que agy solo revisa cada acción con --mode auto y si no lo ejecuta todo (recomendado), o va siempre en el modo por defecto con el aviso de que no revisa, o Antigravity queda unavailable?",
+          "answer": "Seguir pasando --mode auto, y que la primera línea de la ejecución avise de que agy solo revisa cada acción donde la cuenta tiene --mode auto y si no lo ejecuta todo"
+        }
+      ],
+      "answer": "lo recomendado, es importante que no pregunte a cada cosa que hara, y me refiero a ejecusiones de bash, salvo los que tebemos como criticos y desde luego los deny no, y obviamente los ask si, aunque muchas veces cuando nonsea critico en el modo automatico se eligira el recomendado",
+      "source": "user",
+      "resolved_at": "2026-11-26T23:12:51.670Z",
+      "resolved_turn": 780
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-27T18:19:33.114Z",
+      "detail": {
+        "tree": "sha256:4e98b9480000d2dac20233831f351daf4a90e9bdd6752a46c0236445737c23d0",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-27T18:19:33.114Z",
+      "detail": {
+        "tree": "sha256:4e98b9480000d2dac20233831f351daf4a90e9bdd6752a46c0236445737c23d0",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-host-antigravity.test.js",
+          "scripts/lib/k1-scope-guard.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-27T18:19:33.114Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0005 conforms",
+          "adr:0010 conforms",
+          "adr:0013 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:4e98b9480000d2dac20233831f351daf4a90e9bdd6752a46c0236445737c23d0",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-27T18:19:39.081Z",
+      "detail": {
+        "run": "run-7",
+        "tree": "sha256:bab840a0ae961b60006f74a14d50b5eff6d43b1685dd8ae865a28c7827461bf7",
+        "plan": "run.json sigue en ospec-auto-run/v1 sin campos nuevos: una ejecución de Antigravity guarda host antigravity, spend tokens y tokens por ítem, igual que una de Cursor, y una ejecución anterior se lee y se reanuda como antes; para volver atrás, un ospec anterior lee la de Antigravity y rechaza reanudarla con host-unavailable, sin modificarla"
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-27T18:19:39.283Z"
+    }
+  ],
+  "base": "eeabb6ee6d3f52286eff93bea2f0a16120b33185",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a375b872fb8af009c5bb06804140f35efb0644f5fe8838f1bb3886b489992565",
+      "tree": "sha256:4e98b9480000d2dac20233831f351daf4a90e9bdd6752a46c0236445737c23d0",
+      "recorded_at": "2026-11-27T18:19:33.114Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c696ca35af33970214447e8a2c9fc82bfa4a4532e30e5ed09e39c2d75c9fb483",
+      "tree": "sha256:4e98b9480000d2dac20233831f351daf4a90e9bdd6752a46c0236445737c23d0",
+      "recorded_at": "2026-11-27T18:19:33.114Z",
+      "tests": 21
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4e98b9480000d2dac20233831f351daf4a90e9bdd6752a46c0236445737c23d0",
+      "recorded_at": "2026-11-27T18:19:33.114Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:51379d93ecf756a48444819f66f6ebaeb4f0254670390fb8b22bc9ebab7cf65c",
+      "tree": "sha256:4e98b9480000d2dac20233831f351daf4a90e9bdd6752a46c0236445737c23d0",
+      "recorded_at": "2026-11-27T18:19:33.114Z",
+      "tests": 26
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3dc357524caf17f910594e695472c245c94d61892aa3d099803f17c13744d10d",
+      "tree": "sha256:4e98b9480000d2dac20233831f351daf4a90e9bdd6752a46c0236445737c23d0",
+      "recorded_at": "2026-11-27T18:19:33.114Z",
+      "tests": 67
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c11a3961185bc293c8c727067adc35c627343560298fe11f70550e33396e2a66",
+      "tree": "sha256:4e98b9480000d2dac20233831f351daf4a90e9bdd6752a46c0236445737c23d0",
+      "recorded_at": "2026-11-27T18:19:33.114Z",
+      "tests": 60
+    },
+    {
+      "id": "run-7",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/auto-run.test.js scripts/lib/auto-host-antigravity.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:20a15c22da06037faca95b58a611cdeb31e33b4f3dc84831655575c6229e4257",
+      "tree": "sha256:bab840a0ae961b60006f74a14d50b5eff6d43b1685dd8ae865a28c7827461bf7",
+      "recorded_at": "2026-11-27T18:19:39.081Z",
+      "tests": 10
+    }
+  ],
+  "changelog_line": "**`ospec auto` en Antigravity** (auto-host-antigravity, E1.110, tramo 5). `ospec auto start --host antigravity` conduce `agy --print=<prompt> --output-format stream-json --mode auto` y reanuda la conversación con `--conversation`, verificado en vivo: delega `open-facts` y cierra el cambio con su commit. Antigravity da los tokens de cada turno y ningún coste, así que admite `--max-tokens`, y el hook `Stop` de ospec cuenta cada fin de turno. Donde la cuenta no tiene `--mode auto`, agy sigue en su modo por defecto, que sin interfaz ejecuta todo lo que su configuración no deniega, y la primera línea de la ejecución lo avisa. Con este tramo, `ospec auto` conduce los seis hosts con modo sin interfaz; VS Code queda `unavailable`. REQ-idd-031 lo fija, y E1.111 entra en el roadmap para que lo denegado nunca corra y lo crítico pare la ejecución en todos los hosts.",
+  "closed_at": "2026-11-27T18:19:39.283Z"
+}
