@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/work-order/v1",
+  "schema_version": 1,
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "work_order_id": {
+      "type": "string"
+    },
+    "node_id": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ownership": {
+      "$ref": "#/$defs/ownership"
+    },
+    "allowed_paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "invariants": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "required_evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "budget": {
+      "$ref": "#/$defs/budget"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "running",
+        "completed",
+        "failed"
+      ]
+    },
+    "result": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "work_order_id",
+    "node_id",
+    "role",
+    "status"
+  ],
+  "additionalProperties": false,
+  "if": {
+    "required": [
+      "objective"
+    ]
+  },
+  "then": {
+    "required": [
+      "operation",
+      "dependencies",
+      "ownership",
+      "allowed_paths",
+      "invariants",
+      "required_evidence",
+      "budget"
+    ]
+  },
+  "$defs": {
+    "ownership": {
+      "type": "object",
+      "properties": {
+        "owner": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "exclusive",
+            "shared"
+          ]
+        }
+      },
+      "required": [
+        "owner",
+        "mode"
+      ],
+      "additionalProperties": false
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "model_turns": {
+          "type": "integer"
+        },
+        "patches": {
+          "type": "integer"
+        },
+        "commands": {
+          "type": "integer"
+        },
+        "wall_time_minutes": {
+          "type": "integer"
+        },
+        "changed_lines": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "model_turns",
+        "patches",
+        "commands",
+        "wall_time_minutes",
+        "changed_lines"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "projection": "workspace",
+  "base_tree": "abc",
+  "candidate_tree": "def",
+  "diff_hash": "ghi",
+  "paths": [
+    "scripts/lib/x.js"
+  ]
+}

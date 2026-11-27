@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "kind": "capability-proof/v1",
+  "adapter_id": "claude",
+  "adapter_version": "1.0.0",
+  "host_version": "k2a-host/1",
+  "fixture": "x.json",
+  "probe_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}
