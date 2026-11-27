@@ -1,0 +1,72 @@
+{
+  "schema": "idd-state/v1",
+  "change": "harness-frictions",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "antes de esto quiero que recopiles todas las fricciones que has tenido con el harness para meterlos en issues y en el roadmap para fixearlos, pero despues de 1.111",
+    "requested_at": "2026-11-27T18:54:37.390Z",
+    "kind": "docs",
+    "summary": "Las fricciones con el harness de la entrega de E1.110 entran en el roadmap como E1.112 a E1.120, con su issue, detrás de E1.111",
+    "acceptance": "docs/roadmaps/harness-evolution.md tiene una fila, una ficha y su lugar en el orden para cada fricción, entre E1.111 y E1.79, y cada una enlaza su issue con la etiqueta roadmap:<ID>"
+  },
+  "facts": {
+    "basis": "Es documentación del roadmap: el usuario fijó el sitio (después de E1.111) y cada fricción se comprobó en el código antes de escribirla"
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 789
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-27T18:58:49.763Z",
+      "detail": {
+        "tree": "sha256:d712e443d85314dba6c55cb501b19cbbac0daf0340250494b6e1b90e24b4fc54",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "b247dcb30c27ff0164d49293aa22f40f40ab3f41",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e7040b63e713b1e424bb26ccb0f8ca6a793d1b2021db74120a14d48f50bb6cef",
+      "tree": "sha256:d712e443d85314dba6c55cb501b19cbbac0daf0340250494b6e1b90e24b4fc54",
+      "recorded_at": "2026-11-27T18:58:49.763Z"
+    }
+  ],
+  "changelog_line": "Las fricciones con el harness de la entrega de E1.110 entran en el roadmap como E1.112 a E1.120, detrás de E1.111 y con su issue (#569 a #577): el nudge del hook `Stop` mientras se espera, los checks que corren dos veces, `persistent-data` derivada de escrituras que el diff no toca, las reglas del guard dentro de comillas, las categorías de UI sin UI en el plan, las citas fuera del plan, el `--body-file` generado en la misma orden y los espacios de un bloque de código en el changelog. (harness-frictions)",
+  "closed_at": "2026-11-27T18:58:49.831Z"
+}
