@@ -908,6 +908,8 @@ Si algún comando coincide con una regla de consulta: retornar `ask` con la raz�
 
 **Deny beats ask**: Cuando una secuencia de comandos coincide a la vez con una regla de denegación y una de consulta (en comandos separados del array), `deny` MUST ganar.
 
+**A critical ask beats an advisory**: un `ask` que solo avisa (Token Budget Advisor, el árbol sucio del Git Collaboration Guard, Spec Drift Advisory) MUST NOT cortar la cadena: si un paso posterior devuelve un `ask` crítico (reglas ASK, un commit en la rama por defecto), gana ese; si no, el hook devuelve el primer aviso.
+
 ### 3.4.1 Permission-mode degradation (bypassPermissions)
 
 El input del hook incluye el campo común `permission_mode` (`"default"`, `"plan"`, `"acceptEdits"`, `"auto"`, `"dontAsk"`, `"bypassPermissions"`). Un `ask` devuelto por un hook tiene prioridad sobre el modo de permisos del host, por lo que sin este paso los advisories re-introducen exactamente los prompts que el usuario desactivó al elegir `bypassPermissions`.
@@ -918,6 +920,7 @@ Como post-procesamiento final de la cadena de decisión (§3.4), aplicado en un 
 - Las decisiones `deny` MUST NOT degradarse en ningún modo: son el piso de seguridad (Step 5, AgentShield deny-class, atribución en commits).
 - Cuando `permission_mode` está ausente o tiene cualquier otro valor: el resultado MUST quedar intacto (compatibilidad hacia atrás con hosts que no envían el campo).
 - El fallback de error de parseo (§3.5) devuelve `ask` antes de conocer `permission_mode` y queda fuera de esta degradación.
+- Con la marca de un turno de una ejecución automática (`OSPEC_AUTO_SESSION`), la política de REQ-hooks-035 sustituye este paso.
 
 Aplica de forma uniforme a todas las fuentes de `ask` de la cadena: AgentShield (Step 2), Token Budget Advisor (Steps 3-4), Git Collaboration Guard (Step 5b), Spec Drift Advisory (Step 5c) y reglas ASK (Step 6). Paridad Go/Node obligatoria (`scripts/hooks/pre-tool-use.js` `applyPermissionMode`, `internal/hooks/pretooluse.go` `applyPermissionMode`).
 
@@ -930,7 +933,7 @@ Aplica de forma uniforme a todas las fuentes de `ask` de la cadena: AgentShield 
 
 ### 3.5 Error handling
 
-En cualquier error de parseo o evaluación: retornar `ask` explicando que el hook no pudo inspeccionar la llamada. El hook MUST NOT fallar ni salir con código distinto de cero.
+En cualquier error de parseo o evaluación: retornar `ask` explicando que el hook no pudo inspeccionar la llamada, o `deny` en un turno de una ejecución automática (REQ-hooks-035). El hook MUST NOT fallar ni salir con código distinto de cero.
 
 ---
 
@@ -1994,3 +1997,24 @@ A change is done only after `ospec close`, and the next session resumes it from 
 - GIVEN a workspace with an open IDD change and no `openspec/` THEN SessionStart MUST answer the change and its next step in `additionalContext`.
 - GIVEN an open IDD change outside a git work tree THEN the Stop MUST answer `continue: true` with the `systemMessage` that says why.
 - GIVEN the six launcher targets and a child that asks to continue THEN each MUST receive it in its host's shape.
+
+### Requirement: The Guard Applies The Automatic Run's Permission Policy {#REQ-hooks-035}
+
+An automatic run has no user to answer a prompt (E1.111), so ospec's PreToolUse guard decides the same on every host. The conductor marks each turn of its session with `OSPEC_AUTO_SESSION`, the run's directory, in the host's environment (REQ-idd-031); without the mark nothing here applies. The Node hook (`scripts/hooks/pre-tool-use.js`) and the native binary (`internal/hooks/pretooluse.go`) MUST behave alike; the shared cases of `internal/testdata/auto-permission/` fix the same decisions and request for both.
+
+- **Deny.** A `deny` MUST stay a `deny`, approved or not, and leave no request.
+- **Advisory ask.** An `ask` that only advises (the token budget, spec drift, a `git commit` with uncommitted changes), answered only when no later step asks for something critical (§3.4), MUST answer only `{"systemMessage": "[ospec advisory] <reason>"}`, with no decision, so the host's own permissions decide the call: an `allow` would cover the whole call and skip them (OSP-017). The launcher MUST pass that answer on as no decision in each host's shape, and treat any other answer without a decision as one it cannot read.
+- **Key.** The key of a call is the SHA-256 in hexadecimal of its tool name framed, followed by each value of its input, objects and arrays included, sorted by their UTF-8 bytes. A call with commands (`command`, or `commands`) leaves out its top-level `description` and `explanation`, free text a retry may reword. Each value is the number of keys and indexes that lead to it, a colon, each of them framed (`k` and the key, `i` and the index), and the value framed and tagged by its type (`s` and the string, `n` and the number as JSON writes it, `b` and `true` or `false`, `z` for null, `a` and the length of an array, `o` for an object). Framed is the length in UTF-8 bytes, a colon and the text, so no key or value reads as a separator. `scripts/lib/auto-permission.js` and the binary compute it alike.
+- **Critical ask.** Any other `ask` (the `ASK_RULES`, reading or writing a secret, a `git commit` on the default branch) MUST become `allow` with the reason `ospec auto: the user approved this exact call for this turn.` when `OSPEC_AUTO_ALLOW` holds the call's key among its comma-separated values. Otherwise it MUST become `deny` with the reason `ospec auto: <reason> This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.`, and append `{"tool","input","reason"}`, with the call's whole input, as one line to `permission-requests.jsonl` in that directory when it is an absolute path to a directory, only to a regular file with no other name that the path still names once open, so a link, even one swapped in meanwhile, or a hard link is never written through; a request it cannot write leaves the call denied.
+- **Unreadable call.** A call the hook cannot parse MUST be denied.
+
+- GIVEN the mark and `npm install` THEN the answer MUST be `deny` and the request `{"tool":"Bash","input":{"command":"npm install"},"reason":"Dependency installation requires user approval."}`.
+- GIVEN the mark, `npm install` and `OSPEC_AUTO_ALLOW` with its key THEN the answer MUST be `allow` with no request, and `npm install left-pad` MUST still be denied.
+- GIVEN the mark, a force push and its key approved THEN the answer MUST be the deny rule's, with no request.
+- GIVEN the mark and an approved read of `.env` THEN a read of `.env.local`, and another tool naming `.env`, MUST be denied and recorded.
+- GIVEN the mark and a read over the token budget THEN the answer MUST be only the advisory, and `npm install` in a call that also passes the token budget MUST be denied.
+- GIVEN the mark and a dirty tree on a branch other than the default one THEN `git commit -am x` and `node -e 1 # git commit` MUST answer only the advisory, and `npm install left-pad && git commit -am x` or `rm -rf build # git commit` MUST be denied and recorded.
+- GIVEN an approved Edit with `replace_all: false` THEN the same Edit with `replace_all: true` MUST be denied.
+- GIVEN an approved Bash `npm install` THEN the same command through `run_in_terminal`, or with `dangerouslyDisableSandbox: true`, MUST be denied and recorded, and a retry that changes only its `description` MUST run.
+- GIVEN the request file left as a link to a file outside the run, or as a FIFO, THEN a critical ask MUST still be denied, without writing through the link or waiting on the FIFO.
+- GIVEN no mark and `npm install` THEN the answer MUST stay `ask`.

@@ -52,8 +52,8 @@ function createCursorHost({ model = null, baseEnv = process.env, resolveExecutab
     executable = executable || resolveExecutable();
     return executable;
   };
-  const turn = ({ cwd, prompt, sessionId = null, transcriptPath, signal = null }) =>
-    headlessTurn({ run, executable: resolve(), args: cursorTurnArgs({ model, sessionId }), cwd, env: sessionEnv(baseEnv), input: prompt, transcriptPath, timeoutMs: turnTimeoutMs, signal }, summarizeCursorTurn);
+  const turn = ({ cwd, prompt, sessionId = null, transcriptPath, signal = null, vars = {} }) =>
+    headlessTurn({ run, executable: resolve(), args: cursorTurnArgs({ model, sessionId }), cwd, env: sessionEnv(baseEnv, vars), input: prompt, transcriptPath, timeoutMs: turnTimeoutMs, signal }, summarizeCursorTurn);
   return { name: "cursor", reportsCost: false, reviewsActions: true, countsTurnEnds: false, resolve, turn, resumeCommand: (sessionId) => `cursor-agent --resume ${sessionId}` };
 }
 

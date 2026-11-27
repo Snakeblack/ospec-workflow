@@ -10,6 +10,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { writeFileAtomic } = require("./atomic-write.js");
+const { REQUESTS_FILE } = require("./auto-permission.js");
 const { isAutoRunId } = require("./idd-contract.js");
 const { mkdirOspec } = require("./ospec-gitignore.js");
 
@@ -176,6 +177,39 @@ function clearStop(root, id) {
   fs.rmSync(stopPath(root, id), { force: true });
 }
 
+/**
+ * The lines of the run's permission requests (E1.111) that name a call: its
+ * tool, its input and the reason given. The session can write that file too,
+ * so the conductor checks each one with ospec's guard before it shows it.
+ */
+function permissionRequests(root, id) {
+  const file = path.join(runDir(root, id), REQUESTS_FILE);
+  let text;
+  try {
+    // Only a regular file: the session could leave a FIFO there, and reading
+    // it would never return.
+    if (!fs.lstatSync(file).isFile()) return [];
+    text = fs.readFileSync(file, "utf8");
+  } catch {
+    return [];
+  }
+  const requests = [];
+  for (const line of text.split("\n")) {
+    let request;
+    try {
+      request = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (isObject(request) && typeof request.tool === "string" && isObject(request.input)) requests.push({ tool: request.tool, input: request.input });
+  }
+  return requests;
+}
+
+function clearPermissionRequests(root, id) {
+  fs.rmSync(path.join(runDir(root, id), REQUESTS_FILE), { force: true });
+}
+
 module.exports = {
   ACTIVE_STATUSES,
   AUTO_ROOT,
@@ -185,10 +219,12 @@ module.exports = {
   RUN_SCHEMA,
   RUN_STATUSES,
   activeRun,
+  clearPermissionRequests,
   clearStop,
   isStale,
   listRunIds,
   newRunId,
+  permissionRequests,
   processAlive,
   readRun,
   requestStop,

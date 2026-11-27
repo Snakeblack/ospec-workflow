@@ -57,8 +57,8 @@ function createOpencodeHost({ model = null, baseEnv = process.env, resolveExecut
     return cost;
   }
 
-  function turn({ cwd, prompt, sessionId = null, transcriptPath, signal = null }) {
-    const env = sessionEnv(baseEnv);
+  function turn({ cwd, prompt, sessionId = null, transcriptPath, signal = null, vars = {} }) {
+    const env = sessionEnv(baseEnv, vars);
     return headlessTurn({ run, executable: resolve(), args: opencodeTurnArgs({ model, sessionId }), cwd, env, input: prompt, transcriptPath, timeoutMs: turnTimeoutMs, signal }, async (bytes) => {
       const summary = summarizeOpencodeTurn(bytes);
       if (!summary.session_id || signal?.aborted) return summary;

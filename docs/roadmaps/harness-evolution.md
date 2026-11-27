@@ -231,12 +231,12 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.108** | `auto-conductor` (`ospec auto start`, `status`, `resume` y `stop` trabajan una cola explícita de peticiones con una sesión de Claude Code sin interfaz nueva por cambio, en el modo de permisos `auto`: el conductor responde `open-facts` con la fuente `delegated`, para en el resto de gates, solo avanza con el `close` en disco, hace el commit de cada cambio y respeta sus topes; la respuesta delegada exige la ejecución registrada en `.ospec/auto/`; Antigravity pasa a E1.110; absorbe E5.5; en v2.189.0) | feature |
 | `done` | **E1.109** | `execution-mode-choice` (con dos o más fases pendientes en `docs/roadmap.md`, `ospec next` sin cambio abierto y `ospec close` devuelven `execution_mode` con la cola y la orden `ospec auto start`; las skills `idd` y `foundation` preguntan interactivo, el de por defecto, o automático, y al elegir automático la sesión lanza el conductor y recibe su final y sus bloqueos; en v2.190.0) | feature |
 | `done` | **E1.110** | `auto-conductor-hosts` (el conductor de E1.108 en Antigravity, Codex, OpenCode, Copilot CLI y Cursor, cada uno tras verificarlo en vivo; el host que no puede queda `unavailable` con su motivo; topes de gasto opcionales; en v2.191.0) | feature |
-| `pending` | **E1.111** | `auto-run-permission-policy` (en la ejecución automática, una orden de `DENY_RULES` nunca corre, una de `ASK_RULES` o la lectura de un secreto para la ejecución para el usuario como un gate, y el resto corre sin preguntar, igual en todos los hosts; detrás de E1.110) | feature |
+| `pending` | **E1.111** | `auto-run-permission-policy` (en la ejecución automática, una orden de `DENY_RULES` nunca corre, una de `ASK_RULES` o la lectura de un secreto para la ejecución para el usuario como un gate, y el resto corre sin preguntar, igual en todos los hosts; en cadena: la política en los hooks y el conductor, E1.116 y un tramo por host) | feature |
 | `pending` | **E1.112** | `stop-nudge-waits` (el nudge del hook `Stop` calla mientras el agente espera una tarea en segundo plano o la respuesta del usuario a una pregunta fuera del catálogo de gates; #569) | feature |
 | `pending` | **E1.113** | `check-declarations-first` (`ospec check` pide las declaraciones que salen del diff, como el impacto sobre un ADR nuevo, antes de correr los checks, para no correr la batería dos veces; #570) | feature |
 | `pending` | **E1.114** | `check-evidence-reuse` (la entrega no repite la batería completa cuando, desde la evidencia de `ospec check`, solo cambió lo que escribe `ospec close`; #571) | feature |
 | `pending` | **E1.115** | `persistent-data-scope` (`persistent-data` sale de escrituras que el diff añade o cambia, no de las que ya tenía un fichero tocado o un módulo que importa; #572) | bugfix |
-| `pending` | **E1.116** | `guard-quoted-arguments` (las reglas `deny` y `ask` del guard casan con las palabras de la orden, no con el texto de un argumento entrecomillado, salvo en `bash -c`; #573) | bugfix |
+| `pending` | **E1.116** | `guard-quoted-arguments` (las reglas `deny` y `ask` del guard casan con las palabras de la orden, no con el texto de un argumento entrecomillado, salvo en `bash -c`; adelantada como tramo 2 de la cadena de E1.111; #573) | bugfix |
 | `pending` | **E1.117** | `ui-facts-by-plan` (`url-state` y `accessibility` solo se piden cuando el plan o el diff tocan un fichero de UI; #574) | feature |
 | `pending` | **E1.118** | `cites-checked-at-record` (`record intent` rechaza una cita de código fuera del plan, y `check` avisa de una cita cuya línea cambió; #575) | feature |
 | `pending` | **E1.119** | `attribution-body-same-command` (el guard de atribución explica cómo seguir, o comprueba el texto, cuando la misma orden genera el `--body-file` que usa; #576) | feature |
@@ -333,6 +333,8 @@ E1.107 a E1.110 entraron el 2026-11-24 con el [análisis del modo automático](.
 E1.111 `auto-run-permission-policy` entró el 2026-11-27, durante el tramo 5 de E1.110, al verificar qué hace cada host con las reglas `ask` y `deny` de ospec. El usuario pidió que la ejecución automática no pregunte cada orden de bash, que lo denegado nunca corra y que lo crítico pregunte, y lo colocó justo detrás de E1.110, por delante de E1.79. El arreglo de los hooks de Copilot, que no aplicaban ninguna regla, va en el tramo 5.
 
 E1.112 a E1.120 entraron el 2026-11-27, al terminar E1.110: son las fricciones con el harness de esa entrega, cada una comprobada en el código y con su issue (#569 a #577). El usuario las colocó detrás de E1.111 y por delante de E1.79. Van en orden de lo que cuestan: primero los turnos de más del nudge, después las baterías de checks repetidas y la ceremonia que no aporta, y al final los arreglos pequeños.
+
+El 2026-11-27, al verificar en vivo el tramo 1 de E1.111, el usuario adelantó E1.116 como tramo 2 de esa cadena, por delante de los tramos por host: en la ejecución automática, una orden de ospec que cita una orden crítica en su `--request` o en una recomendación se deniega y para la ejecución con una petición que no es la orden.
 
 El 2026-11-24, al entregar ese cambio del roadmap, el usuario pidió revisar antes de E1.108 cuándo se hacen varios commits, cuántas PR entran en una versión y qué PR publica. Lo hace el cambio `release-shipped-changes`: `delivery.release` pasa a `batched`, y solo la PR que cambia lo que el plugin entrega lleva el commit de release, con todo lo fusionado desde la versión anterior. E1.108 lo necesita para que una ejecución de varios cambios no publique una versión por cambio.
 
@@ -473,7 +475,7 @@ A: E1.42 ─ E1.43 ─ E1.44 ─ E1.53 ─ E1.45 ─ E1.46 ─ E1.47 ─ E1.56 �
 B: E4.15 ─ E4.16 ─ E4.3
    E4.17 (escenarios congelados, sin correr)
 C: E1.48 ─ E1.49 ─ E1.58 ─ E1.61 ─ E1.50 ─ E1.63 ─ E1.64 ─ E1.65 ─ E1.66 ─ E1.67 ─ E1.68 ─ E1.69 ─ E1.57
-   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.100 ─ E1.102 ─ E1.101 ─ E1.105 ─ E1.106 ─ E1.107 ─ E1.108 ─ E1.109 ─ E1.110 ─ E1.111 ─ E1.112 ─ E1.113 ─ E1.114 ─ E1.115 ─ E1.116 ─ E1.117 ─ E1.118 ─ E1.119 ─ E1.120 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
+   ─ E1.75 ─ E1.76 ─ E1.51 ─ E1.92 ─ E1.93 ─ E1.95 ─ E1.77 ─ E1.78 ─ E1.98 ─ E1.100 ─ E1.102 ─ E1.101 ─ E1.105 ─ E1.106 ─ E1.107 ─ E1.108 ─ E1.109 ─ E1.110 ─ E1.111 ─ E1.116 ─ E1.112 ─ E1.113 ─ E1.114 ─ E1.115 ─ E1.117 ─ E1.118 ─ E1.119 ─ E1.120 ─ E1.79 ─ E1.94 ─ E1.80 ─ E1.81
    ─ 4c2 ─ E1.70 ─ 4d ─ (avisos del guard) ─ PR5…PR8 ─ E1.52 ─ E1.59 ─ E1.60 ─ E1.82 ─ E1.83 ─ E1.84 ─ E3.7
 D: E4.14 ─ E4.6 (corrida de validación) ─ E4.18 ─ E4.4 ─ E4.13 ─ E1.85 ─ E1.86 ─ E1.87 ─ E4.11
 E1.28 espera a que E1.30 cumpla su criterio de hecho: su plazo del 2026-10-29 quedó fallido el 2026-10-26.
@@ -492,7 +494,7 @@ Fuera del orden ▶: E1.88 (R13), E1.89, E1.90, E1.91 y E5.9 (con R10)
 
 Modo automático (2026-11-24, por delante de E1.79):
 E1.107 ─ E1.108 ─┬─ E1.109
-                 └─ E1.110 ─ E1.111 ─ E1.112 … E1.120 (fricciones del harness)
+                 └─ E1.110 ─ E1.111 (con E1.116 como tramo 2) ─ E1.112 … E1.120 (fricciones del harness)
 ```
 
 E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado con escrituras atómicas propias hasta que `record` exista.
@@ -1863,6 +1865,8 @@ E1.107 a E1.110 salen del [análisis del 2026-11-24](../analysis/2026-11-24-modo
 - **Alcance:** la misma política en todos los hosts de `ospec auto`. Una orden de `DENY_RULES` nunca corre. Una de `ASK_RULES`, o la lectura de un secreto, nunca corre sola: la ejecución para como `blocked` con la orden y su motivo, y `ospec auto resume --answer` lleva la respuesta del usuario. El resto corre sin preguntar. Cada host se verifica en vivo, Codex con los hooks aprobados y sin aprobar.
 - **Targets:** los hosts de `ospec auto`.
 - **Hecho cuando:** en cada host verificado, una orden `deny` se bloquea, una `ask` para la ejecución para el usuario y una orden normal corre sin preguntar, con un test de contrato por caso, y `docs/target-capabilities.md` lo dice por host.
+- **Resuelto el 2026-11-27** (el usuario eligió todas las recomendaciones): cada turno lleva `OSPEC_AUTO_SESSION`, el directorio de la ejecución, en el entorno del host, y solo con esa marca el guard cambia. Un `ask` crítico (las `ASK_RULES`, leer o escribir un secreto, un commit en la rama por defecto) se deniega y deja la petición en `.ospec/auto/<run>/permission-requests.jsonl`; un `ask` de aviso deja solo su aviso y decide el host; un `deny` nunca cambia. La ejecución para una vez como `blocked at permission`, con cada orden sin repetir y su motivo. `ospec auto resume --allow` aprueba exactamente esas llamadas solo para el turno siguiente, con la clave de cada una (su herramienta y cada valor de su entrada, salvo la descripción libre de una orden) en `OSPEC_AUTO_ALLOW`, que nunca se escribe en disco, y `--answer` sin `--allow` las rechaza. Un host donde el hook de ospec no corre sin interfaz hará que la ejecución se niegue a arrancar. Se entrega en cadena: la política y Claude Code, E1.116 y un tramo por host.
+- **Tramo 1 (política, Claude Code):** los hooks de Node y Go con la misma política, fijada por los casos compartidos de `internal/testdata/auto-permission/`, el bloqueo `permission` del conductor y `resume --allow`. En vivo (2.1.330, Haiku), una orden normal corrió, `rm -rf` se denegó y paró la ejecución, el push forzado quedó bloqueado y, tras `--allow`, las órdenes aprobadas corrieron. La prueba sacó dos cosas: el guard casa las reglas dentro del texto entrecomillado, así que una orden de ospec que cita la orden crítica también para la ejecución (E1.116, que pasa a tramo 2), y el modelo tomó la aprobación por la respuesta a un gate, así que el mensaje dice ahora que no responde a ninguno. Tres revisiones de confianza endurecieron la política: un aviso no tapa un `ask` crítico de la misma llamada ni da un `allow` que se salte los permisos del host, la ejecución revalida con el guard cada petición, que la sesión también puede escribir, la clave ata la herramienta y cada valor de la entrada sin ambigüedad, y ni el hook ni el conductor escriben a través de un enlace o en un FIFO que deje la sesión.
 
 ### E1.112 — `stop-nudge-waits`
 
@@ -1899,7 +1903,7 @@ E1.107 a E1.110 salen del [análisis del 2026-11-24](../analysis/2026-11-24-modo
 ### E1.116 — `guard-quoted-arguments`
 
 - **Problema:** `findMatchingRule` (`scripts/hooks/pre-tool-use.js`) aplica las reglas `deny` y `ask` al texto de la orden, también dentro de comillas. Una orden `agy -p` cuyo prompt citaba un push forzado quedó bloqueada en Claude Code.
-- **Depende de:** E1.111, por orden del usuario.
+- **Depende de:** el tramo 1 de E1.111; el usuario la adelantó el 2026-11-27 como tramo 2 de esa cadena.
 - **Alcance:** Casar las reglas con las palabras de la orden ya partida, salvo en `bash -c` y `sh -c`, donde el texto entrecomillado se ejecuta; paridad entre Node y Go.
 - **Hecho cuando:** un prompt o un `echo` que cite una orden peligrosa no casa con ninguna regla, y `bash -c` con esa orden sigue bloqueado, con tests en Node y Go.
 - **Issue:** #573.

@@ -53,7 +53,8 @@ function howToAsk(count, limits) {
     "An empty, skipped or undecided answer is interactive: never start the run without their explicit choice.",
     "The run needs a clean tree, so after close ask once the delivery they want is done; on the default branch create a <type>/<name> branch first.",
     "Where the host runs a command in the background and tells you when it ends, run it so; when it ends, report one line per closed change from ospec auto status,",
-    'and at a block ask the user its questions and pass their answer with ospec auto resume --answer "<their words>", in the background too.',
+    'and at a block ask the user its questions and pass their answer with ospec auto resume --answer "<their words>", in the background too;',
+    "at a permission block ask whether they approve each call it lists: only their explicit yes resumes with --allow, any other answer goes with --answer.",
     `Elsewhere, add --host with the session's host (${HOSTS.filter((host) => host !== "claude").join(", ")}) and give the user the command to run in a terminal;`,
     "another host cannot run it.",
   ].join(" ");

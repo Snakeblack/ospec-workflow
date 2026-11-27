@@ -1,0 +1,2180 @@
+{
+  "schema": "idd-state/v1",
+  "change": "auto-run-permission-policy",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "fusiona y continua (E1.111 auto-run-permission-policy: es importante que no pregunte a cada cosa que hará, y me refiero a ejecuciones de bash, salvo los que tenemos como críticos, y desde luego los deny no, y obviamente los ask sí)",
+    "requested_at": "2026-11-27T19:10:01.805Z",
+    "kind": "feature",
+    "summary": "La ejecución automática aplica la misma política de permisos en todos los hosts: lo denegado nunca corre, lo crítico para la ejecución para el usuario y el resto corre sin preguntar",
+    "acceptance": "En cada host verificado de ospec auto, una orden de DENY_RULES se bloquea, una de ASK_RULES o la lectura de un secreto para la ejecución como blocked con la orden y su motivo hasta que el usuario la aprueba o responde, y una orden normal corre sin preguntar; un test de contrato fija cada caso y docs/target-capabilities.md lo dice por host"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Cómo aprueba el usuario la orden que paró la ejecución? Propuesta: ospec auto resume --allow aprueba exactamente las órdenes pendientes; --answer \"<texto>\" sin --allow la rechaza y lleva el texto a la sesión; resume sin nada da por resuelto lo que el usuario hizo en la sesión interactiva"
+      },
+      {
+        "category": "uniqueness",
+        "question": "Si en un turno el modelo pide varias órdenes que necesitan aprobación, ¿la ejecución para una vez con la lista sin repetidas y --allow las aprueba todas, o para en la primera?"
+      },
+      {
+        "category": "persistence",
+        "question": "¿Cuánto dura una aprobación? Propuesta: solo el turno siguiente de esa sesión, como el sha256 de cada orden en el entorno del proceso del host (OSPEC_AUTO_ALLOW), nunca en disco, para que el modelo no pueda fabricarla; la petición la escribe el hook en .ospec/auto/<run>/ y el bloqueo queda en run.json"
+      },
+      {
+        "category": "copy",
+        "question": "¿Qué dice la ejecución al parar? Propuesta: item N/M blocked at permission, cada orden con su motivo, y las líneas approve with: ospec auto resume --allow y or answer with: ospec auto resume --answer; al modelo, el deny le dice que la ejecución pedirá la aprobación al terminar el turno y que termine el turno o siga sin esa orden"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 203
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/auto-conductor.js",
+          "line": 201
+        }
+      },
+      {
+        "category": "errors",
+        "question": "Un host donde el hook de ospec no corre sin interfaz (Codex con los hooks sin aprobar en /hooks, o el que la verificación encuentre) no aplica ninguna regla: ¿la ejecución se niega a arrancar con un error que dice cómo activarlos, o arranca con un aviso en la primera línea?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "docs/target-capabilities.md",
+      "handbook/idd/flujo-idd.md",
+      "internal/hooks/export_test.go",
+      "internal/hooks/pretooluse.go",
+      "internal/hooks/pretooluse_auto_test.go",
+      "internal/hooks/pretooluse_test.go",
+      "internal/hooks/secretscan.go",
+      "internal/testdata/auto-permission/cases.json",
+      "openspec/specs/hooks/spec.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/hooks/lib/secret-scan.js",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/ospec-hooks-launch.test.js",
+      "scripts/hooks/pre-tool-use-auto.test.js",
+      "scripts/hooks/pre-tool-use.js",
+      "scripts/hooks/pre-tool-use.test.js",
+      "scripts/lib/auto-conductor.js",
+      "scripts/lib/auto-conductor.test.js",
+      "scripts/lib/auto-host-antigravity.js",
+      "scripts/lib/auto-host-codex.js",
+      "scripts/lib/auto-host-codex.test.js",
+      "scripts/lib/auto-host-copilot.js",
+      "scripts/lib/auto-host-cursor.js",
+      "scripts/lib/auto-host-opencode.js",
+      "scripts/lib/auto-hosts.js",
+      "scripts/lib/auto-hosts.test.js",
+      "scripts/lib/auto-permission.js",
+      "scripts/lib/auto-queue.js",
+      "scripts/lib/auto-queue.test.js",
+      "scripts/lib/auto-run.js",
+      "scripts/lib/idd-refusals.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/ospec.auto.test.js",
+      "scripts/ospec.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": [],
+    "decisions": [
+      "Cada turno de ospec auto lleva OSPEC_AUTO_SESSION con el directorio de la ejecución en el entorno del host; el hook solo cambia su decisión con esa marca, así que una sesión interactiva en el mismo repositorio sigue igual",
+      "En una sesión de ospec auto, un ask de ASK_RULES, de la lectura o escritura de un secreto o de un commit en la rama por defecto se vuelve deny y deja la petición; el ask del consumo de tokens, de la deriva de specs y del commit con el árbol sucio sigue con su aviso, como la recomendación",
+      "Un deny nunca se degrada: la marca solo endurece un ask o lo deja pasar con su aviso",
+      "Tras la revisión de confianza, un ask de aviso nunca tapa un ask crítico posterior de la misma llamada, y con la marca deja solo su aviso, sin decisión, en vez de un allow que cubriría toda la llamada y se saltaría los permisos del host",
+      "La clave de una aprobación ata las órdenes de la llamada, o su herramienta y cada valor de su entrada con su ruta; la ejecución revalida con el guard cada petición, que la sesión también puede escribir, usa el motivo del guard, escapa los caracteres de control y deja cada llamada completa en permission-block.json"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration",
+      "recorded_turn": 791
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration",
+      "recorded_turn": 791
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration",
+      "recorded_turn": 791
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/pre-tool-use.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration",
+      "recorded_turn": 791
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0008, 0013",
+      "source": "declaration",
+      "recorded_turn": 791
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/pre-tool-use.js adds writeFile",
+      "source": "diff",
+      "recorded_turn": 794
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La política vive en el hook y en el CLI (applyAutoRun, blockOnPermission, resume --allow), con sus tests; la skill y el how de execution_mode solo dicen que se pregunte al usuario y qué orden lleva su respuesta"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "La ejecución sigue avanzando solo con el close en disco; un bloqueo de permiso para la ejecución sin dar nada por hecho, y una aprobación solo deja correr la orden, que no es evidencia de ninguna obligación"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "Un deny sigue siendo el suelo y nunca se degrada, aprobado o no; con la marca de la ejecución un ask crítico solo se endurece a deny, y una llamada que el hook no puede leer se deniega"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas: la clave usa node:crypto y crypto/sha256 de la biblioteca estándar, y el hook sigue siendo el binario de Go con el respaldo de Node"
+    },
+    {
+      "kind": "adr",
+      "id": "0013",
+      "impact": "conforms",
+      "reason": "La aprobación de una orden llega solo de la respuesta explícita del usuario con ospec auto resume --allow; la delegación sigue limitada a open-facts y el modelo nunca tiene la aprobación, que vive en el entorno de un solo turno"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "El bloqueo vive en run.json y la aprobación no se guarda: reanudar tras una caída vuelve a parar en las mismas órdenes, y --allow solo vale para el turno siguiente"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Un deny nunca se degrada; con la marca un ask crítico se endurece a deny y una llamada ilegible se deniega; un fichero que no es regular no se lee, pero su nombre sigue clasificándose"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Sin llamadas de red: el hook lee el entorno y escribe un fichero local, y el conductor lee ese fichero"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "El cambio no toca cómo se derivan las señales ni las obligaciones de un cambio"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "El estado nuevo vive en .ospec/auto/<run>/, fuera de idd/ y de openspec/"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "applyAutoRun (scripts/hooks/pre-tool-use.js, internal/hooks/pretooluse.go) y blockOnPermission/resumeRun (scripts/lib/auto-conductor.js) tienen tests en scripts/hooks/pre-tool-use-auto.test.js, internal/hooks/pretooluse_auto_test.go, scripts/lib/auto-conductor.test.js y scripts/ospec.auto.test.js; ninguna skill describe la regla: el how de execution_mode solo nombra --allow y --answer",
+      "recorded_at": "2026-11-27T19:36:45.888Z"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El cambio no añade llamadas de red: el hook lee el entorno y escribe un fichero local en .ospec/auto/<run>/, y el conductor lee ese fichero y pasa variables de entorno al proceso del host; next, check y close no cambian",
+      "recorded_at": "2026-11-27T19:36:46.134Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-13"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-18"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-14"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-17"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-15"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-16"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "opened_turn": 791,
+      "answer": "todas las recomendadas (1: --allow aprueba exactamente las órdenes pendientes, --answer sin --allow las rechaza y lleva el texto, resume sin nada da por resuelto lo hecho en la sesión; 2: para una vez con la lista sin repetidas y --allow las aprueba todas; 3: la aprobación vale solo el turno siguiente, como sha256 en OSPEC_AUTO_ALLOW del entorno del host, nunca en disco; 4: item N/M blocked at permission con cada orden y su motivo y las líneas approve with/or answer with, y el deny al modelo dice que termine el turno o siga sin esa orden; 5: la ejecución se niega a arrancar en un host donde el hook no corre sin interfaz, con un error que dice cómo activarlo; entrega en cadena de PR)",
+      "source": "user",
+      "resolved_at": "2026-11-27T19:14:10.318Z",
+      "resolved_turn": 792
+    },
+    {
+      "id": "review-limit",
+      "status": "resolved",
+      "reason": "3 of 3 trust reviews used: ospec check opens the review-limit gate, and only the person's answer authorizes one more",
+      "opened_turn": 800,
+      "answer": "si hazlo",
+      "source": "user",
+      "resolved_at": "2026-11-27T20:35:03.713Z",
+      "resolved_turn": 801
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-27T19:50:57.660Z",
+      "detail": {
+        "run": "run-11",
+        "tree": "sha256:2204c693cdff2d2d86bac2d62248a65581d48511dcd2801505f3d117aa2328bc",
+        "plan": "run.json sigue en ospec-auto-run/v1: el bloqueo permission solo añade gate, questions, requests (tool, subject, reason, key) y session_id, y un CLI anterior lo lee como un bloqueo de gate, muestra sus preguntas y lo reanuda; un run.json anterior, sin requests, se lee y se reanuda igual, y --allow lo rechaza con invalid-allow. permission-requests.jsonl es nuevo, local y se borra al bloquear o cerrar; una línea que no es una petición se salta. Para volver atrás basta el CLI anterior: no hay datos que migrar"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-27T19:53:18.573Z",
+      "detail": {
+        "tree": "sha256:903f15057a5850bd41baac1fc671cb144252626ff4188a9c29ad780c0a022aa7",
+        "runs": [
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-27T19:53:18.573Z",
+      "detail": {
+        "tree": "sha256:903f15057a5850bd41baac1fc671cb144252626ff4188a9c29ad780c0a022aa7",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/export_test.go",
+          "internal/hooks/pretooluse_auto_test.go",
+          "scripts/hooks/pre-tool-use-auto.test.js",
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-27T20:10:49.376Z",
+      "detail": {
+        "tree": "sha256:458df965f1a419111776b9b55c80834a66a01b77855261a535c591fe881bd420",
+        "runs": [
+          "run-22"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-27T20:10:49.376Z",
+      "detail": {
+        "tree": "sha256:458df965f1a419111776b9b55c80834a66a01b77855261a535c591fe881bd420",
+        "check": "ev-4",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/export_test.go",
+          "internal/hooks/pretooluse_auto_test.go",
+          "scripts/hooks/pre-tool-use-auto.test.js",
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-27T20:11:23.090Z",
+      "detail": {
+        "run": "run-32",
+        "tree": "sha256:eca3f918933535112808544fe6dcbefe3beda6f4fed4675875f5a5df87ae6ce0",
+        "plan": "run.json sigue en ospec-auto-run/v1: el bloqueo permission solo añade gate, questions, requests (tool, subject, reason, key), file y session_id, y un CLI anterior lo lee como un bloqueo de gate, muestra sus preguntas y lo reanuda; un run.json anterior, sin requests, se lee y se reanuda igual, y --allow lo rechaza con invalid-allow. permission-requests.jsonl y permission-block.json son nuevos y locales en .ospec/auto/<run>/; una línea que no es una petición se salta. Para volver atrás basta el CLI anterior: no hay datos que migrar"
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-27T20:24:44.721Z",
+      "detail": {
+        "lineage_id": "sha256:42aa118213596d0c685a035dd3df8cc67a987d491aa9d832b0c3dca2005d43ca",
+        "candidate_id": "sha256:b9b379d93c22d046dd895f281cf1e21c8786925ed104be8c611169975a4e9034",
+        "candidate_tree": "2377102dd83e4923348bffb31cbba97e5a150de8",
+        "findings_digest": "sha256:3cacf6445b4f5edd6b7c455eafe767ad5bce9c706bd5f5c007f620b91ccc085a",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-27T20:24:05.281Z",
+          "result_digest": "sha256:9347a964c0bbc3e59c32f3ef7866231e15c5cc7890eafd14c0a969e8e07516dd"
+        }
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-27T20:33:16.092Z",
+      "detail": {
+        "tree": "sha256:fc55800fc5f3bda357bd0b4acd4a7ed944fc877b3c13fd7d491286c035530e8a",
+        "runs": [
+          "run-33"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-27T20:33:16.092Z",
+      "detail": {
+        "tree": "sha256:fc55800fc5f3bda357bd0b4acd4a7ed944fc877b3c13fd7d491286c035530e8a",
+        "check": "ev-8",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/export_test.go",
+          "internal/hooks/pretooluse_auto_test.go",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use-auto.test.js",
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-27T20:33:16.092Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0005 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "adr:0013 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "adr:0004 none",
+          "adr:0011 none"
+        ],
+        "records": [],
+        "tree": "sha256:fc55800fc5f3bda357bd0b4acd4a7ed944fc877b3c13fd7d491286c035530e8a",
+        "fitness": [
+          "run-34",
+          "run-35",
+          "run-36",
+          "run-37",
+          "run-38",
+          "run-39",
+          "run-40",
+          "run-41",
+          "run-42"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-27T20:33:36.201Z",
+      "detail": {
+        "run": "run-43",
+        "tree": "sha256:34881d3b07a4a8ff22fd98726931c2694d5f58d5d668444029eba241c7febaf7",
+        "plan": "run.json sigue en ospec-auto-run/v1: el bloqueo permission solo añade gate, questions, requests (tool, subject, reason, sha256), file y session_id, y un CLI anterior lo lee como un bloqueo de gate, muestra sus preguntas y lo reanuda; un run.json anterior, sin requests, se lee y se reanuda igual, y --allow lo rechaza con invalid-allow. permission-requests.jsonl y permission-block.json son nuevos y locales en .ospec/auto/<run>/; una línea que no es una petición se salta. Para volver atrás basta el CLI anterior: no hay datos que migrar"
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-27T20:48:10.752Z",
+      "detail": {
+        "lineage_id": "sha256:a998c929df6fca3861529c1c1dbe949c0e9e2545c5a7f33982695dec56d1167b",
+        "candidate_id": "sha256:c77ecf1f635d7e2535a1073b786fa73666f029a4c36f56b12422cf166eb26d4b",
+        "candidate_tree": "d074769a535204200d7c4d66982850ca8dfef1c7",
+        "findings_digest": "sha256:41b448d7e2e6f195347fe4c950b68188daea1a051983117f735fc1729487fd99",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-11-27T20:47:13.915Z",
+          "result_digest": "sha256:f66fc1e0f4537e8f38b8158ac92298dc1047a1b29a84005d18d22ff9ecde60fd"
+        }
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-11-27T20:52:57.169Z",
+      "detail": {
+        "tree": "sha256:0f8b6c926e670891d9ea70670eab6d9e943148df006e77cac54396853ee17931",
+        "runs": [
+          "run-44"
+        ]
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-11-27T20:52:57.169Z",
+      "detail": {
+        "tree": "sha256:0f8b6c926e670891d9ea70670eab6d9e943148df006e77cac54396853ee17931",
+        "check": "ev-13",
+        "documents": [
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/export_test.go",
+          "internal/hooks/pretooluse_auto_test.go",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use-auto.test.js",
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-15",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-11-27T20:52:57.169Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0005 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "adr:0013 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "adr:0004 none",
+          "adr:0011 none"
+        ],
+        "records": [],
+        "tree": "sha256:0f8b6c926e670891d9ea70670eab6d9e943148df006e77cac54396853ee17931",
+        "fitness": [
+          "run-45",
+          "run-46",
+          "run-47",
+          "run-48",
+          "run-49",
+          "run-50",
+          "run-51",
+          "run-52",
+          "run-53"
+        ]
+      }
+    },
+    {
+      "id": "ev-16",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-11-27T20:53:16.290Z",
+      "detail": {
+        "run": "run-54",
+        "tree": "sha256:ba76487bbc70fbd8ba19da4e4763b651081e8077f07f67282f2b5e0d50d44b35",
+        "plan": "run.json sigue en ospec-auto-run/v1: el bloqueo permission solo añade gate, questions, requests (tool, subject, reason, sha256), file y session_id, y un CLI anterior lo lee como un bloqueo de gate, muestra sus preguntas y lo reanuda; un run.json anterior, sin requests, se lee y se reanuda igual, y --allow lo rechaza con invalid-allow. permission-requests.jsonl y permission-block.json son nuevos y locales en .ospec/auto/<run>/; una línea que no es una petición se salta. Para volver atrás basta el CLI anterior: no hay datos que migrar"
+      }
+    },
+    {
+      "id": "ev-17",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-11-27T20:53:58.239Z",
+      "detail": {
+        "lineage_id": "sha256:a998c929df6fca3861529c1c1dbe949c0e9e2545c5a7f33982695dec56d1167b",
+        "candidate_id": "sha256:c77ecf1f635d7e2535a1073b786fa73666f029a4c36f56b12422cf166eb26d4b",
+        "candidate_tree": "f664784ba6edae22e710795a8aa18b43e2cf363b",
+        "findings_digest": "sha256:41b448d7e2e6f195347fe4c950b68188daea1a051983117f735fc1729487fd99",
+        "correction": "advisory",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-correction",
+          "recorded_at": "2026-11-27T20:53:43.594Z",
+          "result_digest": "sha256:c907c995a03854b6e9fbf93e8e02b1373271fc6e58ec1e0c8b8bdd13d83d9a04"
+        }
+      }
+    },
+    {
+      "id": "ev-18",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-11-27T20:54:04.068Z"
+    }
+  ],
+  "base": "347bbab5a66d0b7b5fc45fcdd706a4ce20a3f710",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d2730978e863630269c5a7be766c86da9997b493262ea75b8d87e7f57e093207",
+      "tree": "sha256:b604965b10fd5abecc8fb23c2e50de29a4ec09bdf920af4acb1d8d4eb81faeb9",
+      "recorded_at": "2026-11-27T19:35:53.223Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9f5a5baa6ecdf09c9bbb14e36e9434d582de6588e9d35cf0c16e59f7729740e9",
+      "tree": "sha256:b604965b10fd5abecc8fb23c2e50de29a4ec09bdf920af4acb1d8d4eb81faeb9",
+      "recorded_at": "2026-11-27T19:35:53.223Z",
+      "tests": 21
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4012207776d32e7a4d16a7fd74dce5f237208de4a6e0e05066e3d461c8d88080",
+      "tree": "sha256:b604965b10fd5abecc8fb23c2e50de29a4ec09bdf920af4acb1d8d4eb81faeb9",
+      "recorded_at": "2026-11-27T19:35:53.223Z",
+      "tests": 103
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:b604965b10fd5abecc8fb23c2e50de29a4ec09bdf920af4acb1d8d4eb81faeb9",
+      "recorded_at": "2026-11-27T19:35:53.223Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c5d5a8e55c7b43b1ddb9cd2747500326237b7583eea5d0b7e885d4098ee92de4",
+      "tree": "sha256:b604965b10fd5abecc8fb23c2e50de29a4ec09bdf920af4acb1d8d4eb81faeb9",
+      "recorded_at": "2026-11-27T19:35:53.223Z",
+      "tests": 26
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:556035d22894099a504b4da4b0bc0fff2f44343cce605b85ddf0b8e13892ded7",
+      "tree": "sha256:b604965b10fd5abecc8fb23c2e50de29a4ec09bdf920af4acb1d8d4eb81faeb9",
+      "recorded_at": "2026-11-27T19:35:53.223Z",
+      "tests": 67
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c305a61679ff35792598cd1b3a48ecf3108226352f1ba88c705d43078a858b83",
+      "tree": "sha256:b604965b10fd5abecc8fb23c2e50de29a4ec09bdf920af4acb1d8d4eb81faeb9",
+      "recorded_at": "2026-11-27T19:35:53.223Z",
+      "tests": 60
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d95563af09e25390f4cfbdd1863a3861632a1dd1fd63ae74f2c7c050c9b167e9",
+      "tree": "sha256:b604965b10fd5abecc8fb23c2e50de29a4ec09bdf920af4acb1d8d4eb81faeb9",
+      "recorded_at": "2026-11-27T19:35:53.223Z",
+      "tests": 103
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0920ef43456794178234892f0731e4c585cbf786a140358829d64a5e22874d19",
+      "tree": "sha256:b604965b10fd5abecc8fb23c2e50de29a4ec09bdf920af4acb1d8d4eb81faeb9",
+      "recorded_at": "2026-11-27T19:35:53.223Z",
+      "tests": 63
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cd11e07feb8eb7355b1b3c94bf749024f34d764dd8c148b18d24b786f586894e",
+      "tree": "sha256:b604965b10fd5abecc8fb23c2e50de29a4ec09bdf920af4acb1d8d4eb81faeb9",
+      "recorded_at": "2026-11-27T19:35:53.223Z",
+      "tests": 101
+    },
+    {
+      "id": "run-11",
+      "purpose": "migration-test",
+      "command": "node --test scripts/ospec.auto.test.js scripts/lib/auto-conductor.test.js scripts/lib/auto-run.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4f22148c6de6e9407a8719b655a89540eaf6a13b826c90b80f5af5561be91d30",
+      "tree": "sha256:2204c693cdff2d2d86bac2d62248a65581d48511dcd2801505f3d117aa2328bc",
+      "recorded_at": "2026-11-27T19:50:57.660Z",
+      "tests": 23
+    },
+    {
+      "id": "run-12",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ecddfd52548885a6c15f5df0a6d904dbee56d4fa746bb2135c1bc418e0e5679d",
+      "tree": "sha256:903f15057a5850bd41baac1fc671cb144252626ff4188a9c29ad780c0a022aa7",
+      "recorded_at": "2026-11-27T19:53:18.573Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:356fefc588989e98bdb35f6f4de582652840cac8f4b221f7a54be36bb047de2f",
+      "tree": "sha256:903f15057a5850bd41baac1fc671cb144252626ff4188a9c29ad780c0a022aa7",
+      "recorded_at": "2026-11-27T19:53:18.573Z",
+      "tests": 21
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f040fb144d3ffd4ffbcda50de0720dffdd9dcb8c14aef557bb1dfe1895d7c90d",
+      "tree": "sha256:903f15057a5850bd41baac1fc671cb144252626ff4188a9c29ad780c0a022aa7",
+      "recorded_at": "2026-11-27T19:53:18.573Z",
+      "tests": 103
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:903f15057a5850bd41baac1fc671cb144252626ff4188a9c29ad780c0a022aa7",
+      "recorded_at": "2026-11-27T19:53:18.573Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f7bb9136262127ed36654fc29c6de349c09ef968da9296e0ef80e8a2dfce1cbd",
+      "tree": "sha256:903f15057a5850bd41baac1fc671cb144252626ff4188a9c29ad780c0a022aa7",
+      "recorded_at": "2026-11-27T19:53:18.573Z",
+      "tests": 26
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f6e3e2cf8fcd976babf0c7c5bf6fa59500ed0fcc235cbae2c2615f31157d4090",
+      "tree": "sha256:903f15057a5850bd41baac1fc671cb144252626ff4188a9c29ad780c0a022aa7",
+      "recorded_at": "2026-11-27T19:53:18.573Z",
+      "tests": 67
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1ec68ec02532b745ce558d3a481c9eef8cbee27fb7a670d860f87ca194128ef9",
+      "tree": "sha256:903f15057a5850bd41baac1fc671cb144252626ff4188a9c29ad780c0a022aa7",
+      "recorded_at": "2026-11-27T19:53:18.573Z",
+      "tests": 60
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:44018ec47717ec16caa3966e339757df785c7228c2e6e60853062c34104c7a46",
+      "tree": "sha256:903f15057a5850bd41baac1fc671cb144252626ff4188a9c29ad780c0a022aa7",
+      "recorded_at": "2026-11-27T19:53:18.573Z",
+      "tests": 103
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3d8369d26cbdfba2330de9c99fa454b5aea7c7e2f6a016021f9e8fafa6a91d28",
+      "tree": "sha256:903f15057a5850bd41baac1fc671cb144252626ff4188a9c29ad780c0a022aa7",
+      "recorded_at": "2026-11-27T19:53:18.573Z",
+      "tests": 63
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:51f3fdd74e0489258f3d03ff3642f8ba93da30cd06e497fe51ead4fe4f47aeff",
+      "tree": "sha256:903f15057a5850bd41baac1fc671cb144252626ff4188a9c29ad780c0a022aa7",
+      "recorded_at": "2026-11-27T19:53:18.573Z",
+      "tests": 101
+    },
+    {
+      "id": "run-22",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1ae392a9867f239f05cfe4800098b51ebd41522bcb2309537b1db09da01adc63",
+      "tree": "sha256:458df965f1a419111776b9b55c80834a66a01b77855261a535c591fe881bd420",
+      "recorded_at": "2026-11-27T20:10:49.376Z"
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1e023dad2e0249c2ce6f4c0bc1fff883a31b0a702678e01557f762511c5321c2",
+      "tree": "sha256:458df965f1a419111776b9b55c80834a66a01b77855261a535c591fe881bd420",
+      "recorded_at": "2026-11-27T20:10:49.376Z",
+      "tests": 21
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9617e7a28fc2d0163bd32b8e67f15157a499d8a8df51ea4d12f4e67128505b5b",
+      "tree": "sha256:458df965f1a419111776b9b55c80834a66a01b77855261a535c591fe881bd420",
+      "recorded_at": "2026-11-27T20:10:49.376Z",
+      "tests": 103
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:458df965f1a419111776b9b55c80834a66a01b77855261a535c591fe881bd420",
+      "recorded_at": "2026-11-27T20:10:49.376Z"
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:64537be32fedccfb1fae7dfb9cca6b79b2b080406e7671abeb1a1940b00e12ef",
+      "tree": "sha256:458df965f1a419111776b9b55c80834a66a01b77855261a535c591fe881bd420",
+      "recorded_at": "2026-11-27T20:10:49.376Z",
+      "tests": 26
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:40fe483be5fdceb52edbeb82d1ce40d4ef6b8987416c21a5294a15f930db73a9",
+      "tree": "sha256:458df965f1a419111776b9b55c80834a66a01b77855261a535c591fe881bd420",
+      "recorded_at": "2026-11-27T20:10:49.376Z",
+      "tests": 67
+    },
+    {
+      "id": "run-28",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ce9e9976d0658bfe94d8d123b80e53beb14330e272c8d9ce21e3e66112638af4",
+      "tree": "sha256:458df965f1a419111776b9b55c80834a66a01b77855261a535c591fe881bd420",
+      "recorded_at": "2026-11-27T20:10:49.376Z",
+      "tests": 60
+    },
+    {
+      "id": "run-29",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b2ebbbf8a8ba22ffbf07ac59b70b7fca04fea4a18960e879621b562ec93a9e22",
+      "tree": "sha256:458df965f1a419111776b9b55c80834a66a01b77855261a535c591fe881bd420",
+      "recorded_at": "2026-11-27T20:10:49.376Z",
+      "tests": 103
+    },
+    {
+      "id": "run-30",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ad0faa67669f8d365cd22c004ed05d994bbb391166c0c3301502e405d500af2d",
+      "tree": "sha256:458df965f1a419111776b9b55c80834a66a01b77855261a535c591fe881bd420",
+      "recorded_at": "2026-11-27T20:10:49.376Z",
+      "tests": 63
+    },
+    {
+      "id": "run-31",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5736ea86132e399c61e855906dbb98788f05cf213195019c3ed9a159068872cf",
+      "tree": "sha256:458df965f1a419111776b9b55c80834a66a01b77855261a535c591fe881bd420",
+      "recorded_at": "2026-11-27T20:10:49.376Z",
+      "tests": 101
+    },
+    {
+      "id": "run-32",
+      "purpose": "migration-test",
+      "command": "node --test scripts/ospec.auto.test.js scripts/lib/auto-conductor.test.js scripts/lib/auto-run.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cddc5551868c9f7127f7c33031b69ddca6374ef063423403be89da4079a38631",
+      "tree": "sha256:eca3f918933535112808544fe6dcbefe3beda6f4fed4675875f5a5df87ae6ce0",
+      "recorded_at": "2026-11-27T20:11:23.090Z",
+      "tests": 24
+    },
+    {
+      "id": "run-33",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:63cc1bfab0a5a1e7f5fef560f2e8434aa25742afd47a6293a204fdbd50485bee",
+      "tree": "sha256:fc55800fc5f3bda357bd0b4acd4a7ed944fc877b3c13fd7d491286c035530e8a",
+      "recorded_at": "2026-11-27T20:33:16.092Z"
+    },
+    {
+      "id": "run-34",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:384f5c65985dae4183aaf670890f61a95b4f7c1084b224136cc99898f8e4aac7",
+      "tree": "sha256:fc55800fc5f3bda357bd0b4acd4a7ed944fc877b3c13fd7d491286c035530e8a",
+      "recorded_at": "2026-11-27T20:33:16.092Z",
+      "tests": 21
+    },
+    {
+      "id": "run-35",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:65f1ff651f30ea9c286c1715c1fd74bf7bfa2b759578d0804d00b8dd5ab8abbf",
+      "tree": "sha256:fc55800fc5f3bda357bd0b4acd4a7ed944fc877b3c13fd7d491286c035530e8a",
+      "recorded_at": "2026-11-27T20:33:16.092Z",
+      "tests": 103
+    },
+    {
+      "id": "run-36",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:fc55800fc5f3bda357bd0b4acd4a7ed944fc877b3c13fd7d491286c035530e8a",
+      "recorded_at": "2026-11-27T20:33:16.092Z"
+    },
+    {
+      "id": "run-37",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f0c9e30c49aaf9d2a629001c2b6ceee461debff521175bdc120e0185987f9036",
+      "tree": "sha256:fc55800fc5f3bda357bd0b4acd4a7ed944fc877b3c13fd7d491286c035530e8a",
+      "recorded_at": "2026-11-27T20:33:16.092Z",
+      "tests": 26
+    },
+    {
+      "id": "run-38",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b5983b1929d371d746914a30800ab6e5bcd7df26b470416fedf8cde9c38b3144",
+      "tree": "sha256:fc55800fc5f3bda357bd0b4acd4a7ed944fc877b3c13fd7d491286c035530e8a",
+      "recorded_at": "2026-11-27T20:33:16.092Z",
+      "tests": 67
+    },
+    {
+      "id": "run-39",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:aa82c54ec70eec92f7450c7a4864e19d132fe6962dec9c1c18e61ebed496766f",
+      "tree": "sha256:fc55800fc5f3bda357bd0b4acd4a7ed944fc877b3c13fd7d491286c035530e8a",
+      "recorded_at": "2026-11-27T20:33:16.092Z",
+      "tests": 60
+    },
+    {
+      "id": "run-40",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9e2aeafa8aa5efa18dd9ed2b676c76e600762c2226db788d08ddd40ed5d34c15",
+      "tree": "sha256:fc55800fc5f3bda357bd0b4acd4a7ed944fc877b3c13fd7d491286c035530e8a",
+      "recorded_at": "2026-11-27T20:33:16.092Z",
+      "tests": 103
+    },
+    {
+      "id": "run-41",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ff79029d73b1daa942fd3d4d789387a9966e0bd900653e4e87a6a6df8c1ddff6",
+      "tree": "sha256:fc55800fc5f3bda357bd0b4acd4a7ed944fc877b3c13fd7d491286c035530e8a",
+      "recorded_at": "2026-11-27T20:33:16.092Z",
+      "tests": 63
+    },
+    {
+      "id": "run-42",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:821c57ad3860f4858d05ddaac4e7f1c32d9069ffab75d4a9cd53d5c176fc48ca",
+      "tree": "sha256:fc55800fc5f3bda357bd0b4acd4a7ed944fc877b3c13fd7d491286c035530e8a",
+      "recorded_at": "2026-11-27T20:33:16.092Z",
+      "tests": 101
+    },
+    {
+      "id": "run-43",
+      "purpose": "migration-test",
+      "command": "node --test scripts/ospec.auto.test.js scripts/lib/auto-conductor.test.js scripts/lib/auto-run.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:684268b910d2bc65fd40827dd5cb965937dff9873f3dc05905d002ca3146d29e",
+      "tree": "sha256:34881d3b07a4a8ff22fd98726931c2694d5f58d5d668444029eba241c7febaf7",
+      "recorded_at": "2026-11-27T20:33:36.201Z",
+      "tests": 24
+    },
+    {
+      "id": "run-44",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:714131f71dd5405862f71c77d2a6bb135d3cab632043870309da69568d848d1f",
+      "tree": "sha256:0f8b6c926e670891d9ea70670eab6d9e943148df006e77cac54396853ee17931",
+      "recorded_at": "2026-11-27T20:52:57.169Z"
+    },
+    {
+      "id": "run-45",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b99765035cfa6c002eed3ed392fe2dd4322753346176cdb8bf77babcc0a4fce7",
+      "tree": "sha256:0f8b6c926e670891d9ea70670eab6d9e943148df006e77cac54396853ee17931",
+      "recorded_at": "2026-11-27T20:52:57.169Z",
+      "tests": 21
+    },
+    {
+      "id": "run-46",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5a9146c7fa0294b462f90f199457145547aa8b5fd27011f8afd4100d4fa0eedc",
+      "tree": "sha256:0f8b6c926e670891d9ea70670eab6d9e943148df006e77cac54396853ee17931",
+      "recorded_at": "2026-11-27T20:52:57.169Z",
+      "tests": 103
+    },
+    {
+      "id": "run-47",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:0f8b6c926e670891d9ea70670eab6d9e943148df006e77cac54396853ee17931",
+      "recorded_at": "2026-11-27T20:52:57.169Z"
+    },
+    {
+      "id": "run-48",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ab8a99a937c8d99a68b5353b96f92792fc32dc3a5d2dc6043e53f1b9af7faaee",
+      "tree": "sha256:0f8b6c926e670891d9ea70670eab6d9e943148df006e77cac54396853ee17931",
+      "recorded_at": "2026-11-27T20:52:57.169Z",
+      "tests": 26
+    },
+    {
+      "id": "run-49",
+      "purpose": "fitness",
+      "ref": "adr:0013",
+      "command": "node --test scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:46e75cd69794676538d756790f0a80567344677b25d098bde4578d758be03e81",
+      "tree": "sha256:0f8b6c926e670891d9ea70670eab6d9e943148df006e77cac54396853ee17931",
+      "recorded_at": "2026-11-27T20:52:57.169Z",
+      "tests": 67
+    },
+    {
+      "id": "run-50",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:871f3283a8cbb8a9e2685978e1975e3a21071a7feec78796102df9ab6f05f6e1",
+      "tree": "sha256:0f8b6c926e670891d9ea70670eab6d9e943148df006e77cac54396853ee17931",
+      "recorded_at": "2026-11-27T20:52:57.169Z",
+      "tests": 60
+    },
+    {
+      "id": "run-51",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a8ce53fa64fbfacfa03d0cece963cedc00895f4d350276fa078a661be8186c3a",
+      "tree": "sha256:0f8b6c926e670891d9ea70670eab6d9e943148df006e77cac54396853ee17931",
+      "recorded_at": "2026-11-27T20:52:57.169Z",
+      "tests": 103
+    },
+    {
+      "id": "run-52",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e68363a1317213cd7abeafb9f327b550c3e39c0704784c4774bfe66d850f4811",
+      "tree": "sha256:0f8b6c926e670891d9ea70670eab6d9e943148df006e77cac54396853ee17931",
+      "recorded_at": "2026-11-27T20:52:57.169Z",
+      "tests": 63
+    },
+    {
+      "id": "run-53",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8c3b66e6a05caa21f39a02acdc526556f53728686a281b3dd8cfdb5905660624",
+      "tree": "sha256:0f8b6c926e670891d9ea70670eab6d9e943148df006e77cac54396853ee17931",
+      "recorded_at": "2026-11-27T20:52:57.169Z",
+      "tests": 101
+    },
+    {
+      "id": "run-54",
+      "purpose": "migration-test",
+      "command": "node --test scripts/ospec.auto.test.js scripts/lib/auto-conductor.test.js scripts/lib/auto-run.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a4b1cbc3d7f84d3c1cdcda92168cad7671b937fcc30b12a06332a9c3da1b1683",
+      "tree": "sha256:ba76487bbc70fbd8ba19da4e4763b651081e8077f07f67282f2b5e0d50d44b35",
+      "recorded_at": "2026-11-27T20:53:16.290Z",
+      "tests": 24
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:6b0c57fa9a738becfee2402d83db384e8a0dd21365278bffc8fb30e83b3bb495",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 4,
+      "status": "escalated",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "e4e91228cd68e26edae005105699123fc973856a",
+          "candidate_tree": "a44ccbb8e20d675e090b33fc29365eaf2d0510b7",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "docs/target-capabilities.md",
+            "handbook/idd/flujo-idd.md",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_auto_test.go",
+            "internal/testdata/auto-permission/cases.json",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/hooks/pre-tool-use-auto.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/lib/auto-conductor.js",
+            "scripts/lib/auto-conductor.test.js",
+            "scripts/lib/auto-host-antigravity.js",
+            "scripts/lib/auto-host-codex.js",
+            "scripts/lib/auto-host-copilot.js",
+            "scripts/lib/auto-host-cursor.js",
+            "scripts/lib/auto-host-opencode.js",
+            "scripts/lib/auto-hosts.js",
+            "scripts/lib/auto-hosts.test.js",
+            "scripts/lib/auto-permission.js",
+            "scripts/lib/auto-queue.js",
+            "scripts/lib/auto-queue.test.js",
+            "scripts/lib/auto-run.js",
+            "scripts/lib/idd-refusals.js",
+            "scripts/ospec.auto.test.js",
+            "scripts/ospec.js"
+          ],
+          "diff_hash": "sha256:fae77f21e9f4fca0fc13286309c6628b0d7e08edb049fe04e7678ad2e92635dc",
+          "paths_digest": "sha256:b342f1ca19713018aade8181de4d7d6597c98b524af98dfea484f015ba8a0fb2",
+          "authored_lines": 826,
+          "original_changed_lines": 918
+        },
+        "candidate_id": "sha256:84b545a169885a40994e22bb96b26e3bfc095786b3eb6584ceea1de963511824",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "handbook/idd/flujo-idd.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_auto_test.go",
+          "internal/testdata/auto-permission/cases.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/pre-tool-use-auto.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/lib/auto-conductor.js",
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-host-antigravity.js",
+          "scripts/lib/auto-host-codex.js",
+          "scripts/lib/auto-host-copilot.js",
+          "scripts/lib/auto-host-cursor.js",
+          "scripts/lib/auto-host-opencode.js",
+          "scripts/lib/auto-hosts.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-permission.js",
+          "scripts/lib/auto-queue.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/auto-run.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/ospec.auto.test.js",
+          "scripts/ospec.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "a44ccbb8e20d675e090b33fc29365eaf2d0510b7",
+        "original_changed_lines": 918,
+        "authored_lines": 826
+      },
+      "current_candidate_id": "sha256:84b545a169885a40994e22bb96b26e3bfc095786b3eb6584ceea1de963511824",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "e4e91228cd68e26edae005105699123fc973856a",
+        "candidate_tree": "a44ccbb8e20d675e090b33fc29365eaf2d0510b7",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "handbook/idd/flujo-idd.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_auto_test.go",
+          "internal/testdata/auto-permission/cases.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/pre-tool-use-auto.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/lib/auto-conductor.js",
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-host-antigravity.js",
+          "scripts/lib/auto-host-codex.js",
+          "scripts/lib/auto-host-copilot.js",
+          "scripts/lib/auto-host-cursor.js",
+          "scripts/lib/auto-host-opencode.js",
+          "scripts/lib/auto-hosts.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-permission.js",
+          "scripts/lib/auto-queue.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/auto-run.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/ospec.auto.test.js",
+          "scripts/ospec.js"
+        ],
+        "diff_hash": "sha256:fae77f21e9f4fca0fc13286309c6628b0d7e08edb049fe04e7678ad2e92635dc",
+        "paths_digest": "sha256:b342f1ca19713018aade8181de4d7d6597c98b524af98dfea484f015ba8a0fb2",
+        "authored_lines": 826,
+        "original_changed_lines": 918
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "auto-run-permission-policy:lens-start:1:0",
+          "result_digest": "sha256:52cda066f5db9971218445a79ace98ee693ec4ff468014b6dd7efddcf9b64e55",
+          "result": {
+            "findings": [
+              {
+                "severity": "CRITICAL",
+                "summary": "Auto turn: an advisory ask ends evaluation before the critical ASK_RULES and becomes allow. Step 5b returns the dirty-tree advisory for any command matching the unanchored /\\bgit\\s+commit\\b/ (pre-tool-use.js:712-726, pretooluse.go:1502-1516) before Step 6 ASK_RULES (pre-tool-use.js:776, pretooluse.go:1528), and applyAutoRun turns it into allow (pre-tool-use.js:589, pretooluse.go:1318). The tree is dirty in almost every turn (the change's idd/ files stay untracked until the conductor commits), so `rm -rf src # git commit` or `npm install evil && git commit -am x` runs with no request and no stop, and the affirmative allow also skips the host's own review (OSP-017, pre-tool-use.js:341-343). The token-budget advisory (every call past 150k tokens in an active openspec change) and Node's spec-drift advisory mask ASK_RULES the same way. The shared cases turn all three advisory guards off, so nothing tests it.",
+                "acceptance_criteria": "With OSPEC_AUTO_SESSION set and the git collaboration guard on over a dirty tree, a call that matches an ASK_RULES rule and also triggers an advisory (e.g. `npm install left-pad && git commit -am x`, `rm -rf build # git commit`) is denied with the ospec auto reason and leaves its request, in both the Node and the Go hook. The same holds when the token-budget advisory fires (and, in Node, spec drift). A plain `git commit -am x` on a dirty tree still becomes allow with its advisory. Shared cases in internal/testdata/auto-permission/ with those guards on cover both implementations.",
+                "location": "scripts/hooks/pre-tool-use.js:589"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "The permission block trusts and prints session output nobody vetted. permissionRequests reads .ospec/auto/<run>/permission-requests.jsonl, which sits inside the work tree and which the session can write itself: it gets the path from OSPEC_AUTO_SESSION, and the guard protects only idd state, archive, receipts and turns (pre-tool-use.js:285-291). It keeps any line with a string subject (auto-run.js:193-201). blockOnPermission prints subject and reason with only newlines collapsed (auto-conductor.js:223, 210; ospec.js:1765, 1784), and --allow hashes the raw subject (auto-conductor.js:566). So a turn can forge a request whose free-text reason reads as ospec's, both to the user and to the supervising agent told to relay the block and run --allow (auto-queue.js:55-57). It can also put CR/ESC sequences in a subject (e.g. `git reset --hard HEAD~20 #\\r  - npm install lodash`) so the terminal shows a different command from the one --allow approves.",
+                "acceptance_criteria": "Start/resume output and ospec auto status render each subject and reason of a permission block with CR, ESC, other C0/C1 and bidi control characters shown as visible escapes, so the displayed text matches what --allow approves. A line the session appended to permission-requests.jsonl itself is neither shown as ospec's request nor approved by --allow. That covers a subject the guard would not stop and a reason other than the guard's own. Each case has a test."
+              },
+              {
+                "severity": "WARNING",
+                "summary": "For a call without a command, the approved subject is its first top-level path key or else its tool name (pre-tool-use.js:561-568, pretooluse.go:1263-1279). The hash binds neither the tool nor the rest of the input. Yet the ask can come from data outside the subject: every string through extractPaths, nested path keys and content bodies (pre-tool-use.js:621-622, 632, 673-679). So a Grep with glob `.env`, or an MCP send whose `text` holds a token, is recorded and shown only as `Grep` or the tool name. --allow then lets that tool read or send any secret-bearing input in the next turn. Approving a Write to a path also approves another tool, such as an upload, that names the same path. That is broader than the 'approves exactly the pending calls' the user chose (change.md:18) and the 'this exact call' the deny and approve reasons promise (pre-tool-use.js:552, 558).",
+                "acceptance_criteria": "A --allow approval covers only a call with the same tool and the same input as the one that was stopped. With an approval from one tool call's request, these are denied and recorded in both hooks: a call of the same tool with a different file, glob or content value, and a call of another tool naming the same path. Each request shown to the user names the file or content that triggered its ask, not just the tool name. Shared cases cover it."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "auto-run-permission-policy:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-14be3b0332017710",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "Auto turn: an advisory ask ends evaluation before the critical ASK_RULES and becomes allow. Step 5b returns the dirty-tree advisory for any command matching the unanchored /\\bgit\\s+commit\\b/ (pre-tool-use.js:712-726, pretooluse.go:1502-1516) before Step 6 ASK_RULES (pre-tool-use.js:776, pretooluse.go:1528), and applyAutoRun turns it into allow (pre-tool-use.js:589, pretooluse.go:1318). The tree is dirty in almost every turn (the change's idd/ files stay untracked until the conductor commits), so `rm -rf src # git commit` or `npm install evil && git commit -am x` runs with no request and no stop, and the affirmative allow also skips the host's own review (OSP-017, pre-tool-use.js:341-343). The token-budget advisory (every call past 150k tokens in an active openspec change) and Node's spec-drift advisory mask ASK_RULES the same way. The shared cases turn all three advisory guards off, so nothing tests it.",
+          "acceptance_criteria": "With OSPEC_AUTO_SESSION set and the git collaboration guard on over a dirty tree, a call that matches an ASK_RULES rule and also triggers an advisory (e.g. `npm install left-pad && git commit -am x`, `rm -rf build # git commit`) is denied with the ospec auto reason and leaves its request, in both the Node and the Go hook. The same holds when the token-budget advisory fires (and, in Node, spec drift). A plain `git commit -am x` on a dirty tree still becomes allow with its advisory. Shared cases in internal/testdata/auto-permission/ with those guards on cover both implementations.",
+          "location": "scripts/hooks/pre-tool-use.js:589",
+          "blocking": true,
+          "resolution": "unresolved"
+        },
+        {
+          "id": "F-7b4623bf6fcc4966",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The permission block trusts and prints session output nobody vetted. permissionRequests reads .ospec/auto/<run>/permission-requests.jsonl, which sits inside the work tree and which the session can write itself: it gets the path from OSPEC_AUTO_SESSION, and the guard protects only idd state, archive, receipts and turns (pre-tool-use.js:285-291). It keeps any line with a string subject (auto-run.js:193-201). blockOnPermission prints subject and reason with only newlines collapsed (auto-conductor.js:223, 210; ospec.js:1765, 1784), and --allow hashes the raw subject (auto-conductor.js:566). So a turn can forge a request whose free-text reason reads as ospec's, both to the user and to the supervising agent told to relay the block and run --allow (auto-queue.js:55-57). It can also put CR/ESC sequences in a subject (e.g. `git reset --hard HEAD~20 #\\r  - npm install lodash`) so the terminal shows a different command from the one --allow approves.",
+          "acceptance_criteria": "Start/resume output and ospec auto status render each subject and reason of a permission block with CR, ESC, other C0/C1 and bidi control characters shown as visible escapes, so the displayed text matches what --allow approves. A line the session appended to permission-requests.jsonl itself is neither shown as ospec's request nor approved by --allow. That covers a subject the guard would not stop and a reason other than the guard's own. Each case has a test.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-377fb02b9726ce5d",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "For a call without a command, the approved subject is its first top-level path key or else its tool name (pre-tool-use.js:561-568, pretooluse.go:1263-1279). The hash binds neither the tool nor the rest of the input. Yet the ask can come from data outside the subject: every string through extractPaths, nested path keys and content bodies (pre-tool-use.js:621-622, 632, 673-679). So a Grep with glob `.env`, or an MCP send whose `text` holds a token, is recorded and shown only as `Grep` or the tool name. --allow then lets that tool read or send any secret-bearing input in the next turn. Approving a Write to a path also approves another tool, such as an upload, that names the same path. That is broader than the 'approves exactly the pending calls' the user chose (change.md:18) and the 'this exact call' the deny and approve reasons promise (pre-tool-use.js:552, 558).",
+          "acceptance_criteria": "A --allow approval covers only a call with the same tool and the same input as the one that was stopped. With an approval from one tool call's request, these are denied and recorded in both hooks: a call of the same tool with a different file, glob or content value, and a call of another tool naming the same path. Each request shown to the user names the file or content that triggered its ask, not just the tool name. Shared cases cover it.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:9fa32ffc25397d402d899fd428f8472086324f868f7b102d85db781adcf10c32",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "the correction does not fit one bounded correction (line budget or frozen paths): a successor review checks it"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:301f0844b997d184f6fbc3be3003000969d639d1b206620f4cd7c245aadd1211",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:6b0c57fa9a738becfee2402d83db384e8a0dd21365278bffc8fb30e83b3bb495",
+      "migration": null,
+      "recovery": null,
+      "revision": 4,
+      "status": "escalated",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "e4e91228cd68e26edae005105699123fc973856a",
+          "candidate_tree": "c83373235f142aecc4d8a48806ff3b5b6b28d10b",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "docs/target-capabilities.md",
+            "handbook/idd/flujo-idd.md",
+            "internal/hooks/export_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_auto_test.go",
+            "internal/testdata/auto-permission/cases.json",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/hooks/pre-tool-use-auto.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/lib/auto-conductor.js",
+            "scripts/lib/auto-conductor.test.js",
+            "scripts/lib/auto-host-antigravity.js",
+            "scripts/lib/auto-host-codex.js",
+            "scripts/lib/auto-host-copilot.js",
+            "scripts/lib/auto-host-cursor.js",
+            "scripts/lib/auto-host-opencode.js",
+            "scripts/lib/auto-hosts.js",
+            "scripts/lib/auto-hosts.test.js",
+            "scripts/lib/auto-permission.js",
+            "scripts/lib/auto-queue.js",
+            "scripts/lib/auto-queue.test.js",
+            "scripts/lib/auto-run.js",
+            "scripts/lib/idd-refusals.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/ospec.auto.test.js",
+            "scripts/ospec.js"
+          ],
+          "diff_hash": "sha256:7408ac83be28e06a9f76628c6cf84362c0337d2bea04dd5918b40de10125ff41",
+          "paths_digest": "sha256:a9951ab0042d0f4297fb3d7e68c9602ececd90415b2bd0fb487ef9f6785ccce8",
+          "authored_lines": 1358,
+          "original_changed_lines": 1473
+        },
+        "candidate_id": "sha256:39c69eb22f2a5bea74c7064e2f012fb94652709a9cd4d2776f8c8a317a83438d",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "handbook/idd/flujo-idd.md",
+          "internal/hooks/export_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_auto_test.go",
+          "internal/testdata/auto-permission/cases.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/pre-tool-use-auto.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/lib/auto-conductor.js",
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-host-antigravity.js",
+          "scripts/lib/auto-host-codex.js",
+          "scripts/lib/auto-host-copilot.js",
+          "scripts/lib/auto-host-cursor.js",
+          "scripts/lib/auto-host-opencode.js",
+          "scripts/lib/auto-hosts.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-permission.js",
+          "scripts/lib/auto-queue.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/auto-run.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js",
+          "scripts/ospec.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "c83373235f142aecc4d8a48806ff3b5b6b28d10b",
+        "original_changed_lines": 1473,
+        "authored_lines": 1358
+      },
+      "current_candidate_id": "sha256:39c69eb22f2a5bea74c7064e2f012fb94652709a9cd4d2776f8c8a317a83438d",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "e4e91228cd68e26edae005105699123fc973856a",
+        "candidate_tree": "c83373235f142aecc4d8a48806ff3b5b6b28d10b",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "handbook/idd/flujo-idd.md",
+          "internal/hooks/export_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_auto_test.go",
+          "internal/testdata/auto-permission/cases.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/pre-tool-use-auto.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/lib/auto-conductor.js",
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-host-antigravity.js",
+          "scripts/lib/auto-host-codex.js",
+          "scripts/lib/auto-host-copilot.js",
+          "scripts/lib/auto-host-cursor.js",
+          "scripts/lib/auto-host-opencode.js",
+          "scripts/lib/auto-hosts.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-permission.js",
+          "scripts/lib/auto-queue.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/auto-run.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js",
+          "scripts/ospec.js"
+        ],
+        "diff_hash": "sha256:7408ac83be28e06a9f76628c6cf84362c0337d2bea04dd5918b40de10125ff41",
+        "paths_digest": "sha256:a9951ab0042d0f4297fb3d7e68c9602ececd90415b2bd0fb487ef9f6785ccce8",
+        "authored_lines": 1358,
+        "original_changed_lines": 1473
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "auto-run-permission-policy:lens-start:2:0",
+          "result_digest": "sha256:9f120fb1f619bdf516a2cff0902f507cbaa6c76757edf30233a1d3c2fb969c04",
+          "result": {
+            "findings": [
+              {
+                "severity": "CRITICAL",
+                "summary": "Auto turn: an ask that only advises becomes an affirmative allow for the whole call, which skips the host's own review. applyAutoRun returns degradeAsk for any advisory (scripts/hooks/pre-tool-use.js:577, internal/hooks/pretooluse.go:1363-1364). Per OSP-017 the host takes allow as an approval that skips its permission flow (openspec/specs/hooks/spec.md:785). Here that flow is the classifier of Claude's --permission-mode auto (auto-hosts.js:73-81,106). Two triggers: any command matching the unanchored /\\bgit\\s+commit\\b/ on a dirty tree (a run never uses the default branch, auto-conductor.js:520), or any call with a string that names an existing file over the token limit (extractPaths walks every string, and cases.json:271-291 fires this from a side field of a Bash call). So `node -e '…' # git commit` runs with no ospec objection and no host review. Before this change the same call stayed an ask.",
+                "acceptance_criteria": "With OSPEC_AUTO_SESSION set, a call whose only objection is an advisory never gets an affirmative allow that covers more than the advised action, so the host's own permission flow still decides it. This holds in both Node and Go. Examples: `node -e 'x' # git commit` on a dirty tree off the default branch, and a Bash call whose only objection is the token advisory, fired by a side field that names an existing large file. Shared cases in internal/testdata/auto-permission/, with those guards on, cover both triggers. The frozen behaviour stays: a plain `git commit -am x` on a dirty tree becomes allow with its advisory.",
+                "location": "scripts/hooks/pre-tool-use.js:577"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "Left over from gen-1 W3: approving a call without commands still does not bind or show its whole input. callKey hashes only the tool and the input's strings (scripts/lib/auto-permission.js:31-47, internal/hooks/pretooluse.go:1285-1321), so numbers and booleans are dropped. Approving an Edit with replace_all false, or an MCP call with public false, also allows the same strings with true. describeCall cuts each string at 120 characters and shows no non-strings (auto-permission.js:15,60). blockOnPermission deletes the request file and keeps only tool, subject, reason and key (auto-conductor.js:225,235,240). So for a secret-write ask on long Write or Edit content (pre-tool-use.js:676-682), the user approves text they cannot see. The approval is an affirmative allow (pre-tool-use.js:581) that also skips host review. docs/target-capabilities.md:191 tells users the key covers \"toda su entrada\".",
+                "acceptance_criteria": "For a call without commands, an approval does not allow a later call that differs in any input value, numbers and booleans included, with shared key cases for Node and Go in internal/testdata/auto-permission/. Before `ospec auto resume --allow`, the user can see every value the key binds in full (for example in a file the block names), not just a 120-character prefix. docs/target-capabilities.md describes accurately what the key binds."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "A session can hang the conductor through the files it re-checks. permissionRequests calls fs.readFileSync on .ospec/auto/<run>/permission-requests.jsonl (scripts/lib/auto-run.js:185-191). The session can replace that path, for example with mkfifo, because .ospec/auto is not CLI-owned (pre-tool-use.js:285-291). verifiedRequests also runs the guard on every forged line (auto-conductor.js:218-226). The guard's secret scan reads a declared file_path without checking that it is a regular file (pre-tool-use.js:625,657-674), so a line naming a FIFO blocks too. The conductor then hangs synchronously after the turn and never blocks the run or continues. ospec auto stop only writes a stop file that the hung conductor never reads (auto-conductor.js:595-600), so the user has to kill the process.",
+                "acceptance_criteria": "If the session turns permission-requests.jsonl, or a path named in one of its lines, into a FIFO or another non-regular file, the conductor still finishes the step (blocks at permission or continues) and ospec auto stop still stops the run, with a test that covers it."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "auto-run-permission-policy:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-f10c1af3651df341",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "Auto turn: an ask that only advises becomes an affirmative allow for the whole call, which skips the host's own review. applyAutoRun returns degradeAsk for any advisory (scripts/hooks/pre-tool-use.js:577, internal/hooks/pretooluse.go:1363-1364). Per OSP-017 the host takes allow as an approval that skips its permission flow (openspec/specs/hooks/spec.md:785). Here that flow is the classifier of Claude's --permission-mode auto (auto-hosts.js:73-81,106). Two triggers: any command matching the unanchored /\\bgit\\s+commit\\b/ on a dirty tree (a run never uses the default branch, auto-conductor.js:520), or any call with a string that names an existing file over the token limit (extractPaths walks every string, and cases.json:271-291 fires this from a side field of a Bash call). So `node -e '…' # git commit` runs with no ospec objection and no host review. Before this change the same call stayed an ask.",
+          "acceptance_criteria": "With OSPEC_AUTO_SESSION set, a call whose only objection is an advisory never gets an affirmative allow that covers more than the advised action, so the host's own permission flow still decides it. This holds in both Node and Go. Examples: `node -e 'x' # git commit` on a dirty tree off the default branch, and a Bash call whose only objection is the token advisory, fired by a side field that names an existing large file. Shared cases in internal/testdata/auto-permission/, with those guards on, cover both triggers. The frozen behaviour stays: a plain `git commit -am x` on a dirty tree becomes allow with its advisory.",
+          "location": "scripts/hooks/pre-tool-use.js:577",
+          "blocking": true,
+          "resolution": "unresolved"
+        },
+        {
+          "id": "F-2cbd4fb135fad7da",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "Left over from gen-1 W3: approving a call without commands still does not bind or show its whole input. callKey hashes only the tool and the input's strings (scripts/lib/auto-permission.js:31-47, internal/hooks/pretooluse.go:1285-1321), so numbers and booleans are dropped. Approving an Edit with replace_all false, or an MCP call with public false, also allows the same strings with true. describeCall cuts each string at 120 characters and shows no non-strings (auto-permission.js:15,60). blockOnPermission deletes the request file and keeps only tool, subject, reason and key (auto-conductor.js:225,235,240). So for a secret-write ask on long Write or Edit content (pre-tool-use.js:676-682), the user approves text they cannot see. The approval is an affirmative allow (pre-tool-use.js:581) that also skips host review. docs/target-capabilities.md:191 tells users the key covers \"toda su entrada\".",
+          "acceptance_criteria": "For a call without commands, an approval does not allow a later call that differs in any input value, numbers and booleans included, with shared key cases for Node and Go in internal/testdata/auto-permission/. Before `ospec auto resume --allow`, the user can see every value the key binds in full (for example in a file the block names), not just a 120-character prefix. docs/target-capabilities.md describes accurately what the key binds.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-1d12a91c8f7fac34",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "A session can hang the conductor through the files it re-checks. permissionRequests calls fs.readFileSync on .ospec/auto/<run>/permission-requests.jsonl (scripts/lib/auto-run.js:185-191). The session can replace that path, for example with mkfifo, because .ospec/auto is not CLI-owned (pre-tool-use.js:285-291). verifiedRequests also runs the guard on every forged line (auto-conductor.js:218-226). The guard's secret scan reads a declared file_path without checking that it is a regular file (pre-tool-use.js:625,657-674), so a line naming a FIFO blocks too. The conductor then hangs synchronously after the turn and never blocks the run or continues. ospec auto stop only writes a stop file that the hung conductor never reads (auto-conductor.js:595-600), so the user has to kill the process.",
+          "acceptance_criteria": "If the session turns permission-requests.jsonl, or a path named in one of its lines, into a FIFO or another non-regular file, the conductor still finishes the step (blocks at permission or continues) and ospec auto stop still stops the run, with a test that covers it.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:ef0c1dce17a142dd65b630c42c789b28c3206c75b0d9edd5a09c31507a6cc575",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "the correction does not fit one bounded correction (line budget or frozen paths): a successor review checks it"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:42aa118213596d0c685a035dd3df8cc67a987d491aa9d832b0c3dca2005d43ca",
+      "generation": 3,
+      "predecessor_lineage_id": "sha256:301f0844b997d184f6fbc3be3003000969d639d1b206620f4cd7c245aadd1211",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "e4e91228cd68e26edae005105699123fc973856a",
+          "candidate_tree": "2377102dd83e4923348bffb31cbba97e5a150de8",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "docs/target-capabilities.md",
+            "handbook/idd/flujo-idd.md",
+            "internal/hooks/export_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_auto_test.go",
+            "internal/hooks/secretscan.go",
+            "internal/testdata/auto-permission/cases.json",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/hooks/lib/secret-scan.js",
+            "scripts/hooks/pre-tool-use-auto.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/lib/auto-conductor.js",
+            "scripts/lib/auto-conductor.test.js",
+            "scripts/lib/auto-host-antigravity.js",
+            "scripts/lib/auto-host-codex.js",
+            "scripts/lib/auto-host-copilot.js",
+            "scripts/lib/auto-host-cursor.js",
+            "scripts/lib/auto-host-opencode.js",
+            "scripts/lib/auto-hosts.js",
+            "scripts/lib/auto-hosts.test.js",
+            "scripts/lib/auto-permission.js",
+            "scripts/lib/auto-queue.js",
+            "scripts/lib/auto-queue.test.js",
+            "scripts/lib/auto-run.js",
+            "scripts/lib/idd-refusals.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/ospec.auto.test.js",
+            "scripts/ospec.js"
+          ],
+          "diff_hash": "sha256:fa63a7bcf0c7ad3402ca9f99f9ce9f4b87d93070209248761693b1f8606edcfd",
+          "paths_digest": "sha256:1df0bdf392e91636943623fd6fd6b242de9f135404214588300428e0c47904df",
+          "authored_lines": 1530,
+          "original_changed_lines": 1648
+        },
+        "candidate_id": "sha256:b9b379d93c22d046dd895f281cf1e21c8786925ed104be8c611169975a4e9034",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "handbook/idd/flujo-idd.md",
+          "internal/hooks/export_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_auto_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/testdata/auto-permission/cases.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/pre-tool-use-auto.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/lib/auto-conductor.js",
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-host-antigravity.js",
+          "scripts/lib/auto-host-codex.js",
+          "scripts/lib/auto-host-copilot.js",
+          "scripts/lib/auto-host-cursor.js",
+          "scripts/lib/auto-host-opencode.js",
+          "scripts/lib/auto-hosts.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-permission.js",
+          "scripts/lib/auto-queue.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/auto-run.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js",
+          "scripts/ospec.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "2377102dd83e4923348bffb31cbba97e5a150de8",
+        "original_changed_lines": 1648,
+        "authored_lines": 1530
+      },
+      "current_candidate_id": "sha256:b9b379d93c22d046dd895f281cf1e21c8786925ed104be8c611169975a4e9034",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "e4e91228cd68e26edae005105699123fc973856a",
+        "candidate_tree": "2377102dd83e4923348bffb31cbba97e5a150de8",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "handbook/idd/flujo-idd.md",
+          "internal/hooks/export_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_auto_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/testdata/auto-permission/cases.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/pre-tool-use-auto.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/lib/auto-conductor.js",
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-host-antigravity.js",
+          "scripts/lib/auto-host-codex.js",
+          "scripts/lib/auto-host-copilot.js",
+          "scripts/lib/auto-host-cursor.js",
+          "scripts/lib/auto-host-opencode.js",
+          "scripts/lib/auto-hosts.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-permission.js",
+          "scripts/lib/auto-queue.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/auto-run.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js",
+          "scripts/ospec.js"
+        ],
+        "diff_hash": "sha256:fa63a7bcf0c7ad3402ca9f99f9ce9f4b87d93070209248761693b1f8606edcfd",
+        "paths_digest": "sha256:1df0bdf392e91636943623fd6fd6b242de9f135404214588300428e0c47904df",
+        "authored_lines": 1530,
+        "original_changed_lines": 1648
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "auto-run-permission-policy:lens-start:3:0",
+          "result_digest": "sha256:a3f0b4984f3d36e0d74ec9b65857bffe7ecea78a10a23a485c8ab8e7b8162ce2",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "Gen 2's fix holds in the hook but not in the installed path. With OSPEC_AUTO_SESSION, an advisory-only ask now answers only {\"systemMessage\"} (scripts/hooks/pre-tool-use.js:580; internal/hooks/pretooluse.go:1384-1391). Claude Code runs the hook through scripts/hooks/ospec-hooks-launch.js (hooks/hooks.json). Its PreToolUse check (lines 866-870) rejects any stdout without hookSpecificOutput as \"invalid output\" and answers ask. So a dirty-tree `git commit -am x`, or a read over the token budget, reaches the host as ask \"The safety hook could not inspect this tool call: invalid output\". -p denies that (docs/target-capabilities.md:181) and no request is left. The host's own flow never decides, against the frozen criterion and docs/target-capabilities.md:191. No test runs the policy through the launcher: pre-tool-use-auto.test.js:72 and auto-conductor.test.js:41 spawn the hook directly.",
+                "acceptance_criteria": "This goes through the entry point hooks/hooks.json installs (scripts/hooks/ospec-hooks-launch.js), with OSPEC_AUTO_SESSION set. A call whose only objection is an advisory (a dirty-tree `git commit -am x` off the default branch, a read over the token budget) reaches the host with its advisory and with neither ask nor deny. This holds for the native binary and the Node hook alike, and a test that runs the launcher fixes it. Critical asks and denies keep their auto-run answers through the launcher.",
+                "location": "scripts/hooks/pre-tool-use.js:580"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "For a call with commands, the approval key is `command\\0` plus the command text, \"whatever its tool\" (scripts/lib/auto-permission.js:55-59, internal/hooks/pretooluse.go:1326-1327, pinned by cases.json:4-19). The hook has no matcher, so it guards every tool. An approved key returns allow, which skips the host's review (pre-tool-use.js:584). So approving Bash `{command: \"rm -rf data\"}` also allows, in that turn, an MCP tool that takes `command` with its own host or workdir field. Where Claude Code's sandbox is on, it also allows the same Bash call with dangerouslyDisableSandbox: true. No field besides the commands is bound, not even the one that drew a secret ask. The printed block names only the commands for such a call (auto-permission.js:74, auto-conductor.js:242-245), yet the hook's reason says \"the user approved this exact call\".",
+                "acceptance_criteria": "OSPEC_AUTO_SESSION is set and OSPEC_AUTO_ALLOW holds the key of an approved Bash `{command: X}`. The same command through another tool is denied and recorded. So is the same command with `dangerouslyDisableSandbox: true` or a `workdir` field added. This holds in Node and Go, fixed by shared cases in internal/testdata/auto-permission/. A retry that changes only the host's free-text description still runs. The block's printed line names each call's tool.",
+                "location": "scripts/lib/auto-permission.js:57"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "The session can write the run's directory: OSPEC_AUTO_SESSION is in its environment, and .ospec/auto is not CLI-owned (pre-tool-use.js:285-291). Yet both new writers there follow whatever entry they find. The hook appends with fs.appendFileSync / os.OpenFile(O_APPEND|O_CREATE) (pre-tool-use.js:560-567, pretooluse.go:1352-1371), and the conductor writes permission-block.json with fs.writeFileSync (auto-conductor.js:240-241). Say the session runs `ln -s ~/.bashrc \"$OSPEC_AUTO_SESSION/permission-requests.jsonl\"`, then makes a critical ask with `$(…)` in a side field. The hook appends that JSON to the target, outside the host's review and outside any sandbox around the session's commands. A FIFO there hangs the hook until the launcher kills it at 4 s and answers ask with no request. A FIFO at permission-block.json hangs the conductor. Only the read side checks lstat (auto-run.js:191).",
+                "acceptance_criteria": "The session leaves permission-requests.jsonl or permission-block.json in the run's directory as a symlink to a file outside it, or as a FIFO. The hook (Node and Go) neither writes through the link nor blocks, and still denies the critical call. The conductor neither writes through the link nor hangs. The link's target keeps its content. Tests cover both files with a symlink and a FIFO.",
+                "location": "scripts/hooks/pre-tool-use.js:563"
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "The key's canonical form is ambiguous. Paths join keys with an unescaped \".\", and entries join with NUL, which a JSON string may hold (auto-permission.js:35-59, pretooluse.go:1288-1340). `{\"a\":{\"b\":1}}` and `{\"a\":{},\"a.b\":1}` give the same entries. `{\"p\":\"x\",\"q\":\"y\"}` and `{\"p\":\"x\\u0000q\\u0000sy\"}` give the same canonical string. A session can show the user one form and run the other in the next turn. For example, an MCP call approved with `options: {dry_run: true}` can be re-sent as `options: {}` plus a top-level \"options.dry_run\" that the tool ignores. describeCall prints both forms alike. The impact needs a tool that ignores unknown keys or accepts NUL, so this is advisory.",
+                "acceptance_criteria": "Each pair above gets a different key in Node and Go, pinned in the keys of internal/testdata/auto-permission/cases.json. REQ-hooks-035 states an encoding in which no key or value can be read as a separator.",
+                "location": "scripts/lib/auto-permission.js:59"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "auto-run-permission-policy:lens-result:3:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-4d33648c10a324cd",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "Gen 2's fix holds in the hook but not in the installed path. With OSPEC_AUTO_SESSION, an advisory-only ask now answers only {\"systemMessage\"} (scripts/hooks/pre-tool-use.js:580; internal/hooks/pretooluse.go:1384-1391). Claude Code runs the hook through scripts/hooks/ospec-hooks-launch.js (hooks/hooks.json). Its PreToolUse check (lines 866-870) rejects any stdout without hookSpecificOutput as \"invalid output\" and answers ask. So a dirty-tree `git commit -am x`, or a read over the token budget, reaches the host as ask \"The safety hook could not inspect this tool call: invalid output\". -p denies that (docs/target-capabilities.md:181) and no request is left. The host's own flow never decides, against the frozen criterion and docs/target-capabilities.md:191. No test runs the policy through the launcher: pre-tool-use-auto.test.js:72 and auto-conductor.test.js:41 spawn the hook directly.",
+          "acceptance_criteria": "This goes through the entry point hooks/hooks.json installs (scripts/hooks/ospec-hooks-launch.js), with OSPEC_AUTO_SESSION set. A call whose only objection is an advisory (a dirty-tree `git commit -am x` off the default branch, a read over the token budget) reaches the host with its advisory and with neither ask nor deny. This holds for the native binary and the Node hook alike, and a test that runs the launcher fixes it. Critical asks and denies keep their auto-run answers through the launcher.",
+          "location": "scripts/hooks/pre-tool-use.js:580",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-49f001b7126a49c3",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "For a call with commands, the approval key is `command\\0` plus the command text, \"whatever its tool\" (scripts/lib/auto-permission.js:55-59, internal/hooks/pretooluse.go:1326-1327, pinned by cases.json:4-19). The hook has no matcher, so it guards every tool. An approved key returns allow, which skips the host's review (pre-tool-use.js:584). So approving Bash `{command: \"rm -rf data\"}` also allows, in that turn, an MCP tool that takes `command` with its own host or workdir field. Where Claude Code's sandbox is on, it also allows the same Bash call with dangerouslyDisableSandbox: true. No field besides the commands is bound, not even the one that drew a secret ask. The printed block names only the commands for such a call (auto-permission.js:74, auto-conductor.js:242-245), yet the hook's reason says \"the user approved this exact call\".",
+          "acceptance_criteria": "OSPEC_AUTO_SESSION is set and OSPEC_AUTO_ALLOW holds the key of an approved Bash `{command: X}`. The same command through another tool is denied and recorded. So is the same command with `dangerouslyDisableSandbox: true` or a `workdir` field added. This holds in Node and Go, fixed by shared cases in internal/testdata/auto-permission/. A retry that changes only the host's free-text description still runs. The block's printed line names each call's tool.",
+          "location": "scripts/lib/auto-permission.js:57",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-56a241a472ff5dfb",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The session can write the run's directory: OSPEC_AUTO_SESSION is in its environment, and .ospec/auto is not CLI-owned (pre-tool-use.js:285-291). Yet both new writers there follow whatever entry they find. The hook appends with fs.appendFileSync / os.OpenFile(O_APPEND|O_CREATE) (pre-tool-use.js:560-567, pretooluse.go:1352-1371), and the conductor writes permission-block.json with fs.writeFileSync (auto-conductor.js:240-241). Say the session runs `ln -s ~/.bashrc \"$OSPEC_AUTO_SESSION/permission-requests.jsonl\"`, then makes a critical ask with `$(…)` in a side field. The hook appends that JSON to the target, outside the host's review and outside any sandbox around the session's commands. A FIFO there hangs the hook until the launcher kills it at 4 s and answers ask with no request. A FIFO at permission-block.json hangs the conductor. Only the read side checks lstat (auto-run.js:191).",
+          "acceptance_criteria": "The session leaves permission-requests.jsonl or permission-block.json in the run's directory as a symlink to a file outside it, or as a FIFO. The hook (Node and Go) neither writes through the link nor blocks, and still denies the critical call. The conductor neither writes through the link nor hangs. The link's target keeps its content. Tests cover both files with a symlink and a FIFO.",
+          "location": "scripts/hooks/pre-tool-use.js:563",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-5fa904cdb1526e89",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "The key's canonical form is ambiguous. Paths join keys with an unescaped \".\", and entries join with NUL, which a JSON string may hold (auto-permission.js:35-59, pretooluse.go:1288-1340). `{\"a\":{\"b\":1}}` and `{\"a\":{},\"a.b\":1}` give the same entries. `{\"p\":\"x\",\"q\":\"y\"}` and `{\"p\":\"x\\u0000q\\u0000sy\"}` give the same canonical string. A session can show the user one form and run the other in the next turn. For example, an MCP call approved with `options: {dry_run: true}` can be re-sent as `options: {}` plus a top-level \"options.dry_run\" that the tool ignores. describeCall prints both forms alike. The impact needs a tool that ignores unknown keys or accepts NUL, so this is advisory.",
+          "acceptance_criteria": "Each pair above gets a different key in Node and Go, pinned in the keys of internal/testdata/auto-permission/cases.json. REQ-hooks-035 states an encoding in which no key or value can be read as a separator.",
+          "location": "scripts/lib/auto-permission.js:59",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:3cacf6445b4f5edd6b7c455eafe767ad5bce9c706bd5f5c007f620b91ccc085a",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:a998c929df6fca3861529c1c1dbe949c0e9e2545c5a7f33982695dec56d1167b",
+      "generation": 4,
+      "predecessor_lineage_id": "sha256:42aa118213596d0c685a035dd3df8cc67a987d491aa9d832b0c3dca2005d43ca",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "e4e91228cd68e26edae005105699123fc973856a",
+          "candidate_tree": "d074769a535204200d7c4d66982850ca8dfef1c7",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "docs/target-capabilities.md",
+            "handbook/idd/flujo-idd.md",
+            "internal/hooks/export_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_auto_test.go",
+            "internal/hooks/secretscan.go",
+            "internal/testdata/auto-permission/cases.json",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/hooks/lib/secret-scan.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/hooks/pre-tool-use-auto.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/lib/auto-conductor.js",
+            "scripts/lib/auto-conductor.test.js",
+            "scripts/lib/auto-host-antigravity.js",
+            "scripts/lib/auto-host-codex.js",
+            "scripts/lib/auto-host-copilot.js",
+            "scripts/lib/auto-host-cursor.js",
+            "scripts/lib/auto-host-opencode.js",
+            "scripts/lib/auto-hosts.js",
+            "scripts/lib/auto-hosts.test.js",
+            "scripts/lib/auto-permission.js",
+            "scripts/lib/auto-queue.js",
+            "scripts/lib/auto-queue.test.js",
+            "scripts/lib/auto-run.js",
+            "scripts/lib/idd-refusals.js",
+            "scripts/lib/k1-scope-guard.test.js",
+            "scripts/ospec.auto.test.js",
+            "scripts/ospec.js"
+          ],
+          "diff_hash": "sha256:2b20376e0ec974d701b05c32151cc625c61faaa8546a29d7eccfe2f9a630de40",
+          "paths_digest": "sha256:db6eb6504002b2aee1779f1fb63c80491d2f39a97bd930bda67627ab8b0706a9",
+          "authored_lines": 1768,
+          "original_changed_lines": 1888
+        },
+        "candidate_id": "sha256:c77ecf1f635d7e2535a1073b786fa73666f029a4c36f56b12422cf166eb26d4b",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "handbook/idd/flujo-idd.md",
+          "internal/hooks/export_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_auto_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/testdata/auto-permission/cases.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use-auto.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/lib/auto-conductor.js",
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-host-antigravity.js",
+          "scripts/lib/auto-host-codex.js",
+          "scripts/lib/auto-host-copilot.js",
+          "scripts/lib/auto-host-cursor.js",
+          "scripts/lib/auto-host-opencode.js",
+          "scripts/lib/auto-hosts.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-permission.js",
+          "scripts/lib/auto-queue.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/auto-run.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js",
+          "scripts/ospec.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "d074769a535204200d7c4d66982850ca8dfef1c7",
+        "original_changed_lines": 1888,
+        "authored_lines": 1768
+      },
+      "current_candidate_id": "sha256:c77ecf1f635d7e2535a1073b786fa73666f029a4c36f56b12422cf166eb26d4b",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "e4e91228cd68e26edae005105699123fc973856a",
+        "candidate_tree": "d074769a535204200d7c4d66982850ca8dfef1c7",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "handbook/idd/flujo-idd.md",
+          "internal/hooks/export_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_auto_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/testdata/auto-permission/cases.json",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/pre-tool-use-auto.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/lib/auto-conductor.js",
+          "scripts/lib/auto-conductor.test.js",
+          "scripts/lib/auto-host-antigravity.js",
+          "scripts/lib/auto-host-codex.js",
+          "scripts/lib/auto-host-copilot.js",
+          "scripts/lib/auto-host-cursor.js",
+          "scripts/lib/auto-host-opencode.js",
+          "scripts/lib/auto-hosts.js",
+          "scripts/lib/auto-hosts.test.js",
+          "scripts/lib/auto-permission.js",
+          "scripts/lib/auto-queue.js",
+          "scripts/lib/auto-queue.test.js",
+          "scripts/lib/auto-run.js",
+          "scripts/lib/idd-refusals.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.auto.test.js",
+          "scripts/ospec.js"
+        ],
+        "diff_hash": "sha256:2b20376e0ec974d701b05c32151cc625c61faaa8546a29d7eccfe2f9a630de40",
+        "paths_digest": "sha256:db6eb6504002b2aee1779f1fb63c80491d2f39a97bd930bda67627ab8b0706a9",
+        "authored_lines": 1768,
+        "original_changed_lines": 1888
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "auto-run-permission-policy:lens-start:4:0",
+          "result_digest": "sha256:2ae90df52aca8172aba23198d8637fd948a8ecb15384f654e92142ace8d5146c",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "Gen-3's link fix holds in Node, not in the native binary the launcher runs when it ships. internal/hooks/pretooluse.go:1371 Lstats permission-requests.jsonl, then JSON-encodes the whole request, and only then opens the file at :1380 with O_APPEND|O_CREATE|O_WRONLY|O_NONBLOCK and no O_NOFOLLOW. The Stat at :1385 accepts any regular target. A background process of the session (e.g. Bash run_in_background) can keep swapping that file between absent and a link to ~/.bashrc and win the window. The hook, which runs outside the host's review and sandbox, then appends {tool,input,reason}, including `$(…)` from a critical-ask command, to the target. Through a dangling link it creates a new file. Node opens with O_NOFOLLOW (scripts/hooks/pre-tool-use.js:573-574). The shared case (pretooluse_auto_test.go:137-141) only covers a link already in place.",
+                "acceptance_criteria": "With OSPEC_AUTO_SESSION set, the native hook appends a request only to a regular file in the run's directory. No link at that path is followed, also when it appears between the hook's Lstat and its open: the link's target keeps its content and the call stays denied, as with the Node hook. A Go test fixes this with the link created after the check, or by showing the open fails on a link with the Lstat bypassed.",
+                "location": "internal/hooks/pretooluse.go:1380"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "The key binds every field of a shell call except its free text (auto-permission.js:63-68). Yet the approval shows only tool and commands: describeCall returns `<tool>: <commands>` for any call with commands (auto-permission.js:88-89), and the block keeps only tool, subject, reason and key (auto-conductor.js:245-248). A session can make a critical call with dangerouslyDisableSandbox: true, or workdir on another host. The user reads `Bash: npm install x (Dependency installation requires user approval.)`, the same line as without the flag. After --allow the hook answers allow for that exact call (pre-tool-use.js:600), so where Claude Code's sandbox is on, the call runs outside it without the host's review. Only permission-block.json shows the field. `ospec auto status`, which the relaying agent reads (handbook/idd/flujo-idd.md:168), does not name that file (scripts/ospec.js:1783-1785). REQ-idd-031 says `its tool and its commands` (openspec/specs/idd/spec.md:3932-3934).",
+                "acceptance_criteria": "A blocked call with commands plus any field other than its commands and the host's free text (description, explanation), such as Bash with dangerouslyDisableSandbox: true, is listed for approval with that field and its value. This holds wherever the block lists its calls (the conductor's lines, run.block.questions and `ospec auto status`), so the call never reads like the same command without that field. A call with only command and description reads as today. `ospec auto status` names the file that holds each call in full. A conductor test fixes the dangerouslyDisableSandbox case.",
+                "location": "scripts/lib/auto-permission.js:89"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "auto-run-permission-policy:lens-result:4:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-32aa139f5ba90dab",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "Gen-3's link fix holds in Node, not in the native binary the launcher runs when it ships. internal/hooks/pretooluse.go:1371 Lstats permission-requests.jsonl, then JSON-encodes the whole request, and only then opens the file at :1380 with O_APPEND|O_CREATE|O_WRONLY|O_NONBLOCK and no O_NOFOLLOW. The Stat at :1385 accepts any regular target. A background process of the session (e.g. Bash run_in_background) can keep swapping that file between absent and a link to ~/.bashrc and win the window. The hook, which runs outside the host's review and sandbox, then appends {tool,input,reason}, including `$(…)` from a critical-ask command, to the target. Through a dangling link it creates a new file. Node opens with O_NOFOLLOW (scripts/hooks/pre-tool-use.js:573-574). The shared case (pretooluse_auto_test.go:137-141) only covers a link already in place.",
+          "acceptance_criteria": "With OSPEC_AUTO_SESSION set, the native hook appends a request only to a regular file in the run's directory. No link at that path is followed, also when it appears between the hook's Lstat and its open: the link's target keeps its content and the call stays denied, as with the Node hook. A Go test fixes this with the link created after the check, or by showing the open fails on a link with the Lstat bypassed.",
+          "location": "internal/hooks/pretooluse.go:1380",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-21364b6a5b860281",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The key binds every field of a shell call except its free text (auto-permission.js:63-68). Yet the approval shows only tool and commands: describeCall returns `<tool>: <commands>` for any call with commands (auto-permission.js:88-89), and the block keeps only tool, subject, reason and key (auto-conductor.js:245-248). A session can make a critical call with dangerouslyDisableSandbox: true, or workdir on another host. The user reads `Bash: npm install x (Dependency installation requires user approval.)`, the same line as without the flag. After --allow the hook answers allow for that exact call (pre-tool-use.js:600), so where Claude Code's sandbox is on, the call runs outside it without the host's review. Only permission-block.json shows the field. `ospec auto status`, which the relaying agent reads (handbook/idd/flujo-idd.md:168), does not name that file (scripts/ospec.js:1783-1785). REQ-idd-031 says `its tool and its commands` (openspec/specs/idd/spec.md:3932-3934).",
+          "acceptance_criteria": "A blocked call with commands plus any field other than its commands and the host's free text (description, explanation), such as Bash with dangerouslyDisableSandbox: true, is listed for approval with that field and its value. This holds wherever the block lists its calls (the conductor's lines, run.block.questions and `ospec auto status`), so the call never reads like the same command without that field. A call with only command and description reads as today. `ospec auto status` names the file that holds each call in full. A conductor test fixes the dangerouslyDisableSandbox case.",
+          "location": "scripts/lib/auto-permission.js:89",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:41b448d7e2e6f195347fe4c950b68188daea1a051983117f735fc1729487fd99",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "advisory_corrections": [
+    {
+      "lineage_id": "sha256:a998c929df6fca3861529c1c1dbe949c0e9e2545c5a7f33982695dec56d1167b",
+      "status": "passed",
+      "finding_ids": [
+        "F-21364b6a5b860281",
+        "F-32aa139f5ba90dab"
+      ],
+      "paths": [
+        "internal/hooks/export_test.go",
+        "internal/hooks/pretooluse.go",
+        "internal/hooks/pretooluse_auto_test.go",
+        "internal/testdata/auto-permission/cases.json",
+        "openspec/specs/hooks/spec.md",
+        "openspec/specs/idd/spec.md",
+        "scripts/hooks/pre-tool-use-auto.test.js",
+        "scripts/hooks/pre-tool-use.js",
+        "scripts/lib/auto-conductor.test.js",
+        "scripts/lib/auto-permission.js",
+        "scripts/ospec.auto.test.js",
+        "scripts/ospec.js"
+      ],
+      "changed_lines": 157,
+      "candidate_tree": "f664784ba6edae22e710795a8aa18b43e2cf363b",
+      "diff_hash": "sha256:7a7536882671a85284162507f75f756cdb48599358bfbc6414de7ee624129809",
+      "recorded_at": "2026-11-27T20:50:55.099Z",
+      "validation": {
+        "recorded_at": "2026-11-27T20:53:58.239Z",
+        "outcomes": [
+          {
+            "id": "F-21364b6a5b860281",
+            "status": "resolved"
+          },
+          {
+            "id": "F-32aa139f5ba90dab",
+            "status": "resolved"
+          }
+        ],
+        "regression": {
+          "detected": false,
+          "evidence": [
+            "Tests not run (no shell tool here); evidence is reading the corrected tree. pretooluse.go:1372-1398 creates a missing request file with O_CREATE|O_EXCL, which fails on any link that appears, dangling or not. It writes only when handle.Stat and Lstat name the same regular file with linkCount 1. An existing file swapped for a symlink opens the target but is rejected before any write.",
+            "TestPreToolUse_AutoRunRequestLinkSwappedIn (pretooluse_auto_test.go:253-304) swaps a symlink in through SetBeforeAutoRequestOpenForTest (export_test.go:49-53), which runs at pretooluse.go:1386, between the Lstat and the open. It covers missing file with an outside target, missing file with a dangling link, and an existing file. Each asserts deny, the target unchanged, and no dangling target created.",
+            "Shared hard-link case cases.json:289-298 runs in Go (pretooluse_auto_test.go:142-145, 207-215) and Node (pre-tool-use-auto.test.js:81, 99-101), asserting deny and outside.txt kept. Node recordAutoRequest (pre-tool-use.js:573-578) keeps O_NOFOLLOW and adds nlink === 1. A fresh file has nlink 1 and the same inode, so cases that expect a request line still pass.",
+            "describeCall (auto-permission.js:88-94) puts every non-free-text field in brackets; command plus description still reads `<tool>: <commands>`. auto-conductor.js:245-248 feeds it to block.requests, questions and emitBlock; ospec.js:1783-1786 prints the questions and the block file. auto-conductor.test.js:198-219 and ospec.auto.test.js:82-91 assert these. callKey (auto-permission.js:63-68) is unchanged, so approval keys keep their values."
+          ]
+        },
+        "follow_ups": [
+          {
+            "owner": "trust",
+            "summary": "pretooluse.go recordAutoRequest opens an existing request file without O_NOFOLLOW. A symlink swapped in after the Lstat is still opened (O_APPEND|O_WRONLY, nothing written) before the post-open check rejects it. Adding syscall.O_NOFOLLOW on POSIX would match the Node hook and avoid side effects from opening a device or FIFO target."
+          },
+          {
+            "owner": "trust",
+            "summary": "describeCall leaves out the whole `commands` key. An object entry such as {command, cwd} inside `commands` hides its sibling fields from the approval line, even though callKey binds them. Listing those nested fields would finish the bracketed display."
+          },
+          {
+            "owner": "evolution",
+            "summary": "No test asserts that a blocked call with only command and description still reads `Bash: <command>` with no brackets; the conductor test's calls carry no description. A small describeCall assertion would lock that behaviour."
+          }
+        ]
+      }
+    }
+  ],
+  "closed_at": "2026-11-27T20:54:04.068Z"
+}

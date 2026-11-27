@@ -62,8 +62,8 @@ function createCopilotHost({ model = null, baseEnv = process.env, resolveExecuta
   };
   // Copilot's home: COPILOT_HOME, or .copilot in the user's home.
   const home = baseEnv.COPILOT_HOME || path.join(baseEnv.HOME || baseEnv.USERPROFILE || os.homedir(), ".copilot");
-  const turn = ({ cwd, prompt, sessionId = null, transcriptPath, signal = null, budgetCredits = null }) =>
-    headlessTurn({ run, executable: resolve(), args: copilotTurnArgs({ home, model, sessionId, budgetCredits }), cwd, env: sessionEnv(baseEnv), input: prompt, transcriptPath, timeoutMs: turnTimeoutMs, signal }, summarizeCopilotTurn);
+  const turn = ({ cwd, prompt, sessionId = null, transcriptPath, signal = null, budgetCredits = null, vars = {} }) =>
+    headlessTurn({ run, executable: resolve(), args: copilotTurnArgs({ home, model, sessionId, budgetCredits }), cwd, env: sessionEnv(baseEnv, vars), input: prompt, transcriptPath, timeoutMs: turnTimeoutMs, signal }, summarizeCopilotTurn);
   return { name: "github-copilot", spend: "credits", reportsCost: false, reviewsActions: false, countsTurnEnds: false, resolve, turn, resumeCommand: (sessionId) => `copilot --resume ${sessionId}` };
 }
 

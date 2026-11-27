@@ -5,8 +5,10 @@
 // it. The session runs with the user's own configuration and the host's ospec
 // install, in the host's permission mode that reviews each action where it has
 // one, and never sees OSPEC_AUTO_RUN: only the conductor's own call to ospec
-// carries it (ADR 0013). A host is listed in HOSTS once a run closed a change
-// on it live; any other names why it cannot run.
+// carries it (ADR 0013). Each turn carries instead the marks of the run's
+// permission policy (scripts/lib/auto-permission.js), which only make ospec's
+// guard stricter. A host is listed in HOSTS once a run closed a change on it
+// live; any other names why it cannot run.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -27,11 +29,12 @@ const SESSION_MARKERS = Object.freeze([
   /^CLAUDE_PID$/,
   /^CLAUDE_EFFORT$/,
   /^CLAUDE_CODE_(ENTRYPOINT|SESSION_ID|CHILD_SESSION|SESSION_ATTENDED|MESSAGING_SOCKET|MESSAGING_TOKEN|EXECPATH|CHILD_NOTES_DIR)$/,
-  /^OSPEC_AUTO_RUN$/,
+  /^OSPEC_AUTO_(RUN|SESSION|ALLOW)$/,
 ]);
 
-function sessionEnv(baseEnv) {
-  return Object.fromEntries(Object.entries(baseEnv).filter(([key]) => !SESSION_MARKERS.some((pattern) => pattern.test(key))));
+/** The session's environment: `baseEnv` without those markers, plus the turn's own `vars`. */
+function sessionEnv(baseEnv, vars = {}) {
+  return { ...Object.fromEntries(Object.entries(baseEnv).filter(([key]) => !SESSION_MARKERS.some((pattern) => pattern.test(key)))), ...vars };
 }
 
 /** Why `name` cannot drive a run, or null when it can. */
@@ -91,8 +94,8 @@ function createClaudeHost({ model = null, baseEnv = process.env, resolveExecutab
     return executable;
   }
 
-  function turn({ cwd, prompt, sessionId = null, transcriptPath, signal = null, budgetUsd = null }) {
-    return headlessTurn({ run, executable: resolve(), args: claudeTurnArgs({ model, sessionId, budgetUsd }), cwd, env: sessionEnv(baseEnv), input: prompt, transcriptPath, timeoutMs: turnTimeoutMs, signal }, summarizeTurn);
+  function turn({ cwd, prompt, sessionId = null, transcriptPath, signal = null, budgetUsd = null, vars = {} }) {
+    return headlessTurn({ run, executable: resolve(), args: claudeTurnArgs({ model, sessionId, budgetUsd }), cwd, env: sessionEnv(baseEnv, vars), input: prompt, transcriptPath, timeoutMs: turnTimeoutMs, signal }, summarizeTurn);
   }
 
   /** How the user opens the session to answer in it. */

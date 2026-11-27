@@ -3896,7 +3896,10 @@ does not deny (`--auto` in OpenCode, `--allow-all-tools` in GitHub Copilot, whos
 assisted-approval judge denies every edit headless, with `--add-dir` on
 Copilot's own home, where its ospec install lives; Antigravity's default mode
 where its account lacks `--mode auto`), which the run's first line MUST say. Its environment MUST NOT hold `OSPEC_AUTO_RUN` nor the markers
-of a Claude Code session that launched the conductor. Each item MUST start with its request followed by a brief that asks
+of a Claude Code session that launched the conductor; each turn's MUST hold
+`OSPEC_AUTO_SESSION` with the absolute path of the run's directory, for ospec's
+guard (REQ-hooks-035), and `OSPEC_AUTO_ALLOW` only in the turn after an
+approval. Each item MUST start with its request followed by a brief that asks
 for one IDD change until `ospec close`, a recommendation per question before a
 turn ends with a gate's questions (REQ-idd-030), and no commit, push, pull
 request or release. Before the first item `start` MUST be refused with its
@@ -3924,7 +3927,20 @@ answered with the source `delegated` and the run's id in the environment of
 the conductor's own `ospec` call, and the session resumed. Any other gate, or
 an `open-facts` with a question without recommendation or whose delegated
 answer is refused, MUST stop the run as `blocked` with the gate, its
-questions, the cause and the session. A spent usage quota MUST stop it as
+questions, the cause and the session. A call ospec's guard stopped for the
+user in the turn (`permission-requests.jsonl`), unless that turn closed the
+change, MUST stop the run as `blocked` at `permission`, once, with each call
+by its tool, its commands and every other field but the host's free text, or
+else each value of its input, its reason and
+its key (REQ-hooks-035), without repeats, and the session; the guard's file
+MUST then be cleared. Since the session can write that file too, a line MUST
+count only when ospec's guard still answers its call with a critical ask, and
+with the guard's own reason; control and bidirectional characters of a call or
+reason MUST be shown as visible escapes, and the block MUST name
+`permission-block.json` in the run's directory, which holds each call in full
+and is replaced, never written through a link.
+The request file, or a file a request names, that is not a regular file MUST
+NOT be read. A spent usage quota MUST stop it as
 `paused`; two host errors in a row, `--max-turns` turns of the item (default
 30) and two turns in a row that change neither the change's state nor the
 tree MUST stop it as `failed` on the item, with no later item started. A
@@ -3957,10 +3973,17 @@ the latest run, or the one named, read-only. `ospec auto stop` MUST make a
 running conductor end its turn in progress within a second and stop the run
 as `stopped`, and MUST stop at once a run that is blocked, paused or whose
 conductor is gone; any other run MUST be refused with `run-not-active`.
-`ospec auto resume [--run <id>] [--answer <text>]` MUST continue a run that is
+`ospec auto resume [--run <id>] [--allow] [--answer <text>]` MUST continue a run that is
 not `done` and not running with a live conductor, in the item's session: with
 `--answer`, the text MUST reach the session as the user's reply; without it, a
-blocked run whose gate is still open MUST be refused with `still-blocked`.
+blocked run whose gate is still open MUST be refused with `still-blocked`. At
+a `permission` block, `--allow` MUST approve exactly the calls it lists, for
+the next turn alone, through the key of each in `OSPEC_AUTO_ALLOW`, and tell
+the session to run them again as written and that no gate is answered, adding
+the text of `--answer` when given; `--answer` without `--allow` MUST tell the
+session the calls were not approved, with the text; without either, the run
+MUST continue as settled in the session. `--allow` anywhere else MUST be
+refused with `invalid-allow`.
 `--max-turns`, `--max-cost-usd` and `--max-tokens` on `resume` MUST raise the
 run's limits.
 `start` and `resume` MUST print one line per step, unless `--json`, and MUST
@@ -3984,6 +4007,15 @@ exit 0 only when the run is `done`.
 - THEN the run MUST be `blocked` with that gate, its question and the session
 - AND `resume` without `--answer` MUST be refused with `still-blocked`, and
   `resume --answer <text>` MUST send that text to the same session
+
+#### Scenario: A call ospec's guard stops blocks the run until the user decides
+
+- GIVEN a session whose turn runs `npm install` twice, denied by ospec's guard
+- WHEN its turn ends without closing the change
+- THEN the run MUST be `blocked` at `permission` with that one call and its
+  reason, and print `approve with: ospec auto resume --allow`
+- AND `resume --allow` MUST send the session a turn where that exact call is
+  approved, and only that turn
 
 #### Scenario: Stop ends the turn in progress
 

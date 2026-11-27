@@ -864,8 +864,12 @@ function launch(argv, scriptDir, seen = {}) {
     process.stderr.write(result.stderr);
   }
   if (sub === "pre-tool-use" && result.stdout?.trim()) {
-    const output = parseLastJson(result.stdout)?.hookSpecificOutput;
-    if (output?.hookEventName !== "PreToolUse" || !["allow", "deny", "ask"].includes(output.permissionDecision) || typeof output.permissionDecisionReason !== "string") {
+    const answer = parseLastJson(result.stdout);
+    const output = answer?.hookSpecificOutput;
+    // In an automatic run an advisory comes with no decision, so the host's own
+    // permissions decide the call (REQ-hooks-035).
+    const advisoryOnly = isPlainObject(answer) && Object.keys(answer).length === 1 && typeof answer.systemMessage === "string" && answer.systemMessage.startsWith("[ospec advisory] ");
+    if (!advisoryOnly && (output?.hookEventName !== "PreToolUse" || !["allow", "deny", "ask"].includes(output.permissionDecision) || typeof output.permissionDecisionReason !== "string")) {
       return launcherFailure(sub, "invalid output", cursorHost, rawInput);
     }
   }

@@ -319,6 +319,10 @@ function scanFileForSecrets(filePath) {
   } catch (err) {
     return { matched: false, patternId: null, skipped: "unreadable" };
   }
+  // Only a regular file: reading a FIFO would never return.
+  if (!stats.isFile()) {
+    return { matched: false, patternId: null, skipped: "unreadable" };
+  }
   if (stats.size >= MAX_SCAN_SIZE_BYTES) {
     return { matched: false, patternId: null, skipped: "too-large" };
   }

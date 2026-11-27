@@ -1,0 +1,558 @@
+{
+  "description": "The permission policy of an automatic run (E1.111, REQ-hooks-035), run by scripts/hooks/pre-tool-use-auto.test.js and internal/hooks/pretooluse_auto_test.go. keys pins the key of an approval (callKey) for both: each differs from the others but the one it is sameAs. Each case runs the PreToolUse hook (in Node, through the launcher hooks.json installs) in an empty directory, or with git: dirty in a repository on a branch other than the default one with an untracked file, with OSPEC_AUTO_SESSION set to its run directory, OSPEC_AUTO_ALLOW set to the key of each call of allow, the advisory guards off unless env turns one on, files of the given sizes, and with requestsFile the request file left as a symlink or a hard link to a file outside, or as a FIFO (POSIX only). request is the line the hook appends to permission-requests.jsonl, or null when it writes none.",
+  "keys": [
+    {
+      "tool": "Bash",
+      "input": {
+        "command": "npm install",
+        "description": "Install the dependencies"
+      },
+      "sha256": "48a831cb490ffc396754432b9ea5fd0328e662ed6252e5da386c9062d4def86e"
+    },
+    {
+      "tool": "run_in_terminal",
+      "input": {
+        "command": "npm install",
+        "explanation": "other words"
+      },
+      "sha256": "20ed82142688e1823ab56b5bae3b136d6f0bc082c24ad367f3aed6d87d4453a8"
+    },
+    {
+      "tool": "Bash",
+      "input": {
+        "commands": [
+          "echo hi",
+          {
+            "command": "git reset --hard HEAD"
+          }
+        ]
+      },
+      "sha256": "59bbc479abacc235c02894f863b10ce18bd75a73b9730212d3dc8cac2931269c"
+    },
+    {
+      "tool": "Read",
+      "input": {
+        "file_path": ".env",
+        "offset": 10,
+        "limit": 5
+      },
+      "sha256": "ea1b6e2f267de469993c8500cb53ccfc9c004cdd7199cab0044778229a1ceaf6"
+    },
+    {
+      "tool": "Grep",
+      "input": {
+        "pattern": "TOKEN",
+        "glob": ".env"
+      },
+      "sha256": "870c4afef0fd408256db921ffa10e530ea61351401c9afaec93b8c855774e598"
+    },
+    {
+      "tool": "mcp__mail__send",
+      "input": {
+        "to": "a@example.invalid",
+        "body": {
+          "text": "token",
+          "tags": [
+            "x",
+            "y"
+          ]
+        }
+      },
+      "sha256": "551294f709aa4e9ea4587e63805e28eba9fed336bdb0ccf339a3ffe456d15592"
+    },
+    {
+      "tool": "Write",
+      "input": {
+        "file_path": "ñ.txt",
+        "content": "é fin"
+      },
+      "sha256": "907427b7656b6d81ede8c29b6403a6aba6bfb201ddef5e69ad7446ddba4047b9"
+    },
+    {
+      "tool": "Read",
+      "input": {},
+      "sha256": "e02b98d7aaf99008e821c3b64920ba94199cd9666ad88c43b4f2f50b0dd17638"
+    },
+    {
+      "tool": "Edit",
+      "input": {
+        "file_path": "a.js",
+        "old_string": "x",
+        "new_string": "y",
+        "replace_all": false
+      },
+      "sha256": "26a2bda3229d441857a09251a38fa33f0aa3a97c2c906dea2a3c73464cec5966"
+    },
+    {
+      "tool": "Edit",
+      "input": {
+        "file_path": "a.js",
+        "old_string": "x",
+        "new_string": "y",
+        "replace_all": true
+      },
+      "sha256": "3b10edb1d5b78d84959a7a926b4485dbdb0b03c416d94d135c09856158aa230e"
+    },
+    {
+      "tool": "mcp__x__call",
+      "input": {
+        "n": 1.5,
+        "big": 1e+21,
+        "small": 1e-7,
+        "whole": 120000,
+        "none": null,
+        "empty": {},
+        "list": []
+      },
+      "sha256": "39c01c12b9f5b1dc6220e15266427ba4ab79caa6a913cda224276944d75846dc"
+    },
+    {
+      "tool": "mcp__x__call",
+      "input": {
+        "a.b": 1,
+        "a": {
+          "b": 2
+        }
+      },
+      "sha256": "8b7d74463c259a7d380a084e5ec31932971e05e203521dcd932e6f4fd2b75590"
+    },
+    {
+      "tool": "Bash",
+      "input": {
+        "command": "npm install",
+        "description": "Other words"
+      },
+      "sameAs": 0,
+      "sha256": "48a831cb490ffc396754432b9ea5fd0328e662ed6252e5da386c9062d4def86e"
+    },
+    {
+      "tool": "Bash",
+      "input": {
+        "command": "npm install",
+        "dangerouslyDisableSandbox": true
+      },
+      "sha256": "44201f98bf79d4de936478afe5a3ac3c7e48d86504c890844ae17f38ae7b6a9d"
+    },
+    {
+      "tool": "mcp__x__call",
+      "input": {
+        "a": {
+          "b": 1
+        }
+      },
+      "sha256": "d5c5879c288b3590a71dbf2648b253721d467b5cab3c638fb50e313343e4fd92"
+    },
+    {
+      "tool": "mcp__x__call",
+      "input": {
+        "a": {},
+        "a.b": 1
+      },
+      "sha256": "f144cd4f3ba9605ad6e76f104802020b9f1c094f9ed57e39102f8e3f56cc72fd"
+    },
+    {
+      "tool": "mcp__x__call",
+      "input": {
+        "p": "x",
+        "q": "y"
+      },
+      "sha256": "dbca75ab9c50f9359e5af67ea43a134ef182ef198826c8dd6047ca9e9c7e5a2b"
+    },
+    {
+      "tool": "mcp__x__call",
+      "input": {
+        "p": "x\u0000q\u0000sy"
+      },
+      "sha256": "bfd895c51169a844e04d1b758c63bd0d18c143c13534a96bffa72dfdc3cadf30"
+    }
+  ],
+  "cases": [
+    {
+      "name": "a critical ask is denied and left as a request",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm install\"}}",
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: Dependency installation requires user approval. This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install"
+          },
+          "reason": "Dependency installation requires user approval."
+        }
+      }
+    },
+    {
+      "name": "a critical ask the user approved for the turn runs",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm install\",\"description\":\"Install again\"}}",
+      "allow": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm ci"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install",
+            "description": "Install"
+          }
+        }
+      ],
+      "expect": {
+        "decision": "allow",
+        "reason": "ospec auto: the user approved this exact call for this turn.",
+        "request": null
+      }
+    },
+    {
+      "name": "an approval of another command does not cover this one",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm install left-pad\"}}",
+      "allow": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install"
+          }
+        }
+      ],
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: Dependency installation requires user approval. This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install left-pad"
+          },
+          "reason": "Dependency installation requires user approval."
+        }
+      }
+    },
+    {
+      "name": "an approval binds the tool of a command",
+      "stdin": "{\"tool_name\":\"run_in_terminal\",\"tool_input\":{\"command\":\"npm install\"}}",
+      "allow": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install"
+          }
+        }
+      ],
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: Dependency installation requires user approval. This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": {
+          "tool": "run_in_terminal",
+          "input": {
+            "command": "npm install"
+          },
+          "reason": "Dependency installation requires user approval."
+        }
+      }
+    },
+    {
+      "name": "an approval binds every field of a command but its description",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm install\",\"dangerouslyDisableSandbox\":true}}",
+      "allow": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install"
+          }
+        }
+      ],
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: Dependency installation requires user approval. This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install",
+            "dangerouslyDisableSandbox": true
+          },
+          "reason": "Dependency installation requires user approval."
+        }
+      }
+    },
+    {
+      "name": "a link left as the request file is never written through",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm install\"}}",
+      "requestsFile": "symlink",
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: Dependency installation requires user approval. This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": null
+      }
+    },
+    {
+      "name": "a hard link left as the request file is never written through",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm install\"}}",
+      "requestsFile": "hardlink",
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: Dependency installation requires user approval. This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": null
+      }
+    },
+    {
+      "name": "a FIFO left as the request file never hangs the hook",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm install\"}}",
+      "requestsFile": "fifo",
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: Dependency installation requires user approval. This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": null
+      }
+    },
+    {
+      "name": "a deny stays a deny, approved or not, and leaves no request",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push --force origin main\"}}",
+      "allow": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git push --force origin main"
+          }
+        }
+      ],
+      "expect": {
+        "decision": "deny",
+        "reason": "Force-pushing Git history is blocked.",
+        "request": null
+      }
+    },
+    {
+      "name": "reading a secret is critical",
+      "stdin": "{\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\".env\"}}",
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura? This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": {
+          "tool": "Read",
+          "input": {
+            "file_path": ".env"
+          },
+          "reason": "Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"
+        }
+      }
+    },
+    {
+      "name": "an approved read of a secret runs",
+      "stdin": "{\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\".env\"}}",
+      "allow": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".env"
+          }
+        }
+      ],
+      "expect": {
+        "decision": "allow",
+        "reason": "ospec auto: the user approved this exact call for this turn.",
+        "request": null
+      }
+    },
+    {
+      "name": "an approval binds the tool: another tool naming the same file is denied",
+      "stdin": "{\"tool_name\":\"mcp__drive__upload\",\"tool_input\":{\"file_path\":\".env\"}}",
+      "allow": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".env"
+          }
+        }
+      ],
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura? This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": {
+          "tool": "mcp__drive__upload",
+          "input": {
+            "file_path": ".env"
+          },
+          "reason": "Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"
+        }
+      }
+    },
+    {
+      "name": "an approval binds the input: the same tool on another file is denied",
+      "stdin": "{\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\".env.local\"}}",
+      "allow": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".env"
+          }
+        }
+      ],
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura? This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": {
+          "tool": "Read",
+          "input": {
+            "file_path": ".env.local"
+          },
+          "reason": "Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"
+        }
+      }
+    },
+    {
+      "name": "a call with several commands is one request",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"commands\":[\"echo hi\",{\"command\":\"git reset --hard HEAD\"}]}}",
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: A hard Git reset can discard local changes. This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": {
+          "tool": "Bash",
+          "input": {
+            "commands": [
+              "echo hi",
+              {
+                "command": "git reset --hard HEAD"
+              }
+            ]
+          },
+          "reason": "A hard Git reset can discard local changes."
+        }
+      }
+    },
+    {
+      "name": "an advisory leaves only its advisory: the host decides",
+      "stdin": "{\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"big.txt\"}}",
+      "env": {
+        "DISABLE_TOKEN_ADVISOR": ""
+      },
+      "files": {
+        "big.txt": 400000
+      },
+      "expect": {
+        "decision": "",
+        "systemMessagePrefix": "[ospec advisory] El archivo solicitado excede el límite de tokens sugerido de 50,000",
+        "request": null
+      }
+    },
+    {
+      "name": "the token advisory never hides a critical ask",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm install\",\"file_path\":\"big.txt\"}}",
+      "env": {
+        "DISABLE_TOKEN_ADVISOR": ""
+      },
+      "files": {
+        "big.txt": 400000
+      },
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: Dependency installation requires user approval. This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install",
+            "file_path": "big.txt"
+          },
+          "reason": "Dependency installation requires user approval."
+        }
+      }
+    },
+    {
+      "name": "a commit on a dirty tree leaves only its advisory",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -am x\"}}",
+      "env": {
+        "DISABLE_GIT_COLLABORATION_GUARD": ""
+      },
+      "git": "dirty",
+      "expect": {
+        "decision": "",
+        "systemMessagePrefix": "[ospec advisory] El árbol de trabajo tiene cambios sin commitear.",
+        "request": null
+      }
+    },
+    {
+      "name": "a command beside a commit on a dirty tree gets no allow",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"node -e 1 # git commit\"}}",
+      "env": {
+        "DISABLE_GIT_COLLABORATION_GUARD": ""
+      },
+      "git": "dirty",
+      "expect": {
+        "decision": "",
+        "systemMessagePrefix": "[ospec advisory] El árbol de trabajo tiene cambios sin commitear.",
+        "request": null
+      }
+    },
+    {
+      "name": "a command whose side field passes the token budget gets no allow",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"node -e 1\",\"file_path\":\"big.txt\"}}",
+      "env": {
+        "DISABLE_TOKEN_ADVISOR": ""
+      },
+      "files": {
+        "big.txt": 400000
+      },
+      "expect": {
+        "decision": "",
+        "systemMessagePrefix": "[ospec advisory] El archivo solicitado excede el límite de tokens sugerido de 50,000",
+        "request": null
+      }
+    },
+    {
+      "name": "the dirty-tree advisory never hides a critical ask",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm install left-pad && git commit -am x\"}}",
+      "env": {
+        "DISABLE_GIT_COLLABORATION_GUARD": ""
+      },
+      "git": "dirty",
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: Dependency installation requires user approval. This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install left-pad && git commit -am x"
+          },
+          "reason": "Dependency installation requires user approval."
+        }
+      }
+    },
+    {
+      "name": "a comment naming git commit never hides a critical ask",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rm -rf build # git commit\"}}",
+      "env": {
+        "DISABLE_GIT_COLLABORATION_GUARD": ""
+      },
+      "git": "dirty",
+      "expect": {
+        "decision": "deny",
+        "reason": "ospec auto: Recursive forced deletion requires user approval. This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.",
+        "request": {
+          "tool": "Bash",
+          "input": {
+            "command": "rm -rf build # git commit"
+          },
+          "reason": "Recursive forced deletion requires user approval."
+        }
+      }
+    },
+    {
+      "name": "a command no rule matches gets no decision",
+      "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls -la\"}}",
+      "expect": {
+        "decision": "",
+        "request": null
+      }
+    },
+    {
+      "name": "a call the hook cannot read is denied",
+      "stdin": "{not json",
+      "expect": {
+        "decision": "deny",
+        "reasonPrefix": "The safety hook could not inspect this tool call: ",
+        "request": null
+      }
+    }
+  ]
+}

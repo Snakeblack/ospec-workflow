@@ -5,14 +5,18 @@ package hooks
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/snakeblack/ospec-workflow/internal/ospecdir"
@@ -794,8 +798,9 @@ func extractCommands(input *preToolUseInput) []string {
 const markerOverwriteReason = "Bloqueado: el contenido lleva el marcador [REDACTED:…] de ospec y el fichero destino guarda secretos reales; escribirlo los destruiría. Edita solo las líneas sin secretos, o pide al usuario que cambie el valor."
 
 func readSmallFile(filePath string) (string, bool) {
+	// Only a regular file: reading a FIFO would never return.
 	info, err := os.Stat(filePath)
-	if err != nil || info.Size() >= maxScanSizeBytes {
+	if err != nil || !info.Mode().IsRegular() || info.Size() >= maxScanSizeBytes {
 		return "", false
 	}
 	content, err := os.ReadFile(filePath)
@@ -1189,6 +1194,12 @@ func applyPermissionMode(out []byte, permissionMode string) []byte {
 	if permissionMode != "bypassPermissions" && !codexWrapper {
 		return out
 	}
+	return degradeAsk(out)
+}
+
+// decodeDecision reads the decision and reason of a hook output; ok is false
+// when it holds none.
+func decodeDecision(out []byte) (event, decision, reason string, ok bool) {
 	var decoded struct {
 		HookSpecificOutput struct {
 			HookEventName            string `json:"hookEventName"`
@@ -1196,10 +1207,18 @@ func applyPermissionMode(out []byte, permissionMode string) []byte {
 			PermissionDecisionReason string `json:"permissionDecisionReason"`
 		} `json:"hookSpecificOutput"`
 	}
-	if err := json.Unmarshal(out, &decoded); err != nil {
-		return out
+	if len(out) == 0 || json.Unmarshal(out, &decoded) != nil {
+		return "", "", "", false
 	}
-	if decoded.HookSpecificOutput.PermissionDecision != "ask" {
+	output := decoded.HookSpecificOutput
+	return output.HookEventName, output.PermissionDecision, output.PermissionDecisionReason, true
+}
+
+// degradeAsk turns an ask into allow, with its reason as a top-level advisory,
+// and leaves anything else unchanged.
+func degradeAsk(out []byte) []byte {
+	event, decision, reason, ok := decodeDecision(out)
+	if !ok || decision != "ask" {
 		return out
 	}
 	type hookOutput struct {
@@ -1212,11 +1231,11 @@ func applyPermissionMode(out []byte, permissionMode string) []byte {
 		HookSpecificOutput hookOutput `json:"hookSpecificOutput"`
 	}
 	degraded := output{
-		SystemMessage: "[ospec advisory] " + decoded.HookSpecificOutput.PermissionDecisionReason,
+		SystemMessage: "[ospec advisory] " + reason,
 		HookSpecificOutput: hookOutput{
-			HookEventName:            decoded.HookSpecificOutput.HookEventName,
+			HookEventName:            event,
 			PermissionDecision:       "allow",
-			PermissionDecisionReason: decoded.HookSpecificOutput.PermissionDecisionReason,
+			PermissionDecisionReason: reason,
 		},
 	}
 	b, err := json.Marshal(degraded)
@@ -1226,29 +1245,253 @@ func applyPermissionMode(out []byte, permissionMode string) []byte {
 	return b
 }
 
+// The permission policy of an automatic run (E1.111, REQ-hooks-035); ports
+// applyAutoRun from scripts/hooks/pre-tool-use.js and shares its names with
+// scripts/lib/auto-permission.js.
+const (
+	autoSessionEnv     = "OSPEC_AUTO_SESSION"
+	autoAllowEnv       = "OSPEC_AUTO_ALLOW"
+	autoRequestsFile   = "permission-requests.jsonl"
+	autoApprovedReason = "ospec auto: the user approved this exact call for this turn."
+)
+
+func autoDenyReason(reason string) string {
+	return "ospec auto: " + reason + " This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it."
+}
+
+// callCommands: the shell commands of a tool input, `command` and each string
+// or `{command}` of `commands`; ports callCommands of
+// scripts/lib/auto-permission.js.
+func callCommands(toolInput map[string]interface{}) []string {
+	var commands []string
+	if command, ok := toolInput["command"].(string); ok {
+		commands = append(commands, command)
+	}
+	entries, _ := toolInput["commands"].([]interface{})
+	for _, entry := range entries {
+		switch value := entry.(type) {
+		case string:
+			commands = append(commands, value)
+		case map[string]interface{}:
+			if command, ok := value["command"].(string); ok {
+				commands = append(commands, command)
+			}
+		}
+	}
+	return commands
+}
+
+// shellNotes: the free text a host adds to a shell call, which a retry may
+// reword.
+var shellNotes = map[string]bool{"description": true, "explanation": true}
+
+// framed puts the length of text in UTF-8 bytes in front of it, so no content
+// reads as a separator.
+func framed(text string) string {
+	return strconv.Itoa(len(text)) + ":" + text
+}
+
+// valueEntries: every value of a tool input, objects and arrays included,
+// framed with the keys (k) and indexes (i) that lead to it and tagged by its
+// type: s string, n number (as JSON writes it), b boolean, z null, a array
+// (with its length), o object. Ports valueEntries of
+// scripts/lib/auto-permission.js.
+func valueEntries(value interface{}, at []string, found []string) []string {
+	add := func(tagged string) {
+		var entry strings.Builder
+		entry.WriteString(strconv.Itoa(len(at)) + ":")
+		for _, step := range at {
+			entry.WriteString(framed(step))
+		}
+		entry.WriteString(framed(tagged))
+		found = append(found, entry.String())
+	}
+	switch typed := value.(type) {
+	case string:
+		add("s" + typed)
+	case float64:
+		if typed == 0 {
+			typed = 0 // JSON writes -0 as 0.
+		}
+		number, _ := json.Marshal(typed)
+		add("n" + string(number))
+	case bool:
+		add("b" + strconv.FormatBool(typed))
+	case nil:
+		add("z")
+	case []interface{}:
+		add("a" + strconv.Itoa(len(typed)))
+		for index, child := range typed {
+			found = valueEntries(child, append(slices.Clone(at), "i"+strconv.Itoa(index)), found)
+		}
+	case map[string]interface{}:
+		add("o")
+		for key, child := range typed {
+			found = valueEntries(child, append(slices.Clone(at), "k"+key), found)
+		}
+	}
+	return found
+}
+
+// callKey is the key an approval names, as hexadecimal SHA-256 of its tool
+// and every value of its input, sorted by their UTF-8 bytes; a shell call
+// leaves out the free text its host adds. Ports callKey of
+// scripts/lib/auto-permission.js.
+func callKey(toolName string, toolInput map[string]interface{}) string {
+	bound := toolInput
+	if len(callCommands(toolInput)) > 0 {
+		bound = map[string]interface{}{}
+		for key, value := range toolInput {
+			if !shellNotes[key] {
+				bound[key] = value
+			}
+		}
+	}
+	entries := valueEntries(bound, nil, nil)
+	slices.Sort(entries)
+	sum := sha256.Sum256([]byte(framed(toolName) + strings.Join(entries, "")))
+	return hex.EncodeToString(sum[:])
+}
+
+type autoRequest struct {
+	Tool   string          `json:"tool"`
+	Input  json.RawMessage `json:"input"`
+	Reason string          `json:"reason"`
+}
+
+// recordAutoRequest appends the request to the run's directory, never through
+// a link or into a FIFO the session may have left there.
+func recordAutoRequest(dir string, request autoRequest) {
+	if !filepath.IsAbs(dir) {
+		return
+	}
+	if info, err := os.Lstat(dir); err != nil || !info.IsDir() {
+		return
+	}
+	file := filepath.Join(dir, autoRequestsFile)
+	// A missing file is created exclusively, which fails on a link that
+	// appears meanwhile, dangling or not.
+	flags := os.O_APPEND | os.O_WRONLY | syscall.O_NONBLOCK
+	if info, err := os.Lstat(file); err != nil {
+		flags |= os.O_CREATE | os.O_EXCL
+	} else if !info.Mode().IsRegular() {
+		return
+	}
+	var line strings.Builder
+	encoder := json.NewEncoder(&line)
+	encoder.SetEscapeHTML(false)
+	if encoder.Encode(request) != nil {
+		return
+	}
+	beforeAutoRequestOpen(file)
+	handle, err := os.OpenFile(file, flags, 0o644)
+	if err != nil {
+		return // The call is denied all the same.
+	}
+	defer handle.Close()
+	// Only while the path still names this very file, a regular one with no
+	// other name: a link swapped in after the check is never written through.
+	opened, err := handle.Stat()
+	named, namedErr := os.Lstat(file)
+	if err == nil && namedErr == nil && opened.Mode().IsRegular() && named.Mode().IsRegular() && os.SameFile(opened, named) && linkCount(opened) == 1 {
+		_, _ = handle.WriteString(line.String())
+	}
+}
+
+// beforeAutoRequestOpen runs between the check of the request file and its
+// opening; a test swaps a link in there.
+var beforeAutoRequestOpen = func(string) {}
+
+// linkCount is the number of names of a file where the system reports it (the
+// Nlink of a POSIX stat), else 1.
+func linkCount(info os.FileInfo) uint64 {
+	value := reflect.Indirect(reflect.ValueOf(info.Sys()))
+	if value.Kind() == reflect.Struct {
+		if field := value.FieldByName("Nlink"); field.IsValid() && field.CanUint() {
+			return field.Uint()
+		}
+	}
+	return 1
+}
+
+// applyAutoRun applies the policy to a turn its conductor marked with the
+// run's directory. An advisory ask leaves only its advisory, so the host's own
+// permissions decide the call; a critical one runs only when the user approved
+// this exact call for the turn, and is otherwise denied and left as a request
+// in the run's directory, where the run stops for the user. A deny never
+// changes.
+func applyAutoRun(out []byte, advisory bool, input *preToolUseInput, stdin []byte, session string) []byte {
+	_, decision, reason, ok := decodeDecision(out)
+	if !ok || decision != "ask" {
+		return out
+	}
+	if advisory {
+		notice, err := json.Marshal(struct {
+			SystemMessage string `json:"systemMessage"`
+		}{"[ospec advisory] " + reason})
+		if err != nil {
+			return noDecision
+		}
+		return notice
+	}
+	var raw struct {
+		ToolInput json.RawMessage `json:"tool_input"`
+	}
+	_ = json.Unmarshal(stdin, &raw)
+	toolInput := map[string]interface{}{}
+	if json.Unmarshal(raw.ToolInput, &toolInput) != nil || toolInput == nil {
+		toolInput = map[string]interface{}{}
+		raw.ToolInput = json.RawMessage("{}")
+	}
+	key := callKey(input.ToolName, toolInput)
+	for _, approved := range strings.Split(os.Getenv(autoAllowEnv), ",") {
+		if strings.TrimSpace(approved) == key {
+			return makeDecision("allow", autoApprovedReason)
+		}
+	}
+	recordAutoRequest(session, autoRequest{Tool: input.ToolName, Input: raw.ToolInput, Reason: reason})
+	return makeDecision("deny", autoDenyReason(reason))
+}
+
 func (h *preToolUseHandler) Run(stdin []byte) ([]byte, int) {
+	session := os.Getenv(autoSessionEnv)
 	var input preToolUseInput
 	if err := json.Unmarshal(stdin, &input); err != nil {
-		return makeDecision("ask",
+		// An automatic run has no user to ask: the call is denied.
+		decision := "ask"
+		if session != "" {
+			decision = "deny"
+		}
+		return makeDecision(decision,
 			"The safety hook could not inspect this tool call: "+err.Error()), 0
 	}
-	out, code := h.run(&input, stdin)
+	out, code, advisory := h.run(&input, stdin)
+	if session != "" {
+		return applyAutoRun(out, advisory, &input, stdin, session), code
+	}
 	return applyPermissionMode(out, input.PermissionMode), code
 }
 
-func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, int) {
+// run returns the decision, its exit code and whether an ask only advises (the
+// token budget, a commit with uncommitted changes): such an ask never hides a
+// later critical one, and an automatic run goes on with its advisory. Any
+// other ask guards something critical.
+func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, int, bool) {
 	cmds := extractCommands(input)
+	// The first advisory ask, answered only when no later step asks for
+	// something critical.
+	var advisory []byte
 	// Hard command denials precede all advisories, including secret reads.
 	for _, cmd := range cmds {
 		if action, reason := rules.Evaluate(cmd); action == "deny" {
-			return makeDecision("deny", reason), 0
+			return makeDecision("deny", reason), 0, false
 		}
 		if reason := checkCommitAttribution(cmd, ""); reason != "" {
-			return makeDecision("deny", reason), 0
+			return makeDecision("deny", reason), 0, false
 		}
 	}
 	if writesCLIOwnedFile(input.ToolName, stdin) {
-		return makeDecision("deny", cliOwnedReason), 0
+		return makeDecision("deny", cliOwnedReason), 0, false
 	}
 
 	if os.Getenv("DISABLE_AGENT_SHIELD") != "true" {
@@ -1287,7 +1530,7 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 			denied = denied || namesDeniedFile(cmd, shellFileExists, shellDirectoryExists)
 		}
 		if denied {
-			return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."), 0
+			return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."), 0, false
 		}
 		bodies := collectKeyedStrings(rawInput.ToolInput, contentKeys)
 		// A redaction marker copied back over a file that keeps real secrets
@@ -1310,7 +1553,7 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 		}
 		for _, target := range targets {
 			if absolute, err := filepath.Abs(target); err == nil && fileHoldsSecrets(absolute) {
-				return makeDecision("deny", markerOverwriteReason), 0
+				return makeDecision("deny", markerOverwriteReason), 0, false
 			}
 		}
 		// With output redaction (the launcher's --output-redaction flag) the
@@ -1336,17 +1579,17 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 			}
 			// Bloqueo/advertencia por nombre de archivo (secretscan.go)
 			if class := classify(filePath); class != nil {
-				return makeDecision("ask", "Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"), 0
+				return makeDecision("ask", "Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"), 0, false
 			}
 
 			// Escaneo de contenido (tokens conocidos + credenciales genéricas)
 			if matched, _ := scanFileForSecrets(filePath); matched {
-				return makeDecision("ask", "Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?"), 0
+				return makeDecision("ask", "Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?"), 0, false
 			}
 		}
 		for _, body := range bodies {
 			if matched, _ := scanContentForSecrets(body); matched {
-				return makeDecision("ask", "Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?"), 0
+				return makeDecision("ask", "Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?"), 0, false
 			}
 		}
 	}
@@ -1365,18 +1608,16 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 
 		if currentTokens > 50000 {
 			reason := fmt.Sprintf("El archivo solicitado excede el límite de tokens sugerido de 50,000 (%d tokens estimados). ¿Desea continuar con su lectura?", currentTokens)
-			return makeDecision("ask", reason), 0
-		}
-
-		changeName := FindActiveChangeName()
-		cumulativeTokens := getCumulativeTokens(changeName)
-		if cumulativeTokens+currentTokens > 150000 {
-			reason := fmt.Sprintf("El consumo acumulado de tokens de la sesión (%d tokens) excede el umbral crítico de 150,000 tokens. Se recomienda forzar una compactación antes de continuar.", cumulativeTokens+currentTokens)
-			return makeDecision("ask", reason), 0
-		}
-
-		if currentTokens > 0 {
-			recordTokens(changeName, currentTokens)
+			advisory = makeDecision("ask", reason)
+		} else {
+			changeName := FindActiveChangeName()
+			cumulativeTokens := getCumulativeTokens(changeName)
+			if cumulativeTokens+currentTokens > 150000 {
+				reason := fmt.Sprintf("El consumo acumulado de tokens de la sesión (%d tokens) excede el umbral crítico de 150,000 tokens. Se recomienda forzar una compactación antes de continuar.", cumulativeTokens+currentTokens)
+				advisory = makeDecision("ask", reason)
+			} else if currentTokens > 0 {
+				recordTokens(changeName, currentTokens)
+			}
 		}
 	}
 
@@ -1394,8 +1635,15 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 				if gs.CurrentBranch != nil {
 					branchName = *gs.CurrentBranch
 				}
-				advisory := composeAdvisory(onDefault, gs.Dirty, branchName)
-				return makeDecision("ask", advisory), 0
+				text := composeAdvisory(onDefault, gs.Dirty, branchName)
+				// A commit on the default branch is critical; one with
+				// uncommitted changes only advises.
+				if onDefault {
+					return makeDecision("ask", text), 0, false
+				}
+				if advisory == nil {
+					advisory = makeDecision("ask", text)
+				}
 			}
 		}
 	}
@@ -1404,16 +1652,16 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 	// Step 5b only ever fires for commands matching `git commit`, so tools with
 	// no command payload (Edit, Write, etc.) always fall through to here.
 	if len(cmds) == 0 {
-		return noDecision, 0
+		return advisory, 0, advisory != nil
 	}
 
 	// Step 6 — ASK rules (only if no deny or guard match).
 	for _, cmd := range cmds {
 		action, reason := rules.Evaluate(cmd)
 		if action == "ask" {
-			return makeDecision("ask", reason), 0
+			return makeDecision("ask", reason), 0, false
 		}
 	}
 
-	return noDecision, 0
+	return advisory, 0, advisory != nil
 }

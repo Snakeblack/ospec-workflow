@@ -108,7 +108,7 @@ const claudeRouter = require("./lib/claude-router.js");
 const { IRREVERSIBLE_OPERATIONS, addedTests, answerHits, applyDerivation, classifyPath, deriveSignals, inlineTests, requireDeclaredCeremony, securityHits } = require("./lib/idd-signals.js");
 const { CHANGELOG_NONE, TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { writeFileAtomic } = require("./lib/atomic-write.js");
-const { resumeRun, spent, startRun, stopRun } = require("./lib/auto-conductor.js");
+const { blockHints, resumeRun, spent, startRun, stopRun } = require("./lib/auto-conductor.js");
 const { createHost } = require("./lib/auto-hosts.js");
 const { executionMode } = require("./lib/auto-queue.js");
 const { AutoError, selectRun, runIsRunning } = require("./lib/auto-run.js");
@@ -200,8 +200,10 @@ const USAGE = `Usage:
                    --max-cost-usd on a host that reports its cost, which Claude Code also applies inside each turn,
                    --max-tokens on one that does not, --max-ai-credits on GitHub Copilot, which also applies it from 30 credits
   ospec auto status [--run <id>]
-  ospec auto resume [--run <id>] [--answer <text>] [--max-turns <n>] [--max-cost-usd <usd> | --max-tokens <n> | --max-ai-credits <credits>]
-                    continues a run that stopped; --answer goes to the session as the user's reply to its block
+  ospec auto resume [--run <id>] [--allow] [--answer <text>] [--max-turns <n>] [--max-cost-usd <usd> | --max-tokens <n> | --max-ai-credits <credits>]
+                    continues a run that stopped; --answer goes to the session as the user's reply to its block;
+                    at a permission block, --allow approves exactly the calls it stopped for, for the next turn alone,
+                    and --answer without it declines them
   ospec auto stop [--run <id>]
   ospec doctor [--target <host>] [--repair] [--json]
   ospec registry [--json]
@@ -272,6 +274,7 @@ const OPTIONS = {
   clear: { type: "boolean" },
   of: { type: "string" },
   answer: { type: "string" },
+  allow: { type: "boolean" },
   source: { type: "string" },
   signal: { type: "string" },
   reason: { type: "string" },
@@ -1767,7 +1770,7 @@ async function auto(root, [sub], values) {
     run = await startRun({ root, items: values.item, host, model: values.model ?? null, ...limits, deps: { host: createHost(host, { model: values.model ?? null }), onEvent } });
   } else {
     const stored = selectRun(root, values.run);
-    run = await resumeRun({ root, id: stored.id, answer: values.answer, ...limits, deps: { host: createHost(stored.host, { model: stored.model }), onEvent } });
+    run = await resumeRun({ root, id: stored.id, answer: values.answer, allow: values.allow === true, ...limits, deps: { host: createHost(stored.host, { model: stored.model }), onEvent } });
   }
   return { auto: sub, run, exit_code: run.status === "done" ? 0 : 1 };
 }
@@ -1775,11 +1778,12 @@ async function auto(root, [sub], values) {
 function describeAutoRun(run) {
   const closed = run.items.filter((item) => item.status === "closed").length;
   const at = run.status === "done" ? "" : ` at item ${Math.min(run.current + 1, run.items.length)}/${run.items.length}`;
-  const reason = run.reason && run.reason !== "gate" ? ` (${run.reason}${run.detail ? `: ${run.detail}` : ""})` : "";
+  const reason = run.reason && !["gate", "permission"].includes(run.reason) ? ` (${run.reason}${run.detail ? `: ${run.detail}` : ""})` : "";
   const lines = [`run ${run.id}: ${run.status}${reason}${at}, ${closed}/${run.items.length} closed, ${spent(run)} on ${run.host}`];
   if (run.status === "blocked" && run.block) {
     lines.push(`blocked at ${run.block.gate}${run.block.cause ? ` (${run.block.cause})` : ""}`, ...run.block.questions.map((question) => `  - ${question}`));
-    lines.push(`answer with: ospec auto resume --answer "<your answer>"`);
+    if (run.block.file) lines.push(`each call in full: ${run.block.file}`);
+    lines.push(...blockHints(run.block));
   }
   run.items.forEach((item, index) => {
     const what = item.change ? `${item.change} (${item.turns} turns, ${spent(run, item)})` : item.text.replace(/\s+/g, " ").slice(0, 80);
