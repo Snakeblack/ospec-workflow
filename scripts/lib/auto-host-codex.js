@@ -68,8 +68,8 @@ function createCodexHost({ model = null, baseEnv = process.env, resolveExecutabl
     const result = await run(options);
     return { ...result, stderr: String(result.stderr || "").split("\n").filter((line) => !LOG_LINE.test(line)).join("\n") };
   };
-  const turn = ({ cwd, prompt, sessionId = null, transcriptPath, signal = null }) =>
-    headlessTurn({ run: withoutLogs, executable: resolve(), args: codexTurnArgs({ model, sessionId }), cwd, env: sessionEnv(baseEnv), input: prompt, transcriptPath, timeoutMs: turnTimeoutMs, signal }, summarizeCodexTurn);
+  const turn = ({ cwd, prompt, sessionId = null, transcriptPath, signal = null, vars = {} }) =>
+    headlessTurn({ run: withoutLogs, executable: resolve(), args: codexTurnArgs({ model, sessionId }), cwd, env: sessionEnv(baseEnv, vars), input: prompt, transcriptPath, timeoutMs: turnTimeoutMs, signal }, summarizeCodexTurn);
   return { name: "codex", reportsCost: false, reviewsActions: true, countsTurnEnds: false, resolve, turn, resumeCommand: (sessionId) => `codex resume ${sessionId}` };
 }
 

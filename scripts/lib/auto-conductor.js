@@ -14,7 +14,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const { AutoError, MAX_ITEMS, RUN_SCHEMA, activeRun, clearStop, isStale, newRunId, processAlive, requestStop, runDir, selectRun, stopRequested, writeRun } = require("./auto-run.js");
+const { writeFileAtomic } = require("./atomic-write.js");
+const { ALLOW_ENV, BLOCK_FILE, SESSION_ENV, callKey, describeCall, visible } = require("./auto-permission.js");
+const { AutoError, MAX_ITEMS, RUN_SCHEMA, activeRun, clearPermissionRequests, clearStop, isStale, newRunId, permissionRequests, processAlive, requestStop, runDir, selectRun, stopRequested, writeRun } = require("./auto-run.js");
 const { unavailableReason } = require("./auto-hosts.js");
 const { ARCHIVE_ROOT, CHANGE_ROOT, STATE_FILE } = require("./idd-contract.js");
 const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
@@ -39,6 +41,9 @@ const KIND_TYPES = Object.freeze({ bug: "fix", feature: "feat", refactor: "refac
 const CONTINUE = "Continue the change until `ospec close` succeeds. If a gate is open, end your turn with its questions after recording your recommendations.";
 const DELEGATED = "The run answered open-facts with your recommendations (source delegated). Continue the change until `ospec close` succeeds.";
 const RESUME_AFTER_ERROR = "Continue where you left off.";
+const calls = (requests) => requests.map((request) => `\`${request.subject}\``).join(", ");
+const approvedMessage = (requests, answer) => `The user approved running ${calls(requests)} in this turn, and nothing else: no gate is answered. Run ${requests.length === 1 ? "it" : "each"} again exactly as written, then continue the change until \`ospec close\` succeeds.${answer === undefined ? "" : ` The user also said: ${answer}`}`;
+const declinedMessage = (requests, answer) => `The user did not approve ${calls(requests)}. Their answer: ${answer}`;
 
 // The request of an item and what the run expects of its session.
 function brief(run, item) {
@@ -193,13 +198,57 @@ function allRecommended(decision) {
   return questions.length > 0 && questions.every((question) => recommended.has(question));
 }
 
+/** How the user answers a block: a permission block is approved or answered, a gate answered. */
+function blockHints(block) {
+  const answer = 'answer with: ospec auto resume --answer "<your answer>"';
+  return block.gate === "permission" ? ["approve with: ospec auto resume --allow", `or ${answer}`] : [answer];
+}
+
 function emitBlock(run, host, emit) {
   const { block } = run;
   const label = `item ${run.current + 1}/${run.items.length}`;
   emit(`${label} blocked at ${block.gate}${block.cause ? ` (${block.cause})` : ""}`);
   for (const question of block.questions) emit(`  - ${question}`);
-  emit(`  answer with: ospec auto resume --answer "<your answer>"`);
+  if (block.file) emit(`  each call in full: ${block.file}`);
+  for (const hint of blockHints(block)) emit(`  ${hint}`);
   if (block.session_id && host.resumeCommand) emit(`  or in the session: ${host.resumeCommand(block.session_id)}, then: ospec auto resume`);
+}
+
+// The calls ospec's guard stopped for the user in the turn, each once. A line
+// counts only when the guard still answers its call with a critical ask, and
+// with the guard's own reason, since the session can write that file too.
+function verifiedRequests(root, lines) {
+  const { criticalAskReason } = require("../hooks/pre-tool-use.js");
+  const requests = new Map();
+  for (const { tool, input } of lines) {
+    const key = callKey(tool, input);
+    if (requests.has(key)) continue;
+    const reason = criticalAskReason({ tool_name: tool, tool_input: input }, { workspace: root });
+    if (reason) requests.set(key, { tool, input, reason, sha256: key });
+  }
+  return [...requests.values()];
+}
+
+// A turn's calls that ospec's guard stopped for the user: the run blocks on
+// them, once, and the guard's record is cleared.
+async function blockOnPermission(root, run, item, deps) {
+  const lines = permissionRequests(root, run.id);
+  if (lines.length === 0) return null;
+  clearPermissionRequests(root, run.id);
+  const verified = verifiedRequests(root, lines);
+  if (verified.length === 0) return null;
+  // Each call in full, for the user to read before approving it.
+  // Replaced by rename, so a link or FIFO the session left there is never
+  // written through.
+  const full = path.join(runDir(root, run.id), BLOCK_FILE);
+  await writeFileAtomic(full, `${JSON.stringify(verified, null, 2)}\n`);
+  const requests = verified.map(({ tool, input, reason, sha256 }) => ({ tool: visible(tool), subject: describeCall(tool, input), reason: visible(reason), sha256 }));
+  run.status = "blocked";
+  run.reason = "permission";
+  run.block = { gate: "permission", questions: requests.map((request) => `${request.subject} (${request.reason})`), requests, file: path.relative(root, full).split(path.sep).join("/"), session_id: item.session_id };
+  await writeRun(root, run);
+  emitBlock(run, deps.host, deps.onEvent);
+  return run;
 }
 
 async function stopWith(root, run, status, reason, emit, detail = null) {
@@ -233,6 +282,8 @@ async function commitItem(root, run, item, archive, deps) {
 }
 
 async function closeItem(root, run, item, label, archive, deps) {
+  // A call the guard stopped in the turn that closed the change waits for nobody.
+  clearPermissionRequests(root, run.id);
   const outcome = await commitItem(root, run, item, archive, deps);
   if (outcome.failed) return stopWith(root, run, "failed", "commit-failed", deps.onEvent, outcome.failed);
   await writeRun(root, run);
@@ -241,7 +292,9 @@ async function closeItem(root, run, item, label, archive, deps) {
 }
 
 // One turn of the item's session, killed when the user asks the run to stop.
-async function hostTurn(root, run, item, message, deps) {
+// It carries the run's mark for ospec's guard and the hashes of the calls the
+// user approved for this turn alone.
+async function hostTurn(root, run, item, message, deps, approvals) {
   const controller = new AbortController();
   const poll = setInterval(() => {
     if (stopRequested(root, run.id)) controller.abort();
@@ -251,15 +304,16 @@ async function hostTurn(root, run, item, message, deps) {
     // What is left of the run's cap, for a host that caps its own turn.
     const budgetUsd = run.limits.max_cost_usd !== undefined ? Math.max(0, run.limits.max_cost_usd - runCost(run)) : null;
     const budgetCredits = run.limits.max_ai_credits !== undefined ? Math.max(0, run.limits.max_ai_credits - runCredits(run)) : null;
-    return await deps.host.turn({ cwd: root, prompt: message, sessionId: item.session_id, transcriptPath, signal: controller.signal, budgetUsd, budgetCredits });
+    const vars = { [SESSION_ENV]: path.resolve(runDir(root, run.id)), ...(approvals.length > 0 ? { [ALLOW_ENV]: approvals.join(",") } : {}) };
+    return await deps.host.turn({ cwd: root, prompt: message, sessionId: item.session_id, transcriptPath, signal: controller.signal, budgetUsd, budgetCredits, vars });
   } finally {
     clearInterval(poll);
   }
 }
 
 // Drives the current item until its change is closed (null) or the run stops
-// (the run, with its status).
-async function driveItem(root, run, item, label, deps, firstMessage) {
+// (the run, with its status). `approvals` hold for the first turn only.
+async function driveItem(root, run, item, label, deps, firstMessage, approvals = []) {
   const emit = deps.onEvent;
   let message = firstMessage;
   let errors = 0;
@@ -284,7 +338,8 @@ async function driveItem(root, run, item, label, deps, firstMessage) {
     if (run.limits.max_ai_credits !== undefined && runCredits(run) >= run.limits.max_ai_credits) return stopWith(root, run, "failed", "max-credits", emit, spent(run));
 
     item.turns += 1;
-    const turn = await hostTurn(root, run, item, message, deps);
+    const turn = await hostTurn(root, run, item, message, deps, approvals);
+    approvals = [];
     item.session_id = turn.session_id || item.session_id;
     // A resumed session reports its cost so far, not the turn's; tokens come
     // per turn, or as the session's total so far.
@@ -311,6 +366,8 @@ async function driveItem(root, run, item, label, deps, firstMessage) {
     if (touched.length === 1) item.change = touched[0];
     const archive = seen.archived[0];
     if (archive) return closeItem(root, run, item, label, archive, deps);
+    const blocked = await blockOnPermission(root, run, item, deps);
+    if (blocked) return blocked;
 
     if (turn.quota_exhausted) return stopWith(root, run, "paused", "host-quota", emit, turn.error || null);
     if (turn.budget_exhausted) return stopWith(root, run, "failed", "max-cost", emit, money(runCost(run)));
@@ -368,7 +425,7 @@ async function itemRefusal(root, git) {
   return null;
 }
 
-async function drive(root, run, deps, firstMessage = null) {
+async function drive(root, run, deps, firstMessage = null, approvals = []) {
   run.status = "running";
   run.reason = null;
   delete run.block;
@@ -388,9 +445,10 @@ async function drive(root, run, deps, firstMessage = null) {
       deps.onEvent(`${label} started: ${clip(item.text)}`);
       message = brief(run, item);
     }
-    const stopped = await driveItem(root, run, item, label, deps, message);
+    const stopped = await driveItem(root, run, item, label, deps, message, approvals);
     if (stopped) return stopped;
     message = null;
+    approvals = [];
     run.current += 1;
     await writeRun(root, run);
   }
@@ -499,8 +557,12 @@ async function startRun({ root, items, host, model = null, maxTurns, maxCostUsd,
   return drive(root, run, deps);
 }
 
-/** Continues a run that stopped, with the user's answer to its block when given. */
-async function resumeRun({ root, id, answer, maxTurns, maxCostUsd, maxTokens, maxAiCredits, deps: given = {} }) {
+/**
+ * Continues a run that stopped, with the user's answer to its block when
+ * given. At a permission block, `allow` approves exactly the calls it stopped
+ * for, for the next turn alone, and an answer without it declines them.
+ */
+async function resumeRun({ root, id, answer, allow = false, maxTurns, maxCostUsd, maxTokens, maxAiCredits, deps: given = {} }) {
   const deps = dependencies(root, given);
   const run = selectRun(root, id);
   if (run.status === "done") throw new AutoError("run-done", `the automatic run ${run.id} is done: every item is closed`, "start a new one with ospec auto start");
@@ -510,9 +572,11 @@ async function resumeRun({ root, id, answer, maxTurns, maxCostUsd, maxTokens, ma
   if (other && other.id !== run.id) refuseActive(other);
   run.limits = limitsFrom({ maxTurns, maxCostUsd, maxTokens, maxAiCredits }, run.limits, deps.host);
   const item = run.items[run.current];
-  if (answer !== undefined) {
-    if (typeof answer !== "string" || answer.trim() === "") throw new AutoError("invalid-answer", "--answer is the user's answer: it cannot be empty");
-    if (!item || item.status !== "running" || !item.session_id) throw new AutoError("invalid-answer", `item ${run.current + 1} of ${run.id} has no session to answer in`, "resume without --answer");
+  const requests = run.status === "blocked" && run.block?.gate === "permission" && Array.isArray(run.block.requests) && run.block.requests.length > 0 && run.block.requests.every((request) => /^[0-9a-f]{64}$/.test(String(request?.sha256))) ? run.block.requests : null;
+  if (allow && !requests) throw new AutoError("invalid-allow", `--allow approves the calls a run stopped for, and run ${run.id} is ${run.status}${run.block ? ` at ${run.block.gate}` : ""}`, "resume without --allow");
+  if (answer !== undefined || allow) {
+    if (answer !== undefined && (typeof answer !== "string" || answer.trim() === "")) throw new AutoError("invalid-answer", "--answer is the user's answer: it cannot be empty");
+    if (!item || item.status !== "running" || !item.session_id) throw new AutoError("invalid-answer", `item ${run.current + 1} of ${run.id} has no session to answer in`, `resume without ${allow ? "--allow" : "--answer"}`);
   } else if (run.status === "blocked" && item?.change) {
     const step = deps.ospec(["next", "--change", item.change]).json?.next_step;
     if (step?.action === "resolve-gate") {
@@ -520,8 +584,16 @@ async function resumeRun({ root, id, answer, maxTurns, maxCostUsd, maxTokens, ma
     }
   }
   requireHost(deps);
+  let message = answer === undefined ? null : answer;
+  let approvals = [];
+  if (requests && allow) {
+    message = approvedMessage(requests, answer);
+    approvals = requests.map((request) => request.sha256);
+  } else if (requests && answer !== undefined) {
+    message = declinedMessage(requests, answer);
+  }
   deps.onEvent(`run ${run.id} resumed at item ${Math.min(run.current + 1, run.items.length)}/${run.items.length}`);
-  return drive(root, run, deps, answer === undefined ? null : answer);
+  return drive(root, run, deps, message, approvals);
 }
 
 /**
@@ -542,4 +614,4 @@ async function stopRun({ root, id, deps: given = {} }) {
   return { run, stopping: false };
 }
 
-module.exports = { DEFAULT_LIMITS, allRecommended, brief, defaultBranches, resumeRun, runCost, runCredits, runTokens, spent, startRun, stopRun };
+module.exports = { DEFAULT_LIMITS, allRecommended, blockHints, brief, defaultBranches, resumeRun, runCost, runCredits, runTokens, spent, startRun, stopRun };

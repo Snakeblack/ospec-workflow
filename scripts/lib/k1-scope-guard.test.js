@@ -344,6 +344,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/auto-host-copilot.test.js",
   "scripts/lib/auto-host-antigravity.js",
   "scripts/lib/auto-host-antigravity.test.js",
+  // E1.111 auto-run-permission-policy: what the guard and the conductor share
+  // about the run's permission policy.
+  "scripts/lib/auto-permission.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [

@@ -76,6 +76,20 @@ test("[REQ-idd-031] ospec auto status reports the latest run, its block and each
   assert.strictEqual(ospec(root, "auto", "status", "--json").json.run.status, "stopped");
   assert.strictEqual(ospec(root, "auto", "stop", "--json").json.error.code, "run-not-active");
 
+  writeFile(root, `.ospec/auto/${RUN.id}/run.json`, JSON.stringify(RUN));
+  const notPermission = ospec(root, "auto", "resume", "--allow", "--json");
+  assert.deepStrictEqual([notPermission.json.error.code, notPermission.json.error.how], ["invalid-allow", "resume without --allow"]);
+  const request = { tool: "Bash", subject: "npm install", reason: "Dependency installation requires user approval.", sha256: "a".repeat(64) };
+  writeFile(root, `.ospec/auto/${RUN.id}/run.json`, JSON.stringify({ ...RUN, reason: "permission", block: { gate: "permission", questions: ["npm install (Dependency installation requires user approval.)"], requests: [request], file: `.ospec/auto/${RUN.id}/permission-block.json`, session_id: "s-2" } }));
+  assert.deepStrictEqual(ospec(root, "auto", "status").stdout.split("\n").slice(0, 6), [
+    "run auto-20261126-090503: blocked at item 2/3, 1/3 closed, $0.75 on claude",
+    "blocked at permission",
+    "  - npm install (Dependency installation requires user approval.)",
+    `each call in full: .ospec/auto/${RUN.id}/permission-block.json`,
+    "approve with: ospec auto resume --allow",
+    "or answer with: ospec auto resume --answer \"<your answer>\"",
+  ]);
+
   writeFile(root, `.ospec/auto/${RUN.id}/run.json`, "{");
   const invalid = ospec(root, "auto", "status", "--json");
   assert.deepStrictEqual([invalid.json.error.code, invalid.json.error.how], ["run-invalid", `nothing was changed; remove .ospec/auto/${RUN.id} to forget this run`]);

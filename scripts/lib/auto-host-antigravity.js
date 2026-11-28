@@ -55,8 +55,8 @@ function createAntigravityHost({ model = null, baseEnv = process.env, resolveExe
     const result = await run(options);
     return { ...result, stderr: firstLine(String(result.stderr || "").split("\n").filter((line) => !/^warning:/i.test(line.trim())).join("\n")) };
   };
-  const turn = ({ cwd, prompt, sessionId = null, transcriptPath, signal = null }) =>
-    headlessTurn({ run: errorLine, executable: resolve(), args: antigravityTurnArgs({ prompt, model, sessionId }), cwd, env: sessionEnv(baseEnv), input: "", transcriptPath, timeoutMs: turnTimeoutMs, signal }, summarizeAntigravityTurn);
+  const turn = ({ cwd, prompt, sessionId = null, transcriptPath, signal = null, vars = {} }) =>
+    headlessTurn({ run: errorLine, executable: resolve(), args: antigravityTurnArgs({ prompt, model, sessionId }), cwd, env: sessionEnv(baseEnv, vars), input: "", transcriptPath, timeoutMs: turnTimeoutMs, signal }, summarizeAntigravityTurn);
   return { name: "antigravity", reportsCost: false, reviewsActions: false, reviewNote: REVIEW_NOTE, resolve, turn, resumeCommand: (sessionId) => `agy --conversation ${sessionId}` };
 }
 

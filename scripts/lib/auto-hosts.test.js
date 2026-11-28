@@ -45,6 +45,24 @@ test("[REQ-idd-031] the session never gets the run's mark nor the markers of the
   assert.deepEqual(env, { PATH: "/bin", CLAUDE_CODE_USE_BEDROCK: "1", CLAUDE_CONFIG_DIR: "/home/u/.claude", ANTHROPIC_API_KEY: "key" });
 });
 
+test("[REQ-idd-031] every host's session gets the turn's permission marks and none it inherits", async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-auto-host-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const vars = { OSPEC_AUTO_SESSION: "/repo/.ospec/auto/auto-1", OSPEC_AUTO_ALLOW: "ab12" };
+  assert.deepEqual(sessionEnv({ PATH: "/bin", OSPEC_AUTO_SESSION: "/old", OSPEC_AUTO_ALLOW: "ff00" }, vars), { PATH: "/bin", ...vars });
+  for (const name of HOSTS) {
+    const envs = [];
+    const run = async (options) => {
+      envs.push(options.env);
+      if (options.stdoutPath) fs.writeFileSync(options.stdoutPath, "");
+      return { code: 0, error: null, timedOut: false, aborted: false, stdout: "", stderr: "", wall_ms: 1 };
+    };
+    const host = createHost(name, { baseEnv: { PATH: "/bin", OSPEC_AUTO_ALLOW: "ff00" }, resolveExecutable: () => name, run });
+    await host.turn({ cwd: dir, prompt: "Fix it.", sessionId: "s-1", transcriptPath: path.join(dir, name, "1.jsonl"), vars });
+    assert.deepEqual(envs[0], { PATH: "/bin", ...vars }, name);
+  }
+});
+
 test("[REQ-idd-031] a Claude turn reports its transcript, and a stopped or failed process as an error", async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-auto-host-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

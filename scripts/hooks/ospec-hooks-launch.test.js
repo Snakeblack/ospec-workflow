@@ -323,6 +323,16 @@ test("--output-redaction tells the PreToolUse child that the host redacts reads,
   assert.equal(plain.options.env.OSPEC_OUTPUT_REDACTION, "", "an inherited value never enables it");
 });
 
+test("[REQ-hooks-035] an advisory with no decision reaches each host as no decision", (t) => {
+  const outcome = { status: 0, stdout: '{"systemMessage":"[ospec advisory] El árbol de trabajo tiene cambios sin commitear."}\n' };
+  assert.equal(runLauncher(t, { argv: ["pre-tool-use", "--output-redaction"], stdin: "{}", outcome }).written, outcome.stdout);
+  assert.deepEqual(JSON.parse(runLauncher(t, { argv: ["pre-tool-use"], stdin: "{}", outcome, target: "cursor" }).written).permission, "allow");
+  const codex = JSON.parse(runLauncher(t, { argv: ["pre-tool-use"], stdin: "{}", outcome, target: "codex" }).written);
+  assert.equal(codex.hookSpecificOutput?.permissionDecision, undefined);
+  const other = runLauncher(t, { argv: ["pre-tool-use"], stdin: "{}", outcome: { status: 0, stdout: '{"systemMessage":"anything else"}' } });
+  assert.match(JSON.parse(other.written).hookSpecificOutput.permissionDecisionReason, /could not inspect/, "only ospec's advisory passes without a decision");
+});
+
 test("a failed post-tool-use child still redacts in process, or withholds, and never forwards its stdout", (t) => {
   const token = `ghp_${"aB3".repeat(12)}`;
   const secretStdin = JSON.stringify({ tool_name: "Bash", tool_response: { stdout: `token ${token}`, stderr: "" } });

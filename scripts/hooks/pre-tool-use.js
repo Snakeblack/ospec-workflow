@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { mkdirOspec } = require("../lib/ospec-gitignore.js");
+const { ALLOW_ENV, REQUESTS_FILE, SESSION_ENV, callKey } = require("../lib/auto-permission.js");
 const {
   resolveGitState,
   isRiskyAction,
@@ -351,12 +352,25 @@ function makeDecision(permissionDecision, permissionDecisionReason) {
   };
 }
 
+// An ask that only advises (the token budget, spec drift, a commit with
+// uncommitted changes): it never hides a later critical ask, and an automatic
+// run goes on with its advisory. Any other ask guards something critical.
+const ADVISORY = Symbol("advisory");
+
+function advisoryAsk(reason) {
+  const decision = makeDecision("ask", reason);
+  decision[ADVISORY] = true;
+  return decision;
+}
+
 const MARKER_OVERWRITE_REASON =
   "Bloqueado: el contenido lleva el marcador [REDACTED:…] de ospec y el fichero destino guarda secretos reales; escribirlo los destruiría. Edita solo las líneas sin secretos, o pide al usuario que cambie el valor.";
 
 function readSmallFile(filePath) {
   try {
-    if (fs.statSync(filePath).size >= MAX_SCAN_SIZE_BYTES) return null;
+    // Only a regular file: reading a FIFO would never return.
+    const stats = fs.statSync(filePath);
+    if (!stats.isFile() || stats.size >= MAX_SCAN_SIZE_BYTES) return null;
     return fs.readFileSync(filePath, "utf8");
   } catch {
     return null;
@@ -518,6 +532,11 @@ function applyPermissionMode(result, permissionMode) {
   if (!bypassEquivalent) {
     return result;
   }
+  return degradeAsk(result);
+}
+
+/** An ask as allow, with its reason as a top-level advisory; anything else unchanged. */
+function degradeAsk(result) {
   const output = result && result.hookSpecificOutput;
   if (!output || output.permissionDecision !== "ask") {
     return result;
@@ -532,17 +551,83 @@ function applyPermissionMode(result, permissionMode) {
   };
 }
 
+const AUTO_APPROVED_REASON = "ospec auto: the user approved this exact call for this turn.";
+
+function autoDenyReason(reason) {
+  return `ospec auto: ${reason} This run has no user to ask: when your turn ends it stops and asks the user to approve this exact call. End your turn now, or continue without it.`;
+}
+
+// Appends the request to the run's directory, never through a link or into a
+// FIFO the session may have left there.
+function recordAutoRequest(dir, request) {
+  try {
+    if (!path.isAbsolute(dir) || !fs.lstatSync(dir).isDirectory()) return;
+    const file = path.join(dir, REQUESTS_FILE);
+    let existing = null;
+    try {
+      existing = fs.lstatSync(file);
+    } catch {
+      // Not there yet.
+    }
+    if (existing && !existing.isFile()) return;
+    const { O_APPEND, O_CREAT, O_WRONLY, O_NOFOLLOW = 0, O_NONBLOCK = 0 } = fs.constants;
+    const fd = fs.openSync(file, O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW | O_NONBLOCK, 0o644);
+    try {
+      // A regular file with no other name: a hard link is never written through.
+      const stats = fs.fstatSync(fd);
+      if (stats.isFile() && stats.nlink === 1) fs.writeSync(fd, `${JSON.stringify(request)}\n`);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    // The call is denied all the same.
+  }
+}
+
+/**
+ * The permission policy of an automatic run (E1.111, REQ-hooks-035), for a
+ * turn its conductor marked with the run's directory. An advisory ask leaves
+ * only its advisory, so the host's own permissions decide the call; a critical
+ * one runs only when the user approved this exact call for the turn, and is
+ * otherwise denied and left as a request in the run's directory, where the run
+ * stops for the user. A deny never changes.
+ */
+function applyAutoRun(result, input, env) {
+  const output = result && result.hookSpecificOutput;
+  if (!output || output.permissionDecision !== "ask") return result;
+  if (result[ADVISORY] === true) return { systemMessage: `[ospec advisory] ${output.permissionDecisionReason}` };
+  const tool = String(input?.tool_name || "");
+  const toolInput = input?.tool_input !== null && typeof input?.tool_input === "object" && !Array.isArray(input.tool_input) ? input.tool_input : {};
+  const approved = String(env[ALLOW_ENV] || "").split(",").map((key) => key.trim());
+  if (approved.includes(callKey(tool, toolInput))) return makeDecision("allow", AUTO_APPROVED_REASON);
+  recordAutoRequest(env[SESSION_ENV], { tool, input: toolInput, reason: output.permissionDecisionReason });
+  return makeDecision("deny", autoDenyReason(output.permissionDecisionReason));
+}
+
+/**
+ * The reason of the critical ask the guard answers `input` with, or null when
+ * it answers anything else. The automatic run checks with it each request it
+ * reads, since the session can write that file too. It records no tokens.
+ */
+function criticalAskReason(input, opts = {}) {
+  const result = evaluateToolUseCore(input, { ...opts, recordTokens: false });
+  const output = result && result.hookSpecificOutput;
+  return output && output.permissionDecision === "ask" && result[ADVISORY] !== true ? output.permissionDecisionReason : null;
+}
+
 function evaluateToolUse(input, opts) {
-  return applyPermissionMode(
-    evaluateToolUseCore(input, opts),
-    input && input.permission_mode
-  );
+  const result = evaluateToolUseCore(input, opts);
+  if (process.env[SESSION_ENV]) return applyAutoRun(result, input, process.env);
+  return applyPermissionMode(result, input && input.permission_mode);
 }
 
 function evaluateToolUseCore(input, opts) {
   const injectedGitRunner = opts && opts.gitRunner ? opts.gitRunner : undefined;
   const workspace = (opts && opts.workspace) || process.cwd();
   const commands = extractCommands(input?.tool_input);
+  // The first advisory ask, answered only when no later step asks for
+  // something critical.
+  let advisory = null;
   // A secret advisory must never hide a hard command denial, including bypass.
   for (const command of commands) {
     const denyRule = findMatchingRule(command, DENY_RULES);
@@ -626,23 +711,17 @@ function evaluateToolUseCore(input, opts) {
       currentTokens += estimateTokens(filePath);
     }
 
+    const changeName = currentTokens > 50000 ? null : findActiveChangeNameSync();
+    const cumulativeTokens = changeName === null ? 0 : getCumulativeTokensSync(changeName);
     if (currentTokens > 50000) {
-      return makeDecision(
-        "ask",
+      advisory = advisoryAsk(
         `El archivo solicitado excede el límite de tokens sugerido de 50,000 (${currentTokens.toLocaleString()} tokens estimados). ¿Desea continuar con su lectura?`
       );
-    }
-
-    const changeName = findActiveChangeNameSync();
-    const cumulativeTokens = getCumulativeTokensSync(changeName);
-    if (cumulativeTokens + currentTokens > 150000) {
-      return makeDecision(
-        "ask",
+    } else if (cumulativeTokens + currentTokens > 150000) {
+      advisory = advisoryAsk(
         `El consumo acumulado de tokens de la sesión (${(cumulativeTokens + currentTokens).toLocaleString()} tokens) excede el umbral crítico de 150,000 tokens. Se recomienda forzar una compactación antes de continuar.`
       );
-    }
-
-    if (currentTokens > 0) {
+    } else if (currentTokens > 0 && opts?.recordTokens !== false) {
       recordTokensSync(changeName, currentTokens);
     }
   }
@@ -657,12 +736,15 @@ function evaluateToolUseCore(input, opts) {
         gitState.currentBranch !== null &&
         gitState.defaultBranch === gitState.currentBranch;
       if (onDefault || gitState.dirty === true) {
-        const advisory = composeAdvisory(
+        const text = composeAdvisory(
           onDefault,
           gitState.dirty,
           gitState.currentBranch
         );
-        return makeDecision("ask", advisory);
+        // A commit on the default branch is critical; one with uncommitted
+        // changes only advises.
+        if (onDefault) return makeDecision("ask", text);
+        advisory = advisory || advisoryAsk(text);
       }
     }
   }
@@ -671,7 +753,7 @@ function evaluateToolUseCore(input, opts) {
   // Step 5b only ever fires for commands matching `git commit`, so tools with
   // no command payload (Edit, Write, etc.) always fall through to here.
   if (commands.length === 0) {
-    return NO_DECISION;
+    return advisory || NO_DECISION;
   }
 
   // Step 5c — Spec drift advisory (always `ask`, never `deny`). Independently
@@ -681,7 +763,7 @@ function evaluateToolUseCore(input, opts) {
   // detectSpecDrift/readStagedFiles rather than reusing SessionStart's result.
   // Wrapped so any git/manifest failure is advisory-only and falls through to
   // Step 6 instead of blocking the tool call.
-  if (process.env.DISABLE_SPEC_DRIFT_GUARD !== "true") {
+  if (!advisory && process.env.DISABLE_SPEC_DRIFT_GUARD !== "true") {
     const hasCommitCommand = commands.some((command) =>
       GIT_COMMIT_RE.test(command)
     );
@@ -700,8 +782,7 @@ function evaluateToolUseCore(input, opts) {
 
           if (hits.length > 0) {
             const names = hits.map((domain) => domain.domain).join(", ");
-            return makeDecision(
-              "ask",
+            advisory = advisoryAsk(
               `Vas a commitear con dominios de especificación derivados: ${names}. Considera ejecutar /sdd-reconcile antes de continuar.`
             );
           }
@@ -720,7 +801,7 @@ function evaluateToolUseCore(input, opts) {
     }
   }
 
-  return NO_DECISION;
+  return advisory || NO_DECISION;
 }
 
 async function readJsonInput(stream = process.stdin) {
@@ -741,10 +822,11 @@ async function main() {
       process.stdout.write(`${JSON.stringify(decision)}\n`);
     }
   } catch (error) {
+    // An automatic run has no user to ask: the call is denied.
     process.stdout.write(
       `${JSON.stringify(
         makeDecision(
-          "ask",
+          process.env[SESSION_ENV] ? "deny" : "ask",
           `The safety hook could not inspect this tool call: ${error.message}`,
         ),
       )}\n`,
@@ -1143,6 +1225,7 @@ module.exports = {
   DENY_RULES,
   FORBIDDEN_ATTRIBUTION_RE,
   checkCommitAttribution,
+  criticalAskReason,
   evaluateToolUse,
   extractCommands,
   isShellTool,

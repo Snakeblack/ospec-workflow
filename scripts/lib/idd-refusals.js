@@ -45,6 +45,7 @@ const REFUSALS = Object.freeze({
   "git-failed": "run git status in the project to see the error, fix it and run the command again",
   "host-not-found": "install the host's CLI and sign in to it, then run the command again",
   "host-unavailable": "pass --host with a host ospec auto drives (ospec --help lists them), or leave it out for claude",
+  "invalid-allow": "--allow approves only the calls of a permission block: resume without it, or pass the user's reply with --answer",
   "invalid-answer": "pass the user's reply to the block with --answer, or resume without it",
   "invalid-items": "pass 1 to 20 --item flags, each the request of one change",
   "invalid-limit": "--max-turns takes a whole number from 1; --max-cost-usd, a positive amount, caps a host that reports its cost, --max-tokens, a whole number, one that does not, and --max-ai-credits, a positive number, GitHub Copilot",

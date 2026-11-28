@@ -299,8 +299,9 @@ func scanContentForSecrets(content string) (bool, string) {
 // stat/lectura y los archivos que exceden maxScanSizeBytes se omiten en
 // silencio (fail-open, igual que el hook JS).
 func scanFileForSecrets(filePath string) (bool, string) {
+	// Only a regular file: reading a FIFO would never return.
 	info, err := os.Stat(filePath)
-	if err != nil || info.Size() >= maxScanSizeBytes {
+	if err != nil || !info.Mode().IsRegular() || info.Size() >= maxScanSizeBytes {
 		return false, ""
 	}
 	contentBytes, err := os.ReadFile(filePath)

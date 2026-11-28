@@ -40,3 +40,14 @@ func SetUncountTurnForTest(fn func(workspace string) error) (restore func()) {
 // NudgeFingerprint exposes the open-change nudge fingerprint (E1.51) to the
 // shared cases of internal/testdata/idd-nudge/.
 var NudgeFingerprint = nudgeFingerprint
+
+// CallKeyForTest computes the key of an automatic run's approval (E1.111).
+var CallKeyForTest = callKey
+
+// SetBeforeAutoRequestOpenForTest runs fn between the check of an automatic
+// run's request file and its opening, and returns a restore function.
+func SetBeforeAutoRequestOpenForTest(fn func(file string)) (restore func()) {
+	old := beforeAutoRequestOpen
+	beforeAutoRequestOpen = fn
+	return func() { beforeAutoRequestOpen = old }
+}

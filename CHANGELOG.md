@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- La ejecución automática aplica la misma política de permisos en todos los hosts: lo denegado nunca corre, lo crítico para la ejecución para el usuario y el resto corre sin preguntar (auto-run-permission-policy)
+
 ### Changed
 - Las fricciones con el harness de la entrega de E1.110 entran en el roadmap como E1.112 a E1.120, detrás de E1.111 y con su issue (#569 a #577): el nudge del hook `Stop` mientras se espera, los checks que corren dos veces, `persistent-data` derivada de escrituras que el diff no toca, las reglas del guard dentro de comillas, las categorías de UI sin UI en el plan, las citas fuera del plan, el `--body-file` generado en la misma orden y los espacios de un bloque de código en el changelog. (harness-frictions)
 
